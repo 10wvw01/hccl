@@ -13,6 +13,10 @@ PairWise算法是Mesh算法的分步执行版本，通过合理的规划，将�
 定义节点i需要给节点j发送的数据大小为n<sub>ij</sub>。
 
 
-对于第k步，节点i发送大小为n<sub>i,i+k</sub>的数据给节点i+k，则第k步的耗时为$\alpha+\beta \cdot \underset{i}{\max}(n_{i,i+k}) $。
-那么，完成整个PairWise的耗时为$(p-1)\alpha + \beta\cdot\underset{k}{\Sigma}\underset{i}{\max}(n_{i,i+k})$。
+对于第k步，节点i发送大小为n<sub>i,i+k</sub>的数据给节点i+k，则第k步的耗时为：
+$\alpha + \beta\cdot\underset{i}{\max}(n_{i,i+k})$
+
+那么，完成整个PairWise的耗时为：
+
+$(p-1)\alpha + \beta\cdot\underset{k}{\Sigma}\underset{i}{\max}(n_{i,i+k})$
 

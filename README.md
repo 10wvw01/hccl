@@ -16,15 +16,20 @@ HCCL的软件架构如下图所示，分为“通信框架”、“通信算法�
   - 通信算法：作为集合通信算法的承载模块，提供特定集合通信操作的资源计算，并根据通信域信息完成通信任务编排。
 - 集合通信平台层，提供NPU之上与集合通信关联的资源抽象，并提供集合通信维测能力。
 
+## 算法介绍 <a name="alg_desc"></a>
 本源码仓提供了Mesh、Ring、Recursive Halving-Doubling（RHD）、PairWise、Star五种拓扑算法的实现源码。
 
 | 算法  | 描述  |原理与耗时   |
 |---|---|---|
 | Mesh | Server内通信算法，是Mesh互联拓扑的基础算法。  | [Mesh](docs/Mesh.md) |
-| Ring  | Server内和Server间通信算法，是基于环结构的并行调度算法。<br> Server间通信场景下，适用于小规模节点数（<32机，且非2幂）和中大规模通信数据量（\>=256M）的场景。  | [Ring](docs/Ring.md)   |
-| RHD | Server间通信算法，递归二分和倍增算法，当通信域内Server个数为2的整数次幂时，此算法具有较好的亲和性。  | [RHD](docs/RHD.md) |
-|  Pairwise|Server间通信算法，比较算法，仅用于AllToAll与AlltoAllV算子，适用于数据量较小（<=1M \* RankSize）的场景。   | [PairWise](docs/PairWise.md)  |
+| Ring  | Server内和Server间通信算法，是基于环结构的通信算法。通信步数多（线性复杂度），时延相对较高，但通信关系简单，受网络拥塞影响较小。<br> 适合通信域内Server个数较少、通信数据量较小、网络存在明显拥塞、且pipeline算法不适用的场景。  | [Ring](docs/Ring.md)   |
+| RHD | Server间通信算法，递归二分和倍增算法，通信步数少（对数复杂度），时延相对较低，但在非2次幂节点规模下会引入额外的通信量。适合通信域内Server个数是2的整数次幂且pipeline算法不适用的场景，或Server个数不是2的整数次幂但通信数据量较小的场景。  | [RHD](docs/RHD.md) |
+|  Pairwise|Server间通信算法，逐对通信算法，仅用于AlltoAll、AlltoAllV与AlltoAllV算子，通信步数较多（线性复杂度），时延相对较高，但可以避免网络中出现一打多现象（指一个rank通过同一个端口给多个rank发送数据），适合通信数据量较大、需要规避网络一打多现象的场景。   | [PairWise](docs/PairWise.md)  |
 | Star| Server内通信算法，Star算法适用于有根节点的通信操作（如Broadcast、Reduce、Gather、Scatter等），利用星型拓扑或全连接拓扑一步完成通信操作。| [Star](docs/Star.md) |
+| NHR| Server间通信算法，非均衡的层次环算法（Nonuniform Hierarchical Ring），通信步数少（对数复杂度），时延相对较低。适合通信域内Server个数较多且pipeline算法不适用的场景。| [NHR](docs/NHR.md) |
+| NB| Server间通信算法，非均匀的数据块通信算法（Nonuniform Bruck），通信步数少（对数复杂度），时延相对较低。适合通信域内Server个数较多且pipeline算法不适用的场景。| [NB](docs/NB.md) |
+| AHC| Server间通信算法，层次化集合通信算法（Asymmetric Hierarchical Concatenate），适用于通信域内NPU分布存在多个层次、多个层次间NPU对称或者非对称分布的场景，当通信域内层次间存在带宽收敛时相对收益会更好。| [AHC](docs/AHC.md) |
+| Pipeline| 流水线并行算法，可并发使用Server内与Server间的链路，适合通信数据量较大且通信域内每机包含多卡的场景。| [Pipeline](docs/Pipeline.md) |
 
 HCCL采用α–β模型（Hockney）进行性能评估，算法耗时计算用到的变量定义如下：
 
@@ -94,22 +99,23 @@ HCCL支持源码编译，在源码编译前，请根据如下步骤完成相关�
         unzip include.zip
         ```
    
-3. 安装CANN开发套件包。
+3. 安装CANN开发套件包与communitysdk包。
    
    执行安装命令时，请确保安装用户对软件包具有可执行权限。
-   - 使用默认路径安装
+   - 使用默认路径安装。
      ```shell
-     ./Ascend-cann-toolkit_<cann_version>_linux-<arch>.run --install
+     ./Ascend-cann-toolkit_<cann_version>_linux-<arch>.run --full
+     ./Ascend-cann-communitysdk_<cann_version>_linux-<arch>.run --full
      ```
-     若使用root用户安装，安装完成后相关软件存储在`/usr/local/Ascend/ascend-toolkit/latest`路径下。
+     若使用root用户安装，安装完成后相关软件存储在`/usr/local/Ascend/`路径下。
 
-     若使用非root用户安装，安装完成后相关软件存储在`$HOME/Ascend/ascend-toolkit/latest`路径下。
-   - 指定路径安装
+     若使用非root用户安装，安装完成后相关软件存储在`$HOME/Ascend/`路径下。
+   - 指定路径安装，需指定相同的路径。
      ```shell
-     ./Ascend-cann-toolkit_<cann_version>_linux-<arch>.run --install --install-path=${install_path}
+     ./Ascend-cann-toolkit_<cann_version>_linux-<arch>.run --full --install-path=${install_path}
+     ./Ascend-cann-communitysdk_<cann_version>_linux-<arch>.run --full --install-path=${install_path}
      ```
-     安装完成后，相关软件存储在${install_path}指定路径下。
-
+   
 4. 设置环境变量。
 
    - 默认路径，root用户安装
@@ -157,14 +163,26 @@ bash build.sh --nlohmann_path /home/nlohmann_json/include
 ## 安装
 
 安装编译生成的HCCL软件包：
+
 ```shell
 ./output/CANN-hccl_alg-<version>-linux.<arch>.run
 ```
+
 请注意：编译时需要将上述命令中的软件包名称替换为实际编译生成的软件包名称。
 
 安装完成后，用户编译生成的HCCL软件包会替换已安装CANN开发套件包中的HCCL相关软件。
 
-## 本地验证
+## LLT测试
+安装完编译生成的HCCL软件包后，可通过如下命令执行LLT用例。
+```shell
+sh build.sh --nlohmann_path ${JSON头文件所在目录的绝对路径} --test
+```
+如果想使能地址消毒器，可添加参数“--asan”，命令如下：
+```shell
+sh build.sh --nlohmann_path ${JSON头文件所在目录的绝对路径} --test --asan
+```
+
+## 上板测试
 
 HCCL软件包安装完成后，开发者可通过HCCL Test工具进行集合通信功能与性能的测试，HCCL Test工具的使用流程如下：
 
@@ -212,9 +230,9 @@ HCCL软件包安装完成后，开发者可通过HCCL Test工具进行集合通�
 
    安装`CANN开发套件包` -> 安装`HCCL自定义软件包1` -> 安装`HCCL自定义软件包2`，然后执行回退命令，则仅支持回退到安装`HCCL自定义软件包1`的状态。
 
-## 源码定制指南
+## 相关文档
 
-开发者可以基于本源码仓中的源码进行通信算法与通信算子的定制开发，详细的定制开发指引文档及相关API说明文档可参见[HCCL源码定制开发指南](docs/hccl_customized_dev/README.md)。
+HCCL提供了用户指南、环境变量参考、基于源码仓进行算法与算子定制的开发指南、性能测试工具使用指南等，详细可参见[HCCL参考资料](docs/README.md)。
 
 ## 贡献指南
 
