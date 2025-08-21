@@ -22,14 +22,13 @@
 using namespace hccl;
 
 static std::mutex g_envConfigMutex;
-static EnvConfig g_envConfig;
 
 constexpr char ENV_EMPTY_STRING[] = "EmptyString";
 
 constexpr char HCCL_AUTO_PORT_CONFIG[] = "auto"; // 端口范围配置为auto时，由OS分配浮动监听端口
 constexpr u32 MAX_PORT_NUMBER = 65535; // 合法端口号的上限
 constexpr u32 HCCL_SOCKET_PORT_RANGE_AUTO = 0; // 需要保留的
-const std::string CLUSTER_HEART_CONFIG = "cluster_heart:";
+const std::string CLUSTER_HEART_CONFIG = "cluster_heartbeat:";
 const std::string STUCK_DETECTION_CONFIG = "stuck_detection:";
 const std::string CONNECTION_FAULT_DETCTION_TIME = "connection_fault_detction_time:";
 constexpr static const s32 HCCL_MAX_LINK_TIME_OUT_S  = (120 * 60); // HCCL 最大探测超时时间设置为120*60s
@@ -69,16 +68,6 @@ const u32& EnvConfig::GetExternalInputRdmaServerLevel()
     return g_envConfig.rdmaServerLevel;
 }
 
-const u64& EnvConfig::GetExternalInputDebugConfig()
-{
-    return g_envConfig.debugConfig;
-}
-
-void EnvConfig::SetExternalInputDebugConfig(u64 value)
-{
-    g_envConfig.debugConfig = value;
-}
-
 const std::vector<HcclSocketPortRange> &GetExternalInputHostSocketPortRange()
 {
     std::lock_guard<std::mutex> lock(g_envConfigMutex);
@@ -94,6 +83,12 @@ const std::vector<HcclSocketPortRange> &GetExternalInputNpuSocketPortRange()
 s32& GetExternalInputDfsConnectionFaultDetctionTime()
 {
     return g_envConfig.dfsConnectionFaultDetctionTime;
+}
+
+HcclResult ResetEnvConfigInitState()
+{
+    g_envConfig.SetDefaultParams();
+    return HCCL_SUCCESS;
 }
 
 HcclResult InitEnvParam()
@@ -133,12 +128,21 @@ HcclResult InitEnvParam()
         HCCL_ERROR("[InitEnvParam]errNo[0x%016llx] In init environtment param, parse "
             "HCCL_RDMA_SL failed. errorno[%d]", HCCL_ERROR_CODE(ret), ret), ret);
 
-    ret = g_envConfig.ParseDebugConfig();
+    ret = InitDebugConfigByEnv();
     RPT_ENV_ERR(ret != HCCL_SUCCESS, "EI0001", std::vector<std::string>({"env", "tips"}),
         std::vector<std::string>({"HCCL_DEBUG_CONFIG", "Please check whether the env is valid"}));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InitEnvParam]errNo[0x%016llx] In init environtment param, parse "
         "HCCL_DEBUG_CONFIG failed. errorno[%d]", HCCL_ERROR_CODE(ret), ret), ret);
+
+    // 解析算法配置
+    ret = ParseHcclAlgo();
+    RPT_ENV_ERR(ret != HCCL_SUCCESS, "EI0001", std::vector<std::string>({"env", "tips"}),
+        std::vector<std::string>({"HCCL_ALGO",
+            "expect: level0:NA;level1:<algo> or <op0>=level0:NA;level1:<algo0>/<op1>=level0:NA;level1:<algo1>"}));
+    CHK_PRT_RET(ret != HCCL_SUCCESS,
+        HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] In init env variable param, parse "
+            "hccl algorithm config failed. errorno[%d]", HCCL_ERROR_CODE(ret), ret), ret);
     return HCCL_SUCCESS;
 }
 
@@ -417,43 +421,6 @@ HcclResult EnvConfig::ParseRDMAServerLevel()
     return ParseEnvConfig(param, envValue, g_envConfig.rdmaServerLevel);
 }
 
-HcclResult EnvConfig::ParseDebugConfig()
-{
-    char* env = nullptr; // 环境变量值
-    MM_SYS_GET_ENV(MM_ENV_HCCL_DEBUG_CONFIG, env);
-    if (env == nullptr) {
-        HCCL_RUN_INFO("HCCL_DEBUG_CONFIG is not set, debugConfig set by default to 0x%llx", g_envConfig.debugConfig);
-        return HCCL_SUCCESS;
-    }
-
-    bool invert = (env[0] == '^');
-    g_envConfig.debugConfig = invert ? ~0ULL : 0ULL; // 第一个字符是'^', 使用取反模式, 用户配置的项关闭, 未配置的项打开
-    char* configValue = (env[0] == '^') ? env + 1 : env; // 去掉'^'符号
-    char* configDup = strdup(configValue); // 需要使用strdup避免修改字符串常量
-    CHK_PTR_NULL(configDup);
-
-    char* left = nullptr;
-    char* subConfig = strtok_r(configDup, ",", &left); // 按逗号分割
-    while (subConfig != nullptr) {
-        u64 mask = 0;
-        if (strcasecmp(subConfig, "ALG") == 0) {
-            mask = HCCL_ALG;
-        } else if (strcasecmp(subConfig, "TASK") == 0) {
-            mask = HCCL_TASK;
-        } else {
-            HCCL_ERROR("HCCL_DEBUG_CONFIG:%s is invalid, subConfig:%s is not supported", env, subConfig);
-            free(configDup);
-            return HCCL_E_PARA;
-        }
-        g_envConfig.debugConfig = invert ? (g_envConfig.debugConfig & (~mask)) :
-                                           (g_envConfig.debugConfig | mask);
-        subConfig = strtok_r(nullptr, ",", &left);
-    }
-    free(configDup);
-    HCCL_RUN_INFO("HCCL_DEBUG_CONFIG[%s], set debugConfig[0x%llx]", env, g_envConfig.debugConfig);
-    return HCCL_SUCCESS;
-}
-
 HcclResult ParseSingleDFSConfigItem(const std::string& dfsConfigEnv, const std::string& configName,
     std::string& configResult)
 {
@@ -494,7 +461,7 @@ HcclResult ParseDFSConfig()
     } else if (heartbeatSwitch == "on") {
         g_envConfig.enableClusterHeartBeat = true;
     } else {
-        HCCL_RUN_WARNING("[ParseDFSConfig] HCCL_DFS_CONFIG-cluster_heart was configed to [%s], please configed to"\
+        HCCL_RUN_WARNING("[ParseDFSConfig] HCCL_DFS_CONFIG-cluster_heartebat was configed to [%s], please configed to"\
             "'on' or 'off'", heartbeatSwitch.c_str());
     }
 
@@ -540,6 +507,49 @@ HcclResult ParseDFSConfig()
     return HCCL_SUCCESS;
 }
 
+HcclResult GetKeyWordPath(const std::string &cannEnvStr, const std::string &keyStr, std::string &cannPath)
+{
+    std::string tempPath;   // 存放临时路径
+    // 查找cann安装路径
+    for (u32 i = 0; i < cannEnvStr.length(); ++i) {
+        // 环境变量中存放的每段路径之间以':'隔开
+        if (cannEnvStr[i] != ':') {
+            tempPath += cannEnvStr[i];
+        }
+
+        if (cannEnvStr[i] == ':' || i == cannEnvStr.length() - 1) {
+            size_t found = tempPath.find(keyStr);
+            if (found == std::string::npos) {
+                tempPath.clear();
+                continue;
+            }
+            if (tempPath.length() <= found + keyStr.length() || tempPath[found + keyStr.length()] == '/') {
+                cannPath = tempPath.substr(0, found + keyStr.length());
+                break;
+            }
+            tempPath.clear();
+        }
+    }
+    if (cannPath.empty()) {
+        return HCCL_E_NOT_FOUND;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult ParseLibraryPath(std::string &cannPath)
+{
+    char* mmSysGetEnvValue = nullptr;
+    MM_SYS_GET_ENV(MM_ENV_LD_LIBRARY_PATH, mmSysGetEnvValue);
+    std::string getPath = (mmSysGetEnvValue != nullptr) ? mmSysGetEnvValue : "EmptyString";
+    if (getPath == "EmptyString") {
+        HCCL_ERROR("[ParseLibraryPath]ENV:LD_LIBRARY_PATH is not set");
+        return HCCL_E_PARA;
+    } else {
+        cannPath = getPath;
+    }
+    return HCCL_SUCCESS;
+}
+
 const bool& GetExternalInputHcclHeartBeatEnable()
 {
     return g_envConfig.enableClusterHeartBeat;
@@ -548,4 +558,18 @@ const bool& GetExternalInputHcclHeartBeatEnable()
 const bool& GetExternalInputStuckDetect()
 {
     return g_envConfig.opCounterEnable;
+}
+
+HcclResult ParseHcclAlgo()
+{
+    char* mmSysGetEnvValue = nullptr;
+    MM_SYS_GET_ENV(MM_ENV_HCCL_ALGO, mmSysGetEnvValue);
+    std::string hcclAlgo = (mmSysGetEnvValue != nullptr) ? mmSysGetEnvValue : "EmptyString";
+    if (hcclAlgo != "EmptyString") {
+        CHK_RET(SetHcclAlgoConfig(hcclAlgo));
+        HCCL_RUN_INFO("HCCL_ALGO set by environment to [%s]", hcclAlgo.c_str());
+    } else {
+        HCCL_RUN_INFO("HCCL_ALGO is not set");
+    }
+    return HCCL_SUCCESS;
 }

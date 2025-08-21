@@ -114,16 +114,6 @@ HcclResult CollAllReduceMeshSmallCountExecutor::Orchestrate(OpParam& param, AlgR
     HcclUs startut = TIME_NOW();
     ParseParam(param);
     algResResp_ = &algRes;
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    CHK_RET(AddSubStreamToProfiling());
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
-        HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_OPDATA_OP(param.tag, param.DataDes.count, param.inputPtr, param.outputPtr, \
-            param.DataDes.dataType, param.root, algoAttr_.identifier, param.reduceType);
-        HCCL_PROFILER_ADD_GROUPRANK(algoAttr_.identifier, topoAttr_.userRankSize, topoAttr_.userRank);
-    }
-
     ExecMem execMem;
     execMem.count = param.DataDes.count;
     execMem.inputPtr = param.inputPtr;
@@ -141,13 +131,6 @@ HcclResult CollAllReduceMeshSmallCountExecutor::Orchestrate(OpParam& param, AlgR
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAllReduceMeshSmallCountExecutor][Orchestrate]errNo[0x%016llx]excutor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-        HCCL_PROFILER_DEL_OPDATA(param.tag);
-        HCCL_PROFILER_DEL_GROUPRANK(algoAttr_.identifier);
-    }
     HCCL_INFO("tag[%s], AllReduce executor orchestrate success, take time [%lld]us",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;
@@ -190,9 +173,6 @@ HcclResult CollAllReduceMeshSmallCountExecutor::KernelRun(const OpParam &param, 
     std::unique_ptr<AlgTemplateBase> level0TempAlg;
     if (topoAttr_.deviceType == DevType::DEV_TYPE_910_93) {
         bool aicpu = true;
-        #ifndef CCL_KERNEL_AICPU
-        aicpu = false;
-        #endif
         level0TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_REDUCE_HD_OPTIM, dispatcher_);
         CHK_SMART_PTR_NULL(level0TempAlg);
         CHK_RET(level0TempAlg->Prepare(reduceAttr, algResResp_->slaveStreams, algResResp_->notifiesMain, algResResp_->notifiesAux,

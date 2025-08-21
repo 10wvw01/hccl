@@ -9,6 +9,9 @@
  */
 
 #include <slog.h>
+#ifndef OPEN_BUILD_PROJECT
+#include <slog_api.h>
+#endif
 #include <hccl/hccl_types.h>
 #include "hccl/base.h"
 #include "adapter_rts_common.h"

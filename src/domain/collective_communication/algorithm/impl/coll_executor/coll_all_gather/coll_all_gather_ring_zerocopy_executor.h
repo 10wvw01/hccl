@@ -31,10 +31,6 @@ private:
     HcclResult CalcStreamNum(u32& streamNum) override;
     HcclResult CalcLevel0CommInfo(TransportMemType inputType, TransportMemType outputType,
         std::vector<LevelNSubCommTransport>& opTransport) override;
-    HcclResult CalcLevel1CommInfo(TransportMemType inputType,
-        TransportMemType outputType, std::vector<LevelNSubCommTransport>& opTransport) override;
-    HcclResult CalcLevel2CommInfo(TransportMemType inputType,
-        TransportMemType outputType, std::vector<LevelNSubCommTransport>& opTransport) override;
     HcclResult CalcTransportMemType(TransportMemType &inputType, TransportMemType &outputType);
     u64 CalcLoopMaxCount(const u64 cclBuffSize, const u32 unitSize) override;
     void ParseParam(const OpParam& param) override;

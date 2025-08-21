@@ -24,9 +24,6 @@ HcclResult CollAlltoAllSingleRankExecutor::Orchestrate(OpParam& param, AlgResour
     tag_ = param.tag;
     algResResp_ = &algRes;
     AlltoAllVParam_ = param;
-
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-
     ExecMem execMem;
     execMem.count = 0;
     execMem.inputPtr = param.inputPtr;
@@ -37,9 +34,6 @@ HcclResult CollAlltoAllSingleRankExecutor::Orchestrate(OpParam& param, AlgResour
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAlltoAllSingleRankExecutor][Orchestrate]errNo[0x%016llx]excutor run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-
     HCCL_INFO("tag[%s], AlltoAllSingleRankExecutor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
 

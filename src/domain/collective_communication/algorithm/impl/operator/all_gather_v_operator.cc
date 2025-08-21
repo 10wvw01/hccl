@@ -58,8 +58,8 @@ HcclResult AllGatherVOperator::SelectAlg(const std::string& tag, const OpParam& 
 
     newTag += (param.aicpuUnfoldMode ? "_device" : "_host");
 
-    if (UNLIKELY(EnvConfig::GetExternalInputDebugConfig() & HCCL_ALG)) {
-        HCCL_CONFIG_INFO(HCCL_ALG, 
+    if (UNLIKELY(GetDebugConfig() & HCCL_ALG)) {
+        HCCL_CONFIG_INFO(HCCL_ALG,
             "[AllGatherVOperator][SelectAlg]userRank_[%u], algName[%s] actual level1 algo[%d], level2 algo[%d]",
             userRank_, algName.c_str(), algType_.algoLevel1, algType_.algoLevel2);
     }
@@ -93,9 +93,7 @@ HcclResult AllGatherVOperator::SelectAlgfor91093(const OpParam& param, std::stri
             HCCL_WARNING("[AllGatherVOperator][SelectAlgfor91093] only support ring, NB and NHR in AlgoLevel1 yet, "
                 "default is algType=NHR.");
         }
-        if (IsSupportUnifiedMarch(param, topoType_, serverNum_, superPodNum_)) {
-            algName = "AllGatherVSemiRingExecutor";
-        } else if (topoType_ == TopoType::TOPO_TYPE_NP_DOUBLE_RING) {
+        if (topoType_ == TopoType::TOPO_TYPE_NP_DOUBLE_RING) {
             algName = "AlignedAllGatherVDoubleRingFor91093Executor";
         } else {
             algName = "AllGatherVRingFor91093Executor";
@@ -116,13 +114,13 @@ HcclResult AllGatherVOperator::SelectAlgfor910B(const OpParam& param, std::strin
 
     if (dataSize > AIV_ALL_GATHER_SMALL_SIZE) {
         isBigData = true;
-    } 
+    }
 
     if (!isSingleMeshAggregation_) {
         HCCL_ERROR("[AllGatherVOperator][SelectAlgfor910B] AllGatherV only support one module");
         return HCCL_E_NOT_SUPPORT;
     }
-    
+
     bool isAivMode = topoMatcher_->GetAivModeConfig() && isSingleMeshAggregation_ &&
                      IsSupportAIVCopy(param.VDataDes.dataType) && dataSize <= AIV_BIG_SIZE;
     if (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {

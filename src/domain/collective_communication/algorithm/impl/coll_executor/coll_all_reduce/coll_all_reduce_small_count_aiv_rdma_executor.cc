@@ -39,15 +39,6 @@ HcclResult CollAllReduceSmallCountAivRdmaExecutor::CalcStreamNum(u32& streamNum)
     return HCCL_SUCCESS;
 }
 
-HcclResult CollAllReduceSmallCountAivRdmaExecutor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    // AIV通信需要AIV buffer
-    needAivBuffer = true;
-    HCCL_INFO("[CollAllReduceSmallCountAivRdmaExecutor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u]",
-        tag_.c_str(), needAivBuffer);
-    return HCCL_SUCCESS;
-}
-
 HcclResult CollAllReduceSmallCountAivRdmaExecutor::CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport)
 {
     TransportMemType inputType = TransportMemType::RESERVED;
@@ -98,11 +89,21 @@ HcclResult CollAllReduceSmallCountAivRdmaExecutor::CalcLevel1CommInfo(TransportM
     return HCCL_SUCCESS;
 }
 
-u32 CollAllReduceSmallCountAivRdmaExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAllReduceSmallCountAivRdmaExecutor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    u32 blockDim = rankSize; // 默认情况使用rankSize个AIV
-    HCCL_INFO("[CollAllReduceSmallCountAivRdmaExecutor][CalBlockDim] blockDim is set to [%u]", blockDim);
-    return blockDim;
+    blockDim = rankSize; // 默认情况使用rankSize个AIV
+    u32 bestBlockDim = blockDim;
+
+    bool isOpbase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
+    if (isOpbase) {
+        CHK_PRT_RET(blockDim_ < blockDim,
+            HCCL_ERROR("[CollAllReduceSmallCountAivRdmaExecutor][CalBlockDim]aivCore[%u] is less than need[%u].",
+            blockDim_, blockDim), HCCL_E_PARA);
+    }
+
+    HCCL_INFO("[CollAllReduceSmallCountAivRdmaExecutor][CalBlockDim] blockDim is set to [%u], limit[%u], best[%u]",
+        blockDim, blockDim_, bestBlockDim);
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAllReduceSmallCountAivRdmaExecutor::Orchestrate(OpParam& param, AlgResourceResponse& algRes)
@@ -238,18 +239,16 @@ HcclResult CollAllReduceSmallCountAivRdmaExecutor::KernelRun(const OpParam &para
     AivTopoArgs topoArgs {
         intraRankId, intraRankSize, topoAttr_.isDiffDeviceModule ? topoAttr_.devicePhyId : A_X_SIZE
     };
-    blockDim_ = CalBlockDim(intraRankSize);
+    topoArgs.identify = algoAttr_.identifier;
+    u32 blockDim;
+    CHK_RET(CalBlockDim(blockDim, intraRankSize));
+    blockDim_ = blockDim;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), dataBuffers, flagBuffers, execMem.inputMem.size(), blockDim_, param.aivTag
     };
     AivAlgArgs algArgs { INTRA_RS_STEP, true };
     struct AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG_AIV(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
-
     if (aivClearEnable_) {
         ClearAivSyncBuf(flagBuffers, param.stream.ptr(), topoArgs);
     }
@@ -275,12 +274,6 @@ HcclResult CollAllReduceSmallCountAivRdmaExecutor::KernelRun(const OpParam &para
     algArgs.step = INTRA_AG_STEP;
 
     CHK_RET(ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo));
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){ 
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
-
     HCCL_INFO("[CollAllReduceSmallCountAivRdmaExecutor][KernelRun]allreduce aiv run success.");
     return HCCL_SUCCESS;
 }

@@ -25,8 +25,7 @@ __aicore__ inline void AivReduceScatterVSmall910B::Process(GM_ADDR input, GM_ADD
     ExtraArgs &extraArgs)
 {
     // 共用16个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_V_910B_SMALLDATA;
-    uint32_t flagOffset = (tag % 2 == 0) ? 0 : block_num * FLAG_SIZE;
+    bool ifPingpong  = (tag % 2 == 0);
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
     __gm__ T *inputGM = (__gm__ T *)input;
@@ -46,17 +45,15 @@ __aicore__ inline void AivReduceScatterVSmall910B::Process(GM_ADDR input, GM_ADD
             extraArgs.sendCounts[block_idx]);
         // 卡间同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + block_idx * FLAG_SIZE), localSetTensor, tag);
-
-        // 对端到ub
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
+        Wait(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
         pipe_barrier(PIPE_ALL);
         LocalTensor<T> localIn = inOutQue.AllocTensor<T>();
         DataCopyGM2UB(localIn, cclGTOther[extraArgs.sendDispls[rank_]], extraArgs.sendCounts[rank_]);
         inOutQue.EnQue(localIn);
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
+        WaitNv1(tag, rank_, AivNotifyType::DataSignal, 0, ifPingpong);
         pipe_barrier(PIPE_ALL);
         SetAtomicOp<T>(reduceOp_);
         DataCopyUB2GM(outputGT, localOut, extraArgs.sendCounts[rank_]);
@@ -67,7 +64,7 @@ __aicore__ inline void AivReduceScatterVSmall910B::Process(GM_ADDR input, GM_ADD
     } else {
         CpGM2GM(outputGM, inputGM + extraArgs.sendDispls[rank_], extraArgs.sendCounts[rank_]);
         // 卡内同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+        Record1vN(tag, CommPattern::intraRank, AivNotifyType::DataSignal, 0, ifPingpong);
     }
 }
 

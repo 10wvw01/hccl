@@ -17,6 +17,7 @@
 #include "device_capacity.h"
 #include "coll_alg_param.h"
 #include "op_context.h"
+#include "env_config.h"
 
 namespace hccl {
 constexpr u64 MAX_ALLTOALL_MESH_ALGO_RANK_INTRA_MESH = 32;
@@ -52,6 +53,7 @@ bool ExecutorSupportInPlace(OpParam &param, const std::string& algName, bool ret
     InplaceSupportRetryStatus &inPlaceSupportRetryStatus);
 bool FitRetryConditionforInPlaceOp(const HcclCMDType &opType, OpParam &param, const std::string& algName,
     u64 commInputSize, u32 userRankSize, bool retryEnable, InplaceSupportRetryStatus &inPlaceSupportRetryStatus);
+bool IsConfigAHCAlgo();
 template<typename keyType>
 std::string GetAlgoString(const std::map<keyType, std::string>& levelMap, keyType key);
 std::string AlgTypeToStr(const AlgType algType);

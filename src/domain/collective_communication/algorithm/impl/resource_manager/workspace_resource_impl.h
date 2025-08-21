@@ -21,6 +21,7 @@
 #include "workspace_mem.h"
 #include "ccl_buffer_manager.h"
 #include "offload_stream_manager_pub.h"
+#include "common.h"
 
 namespace hccl {
 class WorkspaceResourceImpl {

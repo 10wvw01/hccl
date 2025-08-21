@@ -29,12 +29,7 @@ static const std::unordered_map<int, std::function<void(bool&)>> captureStatusHa
 
 HcclResult GetStreamCaptureInfo(rtStream_t stream, rtModel_t &rtModel, bool &isCapture)
 {
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
     isCapture = false;
-    if (GetWorkflowMode() != HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
-        HCCL_WARNING("[%s]Stream capture only support opbase mode.", __func__);
-        return HCCL_SUCCESS;
-    }
     rtStreamCaptureStatus captureStatus = rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_NONE;
     rtError_t ret = rtStreamGetCaptureInfo(stream, &captureStatus, &rtModel);
     if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
@@ -50,30 +45,25 @@ HcclResult GetStreamCaptureInfo(rtStream_t stream, rtModel_t &rtModel, bool &isC
     } else {
         HCCL_ERROR("[%s]Unsupported stream capture status.", __func__);
     }
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult AddStreamToModel(rtStream_t stream, rtModel_t &rtModel)
 {
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
     rtError_t ret = rtStreamAddToModel(stream, rtModel);
     if (ret != RT_ERROR_NONE) {
         HCCL_ERROR("[%s]rtStreamAddToModel failed. ret[%d].", __func__, ret);
         return HCCL_E_RUNTIME;
     }
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult GetModelId(rtModel_t &rtModel, u32 &modelId)
 {
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
     rtError_t ret = rtModelGetId(rtModel, &modelId);
     if (ret != RT_ERROR_NONE) {
         HCCL_ERROR("[%s]rtModelGetId failed. ret[%d].", __func__, ret);
         return HCCL_E_RUNTIME;
     }
-#endif
     return HCCL_SUCCESS;
 }

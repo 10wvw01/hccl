@@ -321,6 +321,7 @@ HcclResult CollReduceRingFor91093Executor::SelectTempAlg(std::unique_ptr<AlgTemp
                 dispatcher_);
             HCCL_INFO("[CollReduceRingFor91093Executor][superpod]reduce: using halving-doubling algo inter-server.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

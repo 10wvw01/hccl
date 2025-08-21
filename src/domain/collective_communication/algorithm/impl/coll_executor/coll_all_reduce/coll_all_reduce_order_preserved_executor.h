@@ -33,6 +33,7 @@ private:
     void CalcSizePerBlock(const OpParam &param, ExecMem &execMem);
 
     /* *************** 算法编排 *************** */
+    bool IsHugeData(const u64 curSize) override;
     HcclResult KernelRun(const OpParam &param, ExecMem &execMem) override;
     HcclResult RunReduceScatterLevel0(const OpParam &param, ExecMem &execMem, SubCommInfo &level0CommInfo);
     HcclResult RunReduceScatterLevel1(const OpParam &param, ExecMem &execMem, SubCommInfo &level0CommInfo);

@@ -21,9 +21,6 @@
 #include "task_abort_handler_pub.h"
 #include "coll_alg_utils.h"
 #include "env_config.h"
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
-#include "i_hccl_one_sided_service.h"
-#endif
 
 namespace hccl {
 RankTable_t g_hcclDefaultRankTable;
@@ -238,7 +235,7 @@ HcclResult hcclComm::CreateGroup(const std::string &group, const u32 &groupRank,
     s32 iret = snprintf_s(params.id.internal, HCCL_ROOT_INFO_BYTES, HCCL_ROOT_INFO_BYTES - 1, "%s%s%s",
                           id.internal, "-", group.c_str());
 
-    CHK_PRT_RET((iret == -1), HCCL_ERROR("[Create][Group]errNo[0x%016llx] get group unique id falied",
+    CHK_PRT_RET((iret == -1), HCCL_ERROR("[Create][Group]errNo[0x%016llx] get group unique id failed",
         HCCL_ERROR_CODE(HCCL_E_INTERNAL)), HCCL_E_INTERNAL);
 
     WorldGroupInfo groupCommonData;
@@ -365,57 +362,6 @@ HcclResult hcclComm::AllGatherVOutPlace(const std::string &tag, void *inputPtr, 
 
     return HCCL_SUCCESS;
 }
-
-#ifndef CCL_KERNEL_AICPU
-HcclResult hcclComm::AllReduce(const std::string &tag, void *inputPtr, void *outputPtr, u64 count,
-    HcclDataType dataType, HcclReduceOp op, HcclRtStream stream, SyncMode syncMode)
-{
-    /* 增加输出日志关键字 */
-    HCCL_DEBUG("HCCL_KEY_INFO: tag[%s], input_ptr[%p], output_ptr[%p], count[%llu], data_type[%s], op[%s]",
-               tag.c_str(), inputPtr, outputPtr, count, GetDataTypeEnumStr(dataType).c_str(),
-               GetReduceOpEnumStr(op).c_str());
-
-    /* * 入参检查 */
-    CHK_PTR_NULL(stream);
-    CHK_PTR_NULL(inputPtr);
-    CHK_PTR_NULL(outputPtr);
-
-    CHK_PRT_RET(tag.empty(), HCCL_ERROR("[HcclComm][AllReduce]errNo[0x%016llx] all reduce tag length is 0",
-        HCCL_ERROR_CODE(HCCL_E_PARA)), HCCL_E_PARA);
-
-    CHK_RET(communicator_->CheckCount(count));
-    CHK_RET(communicator_->CheckDataType(dataType, true));
-    CHK_RET(communicator_->CheckReduceDataType(dataType, op));
-    CHK_RET(communicator_->CheckReductionOp(op));
-    HcclResult ret = communicator_->AllReduce(tag, inputPtr, outputPtr, count, dataType, op, stream, syncMode);
-    if (ret != HCCL_SUCCESS) {
-        PrintSubmittedOpCnt(tag, ret);
-        return ret;
-    }
-
-    return HCCL_SUCCESS;
-}
-
-
-HcclResult hcclComm::AllReduceOutPlace(const std::string &tag, void *inputPtr, void *outputPtr, u64 count,
-    HcclDataType dataType, HcclReduceOp op, HcclRtStream stream, SyncMode syncMode)
-{
-    /* 增加输出日志关键字 */
-    HCCL_DEBUG("HCCL_KEY_INFO: tag[%s], input_ptr[%p], output_ptr[%p], count[%llu], data_type[%s], op[%s]", tag.c_str(),
-        inputPtr, outputPtr, count, GetDataTypeEnumStr(dataType).c_str(), GetReduceOpEnumStr(op).c_str());
-
-    /* * 入参检查 */
-    CHK_RET(communicator_->CheckDataType(dataType, true));
-    CHK_RET(communicator_->CheckReduceDataType(dataType, op));
-    HcclResult ret = communicator_->AllReduceOutPlace(tag, inputPtr, outputPtr, count, dataType, op, stream, syncMode);
-    if (ret != HCCL_SUCCESS) {
-        PrintSubmittedOpCnt(tag, ret);
-        return ret;
-    }
-
-    return HCCL_SUCCESS;
-}
-#endif
 
 HcclResult hcclComm::AlltoAllV(const void *sendBuf, const void *sendCounts, const void *sdispls, HcclDataType sendType,
                                const void *recvBuf, const void *recvCounts, const void *rdispls, HcclDataType recvType,
@@ -993,21 +939,6 @@ HcclResult hcclComm::CreateBarrierMemory()
     return HCCL_SUCCESS;
 }
 
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
-HcclResult hcclComm::GetOneSidedService(IHcclOneSidedService** service)
-{
-    CHK_RET(communicator_->GetOneSidedService(service));
-
-    return HCCL_SUCCESS;
-}
-
-HcclResult hcclComm::InitOneSidedServiceNetDevCtx(u32 remoteRankId)
-{
-    CHK_RET(communicator_->InitOneSidedServiceNetDevCtx(remoteRankId));
-    return HCCL_SUCCESS;
-}
-#endif
-
 HcclResult hcclComm::GetInCCLbuffer(void* &buffer, u64 &size)
 {
     CHK_RET(communicator_->GetInCCLbuffer(buffer, size));
@@ -1380,35 +1311,15 @@ HcclResult hcclComm::GetCommRankTable(RankTable_t &rankTable)
     return HCCL_SUCCESS;
 }
 
-HcclResult hcclComm::RegistTaskAbortHandler() const
-{
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
-    HCCL_INFO("RegistTaskAbortHandler begin");
-    CHK_RET(TaskAbortHandler::Init(communicator_.get()));
-
-#endif
-    return HCCL_SUCCESS;
-}
-
-HcclResult hcclComm::UnRegistTaskAbortHandler() const
-{
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
-    HCCL_INFO("UnRegistTaskAbortHandler begin");
-    CHK_RET(TaskAbortHandler::DeInit(communicator_.get()));
-
-#endif
-    return HCCL_SUCCESS;
-}
-
 HcclResult hcclComm::Suspend()
 {
-    communicator_->Suspend();
+    CHK_RET(communicator_->Suspend());
     return HCCL_SUCCESS;
 }
 
 HcclResult hcclComm::Resume()
 {
-    communicator_->Resume();
+    CHK_RET(communicator_->Resume());
     return HCCL_SUCCESS;
 }
 

@@ -12,6 +12,7 @@
 #define HCCL_ALG_H
 
 #include "hccl_common.h"
+#include "common.h"
 #include "mem_device_pub.h"
 #include "dispatcher.h"
 #include "parallel_task_loader.h"
@@ -91,10 +92,10 @@ public:
     HcclResult GetIsUsedRdmaMap(std::unordered_map<u32, bool> &isUsedRdmaMap);
     HcclResult GetCommPlaneSubGroupVector(std::vector<std::vector<std::vector<std::vector<u32>>>> &GetCommPlaneSubGroupVector);
     HcclResult GetAHCAlgOption(std::map<AHCConcOpType, TemplateType> &ahcAlgOption);
-#ifndef CCL_KERNEL_AICPU
-    std::unique_ptr<CollAlgOperator> GetAlgOperator(const HcclCMDType &opType,
-        HcclWorkflowMode workflowMode = HcclWorkflowMode::HCCL_WORKFLOW_MODE_RESERVED);
-#endif
+
+    __attribute__((weak)) std::unique_ptr<CollAlgOperator> GetAlgOperator(const HcclCMDType &opType,
+        HcclWorkflowMode workflowMode = HcclWorkflowMode::HCCL_WORKFLOW_MODE_RESERVED);//只在host侧使用的方法
+
     HcclResult GetTopoType(TopoType &topoType);
 private:
 #ifndef CCL_KERNEL_AICPU
@@ -108,10 +109,10 @@ private:
     // 缓存初始传入传入的属性值
     HcclAlgoAttr algoAttr_;
     HcclTopoAttr topoAttr_;
-#ifndef CCL_KERNEL_AICPU
+
     std::shared_ptr<AlgConfigurator> algConfigurator_;
     std::shared_ptr<TopoInfoExtractor> topoInfoEx_;
-#endif
+
     std::unique_ptr<TopoMatcher> topoMatcher_;
 
     CCLBufferManager &cclBufferManager_;

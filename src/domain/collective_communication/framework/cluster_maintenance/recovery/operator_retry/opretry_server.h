@@ -92,7 +92,7 @@ public:
     HcclResult ProcessEvent(RetryContext* retryCtx) override;
 private:
     // 接收到对端重执行失败的信息后，打印当前接收到的Agent节点信息
-    void PrintAgentInfoAfterFail(std::map<u32, HcclAgentRetryInfo> &serverSockets, std::set<u32> &recvVaild);
+    void PrintAgentInfoAfterFail(std::map<u32, HcclAgentRetryInfo> &serverSockets, std::set<u32> &recvVaild, HcclAgentRetryInfo &agentRetryInfo);
 };
 
 class OpRetryServerCheckOp : public OpRetryServerBase {
@@ -137,6 +137,22 @@ private:
         HcclAgentRetryInfo &agentInfo);
     HcclResult CollectAgentActiveSwitchInfo(RetryContext *retryCtx);
     HcclResult CheckAgentActiveSwitchInfo(RetryContext *retryCtx);
+};
+
+class ResumeServerCheckAllLink : public OpRetryServerBase {
+public:
+    HcclResult ProcessEvent(RetryContext* retryCtx) override;
+private:
+    HcclResult WaitAgentCheckLinkResult(RetryContext* retryCtx);
+    HcclResult CheckAllLink(RetryContext* retryCtx, RetryState &nextState);
+};
+
+class ResumeServerChangeLink : public OpRetryServerBase {
+public:
+    HcclResult ProcessEvent(RetryContext* retryCtx) override;
+private:
+    HcclResult CmdAgentChangeLink(RetryContext* retryCtx);
+    HcclResult WaitAllChangeLinkResult(RetryContext* retryCtx, RetryState &nextState);
 };
 }
 #endif

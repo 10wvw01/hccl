@@ -14,6 +14,7 @@
 #include "adapter_hccp_common.h"
 #include "hccl_ip_address.h"
 #include "hccl_common.h"
+#include "alg_cmd_type.h"
 #include "transport_pub.h"
 #include "externalinput_pub.h"
 #include "template_v1_utils.h"
@@ -25,6 +26,23 @@ constexpr s64 HCCL_SUB_STREAM_NUM_DOUBLE_RING = 1;  // subStream 数量为1
 constexpr s64 HCCL_SUB_STREAM_NUM_4P_MESH = 2;  // subStream 数量为2
 constexpr s64 HCCL_SUB_STREAM_NUM_8P_RING = 3;  // subStream 数量为3
 constexpr s64 HCCL_SUB_STREAM_NP_MESH = 2;  // NP MESH场景下subStream数应为ranksize - 2
+
+// HCCL通信算法类型
+enum class HcclAlgoType {
+    HCCL_ALGO_TYPE_DEFAULT = 0, // 默认算法，配置为此时，使用HCCL内藏算法选择逻辑
+    HCCL_ALGO_TYPE_RING,
+    HCCL_ALGO_TYPE_PIPELINE,
+    HCCL_ALGO_TYPE_FULLMESH,
+    HCCL_ALGO_TYPE_HDR,
+    HCCL_ALGO_TYPE_PAIRWISE,
+    HCCL_ALGO_TYPE_NHR,
+    HCCL_ALGO_TYPE_NHR_V1,
+    HCCL_ALGO_TYPE_NB,
+    HCCL_ALGO_TYPE_NULL,
+    HCCL_ALGO_TYPE_NA,
+    HCCL_ALGO_TYPE_AHC,
+    HCCL_ALGO_TYPE_AHC_BROKE
+};
 
 // 对内拓扑算法枚举
 enum class AlgTypeLevel0 {

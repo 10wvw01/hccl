@@ -15,18 +15,24 @@ CollAlignedAllGatherVDoubleRingFor91093Executor::CollAlignedAllGatherVDoubleRing
     const HcclDispatcher dispatcher, std::unique_ptr<TopoMatcher> &topoMatcher)
     : CollAlignedAllGatherDoubleRingFor91093Executor(dispatcher, topoMatcher)
 {
-    DMAReduceFlag_ = true;
     isAllGatherV_ = true;
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB,
+        AlgTypeLevel1::ALG_LEVEL1_RING
+    };
 }
 
 bool CollAlignedAllGatherVDoubleRingFor91093Executor::IsSmallData(const u64 size)
 {
+    (void) size;
     return false;
 }
 
 u64 CollAlignedAllGatherVDoubleRingFor91093Executor::CalcDstMemOffset(const OpParam &param, u32 perDataSize,
     u64 inputMemSize) const
 {
+    (void) inputMemSize;
     const auto *counts = static_cast<const u64 *>(param.VDataDes.counts);
     const u64 offset = std::accumulate(counts, counts + topoAttr_.userRank, 0);
     return offset * perDataSize;
@@ -50,6 +56,7 @@ std::vector<Slice> CollAlignedAllGatherVDoubleRingFor91093Executor::PrepareSlice
     const SubCommInfo &level2CommInfo, const SubCommInfo &level1CommInfo, const SubCommInfo &level0CommInfo,
     u32 perDataSize, u64 inputMemSize) const
 {
+    (void) inputMemSize;
     const auto *counts = static_cast<u64 *>(param.VDataDes.counts);
     const u32 level0RankSize = level0CommInfo.localRankSize;
     const u32 level0ServerIndex = level0CommInfo.localRank;
@@ -72,6 +79,7 @@ std::vector<Slice> CollAlignedAllGatherVDoubleRingFor91093Executor::PrepareSlice
     const SubCommInfo &level2CommInfo, const SubCommInfo &level1CommInfo, const SubCommInfo &level0CommInfo,
     u32 perDataSize, u64 inputMemSize) const
 {
+    (void) inputMemSize;
     const auto *counts = static_cast<u64 *>(param.VDataDes.counts);
     const u32 level0RankSize = level0CommInfo.localRankSize;
     const u32 level0ServerIndex = level0CommInfo.localRank;
@@ -95,6 +103,7 @@ HcclResult CollAlignedAllGatherVDoubleRingFor91093Executor::PrepareSlicesL0(
     std::vector<std::vector<Slice>> &multRingsSlice, const OpParam &param, const SubCommInfo &level2CommInfo,
     const SubCommInfo &level1CommInfo, const SubCommInfo &level0CommInfo, u32 perDataSize, u64 inputMemSize)
 {
+    (void) inputMemSize;
     HCCL_CONFIG_INFO(HCCL_ALG,
         "[CollAlignedAllGatherVDoubleRingFor91093Executor][PrepareSlicesL0] userRank[%u] starts.", topoAttr_.userRank);
     const auto *counts = static_cast<u64 *>(param.VDataDes.counts);
@@ -148,6 +157,8 @@ HcclResult CollAlignedAllGatherVDoubleRingFor91093Executor::PrepareUserMemSlices
     const OpParam &param, const SubCommInfo &level2CommInfo, const SubCommInfo &level1CommInfo,
     const SubCommInfo &level0CommInfo, u32 perDataSize, u64 inputMemSize)
 {
+    (void) multRingsSlice;
+    (void) inputMemSize;
     const auto *counts = static_cast<u64 *>(param.VDataDes.counts);
     const auto *displs = static_cast<u64 *>(param.VDataDes.displs);
     const u32 level0RankSize = level0CommInfo.localRankSize;

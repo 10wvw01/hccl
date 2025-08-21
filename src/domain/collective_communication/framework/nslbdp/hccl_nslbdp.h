@@ -132,10 +132,12 @@ constexpr u16  NSLB_COMM_INTERVAL_FLAG_MAX = 8;
 constexpr unsigned int MODULE_TYPE_NSLB = 0;
 constexpr unsigned int  MODULE_TYPE_MAX = 1;
 
-struct nslb_msg {
+using nslb_msg = struct nslb_msg {
     unsigned int type;
     unsigned int length;
     std::string data;
+
+    nslb_msg() : type(INVALID_UINT), length(INVALID_UINT), data("") {}
 };
 
 class hcclNslbDp {

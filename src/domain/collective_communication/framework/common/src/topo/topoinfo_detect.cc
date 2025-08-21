@@ -240,7 +240,7 @@ HcclResult TopoInfoDetect::SetupServer(HcclRootHandle &rootInfo)
     return HCCL_SUCCESS;
 }
 
-HcclResult TopoInfoDetect::GroupLeaderListen(u32 myrank, HcclRankHandle &rankHandle, vector<HcclIpAddress> &whitelist)
+HcclResult TopoInfoDetect::GroupLeaderListen(HcclRankHandle &rankHandle, vector<HcclIpAddress> &whitelist)
 {
     CHK_RET(hrtGetDevice(&deviceLogicID_));
  
@@ -418,7 +418,7 @@ HcclResult TopoInfoDetect::WaitTopoExchangeServerCompelte(u32 idx) const
             const auto elapsed =
                 chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - start);
             if (elapsed > timeout) {
-                HCCL_ERROR("[Wait][TopoExchangeServerCompelte]wait topoExchangeServer[%u] complete timeout[%lld]",
+                HCCL_ERROR("[Wait][TopoExchangeServerCompelte]wait topoExchangeServer[%u] complete timeout[%lld s]",
                     idx, elapsed);
                 return HCCL_E_TIMEOUT;
             }

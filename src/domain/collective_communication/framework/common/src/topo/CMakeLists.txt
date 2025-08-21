@@ -10,11 +10,17 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_exchange_base.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_exchange_dispatcher.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_parse.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_ranktableOffline.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_ranktable_partition.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/hccl_whitelist.cc
 )
 
 target_sources(hccl   PRIVATE
     ${src_list}
+    ${CMAKE_CURRENT_SOURCE_DIR}/topoinfo_ranktableOffline.cc
 )
+
+if(NOT BUILD_OPEN_PROJECT OR (BUILD_OPEN_PROJECT AND KERNEL_MODE))
+    target_sources(ccl_kernel PRIVATE
+        ${src_list}
+    )
+endif()

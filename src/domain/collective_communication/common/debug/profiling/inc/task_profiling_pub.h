@@ -11,9 +11,6 @@
 #ifndef TASK_PROFILING_PUB_H
 #define TASK_PROFILING_PUB_H
 
-#ifndef HCCD
-#include "runtime/rt.h"
-#endif
 #include <chrono>
 #include <memory>
 #include <mutex>

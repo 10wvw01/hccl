@@ -22,6 +22,19 @@ CollAllReduceRingFor91093Executor::CollAllReduceRingFor91093Executor(const HcclD
     } else {
         DMAReduceFlag_ = false;
     }
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB,
+        AlgTypeLevel1::ALG_LEVEL1_RING,
+        AlgTypeLevel1::ALG_LEVEL1_AHC,
+        AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE
+    };
+    desc_.level2SupportedAlgos = {
+        AlgTypeLevel2::ALG_LEVEL2_NHR,
+        AlgTypeLevel2::ALG_LEVEL2_NB,
+        AlgTypeLevel2::ALG_LEVEL2_RING,
+        AlgTypeLevel2::ALG_LEVEL2_HD
+    };
 }
 
 HcclResult CollAllReduceRingFor91093Executor::CalcStreamNum(u32& streamNum)
@@ -97,7 +110,7 @@ HcclResult CollAllReduceRingFor91093Executor::CalcLevel2CommInfo(TransportMemTyp
 {
     if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC ||
         algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE) {
-        HCCL_INFO("[CollAllReduceRingFor91093Executor][CalcLevel2CommInfo] select AHC bypass level2 comm calulate");        
+        HCCL_INFO("[CollAllReduceRingFor91093Executor][CalcLevel2CommInfo] select AHC bypass level2 comm calulate");
         return HCCL_SUCCESS;
     }
     
@@ -460,6 +473,7 @@ HcclResult CollAllReduceRingFor91093Executor::SelectTempAlg(std::unique_ptr<AlgT
             level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_REDUCE_RECURSIVE_HALVING_DOUBLING, dispatcher_);
             HCCL_INFO("allreduce ring: using halving-doubling algo inter-superPod.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

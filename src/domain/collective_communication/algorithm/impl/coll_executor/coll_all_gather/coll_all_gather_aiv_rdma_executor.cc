@@ -28,14 +28,6 @@ HcclResult CollAllGatherAivRdmaExecutor::CalcStreamNum(u32& streamNum)
     return HCCL_SUCCESS;
 }
 
-HcclResult CollAllGatherAivRdmaExecutor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    needAivBuffer = true;
-    HCCL_INFO("[CollAllGatherAivRdmaExecutor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u]",
-        tag_.c_str(), needAivBuffer);
-    return HCCL_SUCCESS;
-}
-
 HcclResult CollAllGatherAivRdmaExecutor::CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport)
 {
     CHK_RET(CalcLevel0CommInfo(TransportMemType::CCL_OUTPUT, TransportMemType::AIV_INPUT, opTransport));
@@ -53,11 +45,21 @@ HcclResult CollAllGatherAivRdmaExecutor::CalcLevel0CommInfo(TransportMemType inp
     return HCCL_SUCCESS;
 }
 
-u32 CollAllGatherAivRdmaExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAllGatherAivRdmaExecutor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    u32 blockDim = rankSize; // 默认情况使用rankSize个AIV
-    HCCL_INFO("[CollAllGatherAivRdmaExecutor][CalBlockDim] blockDim is set to [%u]", blockDim);
-    return blockDim;
+    blockDim = rankSize; // 默认情况使用rankSize个AIV
+    u32 bestBlockDim = blockDim;
+    
+    bool isOpbase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
+    if (isOpbase) {
+        CHK_PRT_RET(blockDim_ < blockDim,
+            HCCL_ERROR("[CollAllGatherAivRdmaExecutor][CalBlockDim]aivCore[%u] is less than need[%u].",
+            blockDim_, blockDim), HCCL_E_PARA);
+    }
+
+    HCCL_INFO("[CollAllGatherAivRdmaExecutor][CalBlockDim] blockDim is set to [%u], limit[%u], best[%u]",
+        blockDim, blockDim_, bestBlockDim);
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAllGatherAivRdmaExecutor::Orchestrate(OpParam& param, AlgResourceResponse& algRes)
@@ -86,7 +88,7 @@ HcclResult CollAllGatherAivRdmaExecutor::Orchestrate(OpParam& param, AlgResource
         HCCL_ERROR("[CollAllGatherAivRdmaExecutor]errNo[0x%016llx] tag[%s] executor kernel run failed",
             HCCL_ERROR_CODE(ret), param.tag.c_str()), ret);
 
-    HCCL_INFO("tag[%s], AllReduce executor orchestrate success, take time [%lld]us.",
+    HCCL_INFO("tag[%s], AllGather executor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;
 }
@@ -211,31 +213,21 @@ HcclResult CollAllGatherAivRdmaExecutor::KernelRun(const OpParam &param, ExecMem
     };
     AivTopoArgs topoArgs {
         localRank, localRankSize, topoAttr_.isDiffDeviceModule ? topoAttr_.devicePhyId : A_X_SIZE,
-        0, serverNum, topoAttr_.deviceType
+        0, serverNum, topoAttr_.deviceType, algoAttr_.identifier
     };
-    blockDim_ = CalBlockDim(localRankSize);
+    u32 blockDim;
+    CHK_RET(CalBlockDim(blockDim, localRankSize));
+    blockDim_ = blockDim;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), buffersIn, buffersOut, execMem.inputMem.size(), blockDim_, param.aivTag
     };
     AivAlgArgs algArgs {0};
     struct AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG_AIV(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
-
     if (aivClearEnable_) {
         ClearAivSyncBuf(buffersOut, param.stream.ptr(), topoArgs);
     }
-
     CHK_RET(ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo));
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){ 
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
-
     HCCL_INFO("[CollAllGatherAivRdmaExecutor][KernelRun]allGather aiv run success");
     return HCCL_SUCCESS;
 }
@@ -282,6 +274,7 @@ HcclResult CollAllGatherAivRdmaExecutor::SelectTempAlg(std::unique_ptr<AlgTempla
                 TemplateType::TEMPLATE_ALL_GATHER_RECURSIVE_HALVING_DOUBLING, dispatcher_);
             HCCL_INFO("allgather mesh: using halving-doubling algo inter-server.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

@@ -13,8 +13,8 @@
 namespace hccl {
 CalcAHCTransportReq::CalcAHCTransportReq(std::vector<std::vector<u32>> &subCommPlaneVector,
     std::vector<bool> &isBridgeVector, u32 userRank, std::vector<std::vector<std::vector<u32>>> &globalSubGroups,
-    std::map<AHCConcOpType, TemplateType> &ahcAlgOption)
-    : CalcAHCTransportReqBase(subCommPlaneVector, isBridgeVector, userRank, globalSubGroups, ahcAlgOption)
+    std::map<AHCConcOpType, TemplateType> &ahcAlgOption, std::unordered_map<u32, bool>  &isUsedRdmaMap)
+    : CalcAHCTransportReqBase(subCommPlaneVector, isBridgeVector, userRank, globalSubGroups, ahcAlgOption, isUsedRdmaMap)
 {
 }
 

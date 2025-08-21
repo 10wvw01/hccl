@@ -83,7 +83,7 @@ public:
 class OpRetryAgentWaitChangeLinkInfo : public OpRetryAgentBase {
 public:
     HcclResult ProcessEvent(RetryContext* retryCtx) override;
-private:
+protected:
     void UpdateChangeLinkInfo(ChangeLinkInfo &localChangeLinkInfo, ChangeLinkInfo &recvChangeLinkInfo);
 };
 
@@ -111,6 +111,19 @@ private:
 class OpRetryAgentWaitResume : public OpRetryAgentRunning {
 public:
     HcclResult ProcessEvent(RetryContext* retryCtx) override;
+};
+
+class ResumeAgentCheckLink : public OpRetryAgentBase {
+public:
+    HcclResult ProcessEvent(RetryContext* retryCtx) override;
+};
+
+class ResumeAgentChangeLink : public OpRetryAgentWaitChangeLinkInfo {
+public:
+    HcclResult ProcessEvent(RetryContext* retryCtx) override;
+private:
+    HcclResult WaitResumeCmdResumeTransport(RetryContext* retryCtx);
+    HcclResult WaitAndRespLinkChanged(RetryContext* retryCtx, RetryState &nextState);
 };
 }
 #endif

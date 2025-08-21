@@ -17,18 +17,14 @@ public:
     __aicore__ inline AivAllGatherBig910B() {}
 
     template<typename T>
-    __aicore__ inline void MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther, uint64_t count,
-        __gm__ int32_t* ctrlFlagsGMX, int32_t tag);
+    __aicore__ inline void MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther,
+    uint64_t count, int32_t dstRank, int32_t tag);
 
     template<typename T>
-    __aicore__ inline void Process(GM_ADDR input, GM_ADDR output, uint64_t len, int32_t tag, uint64_t totalLen,
-        uint32_t flagOffsetBase);
+    __aicore__ inline void Process(GM_ADDR input, GM_ADDR output, uint64_t len, int32_t tag, uint64_t totalLen);
 
     template<typename T>
     __aicore__ inline void ClearFlag(uint32_t flagOffsetBase);
-
-    template<typename T>
-    __aicore__ inline void EndSync(int32_t tag, uint32_t flagOffsetBase);
 };
 
 template<typename T>
@@ -36,43 +32,15 @@ __aicore__ inline void AivAllGatherBig910B::ClearFlag(uint32_t flagOffsetBase)
 {
     // 用10个flag
     uint32_t flagOffsetCount = flagOffsetBase;
-    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount);
+    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetBase + rank_ * FLAG_SIZE);
     if (block_idx < rankSize_ && block_idx == rank_) {
         SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
     }
 }
 
 template<typename T>
-__aicore__ inline void AivAllGatherBig910B::EndSync(int32_t tag, uint32_t flagOffsetBase)
-{
-    // 用10个flag
-    uint32_t flagOffset = FLAG_SIZE + FLAG_SIZE + rankSize_ * FLAG_SIZE + flagOffsetBase;
-    __gm__ int32_t *ctrlFlagsGM;
-    if (block_idx < rankSize_ && block_idx == rank_) {
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[targetRank ] + flagOffset + rank_ * FLAG_SIZE);
-            SetSignalValue(ctrlFlagsGM, localSetTensor, tag);
-        }
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE);
-            WaitSignalValue(ctrlFlagsGM, localCheckTensor, tag);
-        }
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE);
-            SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
-        }
-    }
-}
-
-template<typename T>
 __aicore__ inline void AivAllGatherBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther,
-    uint64_t count, __gm__ int32_t* ctrlFlagsGMX, int32_t tag)
+    uint64_t count, int32_t dstRank, int32_t tag)
 {
     uint64_t processedBatchCount = 0;
     uint64_t avgSizePerSlice = count * sizeof(T);
@@ -82,11 +50,7 @@ __aicore__ inline void AivAllGatherBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmSe
             break;
         }
 
-        LocalTensor<int32_t> localFlagX = flagInQue.AllocTensor<int32_t>();
-
-        uint64_t localFlagValueX = GetSignalValue(ctrlFlagsGMX, localFlagX);
-        flagInQue.FreeTensor(localFlagX);
-
+        uint64_t localFlagValueX = CountWait(dstRank, dstRank);
         if (localFlagValueX <= tag) {
             continue;
         }
@@ -113,7 +77,7 @@ __aicore__ inline void AivAllGatherBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmSe
 
 template<typename T>
 __aicore__ inline void AivAllGatherBig910B::Process(GM_ADDR input, GM_ADDR output, uint64_t len, int32_t tag,
-    uint64_t totalLen, uint32_t flagOffsetBase)
+    uint64_t totalLen)
 {
     uint32_t avgLengthPerSlice = len;
     uint32_t avgSizePerSlice = avgLengthPerSlice * sizeof(T);
@@ -122,10 +86,6 @@ __aicore__ inline void AivAllGatherBig910B::Process(GM_ADDR input, GM_ADDR outpu
     uint32_t targetRank = block_idx >= rankSize_ ? block_idx - rankSize_ : block_idx;
 
     // 用10个flag
-    uint32_t flagOffsetCount = flagOffsetBase;
-    uint32_t flagOffsetLocal = FLAG_SIZE + flagOffsetBase;
-    uint32_t flagOffsetEnd = 2 * FLAG_SIZE + flagOffsetBase;
-
     __gm__ T *inputGm = (__gm__ T *)input;
     __gm__ T *outputGm = (__gm__ T *)output;
     __gm__ T *cclGmSelf = (__gm__ T *)(GM_IN[rank_]);
@@ -134,24 +94,19 @@ __aicore__ inline void AivAllGatherBig910B::Process(GM_ADDR input, GM_ADDR outpu
     if (block_idx < blockNumPerGroup) {
         int32_t outputOffset = targetRank * totalLen;
         if (block_idx == rank_) {
-            __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount);
-            CpGM2GMWithFlagWrap(cclGmSelf, inputGm, avgLengthPerSlice, ctrlFlagsGM, 8, tag);
+            CpGM2GMWithFlagWrap(cclGmSelf, inputGm, avgLengthPerSlice, rank_, 8, tag);
             // 所有对端都取走数据
             pipe_barrier(PIPE_ALL);
-            WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetLocal), localCheckTensor, (rankSize_ - 1) * tag);
-            pipe_barrier(PIPE_ALL);
-            SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetLocal), localSetTensor, 0);
+            Wait1vN((rankSize_ - 1) * tag, CommPattern::intraRank, true);
         } else {
-            __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetCount);
-            MemcpyWithFlagWrap(outputGm + outputOffset, cclGmOther, len, ctrlFlagsGMX, tag);
+            MemcpyWithFlagWrap(outputGm + outputOffset, cclGmOther, len, targetRank, tag);
             pipe_barrier(PIPE_ALL);
-            SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetEnd + rank_ * FLAG_SIZE), localSetTensor, tag);
+            Record(tag, targetRank, AivNotifyType::DataSignal);
             pipe_barrier(PIPE_ALL);
-            WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + targetRank * FLAG_SIZE), localCheckTensor, tag);
+            Wait(tag, targetRank, AivNotifyType::DataSignal);
             pipe_barrier(PIPE_ALL);
-            AddSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetLocal), localSetTensor, tag);
-            pipe_barrier(PIPE_ALL);
-            SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + targetRank * FLAG_SIZE), localSetTensor, 0);
+            //是否要加清零的参数
+            RecordNv1(tag, rank_);
             pipe_barrier(PIPE_ALL);
         }
     } else {
@@ -171,23 +126,18 @@ __aicore__ inline void aiv_all_gather_910b_bigdata(KERNEL_ARGS_DEF)
 
     GM_ADDR curInput = input;
     GM_ADDR curOutput = output;
-    int32_t curTag = (tag << 13);
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_GATHER_910B_BIGDATA;
+    int32_t curTag = (tag << TAG_MOVE_LEFT_BITS);
     while (countLeft > 0) {
         uint64_t curCount = (countLeft > maxCountPerLoop) ? maxCountPerLoop : countLeft;
         uint64_t curSize = curCount * sizeof(T);
 
         // 执行kernel
-        op.Process<T>(curInput, curOutput, curCount, curTag, len, flagOffsetBase);
+        op.Process<T>(curInput, curOutput, curCount, curTag, len);
 
         countLeft -= curCount;
         curInput += curSize;
         curOutput += curSize;
         curTag += curSize / UB_DB_DATA_BATCH_SIZE + 1;
-    }
-    op.ClearFlag<T>(flagOffsetBase);
-    if (tag == 1000) {
-        op.EndSync<T>(tag, flagOffsetBase);
     }
     op.TailCounter();
 }

@@ -78,6 +78,14 @@ HcclResult CreateOpRetryAgentByState(RetryState state, RetryContext* retryCtx)
         case RETRY_STATE_WAIT_CMD_SEND_AICPU:
             EXECEPTION_CATCH(retryPtr = std::make_shared<SwitchNicAgentWaitCmd>(), return HCCL_E_PTR);
             break;
+        // Resume 过程中检查网口和链路状态(接收来自Server的命令，检查网口和链路状态，将信息回复发送给Server)
+        case RETRY_RESUME_STATE_AGENT_CHECK_LINK:
+            EXECEPTION_CATCH(retryPtr = std::make_shared<ResumeAgentCheckLink>(), return HCCL_E_PTR);
+            break;
+        // Resume 过程中接收Server借轨命令，下发给Aicpu背景线程，借轨完成通知Server
+        case RETRY_RESUME_STATE_AGENT_CHANGE_LINK:
+            EXECEPTION_CATCH(retryPtr = std::make_shared<ResumeAgentChangeLink>(), return HCCL_E_PTR);
+            break;
         default: {
             HCCL_ERROR("[OpRetry][Agent]CreateOpRetryAgentByState failed, state[%s] is invalid",
                 GetReadableState(state));
@@ -144,7 +152,7 @@ HcclResult OpRetryAgentRunning::ProcessEvent(RetryContext* retryCtx)
     // OpRetryAgent Running状态下,读取到KfcStatus:kPlanSwitch或kSwitchError,切换状态机状态。
     const auto activeTime = std::chrono::duration_cast<std::chrono::seconds>(curTime - lastPollAicpuTime_);
     KfcExecStatus &opInfo = retryCtx->localRetryInfo_.opInfo;
-    CHK_RET(GetOpExecInfo(retryCtx->d2hPtr_, opInfo));
+    CHK_RET(GetOpExecInfo(retryCtx->GetD2hPtr(), opInfo));
     const KfcStatus &aicpuState = opInfo.execStatus.kfcStatus;
     if (aicpuState == KfcStatus::kPlanSwitch || aicpuState == KfcStatus::kSwitchError) {
         CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_SEND_SWITCH_INFO, retryCtx));
@@ -156,12 +164,12 @@ HcclResult OpRetryAgentRunning::ProcessEvent(RetryContext* retryCtx)
     ret = WaitCommandWithOpId(retryCtx->agentSocket_, commandinfo);
     if (ret == HCCL_SUCCESS) {
         if (commandinfo.command == RETRY_CMD_STOP_AICPU) { // 接收到有效command信息
-            HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentRunning recv command[%s] success,"
+            HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentRunning recv command[%s] success, "
                 "tag[%s], index[%u], srcRank[%u], detRank[%u], isSendRecv[%d], streamId[%u]",
                 GetReadableCmd(commandinfo.command), commandinfo.opId.tag, commandinfo.opId.index, 
                 commandinfo.opId.srcRank, commandinfo.opId.detRank, commandinfo.opId.isSendRecv,
                 commandinfo.opId.streamId);
-            CHK_RET(SetOpExecCmdWithOpId(retryCtx->h2dPtr_, KfcCommand::kStopLaunch, commandinfo.opId));
+            CHK_RET(SetOpExecCmdWithOpId(retryCtx->GetH2dPtr(), KfcCommand::kStopLaunch, commandinfo.opId));
             retryCtx->curFaultOpId = commandinfo.opId;
             CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_POLL_AICPU_STOPED, retryCtx));
             return HCCL_SUCCESS;
@@ -410,7 +418,7 @@ HcclResult OpRetryAgentWaitCmd::ParseCommandWithOpId(RetryContext* retryCtx, Ret
     switch (commandinfo.command) {
         case RETRY_CMD_STOP_AICPU:
             if (curState == RETRY_STATE_WAIT_CMD_STOP_AICPU) {
-                CHK_RET(SetOpExecCmdWithOpId(retryCtx->h2dPtr_, KfcCommand::kStopLaunch, commandinfo.opId));
+                CHK_RET(SetOpExecCmdWithOpId(retryCtx->GetH2dPtr(), KfcCommand::kStopLaunch, commandinfo.opId));
                 retryCtx->curFaultOpId = commandinfo.opId;
                 nextState = RETRY_STATE_POLL_AICPU_STOPED;
             }
@@ -419,7 +427,7 @@ HcclResult OpRetryAgentWaitCmd::ParseCommandWithOpId(RetryContext* retryCtx, Ret
             if (curState == RETRY_STATE_WAIT_CMD_STOP_STREAM) {
                 CHK_RET(ClearStreamWithOpId(retryCtx->opStreamPtr_, rtClearStep_t::RT_STREAM_STOP, commandinfo.opId, 
                     retryCtx->localRetryInfo_.opInfo.opId));
-                CHK_RET(SetOpExecCmdWithOpId(retryCtx->h2dPtr_, KfcCommand::kStopExec, commandinfo.opId));
+                CHK_RET(SetOpExecCmdWithOpId(retryCtx->GetH2dPtr(), KfcCommand::kStopExec, commandinfo.opId));
                 nextState = RETRY_STATE_POLL_STREAM_STOPED;
             }
             break;
@@ -451,7 +459,7 @@ HcclResult OpRetryAgentWaitCmd::ParseCommandWithOpId(RetryContext* retryCtx, Ret
             if (curState == RETRY_STATE_WAIT_CMD_RESUME_TRANSPORT) {
                 CHK_RET(SetTransportStatusForResume(retryCtx));
                 // 重新建链后给aicpu下发切换链路命令
-                CHK_RET(SetOpChangeLinkInfo(retryCtx->h2dPtr_, KfcCommand::kChangeLink, retryCtx->localChangeLinkInfo_));
+                CHK_RET(SetOpChangeLinkInfo(retryCtx->GetH2dPtr(), KfcCommand::kChangeLink, retryCtx->localChangeLinkInfo_));
                 nextState = RETRY_STATE_POLL_AICPU_CHANGED;
             }
             break;
@@ -475,13 +483,12 @@ HcclResult OpRetryAgentWaitCmd::ParseCommandWithOpId(RetryContext* retryCtx, Ret
                         retryCtx->localRetryInfo_.opInfo.opId.srcRank : retryCtx->localRetryInfo_.opInfo.opId.detRank;
                 if (isSendRecv) {
                         Heartbeat::GetInstance(retryCtx->deviceLogicId_).ClearCqeErr(retryCtx->group_, dstRank);
-                        Heartbeat::GetInstance(retryCtx->deviceLogicId_).BroadcastCqeErr(retryCtx->group_);
                 } else if (HcclCMDType::HCCL_CMD_BATCH_SEND_RECV == retryCtx->localRetryInfo_.opInfo.opId.opType){
                     ResetBatchSendRecvRdmaErr(retryCtx, dstRank);
                 } else {
                     Heartbeat::GetInstance(retryCtx->deviceLogicId_).ClearAllCqeErr(retryCtx->group_);
                 }
-                CHK_RET(SetOpExecCmdWithOpId(retryCtx->h2dPtr_, KfcCommand::kRetry, commandinfo.opId));
+                CHK_RET(SetOpExecCmdWithOpId(retryCtx->GetH2dPtr(), KfcCommand::kRetry, commandinfo.opId));
                 nextState = RETRY_STATE_POLL_AICPU_RETRYEND;
             }
             break;
@@ -490,7 +497,9 @@ HcclResult OpRetryAgentWaitCmd::ParseCommandWithOpId(RetryContext* retryCtx, Ret
             retryCtx->localRetryInfo_.isNeedReportOpRetryErr = true;
             HCCL_RUN_INFO("[OpRetry][Agent]Retry is constraint(OpName is inconsistent or Inplace Error)");
             break;
-
+        case RETRY_CMD_RETRY_FAIL:
+            nextState = RETRY_STATE_AGENT_RETRY_FAIL;
+            break;
         default: { // 命令非当前状态预期, 不处理
             break;
         }
@@ -536,13 +545,11 @@ HcclResult OpRetryAgentPollAicpuStop::ProcessEvent(RetryContext* retryCtx)
             HCCL_SUCCESS);
         // 读取aicpuCtx中的状态
         KfcExecStatus &opInfo = retryCtx->localRetryInfo_.opInfo;
-        CHK_RET(GetOpExecInfo(retryCtx->d2hPtr_, opInfo));
+        CHK_RET(GetOpExecInfo(retryCtx->GetD2hPtr(), opInfo));
         const KfcStatus &aicpuState = opInfo.execStatus.kfcStatus;
         const char* tag = reinterpret_cast<const char*>(opInfo.opId.tag);
         u32 index = opInfo.opId.index;
         KfcError errorCode = opInfo.execStatus.kfcError;
-        HCCL_INFO("[OpRetry][Agent]OpRetryAgentPollAicpuStop hostState[%s], aicpuState[%d], errorCode[%d]",
-            GetReadableState(curState), aicpuState, errorCode);
 
         std::string curFaultTag = std::string(reinterpret_cast<const char*>(retryCtx->curFaultOpId.tag));
         std::string curd2hTag = std::string(reinterpret_cast<const char*>(opInfo.opId.tag)); 
@@ -704,10 +711,10 @@ HcclResult OpRetryAgentRetryFail::ProcessEvent(RetryContext* retryCtx)
 {
     HCCL_INFO("[OpRetry][Agent]OpRetryAgentRetryFail, set state to running");
     if (retryCtx->localRetryInfo_.isNeedReportOpRetryErr) {
-        CHK_RET(SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kReportRetryErr));
+        CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kReportRetryErr));
         HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentRetryFail, isNeeReportOpRetryErr[%d]", retryCtx->localRetryInfo_.isNeedReportOpRetryErr);
     } else{
-        CHK_RET(SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kExit));
+        CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kExit));
     }
     CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_AGENT_RUNNING, retryCtx));
     Heartbeat::GetInstance(retryCtx->deviceLogicId_).BroadcastCqeErr(retryCtx->group_);
@@ -716,25 +723,35 @@ HcclResult OpRetryAgentRetryFail::ProcessEvent(RetryContext* retryCtx)
 
 HcclResult OpRetryAgentWaitResume::ProcessEvent(RetryContext* retryCtx)
 {
-    if (!retryCtx->isAgentStateWaitResume_) {
-        retryCtx->ResetAgentState();
-        CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_AGENT_RUNNING, retryCtx));
-        HCCL_INFO("[OpRetry][Agent]OpRetryAgentWaitResume, set state to running");
-    }
-
     std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
-    RetryCommandInfo commandinfo;
-    HcclResult ret = WaitCommandWithOpId(retryCtx->agentSocket_, commandinfo);
-    if (ret == HCCL_SUCCESS && commandinfo.command == RETRY_CMD_RUNNING) {
+    RetryCommandInfo commandInfo;
+    HcclResult ret = WaitCommandWithOpId(retryCtx->agentSocket_, commandInfo);
+    if(ret == HCCL_SUCCESS) {
+        HCCL_INFO("[OpRetry][Agent]OpRetryAgentWaitResume, rankId[%u], command[%s], group[%s], isAgentStateWaitResume_[%d]", retryCtx->localRetryInfo_.rankId, 
+        GetReadableCmd(commandInfo.command), retryCtx->group_.c_str(), retryCtx->isAgentStateWaitResume_);
+    }
+    if (commandInfo.command == RESUME_CMD_RUNNING) {
+        retryCtx->isRecivedCmdToRunning = true;
+    } else if (commandInfo.command == RESUME_CMD_CHECK_LINK) {
+        retryCtx->isRecivedCmdToCheckLink = true;
+    }
+    if (!retryCtx->isAgentStateWaitResume_ && retryCtx->isRecivedCmdToRunning) {
+        CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_AGENT_RUNNING, retryCtx));
+        retryCtx->isRecivedCmdToRunning = false;
+        HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentWaitResume, set state to running");
+    } else if (!retryCtx->isAgentStateWaitResume_ && retryCtx->isRecivedCmdToCheckLink) {
+        CHK_RET(CreateOpRetryAgentByState(RETRY_RESUME_STATE_AGENT_CHECK_LINK, retryCtx));
+        HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentWaitResume, set state to check link");
+    }
+    if (ret == HCCL_SUCCESS && commandInfo.command == RETRY_CMD_RUNNING) {
         // 接收到RUN命令时发送保活数据
         const auto keepTime = std::chrono::duration_cast<std::chrono::seconds>(curTime - lastKeepTime_);
         if (keepTime > keepTimeout_) {
             CHK_RET(GetRetryInfo(retryCtx, retryCtx->localRetryInfo_));
             ret = IssueResponse(retryCtx->agentSocket_, retryCtx->localRetryInfo_);
             if (ret != HCCL_SUCCESS) {  // 发送保活数据失败, 打印warning
-                HCCL_WARNING("[OpRetry][Agent]OpRetryAgentRunning issue response fail, ret[%d]", ret);
+                HCCL_WARNING("[OpRetry][Agent]OpRetryAgentWaitResume issue response fail, ret[%d]", ret);
             }
-            HCCL_RUN_INFO("[OpRetry][Agent]upload tag[%s]", retryCtx->localRetryInfo_.opInfo.opId.tag);
             lastKeepTime_ = curTime;
         }
     }
@@ -750,9 +767,8 @@ HcclResult SwitchNicAgentWaitCmd::ParseCommand(RetryContext* retryCtx, RetryComm
             HCCL_INFO("[SwitchNic][Agent][WaitCmd] switch nic success, rank[%u]", retryCtx->rankId_);
             // OpRetryAgent接收到全局通信域的成功/错误信息后，刷新lastLinkPortStatus_信息
             for(u32 i = 0; i < retryCtx->switchInfo_.switchRankNum; i++) {
-                if (retryCtx->switchInfo_.switchRankList[i] == retryCtx->rankId_ &&
-                    retryCtx->switchInfo_.switchUseBackup[i] == true) {
-                    retryCtx->isUseDefaultPort_ = false;
+                if (retryCtx->switchInfo_.switchRankList[i] == retryCtx->rankId_) {
+                    retryCtx->isUseDefaultPort_ = !retryCtx->switchInfo_.switchUseBackup[i];
                 }
             }
             for (u32 i = 0; i < retryCtx->switchInfo_.remoteRankNum; i++) {
@@ -763,13 +779,12 @@ HcclResult SwitchNicAgentWaitCmd::ParseCommand(RetryContext* retryCtx, RetryComm
                     retryCtx->lastLinkPortStatus_[i] = false;
                 }
             }
-            // 并通知HcclCommAicpu。
-            CHK_RET(SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kAllSwitched));
+            CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kAllSwitched));
             nextState = RETRY_STATE_AGENT_RUNNING;
             break;
         case RETRY_CMD_NOTIFY_SWITCH_FAIL:
             HCCL_ERROR("[SwitchNic][Agent][WaitCmd] switch nic failed, rank[%u]", retryCtx->rankId_);
-            CHK_RET(SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kSwitchFail));
+            CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kSwitchFail));
             nextState = RETRY_STATE_AGENT_RUNNING;
             break;
         case RETRY_CMD_RUNNING:
@@ -821,7 +836,7 @@ HcclResult SwitchNicAgentWaitCmd::ProcessEvent(RetryContext* retryCtx)
 
 HcclResult SwitchNicAgentSendSwitchInfo::ChangeAicpuStatus(RetryContext* retryCtx)
 {
-    HcclResult ret = SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kWaitSwitchNic);
+    HcclResult ret = SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kWaitSwitchNic);
     if (ret != HCCL_SUCCESS) {
         HCCL_ERROR("[SwitchNic][Agent] rank[%u], ChangeAicpuStatus, SetOpExecCmd to waitSwitchNic fail, ",
             retryCtx->rankId_);
@@ -833,7 +848,7 @@ HcclResult SwitchNicAgentSendSwitchInfo::ChangeAicpuStatus(RetryContext* retryCt
             HCCL_RUN_INFO("[OpRetry][Agent]switched state form send swhitch Nic info to wait resume"),
             HCCL_SUCCESS);
         KfcExecStatus &opInfo = retryCtx->localRetryInfo_.opInfo;
-        CHK_RET(GetOpExecInfo(retryCtx->d2hPtr_, opInfo));
+        CHK_RET(GetOpExecInfo(retryCtx->GetD2hPtr(), opInfo));
         const KfcStatus &aicpuState = opInfo.execStatus.kfcStatus;
         if (aicpuState == KfcStatus::kWaitSwitchRes) {
             break;
@@ -879,8 +894,7 @@ HcclResult SwitchNicAgentSendSwitchInfo::ProcessEvent(RetryContext* retryCtx)
             retryCtx->rankId_);
     }
 
-    // 校验本端准备使用的主/备网卡状态(HcclNetDevGetPortStatus)
-    // 如果正在使用主网口，那么需要检查备网口是否正常?
+    // 校验本端准备使用的主/备网卡状态
     ret = CheckLocalPortStatus(retryCtx);
     if (ret != HCCL_SUCCESS) {
         switchInfo.localPortsCheckRet = false;
@@ -929,10 +943,137 @@ HcclResult SwitchNicAgentSendSwitchInfo::ProcessEvent(RetryContext* retryCtx)
     if (ret != HCCL_SUCCESS) {
         HCCL_ERROR("[SwitchNic][Agent] rank[%u], issue response or active switch info to server fail, "
             "send result to aicpu.", retryCtx->rankId_);
-        CHK_RET(SetOpExecCmd(retryCtx->h2dPtr_, KfcCommand::kSwitchFail));
+        CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kSwitchFail));
         CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_AGENT_RUNNING, retryCtx));
     } else {
         CHK_RET(CreateOpRetryAgentByState(RETRY_STATE_WAIT_CMD_SEND_AICPU, retryCtx));
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult ResumeAgentCheckLink::ProcessEvent(RetryContext* retryCtx)
+{
+    if (!retryCtx->isChangeLinkInfoInit_) {
+        CHK_RET(InitChangeLinkInfo(retryCtx));
+        retryCtx->isChangeLinkInfoInit_ = true;
+    } else {
+        // BatchSendRecv算子增量建链场景
+        CHK_RET(InitChangeLinkInfo(retryCtx, true));
+    }
+     
+    CHK_RET(SetTransportStatusForStop(retryCtx));
+    RetryState nextState = RETRY_RESUME_STATE_AGENT_CHANGE_LINK;
+    HCCL_RUN_INFO("[OpRetry][Agent]OpRetryAgentWaitResume, start to check link");
+    // 获取当前主备网口状态，并且回复Server
+    CHK_RET(GetLinkPortStatus(retryCtx, retryCtx->linkPortStatus_));
+    HcclResult ret = IssueLinkPortCheckResult(retryCtx->agentSocket_, retryCtx->linkPortStatus_);
+    CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[OpRetry][Agent]ResumeAgentCheckLink IssueResponse fail"), ret);
+    CHK_RET(CreateOpRetryAgentByState(nextState, retryCtx));
+    return HCCL_SUCCESS;
+}
+ 
+HcclResult ResumeAgentChangeLink::ProcessEvent(RetryContext *retryCtx)
+{
+    HCCL_RUN_INFO("[OpRetry][Agent][Resume]ResumeAgentChangeLink group[%s] rank[%d] start",
+         retryCtx->group_.c_str(), retryCtx->rankId_);
+    RetryState nextState = RETRY_STATE_RESERVED;
+    // 接收到Server下发的切换链路信息和重建transport命令
+    CHK_RET(WaitResumeCmdResumeTransport(retryCtx));
+    // 重建当前选择的链路并拷贝到device侧，给aicpu下发切换链路命令
+    CHK_RET(SetTransportStatusForResume(retryCtx));
+    HCCL_INFO("[OpRetry][Agent][Resume]ResumeAgentChangeLink group[%s] rank[%d] SetTransportStatusForResume finish",
+         retryCtx->group_.c_str(), retryCtx->rankId_);
+    // 等待aicpu切换链路完成
+    CHK_RET(SetOpChangeLinkInfo(retryCtx->GetH2dPtr(), KfcCommand::NsChangeLink, retryCtx->localChangeLinkInfo_));
+    HCCL_INFO("[OpRetry][Agent][Resume]ResumeAgentChangeLink group[%s] rank[%d] SetOpChangeLinkInfo finish",
+        retryCtx->group_.c_str(), retryCtx->rankId_);
+    CHK_RET(WaitAndRespLinkChanged(retryCtx, nextState));
+    if (nextState != RETRY_STATE_AGENT_RUNNING) {
+        HCCL_ERROR("[OpRetry][Agent]ResumeAgentChangeLink WaitAndRespLinkChanged fail, nextState[%s]", nextState);
+    }
+    CHK_RET(CreateOpRetryAgentByState(nextState, retryCtx));
+    return HCCL_SUCCESS;
+}
+ 
+HcclResult ResumeAgentChangeLink::WaitResumeCmdResumeTransport(RetryContext *retryCtx)
+{
+    ChangeLinkInfo tmpRecvChangeLinkInfo;
+    std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+    const std::chrono::seconds timeout = std::chrono::seconds(OP_RETRY_SEND_RECV_TIMEOUT);
+    // 接收到命令和当前状态不匹配时, 不做处理, 等待下一个命令, 直到命令正确或者超时
+    while (true) {
+        std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(curTime - startTime);
+        CHK_PRT_RET(elapsed > timeout, HCCL_ERROR("[OpRetry][Agent]ResumeAgentChangeLink timeout"), HCCL_E_TIMEOUT);
+ 
+        HcclResult ret = WaitChangeLink(retryCtx->agentSocket_, tmpRecvChangeLinkInfo);
+        if (ret == HCCL_SUCCESS) {
+            HCCL_INFO("[OpRetry][Agent][Resume]WaitResumeCmdResumeTransport receive changelinkinfo success, rank[%d], group[%s]", 
+            retryCtx->rankId_, retryCtx->group_.c_str());
+            UpdateChangeLinkInfo(retryCtx->localChangeLinkInfo_, tmpRecvChangeLinkInfo);
+            // agent接收到的changeLinkInfo信息
+            std::string changeLinkInfoStr = "agent:";
+            for (u32 i = 0; i < retryCtx->localChangeLinkInfo_.remoteRankNum; i++) {
+                changeLinkInfoStr += (std::to_string(retryCtx->localChangeLinkInfo_.remoteRankList[i]) + ":" + 
+                    std::to_string(retryCtx->localChangeLinkInfo_.isUseDefaultPort[i]) + "; ");
+            }
+            HCCL_RUN_INFO("[OpRetry][Agent][Resume]changeLinkInfoStr:%s", changeLinkInfoStr.c_str());
+            break;
+        }
+    }
+    HCCL_INFO("[OpRetry][Agent][Resume]WaitResumeCmdResumeTransport begin to wait command to changelink, rank[%d], group[%s]",
+             retryCtx->rankId_, retryCtx->group_.c_str());
+    // 轮询等待接收借轨命令
+    while (true) {
+        std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(curTime - startTime);
+        CHK_PRT_RET(elapsed > timeout, HCCL_ERROR("[OpRetry]WaitResumeCmdChangeLink timeout"), HCCL_E_TIMEOUT);
+        RetryCommandInfo commandInfo;
+        HcclResult ret = WaitCommandWithOpId(retryCtx->agentSocket_, commandInfo);
+        if (ret == HCCL_SUCCESS) {
+            if (commandInfo.command == RETRY_CMD_RESUME_TRANSPORT) {
+                HCCL_RUN_INFO("[OpRetry][Agent][Resume]WaitResumeCmdChangeLink, recv command[%s],  group[%s], rankId[%u]",
+                     GetReadableCmd(commandInfo.command), retryCtx->group_.c_str(), retryCtx->rankId_);
+                break;
+            }
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult ResumeAgentChangeLink::WaitAndRespLinkChanged(RetryContext *retryCtx, RetryState &nextState)
+{
+    std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+    const std::chrono::seconds timeout = std::chrono::seconds(OP_RETRY_WAIT_AICPU_TIMEOUT);
+    HCCL_INFO("[OpRetry][Agent][Resume]WaitAndRespLinkChanged start, rank[%d], group[%s]",
+         retryCtx->rankId_, retryCtx->group_.c_str());
+    while (true) {
+        KfcExecStatus &opInfo = retryCtx->localRetryInfo_.opInfo;
+        CHK_RET(GetOpExecInfo(retryCtx->GetD2hPtr(), opInfo));
+        const KfcStatus &aicpuState = opInfo.execStatus.kfcStatus;
+        if (aicpuState == KfcStatus::kResumeChanged) {
+            nextState = RETRY_STATE_AGENT_RUNNING;
+            CHK_RET(SetOpExecCmd(retryCtx->GetH2dPtr(), KfcCommand::kNone));
+            HCCL_INFO("[OpRetry][Agent][Resume]WaitAndRespLinkChanged, aicpuState[%d], rank[%d], group[%s]",
+                aicpuState, retryCtx->rankId_, retryCtx->group_.c_str());
+            break;
+        }
+        // 超时机制
+        std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(curTime - startTime);
+        CHK_PRT_BREAK(elapsed >= timeout,
+            HCCL_ERROR("[OpRetry][Agent][Resume]WaitAndRespLinkChanged timeout, aicpuState[%d]", aicpuState),
+            nextState = RETRY_STATE_RESP_RUNNING_ERR);
+        // 轮询间隔
+        SaluSleep(OP_RETRY_POLL_AICPU_STATE_INTERVAL);
+    }
+    if (nextState == RETRY_STATE_AGENT_RUNNING) {
+        // 回复成功
+        retryCtx->localRetryInfo_.retryState = RETRY_STATE_AGENT_RUNNING;
+        HCCL_INFO("[OpRetry][Agent][Resume]WaitAndRespLinkChanged success, rank[%d], group[%s]", retryCtx->rankId_, retryCtx->group_.c_str());
+        retryCtx->localRetryInfo_.opInfo.execStatus.kfcStatus = KfcStatus::kResumeChanged;
+        HcclResult ret = IssueResponse(retryCtx->agentSocket_, retryCtx->localRetryInfo_);
+        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[OpRetry][Agent]ResumeAgentChangeLink IssueResponse fail"), ret);
     }
     return HCCL_SUCCESS;
 }

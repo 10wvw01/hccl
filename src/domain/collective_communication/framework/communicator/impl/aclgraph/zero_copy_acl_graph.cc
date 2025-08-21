@@ -10,7 +10,6 @@
 #include "zero_copy_acl_graph.h"
 #include "stream_utils.h"
 namespace hccl {
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
 ZeroCopyAclGraph::ZeroCopyAclGraph() : tagResourceIndex_(0), retryEnable_(false)
 {
     algoSet_.insert(HcclCMDType::HCCL_CMD_BROADCAST);
@@ -24,9 +23,6 @@ ZeroCopyAclGraph::ZeroCopyAclGraph() : tagResourceIndex_(0), retryEnable_(false)
     algoSet_.insert(HcclCMDType::HCCL_CMD_RECEIVE);
     algoSet_.insert(HcclCMDType::HCCL_CMD_ALLGATHER);
 }
-
-ZeroCopyAclGraph::~ZeroCopyAclGraph()
-{}
 
 std::string ZeroCopyAclGraph::GetTagPrefix()
 {
@@ -152,6 +148,4 @@ bool ZeroCopyAclGraph::IsScratchMemorySupportAclGraphZeroCopyMode(
         bufferSize);
     return false;
 }
-
-#endif
 }  // namespace hccl

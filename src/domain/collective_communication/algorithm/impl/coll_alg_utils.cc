@@ -14,7 +14,7 @@
 #include "stream_utils.h"
 
 namespace hccl {
-    
+
 bool IsAlgTypeLevel0Mesh(AlgTypeLevel0 &originalAlgTypeLevel0)
 {
     return originalAlgTypeLevel0 == AlgTypeLevel0::ALG_LEVEL0_NP_MESH ||
@@ -92,7 +92,7 @@ bool IsSupportDirectFullmeshForAlltoallv(const OpParam& param, DevType deviceTyp
     }
     HCCL_DEBUG("[IsSupportDirectFullmeshForAlltoallv]baseInfo[%u], isOpbase[%u], isHCCS[%u], isSatisfyBuffer[%u]",
         baseInfo, isOpbase, isHCCS, isSatisfyBuffer);
-    return baseInfo && isOpbase && isHCCS && isSatisfyBuffer;
+    return baseInfo && isHCCS && isSatisfyBuffer;
 }
 
 bool SatisfyIntraSuperPod(DevType deviceType, u32 rankSize, bool useSuperPodMode, u32 superPodNum)
@@ -122,6 +122,23 @@ bool FullmeshPairwiseSatisfyHighPerfAlltoallMeshCondition(DevType deviceType, u3
         HCCL_WARNING("[FullmeshPairwiseSatisfyHighPerfAlltoallMeshCondition] alltoall read only algorithm depends "
             "on HCCS, use default algorithm type"));
     return (isDevice91093 && twoLevelIntraUseMesh && rankSizeSupport && isHCCS);
+}
+
+bool IsConfigAHCAlgo()
+{
+    const std::set<HcclCMDType> hcclSupportAHCOpSet = {
+        HcclCMDType::HCCL_CMD_ALLREDUCE, HcclCMDType::HCCL_CMD_REDUCE_SCATTER, HcclCMDType::HCCL_CMD_ALLGATHER
+    };
+ 
+    for (const auto& opType : hcclSupportAHCOpSet) {
+        bool isConfigAHC =
+            (GetExternalInputHcclAlgoConfig(opType)[HCCL_ALGO_LEVEL_1] == HcclAlgoType::HCCL_ALGO_TYPE_AHC ||
+            GetExternalInputHcclAlgoConfig(opType)[HCCL_ALGO_LEVEL_1] == HcclAlgoType::HCCL_ALGO_TYPE_AHC_BROKE);
+        if (isConfigAHC) {
+            return true;
+        }
+    }
+    return false;
 }
 
 template<typename keyType>
@@ -257,7 +274,8 @@ u32 InplaceDataUnitSize(const HcclCMDType &opType, const OpParam &param)
 {
     u32 unitSize = 0;
     if (opType != HcclCMDType::HCCL_CMD_ALLTOALLV && opType != HcclCMDType::HCCL_CMD_ALLTOALLVC &&
-        opType != HcclCMDType::HCCL_CMD_ALLTOALL && opType != HcclCMDType::HCCL_CMD_ALLGATHER_V) {
+        opType != HcclCMDType::HCCL_CMD_ALLTOALL && opType != HcclCMDType::HCCL_CMD_ALLGATHER_V &&
+        opType != HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
         if (param.DataDes.dataType >= HCCL_DATA_TYPE_RESERVED) {
             HCCL_WARNING("[InplaceDataUnitSize] out of range[%d, %d]",
                 HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_RESERVED - 1);

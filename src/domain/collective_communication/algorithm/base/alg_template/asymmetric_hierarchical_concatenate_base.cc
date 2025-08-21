@@ -164,19 +164,19 @@ HcclResult CommAHCBaseInfo::DisposeSubGroups(const u32 rank, const std::vector<s
 
 HcclResult CommAHCBaseInfo::InitConcAlgOption(std::map<AHCConcOpType, TemplateType> &ahcAlgOption)
 {
-    //初始化设置拼接算法，intra NB,inter RING ; 每个 level+conc 类型对应的算子类型约束一致
+    //初始化设置拼接算法，intra NHR,inter RING ; 每个 level+conc 类型对应的算子类型约束一致
     std::map<AHCConcOpType, TemplateType> ahcAlgOptionInstance= {
-        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_NB},
-        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_NB},
-        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLGATHER}, TemplateType::TEMPLATE_ALL_GATHER_NB},
+        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_NHR},
+        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_NHR},
+        {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLGATHER}, TemplateType::TEMPLATE_ALL_GATHER_NHR},
 
         {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_RING},
         {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_RING},
         {{AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_ALLGATHER}, TemplateType::TEMPLATE_ALL_GATHER_RING},
 
-        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_NB},
-        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_NB},
-        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLGATHER}, TemplateType::TEMPLATE_ALL_GATHER_NB},
+        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_NHR},
+        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_NHR},
+        {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTRA, AHCOpType::AHC_OP_TYPE_ALLGATHER}, TemplateType::TEMPLATE_ALL_GATHER_NHR},
 
         {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER}, TemplateType::TEMPLATE_REDUCESCATTER_RING},
         {{AHCLevel::AHC_LEVEL_1, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_ALLREDUCE}, TemplateType::TEMPLATE_ALL_REDUCE_RING},
@@ -237,15 +237,13 @@ HcclResult CommAHCBaseInfo::CheckSubGroups(std::vector<std::vector<u32>> &subGro
     return HCCL_SUCCESS;
 }
 
-HcclResult CommAHCBaseInfo::GetIntraCommGroup(u32 rank, std::vector<u32> &intraCommGroup)
+void CommAHCBaseInfo::GetIntraCommGroup(u32 rank, std::vector<u32> &intraCommGroup)
 {
     u32 groupIndex = rankGroupMap_[rank];
     intraCommGroup = subGroups_[groupIndex];
-
-    return HCCL_SUCCESS;
 }
 
-HcclResult CommAHCBaseInfo::GetInterCommGroupIdxList(u32 rank, std::vector<u32> &interCommGroupIdxList)
+void CommAHCBaseInfo::GetInterCommGroupIdxList(u32 rank, std::vector<u32> &interCommGroupIdxList)
 {
     //broke 方式的合法vetor大小为0或1,AHC 方式的合法vetor大小大于等于1
     for (u32 i = 0; i < logicCardCommGroups_.size(); ++i) {
@@ -255,7 +253,18 @@ HcclResult CommAHCBaseInfo::GetInterCommGroupIdxList(u32 rank, std::vector<u32> 
             }
         }
     }
-    return HCCL_SUCCESS;
+}
+
+void CommAHCBaseInfo::GetInterCommGroupList(u32 rank, std::vector<std::vector<u32>> &interCommGroupList)
+{
+    //broke 方式的合法vetor大小为0或1,AHC 方式的合法vetor大小大于等于1
+    for (u32 i = 0; i < logicCardCommGroups_.size(); ++i) {
+        for (u32 j = 0; j < logicCardCommGroups_[i].size(); ++j) {
+            if (rank == logicCardCommGroups_[i][j]) {
+                interCommGroupList.push_back(logicCardCommGroups_[i]);
+            }
+        }
+    }
 }
 
 HcclResult CommAHCBaseInfo::CalcDstRanks(u32 rank, std::set<u32> &dstRanks, AHCLevel ahcLevel)
@@ -416,11 +425,15 @@ HcclResult CommAHCBaseInfo::GetAlgTemplateOpInstance(const AHCOpType opType, std
     /*特殊属性传递*/
     //reduceAttr 传递
     if(opType == AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER || opType == AHCOpType::AHC_OP_TYPE_ALLREDUCE) {
-        CHK_RET(tempAlg->Prepare(reduceAttr));
+        if (algType == TemplateType::TEMPLATE_REDUCESCATTER_NHR) {
+            CHK_RET(tempAlg->Prepare(reduceAttr, false));
+        } else {
+            CHK_RET(tempAlg->Prepare(reduceAttr));
+        }
     }
 
     //AHC 扩展属性传递    
-    if(extendFlag) {
+    if (extendFlag) {
         CHK_RET(tempAlg->Prepare(extendPara));
     }
 

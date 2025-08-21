@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2024. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -347,6 +347,9 @@ HcclResult ExecutorBase::Prepare(DeviceMem &cclInMem, DeviceMem &outputMem,
     std::vector<std::shared_ptr<LocalNotify>> &meshSignalAux, MemBlockInfo &memBlockInfo,
     const HcclReduceOp reductionOp, const HcclDataType dataType, bool isUseCclIn, bool isLevel0LastRank)
 {
+    (void) isUseCclIn;
+    (void) memBlockInfo;
+    (void) isLevel0LastRank;
     return HCCL_E_PARA;
 }
 
@@ -376,6 +379,9 @@ HcclResult ExecutorBase::Prepare(void *inputMemPtr, DeviceMem &cclInMem, DeviceM
     std::vector<std::shared_ptr<LocalNotify>> &meshSignal, std::vector<std::shared_ptr<LocalNotify>> &meshSignalAux,
     GroupSlicesInfo &grouSlicesInfo, const HcclReduceOp reductionOp, u32 all2allOffset, const HcclDataType dataType)
 {
+    (void) inputMemPtr;
+    (void) all2allOffset;
+    (void) grouSlicesInfo;
     return HCCL_E_PARA;
 }
 

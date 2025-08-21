@@ -1261,8 +1261,8 @@ HcclResult hcclNslbDp::SendRankTable(NslbDpCommConfigInfo tab_f)
         return HCCL_SUCCESS;
     }
 
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_COMM_INFO;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());
@@ -1335,8 +1335,8 @@ HcclResult hcclNslbDp::SendRankTableOpAndAdj(NslbDpOperatorInfo &tab_f)
     u32 datlen = tlvData.size();
     HCCL_INFO("HCCL SendRankTableOpAndAdj tlvData.len:[%u] success.", datlen);
 	
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_OPER;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());
@@ -1452,8 +1452,8 @@ HcclResult hcclNslbDp::SendRankTableAlgorithmInfo(NslbDpAlgorithmTlv &tab_f)
     u32 datlen = tlvData.size();
     HCCL_INFO("HCCL SendRankTableAlgorithmInfo tlvData.len:[%u] success.", datlen);
 	
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_ADJ;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());
@@ -1594,8 +1594,8 @@ HcclResult hcclNslbDp::SendRankTableGlobalRank(NslbDpGlobalRankInfo &tab_f)
     u32 datlen = tlvData.size();
     HCCL_INFO("HCCL SendRankTableGlobalRank tlvData.len:[%u] success.", datlen);
 
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_RANK;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());
@@ -1758,8 +1758,8 @@ HcclResult hcclNslbDp::SendRankTableGlobalDisRankVal(NslbDpGlobalDisRankVal &tab
     u32 datlen = tlvData.size();
     HCCL_INFO("HCCL SendRankTableGlobalDisRankVal tlvData.len:[%u] success.", datlen);
 	
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_RANK_DIST;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());
@@ -1852,8 +1852,8 @@ HcclResult hcclNslbDp::SendRankTableRootRank(NslbDpRootRank &tab_f)
     u32 datlen = tlvData.size();
     HCCL_INFO("HCCL SendRankTableRootRank tlvData.len:[%u] success.", datlen);
 	
-    nslb_msg sendMsg = { 0 };
-    nslb_msg recvMsg = { 0 };
+    nslb_msg sendMsg;
+    nslb_msg recvMsg;
     sendMsg.type = NSLBDP_TYPE_TBL_ROOT_RANK;
     sendMsg.length = datlen;
     sendMsg.data.assign(tlvData.begin(), tlvData.end());

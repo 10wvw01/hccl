@@ -239,7 +239,7 @@ public:
                (isTaskApiSubscribe_ == HCCL_E_NOT_SUPPORT) &&
                (isAddtionInfoSubscribe_ == HCCL_E_NOT_SUPPORT) &&
                (isHostHcclOpSubscribe_ == HCCL_E_NOT_SUPPORT) &&
-               (isFftsLaunchSubscribe_ = HCCL_E_NOT_SUPPORT);
+               (isFftsLaunchSubscribe_ == HCCL_E_NOT_SUPPORT);
     }
     void SetFftsDispatcherMode();
     void ReSetFftsDispatcherMode();

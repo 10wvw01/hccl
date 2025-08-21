@@ -110,10 +110,9 @@ __aicore__ inline void AivAllReduceDeterSmall910B::Process(GM_ADDR input, GM_ADD
     int64_t count = len;
     int64_t blockNumPerGroup = rankSize_;
     int64_t x = block_idx % blockNumPerGroup;
-    int64_t flagOffsetBasic = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_SMALLDATA;
+    int64_t flagOffsetBasic = seperateOffset + BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_SMALLDATA;
 
     uint32_t flagOffsetBase = ((tag % 2 == 0) ? 0 : 6 * rankSize_ * FLAG_SIZE) + flagOffsetBasic;
-    flagOffsetBase = flagOffsetBasic;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
     __gm__ T *inputGM = (__gm__ T *)input;

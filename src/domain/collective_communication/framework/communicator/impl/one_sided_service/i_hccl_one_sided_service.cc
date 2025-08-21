@@ -56,6 +56,11 @@ HcclResult IHcclOneSidedService::GetNetDevCtx(HcclNetDevCtx &netDevCtx, bool use
     return HCCL_SUCCESS;
 }
 
+HcclResult IHcclOneSidedService::DeInit()
+{
+    return HCCL_SUCCESS;
+}
+
 void IHcclOneSidedService::SetTCAndSL(u32 trafficClass, u32 serviceLevel)
 {
     trafficClass_ = trafficClass;

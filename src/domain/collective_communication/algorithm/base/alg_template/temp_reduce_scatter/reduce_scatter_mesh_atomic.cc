@@ -197,8 +197,8 @@ HcclResult ReduceScatterMeshAtomic::MemSlice()
 
     if (HcclCheckLogLevel(DLOG_DEBUG)) {
         for (size_t i = 0; i < slices_.size(); i++) {
-            HCCL_DEBUG("ReduceScatterMeshAtomic rank[%u] index[%zu] \
-                size[%llu] offset[%llu] scratch_size[%llu] scratch_offset[%llu]",
+            HCCL_DEBUG("ReduceScatterMeshAtomic rank[%u] index[%zu] " \
+                "size[%llu] offset[%llu] scratch_size[%llu] scratch_offset[%llu]",
                 localRank_, i, slices_[i].size, slices_[i].offset, scratchSlices_[i].size, scratchSlices_[i].offset);
         }
     }

@@ -24,10 +24,6 @@ __aicore__ inline void AivAllReduceSmallGraph910B::Process(GM_ADDR input, GM_ADD
     int32_t tag)
 {
     uint32_t count = len;
-    // 使用16个flag
-    uint32_t flagOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_SMALLDATA_GRAPH;
-    uint32_t flagOffsetOut = flagOffset;
-    uint32_t flagOffsetIn = rank_ * FLAG_INTERVAL + flagOffset;
 
     if (block_idx == rank_) {
         __gm__ T *inputGM = (__gm__ T *)input;
@@ -38,13 +34,13 @@ __aicore__ inline void AivAllReduceSmallGraph910B::Process(GM_ADDR input, GM_ADD
         PipeBarrier<PIPE_MTE3>();
         
         // 卡内同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, (rankSize_ - 1) * tag);
+        Record1vN(tag, CommPattern::interRank);
     } else {
         __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[block_idx]);
         __gm__ T *outputGM = (__gm__ T *)output;
         // 告诉对端可以从本端拉走数据
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut + block_idx * FLAG_INTERVAL), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetOut + rank_ * FLAG_INTERVAL), localCheckTensor, tag);
+        Record(tag, block_idx, AivNotifyType::ACK);
+        Wait(tag, block_idx, AivNotifyType::ACK);
         PipeBarrier<PIPE_ALL>();
 
         GlobalTensor<T> cclGTOther;
@@ -58,9 +54,7 @@ __aicore__ inline void AivAllReduceSmallGraph910B::Process(GM_ADDR input, GM_ADD
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
         // 卡内同步
-        WaitSignalGEValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localCheckGETensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        AddSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, -tag);
+        WaitNv1(tag, block_idx);
 
         PipeBarrier<PIPE_ALL>();
 
@@ -73,14 +67,9 @@ __aicore__ inline void AivAllReduceSmallGraph910B::Process(GM_ADDR input, GM_ADD
         PipeBarrier<PIPE_ALL>();
 
         // 本端告诉对端已经拉走数据
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetOut + rank_ * FLAG_INTERVAL + FLAG_SIZE), localSetTensor, tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal);
+        Wait(tag, block_idx, AivNotifyType::DataSignal);
         
-        // 确认对端已经将所有数据拉走
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut + block_idx * FLAG_INTERVAL + FLAG_SIZE), localCheckTensor, tag);
-        
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut + block_idx * FLAG_INTERVAL), localSetTensor, 0);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut + block_idx * FLAG_INTERVAL + FLAG_SIZE), localSetTensor, 0);
     }
 }
 

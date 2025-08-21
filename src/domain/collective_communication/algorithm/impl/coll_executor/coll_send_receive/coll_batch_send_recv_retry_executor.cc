@@ -101,10 +101,6 @@ HcclResult CollBatchSendRecvRetryExecutor::Orchestrate(OpParam& param, AlgResour
     HcclUs startut = TIME_NOW();
     HCCL_CONFIG_INFO(HCCL_ALG, "[CollBatchSendRecvRetryExecutor] batchsendrecv retry starts.");
     algResResp_ = &algResource;
-
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    CHK_RET(AddSubStreamToProfiling());
     CHK_RET(CheckCommSize(COMM_COMBINE_ORDER, COMM_SIZE_TWO));
 
     // 校验当前sendRecvPair
@@ -167,8 +163,6 @@ HcclResult CollBatchSendRecvRetryExecutor::Orchestrate(OpParam& param, AlgResour
 
     CHK_RET(LaunchTaskExtend(dispatcher_, param.stream, algResResp_->slaveStreams));
     HCCL_INFO("[debug][print] LaunchTaskExtend success.");
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-    HCCL_PROFILER_DEL_TAG(param.tag);
     HCCL_INFO("tag[%s] BatchSendRecv Excutor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;

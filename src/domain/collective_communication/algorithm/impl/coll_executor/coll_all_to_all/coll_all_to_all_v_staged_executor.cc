@@ -254,9 +254,6 @@ HcclResult CollRunAlltoAllVStaged::PrepareAlltoAllVStaged1(DeviceMem &sendBuf, D
             if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OPS_KERNEL_INFO_LIB) {
                 CHK_RET(ActiveSlaveStreams(AlltoAllVParam_.stream));
             }
-            // 添加从流profiling, 用于维护planID
-            CHK_RET(AddSubStreamToProfiling());
-
             if (GetExternalInputHcclEnableFfts() || algResResp_->slaveStreams.size() == 0) {
                 alltoallLevel0 = AlgTemplateRegistry::Instance().GetAlgTemplate(
                     TemplateType::TEMPLATE_ALL_2_ALL_V_STAGED_MESH, dispatcher_);
@@ -403,10 +400,9 @@ HcclResult CollRunAlltoAllVStaged::KernelRun(const OpParam &param, ExecMem &exec
         if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OPS_KERNEL_INFO_LIB) {
             CHK_RET(ActiveSlaveStreams(param.stream));
         }
-        // 添加从流profiling, 用于维护planID
-        CHK_RET(AddSubStreamToProfiling());
         std::unique_ptr<AlgTemplateBase> alltoallReadOnly = AlgTemplateRegistry::Instance().GetAlgTemplate(
             TemplateType::TEMPLATE_ALL_2_ALL_V_MESH_READ_ONLY, dispatcher_);
+        CHK_SMART_PTR_NULL(alltoallReadOnly);
         // FFTS 与 STARS 场景 合并逻辑
         if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
             CHK_RET(alltoallReadOnly->Prepare(algResResp_->paramInputMem, (topoAttr_.isSingleMeshAggregation ?
@@ -433,10 +429,8 @@ HcclResult CollRunAlltoAllVStaged::KernelRun(const OpParam &param, ExecMem &exec
             HCCL_INFO("[AlltoAllOperator][RunAlltoAllVStaged] staged 0 use parallel multi-thread delivery of tasks");
             CHK_RET(RunTemplateWithVirtualLink(alltoallLevel0, level0CommInfo));
             // 多流场景下，并行多线程下发task处理
-#ifndef CCL_KERNEL_AICPU
             CHK_RET(ParallelTaskLoaderProcess(tag_, const_cast<Stream&>(param.stream), level0CommInfo,
                 algResResp_->slaveStreams));
-#endif
         } else {
             CHK_RET(RunAlltoAllVTemplateStaged(alltoallLevel0, level0CommInfo));
         }

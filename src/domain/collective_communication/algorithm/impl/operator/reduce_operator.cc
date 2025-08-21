@@ -72,7 +72,7 @@ HcclResult ReduceOperator::SelectAlg(const std::string &tag, const OpParam &para
     newTag += (param.aicpuUnfoldMode ? "_device" : "_host");
     HCCL_INFO("[SelectAlg] reduce newTag is [%s].", newTag.c_str());
 
-    if (UNLIKELY(EnvConfig::GetExternalInputDebugConfig() & HCCL_ALG)) {
+    if (UNLIKELY(GetDebugConfig() & HCCL_ALG)) {
         HCCL_CONFIG_INFO(HCCL_ALG, 
             "[ReduceOperator][SelectAlg]userRank_[%u], algName[%s] actual level1 algo[%d], level2 algo[%d]",
             userRank_, algName.c_str(), algType_.algoLevel1, algType_.algoLevel2);
@@ -123,7 +123,7 @@ HcclResult ReduceOperator::SelectAlgfor91093(const OpParam& param, std::string& 
     u32 unitSize = SIZE_TABLE[param.DataDes.dataType];
     u64 dataSize = param.DataDes.count * unitSize; // 单位：字节
     if (dataSize >= cclBufferManager_.GetInCCLbufferSize()) {
-        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable"\
+        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable "\
             "to be greater than the current data volume[%llu] bytes to improve the performance of the 91093 environment.",
             cclBufferManager_.GetInCCLbufferSize(), dataSize);
     }

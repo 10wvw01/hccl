@@ -75,8 +75,8 @@ private:
     ZeroCopyAddressMgr& operator=(const ZeroCopyAddressMgr &) = delete;
     ZeroCopyAddressMgr& operator=(ZeroCopyAddressMgr &&) = delete;
 
-    HcclResult InitRingBuffer();
-    HcclResult PushOne(ZeroCopyRingBufferItem &item);
+    __attribute__((weak)) HcclResult InitRingBuffer();
+    __attribute__((weak)) HcclResult PushOne(ZeroCopyRingBufferItem &item);
     HcclResult ProcessOneAddrMap(const ZeroCopyRingBufferItem &item);
 
     // 表示一段内存[start, end)是个左闭右开的区间，即最后一个字节不可访问

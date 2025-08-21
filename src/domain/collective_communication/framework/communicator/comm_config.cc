@@ -62,9 +62,9 @@ HcclResult CommConfig::Load(const HcclCommConfig *userConfig)
     // 根据版本号读取配置，检查配置参数合法性
     CHK_RET(SetConfigByVersion(configHandle));
 
-    HCCL_INFO("[Load] comm config info of [%s]: configSize[%llu], version[%u]", commName_.c_str(),
+    HCCL_RUN_INFO("[Load] comm config info of [%s]: configSize[%llu], version[%u]", commName_.c_str(),
         configHandle.info.configSize, configHandle.info.version);
-    HCCL_INFO("[Load] comm config of [%s]: bufferSize[%llu], deterministic[%u], trafficClass[%u], serviceLevel[%u]",
+    HCCL_RUN_INFO("[Load] comm config of [%s]: bufferSize[%llu], deterministic[%u], trafficClass[%u], serviceLevel[%u]",
         commName_.c_str(), bufferSize_, deterministic_, trafficClass_, serviceLevel_);
 
     return HCCL_SUCCESS;

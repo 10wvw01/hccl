@@ -30,18 +30,7 @@ __aicore__ inline void AivAll2AllVGraph910B::Process(GM_ADDR input, GM_ADDR outp
     __gm__ T *inputGM = (__gm__ T *)input;
     __gm__ T *outputGM = (__gm__ T *)output;
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[targetRank]);
-
-    // 使用32个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_V_910B_GRAPH;
-    
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[targetRank] + baseFlagOffset;
-
-    // 共使用4组flag
-    uint32_t initAckFlagOffset = 0;
-    uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
-    uint32_t paramDataFlagOffset = 2 * rankSize_ * FLAG_SIZE;
-    uint32_t paramAckFlagOffset = 3 * rankSize_ * FLAG_SIZE;
+    uint32_t paramDataFlagOffset = countOffset + 2 * rankSize_ * FLAG_SIZE;
 
     // 每张卡的rank号aiv先把sendcount和sendoffset搬运到自己的gm中
     if (targetRank == rank_) {
@@ -54,7 +43,7 @@ __aicore__ inline void AivAll2AllVGraph910B::Process(GM_ADDR input, GM_ADDR outp
 
         PipeBarrier<PIPE_ALL>();
         GlobalTensor<uint64_t> outputGT;
-        outputGT.SetGlobalBuffer((__gm__ uint64_t *)(flagAddrSelf + paramDataFlagOffset), 2 * rankSize_);
+        outputGT.SetGlobalBuffer((__gm__ uint64_t *)(GM_OUT[rank_] + paramDataFlagOffset), 2 * rankSize_);
         DataCopyUB2GM(outputGT, localOut, 2 * rankSize_);
         flagBatchSetQue.FreeTensor(localOut);
 
@@ -63,35 +52,24 @@ __aicore__ inline void AivAll2AllVGraph910B::Process(GM_ADDR input, GM_ADDR outp
             if (i == rank_) {
                 continue;
             }
-            GM_ADDR flagAddrX = GM_OUT[i] + baseFlagOffset;
-            SetSignalValue((__gm__ int32_t *)(flagAddrX + paramAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+            Record(tag, i, AivNotifyType::ACK);
         }
-    }
-
-    // 本卡已进入算子，通知其他卡可以搬运
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-    PipeBarrier<PIPE_ALL>();
-    // 确认对端已进入算子
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-    PipeBarrier<PIPE_ALL>();
-    SetSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
-    
+    }    
     uint64_t remoteSendOffset = 0; // 远端usrin发送给本端output的数据偏移，远端卡号为block_idx，可能为本rank
     uint64_t remoteSendCount = 0; // 远端ccl发送给本端output的数据量，远端可能为本rank
     if (targetRank != rank_) {
         // 确认对端targetRank号aiv已把sendcount数据搬运到GM
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + paramAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
+        Wait(tag, targetRank, AivNotifyType::ACK);
         PipeBarrier<PIPE_ALL>();
 
         GlobalTensor<uint64_t> inputGT;
         LocalTensor<uint64_t> localIn = flagBatchCheckQue.AllocTensor<uint64_t>();
-        inputGT.SetGlobalBuffer((__gm__ uint64_t *)(flagAddrOther + paramDataFlagOffset), 2 * rankSize_);
+        inputGT.SetGlobalBuffer((__gm__ uint64_t *)(GM_OUT[targetRank] + paramDataFlagOffset), 2 * rankSize_);
         DataCopyGM2UB(localIn, inputGT, 2 * rankSize_);
         PipeBarrier<PIPE_ALL>();
         remoteSendCount = localIn.GetValue(rank_);
         remoteSendOffset = localIn.GetValue(rank_ + rankSize_);
         flagBatchCheckQue.FreeTensor(localIn);
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + paramAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
     } else { // targetRank == rank_不用check
         remoteSendCount = extraArgs.sendCounts[rank_];
         remoteSendOffset = extraArgs.sendDispls[rank_];
@@ -106,14 +84,12 @@ __aicore__ inline void AivAll2AllVGraph910B::Process(GM_ADDR input, GM_ADDR outp
     PipeBarrier<PIPE_ALL>();
 
     // 通知对端，自己已经把对端的那片数据拉回来了
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+    Record(tag, targetRank, AivNotifyType::DataSignal);
     
     // 确认对端已经将对应的数据拉走
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
+    Wait(tag, targetRank, AivNotifyType::DataSignal);
     PipeBarrier<PIPE_ALL>();
 
-    // 图模式最后清零flag
-    SetSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
     return;
 }
 

@@ -230,7 +230,6 @@ struct PrepareData {
     u64 reduceAttr = 0;
 
     AlgOpContext algOpContext;
-    bool isA2AlltoallvMutliModule = false;
 };
 
 struct HcclTopoInfo;

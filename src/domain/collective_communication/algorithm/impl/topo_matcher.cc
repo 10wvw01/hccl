@@ -55,6 +55,7 @@ HcclResult TopoMatcher::CalcCommPlaneInfo(const std::string &tag, const CommPara
     }
 
     std::unique_ptr<CalcTransportReqBase> calcTransportReq;
+    bool isAHCType = false;
     switch (commParaInfo.commType) {
         case CommType::COMM_TAG_RING_INNER:
         case CommType::COMM_TAG_RING_COMBINED: {
@@ -81,22 +82,24 @@ HcclResult TopoMatcher::CalcCommPlaneInfo(const std::string &tag, const CommPara
         }
         case CommType::COMM_TAG_ASYMMETRIC_HIERARCHICAL_CONCATENATE:
         case CommType::COMM_TAG_WHOLE_AHC: {
+            isAHCType = true;
             CHK_PRT_RET(static_cast<u32>(topoInfo_.CommPlaneSubGroupVector.size()) <
                 (static_cast<u32>(commParaInfo.commPlane) + 1) ||
                 topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane].size() == 0,
                 HCCL_ERROR("[TopoMatcher][CalcCommPlaneInfo] CommPlaneSubGroupVector para init error."), HCCL_E_PARA);
             calcTransportReq.reset(new (std::nothrow) CalcAHCTransportReq(CommPlaneVector_[commParaInfo.commPlane],
-                isBridgeVector_, userRank_, topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane], topoInfo_.ahcAlgOption));
+                isBridgeVector_, userRank_, topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane], topoInfo_.ahcAlgOption, topoInfo_.isUsedRdmaMap));
             break;
         }
         case CommType::COMM_TAG_ASYMMETRIC_HIERARCHICAL_CONCATENATE_BROKE:
         case CommType::COMM_TAG_WHOLE_AHC_BROKE: {
+            isAHCType = true;
             CHK_PRT_RET(static_cast<u32>(topoInfo_.CommPlaneSubGroupVector.size()) <
                 (static_cast<u32>(commParaInfo.commPlane) + 1) ||
                 topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane].size() == 0,
                 HCCL_ERROR("[TopoMatcher][CalcCommPlaneInfo] CommPlaneSubGroupVector para init error."), HCCL_E_PARA);
             calcTransportReq.reset(new (std::nothrow) CalcAHCBrokeTransportReq(CommPlaneVector_[commParaInfo.commPlane],
-                isBridgeVector_, userRank_, topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane], topoInfo_.ahcAlgOption));
+                isBridgeVector_, userRank_, topoInfo_.CommPlaneSubGroupVector[commParaInfo.commPlane], topoInfo_.ahcAlgOption, topoInfo_.isUsedRdmaMap));
             break;
         }
         case CommType::COMM_TAG_NONUNIFORM_BRUCK:
@@ -134,8 +137,10 @@ HcclResult TopoMatcher::CalcCommPlaneInfo(const std::string &tag, const CommPara
     CHK_SMART_PTR_NULL(calcTransportReq);
     ret = calcTransportReq->CalcTransportRequest(tag, inputMemType, outputMemType, commParaInfo, commTransport,
                                                  subUserRankRoot);
-
-    CHK_RET(SetIsUsedRdma(commParaInfo, commTransport));
+    //AHC内部单独刷新，外部不需要再刷新
+    if (!isAHCType) {
+        CHK_RET(SetIsUsedRdma(commParaInfo, commTransport));
+    }
     CHK_RET(GetRankMap(commParaInfo, commTransport));
 
     CHK_PRT_RET(ret != HCCL_SUCCESS,
@@ -519,6 +524,7 @@ HcclResult TopoMatcher::SetDeterministicConfig(const u8 deterministic)
         HCCL_ERROR("[SetDeterministicConfig] deterministic should be 0, 1 or 2.");
         return HCCL_E_PARA;
     }
+    HCCL_INFO("[SetDeterministicConfig]deterministic is set to [%d]", deterministic);
     externalEnable_.deterministic = deterministic;
     return HCCL_SUCCESS;
 }

@@ -20,11 +20,10 @@
 #include "hccl_alg.h"
 #include <set>
 namespace hccl {
-#if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
 class ZeroCopyAclGraph {
 public:
     ZeroCopyAclGraph();
-    ~ZeroCopyAclGraph();
+    ~ZeroCopyAclGraph() = default;
     bool SetAclGraphZeroCopyMode(DevType deviceType, HcclCMDType opType, OpParam &opParam,
         HcclAlg* impl, u64 bufferSize);
     std::string GetTagPrefix();
@@ -40,6 +39,5 @@ private:
     std::set<HcclCMDType> algoSet_;
     bool retryEnable_;
 };
-#endif  // end of HCCD CCL_KERNEL
 }  // namespace hccl
 #endif  // end of ZERO_COPY_ACL_GRAPH_H

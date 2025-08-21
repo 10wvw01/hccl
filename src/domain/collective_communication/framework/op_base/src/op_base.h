@@ -95,6 +95,8 @@ void PrintCountsAndDispls(const u32 length, const void *counts, const void *disp
 
 void CheckCountsAndDispls(const u32 length, const void *counts, const void *displs, const std::string &tag);
 
+HcclResult GetCaptureInfo(aclrtStream stream, rtStreamCaptureStatus& captureStatus, uint32_t& modelId, bool& isCapture);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus

@@ -24,8 +24,7 @@ template<typename T>
 __aicore__ inline void AivReduceScatterVMid910B::Process(GM_ADDR input, GM_ADDR output, int32_t tag,
     ExtraArgs &extraArgs)
 {
-    int32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_V_910B_MIDDATA;
-    uint32_t flagOffset = (tag % 2 == 0) ? 0 : 32 * FLAG_SIZE + flagOffsetBase;
+    bool ifPingpong = (tag % 2 == 0);
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
     __gm__ T *inputGm = (__gm__ T *)input;
@@ -36,17 +35,17 @@ __aicore__ inline void AivReduceScatterVMid910B::Process(GM_ADDR input, GM_ADDR 
         CpGM2GM(cclGmSelf + extraArgs.sendDispls[block_idx], inputGm + extraArgs.sendDispls[block_idx],
             extraArgs.sendCounts[block_idx]);
         // 卡内同步
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
+        WaitNv1(tag, rank_, AivNotifyType::DataSignal, 0, ifPingpong);
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + block_idx * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
+        Wait(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
         pipe_barrier(PIPE_ALL);
         CpGM2GM(outputGm, cclGmOther + extraArgs.sendDispls[rank_], extraArgs.sendCounts[rank_], true, reduceOp_);
     } else {
-        CpGM2GM(outputGm, inputGm + extraArgs.sendDispls[rank_], extraArgs.sendCounts[rank_]);
+        CpGM2GM(outputGm, inputGm +  extraArgs.sendDispls[rank_], extraArgs.sendCounts[rank_]);
         // 卡内同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+        Record1vN(tag, CommPattern::intraRank, AivNotifyType::DataSignal, 0, ifPingpong);
     }
 }
 
@@ -59,4 +58,5 @@ __aicore__ inline void aiv_reduce_scatter_v_910b_middata(EXTERN_KERNEL_ARGS_DEF)
     op.Process<T>(input, output, tag, extraArgs);
     op.TailCounter();
 }
+
 

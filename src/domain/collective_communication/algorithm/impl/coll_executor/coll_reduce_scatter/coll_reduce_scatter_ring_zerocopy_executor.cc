@@ -18,6 +18,18 @@ CollReduceScatterRingZerocopyExecutor::CollReduceScatterRingZerocopyExecutor(con
 {
     DMAReduceFlag_ = true;      // 设为true，以禁用RunLoop中的本地拷贝
     desc_.isZeroCopy = true;
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB,
+        AlgTypeLevel1::ALG_LEVEL1_RING,
+        AlgTypeLevel1::ALG_LEVEL1_AHC,
+        AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE
+    };
+    desc_.level2SupportedAlgos = {
+        AlgTypeLevel2::ALG_LEVEL2_NHR,
+        AlgTypeLevel2::ALG_LEVEL2_NB,
+        AlgTypeLevel2::ALG_LEVEL2_RING
+    };
 }
 
 void CollReduceScatterRingZerocopyExecutor::ParseParam(const OpParam& param)
@@ -73,41 +85,6 @@ HcclResult CollReduceScatterRingZerocopyExecutor::CalcLevel0CommInfo(TransportMe
     return HCCL_SUCCESS;
 }
 
-HcclResult CollReduceScatterRingZerocopyExecutor::CalcLevel1CommInfo(TransportMemType inputType,
-    TransportMemType outputType,
-    std::vector<LevelNSubCommTransport>& opTransport)
-{
-    switch (algType_.algoLevel1) {
-        case AlgTypeLevel1::ALG_LEVEL1_RING:     // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_NB:       // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_NHR:      // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_AHC:      // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE:
-            break;
-        default:
-            HCCL_WARNING("[%s] not support level1 algo[%d], reset to NHR", __func__, algType_.algoLevel1);
-            algType_.algoLevel1 = AlgTypeLevel1::ALG_LEVEL1_NHR;
-            break;
-    }
-    return CollNativeExecutorBase::CalcLevel1CommInfo(inputType, outputType, opTransport);
-}
-
-HcclResult CollReduceScatterRingZerocopyExecutor::CalcLevel2CommInfo(TransportMemType inputType,
-    TransportMemType outputType,
-    std::vector<LevelNSubCommTransport>& opTransport)
-{
-    switch (algType_.algoLevel2) {
-        case AlgTypeLevel2::ALG_LEVEL2_RING:    // fall through
-        case AlgTypeLevel2::ALG_LEVEL2_NB:      // fall through
-        case AlgTypeLevel2::ALG_LEVEL2_NHR:
-            break;
-        default:
-            HCCL_WARNING("[%s] not support level2 algo[%d], reset to NHR", __func__, algType_.algoLevel2);
-            algType_.algoLevel2 = AlgTypeLevel2::ALG_LEVEL2_NHR;
-    }
-    return CollNativeExecutorBase::CalcLevel2CommInfo(inputType, outputType, opTransport);
-}
-
 u64 CollReduceScatterRingZerocopyExecutor::CalcLoopMaxCount(const u32 unitSize)
 {
     // 中转内存单次最多能够接受的output count，放开ranksize限制
@@ -123,7 +100,7 @@ HcclResult CollReduceScatterRingZerocopyExecutor::SemiRingReduceScatter(
     const u64 baseOffset, const HcomCollOpInfo *opInfo,
     const std::vector<std::vector<Slice>> multRingsUserMemSlice)
 {
-    HCCL_INFO("[CollReduceScatterRingZerocopyExecutor][SemiRingReduceScatter] SemiRingReduceScatter starts.");
+    HCCL_INFO("[CollReduceScatterRingZerocopyExecutor][SemiRingReduceScatter] SemiRingReduceScatter starts");
     
     CHK_RET(CheckCommSize(COMM_LEVEL0, COMM_INDEX_0 + 1));
     SubCommInfo level0CommInfo = GetSubCommInfo(COMM_LEVEL0, COMM_INDEX_0);
@@ -183,7 +160,7 @@ HcclResult CollReduceScatterRingZerocopyExecutor::CalcLevel0DataSlices(const OpP
 HcclResult CollReduceScatterRingZerocopyExecutor::KernelRunIntraServerPre(const OpParam &param, ExecMem &execMem)
 {
     HCCL_CONFIG_INFO(HCCL_ALG,
-        "[CollReduceScatterRingZerocopyExecutor][KernelRunIntraServerPre] The ReduceScatterDoubleRingExecutor starts.");
+        "[CollReduceScatterRingZerocopyExecutor][KernelRunIntraServerPre] The ReduceScatterDoubleRingExecutor starts");
     bool isAHCAlgo = algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC ||
         algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE;
     CHK_RET(GetCommRankInfoNormal(level0Rank_, level0RankSize_, level1Rank_, level1RankSize_, level2Rank_,
@@ -250,13 +227,13 @@ HcclResult CollReduceScatterRingZerocopyExecutor::KernelRunInterServer(const OpP
                 TemplateType::TEMPLATE_REDUCESCATTER_RING, dispatcher_);
             CHK_SMART_PTR_NULL(level1TempAlg);
             CHK_RET(level1TempAlg->Prepare(reduceAttr));
-            HCCL_INFO("reducescatter ring: using ring algo inter-server.");
+            HCCL_INFO("reducescatter ring: using ring algo inter-server");
         } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NB) {
             level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_REDUCESCATTER_NB, dispatcher_);
             CHK_SMART_PTR_NULL(level1TempAlg);
             CHK_RET(level1TempAlg->Prepare(reduceAttr));
-            HCCL_INFO("reducescatter ring: using nonuniform-bruck algo inter-server.");
+            HCCL_INFO("reducescatter ring: using nonuniform-bruck algo inter-server");
         } else if (isAHCAlgo) {
             // 获取通信域分组信息
             std::vector<std::vector<std::vector<u32>>> globalSubGroups;
@@ -265,20 +242,23 @@ HcclResult CollReduceScatterRingZerocopyExecutor::KernelRunInterServer(const OpP
             topoMatcher_->GetAHCAlgOption(ahcAlgOption);
             if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC) {
                 level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_REDUCESCATTER_AHC, dispatcher_);
-                HCCL_INFO("reducescatter ring: using ahc algo inter-server.");
+                HCCL_INFO("reducescatter ring: using ahc algo inter-server");
             } else {
                 level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_REDUCESCATTER_AHC_BROKE, dispatcher_);
-                HCCL_INFO("reducescatter ring: using ahc-broke algo inter-server.");
+                HCCL_INFO("reducescatter ring: using ahc-broke algo inter-server");
             }
             CHK_SMART_PTR_NULL(level1TempAlg);
             CHK_RET(level1TempAlg->Prepare(execMem.count, globalSubGroups, ahcAlgOption));
             CHK_RET(level1TempAlg->Prepare(reduceAttr));
-        } else {
+        } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NHR) {
             level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_REDUCESCATTER_NHR, dispatcher_);
             CHK_SMART_PTR_NULL(level1TempAlg);
             CHK_RET(level1TempAlg->Prepare(reduceAttr, false));
-            HCCL_INFO("reducescatter ring: using nonuniform-hierarchical-ring algo inter-server.");
+            HCCL_INFO("reducescatter ring: using nonuniform-hierarchical-ring algo inter-server");
+        } else {
+            HCCL_ERROR("reducescatter ring: unsupported level1 algtype [%s]", AlgTypeToStr(algType_).c_str());
+            return HCCL_E_NOT_SUPPORT;
         }
         // 执行算法编排
         CommPlane commPlaneLevel1 = isAHCAlgo ? COMM_LEVEL1_AHC : COMM_LEVEL1;
@@ -301,19 +281,22 @@ HcclResult CollReduceScatterRingZerocopyExecutor::KernelRunInterServer(const OpP
                 TemplateType::TEMPLATE_REDUCESCATTER_NB, dispatcher_);
             CHK_SMART_PTR_NULL(level2TempAlg);
             CHK_RET(level2TempAlg->Prepare(reduceAttr));
-            HCCL_INFO("reducescatter ring: using nonuniform-bruck algo inter-superPod.");
+            HCCL_INFO("reducescatter ring: using nonuniform-bruck algo inter-superPod");
         } else if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_RING) {
             level2TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_REDUCESCATTER_RING, dispatcher_);
             CHK_SMART_PTR_NULL(level2TempAlg);
             CHK_RET(level2TempAlg->Prepare(reduceAttr));
-            HCCL_INFO("reducescatter ring: using ring algo inter-superPod.");
-        } else {
+            HCCL_INFO("reducescatter ring: using ring algo inter-superPod");
+        } else if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NHR) {
             level2TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_REDUCESCATTER_NHR, dispatcher_);
             CHK_SMART_PTR_NULL(level2TempAlg);
             CHK_RET(level2TempAlg->Prepare(reduceAttr, false));
-            HCCL_INFO("reducescatter ring: using nonuniform-hierarchical-ring algo inter-superPod.");
+            HCCL_INFO("reducescatter ring: using nonuniform-hierarchical-ring algo inter-superPod");
+        } else {
+            HCCL_ERROR("reducescatter ring: unsupported level2 algtype [%s]", AlgTypeToStr(algType_).c_str());
+            return HCCL_E_NOT_SUPPORT;
         }
         // 执行算法编排
         DeviceMem level2InputMem = execMem.inputMem.range(level1DataSegsSlice[level1Rank_].offset,

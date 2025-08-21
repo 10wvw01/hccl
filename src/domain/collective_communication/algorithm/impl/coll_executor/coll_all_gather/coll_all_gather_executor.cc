@@ -24,17 +24,8 @@ HcclResult CollAllGatherExecutor::Orchestrate(OpParam& param, AlgResourceRespons
     tag_ = param.tag;
     algResResp_ = &algRes;
 
-    const u64 count = GetCount(param);
-    const HcclDataType dataType = GetDataType(param);
-
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    CHK_RET(AddSubStreamToProfiling());
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_ADD_OPDATA_OP(param.tag, count, param.inputPtr, param.outputPtr, dataType, INVALID_VALUE_RANKID,
-            algoAttr_.identifier, HcclReduceOp::HCCL_REDUCE_RESERVED);
-        HCCL_PROFILER_ADD_GROUPRANK(algoAttr_.identifier, topoAttr_.userRankSize, topoAttr_.userRank);
-    }
+    const u64 count = param.GetDataCount(topoAttr_.userRank);
+    const HcclDataType dataType = param.GetDataType();
 
     HcclResult ret = HCCL_SUCCESS;
     // 图模式和单卡场景下不需要Loop
@@ -94,13 +85,6 @@ HcclResult CollAllGatherExecutor::Orchestrate(OpParam& param, AlgResourceRespons
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAllGatherExecutor][Orchestrate]errNo[0x%016llx]all gather excutor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-        HCCL_PROFILER_DEL_OPDATA(param.tag);
-        HCCL_PROFILER_DEL_GROUPRANK(algoAttr_.identifier);
-    }
     HCCL_INFO("tag[%s], Allgather executor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;
@@ -133,22 +117,6 @@ bool CollAllGatherExecutor::IsDataSplitForRdmaSdmaConcurrent(const u64 curSize)
 {
     HCCL_INFO("[CollAllGatherExecutor]opMeta is using the default option: not data split.");
     return false;
-}
-
-u64 CollAllGatherExecutor::GetCount(const OpParam &param) const
-{
-    if (isAllGatherV_) {
-        return static_cast<const u64 *>(param.VDataDes.counts)[topoAttr_.userRank];
-    }
-    return param.DataDes.count;
-}
-
-HcclDataType CollAllGatherExecutor::GetDataType(const OpParam &param) const
-{
-    if (isAllGatherV_) {
-        return param.VDataDes.dataType;
-    }
-    return param.DataDes.dataType;
 }
 
 u64 CollAllGatherExecutor::CalcTotalCount(const OpParam &param) const
@@ -315,7 +283,7 @@ HcclResult CollAllGatherExecutor::RunLoop(OpParam &param, AlgResourceResponse &a
             HCCL_ERROR_CODE(ret), param.tag.c_str(), commInputPtr, commOutputPtr,
             curCount, param.DataDes.dataType),
             ret);
-        
+
         if (!DMAReduceFlag_) {
             // 如果使用CCL buffer，需要将CCL buffer out中的结果拷贝到user buffer out
             for (u32 i = 0; i < topoAttr_.userRankSize; i++) {
@@ -340,7 +308,7 @@ HcclResult CollAllGatherExecutor::RunLoopV(OpParam &param, AlgResourceResponse &
 {
     auto counts = GetCounts(param);
     auto displs = GetDispls(param);
-    const HcclDataType dataType = GetDataType(param);
+    const HcclDataType dataType = param.GetDataType();
     u32 unitSize = SIZE_TABLE[dataType];
 
     u8 *curInputPtr = static_cast<u8 *>(param.inputPtr);

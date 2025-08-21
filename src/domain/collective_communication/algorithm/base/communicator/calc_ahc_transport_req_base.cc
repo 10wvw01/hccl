@@ -13,8 +13,10 @@
 namespace hccl {
 CalcAHCTransportReqBase::CalcAHCTransportReqBase(std::vector<std::vector<u32>> &subCommPlaneVector,
     std::vector<bool> &isBridgeVector, u32 userRank, std::vector<std::vector<std::vector<u32>>> &globalSubGroups,
-    std::map<AHCConcOpType, TemplateType> &ahcAlgOption)
-    : CalcTransportReqBase(subCommPlaneVector, isBridgeVector, userRank), globalSubGroups_(globalSubGroups), ahcAlgOption_(ahcAlgOption)
+    std::map<AHCConcOpType, TemplateType> &ahcAlgOption, std::unordered_map<u32, bool>  &isUsedRdmaMap)
+    : CalcTransportReqBase(subCommPlaneVector, isBridgeVector, userRank), 
+      globalSubGroups_(globalSubGroups), ahcAlgOption_(ahcAlgOption),
+      isUsedRdmaMap_(isUsedRdmaMap)
 {
 }
 
@@ -35,7 +37,7 @@ HcclResult CalcAHCTransportReqBase::CalcDstRanks(u32 rank, std::set<u32> &dstRan
     (void)ringIndex;
     return HCCL_SUCCESS;
 }
-
+    
 HcclResult CalcAHCTransportReqBase::CommAHCInfoInit(std::vector<std::vector<u32>> &subGroups)
 {
     (void) subGroups;
@@ -97,8 +99,58 @@ HcclResult CalcAHCTransportReqBase::CalcTransportRequest(const std::string &tag,
                     tmpTransport.remoteUserRank, inputMemType, outputMemType);
             }
         }
+
+        //刷新RDMA建链标记
+        RefreshTransportIsUsedRdma(rank, ringIndex, commTransport);
     }
     return HCCL_SUCCESS;
 }
 
+void CalcAHCTransportReqBase::RefreshTransportIsUsedRdma(u32 rank, u32 ringIndex, std::vector<SingleSubCommTransport> &commTransport)
+{
+    //组内和组间通信域计算
+    std::vector<u32> intraCommGroup;
+    std::vector<std::vector<u32>> interCommGroupList;
+
+    commAHCBaseInfo_->GetIntraCommGroup(rank, intraCommGroup);
+    commAHCBaseInfo_->GetInterCommGroupList(rank, interCommGroupList);
+
+    SingleSubCommTransport &subCommTransport = commTransport[ringIndex];
+
+    //组内子通信域粒度刷新
+    bool isUsedRdma = false;
+    for (u32 i = 0; i < intraCommGroup.size(); i++) {
+        u32 dstRank = intraCommGroup[i];
+        HCCL_DEBUG("[CalcAHCTransportReqBase][RefreshTransportIsUsedRdma] intraCommGroup localRank[%u], dstRank [%u] ", rank, dstRank);
+        if (isUsedRdmaMap_[subCommPlaneVector_[ringIndex][dstRank]]) {
+            isUsedRdma = true;
+            HCCL_DEBUG("[CalcAHCTransportReqBase][RefreshTransportIsUsedRdma] intraCommGroup userrank[%u] rdma map is true", subCommPlaneVector_[ringIndex][dstRank]);
+            break;
+        }
+    }
+    for (u32 i = 0; i < intraCommGroup.size(); i++) {
+        u32 dstRank = intraCommGroup[i];
+        TransportRequest &tmpTransport = subCommTransport.transportRequests[dstRank];
+        tmpTransport.isUsedRdma = isUsedRdma;
+    }
+
+    //组间子通信域粒度刷新
+    for (u32 i = 0; i < interCommGroupList.size(); i++) {
+        isUsedRdma = false;
+        for (u32 j = 0; j < interCommGroupList[i].size(); j++) {
+            u32 dstRank = interCommGroupList[i][j];
+            HCCL_DEBUG("[CalcAHCTransportReqBase][RefreshTransportIsUsedRdma] interCommGroupList index[%u] localRank[%u], dstRank [%u] ", i, rank, dstRank);
+            if (isUsedRdmaMap_[subCommPlaneVector_[ringIndex][dstRank]]) {
+                isUsedRdma = true;
+                HCCL_DEBUG("[CalcAHCTransportReqBase][RefreshTransportIsUsedRdma] interCommGroupList userrank[%u] rdma map is true", subCommPlaneVector_[ringIndex][dstRank]);
+                break;
+            }
+        }
+        for (u32 j = 0; j < interCommGroupList[i].size(); j++) {
+            u32 dstRank = interCommGroupList[i][j];
+            TransportRequest &tmpTransport = subCommTransport.transportRequests[dstRank];
+            tmpTransport.isUsedRdma = isUsedRdma;
+        }
+    }
+}
 }  // namespace hccl

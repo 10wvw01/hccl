@@ -242,6 +242,7 @@ HcclResult CollAllGatherRingExecutor::SelectTempAlg(std::unique_ptr<AlgTemplateB
                 TemplateType::TEMPLATE_ALL_GATHER_RECURSIVE_HALVING_DOUBLING, dispatcher_);
             HCCL_INFO("allgather ring: using halving-doubling algo inter-server.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

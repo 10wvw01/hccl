@@ -40,4 +40,4 @@ public:
     static void DeleteThreadCaptureStatus(s32 threadID);
 };
 } // namespace hccl
-#endif // COMMON_PROFILING_PROFILING_MANAGER_H
+#endif // COMMON_PROFILING_PROFILING_MANAGER_PUB_H

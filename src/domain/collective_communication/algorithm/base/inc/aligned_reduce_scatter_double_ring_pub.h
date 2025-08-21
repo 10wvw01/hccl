@@ -55,8 +55,6 @@ protected:
         const u32 ringIndex, RxMemoryInfo& mem, Stream &stream, const LINK &link);
     HcclResult ReducerRun(const u32 ringIndex, const HcclDispatcher dispatcher, const LINK &link,
         ReducerMemoryInfo &reduceMem, Stream &stream);
-    HcclResult RunMainStream(const u32 step, const u32 rank, const u32 rankSize, u32 ringIndex,
-        std::vector<SenderMemoryInfo> &txReduceMems, std::vector<ReducerMemoryInfo> &rxReduceMems);
     virtual HcclResult LocalMemcpy(const u32 step, const u32 rankSize, const u32 ringIndex,
         DeviceMem &localSrcMem, DeviceMem &localDstMem);
     virtual HcclResult RunSubStream(

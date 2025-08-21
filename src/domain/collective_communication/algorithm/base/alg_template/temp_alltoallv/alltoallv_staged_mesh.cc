@@ -61,6 +61,7 @@ HcclResult AlltoAllVStagedMesh::RunAsync(const u32 rank, const u32 rankSize, con
 {
     HCCL_INFO("[AlltoAllVStagedMesh][RunAsync]: rank[%u] transportSize[%llu]", rank, links.size());
     CHK_SMART_PTR_NULL(dispatcher_);
+    CHK_SMART_PTR_NULL(subStreamsPtr_);
 
     CHK_PRT_RET(rankSize == 0, HCCL_ERROR("[AlltoAllVStagedMesh][Prepare] invilad rankSize[%u]", rankSize),
         HCCL_E_PARA);

@@ -36,7 +36,7 @@ HcclResult ReduceScatterSlimRing::RunVectorSourceReducer(const LINK &link, const
     std::vector<SenderMemoryInfo> txMems;
     for (u32 i = 0; i < txSlices.size(); i++) {
         DeviceMem srcMem = inputMem_.range(txSlices[i].offset, txSlices[i].size);
-        HCCL_DEBUG(" send inputmem range[%llu], size[%llu] tx dstmem offset[%llu]", txSlices[i].offset,
+        HCCL_DEBUG("send inputmem range[%llu], size[%llu] tx dstmem offset[%llu]", txSlices[i].offset,
             txSlices[i].size, txSlicetemp[i].offset);
         txMems.emplace_back(SenderMemoryInfo{baseOffset_ + txSlicetemp[i].offset, srcMem});
     }
@@ -71,7 +71,6 @@ HcclResult ReduceScatterSlimRing::RunVectorFinRducer(const u32 rank,
     std::vector<ReducerMemoryInfo> rxReduceMems;
     for (u32 i = 0; i < sliceSize; i++) {
         DeviceMem dstMem =
-
             outputMem_.range(outputSlices[rank * sliceSize + i].offset, outputSlices[rank * sliceSize + i].size);
         // reduce目的操作
         DeviceMem srcMem =
@@ -190,7 +189,7 @@ HcclResult ReduceScatterSlimRing::RunAsync(const u32 rank, const u32 rankSize, c
 
     if (barrierSwitchOn_) {
         // 执行barrier，保证数据收发完成
-        CHK_RET(ExecuteBarrier(linkLeft_, linkRight_, notifyIdx_));
+        CHK_RET(ExecuteBarrier(linkRight_, linkLeft_, notifyIdx_));
         notifyIdx_++;
     }
 

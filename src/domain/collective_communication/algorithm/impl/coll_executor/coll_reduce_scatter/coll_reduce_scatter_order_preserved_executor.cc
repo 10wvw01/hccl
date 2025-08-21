@@ -103,14 +103,9 @@ HcclResult CollReduceScatterOrderPreservedExecutor::CalcLevel1CommInfo(Transport
     return HCCL_SUCCESS;
 }
 
-bool CollReduceScatterOrderPreservedExecutor::IsHugeData(const u64 curSize, OpParam *param)
-{
-    // 子图复用的阈值（opmeta全一致时，ffts子图复用）
-    return curSize > SDMA_SEND_MAX_SIZE;
-}
-
 bool CollReduceScatterOrderPreservedExecutor::IsSmallData(const u64 totalSize, const u64 curSize)
 {
+    (void) curSize;
     // 子图复用的阈值（opmeta全一致时，ffts子图复用）
     return totalSize <= HCCL_SMALL_COUNT_32_KB;
 }
@@ -124,7 +119,7 @@ HcclResult CollReduceScatterOrderPreservedExecutor::RunReduceScatterLevel0HD(con
     std::vector<Slice> dataSegsSlice; // 数据分成ranksize份，每份的起始偏移和大小
     u64 reduceAttr = GetReduceAttr(execMem.inputMem, execMem.outputMem, param.DataDes.dataType, param.reduceType);
     HcomCollOpInfo opInfo = {"", execMem.inputPtr, execMem.outputPtr, param.DataDes.count, param.DataDes.dataType,
-        param.root, param.reduceType};
+        param.root, param.reduceType, 0};
 
     CHK_SMART_PTR_NULL(level0TempAlg);
     CHK_RET(level0TempAlg->Prepare(execMem.inputMem, execMem.scratchMem, execMem.outputMem, execMem.count,

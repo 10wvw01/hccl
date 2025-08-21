@@ -117,8 +117,6 @@ HcclResult CollRunAlltoAllVFullMesh::KernelRun(const OpParam &param, ExecMem &ex
         if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OPS_KERNEL_INFO_LIB) {
             CHK_RET(ActiveSlaveStreams(param.stream));
         }
-        CHK_RET(AddSubStreamToProfiling());
-
         std::unique_ptr<AlgTemplateBase> alltoallReadOnly = AlgTemplateRegistry::Instance().GetAlgTemplate(
         TemplateType::TEMPLATE_ALL_2_ALL_V_MESH_READ_ONLY, dispatcher_);
         CHK_SMART_PTR_NULL(alltoallReadOnly);

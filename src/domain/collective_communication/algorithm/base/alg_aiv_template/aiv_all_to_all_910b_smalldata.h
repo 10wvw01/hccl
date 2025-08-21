@@ -28,12 +28,6 @@ __aicore__ inline void AivAll2AllSmall910B::Process(GM_ADDR input, GM_ADDR outpu
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[block_idx]);
  
-    // 使用24个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_910B_SMALLDATA;
-
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[block_idx] + baseFlagOffset;
- 
     // 共使用2组flag
     uint32_t initAckFlagOffset = 0;
     uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
@@ -46,16 +40,16 @@ __aicore__ inline void AivAll2AllSmall910B::Process(GM_ADDR input, GM_ADDR outpu
  
         PipeBarrier<PIPE_ALL>();
  
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + block_idx * FLAG_SIZE), localCheckTensor, tag);
+        Record(tag, block_idx, AivNotifyType::ACK);
+        Wait(tag, block_idx, AivNotifyType::ACK);
  
         PipeBarrier<PIPE_ALL>();
  
         CpGM2GM(outputGM + dstOffset, cclGMOther + srcOffset, len);
  
         PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + block_idx * FLAG_SIZE), localCheckTensor, tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal);
+        Wait(tag, block_idx, AivNotifyType::DataSignal);
     } else {
         CpGM2GM(outputGM + dstOffset, inputGM + srcOffset, len);
     }

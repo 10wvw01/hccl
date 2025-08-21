@@ -165,20 +165,18 @@ HcclResult AllGatherNB::RunAllGather(u32 rank, u32 rankSize, const std::vector<S
 
             ret = linkLeft->RxWaitDone(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][AllGather]RxWaitDone failed"), ret);
-            ret = linkLeft->GetLinkType() == LinkType::LINK_HCCS 
-                ? linkLeft->PostFin(stream_) : linkLeft->PostFinAck(stream_); // P2P和Roce场景都需要同步
+            ret = linkLeft->PostFinAck(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][AllGather]PostFinAck failed"), ret);
         }
         if (txSlices.size() > 0) {
             ret = linkRight->TxWaitDone(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][AllGather]TxWaitDone failed"), ret);
-            ret = linkRight->GetLinkType() == LinkType::LINK_HCCS 
-                ? linkRight->WaitFin(stream_) : linkRight->WaitFinAck(stream_); // P2P和Roce场景都需要同步
+            ret = linkRight->WaitFinAck(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][AllGather]WaitFinAck failed"), ret);
         }
 
-        if (step == nSteps - 1 && barrierSwitchOn_) {
-            // 最后一步退出前，保证数据收发已结束
+        if (linkRight->IsSpInlineReduce() || linkLeft->IsSpInlineReduce()) {
+            // SDMA场景同步
             CHK_RET(ExecuteBarrier(linkLeft, linkRight));
         }
     }

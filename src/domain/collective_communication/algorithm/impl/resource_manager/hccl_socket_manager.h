@@ -125,6 +125,7 @@ public:
     HcclResult SetStopFlag(bool value);
     bool GetStopFlag();
     HcclResult WaitLinkEstablish(std::shared_ptr<HcclSocket> socket, std::function<bool()> needStop = []() { return false; });
+    HcclResult ServerDeInit(const HcclIpAddress& localIp, u32 port);
 private:
     HcclResult AddWhiteList(const std::string &commTag, bool isInterLink, NicType socketType,
         const HcclIpAddress &localIp, const std::map<u32, HcclRankLinkInfo> &whiteListMap);
@@ -163,7 +164,7 @@ private:
 
     HcclResult WaitLinksEstablishCompleted(HcclSocketRole localRole,
         std::map<u32, std::vector<std::shared_ptr<HcclSocket> > > &rankSocketsMap);
-
+    void AddIpQueue(RankInfo &localRankInfo, RankInfo &remoteRankInfo, NicType nicType, s32 deviceLogicId);
     NICDeployment nicDeployment_;
     s32 deviceLogicId_;
     u32 devicePhyId_;
@@ -189,5 +190,17 @@ using IntraExchanger = struct IntraExchangerDef {
     IntraExchangerDef() : socketsMap(), socketManager()
     {}
 };
+
+using RegisterDetectCallBack =
+    void (*)(RankInfo &localRankInfo, RankInfo &remoteRankInfo, NicType nicType,
+    s32 deviceLogicId);
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+void DetectCallBack(RegisterDetectCallBack p1);
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+
 }  // namespace hccl
 #endif /* * HCCL_SOCKET_MANAGER_H */

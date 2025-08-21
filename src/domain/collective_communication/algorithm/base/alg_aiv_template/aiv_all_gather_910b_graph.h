@@ -27,10 +27,6 @@ __aicore__ inline void AivAllGatherBigGraph910B::Process(GM_ADDR input, GM_ADDR 
     uint32_t targetRank = block_idx; 
 
     // 共用16个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_GATHER_910B_GRAPH;
-    uint32_t flagOffsetStart = flagOffsetBase;
-    uint32_t flagOffsetEnd = block_num * FLAG_SIZE + flagOffsetBase;
-
     __gm__ T *inputGm = (__gm__ T *)input;
     __gm__ T *outputGm = (__gm__ T *)output;
     __gm__ T *cclGmSelf = (__gm__ T *)(GM_IN[rank_]);
@@ -42,23 +38,17 @@ __aicore__ inline void AivAllGatherBigGraph910B::Process(GM_ADDR input, GM_ADDR 
 
     if (targetRank == rank_) {
         CpGM2GM(outputGm + rank_ * avgLengthPerSlice, inputGm, avgLengthPerSlice);
-    } else if (targetRank != rank_) {
-        __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetStart + rank_ * FLAG_SIZE);
-        __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetStart + block_idx * FLAG_SIZE);
+    } else {
         //确定可以从对端拉数据
-        SetSignalValue((__gm__ int32_t *)(ctrlFlagsGMX), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(ctrlFlagsGM), localCheckTensor, tag);
-        pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(ctrlFlagsGM), localSetTensor, 0);
+        Record(tag, targetRank, AivNotifyType::ACK);
+        Wait(tag, targetRank, AivNotifyType::ACK);
         //拉数据
         pipe_barrier(PIPE_ALL);
         CpGM2GM(outputGm + targetRank * avgLengthPerSlice, cclGmOther, avgLengthPerSlice);
         pipe_barrier(PIPE_ALL);
         // 通知对端数据已经拉走(写对端add)
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetEnd + rank_ * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + block_idx * FLAG_SIZE), localCheckTensor, tag);
-        pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + block_idx * FLAG_SIZE), localSetTensor, 0);
+        Record(tag, targetRank, AivNotifyType::DataSignal);
+        Wait(tag, targetRank, AivNotifyType::DataSignal);
     }            
     return;
 }

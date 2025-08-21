@@ -27,15 +27,6 @@ HcclResult CollAllReduceAivDeterExecutor::CalcStreamNum(u32& streamNum)
     return HCCL_SUCCESS;
 }
 
-HcclResult CollAllReduceAivDeterExecutor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    // AIV通信需要AIV buffer
-    needAivBuffer = true;
-    HCCL_INFO("[CollAllReduceAivDeterExecutor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u].",
-        tag_.c_str(), needAivBuffer);
-    return HCCL_SUCCESS;
-}
-
 HcclResult CollAllReduceAivDeterExecutor::CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport)
 {
     TransportMemType inputType = TransportMemType::RESERVED;
@@ -64,9 +55,9 @@ HcclResult CollAllReduceAivDeterExecutor::CalcLevel0CommInfo(TransportMemType in
     return HCCL_SUCCESS;
 }
 
-u32 CollAllReduceAivDeterExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAllReduceAivDeterExecutor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    u32 blockDim = rankSize; // 默认情况使用rankSize个AIV
+    blockDim = rankSize; // 默认情况使用rankSize个AIV
 
     blockDim = BLOCK_DIM_FACTOR_TWO * rankSize; // 小数据量使用2倍rankSize的AIV core
     if (dataSize >= AIV_ALL_REDUCE_DETER_SIZE) {
@@ -74,7 +65,7 @@ u32 CollAllReduceAivDeterExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclC
     }
 
     HCCL_INFO("[CollAllReduceAivDeterExecutor][CalBlockDim] datasize is [%u], blockDim is set to [%u]", dataSize, blockDim);
-    return blockDim;
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAllReduceAivDeterExecutor::Orchestrate(OpParam& param, AlgResourceResponse& algRes)
@@ -138,9 +129,12 @@ HcclResult CollAllReduceAivDeterExecutor::KernelRun(const OpParam &param, ExecMe
         param.DataDes.dataType, param.reduceType, 0, isOpbase
     };
     AivTopoArgs topoArgs { localRank, localRankSize, MAX_RANK_SIZE, 0, 1, topoAttr_.deviceType };
+    topoArgs.identify = algoAttr_.identifier;
     
     u64 dataSize = SIZE_TABLE[param.DataDes.dataType] * execMem.count;
-    blockDim_ = CalBlockDim(localRankSize, dataSize);
+    u32 blockDim;
+    CHK_RET(CalBlockDim(blockDim, localRankSize, dataSize));
+    blockDim_ = blockDim;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), buffersIn, buffersOut, execMem.inputMem.size(), blockDim_, param.aivTag
     };
@@ -148,10 +142,6 @@ HcclResult CollAllReduceAivDeterExecutor::KernelRun(const OpParam &param, ExecMe
     algArgs.deterministic = 1;
     struct AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
     HCCL_INFO("[CollAllReduceAivDeterExecutor][KernelRun]allreduce bufferin[%d] bufferout[%d]",execMem.inputMem.size(), execMem.outputMem.size());
 
     if (aivClearEnable_) {
@@ -160,13 +150,6 @@ HcclResult CollAllReduceAivDeterExecutor::KernelRun(const OpParam &param, ExecMe
 
     HcclResult ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
     
-    TaskAivProfilerWrap(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){ 
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
-
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAllReduceAivDeterExecutor][KernelRun]allreduce aiv failed, return[%d]", ret), ret);
 

@@ -849,6 +849,7 @@ HcclResult CollCommExecutor::MultiRingGather(const std::string &tag, DeviceMem i
         EXECEPTION_CATCH(
             (tempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_GATHER_RING, dispatcher_)),
             return HCCL_E_PTR);
+        CHK_SMART_PTR_NULL(tempAlg);
 
         if (ringIndex != (ringNum - 1)) {  // 0~ringNum-2的环
             if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OPS_KERNEL_INFO_LIB) { // offline
@@ -1720,7 +1721,7 @@ HcclResult CollCommExecutor::MutliSegSlicePrepareAvoidCceRewrite(const std::vect
         for (u32 ringIndex = 0; ringIndex < ringCount; ringIndex++) {
             if (ringIndex < ringCount - 1) {
                 rankSliceTemp.size = 0;
-                rankSliceTemp.offset = 0;
+                rankSliceTemp.offset = dataSegsSlice[rankId].offset;
             } else {
                 rankSliceTemp.size = dataSegsSlice[rankId].size;
                 rankSliceTemp.offset = dataSegsSlice[rankId].offset;
@@ -2355,7 +2356,7 @@ HcclResult CollCommExecutor::GetAdjInfo(AlgResourceResponse& algRes, AdjInfo& ad
 
     std::unique_ptr<AlgTemplateBase> nslbdp_levelTempAlg;
     if (SelectTempAlg(nslbdp_levelTempAlg, localRankSize) != HCCL_SUCCESS) {
-        HCCL_INFO("[nslbdp-GetAdjInfo] SelectTempAlg falied.");
+        HCCL_INFO("[nslbdp-GetAdjInfo] SelectTempAlg failed.");
         return HCCL_SUCCESS;
     }
     if(nslbdp_levelTempAlg == nullptr) {

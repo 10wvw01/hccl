@@ -183,7 +183,14 @@ HcclResult AlignedAllGatherDoubleRing::RunInitStep(const u32 rank, const u32 ran
 {
     for (u32 ringIndex = 0; ringIndex < multRingsSlices_.size(); ringIndex++) {
         // 第一步搬到userMemIn_的offset, 不同的ring环offset不一样
-        auto firstStepOffset = multRingsSlices_[ringIndex][ringsOrders_[ringIndex][0]].offset;
+        u64 firstStepOffset;
+        if (ringIndex == 0) {
+            firstStepOffset = multRingsSlices_[ringIndex][ringsOrders_[ringIndex][0]].offset;
+        } else {
+            const auto &prevRingSlice = multRingsSlices_[ringIndex - 1][ringsOrders_[ringIndex - 1][rank]];
+            const auto &slice = multRingsSlices_[ringIndex][ringsOrders_[ringIndex][rank]];
+            firstStepOffset = slice.offset - prevRingSlice.offset;
+        }
         // 第-1步，片内将部分数据从userIn搬到cclIn
         DeviceMem srcInit;
         DeviceMem dstInit;
@@ -390,7 +397,7 @@ HcclResult AlignedAllGatherDoubleRing::RunAllGather(const u32 rank, const u32 ra
     u32 rxSliceIdxSub = (rank + rankSize - 1) % rankSize;
     u32 txSliceIdxMain = (rankSize - rank) % rankSize;
     u32 rxSliceIdxMain = (rankSize - rank - 1 + rankSize) % rankSize;
-
+    // 空拷贝用于主从流任务并发
     CHK_RET(AlgTemplateBase::ExecEmptyTask(inputMem_, outputMem_, stream_, dispatcher_));
     CHK_RET(ExecEmptyTasks());
     for (u32 step = 0; step < rankSize - 1; step++) {

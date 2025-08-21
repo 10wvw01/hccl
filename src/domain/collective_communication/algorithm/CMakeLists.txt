@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16.0)
 project(hccl_alg)
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 add_library(hccl_alg SHARED)
 
 set(HCCL_BASE_DIR ${TOP_DIR}/ace/comop/hccl/whole/hccl/)
@@ -58,21 +60,16 @@ target_include_directories(hccl_alg PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/pub_inc
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/health
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/debug/profiling/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/debug/profiling/inc/host
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/debug/config
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/stream/
     ${HCCL_BASE_DIR}/../../../../inc/external
     ${HCCL_BASE_DIR}/../../../../inc/external/hccl
     ${HCCL_BASE_DIR}/../../../../inc/hccl
     ${HCCL_BASE_DIR}/../../../../inc
-    ${TOP_DIR}/ace/comop/inc/external/hccl
-    ${TOP_DIR}/ace/comop/inc/hccl
-    ${TOP_DIR}/ace/comop/hccl/whole/hccl/platform/inc/adapter/
-    ${TOP_DIR}/ace/comop/hccl/whole/hccl/platform/inc
-    ${TOP_DIR}/drivers/network/inc
     ${HCCL_BASE_DIR}/framework/common/src/config
     ${HCCL_BASE_DIR}/framework/inc/
-    ${CMAKE_CURRENT_SOURCE_DIR}/../framework/cluster_maintenance/detect/detect_connect_anomalies
     ${CMAKE_CURRENT_SOURCE_DIR}/../framework/common/src/config
-    ${CMAKE_CURRENT_SOURCE_DIR}/../framework/inc/
 )
 
 if(BUILD_OPEN_PROJECT)
@@ -95,6 +92,8 @@ if(BUILD_OPEN_PROJECT)
         ${ASCEND_CANN_PACKAGE_PATH}/include/experiment/runtime/external
         ${ASCEND_CANN_PACKAGE_PATH}/include/experiment/slog/toolchain
         ${ASCEND_CANN_PACKAGE_PATH}/include/experiment/mmpa
+        ${CMAKE_CURRENT_SOURCE_DIR}/../framework/common/src/config
+        ${CMAKE_CURRENT_SOURCE_DIR}/../framework/inc/
     )
 
     target_link_directories(hccl_alg PRIVATE

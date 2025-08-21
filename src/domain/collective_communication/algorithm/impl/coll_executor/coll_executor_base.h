@@ -48,8 +48,9 @@ public:
     //batchsendrecv retry使用
     virtual HcclResult CreatePairWiseList(HcclSendRecvItem *sendRecvInfo, u32 itemNum);
     virtual HcclResult GetPairWiseList(std::vector<std::vector<HcclSendRecvItem*>> &sendRecvPairList);
-    virtual u32 CalBlockDim(u32 rankSize, u64 dataSize = 0, HcclCMDType cmdType = HcclCMDType::HCCL_CMD_INVALID);
+    virtual HcclResult CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize = 0, HcclCMDType cmdType = HcclCMDType::HCCL_CMD_INVALID);
     HcclResult GetBlockDim(u32& blockDim);
+    HcclResult SetBlockDim(const u32& blockDim);
     HcclResult SetOpCounter(const OpCounterInfo& opCounter);
 
     inline AlgDesc GetAlgDesc() {return desc_;}
@@ -61,7 +62,7 @@ protected:
     bool isSupportSDMAReduce_ = false;
     AlgOpContext algOpContext_;
     bool aivClearEnable_ = false;
-    u32 blockDim_ = 0;
+    u32 blockDim_ = MAX_BLOCK_DIM;
     OpCounterInfo opCounter_;
     AlgDesc desc_;
 };

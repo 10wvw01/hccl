@@ -89,17 +89,17 @@ HcclResult CollReceiveExecutor::CalcResRequest(const OpParam& param, AlgResource
     u64 scratchMemSize = 0U;
     u32 streamNum = 0U;
     u32 notifyNum = 0U;
-    bool needAivBuffer = false;
+    u64 aivBufferRequest = 0U;
     std::vector<LevelNSubCommTransport> opTransport {
         std::vector<LevelNSubCommTransport>(static_cast<u32>(COMM_LEVEL_RESERVED))
     };
 
     CHK_RET(CalcCommInfo(opTransport, param.srcRank));
 
-    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, needAivBuffer, opTransport, resourceRequest));
-    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], needAivBuffer[%u]",
+    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, aivBufferRequest, opTransport, resourceRequest));
+    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], aivBufferRequest[%llu]",
         resourceRequest.streamNum, resourceRequest.notifyNum, resourceRequest.scratchMemSize,
-        resourceRequest.needAivBuffer);
+        resourceRequest.aivBufferRequest);
     // 打印建链诉求
     PrintTransportRequest(resourceRequest);
     return HCCL_SUCCESS;

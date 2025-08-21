@@ -1130,19 +1130,26 @@ HcclResult CommBase::GetIntraRankIPInfo(std::map<u32, HcclSocketRole> &rankRole,
             if(IsSupportMC2(tag_)) {
                 ipAddress = paraVector_[dstRank].nicIp.front();
                 CHK_PRT_RET(ipAddress.IsInvalid(),
-                HCCL_ERROR("[Get][IntraRankIPInfo] ipAddress is invalid when NIC, check the ip configuration for dstRank[%u]"
-                , dstRank), HCCL_E_PARA);
+                    HCCL_ERROR("[Get][IntraRankIPInfo] ipAddress is invalid when NIC, check the ip configuration for "
+                               "dstRank[%u]",
+                        dstRank),
+                    HCCL_E_PARA);
             } else {
-                CHK_RET(hrtRaGetSingleSocketVnicIpInfo(paraVector_[rank_].devicePhyId, deviceidType,
-                linkInfo.devicePhyId, ipAddress));
+                CHK_RET(hrtRaGetSingleSocketVnicIpInfo(
+                    paraVector_[rank_].devicePhyId, deviceidType, linkInfo.devicePhyId, ipAddress));
             }
         }
         linkInfo.ip = ipAddress;
         linkInfo.socketsPerLink = 1;
 
         HCCL_DEBUG("[Get][IntraRankIPInfo] tag[%s], userRank[%u], destRank[%u], localRole[%d], port[%u], ip[%s], "
-        "devicePhyId[%u]",
-            tag_.c_str(), rank_, linkInfo.userRank, localRole, linkInfo.port, linkInfo.ip.GetReadableAddress(),
+                   "devicePhyId[%u]",
+            tag_.c_str(),
+            rank_,
+            linkInfo.userRank,
+            localRole,
+            linkInfo.port,
+            linkInfo.ip.GetReadableAddress(),
             paraVector_[rank_].devicePhyId);
 
         if (localRole == HcclSocketRole::SOCKET_ROLE_CLIENT) {

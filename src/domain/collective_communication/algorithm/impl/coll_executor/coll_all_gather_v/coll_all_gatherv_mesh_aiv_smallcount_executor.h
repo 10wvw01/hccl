@@ -23,13 +23,12 @@ public:
     HcclResult Orchestrate(OpParam& param, AlgResourceResponse& algRes) override;
 private:
     /* *************** 资源计算 *************** */
-    HcclResult GetIfNeedAivBuffer(bool &needAivBuffer) override;
     HcclResult CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport) override;
     HcclResult CalcLevel0CommInfo(TransportMemType inputType,
         TransportMemType outputType,
         std::vector<LevelNSubCommTransport>& opTransport) override;
     HcclResult CalcTransportMemType(TransportMemType &inputType, TransportMemType &outputType);
-    u32 CalBlockDim(u32 rankSize, u64 dataSize = 0, HcclCMDType cmdType = HcclCMDType::HCCL_CMD_INVALID) override;
+    HcclResult CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize = 0, HcclCMDType cmdType = HcclCMDType::HCCL_CMD_INVALID) override;
  
     /* *************** 算法编排 *************** */
     HcclResult KernelRun(const OpParam &param, ExecMem &execMem) override;

@@ -113,7 +113,7 @@ HcclResult ProfilerBase::AddTag(const std::string &tag, const std::string &group
     CHK_RET(GetMaxDevNum(maxDeviceNum));
     CHK_PRT_RET(static_cast<u32>(deviceLogicId) >= maxDeviceNum, HCCL_ERROR("deviceLogicId_[%d] is bigger than"
         " maxDeviceNum[%u]", deviceLogicId, maxDeviceNum), HCCL_E_INTERNAL);
-    HCCL_DEBUG("AddTag: tag[%s] group[%s] deviceLogicId[%d]", tag.c_str(), group.c_str(), deviceLogicId);
+    HCCL_DEBUG("AddTag: tag[%s] group[%s] deviceLogicId[%d] aivGroupIndexMap_ %d", tag.c_str(), group.c_str(), deviceLogicId, aivGroupIndexMap_[deviceLogicId][group]);
     {
         std::unique_lock<std::mutex> lock(streamMutex_[deviceLogicId]);
         tagGroupMap_[deviceLogicId].insert(std::make_pair<const std::string &, const std::string &>(tag, group));
@@ -133,8 +133,8 @@ HcclResult ProfilerBase::AddTag(const std::string &tag, const std::string &group
             index_[deviceLogicId] =
                 isSendRecv ? sendRecvGroupIndexMap_[deviceLogicId][group] : groupIndexMap_[deviceLogicId][group];
         }
-        HCCL_DEBUG("IndexMap: tag[%s] group[%s] groupIndexMap_[%d]:%u sendRecvGroupIndexMap_[%d]:%u", tag.c_str(), group.c_str(),
-            deviceLogicId, groupIndexMap_[deviceLogicId][group], deviceLogicId, sendRecvGroupIndexMap_[deviceLogicId][group]);
+        HCCL_DEBUG("IndexMap: tag[%s] group[%s] groupIndexMap_[%d]:%u sendRecvGroupIndexMap_[%d]:%u AivGroupIndexMap_[%d] %u", tag.c_str(), group.c_str(),
+            deviceLogicId, groupIndexMap_[deviceLogicId][group], deviceLogicId, sendRecvGroupIndexMap_[deviceLogicId][group], deviceLogicId, aivGroupIndexMap_[deviceLogicId][group]);
     }
     return HCCL_SUCCESS;
 }

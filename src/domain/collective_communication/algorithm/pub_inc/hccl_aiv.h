@@ -17,10 +17,16 @@
 #include "hccl_types.h"
 #include "runtime/kernel.h"
 #include "hccl_common.h"
+#include "common.h"
 #include "mem_device_pub.h"
 #include "alg_profiling.h"
 
 namespace hccl {
+constexpr u64 ATTR_POS_AIV_COMM_BUFFER = 0x00;
+constexpr u64 ATTR_POS_AIV_COMM_INFO_BUFFER = 0x01;
+constexpr u64 AIV_COMM_BUFFER_BITMASK = 0x01;
+constexpr u64 AIV_COMM_INFO_BUFFER_BITMASK = 0x02;
+
 constexpr u64 AIV_ALL_REDUCE_BIG_SIZE = 16 * 1024 * 1024;
 constexpr u64 AIV_ALL_REDUCE_A3_ENTRY_SIZE = 1 * 1024 * 1024; // AllReduce单张卡数据量A3
 constexpr u64 AIV_REDUCE_SCATTER_DETER_SMALL_SIZE = 1 * 1024 * 1024;
@@ -71,8 +77,6 @@ constexpr u32 ONE_FOURTH_MAX_BLOCK_DIM = 12;
 constexpr u32 ONE_SIXTH_MAX_BLOCK_DIM = 8;
 constexpr u32 ONE_EIGHTH_MAX_BLOCK_DIM = 6;
 
-constexpr u64 COMM_INFO_OFFSET = 32 * 1024; // 通信域内所有对端共享内存地址的信息距离aiv buffer末尾的偏移
-
 constexpr s32 TAG_INIT_VALUE = 1;
 constexpr s32 TAG_RESET_COUNT = 1000;
 constexpr s32 AIV_A2_ALL_REDUCE_RDMA_KERNEL_NUM = 2;
@@ -115,10 +119,11 @@ struct AivTopoArgs {
     u32 serverId;
     u32 serverNum;
     DevType devType;
+    std::string identify;
 
     AivTopoArgs(u32 rank, u32 rankSize, u32 devId = MAX_RANK_SIZE, u32 serverId = 0, u32 serverNum = 1,
-        DevType devType = DevType::DEV_TYPE_910B)
-    : rank(rank), rankSize(rankSize), devId(devId), serverId(serverId), serverNum(serverNum), devType(devType)
+        DevType devType = DevType::DEV_TYPE_910B, std::string identify= "INVALID_COMM")
+    : rank(rank), rankSize(rankSize), devId(devId), serverId(serverId), serverNum(serverNum), devType(devType), identify(identify)
     {
     }
 };
@@ -160,14 +165,15 @@ using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
     u64 rankSize;
     u64 len;
     u64 dataType;
+    u64 unitSize;
     u64 reduceOp;
     u64 blockdim;
     s64 tag; // 第几次调用，定时重置成1
     s64 clearEnable;
  
     AivSuperKernelArgsDef(void** buffIn, void** buffOut, u32 rank,
-        u32 rankSize, u64 len, u32 dataType, u32 reduceOp,u32 blockdim = 0, s32 tag = 0, bool clearEnable = true)
-        : rank(rank), rankSize(rankSize), len(len), dataType(dataType), reduceOp(reduceOp), blockdim(blockdim),tag(tag), clearEnable(clearEnable)   
+        u32 rankSize, u64 len, u32 dataType, u32 unitSize, u32 reduceOp,u32 blockdim = 0, s32 tag = 0, bool clearEnable = true)
+        : rank(rank), rankSize(rankSize), len(len), dataType(dataType), unitSize(unitSize), reduceOp(reduceOp), blockdim(blockdim),tag(tag), clearEnable(clearEnable)
     {
         for (u32 i = 0; i < MAX_RANK_SIZE; i++) {
             buffersIn[i] = (u8 *) buffIn[i];
@@ -181,9 +187,11 @@ HcclResult RegisterKernel(DevType deviceType);
 
 HcclResult ClearAivSyncBuf(void** cclBuffersOut, rtStream_t stream, const AivTopoArgs &topoArgs);
 
-HcclResult AivResumeClearSyncBuf(DeviceMem &inAIVbuffer, DeviceMem &outAIVbuffer);
-
 inline s32 GetNextAivTag(s32 curTag, s32 tagIncre = 1) { return (curTag + tagIncre - 1) % TAG_RESET_COUNT + 1; }
+
+HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, const AivTopoArgs &topoArgs,
+    const AivResourceArgs &resourceArgs, const AivAlgArgs &algArgs, void* args, u32 argsSize, 
+    AivProfilingInfo& aivProfilingInfo);
 
 HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs, const AivTopoArgs &topoArgs,
     const AivResourceArgs &resourceArgs, const AivAlgArgs &algArgs, 
@@ -199,9 +207,8 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs, const AivTopoArgs &topoA
 
 HcclResult ReadBinFile(const std::string& fileName, std::string& buffer);
 
-void TaskAivProfilerWrap(const AivOpArgs& opArgs, const AivTopoArgs& topoArgs,
-    const AivResourceArgs& resourceArgs, const AivAlgArgs& algArgs, const AivProfilingInfo& aivProfilingInfo,
-    void* flagMem=nullptr);
+void SetAivProfilingInfoBeginTime(AivProfilingInfo& aivProfilingInfo);
+void SetAivProfilingInfoBeginTime(uint64_t& oneTime);
 }
 
 #endif // HCCL_AIV_H

@@ -4,6 +4,8 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/coll_alg_utils.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/alg_configurator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/hccl_aiv.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/alg_env_config.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/hccl_aiv_host.cc
 )
 
 target_sources(hccl_alg PRIVATE

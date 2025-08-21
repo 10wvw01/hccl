@@ -17,6 +17,7 @@
 #include <mutex>
 #include "base.h"
 #include "hccl_common.h"
+#include "common.h"
 #include "mem_device_pub.h"
 #include "topoinfo_struct.h"
 #include "comm.h"
@@ -230,10 +231,12 @@ public:
     HcclResult CreateIndirectCCLbuf();
     void ReleaseIndirectCCLbuf();
 
-    #if (!defined(HCCD)) && (!defined(CCL_KERNEL_AICPU))
-    HcclResult GetOneSidedService(IHcclOneSidedService** service);
-    HcclResult InitOneSidedServiceNetDevCtx(u32 remoteRankId);
-    #endif
+    HcclResult GetOneSidedService(IHcclOneSidedService** service);//host侧专用
+    HcclResult InitOneSidedServiceNetDevCtx(u32 remoteRankId);//host侧专用
+    HcclResult OneSidedServiceStartListen(NicType nicType,HcclNetDevCtx netDevCtx);//host侧专用
+    HcclResult GetOneSidedServiceDevIpAndPort(NicType nicType, HcclIpAddress& ipAddress, u32& port);//host侧专用
+    HcclResult DeinitOneSidedService();//host侧专用
+
     HcclResult GetIndirectInCCLbuf(void* &ptr, u64 &size);
     HcclResult GetIndirectOutCCLbuf(void* &ptr, u64 &size);
     HcclResult HcclSelectAlg(HcclCMDType opType, u64 count, HcclDataType dataType,

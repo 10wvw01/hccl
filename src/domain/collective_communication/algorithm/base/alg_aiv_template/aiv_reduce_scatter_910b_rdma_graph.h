@@ -44,7 +44,7 @@ __aicore__ inline void AivReduceScatterRdmaGraph910B::Process(GM_ADDR input, GM_
         }
         // 本地拷贝 & 卡间同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, (rankSize_ - 1) * tag);  // 本卡该片数据已可以被跨片读取（也可累加）
+        Record1vN(tag, CommPattern::intraRank);  // 本卡该片数据已可以被跨片读取（也可累加）
     } else {
         for (uint32_t i = 0; i < serverNum; i++) {    //循环处理每个服务器需要的数据
             CpGM2GM(cclGMSelf + block_idx * LengthPerPlane + i * count,
@@ -52,18 +52,17 @@ __aicore__ inline void AivReduceScatterRdmaGraph910B::Process(GM_ADDR input, GM_
         }
         // 本地拷贝 & 卡间同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue(
-            (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag);  // 本卡该片数据已可以被跨片读取
-
+        Record(tag, block_idx, AivNotifyType::ACK);  // 本卡该片数据已可以被跨片读取
         // 检查对端数据就绪且本端就绪 & 跨片搬运
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localCheckTensor, tag);
-        WaitSignalGEValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localCheckGETensor, tag);
+        pipe_barrier(PIPE_ALL);
+        Wait(tag, block_idx, AivNotifyType::ACK);
+        WaitNv1(tag, block_idx);
         pipe_barrier(PIPE_ALL);
         CpGM2GM(cclGMSelf + LengthPerPlane * rank_,
                 cclGMOther + LengthPerPlane * rank_, count * serverNum, true, reduceOp_);
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localSetTensor, 0);
-        AddSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, -tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal);  // 本卡该片数据已可以被跨片读取
+        Wait(tag, block_idx, AivNotifyType::DataSignal);
     }
     return;
 }

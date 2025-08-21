@@ -158,6 +158,9 @@ private:
     static bool FindAndValidateContext(rtExceptionInfo *exceptionInfo);
     static bool ProcessContext(rtExceptionInfo *exceptionInfo);
     static void PrintAicpuErrorMessage(rtExceptionInfo *exceptionInfo, bool &isExistAicpuError);
+    static void PrintGroupErrorMessage(ErrorMessageReport &errorMessage, TaskInfo &exceptionTaskInfo,
+        std::string &groupRankContent);
+    static void PrintOpDataErrorMessage(u32 deviceId, ErrorMessageReport &errorMessage);
     static std::array<std::map<int, std::shared_ptr<std::deque<TaskInfo>>>, \
         MAX_MODULE_DEVICE_NUM> taskMap;
     static std::array<std::mutex, MAX_MODULE_DEVICE_NUM> taskMapMutex;
@@ -176,6 +179,7 @@ private:
     static std::array<std::mutex, MAX_MODULE_DEVICE_NUM> tagOpDataMapMutex;
     static std::array<std::map<const std::string, std::string>, MAX_MODULE_DEVICE_NUM> groupUdiMap;
     static std::array<std::mutex, MAX_MODULE_DEVICE_NUM> groupUdiMapMutex;
+    static int communicatorCount_;
 };
 
 using GetErrStatusVecCallBack = std::vector<std::string> (*)(s32 deviceLogicID);

@@ -14,6 +14,7 @@
 #include "executor_impl.h"
 #include "stream_active_manager.h"
 #include "coll_alg_op_registry.h"
+#include "hccl_aiv.h"
 
 namespace hccl {
 BroadCastOperator::BroadCastOperator(AlgConfigurator* algConfigurator, CCLBufferManager &cclBufferManager,
@@ -36,6 +37,7 @@ HcclResult BroadCastOperator::SelectAlg(const std::string& tag, const OpParam& p
                                         std::string& newTag)
 {
     HcclResult ret;
+    isAivMode_ = false;
     if (isDiffDeviceType_) {
         ret = SelectAlgforMix(param, algName);
     } else if (Is310P3Common(isHaveCpuRank_, deviceType_)) {
@@ -57,6 +59,9 @@ HcclResult BroadCastOperator::SelectAlg(const std::string& tag, const OpParam& p
 
     if (GetWorkflowMode() != HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
         newTag = tag;
+    } else if (isAivMode_ || (Is310P3Common(isHaveCpuRank_, deviceType_) &&
+                            (algType_.algoLevel1 != AlgTypeLevel1::ALG_LEVEL1_HD))) {
+        newTag = tag + algName;
     } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_HD) {
         newTag = tag;
         u32 part1Size = 2 * (moduleNum_ - (1 << static_cast<u32>(log2(moduleNum_))));
@@ -66,8 +71,6 @@ HcclResult BroadCastOperator::SelectAlg(const std::string& tag, const OpParam& p
         if (GetExternalInputHcclEnableEntryLog() && param.opBaseAtraceInfo != nullptr) {
             CHK_RET(param.opBaseAtraceInfo->SavealgtypeTraceInfo(appendTag, param.tag));
         }
-    } else if (Is310P3Common(isHaveCpuRank_, deviceType_)) {
-        newTag = tag + algName;
     } else {
         AlgTypeLevel1 algType1 = algType_.algoLevel1;
         auto level1Iter = HCCL_ALGO_LEVEL1_NAME_MAP.find(algType1);
@@ -78,7 +81,7 @@ HcclResult BroadCastOperator::SelectAlg(const std::string& tag, const OpParam& p
     newTag += (param.aicpuUnfoldMode ? "_device" : "_host");
     HCCL_INFO("[SelectAlg] broadcast newTag is [%s]", newTag.c_str());
 
-    if (UNLIKELY(EnvConfig::GetExternalInputDebugConfig() & HCCL_ALG)) {
+    if (UNLIKELY(GetDebugConfig() & HCCL_ALG)) {
         HCCL_CONFIG_INFO(HCCL_ALG, 
             "[BroadCastOperator][SelectAlg]userRank_[%u], algName[%s] actual level1 algo[%d], level2 algo[%d]",
             userRank_, algName.c_str(), algType_.algoLevel1, algType_.algoLevel2);
@@ -143,8 +146,22 @@ HcclResult BroadCastOperator::SelectAlgfor910B(const OpParam& param, std::string
     bool isMeshTopo = topoType_ == TopoType::TOPO_TYPE_NP_MESH || topoType_ == TopoType::TOPO_TYPE_4P_MESH ||
         topoType_ == TopoType::TOPO_TYPE_2P_MESH || topoType_ == TopoType::TOPO_TYPE_1P_MESH;
     bool isRingTopo = topoType_ == TopoType::TOPO_TYPE_NP_SINGLE_RING || topoType_ == TopoType::TOPO_TYPE_8P_RING;
+    bool isOpbase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
+    void *commInputPtr = nullptr;
+    void *commOutputPtr = nullptr;
+    u64 commInputSize = 0;
+    u64 commOutputSize = 0;
 
-    if (isMeshTopo) {
+    CHK_RET(cclBufferManager_.GetInCCLbuffer(commInputPtr, commInputSize));
+    CHK_RET(cclBufferManager_.GetOutCCLbuffer(commOutputPtr, commOutputSize));
+    
+    // 暂只支持单算子模式
+    bool isCCLBufferGE16M = commInputSize >= HCCL_MID_COUNT_16_MB && commOutputSize >= HCCL_MID_COUNT_16_MB;
+    isAivMode_ = topoMatcher_->GetAivModeConfig() && isSingleMeshAggregation_ && isOpbase && isCCLBufferGE16M &&
+                     IsSupportAIVCopy(param.DataDes.dataType);
+    if (isAivMode_) {
+        algName = "BroadcastMeshAivExecutor";
+    } else if (isMeshTopo) {
         algName = "BroadCastMeshExecutor";
     } else if (topoType_ == TopoType::TOPO_TYPE_4P_RING) {
         algName = "BroadCast4pRingExecutor";
@@ -169,7 +186,7 @@ HcclResult BroadCastOperator::SelectAlgfor91093(const OpParam& param, std::strin
     u32 unitSize = SIZE_TABLE[param.DataDes.dataType];
     u64 dataSize = param.DataDes.count * unitSize; // 单位：字节
     if (dataSize >= cclBufferManager_.GetInCCLbufferSize()) {
-        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable"\
+        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable "\
             "to be greater than the current data volume[%llu] bytes to improve the performance of the 91093 environment.",
             cclBufferManager_.GetInCCLbufferSize(), dataSize);
     }
@@ -202,4 +219,4 @@ HcclResult BroadCastOperator::SelectAlgfor91093(const OpParam& param, std::strin
 }
 
 REGISTER_OP(HcclCMDType::HCCL_CMD_BROADCAST, Broadcast, BroadCastOperator);
-}
+} // namespace hccl

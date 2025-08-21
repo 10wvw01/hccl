@@ -21,7 +21,7 @@ public:
 __aicore__ inline void AivSync910B::Process(int32_t tag)
 {
     // 从0开始，用4个flag
-    uint32_t flagOffset = 2 * 1024 * 1024;
+    uint32_t flagOffset = SYNC_BUFFER_OFFSET;
     flagOffset += ((tag % AIV_PING_PONG_FACTOR_TWO == 0) ? 0 : rankSize_ * FLAG_SIZE);
     if (block_idx != rank_) {
         // 卡间同步

@@ -24,8 +24,7 @@ template<typename T>
 __aicore__ inline void AivReduceScatterSmall910B::Process(GM_ADDR input, GM_ADDR output, uint64_t len, int32_t tag)
 {
     // 共用16个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_910B_SMALLDATA;
-    uint32_t flagOffset = ((tag % 2 == 0) ? 0 : block_num * FLAG_SIZE) + flagOffsetBase;
+    bool ifPingpong = (tag % 2 == 0);
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
     __gm__ T *inputGM = (__gm__ T *)input;
@@ -43,19 +42,18 @@ __aicore__ inline void AivReduceScatterSmall910B::Process(GM_ADDR input, GM_ADDR
         outputGT.SetGlobalBuffer(outputGM, count);
         CpGM2GM(cclGMSelf + count * block_idx, inputGM + count * block_idx, count);
         // 卡间同步
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + block_idx * FLAG_SIZE), localSetTensor, tag);
-
+        pipe_barrier(PIPE_ALL);
+        Record(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
         // 对端到ub
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
+        Wait(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
+        pipe_barrier(PIPE_ALL);
         LocalTensor<T> localIn = inOutQue.AllocTensor<T>();
         DataCopyGM2UB(localIn, cclGTOther[count * rank_], count);
         inOutQue.EnQue(localIn);
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
+        WaitNv1(tag, rank_, AivNotifyType::DataSignal, 0, ifPingpong);
+        pipe_barrier(PIPE_ALL);
         SetAtomicOp<T>(reduceOp_);
         DataCopyUB2GM(outputGT, localOut, count);
         SetAtomicNone();
@@ -64,9 +62,9 @@ __aicore__ inline void AivReduceScatterSmall910B::Process(GM_ADDR input, GM_ADDR
 
     } else {
         CpGM2GM(outputGM, inputGM + rank_ * count, count);
-        PipeBarrier<PIPE_ALL>();
         // 卡内同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+        pipe_barrier(PIPE_ALL);
+        Record1vN(tag, CommPattern::intraRank, AivNotifyType::DataSignal, 0, ifPingpong);
     }
 }
 

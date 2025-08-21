@@ -39,15 +39,15 @@ __aicore__ inline void AivReduceScatterDeterMid910B::EndSync(int32_t tag)
 {
     uint32_t targetRank = block_idx % rankSize_;
 
-    int64_t flagOffsetBasic = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_DETER_910B_MIDDATA;
+    int64_t flagOffsetBasic = seperateOffset + BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_DETER_910B_MIDDATA;
     uint32_t flagOffset = (((tag % 2 == 0) ? 3 : 9) * rankSize_ * FLAG_SIZE) + flagOffsetBasic;
 
     if (block_idx < rankSize_) {
         if (targetRank != rank_) {
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
             WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
         }
     }
@@ -208,10 +208,10 @@ __aicore__ inline void AivReduceScatterDeterMid910B::Process(GM_ADDR input, GM_A
     int64_t allCount = count*rankSize_;
     int64_t blockNumPerGroup = rankSize_;
     int64_t x = block_idx % blockNumPerGroup;
-    int64_t flagOffsetBasic = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_DETER_910B_MIDDATA;
+    int64_t flagOffsetBasic = seperateOffset + BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_DETER_910B_MIDDATA;
 
     uint32_t flagOffsetBase = ((tag % 2 == 0) ? 0 : 6 * rankSize_ * FLAG_SIZE) + flagOffsetBasic;
-    uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : bufferSize / DOUBLE;
+    uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
     
     __gm__ T *inputGM = (__gm__ T *)input;
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_] + dataOffset);
@@ -260,7 +260,6 @@ __aicore__ inline void AivReduceScatterDeterMid910B::Process(GM_ADDR input, GM_A
         if (x == lastOpCore) {
             SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetBase + flagOffsetCheck), localSetTensor, tag);
         }       
-        return;
     }
  
     // 第2组搬运cllbuffer到output
@@ -279,7 +278,6 @@ __aicore__ inline void AivReduceScatterDeterMid910B::Process(GM_ADDR input, GM_A
 
         PipeBarrier<PIPE_ALL>();
         CpGM2GM(outputGM + x * copyLen, cclGMSelf + allCount + x * copyLen, needCopy);
-        return;
     }
 }
  

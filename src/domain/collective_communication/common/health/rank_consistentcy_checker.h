@@ -20,6 +20,7 @@
 #include <hccl/hccl_types.h>
 
 #include "hccl_common.h"
+#include "common.h"
 #include "externalinput_pub.h"
 
 namespace hccl {
@@ -167,7 +168,7 @@ private:
     // cann 版本校验开关
     bool cannVerCheckSwitch_;
     // 算法标志是否已经更新标志，防止发送空数据
-    bool infoFlagVer_;
+    bool cannVerInfoRecordFlag_;
     // CMD是否已经更新标志，防止发送空数据，要校验内容的信息的更新情况（false：未更新）
     std::unordered_map<std::string, bool> infoFlagCmdMap_;
     // config文件是否存在，1表示存在，0表示不存在

@@ -72,7 +72,7 @@ HcclResult AllGatherOperator::SelectAlg(const std::string& tag, const OpParam& p
     newTag += (param.aicpuUnfoldMode ? "_device" : "_host");
     HCCL_INFO("[SelectAlg] all_gather newTag is [%s]", newTag.c_str());
 
-    if (UNLIKELY(EnvConfig::GetExternalInputDebugConfig() & HCCL_ALG)) {
+    if (UNLIKELY(GetDebugConfig() & HCCL_ALG)) {
         HCCL_CONFIG_INFO(HCCL_ALG, 
             "[AllGatherOperator][SelectAlg]userRank_[%u], algName[%s] actual level1 algo[%d], level2 algo[%d]",
             userRank_, algName.c_str(), algType_.algoLevel1, algType_.algoLevel2);
@@ -104,7 +104,7 @@ HcclResult AllGatherOperator::SelectAlgfor310P3(const OpParam& param, std::strin
 {
     if(HCCL_310P_DATA_SIZE_SMALL_COUNT< param.DataDes.count &&param.DataDes.count <= HCCL_310P_DATA_SIZE_MID_COUNT && userRankSize_ <= HCCL_310P_SLIM_RING_MAX_SIZE){
         algName = "AllGatherSlimRingFor310PExecutor";
-    }else {         
+    } else {         
         algName = "AllGatherFor310PExecutor";
     }
     HCCL_INFO("[SelectAlgfor310P3] all_gather SelectAlgfor310P3 is algName [%s]", algName.c_str());
@@ -247,7 +247,7 @@ HcclResult AllGatherOperator::SelectAlgfor91093(const OpParam& param, std::strin
     u32 unitSize = SIZE_TABLE[param.DataDes.dataType];
     u64 dataSize = param.DataDes.count * unitSize; // 单位：字节
     if (dataSize >= cclBufferManager_.GetInCCLbufferSize()) {
-        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable"\
+        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable "\
             "to be greater than the current data volume[%llu] bytes to improve the performance of the 91093 environment.",
             cclBufferManager_.GetInCCLbufferSize(), dataSize);
     }

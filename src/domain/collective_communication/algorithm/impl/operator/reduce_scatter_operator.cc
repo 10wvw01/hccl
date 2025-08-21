@@ -80,7 +80,7 @@ HcclResult ReduceScatterOperator::SelectAlg(const std::string& tag, const OpPara
     newTag += (param.aicpuUnfoldMode ? "_device" : "_host");
     HCCL_INFO("[SelectAlg] reduce_scatter newTag is [%s]", newTag.c_str());
 
-    if (UNLIKELY(EnvConfig::GetExternalInputDebugConfig() & HCCL_ALG)) {
+    if (UNLIKELY(GetDebugConfig() & HCCL_ALG)) {
         HCCL_CONFIG_INFO(HCCL_ALG, 
             "[ReduceScatterOperator][SelectAlg]userRank_[%u], algName[%s] actual level1 algo[%d], level2 algo[%d]",
             userRank_, algName.c_str(), algType_.algoLevel1, algType_.algoLevel2);
@@ -301,7 +301,7 @@ HcclResult ReduceScatterOperator::SelectAlgfor91093(const OpParam& param, std::s
     u32 unitSize = SIZE_TABLE[param.DataDes.dataType];
     u64 dataSize = param.DataDes.count * unitSize; // 单位：字节
     if (dataSize >= cclBufferManager_.GetInCCLbufferSize()) {
-        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable"\
+        HCCL_WARNING("The current inCCLbufferSize is [%llu] bytes, change the HCCL_BUFFSIZE environment variable "\
             "to be greater than the current data volume[%llu] bytes to improve the performance of the 91093 environment.",
             cclBufferManager_.GetInCCLbufferSize(), dataSize);
     }
@@ -313,7 +313,8 @@ HcclResult ReduceScatterOperator::SelectAlgfor91093(const OpParam& param, std::s
                 (dataSize <= AIV_REDUCE_SCATTER_A3_LARGE_RANKSIZE_ENTRY_SIZE));
     bool isAivMode = topoMatcher_->GetAivModeConfig() && IsSupportAIVReduce(param.DataDes.dataType, param.reduceType) &&
         ((serverNum_ == 1 && ((isOpbase && dataSize <= AIV_REDUCE_SCATTER_A3_ENTRY_SIZE) ||
-        (!isOpbase && dataSize <= AIV_REDUCE_SCATTER_A3_GRAPH_ENTRY_SIZE))) || isAivCrossnodeMode);
+        (!isOpbase && dataSize <= AIV_REDUCE_SCATTER_A3_GRAPH_ENTRY_SIZE))) || isAivCrossnodeMode) &&
+        topoMatcher_->GetDeterministicConfig() == DETERMINISTIC_DISABLE;
     if (isAivMode) {
         if (isAivCrossnodeMode) {
             algName = "ReduceScatterMeshAivFor91093Executor"; 

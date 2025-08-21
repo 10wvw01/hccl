@@ -9,55 +9,70 @@
  */
 
 #include "alg_profiling.h"
+#include "adapter_rts_common.h"
 
-/*
- * GetTaskCallBack & GetAivCallBackUserPtr 类内静态数组均为解决thread_local core问题
- */
+namespace hccl {
 
-TaskCallBack* GetTaskCallBack(s32 deviceLogicID)
+AlgWrap &AlgWrap::GetInstance()
 {
-    static TaskCallBack aivCallBack[MAX_MODULE_DEVICE_NUM];
-    if (deviceLogicID < 0 || static_cast<u32>(deviceLogicID) >= MAX_MODULE_DEVICE_NUM){
-        HCCL_ERROR("[alg_profiling][GetTaskCallBack] deviceLogicID %d is invalid", deviceLogicID);
-        return nullptr;
-    }
-    return &aivCallBack[deviceLogicID];
+    static AlgWrap algWrap;
+    return algWrap;
 }
 
-void** GetAivCallBackUserPtr(s32 deviceLogicID)
+HcclResult AlgWrap::RegisterAlgCallBack(const std::string &comm, void *userPtr, TaskCallBack callback, s32 deviceLogicID)
 {
-    static void* aivCallBackUserPtr[MAX_MODULE_DEVICE_NUM];
-    if (deviceLogicID < 0 || static_cast<u32>(deviceLogicID) >= MAX_MODULE_DEVICE_NUM){
-        HCCL_ERROR("[alg_profiling][GetAivCallBackUserPtr] deviceLogicID %d is invalid", deviceLogicID);
-        return nullptr;
-    }
-    return &aivCallBackUserPtr[deviceLogicID];
-}
+    CHK_PRT_RET(initialized_ == false, HCCL_WARNING("[alg_profiling][RegisterAlgCallBack] AlgWrap has not initialized"), HCCL_SUCCESS);
 
-HcclResult RegisterAlgCallBack(void* userPtr, TaskCallBack callback, s32 deviceLogicID)
-{
-    auto* aivCallBack = GetTaskCallBack(deviceLogicID);
-    auto* aivCallBackUserPtr = GetAivCallBackUserPtr(deviceLogicID);
-    if (aivCallBack == nullptr || aivCallBackUserPtr == nullptr){
-        HCCL_ERROR("[alg_profiling][RegisterAlgCallBack] get callback ptr fail");
-        return HCCL_E_PTR;
+    if (deviceLogicID < 0 || static_cast<u32>(deviceLogicID) >= MAX_MODULE_DEVICE_NUM) {
+        HCCL_ERROR("[alg_profiling][RegisteralgCallBack] deviceLogicID %d is invalid", deviceLogicID);
+        return HCCL_E_PARA;
     }
-    *aivCallBack = callback;
-    *aivCallBackUserPtr = userPtr;
+    std::lock_guard<std::mutex> lock(aivCallBackMutex_);
+    aivCallBackMap_[comm][deviceLogicID] = callback;
+    aivCallBackUserPtrMap_[comm][deviceLogicID] = userPtr;
     return HCCL_SUCCESS;
 }
 
-HcclResult TaskAivProfiler(struct TaskParaGeneral& taskParaGeneral){
+void AlgWrap::UnregisterAlgCallBack(const std::string &comm)
+{
+    if (!initialized_) {
+        HCCL_WARNING("[alg_profiling][UnRegisterAlgCallBack] AlgWrap has not initialized yet");
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(aivCallBackMutex_);
+    aivCallBackMap_.erase(comm);
+    aivCallBackUserPtrMap_.erase(comm);
+}
+
+HcclResult AlgWrap::TaskAivProfiler(const std::string &comm, struct TaskParaGeneral &taskParaGeneral)
+{
+    CHK_PRT_RET(initialized_ == false, HCCL_WARNING("[alg_profiling][RegisterAlgCallBack] AlgWrap has not initialized"), HCCL_SUCCESS);
+
     s32 deviceLogicID = INVALID_INT;
     CHK_RET(hrtGetDevice(&deviceLogicID));
-    auto* aivCallBack = GetTaskCallBack(deviceLogicID);
-    auto* aivCallBackUserPtr = GetAivCallBackUserPtr(deviceLogicID);
+    if (deviceLogicID < 0 || static_cast<u32>(deviceLogicID) >= MAX_MODULE_DEVICE_NUM) {
+        HCCL_ERROR("[alg_profiling][TaskAivProfiler] deviceLogicID %d is invalid", deviceLogicID);
+        return HCCL_E_PARA;
+    }
 
-    if (aivCallBack==nullptr || aivCallBackUserPtr==nullptr || (*aivCallBack) == nullptr || (*aivCallBackUserPtr) == nullptr){
+    std::lock_guard<std::mutex> lock(aivCallBackMutex_);
+    if (aivCallBackMap_.find(comm) == aivCallBackMap_.end() ||
+        aivCallBackUserPtrMap_.find(comm) == aivCallBackUserPtrMap_.end()) {
+        HCCL_ERROR("[alg_profiling][TaskAivProfiler] comm %s is invalid", comm.c_str());
+        return HCCL_E_PARA;
+    }
+
+    auto *aivCallBack = aivCallBackMap_[comm][deviceLogicID];
+    auto *aivCallBackUserPtr = aivCallBackUserPtrMap_[comm][deviceLogicID];
+    if (aivCallBack == nullptr || aivCallBackUserPtr == nullptr) {
         HCCL_ERROR("[alg_profiling][TaskAivProfiler] aivCallBack or aivCallBackUserPtr is invalid");
         return HCCL_E_PTR;
     }
 
-    (*aivCallBack)((*aivCallBackUserPtr), static_cast<void *>(&taskParaGeneral), sizeof(struct TaskParaGeneral));
+    // 回调
+    (aivCallBack)(aivCallBackUserPtr, static_cast<void *>(&taskParaGeneral), sizeof(struct TaskParaGeneral));
     return HCCL_SUCCESS;
 }
+
+}  // namespace hccl

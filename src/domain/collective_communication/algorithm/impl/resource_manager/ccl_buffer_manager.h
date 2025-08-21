@@ -22,7 +22,7 @@ enum class MemAttr {
 
 constexpr s64 AIV_FLAG_SIZE = 3 * 1024 * 1024; // aiv算子需要的flag区域大小
 constexpr s64 AIV_DATA_SIZE = 35 * 1024 * 1024; // aiv算子需要的data区域大小
-constexpr s64 AIV_FLAG_CLEAR_SIZE = 2 * 1024 * 1024 + 512 * 1024; // aiv算子在快恢时需要clear的区域大小
+constexpr s64 AIV_COMM_INFO_SIZE = 32 * 1024; // aiv算子需要的通信域信息区域大小，当前最大768*2*8 Byte
 constexpr u64 EXP_BUFFER_SIZE = 1 * 1024 *1024; // 拓展内存, 供MC2使用
 
 class CCLBufferManager {
@@ -30,7 +30,8 @@ public:
     CCLBufferManager();
     ~CCLBufferManager();
     HcclResult CreateCommCCLbuffer();
-    HcclResult CreateCommAIVbuffer();
+    HcclResult CreateCommAIVbuffer(bool useOpbaseFlag);
+    HcclResult CreateCommInfoAIVbuffer();
     HcclResult CreateCommExpBuffer();
     HcclResult ReleaseCommCCLbuffer();
     HcclResult ReleaseCommExpBuffer();
@@ -38,20 +39,25 @@ public:
     HcclResult InitCCLbuffer(u64 inCCLbufferSize, u64 outCCLbufferSize);
     DeviceMem& GetInCCLbuffer();
     DeviceMem& GetCommExpBuffer();
-    DeviceMem& GetInAIVbuffer();
     HcclResult GetInCCLbuffer(void* &buffer, u64 &size);
     u64 GetInCCLbufferSize();
     DeviceMem& GetOutCCLbuffer();
-    DeviceMem& GetOutAIVbuffer();
     HcclResult GetOutCCLbuffer(void* &buffer, u64 &size);
     u64 GetOutCCLbufferSize();
     u64 GetExpBufferSize();
+    DeviceMem& GetInAivOpbaseBuffer();
+    DeviceMem& GetOutAivOpbaseBuffer();
+    DeviceMem& GetInAivOffloadbuffer();
+    DeviceMem& GetOutAivOffloadbuffer();
+    HcclResult ClearCommAIVbuffer();
+    DeviceMem& GetAivCommInfoBuffer();
     DeviceMem GetCommRegMem(const DeviceMem& mem, MemAttr memAttr, bool aivMode);
     HcclResult InitAlltoAllvParaBuffer(u64 inBufferSize, u64 outBufferSize);
     DeviceMem& GetInAlltoAllvParaBuffer();
     DeviceMem& GetOutAlltoAllvParaBuffer();
     void ReleaseAlltoAllvParaBuffer();
     HcclResult CleanCCLbuffer();
+    HcclResult CleanAIVbuffer(void *bufferPtr);
 private:
     HcclResult CreateCCLbuffer(u64 size, DeviceMem &buffer);
     void* GetCCLbufferAddr(const DeviceMem &buffer);
@@ -64,8 +70,11 @@ private:
     u64 winExpBufferSize_;
     DeviceMem inAlltoAllvParaBuffer_;
     DeviceMem outAlltoAllvParaBuffer_;
-    DeviceMem inAIVbuffer_ = DeviceMem();
-    DeviceMem outAIVbuffer_ = DeviceMem();
+    DeviceMem inAivOpbaseBuffer_ = DeviceMem();
+    DeviceMem outAivOpbaseBuffer_ = DeviceMem();
+    DeviceMem inAivOffloadbuffer_ = DeviceMem();
+    DeviceMem outAivOffloadbuffer_ = DeviceMem();
+    DeviceMem aivCommInfoBuffer_ = DeviceMem(); // 单算子使用固定内存如CCL建链，每个通信域只使用一块内存，不需要注册
 };
 } // namespace hccl
 

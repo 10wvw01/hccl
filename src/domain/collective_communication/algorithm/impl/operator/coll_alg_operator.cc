@@ -77,12 +77,12 @@ HcclResult CollAlgOperator::CalBlockDim(std::string& algName, const OpParam& par
             HCCL_E_PARA);
     }
 
-     if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL){
-        blockDim = executor_->CalBlockDim(userRankSize_,
-            param.All2AllDataDes.sendCount * sizeof(param.All2AllDataDes.sendType), param.opType);
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL){
+        CHK_RET(executor_->CalBlockDim(blockDim, userRankSize_,
+            param.All2AllDataDes.sendCount * sizeof(param.All2AllDataDes.sendType), param.opType));
     } else {
-        blockDim = executor_->CalBlockDim(userRankSize_,
-            param.DataDes.count * sizeof(param.DataDes.dataType), param.opType);
+        CHK_RET(executor_->CalBlockDim(blockDim, userRankSize_,
+            param.DataDes.count * sizeof(param.DataDes.dataType), param.opType));
     }
     return HCCL_SUCCESS;
 }
@@ -689,6 +689,11 @@ HcclResult CollAlgOperator::GetBlockDim(u32& blockDim){
     return executor_->GetBlockDim(blockDim);
 }
 
+HcclResult CollAlgOperator::SetBlockDim(const u32& blockDim){
+    CHK_SMART_PTR_NULL(executor_);
+    return executor_->SetBlockDim(blockDim);
+}
+
 HcclResult CollAlgOperator::SetOpCounter(const OpCounterInfo& opCounter)
 {
     opCounter_ = opCounter;
@@ -772,7 +777,7 @@ HcclResult CollAlgOperator::AHCAlgSelect(AlgTypeLevel1 &algType, std::vector<std
     u32 splitDivisor = subGroupSizeGCD > 1 ? subGroupSizeGCD : minSubGroupSize;
     isAHCType = (subGroupSizeGCD > 1 ? false : true) || ahcAlgSelectParam.enableOXC;
  
-     HCCL_DEBUG("[AHCAlgSelect] begin enableSplit = %u minSubGroupSize = %u maxSubGroupSize = %u SubGroupSizeGCD = %u \
+     HCCL_DEBUG("[AHCAlgSelect] begin groupSplit enableSplit = %u minSubGroupSize = %u maxSubGroupSize = %u SubGroupSizeGCD = %u \
         splitDivisor = %u isAHCType = %u", enableSplit, minSubGroupSize, maxSubGroupSize, subGroupSizeGCD, splitDivisor, isAHCType);
 
     // 切分分组逻辑,allredcue 满足整数倍切分，rs/ag 满足公约数切分
@@ -800,14 +805,22 @@ HcclResult CollAlgOperator::AHCAlgSelect(AlgTypeLevel1 &algType, std::vector<std
         }
     }
 
+    HCCL_DEBUG("[AHCAlgSelect] after groupSplit enableSplit = %u minSubGroupSize = %u maxSubGroupSize = %u SubGroupSizeGCD = %u \
+        splitDivisor = %u isAHCType = %u", enableSplit, minSubGroupSize, maxSubGroupSize, subGroupSizeGCD, splitDivisor, isAHCType);
+    
+    CHK_RET(CommAHCBaseInfo::CheckGlobalGroups(globalSubGroups));
+
     float ahcAsymThreshold = ahcAlgSelectParam.symThreshold;
     float ahcAsymDegree = ((1.0) * maxSubGroupSize - (1.0) * minSubGroupSize)  / ((1.0) * minSubGroupSize);
     if (ahcAsymDegree < ahcAsymThreshold && ahcAlgSelectParam.opType == AHCOpType::AHC_OP_TYPE_ALLREDUCE) {
         isAHCType = false; // 设置为 BROKE 类型
     }
+
+    //add AHC Conc Type logic here,  modify init Type  depend on the input para
+    CHK_RET(AHCAlgOptionSelect(algType, globalSubGroups, ahcAlgOption, ahcAlgSelectParam));
     
-    if (ahcAlgSelectParam.enableAlgAutoSelect == false) { // 关闭算法自适应功能时，保持原有算法
-        algType = AlgTypeLevel1::ALG_LEVEL1_AHC; // 设置为 AHC 类型
+    if (ahcAlgSelectParam.enableAlgAutoSelect == false) { // 关闭算法自适应功能时，默认设置AHC算法
+        algType = AlgTypeLevel1::ALG_LEVEL1_AHC;
         return HCCL_SUCCESS;
     }
  
@@ -816,9 +829,6 @@ HcclResult CollAlgOperator::AHCAlgSelect(AlgTypeLevel1 &algType, std::vector<std
     } else {
         algType = AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE; // 设置为 BROKE 类型
     }
-
-    //add AHC Conc Type logic here,  modify init Type  depend on the input para
-    CHK_RET(AHCAlgOptionSelect(algType, globalSubGroups, ahcAlgOption, ahcAlgSelectParam));
 
     HCCL_DEBUG("[AHCAlgSelect] end minSubGroupSize = %u maxSubGroupSize = %u isAHCType = %u", 
         minSubGroupSize, maxSubGroupSize, isAHCType);
@@ -830,7 +840,7 @@ HcclResult CollAlgOperator::AHCAlgOptionSelect(AlgTypeLevel1 &algType, std::vect
     std::map<AHCConcOpType, TemplateType> &ahcAlgOption, AHCAlgSelectParam &ahcAlgSelectParam)
 {
     AHCConcOpType ahcConcOpType;
-    //一层组间拼接时，分组数大于设定阈值则修改默认算法为NB
+    //一层组间拼接时，分组数大于设定阈值则修改默认算法为NHR
     if(globalSubGroups[0].size() <= AHC_LEVEL0_GROUP_SIZE_THRESHOLD ) {
         ahcConcOpType = {AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER};
         ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_REDUCESCATTER_RING;
@@ -842,13 +852,13 @@ HcclResult CollAlgOperator::AHCAlgOptionSelect(AlgTypeLevel1 &algType, std::vect
         ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_ALL_GATHER_RING;              
     } else {
         ahcConcOpType = {AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_REDUCE_SCATTER};
-        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_REDUCESCATTER_NB;
+        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_REDUCESCATTER_NHR;
 
         ahcConcOpType = {AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_ALLREDUCE};
-        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_ALL_REDUCE_NB;
+        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_ALL_REDUCE_NHR;
 
         ahcConcOpType = {AHCLevel::AHC_LEVEL_0, ConcType::CONC_INTER, AHCOpType::AHC_OP_TYPE_ALLGATHER};
-        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_ALL_GATHER_NB;
+        ahcAlgOption[ahcConcOpType] = TemplateType::TEMPLATE_ALL_GATHER_NHR;
     }
     return HCCL_SUCCESS;
 }

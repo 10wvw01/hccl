@@ -19,6 +19,7 @@
 #include "base.h"
 #include "adapter_rts_common.h"
 #include "hccl_common.h"
+#include "common.h"
 #include "device_capacity.h"
 
 namespace hccl {

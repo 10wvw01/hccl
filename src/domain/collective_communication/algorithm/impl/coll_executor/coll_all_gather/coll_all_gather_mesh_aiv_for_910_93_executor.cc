@@ -9,7 +9,6 @@
  */
  
 #include "coll_all_gather_mesh_aiv_for_910_93_executor.h"
-#include "alg_profiling.h"
 
 namespace hccl {
 CollAllGatherMeshAivFor91093Executor::CollAllGatherMeshAivFor91093Executor(const HcclDispatcher dispatcher,
@@ -18,6 +17,7 @@ CollAllGatherMeshAivFor91093Executor::CollAllGatherMeshAivFor91093Executor(const
 {
     DMAReduceFlag_ = false;
     desc_.isAivMode = true;
+    desc_.isAivCrossNode = true;
 }
  
 HcclResult CollAllGatherMeshAivFor91093Executor::CalcStreamNum(u32& streamNum)
@@ -25,15 +25,6 @@ HcclResult CollAllGatherMeshAivFor91093Executor::CalcStreamNum(u32& streamNum)
     streamNum = 0; // AIV通信不需要申请从流
     HCCL_INFO("[CollAllGatherMeshAivFor91093Executor][CalcStreamNum] tag[%s] streamNum[%u].",
         tag_.c_str(), streamNum);
-    return HCCL_SUCCESS;
-}
- 
-HcclResult CollAllGatherMeshAivFor91093Executor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    // AIV通信需要AIV buffer
-    needAivBuffer = true;
-    HCCL_INFO("[CollAllGatherMeshAivFor91093Executor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u].",
-        tag_.c_str(), needAivBuffer);
     return HCCL_SUCCESS;
 }
  
@@ -74,9 +65,9 @@ HcclResult CollAllGatherMeshAivFor91093Executor::CalcLevel0CommInfo(TransportMem
     return HCCL_SUCCESS;
 }
 
-u32 CollAllGatherMeshAivFor91093Executor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAllGatherMeshAivFor91093Executor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    u32 blockDim = rankSize; // 默认情况使用rankSize个AIV
+    blockDim = rankSize; // 默认情况使用rankSize个AIV
 
     bool isOpBase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
     if (topoAttr_.deviceType == DevType::DEV_TYPE_910_93 && topoAttr_.serverNum > 1) { // A3超节点内多机场景
@@ -106,8 +97,26 @@ u32 CollAllGatherMeshAivFor91093Executor::CalBlockDim(u32 rankSize, u64 dataSize
         blockDim += 1; // 单机场景，单算子AllGather大数据使用(rankSize + 1)个aiv
     }
 
-    HCCL_INFO("[CollAllGatherMeshAivFor91093Executor][CalBlockDim] blockDim is set to [%u]", blockDim);
-    return blockDim;
+    u32 bestBlockDim = blockDim;
+    if (isOpBase) {
+        CHK_PRT_RET(rankSize > HALF_MAX_BLOCK_DIM && blockDim_ < BLOCK_DIM_FACTOR_TWO,
+            HCCL_ERROR("[CollAllGatherMeshAivFor91093Executor][CalBlockDim]aivCore[%u] is invalid, at lest need 2.",
+            blockDim_), HCCL_E_PARA);
+        CHK_PRT_RET(rankSize <= HALF_MAX_BLOCK_DIM && blockDim_ < rankSize,
+            HCCL_ERROR("[CollAllGatherMeshAivFor91093Executor][CalBlockDim]aivCore[%u] is invalid, at lest need [%u].",
+            blockDim_, rankSize), HCCL_E_PARA);
+        if (blockDim_ < blockDim) {
+            if (rankSize > HALF_MAX_BLOCK_DIM) {
+                blockDim = blockDim_ / BLOCK_DIM_FACTOR_TWO * BLOCK_DIM_FACTOR_TWO;
+            } else {
+                blockDim = blockDim_ / rankSize * rankSize;
+            }
+        }
+    }
+
+    HCCL_INFO("[CollAllGatherMeshAivFor91093Executor][CalBlockDim] blockDim is set to [%u], limit[%u], best[%u]",
+        blockDim, blockDim_, bestBlockDim);
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAllGatherMeshAivFor91093Executor::PrepareCommInfoToDevice(AlgResourceResponse& algResource)
@@ -159,6 +168,8 @@ HcclResult CollAllGatherMeshAivFor91093Executor::KernelRun(const OpParam &param,
 
     buffersIn[0] = execMem.inputMem.ptr();
     buffersOut[0] = execMem.outputMem.ptr();
+    constexpr u32 BUFFER_IDX_ONE = 1;
+    buffersOut[BUFFER_IDX_ONE] = algResResp_->aivCommInfoMem.ptr(); // 通信域信息
 
     bool isOpbase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
     AivOpArgs opArgs {
@@ -166,31 +177,21 @@ HcclResult CollAllGatherMeshAivFor91093Executor::KernelRun(const OpParam &param,
         param.DataDes.dataType, param.reduceType, 0, isOpbase
     };
 
-    AivTopoArgs topoArgs { localRank, localRankSize, MAX_RANK_SIZE, 0, topoAttr_.serverNum, topoAttr_.deviceType };
-    blockDim_ = CalBlockDim(localRankSize, opArgs.count * sizeof(opArgs.dataType));
+    AivTopoArgs topoArgs { localRank, localRankSize, MAX_RANK_SIZE, 0, topoAttr_.serverNum, topoAttr_.deviceType, algoAttr_.identifier };
+    u32 blockDim;
+    CHK_RET(CalBlockDim(blockDim, localRankSize, opArgs.count * sizeof(opArgs.dataType)));
+    blockDim_ = blockDim;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), buffersIn, buffersOut, execMem.inputMem.size(), blockDim_, param.aivTag
     };
     AivAlgArgs algArgs {};
     struct AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
-
     if (aivClearEnable_) {
         ClearAivSyncBuf(buffersOut, param.stream.ptr(), topoArgs);
     }
 
     HcclResult ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
-    
-    TaskAivProfilerWrap(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
 
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAllGatherMeshAivFor91093Executor][KernelRun]allgather aiv failed, return[%d]", ret),

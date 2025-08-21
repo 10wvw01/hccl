@@ -7,7 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include <memory>
 #include "hccl_alg.h"
 #include "hccl_impl.h"
 #include "gather_operator.h"
@@ -30,9 +30,7 @@ HcclAlg::HcclAlg(CCLBufferManager &cclBufferManager, const HcclDispatcher dispat
 
 HcclAlg::~HcclAlg()
 {
-#ifndef CCL_KERNEL_AICPU
     pimpl_ = nullptr;
-#endif
 }
 
 HcclResult HcclAlg::Init(const void* transportResourceInfoAddr, size_t transportResourceInfoSize,
@@ -41,7 +39,6 @@ HcclResult HcclAlg::Init(const void* transportResourceInfoAddr, size_t transport
     const std::unique_ptr<QueueNotifyManager> &queueNotifyManager,
     HcclAlgoAttr &algoAttr, HcclTopoAttr &topoAttr, bool isHeterogComm)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(Init(algoAttr, topoAttr, isHeterogComm));
 
     // 老流程使用，新流程的LLT不编译相关的代码
@@ -52,22 +49,20 @@ HcclResult HcclAlg::Init(const void* transportResourceInfoAddr, size_t transport
     CHK_RET(pimpl_->Init(isHeterogComm));
 
     return HCCL_SUCCESS;
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::Init(HcclAlgoAttr &algoAttr, HcclTopoAttr &topoAttr, bool isHeterogComm)
 {
-#ifndef CCL_KERNEL_AICPU
     algoAttr_ = algoAttr;
     topoAttr_ = topoAttr;
     algConfigurator_.reset(new (std::nothrow) AlgConfigurator(algoAttr_, topoAttr_));
+    CHK_SMART_PTR_NULL(algConfigurator_);
     CHK_RET(algConfigurator_->Init(isHeterogComm));
 
     TopoType topoType = TopoType::TOPO_TYPE_RESERVED;
     algConfigurator_->GetTopoType(topoType);
     topoInfoEx_.reset(new (std::nothrow) TopoInfoExtractor(algoAttr_, topoAttr_, topoType));
+    CHK_SMART_PTR_NULL(topoInfoEx_);
     CHK_RET(topoInfoEx_->Init());
 
     std::vector<std::vector<std::vector<u32>>> CommPlaneRanks;
@@ -90,6 +85,7 @@ HcclResult HcclAlg::Init(HcclAlgoAttr &algoAttr, HcclTopoAttr &topoAttr, bool is
 
     topoMatcher_.reset((new (std::nothrow) TopoMatcher(CommPlaneRanks, isBridgeVector, topoInfo, algoInfo,
         externalEnable, serverAndsuperPodToRank)));
+    CHK_SMART_PTR_NULL(topoMatcher_);
 
     parallelTaskLoader_.reset(static_cast<ParallelTaskLoader *>(new (std::nothrow) ParallelTaskLoader(
         topoAttr_.deviceLogicId, dispatcher_)));
@@ -101,12 +97,8 @@ HcclResult HcclAlg::Init(HcclAlgoAttr &algoAttr, HcclTopoAttr &topoAttr, bool is
     }
 
     return HCCL_SUCCESS;
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
-#ifndef CCL_KERNEL_AICPU
 std::unique_ptr<CollAlgOperator> HcclAlg::GetAlgOperator(const HcclCMDType &opType, HcclWorkflowMode workflowMode)
 {
     if (!topoMatcher_) {
@@ -121,174 +113,123 @@ std::unique_ptr<CollAlgOperator> HcclAlg::GetAlgOperator(const HcclCMDType &opTy
         alltoAllOperator->SetVirtualDispatcher(vDispatcher_);
         alltoAllOperator->SetParallelTaskLoader(parallelTaskLoader_.get());
     }
+    HCCL_INFO("[AIG][GetAlgOperator] GetAlgOperator done");
     return operation;
 }
-#endif
 
 HcclResult HcclAlg::GetAlltoAllStagedWorkSpaceMemSize(
     std::vector<SendRecvInfo> &allMeshAggregationSendRecvInfo, u64 &memSize)
 {
-#ifndef CCL_KERNEL_AICPU
     AlltoAllOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetVirtualDispatcher(vDispatcher_);
     operation.SetParallelTaskLoader(parallelTaskLoader_.get());
     return operation.GetAlltoAllStagedWorkSpaceMemSize(allMeshAggregationSendRecvInfo, memSize);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::GetAllReduceScratchSize(const u32 count, const HcclDataType dataType, u64 &scratchSize)
 {
-#ifndef CCL_KERNEL_AICPU
     AllReduceOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     return operation.GetAllReduceScratchSize(count, dataType, scratchSize);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::GetTopoType(TopoType &topoType)
 {
-#ifndef CCL_KERNEL_AICPU
     algConfigurator_->GetTopoType(topoType);
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::SetAlgType(AlgType algType, HcclCMDType opType)
 {
-#ifndef CCL_KERNEL_AICPU
     return algConfigurator_->SetAlgType(algType, opType);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::GetAlgType(AlgType &algType, HcclCMDType opType)
 {
-#ifndef CCL_KERNEL_AICPU
     return algConfigurator_->GetAlgType(algType, opType);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::SupportDeterministicOptim(bool &isDeterministicOptim)
 {
-#ifndef CCL_KERNEL_AICPU
     isDeterministicOptim = algConfigurator_->SupportDeterministicOptim();
-#endif
     return HCCL_SUCCESS;
 }
 
 u8 HcclAlg::GetDeterministicConfig() const
 {
-#ifndef CCL_KERNEL_AICPU
     return topoMatcher_->GetDeterministicConfig();
-#else
-    return 0;
-#endif
 }
 
 HcclResult HcclAlg::SetDeterministicConfig(const u8 deterministic)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoMatcher_->SetDeterministicConfig(deterministic));
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::SetAivModeConfig(const bool aivMode)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoMatcher_->SetAivModeConfig(aivMode));
-#endif
     return HCCL_SUCCESS;
 }
 
 bool HcclAlg::GetAicpuUnfoldConfig() const
 {
-#ifndef CCL_KERNEL_AICPU
     return topoMatcher_->GetAicpuUnfoldConfig();
-#else
-    return false;
-#endif
 }
 
 HcclResult HcclAlg::SetAicpuUnfoldConfig(const bool aicpuUnfold)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoMatcher_->SetAicpuUnfoldConfig(aicpuUnfold));
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::GetRankVecInfo(std::vector<std::vector<std::vector<u32>>> &serverAndsuperPodToRank)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoInfoEx_->GetRankVecInfo(serverAndsuperPodToRank));
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::GetIsBridgeVector(std::vector<bool> &isBridgeVector)
 {
-#ifndef CCL_KERNEL_AICPU
     topoInfoEx_->GetIsBridgeVector(isBridgeVector);
-#endif
     return HCCL_SUCCESS;
 }
 HcclResult HcclAlg::GetCommPlaneRanks(std::vector<std::vector<std::vector<u32>>> &commPlaneRanks)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoInfoEx_->GetCommPlaneRanks(commPlaneRanks));
-#endif
     return HCCL_SUCCESS;
 }
 
 void HcclAlg::GetCommPlaneVector(std::vector<std::vector<std::vector<RankInfo>>> &commPlaneVector)
 {
-#ifndef CCL_KERNEL_AICPU
     topoInfoEx_->GetCommPlaneVector(commPlaneVector);
-#endif
 }
 
 HcclResult HcclAlg::GetCommPlaneSubGroupVector(std::vector<std::vector<std::vector<std::vector<u32>>>> &commPlaneSubGroupVector)
 {
-#ifndef CCL_KERNEL_AICPU
     topoMatcher_->GetCommPlaneSubGroupVector(commPlaneSubGroupVector);
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::GetAHCAlgOption(std::map<AHCConcOpType, TemplateType> &ahcAlgOption)
 {
-#ifndef CCL_KERNEL_AICPU
     topoMatcher_->GetAHCAlgOption(ahcAlgOption);
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::GetIsUsedRdmaMap(std::unordered_map<u32, bool> &isUsedRdmaMap)
 {
-#ifndef CCL_KERNEL_AICPU
     CHK_RET(topoInfoEx_->GetIsUsedRdmaMap(isUsedRdmaMap));
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::GetTinyMem(DeviceMem &tinySendRecvMem)
 {
-#ifndef CCL_KERNEL_AICPU
     tinySendRecvMem = tinySendRecvMem_;
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::InitExternalEnable(HcclExternalEnable& externalEnable)
 {
-#ifndef CCL_KERNEL_AICPU
     externalEnable.enableRdmaSdmaConcurrent = GetExternalInputEnableRdmaSdmaConcurrent();
     externalEnable.enableFfts = GetExternalInputHcclEnableFfts();
     externalEnable.deterministic = GetExternalInputHcclDeterministicV2();
@@ -296,13 +237,11 @@ HcclResult HcclAlg::InitExternalEnable(HcclExternalEnable& externalEnable)
     externalEnable.dumpDebug = GetExternalInputHcclDumpDebug();
     externalEnable.aivMode = GetExternalInputHcclAivMode();
     externalEnable.aicpuUnfold = GetExternalInputHcclAicpuUnfold();
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::InitTopoInfo(HcclTopoInfo& topoInfo, HcclTopoAttr &topoAttr)
 {
-#ifndef CCL_KERNEL_AICPU
     topoInfo.userRank = topoAttr.userRank;
     topoInfo.userRankSize = topoAttr.userRankSize;
     topoInfo.devicePhyId = topoAttr.devicePhyId;
@@ -332,189 +271,124 @@ HcclResult HcclAlg::InitTopoInfo(HcclTopoInfo& topoInfo, HcclTopoAttr &topoAttr)
     std::unordered_map<u32, bool> isUsedRdmaMap;
     CHK_RET(topoInfoEx_->GetIsUsedRdmaMap(isUsedRdmaMap));
     topoInfo.isUsedRdmaMap = isUsedRdmaMap;
-#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult HcclAlg::InitAlgoInfo(HcclAlgoInfo& algoInfo, HcclAlgoAttr &algoAttr)
 {
-#ifndef CCL_KERNEL_AICPU
     algoInfo.identifier = algoAttr.identifier;
     algoInfo.inlineReduceSwitchOn = algoAttr.inlineReduceSwitchOn;
     algoInfo.isUsedRdmaLevel0 = algoAttr.isUsedRdmaLevel0;
-#endif
     return HCCL_SUCCESS;
 }
 
 // 上层保证，以下方法在初始化成功后才会调用，所以未对pimpl_进行保护判断
 HcclResult HcclAlg::ReleaseCommInfos()
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->ReleaseCommInfos();
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::Broadcast(
     const std::string &tag, void *ptr, u64 count, HcclDataType dataType, u32 root, Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     BroadCastOperatorForHetero operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.Broadcast(tag, ptr, count, dataType, root, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::Send(const std::string &tag, void *inputPtr, u64 count, HcclDataType dataType, u32 destRank,
     Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     SendReceiveOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.Send(tag, inputPtr, count, dataType, destRank, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::SendOutPlace(const std::string &tag, void *inputPtr, u64 count, HcclDataType dataType,
     u32 destRank, Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     SendReceiveOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.SendOutPlace(tag, inputPtr, count, dataType, destRank, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::Receive(const std::string &tag, void *outputPtr, u64 count, HcclDataType dataType,
     u32 srcRank, Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     SendReceiveOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.Receive(tag, outputPtr, count, dataType, srcRank, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::ReceiveOutPlace(const std::string &tag, void *outputPtr, u64 count, HcclDataType dataType,
     u32 srcRank, Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     SendReceiveOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.ReceiveOutPlace(tag, outputPtr, count, dataType, srcRank, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::Gather(const std::string &tag, void *inputPtr, void *outputPtr, u32 rootRank, u64 inputCount,
     HcclDataType dataType, Stream stream)
 {
-#ifndef CCL_KERNEL_AICPU
     GatherOperator operation(algConfigurator_.get(), cclBufferManager_, dispatcher_, topoMatcher_);
     operation.SetLegacyHcclImpl(pimpl_);
     return operation.Gather(tag, inputPtr, outputPtr, rootRank, inputCount, dataType, stream);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::ClearOpResource(const std::string &tag)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->ClearOpResource(tag);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 bool HcclAlg::IsExistCommRes(const std::string &tag)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->IsExistCommRes(tag);
-#else
-    return false;
-#endif
 }
 
 HcclResult HcclAlg::CreateMutiStreamRes(const std::string &tag, Stream &stream, level1StreamInfo_t &streamInfo,
     AlgType algType, bool isAicpuModeEn)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->CreateMutiStreamRes(tag, stream, streamInfo, algType, isAicpuModeEn);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::CreateComm(const std::string &tag, DeviceMem &inputMem, DeviceMem &outputMem, AlgType algType,
     std::unique_ptr<CommInfo> &commInfo, u32 root, bool isP2p, bool isAicpuModeEn)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->CreateComm(tag, inputMem, outputMem, algType, commInfo, root, isP2p, isAicpuModeEn);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::CreateComm(
     const std::string &tag, DeviceMem &inputMem, DeviceMem &outputMem, AlgType algType, u32 root, bool isP2p)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->CreateComm(tag, inputMem, outputMem, algType, root, isP2p);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::CreateP2PCommQuerry(const std::string &tag, u32 &status)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->CreateP2PCommQuerry(tag, status);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 HcclResult HcclAlg::CreateP2PCommAsync(const std::string &tag, DeviceMem &mem, u32 peerRank, u32 &status)
 {
-#ifndef CCL_KERNEL_AICPU
     return pimpl_->CreateP2PCommAsync(tag, mem, peerRank, status);
-#else
-    return HCCL_SUCCESS;
-#endif
 }
 
 void HcclAlg::CancelCommRes(const std::string &tag)
 {
-#ifndef CCL_KERNEL_AICPU
     pimpl_->CancelCommRes(tag);
-#endif
 }
 
 void HcclAlg::Break()
 {
-#ifndef CCL_KERNEL_AICPU
     pimpl_->Break();
-#endif
 }
 
 HcclResult HcclAlg::SetHDCModeInfo(
     std::unordered_map<std::string, std::map<u32, HcclIpAddress>> &rankDevicePhyIdNicInfoMap,
     std::vector<u32> &ranksPort, bool isSetHDCModeInfo, bool isUseRankPort)
 {
-#ifndef CCL_KERNEL_AICPU
     pimpl_->SetHDCModeInfo(rankDevicePhyIdNicInfoMap, ranksPort, isSetHDCModeInfo, isUseRankPort);
-#endif
     return HCCL_SUCCESS;
 }
 }

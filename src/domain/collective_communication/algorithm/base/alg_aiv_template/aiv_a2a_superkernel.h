@@ -13,9 +13,9 @@
  
 #include "aiv_communication_base.h"
 #include "aiv_all_to_all_91093_single.h"
-// aiv reducescatter
  
-extern "C" __aicore__ void sk_alltoall(SUPERKERNEL_ARGS_DEF) {
+extern "C" __aicore__ void sk_alltoall(SUPERKERNEL_LITE_ARGS_DEF) {
+    SUPERKERNEL_LITE_ARGS_EXTRACT;
     return sk_all_to_all_91093_single(SUPERKERNEL_ARGS_CALL);
 }
  

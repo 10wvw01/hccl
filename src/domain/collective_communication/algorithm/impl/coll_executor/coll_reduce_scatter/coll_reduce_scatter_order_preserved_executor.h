@@ -32,7 +32,6 @@ private:
     HcclResult CalcTransportMemType(TransportMemType &inputType, TransportMemType &outputType);
 
     /* *************** 算法编排 *************** */
-    bool IsHugeData(const u64 curSize, OpParam *param = nullptr) override;
     bool IsSmallData(const u64 totalSize, const u64 curSize) override;
     HcclResult KernelRun(const OpParam &param, ExecMem &execMem) override;
     HcclResult RunReduceScatterLevel0(const OpParam &param, ExecMem &execMem, SubCommInfo &level0CommInfo);

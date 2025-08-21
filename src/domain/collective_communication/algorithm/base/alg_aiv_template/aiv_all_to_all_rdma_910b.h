@@ -35,11 +35,12 @@ __aicore__ inline void AivAll2AllRdma910B::Process(GM_ADDR input, GM_ADDR output
 
     if (block_idx == rank_) {
         // 前同步，记录当前rank就绪
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + rank_ * FLAG_SIZE), localSetTensor, tag); 
-    }
+        Record1vN(tag, CommPattern::interRank); 
+    } else {
 
     // 检查对端就绪 & 跨片拷贝
-    WaitSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + targetRank * FLAG_SIZE), localCheckTensor, tag);
+    	WaitNv1(tag, block_idx);
+    }
     pipe_barrier(PIPE_ALL);
 
     for (uint32_t i = 0; i < serverNum; i++) {
@@ -55,10 +56,10 @@ __aicore__ inline void AivAll2AllRdma910B::Process(GM_ADDR input, GM_ADDR output
     // 末尾同步
     // 本卡已完成block_idx号对端上的rank号的数据发送
     pipe_barrier(PIPE_ALL);
-    SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + rank_ * FLAG_SIZE), localSetTensor, tag);
+    Record(tag, block_idx, AivNotifyType::DataSignal);
     pipe_barrier(PIPE_ALL);
     // 检查本卡上是否已接收到所有对端发送的数据
-    WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + targetRank * FLAG_SIZE), localCheckTensor, tag);
+    Wait(tag, block_idx, AivNotifyType::DataSignal);
 
     return ;
 }

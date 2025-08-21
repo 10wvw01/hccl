@@ -25,10 +25,6 @@ private:
     HcclResult CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport) override;
     HcclResult CalcLevel0CommInfo(TransportMemType inputType,
         TransportMemType outputType, std::vector<LevelNSubCommTransport>& opTransport) override;
-    HcclResult CalcLevel1CommInfo(TransportMemType inputType,
-        TransportMemType outputType, std::vector<LevelNSubCommTransport>& opTransport) override;
-    HcclResult CalcLevel2CommInfo(TransportMemType inputType,
-        TransportMemType outputType, std::vector<LevelNSubCommTransport>& opTransport) override;
     HcclResult SetCommRankInfo();
 
     /* *************** 算法编排 *************** */

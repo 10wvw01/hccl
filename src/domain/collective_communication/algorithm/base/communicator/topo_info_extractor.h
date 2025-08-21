@@ -22,6 +22,7 @@
 #include "hccl_impl_pub.h"
 #include "comm_ahc_base_pub.h"
 #include "alg_template_base_pub.h"
+#include "env_config.h"
 namespace hccl {
 
 class TopoInfoExtractor {

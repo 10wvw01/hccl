@@ -18,56 +18,6 @@ PluginRunner::PluginRunner(ProfilerBase *profiler) : profiler_(profiler) {}
 
 PluginRunner::~PluginRunner() {}
 
-HcclResult isStreamCapture(rtStream_t stream, bool& isCapture)
-{   
-#ifndef HCCD
-    isCapture = false;
-    DevType devType;   
-    CHK_RET(hrtGetDeviceType(devType));
-    if(GetWorkflowMode() != HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
-       HCCL_WARNING("[PluginRunner][isStreamCapture]Stream capture only support opbase mode!");
-       return HCCL_SUCCESS;
-    }
-    rtStreamCaptureStatus captureStatus = rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_NONE;
-    rtModel_t rtModel = nullptr;
-    rtError_t ret = rtStreamGetCaptureInfo(stream, &captureStatus, &rtModel);
-    if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
-        HCCL_WARNING("[PluginRunner][isStreamCapture]Stream capture not support!");
-        return HCCL_SUCCESS;
-    } else {
-        CHK_PRT_RET(ret != RT_ERROR_NONE,
-            HCCL_ERROR("[PluginRunner][isStreamCapture]rtGet stream get capture status fail. return[%d]", ret), HCCL_E_RUNTIME);
-    }
-    
-    switch (captureStatus) {
-        case rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_ACTIVE: {
-            isCapture = true;
-            break;
-        }
-        case rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_NONE: {
-            isCapture = false;
-            break;
-        }
-        case rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_MAX: {
-            HCCL_ERROR("[PluginRunner][isStreamCapture]rtGet stream capture status MAX.");
-            break;
-        }
-        case rtStreamCaptureStatus::RT_STREAM_CAPTURE_STATUS_INVALIDATED: {
-            HCCL_ERROR("[PluginRunner][isStreamCapture]rtGet stream capture status invalidated.");
-            break;
-        }
-        default: {
-            HCCL_ERROR("[PluginRunner][isStreamCapture]rtGet not support stream capture status.");
-            break;
-        }
-    }
-    return HCCL_SUCCESS;
-#else
-    HCCL_WARNING("[PluginRunner][isStreamCapture]Stream capture not support!");
-    return HCCL_SUCCESS;
-#endif
-}
-
 template <typename T> 
 void PluginRunner::operator () (rtStream_t stream, TaskType taskType, const T &para) const
 {   

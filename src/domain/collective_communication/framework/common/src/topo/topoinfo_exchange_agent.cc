@@ -44,12 +44,12 @@ TopoInfoExchangeAgent::TopoInfoExchangeAgent(HcclIpAddress &serverIp, u32 server
 {}
 
 TopoInfoExchangeAgent::TopoInfoExchangeAgent(HcclIpAddress &serverIp, u32 serverPort, std::string identifier,
-    HcclNetDevCtx netDevCtx, HcclBasicRankInfo localRankInfo, HcclRankHandle RankInfo)
+    HcclNetDevCtx netDevCtx, HcclBasicRankInfo localRankInfo, HcclRankHandle rankInfo)
     : serverIP_(serverIp),
       serverPort_(serverPort),
       identifier_(identifier),
       localRankInfo_(localRankInfo),
-      localRankHandle_(RankInfo),
+      localRankHandle_(rankInfo),
       clusterTopoInfo_(),
       netDevCtx_(netDevCtx)
 {}
@@ -228,10 +228,18 @@ HcclResult TopoInfoExchangeAgent::SetSuperPodIdx(RankTable_t &clusterInfo) const
         } else {
             u32 preIndex = (i > 0) ? i - 1 : i;
             RankInfo_t& preRankInfo = clusterInfo.rankList[preIndex];
+            u32 index = 0;
+            for (; index < preIndex; index++) {
+                RankInfo_t& tmpRankInfo = clusterInfo.rankList[index];
+                if(tmpRankInfo.superPodId == rankInfo.superPodId) {
+                    break;
+                }
+            }
             // 不支持超节点内rank id不连续
-            HCCL_ERROR("SetSuperPodIdx fail, rank in superPodId is not continuous, pre: rank[%u] superPodId[%s], "\
-                "cur: rank[%u] superPodId[%s], ", preRankInfo.rankId, preRankInfo.superPodId.c_str(),
-                rankInfo.rankId, rankInfo.superPodId.c_str());
+            HCCL_ERROR("SetSuperPodIdx fail, rank in superPodId is not continuous, superPodId[%s] include current "\
+                "rank[%u] and rank[%u], but pre rank[%u] superPodId is [%s]", rankInfo.superPodId.c_str(),
+                rankInfo.rankId, clusterInfo.rankList[index].rankId, preRankInfo.rankId,
+                preRankInfo.superPodId.c_str());
             return HCCL_E_PARA;
         }
         HCCL_DEBUG("SetSuperPodIdx rankList[%u]: rankId[%u], superPodId[%s], superPodIdx[%u], sdid[%u]",
@@ -280,7 +288,7 @@ HcclResult TopoInfoExchangeAgent::GetConnection(HcclIpAddress &serverIp, u32 por
         if ((std::chrono::steady_clock::now() - startTime) >= timeout) {
             RPT_INPUT_ERR(true, "EI0006", std::vector<std::string>({"reason"}), \
                 std::vector<std::string>({GET_SOCKET_TIMEOUT_REASON}));
-            HCCL_ERROR("[Get][Connection]topo exchange agent get socket timeout! timeout[%lld]", timeout);
+            HCCL_ERROR("[Get][Connection]topo exchange agent get socket timeout! timeout[%lld s]", timeout);
             sleep(WAIT_ERROR_BROADCAST_TIME);
             return HCCL_E_TIMEOUT;
         }

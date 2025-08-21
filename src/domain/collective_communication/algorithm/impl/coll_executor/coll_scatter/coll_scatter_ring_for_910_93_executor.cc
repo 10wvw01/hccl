@@ -75,7 +75,7 @@ HcclResult CollScatterRingFor91093Executor::CalcLevel2CommInfo(TransportMemType 
     std::vector<LevelNSubCommTransport>& opTransport)
 {
     // 910_93 level2当前仅支持nhr、nb、ring算法
-    CommParaInfo commParaLevel2(COMM_LEVEL2, CommType::COMM_TAG_MAX);
+    CommParaInfo commParaLevel2(COMM_LEVEL2, CommType::COMM_TAG_MAX, root_);
  
     if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NHR) {
         commParaLevel2.commType = CommType::COMM_TAG_NONUNIFORM_HIERARCHICAL_RING;

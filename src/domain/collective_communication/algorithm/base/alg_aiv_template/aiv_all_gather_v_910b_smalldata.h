@@ -24,9 +24,8 @@ template<typename T>
 __aicore__ inline void AivAllGatherVSmall910B::Process(GM_ADDR input, GM_ADDR output, int32_t tag, ExtraArgs extraArgs)
 {
     // 共用2个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_GATHER_V_910B_SMALLDATA;
-    uint32_t flagOffset = ((tag % 2 == 0) ? 0 : FLAG_SIZE) + flagOffsetBase;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
+    bool ifPingpong = (tag % 2 == 0);
 
     __gm__ T *inputGM = (__gm__ T *)input;
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_] + dataOffset);
@@ -34,7 +33,7 @@ __aicore__ inline void AivAllGatherVSmall910B::Process(GM_ADDR input, GM_ADDR ou
     __gm__ T *outputGM = (__gm__ T *)output;
 
     if (block_idx != rank_) {
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffset), localCheckTensor, tag);
+        WaitNv1(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
         pipe_barrier(PIPE_ALL);
 
         CpGM2GM(outputGM + extraArgs.recvDispls[block_idx], cclGMOther, extraArgs.recvCounts[block_idx]);
@@ -43,7 +42,7 @@ __aicore__ inline void AivAllGatherVSmall910B::Process(GM_ADDR input, GM_ADDR ou
         CpGM2GM(cclGMSelf, inputGM, extraArgs.recvCounts[rank_]);
         // 卡间同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset), localSetTensor, tag);
+        Record1vN(tag, CommPattern::interRank, AivNotifyType::DataSignal, 0, ifPingpong);
         CpGM2GM(outputGM + extraArgs.recvDispls[rank_], cclGMSelf, extraArgs.recvCounts[rank_]);
     }
 }

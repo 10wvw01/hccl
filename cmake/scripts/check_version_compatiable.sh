@@ -29,7 +29,7 @@ function main()
 
     cann_version=$(grep -w "Version"  ${CANN_VERSION_INFO_FILE} | cut -d"=" -f2)
     local_version=$(grep -w "Version"  ${CURRENT_VERSION_INFO_FILE} | cut -d"=" -f2)
-    
+
     _cann_version=$(echo ${cann_version} | cut -d'.' -f1-4)
     _local_version=$(echo ${local_version} | cut -d'.' -f1-4)
 

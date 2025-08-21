@@ -98,7 +98,6 @@ HcclResult AlltoAllVDirectFullMesh::Prepare(PrepareData &param)
     cclOutMem_ = param.cclOutMem;
     workMode_ = param.workMode;
     isSuPodAsym_ = param.isSuPodAsym;
-    isA2AlltoallvMutliModule_ = param.isA2AlltoallvMutliModule;
 
     u64 maxSendLen = CalcMaxSendLen();
     isBigCount_ = (maxSendLen > ALLTOALLV_DIRECT_FULLMESH_BIG_SIZE) ? true : false;
@@ -112,7 +111,7 @@ HcclResult AlltoAllVDirectFullMesh::Prepare(PrepareData &param)
 
     /* 考虑当group0 的rank 跟 group 1的所有rank通信时，每次都要收发，所以取sdmaConcurrentNum_块；
     跟group 0内的rank通信有一块儿浪费 */
-    u32 blockGroup = (isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV) ? 2 : 1;
+    u32 blockGroup = (isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLVC) ? 2 : 1;
     sdmaDataBlockSize_= (cclInMem_.size() / std::max(1u, sdmaConcurrentNum_ * blockGroup));
     // 向下对齐到16k Byte
     if (sdmaDataBlockSize_> HCCL_MIN_SLICE_ALIGN_910B) {
@@ -174,7 +173,7 @@ void AlltoAllVDirectFullMesh::UpdateCurrRankRecvInfo(u32 roundIdx, u32 side, u32
         bufferIdx = 0;
     }
 
-    if ((isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV ) &&
+    if ((isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLVC) &&
         (roundIdx % RANK_SET_COMPUTE_CONST != 0)) { // 奇数轮，用下半Buffer
         bufferIdx += sdmaConcurrentNum_;
     }
@@ -221,7 +220,7 @@ void AlltoAllVDirectFullMesh::UpdateCurrRankSendInfo(u32 roundIdx, u32 side, u32
         bufferIdx = 0;
     }
 
-    if ((isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV ) &&
+    if ((isBigCount_ || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLV || opType_ == HcclCMDType::HCCL_CMD_ALLTOALLVC) &&
         (roundIdx % RANK_SET_COMPUTE_CONST != 0)) { // 奇数轮，用下半Buffer
         bufferIdx += sdmaConcurrentNum_;
     }
@@ -950,66 +949,8 @@ HcclResult AlltoAllVDirectFullMesh::RunSDMA(HcclOpMetaInfoDef &opMeta)
     return HCCL_SUCCESS;
 }
 
-HcclResult AlltoAllVDirectFullMesh::RunAsyncForA2AlltoallvMutliModule()
-{
-    HcclOpMetaInfoDef opMeta = HcclOpMetaInfo::GetOneForAllToAllV(CopyPattern::ZCOPY, cclInMem_.size(), true);
-    CHK_RET(InitTask(dispatcher_, mainStream_, opMeta.isEnableCache, opMeta.GetCacheKey()));
-    if (userRankSize_ == 1) {
-        HCCL_INFO("[AlltoAllVDirectFullMesh][RunAsyncForA2AlltoallvMutliModule] do localcopy with 1 rank");
-        CHK_RET(LocalCopy());
-        return HCCL_SUCCESS;
-    }
- 
-    CHK_RET(ExecEmptyTask(userInput_, userOutput_, mainStream_, dispatcher_));
-    if (totalRdmaRankNum_ > 0) {
-        CHK_RET(RunRDMA());
-    }
- 
-    if (devNumInlocalPod_ > 1) {
-        // RunSDMA
-        u32 totalStep = CalcNumSubStep();
-    
-        // 计算每个rank分组fullmesh后需要通信的轮次，向上取整
-        u64 commRounds = (devNumInlocalPod_ + sdmaConcurrentNum_ - 1) / sdmaConcurrentNum_;
-        HCCL_DEBUG("[AlltoAllVDirectFullMesh][RunAsyncForA2AlltoallvMutliModule] userRank [%u] communication rounds[%llu]",
-            userRank_, commRounds);
- 
-        if (totalStep == 0 && !islocalCpyDone_) {
-            CHK_RET(InitTask(dispatcher_, mainStream_, opMeta.isEnableCache, opMeta.GetCacheKey()));
-            CHK_RET(LocalCopy());
-            islocalCpyDone_ = true;
-            CHK_RET(LaunchTaskExtend(dispatcher_, mainStream_, sdmaSubStream_));
-            return HCCL_SUCCESS;
-        }
-        
-        for (u32 step = 0; step < totalStep; step++) {
-            u32 leftRankSize = devNumInlocalPod_ - 1; // leftRankSize中去掉本卡
-            for (u32 roundIdx = 0; roundIdx < commRounds && leftRankSize > 0; roundIdx++) {
-                u32 groupRankSize = (leftRankSize > sdmaConcurrentNum_) ? sdmaConcurrentNum_ : leftRankSize;
-                UpdatePartialCommunicationRankSet(roundIdx, groupRankSize, partialCommRankSet_);
-                CHK_RET(RunGroupFullMeshAlltoall(roundIdx, step));
-                leftRankSize -= groupRankSize;
-            }
-        }
-        HCCL_INFO("[AlltoAllVDirectFullMesh][RunAsyncForA2AlltoallvMutliModule]RunSDMA finished.");
-    }
- 
-    if (totalRdmaRankNum_ > 0) {
-        // 等待RDMA通信结束
-        CHK_RET(RdmaControlNotifyMainFinish());
-    }
-    CHK_RET(LaunchTaskExtend(dispatcher_, mainStream_, rdmaSubStreams_));
- 
-    HCCL_INFO("[AlltoAllVDirectFullMesh][RunAsyncForA2AlltoallvMutliModule] finished.");
-    return HCCL_SUCCESS;
-}
-
 HcclResult AlltoAllVDirectFullMesh::RunAsync()
 {   
-    if (isA2AlltoallvMutliModule_) {
-        // alltoallv A2多机场景
-        return RunAsyncForA2AlltoallvMutliModule();
-    }
     HcclOpMetaInfoDef opMeta = HcclOpMetaInfo::GetOneForAllToAllV(CopyPattern::ZCOPY, cclInMem_.size(), true);
     CHK_RET(InitTask(dispatcher_, mainStream_, opMeta.isEnableCache, opMeta.GetCacheKey()));
 
@@ -1054,6 +995,45 @@ HcclResult AlltoAllVDirectFullMesh::RunAsync()
     }
 
     HCCL_INFO("[AlltoAllVDirectFullMesh][RunAsync] finished.");
+    return HCCL_SUCCESS;
+}
+
+HcclResult AlltoAllVDirectFullMesh::GetNslbAdjInfo(const u32 rank, const u32 rankSize,
+                                                   const std::vector<LINK> &links, AdjInfo& nslbAdjInfo)
+{
+    if (rankSize == 1) {
+        return HCCL_SUCCESS;
+    }
+
+    u32 devNumInlocalPod = nslbAdjInfo.dstRankNum;
+    u32 totalRdmaRankNum = rankSize - devNumInlocalPod;
+
+    u32 rdmaConcurrentNum = (totalRdmaRankNum > ALLTOALLV_DIRECT_FULLMESH_RDMA_CONCURRENT_SIZE) ?
+        (ALLTOALLV_DIRECT_FULLMESH_RDMA_CONCURRENT_SIZE) : (totalRdmaRankNum);
+    if (rdmaConcurrentNum == 0) {
+        return HCCL_SUCCESS;
+    }
+    // RDMA通信轮次
+    u32 rdmaRoundNum = (totalRdmaRankNum + rdmaConcurrentNum - 1) / rdmaConcurrentNum;
+    if (rdmaRoundNum == 0) {
+        return HCCL_SUCCESS;
+    }
+    u32 currStage = rank / devNumInlocalPod;
+
+    for (u32 step = 0; step < rdmaRoundNum; step++) {
+        u32 sendTo =(rank + devNumInlocalPod + step) % rankSize;
+        u32 sendToStag = sendTo / devNumInlocalPod;
+        if(currStage == sendToStag) {
+            //此时认为时同一个超节点内通讯
+            sendTo += devNumInlocalPod;
+        }
+        NslbDpAdjInfo adjInfoStep = {0};
+        adjInfoStep.dstLocalRankId = sendTo;
+        adjInfoStep.phaseId = step + 1;
+        adjInfoStep.rev = 0;
+        nslbAdjInfo.nsAdjInfo.push_back(adjInfoStep);
+    }
+    nslbAdjInfo.dstRankNum = nslbAdjInfo.nsAdjInfo.size();
     return HCCL_SUCCESS;
 }
 

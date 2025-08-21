@@ -16,6 +16,18 @@ CollAllGatherRingZerocopyExecutor::CollAllGatherRingZerocopyExecutor(const HcclD
 {
     DMAReduceFlag_ = true;      // 设为true，以禁用RunLoop中的本地拷贝
     desc_.isZeroCopy = true;
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB,
+        AlgTypeLevel1::ALG_LEVEL1_RING,
+        AlgTypeLevel1::ALG_LEVEL1_AHC,
+        AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE
+    };
+    desc_.level2SupportedAlgos = {
+        AlgTypeLevel2::ALG_LEVEL2_NHR,
+        AlgTypeLevel2::ALG_LEVEL2_NB,
+        AlgTypeLevel2::ALG_LEVEL2_RING
+    };
 }
 
 HcclResult CollAllGatherRingZerocopyExecutor::CalcStreamNum(u32& streamNum)
@@ -58,41 +70,6 @@ HcclResult CollAllGatherRingZerocopyExecutor::CalcLevel0CommInfo(TransportMemTyp
     CommParaInfo commParaLevel0(COMM_LEVEL0, CommType::COMM_TAG_RING_INNER);
     CHK_RET(CalcCommPlaneInfo(tag_, commParaLevel0, opTransport[COMM_LEVEL0], inputType, outputType));
     return HCCL_SUCCESS;
-}
-
-HcclResult CollAllGatherRingZerocopyExecutor::CalcLevel1CommInfo(TransportMemType inputType,
-    TransportMemType outputType,
-    std::vector<LevelNSubCommTransport>& opTransport)
-{
-    switch (algType_.algoLevel1) {
-        case AlgTypeLevel1::ALG_LEVEL1_NB:       // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_RING:     // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_NHR:      // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_AHC:      // fall through
-        case AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE:
-            break;
-        default:
-            HCCL_WARNING("[%s] not support level1 algo[%d], reset to NHR", __func__, algType_.algoLevel1);
-            algType_.algoLevel1 = AlgTypeLevel1::ALG_LEVEL1_NHR;
-            break;
-    }
-    return CollNativeExecutorBase::CalcLevel1CommInfo(inputType, outputType, opTransport);
-}
-
-HcclResult CollAllGatherRingZerocopyExecutor::CalcLevel2CommInfo(TransportMemType inputType,
-    TransportMemType outputType,
-    std::vector<LevelNSubCommTransport>& opTransport)
-{
-    switch (algType_.algoLevel2) {
-        case AlgTypeLevel2::ALG_LEVEL2_RING:    // fall through
-        case AlgTypeLevel2::ALG_LEVEL2_NB:      // fall through
-        case AlgTypeLevel2::ALG_LEVEL2_NHR:
-            break;
-        default:
-            HCCL_WARNING("[%s] not support level2 algo[%d], reset to NHR", __func__, algType_.algoLevel2);
-            algType_.algoLevel2 = AlgTypeLevel2::ALG_LEVEL2_NHR;
-    }
-    return CollNativeExecutorBase::CalcLevel2CommInfo(inputType, outputType, opTransport);
 }
 
 u64 CollAllGatherRingZerocopyExecutor::CalcLoopMaxCount(const u64 cclBuffSize, const u32 unitSize)
@@ -171,7 +148,7 @@ HcclResult CollAllGatherRingZerocopyExecutor::KernelRunInterServerPreProcess(con
 HcclResult CollAllGatherRingZerocopyExecutor::KernelRunInterServer(const OpParam &param, ExecMem &execMem)
 {
     HCCL_CONFIG_INFO(HCCL_ALG,
-        "[CollAllGatherRingZerocopyExecutor][KernelRunInterServer] The AllGatherDoubleRingExecutor starts.");
+        "[CollAllGatherRingZerocopyExecutor][KernelRunInterServer] The AllGatherDoubleRingExecutor starts");
     bool isAHCAlgo = algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC || algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE;
     CHK_RET(GetCommRankInfoNormal(level0Rank_, level0RankSize_, level1Rank_, level1RankSize_, level2Rank_, level2RankSize_, isAHCAlgo));
 
@@ -189,21 +166,21 @@ HcclResult CollAllGatherRingZerocopyExecutor::KernelRunInterServer(const OpParam
         if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NB) {
             level2AGTemplage = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_NB, dispatcher_);
-            HCCL_INFO("allgather ring: using nonuniform-bruck algo inter-superPod.");
+            HCCL_INFO("allgather ring: using nonuniform-bruck algo inter-superPod");
         } else if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NHR) {
             level2AGTemplage = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_NHR, dispatcher_);
-            HCCL_INFO("allgather ring: using nonuniform-hierarchical-ring algo inter-superPod.");
+            HCCL_INFO("allgather ring: using nonuniform-hierarchical-ring algo inter-superPod");
         } else if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_RING){
             level2AGTemplage = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_RING, dispatcher_);
-            HCCL_INFO("allgather ring: using ring algo inter-superPod.");
+            HCCL_INFO("allgather ring: using ring algo inter-superPod");
         } else if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_HD) {
             level2AGTemplage = AlgTemplateRegistry::Instance().GetAlgTemplate(
                     TemplateType::TEMPLATE_ALL_GATHER_RECURSIVE_HALVING_DOUBLING, dispatcher_);
             HCCL_INFO("allgather ring: using halving-doubling algo inter-superPod.");
         } else {
-            HCCL_ERROR("allgather ring: unsupported algtype[%u] inter-superPod.", algType_.algoLevel2);
+            HCCL_ERROR("allgather ring: unsupported level2 algtype [%s]", AlgTypeToStr(algType_).c_str());
             return HCCL_E_NOT_SUPPORT;
         }
         CHK_SMART_PTR_NULL(level2AGTemplage);
@@ -229,15 +206,15 @@ HcclResult CollAllGatherRingZerocopyExecutor::KernelRunInterServer(const OpParam
         if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_RING) {
             level1AGTemplate = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_RING, dispatcher_);
-            HCCL_INFO("allgather ring: using ring algo inter-server.");
+            HCCL_INFO("allgather ring: using ring algo inter-server");
         } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NB) {
             level1AGTemplate = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_NB, dispatcher_);
-            HCCL_INFO("allgather ring: using nonuniform-bruck algo inter-server.");
+            HCCL_INFO("allgather ring: using nonuniform-bruck algo inter-server");
         } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NHR) {
             level1AGTemplate = AlgTemplateRegistry::Instance().GetAlgTemplate(
                 TemplateType::TEMPLATE_ALL_GATHER_NHR, dispatcher_);
-            HCCL_INFO("allgather ring: using nonuniform-hierarchical-ring algo inter-server.");
+            HCCL_INFO("allgather ring: using nonuniform-hierarchical-ring algo inter-server");
         } else if (isAHCAlgo) {
             // 获取通信域分组信息
             std::vector<std::vector<std::vector<u32>>> globalSubGroups;
@@ -246,15 +223,15 @@ HcclResult CollAllGatherRingZerocopyExecutor::KernelRunInterServer(const OpParam
             topoMatcher_->GetAHCAlgOption(ahcAlgOption);
             if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC) {
                 level1AGTemplate = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_GATHER_AHC, dispatcher_);
-                HCCL_INFO("algather comm: using ahc algo inter-server.");
+                HCCL_INFO("algather ring: using ahc algo inter-server");
             } else {
                 level1AGTemplate = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_GATHER_AHC_BROKE, dispatcher_);
-                HCCL_INFO("algather comm: using ahc-broke algo inter-server.");
+                HCCL_INFO("algather ring: using ahc-broke algo inter-server");
             }
             CHK_SMART_PTR_NULL(level1AGTemplate);
             CHK_RET(level1AGTemplate->Prepare(execMem.count, globalSubGroups, ahcAlgOption));
         } else {
-            HCCL_ERROR("allgather ring: unsupported algtype [%s].", AlgTypeToStr(algType_).c_str());
+            HCCL_ERROR("allgather ring: unsupported level1 algtype [%s]", AlgTypeToStr(algType_).c_str());
             return HCCL_E_NOT_SUPPORT;
         }
         CHK_SMART_PTR_NULL(level1AGTemplate);

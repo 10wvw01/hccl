@@ -179,6 +179,7 @@ HcclResult ReduceScatterRecursiveHalvingDoubling::ReduceScatterInBlock(u32 rank,
 
     std::unique_ptr<AlgTemplateBase> executor = AlgTemplateRegistry::Instance().GetAlgTemplate(
         TemplateType::TEMPLATE_REDUCESCATTER_HD, dispatcher_);
+    CHK_SMART_PTR_NULL(executor);
     CHK_RET(executor->Prepare(inputMem_, inputMem_, scratchMem_, count_, dataType_, stream_,
         reductionOp_, root_, slices_, baseOffset_, blockSize_, reduceAttr,
         UserMemType::INPUT_MEM, UserMemType::OUTPUT_MEM));

@@ -233,7 +233,7 @@ HcclResult ReduceScatterPlantLocalReduceCombine::RunAlltoAll(const std::vector<L
 HcclResult ReduceScatterPlantLocalReduceCombine::RunLocalReduce()
 {
     u32 reduceStep = static_cast<u32>(std::ceil(log2(rankSize_)));
-    u32 sliceSize = memBlockInfo_.size[localRank_];
+    u64 sliceSize = memBlockInfo_.size[localRank_];
     u64 count = sliceSize / DataUnitSize(dataType_);
 
     for (u32 round = 0; round < reduceStep; round++) {

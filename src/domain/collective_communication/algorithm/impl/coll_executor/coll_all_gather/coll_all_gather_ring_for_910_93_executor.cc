@@ -15,6 +15,18 @@ CollAllGatherRingFor91093Executor::CollAllGatherRingFor91093Executor(const HcclD
     : CollAllGatherExecutor(dispatcher, topoMatcher)
 {
     DMAReduceFlag_ = workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE;
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB,
+        AlgTypeLevel1::ALG_LEVEL1_RING,
+        AlgTypeLevel1::ALG_LEVEL1_AHC,
+        AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE
+    };
+    desc_.level2SupportedAlgos = {
+        AlgTypeLevel2::ALG_LEVEL2_NHR,
+        AlgTypeLevel2::ALG_LEVEL2_NB,
+        AlgTypeLevel2::ALG_LEVEL2_RING
+    };
 }
 
 HcclResult CollAllGatherRingFor91093Executor::CalcStreamNum(u32& streamNum)
@@ -75,10 +87,10 @@ HcclResult CollAllGatherRingFor91093Executor::CalcLevel2CommInfo(TransportMemTyp
 {
     if( algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC ||
         algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE) {
-        HCCL_INFO("[CollAllGatherRingFor91093Executor][CalcLevel2CommInfo] select AHC bypass level2 comm calulate");        
+        HCCL_INFO("[CollAllGatherRingFor91093Executor][CalcLevel2CommInfo] select AHC bypass level2 comm calulate");
         return HCCL_SUCCESS;
     }
-    
+
     CommParaInfo commParaLevel2(COMM_LEVEL2, CommType::COMM_TAG_MAX);
     if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NHR) {
         commParaLevel2.commType = CommType::COMM_TAG_NONUNIFORM_HIERARCHICAL_RING;
@@ -244,10 +256,10 @@ HcclResult CollAllGatherRingFor91093Executor::PrepareUserMemSlices(std::vector<s
 
 HcclResult CollAllGatherRingFor91093Executor::KernelRun(const OpParam &param, ExecMem &execMem)
 {
-    HCCL_CONFIG_INFO(HCCL_ALG, "[CollAllGatherRingFor91093Executor][KernelRun] The AllGatherRingExecutor starts. topoType_[%u], agv[%u]",
-        topoType_, isAllGatherV_);
+    HCCL_CONFIG_INFO(HCCL_ALG, "[CollAllGatherRingFor91093Executor][KernelRun] The AllGatherRingExecutor starts. "
+        "topoType_[%u], agv[%u]", topoType_, isAllGatherV_);
     CHK_RET(ActiveSlaveStreams(param.stream));
-    const HcclDataType dataType = GetDataType(param);
+    const HcclDataType dataType = param.GetDataType();
     u32 perDataSize = 0;
     CHK_RET(SalGetDataTypeSize(dataType, perDataSize));
     CHK_PRT_RET(perDataSize == 0,
@@ -257,7 +269,7 @@ HcclResult CollAllGatherRingFor91093Executor::KernelRun(const OpParam &param, Ex
     CHK_RET(CheckCommSize(COMM_LEVEL0, COMM_INDEX_0 + 1));
     SubCommInfo level0CommInfo = GetSubCommInfo(COMM_LEVEL0, COMM_INDEX_0);
     u32 level0ServerIndex = level0CommInfo.localRank;
-    
+
     bool isSelectAHC = (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC ||
         algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE);
     CommPlane commPlaneLevel1 = isSelectAHC ? COMM_LEVEL1_AHC : COMM_LEVEL1;
@@ -337,7 +349,7 @@ HcclResult CollAllGatherRingFor91093Executor::KernelRun(const OpParam &param, Ex
         std::vector<Slice> level1DataSegsSlice = PrepareSlicesL1(param, level2CommInfo, level1CommInfo, level0CommInfo,
             perDataSize, inputMemSize);
 
-        if (GetExternalInputEnableRdmaSdmaConcurrent() && (inputMemSize >= HCCL_SPLIT_SIZE_INTER_SERVER) 
+        if (GetExternalInputEnableRdmaSdmaConcurrent() && (inputMemSize >= HCCL_SPLIT_SIZE_INTER_SERVER)
             && !aicpuUnfoldMode_) {
             u32 syncTrans = (topoType_ == TopoType::TOPO_TYPE_NP_DOUBLE_RING) ? BEST_SPLIT_VALUE_DR :
                 BEST_SPLIT_VALUE_SR;
@@ -404,7 +416,7 @@ HcclResult CollAllGatherRingFor91093Executor::KernelRun(const OpParam &param, Ex
     }
     CHK_RET(RunIntraSeverAllGather(param.tag, execMem.inputMem, execMem.outputMem, execMem.count, dataType,
         multRingsSlice, param.stream, PROF_STAGE_2, 0, opInfoPtr, multRingsUserMemSlice));
-    HCCL_INFO("allgather ring run successtopoType_[%u], agv[%u]", topoType_, isAllGatherV_);
+    HCCL_INFO("allgather ring run success. topoType_[%u], agv[%u]", topoType_, isAllGatherV_);
     return HCCL_SUCCESS;
 }
 
@@ -437,6 +449,7 @@ HcclResult CollAllGatherRingFor91093Executor::SelectTempAlg(std::unique_ptr<AlgT
                 TemplateType::TEMPLATE_ALL_GATHER_RING, dispatcher_);
             HCCL_INFO("allgather ring: using ring algo inter-superPod.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

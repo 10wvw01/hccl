@@ -899,7 +899,7 @@ HcclResult HcomGetRankSize(const char *group, u32 *rankSize)
         HCCL_ERROR("[Get][RankSize]errNo[0x%016llx] group name is invalid", HCOM_ERROR_CODE(ret)), ret);
 
     std::shared_ptr<hccl::hcclComm> hcclComm;
-    if (HcclGetCommHandle(group, hcclComm) == HCCL_SUCCESS) {
+    if (group != nullptr && HcclGetCommHandle(group, hcclComm) == HCCL_SUCCESS) {
         CHK_RET(hcclComm->GetRankSize(*rankSize));
     } else {
         std::string strGroup = (group == nullptr) ? HCCL_WORLD_GROUP : group;

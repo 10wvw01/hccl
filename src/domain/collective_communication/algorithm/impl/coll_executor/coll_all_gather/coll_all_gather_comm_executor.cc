@@ -130,6 +130,7 @@ HcclResult CollAllGatherCommExecutor::SelectTempAlg(std::unique_ptr<AlgTemplateB
             level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_GATHER_RING, dispatcher_);
             HCCL_INFO("algather comm: ring algo inter-server.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

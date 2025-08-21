@@ -17,8 +17,7 @@ public:
     __aicore__ inline AivReduceScatterBigGraph910B() {}
 
     template<typename T>
-    __aicore__ inline void ReduceWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther, uint64_t count,
-        __gm__ int32_t* ctrlFlagsGM);
+    __aicore__ inline void ReduceWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther, uint64_t count, int32_t tag);
  
     template<typename T>
     __aicore__ inline void Process(GM_ADDR input, GM_ADDR output, uint64_t len, int32_t tag);
@@ -26,7 +25,7 @@ public:
 
 template<typename T>
 __aicore__ inline void AivReduceScatterBigGraph910B::ReduceWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther,
-    uint64_t count, __gm__ int32_t* ctrlFlagsGM)
+    uint64_t count, int32_t tag)
 {
     uint64_t processedBatchCount = 0;
     uint64_t avgSizePerSlice = count * sizeof(T);
@@ -36,11 +35,14 @@ __aicore__ inline void AivReduceScatterBigGraph910B::ReduceWithFlagWrap(__gm__ T
             break;
         }
 
-        LocalTensor<int32_t> localFlag = flagInQue.AllocTensor<int32_t>();
+        int32_t localFlag = CountWait(rank_, rank_);
+        uint64_t localFlagValue;
 
-        uint64_t localFlagValue = GetSignalValue(ctrlFlagsGM, localFlag);
-
-        flagInQue.FreeTensor(localFlag);
+        if (localFlag <= tag) {
+            continue;
+        } else {
+           localFlagValue =  localFlag - tag;
+        }
 
         if (localFlagValue == 0) {
             continue;
@@ -74,59 +76,36 @@ __aicore__ inline void AivReduceScatterBigGraph910B::Process(GM_ADDR input, GM_A
     uint32_t blockNumPerGroup = rankSize_;
     uint32_t targetRank = block_idx >= rankSize_ ? block_idx - rankSize_ : block_idx; // 0-7
 
-    // 共使用16个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_REDUCE_SCATTER_910B_GRAPH;
-    uint32_t flagOffsetCount = flagOffsetBase;
-    uint32_t flagOffsetEnd = rankSize_ * FLAG_SIZE + flagOffsetBase;
-
     __gm__ T *inputGm = (__gm__ T *)input;
     __gm__ T *outputGm = (__gm__ T *)output;
     __gm__ T *cclGmSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGmOther = (__gm__ T *)(GM_IN[targetRank]);
 
     int32_t inputOffset = targetRank * avgLengthPerSlice;
-    int32_t cclGmSelfOffset = targetRank * avgLengthPerSlice;
-    int32_t outputOffset = targetRank * avgLengthPerSlice;
-
 
     if (block_idx == rank_) {
         // 拷贝相应的数据到output
-        __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount + rank_ * FLAG_SIZE);
         uint64_t freq = avgSizePerSlice >= 2 * 1024 * 1024 ? 4 : 16;
-        CpGM2GMWithFlagWrap(outputGm, inputGm + inputOffset, avgLengthPerSlice, ctrlFlagsGM, freq);
+        CpGM2GMWithFlagWrap(outputGm, inputGm + inputOffset, avgLengthPerSlice, rank_, freq, tag);
         // 确认本端全部reduce完成
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + rank_ * FLAG_SIZE), localCheckTensor, (rankSize_ - 1) * tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + rank_ * FLAG_SIZE), localSetTensor, 0);
+        Wait1vN((rankSize_ - 1) * tag, CommPattern::intraRank);
     } else if (targetRank != rank_) {
-        __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount + rank_ * FLAG_SIZE);
-        // ReduceWithFlag
-        __gm__ int32_t *ctrlFlagsGMStartX = (__gm__ int32_t *)(GM_OUT[targetRank] +
-            flagOffsetCount + rank_ * FLAG_SIZE);
-        __gm__ int32_t *ctrlFlagsGMStart = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount + targetRank * FLAG_SIZE);
         //确定可以从对端拉数据
-        SetSignalValue((__gm__ int32_t *)(ctrlFlagsGMStartX), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(ctrlFlagsGMStart), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(ctrlFlagsGMStart), localSetTensor, 0);
+        Record(tag, targetRank, AivNotifyType::ACK);
+        Wait(tag, targetRank, AivNotifyType::ACK);
 
         uint32_t cclGmOtherOffset = rank_ * avgLengthPerSlice;
-        ReduceWithFlagWrap(outputGm, cclGmOther + cclGmOtherOffset, len, ctrlFlagsGM);
+        ReduceWithFlagWrap(outputGm, cclGmOther + cclGmOtherOffset, len, tag);
         
         // 通知对端数据已经拉走
         // 是否要加个check
         PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetEnd + rank_ * FLAG_SIZE), localSetTensor, tag);
-        // 确认对端已经拉走数据
-        WaitSignalValue(
-            (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + targetRank * FLAG_SIZE), localCheckTensor, tag);
+        Record(tag, targetRank, AivNotifyType::DataSignal);
+        Wait(tag, targetRank,  AivNotifyType::DataSignal);
         PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + targetRank * FLAG_SIZE), localSetTensor, 0);
         // 通知本端reduce完成
-        AddSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetEnd + rank_ * FLAG_SIZE), localSetTensor, tag);
+        RecordNv1(tag, rank_);
     }
-
     return;
 }
 
@@ -136,6 +115,8 @@ __aicore__ inline void aiv_reduce_scatter_910b_bigdata_graph(KERNEL_ARGS_DEF)
     AivReduceScatterBigGraph910B op;
     op.Init(KERNEL_CLASS_INIT, true);
     op.HeadCounter();
+    tag = tag << TAG_MOVE_LEFT_BITS;
     op.Process<T>(input, output, len, tag);
     op.TailCounter();
 }
+

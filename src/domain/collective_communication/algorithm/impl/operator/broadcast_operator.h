@@ -32,6 +32,8 @@ private:
     HcclResult SelectAlgfor910B(const OpParam& param, std::string& algName);
 
     HcclResult SelectAlgfor91093(const OpParam& param, std::string& algName);
+
+    bool isAivMode_ = false;
 };
 }
 

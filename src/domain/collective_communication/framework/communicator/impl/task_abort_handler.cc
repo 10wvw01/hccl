@@ -37,7 +37,7 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
     HcclResult ret = HCCL_SUCCESS;
     if (localtimeout != std::chrono::seconds(0)) {
         if (stage == 0) {
-            for (int i = 0; i < commVector.size(); i++) {
+            for (size_t i = 0; i < commVector.size(); i++) {
                 std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
                 ret = commVector[i]->Suspend();
                 std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
@@ -51,8 +51,10 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
                     HCCL_ERROR("[NsRecovery][suspend] NsRecovery suspend timeOut"),
                     static_cast<int>(TaskAbortResult::TaskAbort_TimeOut));
             }
+            g_isRdmaError = false;
+            HCCL_INFO("ProcessTaskAbortHandleCallback set g_isRdmaError false");
         } else if (stage == 1) {
-             for (int i =0; i < commVector.size(); i++) {
+             for (size_t i =0; i < commVector.size(); i++) {
                 std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
                 ret = commVector[i]->StopExec();
                 std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
@@ -67,7 +69,7 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
                     static_cast<int>(TaskAbortResult::TaskAbort_TimeOut));
             }
         } else {
-            for (int i = 0; i < commVector.size(); i++) {
+            for (size_t i = 0; i < commVector.size(); i++) {
                 std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
                 ret = commVector[i]->Clean();
                 std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
@@ -85,7 +87,7 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
         }
     } else {
         if (stage == 0){
-            for( int i = 0; i < commVector.size(); i++) {
+            for( size_t i = 0; i < commVector.size(); i++) {
                 ret = commVector[i]->Suspend();
                 if (ret != HCCL_SUCCESS && ret != HCCL_E_SUSPENDING) {
                     HCCL_ERROR("[NsRecovery] finish suspend failed");
@@ -93,8 +95,10 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
                 }
                 HCCL_DEBUG("[NsRecovery]finish suspend success");
             }
+            g_isRdmaError = false;
+            HCCL_INFO("ProcessTaskAbortHandleCallback set g_isRdmaError false");
         } else if (stage == 1) {
-            for (int i =0; i < commVector.size(); i++) {
+            for (size_t i =0; i < commVector.size(); i++) {
                 ret = commVector[i]->StopExec();
                 if (ret != HCCL_SUCCESS && ret != HCCL_E_SUSPENDING) {
                     HCCL_ERROR("[NsRecovery] finish stopExec failed");
@@ -103,7 +107,7 @@ int32_t ProcessTaskAbortHandleCallback(uint32_t deviceLogicId, rtTaskAbortStage_
                 HCCL_DEBUG("[NsRecovery]finish stopExec success");
             }
         } else {
-            for (int i = 0; i < commVector.size(); i++) {
+            for (size_t i = 0; i < commVector.size(); i++) {
                 ret = commVector[i]->Clean();
                 if (ret != HCCL_SUCCESS && ret != HCCL_E_SUSPENDING) {
                     HCCL_ERROR("[NsRecovery] finish clean failed");

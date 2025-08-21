@@ -18,7 +18,7 @@ class CalcAHCBrokeTransportReq : public CalcAHCTransportReqBase {
 public:
     explicit CalcAHCBrokeTransportReq(std::vector<std::vector<u32>> &subCommPlaneVector,
         std::vector<bool> &isBridgeVector, u32 userRank, std::vector<std::vector<std::vector<u32>>> &globalSubGroups,
-        std::map<AHCConcOpType, TemplateType> &ahcAlgOption);
+        std::map<AHCConcOpType, TemplateType> &ahcAlgOption, std::unordered_map<u32, bool>  &isUsedRdmaMap);
  
     ~CalcAHCBrokeTransportReq() override;
 

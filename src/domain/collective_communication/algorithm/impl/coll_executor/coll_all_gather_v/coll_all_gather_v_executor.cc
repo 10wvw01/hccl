@@ -24,16 +24,6 @@ HcclResult CollAllGatherVExecutor::Orchestrate(OpParam& param, AlgResourceRespon
     algResResp_ = &algRes;
 
     u64 count = static_cast<u64*>(param.VDataDes.counts)[topoAttr_.userRank];
-
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    CHK_RET(AddSubStreamToProfiling());
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_ADD_OPDATA_OP(param.tag, count, param.inputPtr, param.outputPtr,
-            param.VDataDes.dataType, INVALID_VALUE_RANKID, algoAttr_.identifier, HcclReduceOp::HCCL_REDUCE_RESERVED);
-        HCCL_PROFILER_ADD_GROUPRANK(algoAttr_.identifier, topoAttr_.userRankSize, topoAttr_.userRank);
-    }
-
     HcclResult ret = HCCL_SUCCESS;
     // 图模式场景下不需要Loop
     if (workflowMode_ != HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
@@ -55,13 +45,6 @@ HcclResult CollAllGatherVExecutor::Orchestrate(OpParam& param, AlgResourceRespon
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAllGatherVExecutor][Orchestrate]errNo[0x%016llx]all gather v excutor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-        HCCL_PROFILER_DEL_OPDATA(param.tag);
-        HCCL_PROFILER_DEL_GROUPRANK(algoAttr_.identifier);
-    }
     HCCL_INFO("tag[%s], AllgatherV executor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;

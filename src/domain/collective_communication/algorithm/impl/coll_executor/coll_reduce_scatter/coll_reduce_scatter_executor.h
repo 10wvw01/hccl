@@ -30,10 +30,11 @@ protected:
     virtual bool IsSmallData(const u64 totalSize, const u64 curSize);
     virtual bool IsDataSplitForRdmaSdmaConcurrent(const u64 curSize);
     virtual HcclResult RunLoop(OpParam &param, AlgResourceResponse &algRes);
+    virtual HcclResult RunLoopV(OpParam &param, AlgResourceResponse &algRes);
 
     // 工具类
     std::vector<std::vector<Slice>> ReduceScatterRingSlicePrepare(u32 ringNum, u32 sliceNum,
-        bool useInlineReduce, DeviceMem& outputMem, std::vector<Slice>& dataSegsSlice, const std::string &tag);
+        bool useInlineReduce, const DeviceMem& outputMem, std::vector<Slice>& dataSegsSlice, const std::string &tag);
     std::vector<std::vector<Slice>> ReduceScatterRingSlicePrepareContinuous(u32 ringNum, u32 sliceNum,
         bool useInlineReduce, DeviceMem& outputMem, u32 level1RankSize, u32 level2RankSize, std::vector<Slice>& dataSegsSlice, const std::string &tag);
     std::vector<std::vector<Slice>> AnyPathReduceScatterRingSlicePrepare(u32 ringNum, u32 sliceNum,
@@ -46,9 +47,15 @@ protected:
     bool DMAReduceFlag_{false};  // 是否DMA消减
     bool scratchMemFlag_{false}; // 是否需要申请scratch memory，不需要申请则传入outputmem为scratchmem
     u64 totalSize_{0};           // 总数据量
+    bool isReduceScatterV_{false};
 
 private:
     HcclResult RunLoopInner(OpParam &param, const ReduceType &reduceType, ExecMem &execMem);
+    HcclResult RunLoopInnerV(OpParam &param, const ReduceType &reduceType, ExecMem &execMem);
+
+    bool CalcCurCountsAndCurDispls(const u64 maxTotalCount, std::vector<u64> &countsLeft, std::vector<u64> &displs,
+        std::vector<u64> &curCounts, std::vector<u64> &curDispls, u32 unitSize);
+    void PrintCurCountAndCurDispls(const std::vector<u64> &curCounts, const std::vector<u64> &curDispls);
 };
 
 } // namespace hccl

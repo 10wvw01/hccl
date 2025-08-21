@@ -56,8 +56,8 @@ __aicore__ inline void AivAllGatherSmall91093::ProcessSmall(GM_ADDR input, GM_AD
     uint32_t dstRank = GetBlockIdx() / blockNumPerGroup;
 
     // 共用2个flag
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_GATHER_91093_SMALLDATA;
-    uint32_t flagOffset = (((tag % 2 == 0) ? 0 : blockNumPerGroup * FLAG_SIZE)) + flagOffsetBase;
+    uint32_t flagOffset = (tag % 2 == 1) ? 0 : pingpongOffset + multiOffset +
+        BLOCK_DIM_FOUR_PER_RANK_A3 * ATOMIC_FLAG_SIZE * 2 + BLOCK_DIM_FOUR_PER_RANK_A3 * ATOMIC_FLAG_SIZE;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
     __gm__ T *inputGM = (__gm__ T *)input;
@@ -66,8 +66,15 @@ __aicore__ inline void AivAllGatherSmall91093::ProcessSmall(GM_ADDR input, GM_AD
     __gm__ T *outputGM = (__gm__ T *)output;
 
     if (dstRank != rank_) {
-        LocalTensor<int32_t> localFlag = localFlagTensor[8];
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[dstRank] + flagOffset + blockIdxInGroup * FLAG_SIZE), localFlag, tag);
+        GlobalTensor<int32_t> globalCheck;
+        globalCheck.SetGlobalBuffer((__gm__ int32_t *)(GM_OUT[dstRank] + flagOffset + blockIdxInGroup * ATOMIC_FLAG_SIZE), UB_FLAG_PAD_COUNT);
+        while (true) {
+            DataCopy(localFlagTensor[8], globalCheck, UB_FLAG_PAD_COUNT);
+            SyncFunc<HardEvent::MTE2_S>();
+            if (localFlagTensor[8].GetValue(0) == tag) {
+                break;
+            }
+        }
         SyncFunc<HardEvent::S_MTE2>();
 
         CpGM2GM(outputGM + dstRank * len + blockOffset, cclGMOther + blockOffset, count);
@@ -76,7 +83,7 @@ __aicore__ inline void AivAllGatherSmall91093::ProcessSmall(GM_ADDR input, GM_AD
         CpGM2GM(cclGMSelf + blockOffset, inputGM + blockOffset, count);
         // 卡间同步
         GlobalTensor<int32_t> globalSet;
-        globalSet.SetGlobalBuffer((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + blockIdxInGroup * FLAG_SIZE), UB_FLAG_PAD_COUNT);
+        globalSet.SetGlobalBuffer((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + blockIdxInGroup * ATOMIC_FLAG_SIZE), UB_FLAG_PAD_COUNT);
         localFlagTensor.SetValue(0, tag);
         PipeBarrier<PIPE_MTE3>();
         SyncFunc<HardEvent::S_MTE3>();
@@ -106,12 +113,9 @@ __aicore__ inline void AivAllGatherSmall91093::ProcessBig(GM_ADDR input, GM_ADDR
     uint64_t blockOffset = blockIdxInGroup * avgLengthPerSlice;
     uint32_t dstRank = GetBlockIdx() / blockNumPerGroup;
 
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET  * AIV_ALL_GATHER_91093_SMALLDATA_GRAPH;
-    uint32_t flagXOffset = blockIdxInGroup * FLAG_SIZE + rank_ * blockNumPerGroup * FLAG_SIZE + flagOffsetBase;
-    uint32_t flagOffset = GetBlockIdx() * FLAG_SIZE + flagOffsetBase;
-
-    __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[dstRank] + flagXOffset);
-    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset);
+    uint32_t flagOffset = blockIdxInGroup * rankSize_ * FLAG_SIZE * 3;
+    __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[dstRank] + rank_ * FLAG_SIZE + flagOffset);
+    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + dstRank * FLAG_SIZE);
     GlobalTensor<int32_t> globalSet;
  
     if (dstRank == rank_) {
@@ -124,8 +128,8 @@ __aicore__ inline void AivAllGatherSmall91093::ProcessBig(GM_ADDR input, GM_ADDR
 
         CpGM2GM(outputGM + dstRank * len + blockOffset, (__gm__ T *)(GM_IN[dstRank]) + blockOffset, count);
         
-        ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[dstRank] + blockdim_ * FLAG_SIZE + flagXOffset);
-        ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + blockdim_ * FLAG_SIZE + flagOffset);
+        ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[dstRank] + rank_ * FLAG_SIZE + flagOffset + rankSize_ * FLAG_SIZE);
+        ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + dstRank * FLAG_SIZE + rankSize_ * FLAG_SIZE);
         PipeBarrier<PIPE_MTE3>();
         globalSet.SetGlobalBuffer(ctrlFlagsGMX, UB_FLAG_PAD_COUNT);
         DataCopy(globalSet, localSetTensor, UB_FLAG_PAD_COUNT);

@@ -392,6 +392,8 @@ HcclResult AllReduceAHCBase::RunAsync(const u32 rank, const u32 rankSize,
     CHK_PRT_RET(rankSize == 1, HCCL_INFO("[AllReduceAHCBase][RunAsync] rankSize[%u], do nothing.",
         rankSize), HCCL_SUCCESS);
  
+    CHK_PRT_RET(count_ == 0, HCCL_INFO("[AllReduceAHCBase][RunAsync] count_[%u], do nothing.", count_), HCCL_SUCCESS);
+
     HCCL_DEBUG("[AllReduceAHCBase][RunAsync] rank[%u] begin intra rs", rank);
  
     ret = RunIntraReduceScatter(rank, links, commAHCBaseInfo_);

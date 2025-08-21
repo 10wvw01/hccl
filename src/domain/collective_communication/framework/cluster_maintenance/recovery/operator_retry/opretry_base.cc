@@ -15,14 +15,35 @@
 #include "adapter_pub.h"
 #include "runtime/base.h"
 #include "runtime/stream.h"
+#include "opretry_agent.h"
+#include "opretry_server.h"
 
 
 namespace hccl {
 HcclResult OpRetryBase::Handle(RetryContext* retryCtx)
 {
+    if (!retryCtx->IsRootRetryCtx() && retryCtx->isAgentStateWaitResume_ && retryCtx->GetRetryState() != RETRY_STATE_AGENT_WAIT_RESUME) {
+        std::shared_ptr<OpRetryBase> retryPtr = nullptr;
+        EXECEPTION_CATCH(retryPtr = std::make_shared<OpRetryAgentWaitResume>(), return HCCL_E_PTR);
+        retryCtx->SetRetryState(RETRY_STATE_AGENT_WAIT_RESUME, retryPtr);
+        retryCtx->ResetAgentState();
+        HCCL_INFO("[OpRetry][Agent]switch to wait resume.");
+        return HCCL_SUCCESS;
+    }
+
+    if (retryCtx->IsRootRetryCtx() && retryCtx->isServerStateWaitResume_ && retryCtx->GetRetryState() != RETRY_STATE_SERVER_WAIT_RESUME) {
+        std::shared_ptr<OpRetryBase> retryPtr = nullptr;
+        EXECEPTION_CATCH(retryPtr = std::make_shared<OpRetryServerWaitResume>(), return HCCL_E_PTR);
+        retryCtx->SetRetryState(RETRY_STATE_SERVER_WAIT_RESUME, retryPtr);
+        retryCtx->ResetServerState();
+        HCCL_INFO("[OpRetry][Server]switch to wait resume.");
+        return HCCL_SUCCESS;
+    }
+
     HcclResult ret = ProcessEvent(retryCtx);
     if (ret != HCCL_SUCCESS) {
         CHK_RET(ProcessError(retryCtx));
+        retryCtx->isOpRetryQuit = true;
     }
     return ret;
 }
@@ -202,7 +223,7 @@ HcclResult OpRetryBase::GetRetryInfo(RetryContext* retryCtx, RetryInfo &retryInf
     retryInfo.rankId = retryCtx->GetRankId();
     retryInfo.retryState = retryCtx->GetRetryState();
     retryInfo.linkState = true;
-    CHK_RET(GetOpExecInfo(retryCtx->d2hPtr_, retryInfo.opInfo));
+    CHK_RET(GetOpExecInfo(retryCtx->GetD2hPtr(), retryInfo.opInfo));
 
     HCCL_DEBUG("[OpRetry][GetRetryInfo]rankId[%u], retryState[%d], linkState[%d]",
         retryInfo.rankId, retryInfo.retryState, retryInfo.linkState);
@@ -348,6 +369,9 @@ HcclResult OpRetryBase::SetTransportStatusForStop(RetryContext* retryCtx)
     // 用于表示当前rank与对端是否走借轨
     std::map<u32, bool> isChangeLinkMap;
     bool isChangeLinkFlag = false;
+    if (retryCtx->isRecivedCmdToCheckLink) {
+        return retryCtx->setTransportReseumeStatusCallback_(retryCtx->lastLinkPortStatus_, isChangeLinkMap, isChangeLinkFlag, true);
+    }
     // stop阶段对当前正在使用的link执行，使用lastLinkPortStatus_表示当前正在使用的网口情况，默认为true，使用主网口
     return retryCtx->setTransportStatusCallback_(retryCtx->localRetryInfo_.opInfo.opId, true,
         retryCtx->lastLinkPortStatus_, isChangeLinkMap, isChangeLinkFlag);
@@ -392,6 +416,10 @@ HcclResult OpRetryBase::SetTransportStatusForResume(RetryContext* retryCtx)
     retryCtx->localRetryInfo_.isChangeLinkFlag = isChangeLinkFlag;  // 向server上报
     retryCtx->localChangeLinkInfo_.isChangeLinkFlag = isChangeLinkFlag;  // 向aicpu下发
 
+    if (retryCtx->isRecivedCmdToCheckLink) {
+        retryCtx->isRecivedCmdToCheckLink = false;
+        return retryCtx->setTransportReseumeStatusCallback_(remoteRankPortMap, isChangeLinkMap, isChangeLinkFlag, false);
+    }
     return retryCtx->setTransportStatusCallback_(retryCtx->localRetryInfo_.opInfo.opId, false,
         remoteRankPortMap, isChangeLinkMap, isChangeLinkFlag);
 }
@@ -522,7 +550,6 @@ HcclResult OpRetryBase::InitChangeLinkInfo(RetryContext* retryCtx, bool incre)
 
 HcclResult OpRetryBase::GetLinkPortStatus(RetryContext* retryCtx, LinkPortStatus &linkPortStatus)
 {
-#ifndef CCL_KERNEL_AICPU
     std::string newTag = std::string(reinterpret_cast<const char*>(retryCtx->localRetryInfo_.opInfo.opId.newTag));
     HCCL_RUN_INFO("[OpRetry][Agent]begin to GetLinkPortStatus from: deviceLogicId[%d], identifier[%s] tag[%s]",
         retryCtx->deviceLogicId_, retryCtx->group_.c_str(), newTag.c_str());
@@ -575,7 +602,6 @@ HcclResult OpRetryBase::GetLinkPortStatus(RetryContext* retryCtx, LinkPortStatus
 
     HCCL_RUN_INFO("[OpRetry][Agent]GetLinkPortStatus success: deviceLogicId[%d], rankSize[%d], identifier[%s], tag[%s]",
         retryCtx->deviceLogicId_, linkPortStatus.rankSize, retryCtx->group_.c_str(), newTag.c_str());
-#endif
     return HCCL_SUCCESS;
 }
 HcclResult OpRetryBase::SetBsrOpId(RetryContext* retryCtx, HcclSendRecvType type)

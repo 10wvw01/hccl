@@ -51,7 +51,8 @@ void CollReduceScatterSemiRingExecutor::ParseParam(const OpParam& param)
     }
 
     // 记录图模式总数据量
-    totalSize_ = topoAttr_.userRankSize * param.DataDes.count * SIZE_TABLE[param.DataDes.dataType];
+    const HcclDataType dataType = param.GetDataType();
+    totalSize_ = CalcTotalCount(param) * SIZE_TABLE[dataType];
     aicpuUnfoldMode_ = param.aicpuUnfoldMode;
 }
 

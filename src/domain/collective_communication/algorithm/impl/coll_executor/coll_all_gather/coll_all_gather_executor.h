@@ -25,8 +25,6 @@ protected:
     virtual bool IsHugeData(const u64 curSize);
     virtual bool IsDataSplitForRdmaSdmaConcurrent(const u64 curSize);
     virtual bool IsSmallData(const u64 size);
-    virtual u64 GetCount(const OpParam &param) const;
-    virtual HcclDataType GetDataType(const OpParam &param) const;
     virtual u64 CalcTotalCount(const OpParam &param) const;
     HcclResult RunLoop(OpParam &param, AlgResourceResponse &algRes);    // non-virtual
 

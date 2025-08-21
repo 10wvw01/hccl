@@ -55,10 +55,10 @@ __aicore__ inline void AivAllReduceDeterBig910B::EndSync(int32_t tag)
 
     if (block_idx < rankSize_) {
         if (targetRank != rank_) {
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
             WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
         }
     }
@@ -67,7 +67,7 @@ __aicore__ inline void AivAllReduceDeterBig910B::EndSync(int32_t tag)
 
 __aicore__ inline void AivAllReduceDeterBig910B::PreSync(int32_t tag)
 {
-    int64_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_PRE;
+    int64_t flagOffsetBase = 0;
     int64_t flagOffsetPostSync = flagOffsetBase;
 
     PipeBarrier<PIPE_ALL>();
@@ -97,7 +97,7 @@ __aicore__ inline void AivAllReduceDeterBig910B::PreSync(int32_t tag)
 
 __aicore__ inline void AivAllReduceDeterBig910B::PostSync(int32_t tag)
 {
-    int64_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_POST;
+    int64_t flagOffsetBase = 0;
     int64_t flagOffsetPostSync = flagOffsetBase;
 
     PipeBarrier<PIPE_ALL>();
@@ -127,7 +127,7 @@ __aicore__ inline void AivAllReduceDeterBig910B::PostSync(int32_t tag)
 
 __aicore__ inline void AivAllReduceDeterBig910B::ClearFlag()
 {
-    int64_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_BIGDATA;
+    int64_t flagOffsetBase = 0;
 
     if (block_idx < rankSize_ && block_idx == rank_) {
         SetFlagBatchValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetBase), flagBatchSetQue, 0, 3 * rankSize_);
@@ -321,7 +321,7 @@ __aicore__ inline void AivAllReduceDeterBig910B::Process(GM_ADDR input, GM_ADDR 
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[x]);
     __gm__ T *outputGM = (__gm__ T *)output;
 
-    int64_t flagOffsetBase = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_BIGDATA;
+    int64_t flagOffsetBase = 0;
     int64_t flagOffset1stCount = flagOffsetBase + (x)*FLAG_SIZE;
     int64_t flagOffset2stCount = flagOffsetBase + (rankSize_ + x) * FLAG_SIZE;
     int64_t flagOffset3stCount = flagOffsetBase + (DOUBLE * rankSize_ + x) * FLAG_SIZE;

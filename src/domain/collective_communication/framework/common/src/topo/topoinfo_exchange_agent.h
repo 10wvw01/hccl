@@ -46,7 +46,7 @@ public:
     explicit TopoInfoExchangeAgent(HcclIpAddress &serverIp, u32 serverPort, std::string identifier,
         HcclNetDevCtx netDevCtx, HcclBasicRankInfo localRankInfo, u32 connSize, u32 connRank);
     explicit TopoInfoExchangeAgent(HcclIpAddress &serverIp, u32 serverPort, std::string identifier,
-        HcclNetDevCtx netDevCtx, HcclBasicRankInfo localRankInfo, HcclRankHandle RankInfo);
+        HcclNetDevCtx netDevCtx, HcclBasicRankInfo localRankInfo, HcclRankHandle rankInfo);
     ~TopoInfoExchangeAgent() override;
     HcclResult SetupMember();
     HcclResult Setup();

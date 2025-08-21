@@ -204,7 +204,17 @@ HcclResult AlignedReduceScatterDoubleRing::SetSlices(const u32 rank, const u32 r
                 ringIndex, rank, i, multRingsSlices_[ringIndex][i].offset, i, multRingsSlices_[ringIndex][i].size);
         }
         // 最后一步搬到userMemOut_的offset, 不同的ring环offset不一样
-        lastStepOffsets_.emplace_back(multRingsSlices_[ringIndex][ringsOrders_[ringIndex][0]].offset);
+        u64 toUserMemOffset;
+        if (ringIndex == 0) {
+            toUserMemOffset = multRingsSlices_[ringIndex][ringsOrders_[ringIndex][0]].offset;
+        } else {
+            const auto &prevRingSlice = multRingsSlices_[ringIndex - 1][ringsOrders_[ringIndex - 1][rank]];
+            const auto &slice = multRingsSlices_[ringIndex][ringsOrders_[ringIndex][rank]];
+            toUserMemOffset = slice.offset - prevRingSlice.offset;
+        }
+        HCCL_DEBUG("[AlignedReduceScatterDoubleRing][SetSlices] rank[%u], ring[%u], toUserMemOffset[%u]", rank,
+            ringIndex, toUserMemOffset);
+        lastStepOffsets_.emplace_back(toUserMemOffset);
     }
     HCCL_INFO("AlignedReduceScatterDoubleRing finished to SetSlices");
     return HCCL_SUCCESS;
@@ -454,34 +464,19 @@ HcclResult AlignedReduceScatterDoubleRing::ReducerRun(const u32 ringIndex, const
                 dataCount };
         CHK_RET(RxAsyncMemcpy(ringIndex, rxMem, stream, link));
         RxWithReduceMemoryInfo &rxReduceMem = rxWithReduceMem;
+        if (ringIndex == ALIGNED_SUB_RING_INDEX) {
+            CHK_PRT_RET(stream != subStreams_[0],
+                HCCL_ERROR("[%s] subStreams_[0] should be used for ringIndex=%d", __func__, ALIGNED_SUB_RING_INDEX), HCCL_E_INTERNAL);
+            CHK_RET(LocalNotify::Post(subStreams_[0], dispatcher_, mainSignals_[0], profilerInput_.stage));
+            CHK_RET(LocalNotify::Wait(stream_, dispatcher_, mainSignals_[0], profilerInput_.stage));
+        }
         CHK_RET(HcclReduceAsync(dispatcher, rxReduceMem.reduceSrc, rxReduceMem.reduceDataCount, dataType_,
-            reductionOp_, stream, rxReduceMem.reduceDst, INVALID_VALUE_RANKID, LinkType::LINK_ONCHIP,
+            reductionOp_, stream_, rxReduceMem.reduceDst, INVALID_VALUE_RANKID, LinkType::LINK_ONCHIP,
             reduceAttr_));
-    }
-    return HCCL_SUCCESS;
-}
-
-HcclResult AlignedReduceScatterDoubleRing::RunMainStream(
-    const u32 step, const u32 rank, const u32 rankSize, u32 ringIndex,
-    std::vector<SenderMemoryInfo> &txReduceMems, std::vector<ReducerMemoryInfo> &rxReduceMems)
-{
-    (void)txReduceMems;
-    (void)rank;
-    (void)rankSize;;
-    Stream stream;
-    LINK preLink;
-    LINK nextLink;
-    CHK_RET(PrepareRunMainStream(ringIndex, stream, preLink, nextLink));
-    HCCL_DEBUG("Reduce: step[%u] ring[%u], src rank[%u] starts to send slice to dst rank[%u]",
-        step, ringIndex, preLink->GetRemoteRank(), nextLink->GetRemoteRank());
-    CHK_RET(preLink->TxAck(stream));
-    CHK_RET(nextLink->RxAck(stream));
-    CHK_RET(nextLink->TxDataSignal(stream));
-    CHK_RET(preLink->RxDataSignal(stream));
-    u32 memSize = rxReduceMems.size();
-    for (u32 memIdx = 0; memIdx < memSize; memIdx++) {
-        ReducerMemoryInfo &rxReduceMem = rxReduceMems[memIdx];
-        CHK_RET(ReducerRun(ringIndex, dispatcher_, preLink, rxReduceMem, stream));
+        if (ringIndex == ALIGNED_SUB_RING_INDEX) {
+            CHK_RET(LocalNotify::Post(stream_, dispatcher_, subSignals_[0], profilerInput_.stage));
+            CHK_RET(LocalNotify::Wait(subStreams_[0], dispatcher_, subSignals_[0], profilerInput_.stage));
+        }
     }
     return HCCL_SUCCESS;
 }
@@ -625,7 +620,7 @@ HcclResult AlignedReduceScatterDoubleRing::RunReduceScatter(const u32 rank, cons
         std::vector<DeviceMem> localDstMemsMain;
         std::vector<DeviceMem> localSrcMemsSub;
         std::vector<DeviceMem> localDstMemsSub;
-        CHK_RET(PreRunStreams(step, rankSize, 
+        CHK_RET(PreRunStreams(step, rankSize,
             txSliceIdxMain, rxSliceIdxMain, subSliceIdxMain,
             txSliceIdxSub, rxSliceIdxSub, subSliceIdxSub,
             txReduceMemsMain, rxReduceMemsMain, txReduceMemsSub, rxReduceMemsSub,

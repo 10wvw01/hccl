@@ -280,7 +280,7 @@ HcclResult ReduceRecursiveHalvingDoubling::GatherInBlock(u32 rank, u32 rankSize,
                     rank, peerRank), ret);
 
                 // 等待对端可以接收数据
-                HCCL_DEBUG("rank[%u] outputMem[%p] recieve from PeerRank[%u] outputMem, Offset[%llu], "\
+                HCCL_DEBUG("rank[%u] outputMem[%p] receive from PeerRank[%u] outputMem, Offset[%llu], "\
                            "Size[%llu]", rank, outputMem_.ptr(), peerRank,
                            baseOffset_ + rxSlices_[step].offset, rxSlices_[step].size);
 

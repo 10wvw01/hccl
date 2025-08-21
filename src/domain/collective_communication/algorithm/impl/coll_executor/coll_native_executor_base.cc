@@ -37,7 +37,7 @@ HcclResult CollNativeExecutorBase::CalcResRequest(const OpParam& param, AlgResou
     u64 scratchMemSize = 0U;
     u32 streamNum = 0U;
     u32 notifyNum = 0U;
-    bool needAivBuffer = false;
+    u64 aivBufferRequest = 0U;
     std::vector<LevelNSubCommTransport> opTransport {
         std::vector<LevelNSubCommTransport>(static_cast<u32>(COMM_LEVEL_RESERVED))
     };
@@ -45,13 +45,13 @@ HcclResult CollNativeExecutorBase::CalcResRequest(const OpParam& param, AlgResou
     CHK_RET(CalcScratchMemSize(scratchMemSize));
     CHK_RET(CalcStreamNum(streamNum));
     CHK_RET(CalcNotifyNum(streamNum, notifyNum));
-    CHK_RET(GetIfNeedAivBuffer(needAivBuffer));
+    CHK_RET(CalcAivBufferRequest(aivBufferRequest));
     CHK_RET(CalcCommInfo(opTransport));
 
-    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, needAivBuffer, opTransport, resourceRequest));
-    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], needAivBuffer[%u]",
+    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, aivBufferRequest, opTransport, resourceRequest));
+    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], aivBufferRequest[%llu]",
         resourceRequest.streamNum, resourceRequest.notifyNum, resourceRequest.scratchMemSize,
-        resourceRequest.needAivBuffer);
+        resourceRequest.aivBufferRequest);
     // 打印建链诉求
     PrintTransportRequest(resourceRequest);
     return HCCL_SUCCESS;
@@ -81,11 +81,16 @@ HcclResult CollNativeExecutorBase::CalcNotifyNum(u32 streamNum, u32 &notifyNum)
     return HCCL_SUCCESS;
 }
 
-HcclResult CollNativeExecutorBase::GetIfNeedAivBuffer(bool &needAivBuffer)
+HcclResult CollNativeExecutorBase::CalcAivBufferRequest(u64 &aivBufferRequest)
 {
-    // 非AIV通信不需要AIV buffer
-    needAivBuffer = false;
-    HCCL_INFO("[CollNativeExecutorBase][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u]", tag_.c_str(), needAivBuffer);
+    if (desc_.isAivMode) {
+        SalSetBitOne(aivBufferRequest, ATTR_POS_AIV_COMM_BUFFER);
+    }
+    if (desc_.isAivCrossNode) {
+        SalSetBitOne(aivBufferRequest, ATTR_POS_AIV_COMM_INFO_BUFFER);
+    }
+    HCCL_INFO("[CollNativeExecutorBase][CalcAivBufferRequest]tag[%s] aivBufferRequest is [%llu]", tag_.c_str(),
+        aivBufferRequest);
     return HCCL_SUCCESS;
 }
 
@@ -113,7 +118,6 @@ HcclResult CollNativeExecutorBase::CalcLevel1CommInfo(TransportMemType inputType
             tag_.c_str(), root, topoAttr_.userRank, root_);
     }
     CommParaInfo commParaLevel1(COMM_LEVEL1, CommType::COMM_TAG_MAX, root);
-    bool isUseAHC = false;
 
     if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_RING) {
         commParaLevel1.commType = CommType::COMM_TAG_RING_INNER;
@@ -125,12 +129,10 @@ HcclResult CollNativeExecutorBase::CalcLevel1CommInfo(TransportMemType inputType
         commParaLevel1.commType = CommType::COMM_TAG_NONUNIFORM_HIERARCHICAL_RING_V1;
         HCCL_INFO("[CollNativeExecutorBase][CalcLevel1CommInfo]tag[%s] Calc NHRV1CommInfo", tag_.c_str());
     } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC) {
-        isUseAHC = true;
         commParaLevel1.commPlane = CommPlane::COMM_LEVEL1_AHC;
         commParaLevel1.commType = CommType::COMM_TAG_ASYMMETRIC_HIERARCHICAL_CONCATENATE;
         HCCL_INFO("[CollNativeExecutorBase][CalcLevel1CommInfo]tag[%s] Calc AHCCommInfo", tag_.c_str());
     } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_AHC_BROKE) {
-        isUseAHC = true;
         commParaLevel1.commPlane = CommPlane::COMM_LEVEL1_AHC;
         commParaLevel1.commType = CommType::COMM_TAG_ASYMMETRIC_HIERARCHICAL_CONCATENATE_BROKE;
         HCCL_INFO("[CollNativeExecutorBase][CalcLevel1CommInfo]tag[%s] Calc AHCBrokeCommInfo", tag_.c_str());
@@ -156,14 +158,6 @@ HcclResult CollNativeExecutorBase::CalcLevel1CommInfo(TransportMemType inputType
         HCCL_INFO("[CollNativeExecutorBase][COMM_LEVEL1_ANYPATH]tag[%s] Calc CommInfo Finish", tag_.c_str());
     }
 
-    if (isUseAHC) {
-        LevelNSubCommTransport &commTransportLevel1 = opTransport[commParaLevel1.commPlane];
-        for (u32 subCommIndex = 0; subCommIndex < commTransportLevel1.size(); subCommIndex++) {
-            for (auto &transportRequest : commTransportLevel1[subCommIndex].transportRequests) {
-                transportRequest.isUsedRdma = topoAttr_.isUsedRdmaMap.at(transportRequest.remoteUserRank);
-            }
-        }
-    }
     HCCL_INFO("[CollNativeExecutorBase][CalcLevel1CommInfo]tag[%s] Calc CommInfo Finish", tag_.c_str());
 
     return HCCL_SUCCESS;
@@ -186,7 +180,7 @@ HcclResult CollNativeExecutorBase::CalcLevel2CommInfo(TransportMemType inputType
         return HCCL_SUCCESS;
     }
 
-    CommParaInfo commParaLevel2(COMM_LEVEL2, CommType::COMM_TAG_MAX);
+    CommParaInfo commParaLevel2(COMM_LEVEL2, CommType::COMM_TAG_MAX, root_);
     if (algType_.algoLevel2 == AlgTypeLevel2::ALG_LEVEL2_NHR) {
         commParaLevel2.commType = CommType::COMM_TAG_NONUNIFORM_HIERARCHICAL_RING;
         HCCL_INFO("[%s] Calc NHRCommInfo", __func__);
@@ -289,12 +283,13 @@ SubCommInfo CollNativeExecutorBase::GetSubCommInfo(const CommPlane levelIndex, c
 }
 
 HcclResult CollNativeExecutorBase::BuildResourceRequest(u64 scratchMemSize, u32 streamNum, u32 notifyNum,
-    bool needAivBuffer, std::vector<LevelNSubCommTransport>& opTransport, AlgResourceRequest& resourceRequest)
+    u64 aivBufferRequest, std::vector<LevelNSubCommTransport>& opTransport,
+    AlgResourceRequest& resourceRequest)
 {
     resourceRequest.scratchMemSize = scratchMemSize;
     resourceRequest.streamNum = streamNum;
     resourceRequest.notifyNum = notifyNum;
-    resourceRequest.needAivBuffer = needAivBuffer;
+    resourceRequest.aivBufferRequest = aivBufferRequest;
     resourceRequest.opTransport = opTransport;
     return HCCL_SUCCESS;
 }
@@ -443,9 +438,8 @@ HcclResult CollNativeExecutorBase::CopyAivCommInfoToDevice(const CommPlane level
         }
     }
     const u32 bufferNum = 2;
-    CHK_RET(hrtMemSyncCopy(static_cast<u8 *>(algResource.aivOutputMem.ptr()) + (AIV_FLAG_SIZE - COMM_INFO_OFFSET),
-        sizeof(u64) * localRankSize * bufferNum, buffersInOut, sizeof(u64) * localRankSize * bufferNum,
-        HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
+    CHK_RET(hrtMemSyncCopy(algResource.aivCommInfoMem.ptr(), sizeof(u64) * localRankSize * bufferNum,
+        buffersInOut, sizeof(u64) * localRankSize * bufferNum, HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
     return HCCL_SUCCESS;
 }
 

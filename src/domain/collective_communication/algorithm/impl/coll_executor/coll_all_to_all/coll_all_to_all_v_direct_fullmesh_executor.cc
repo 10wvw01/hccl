@@ -27,18 +27,6 @@ HcclResult CollRunAlltoAllDirectFullmesh::Orchestrate(OpParam& param, AlgResourc
     tag_ = param.tag;
     algResResp_ = &algRes;
     AlltoAllVParam_ = param;
-    rtModel_t rtModel = nullptr;
-    bool isCapture = false;
-    HcclResult retCapture = GetStreamCaptureInfo(param.stream.ptr(), rtModel, isCapture);
-    CHK_PRT_CONT(retCapture != HCCL_SUCCESS,
-        HCCL_ERROR("Get capture status error. return[%d], capture model", retCapture));
-    // isA2AlltoallvMutliModule_表示A2上的alltoallV多机场景
-    isA2AlltoallvMutliModule_ = (AlltoAllVParam_.opType == HcclCMDType::HCCL_CMD_ALLTOALLV &&
-                                topoAttr_.deviceType == DevType::DEV_TYPE_910B &&
-                                !topoAttr_.isSingleMeshAggregation &&
-                                isCapture);
-
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
 
     ExecMem execMem;
     execMem.count = 0;
@@ -51,9 +39,6 @@ HcclResult CollRunAlltoAllDirectFullmesh::Orchestrate(OpParam& param, AlgResourc
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollRunAlltoAllDirectFullmesh][Orchestrate]errNo[0x%016llx]excutor run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-
     HCCL_INFO("tag[%s], AlltoAllDirectFullmesh tempAlg orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
 
@@ -76,7 +61,7 @@ HcclResult CollRunAlltoAllDirectFullmesh::GetAdjInfo(AlgResourceResponse& algRes
     HCCL_INFO("[GetAdjInfo-nslbdp] SelectTempAlg.");
     levelTempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(
             TemplateType::TEMPLATE_ALL_2_ALL_V_DIRECT_FULL_MESH, dispatcher_);
-
+    CHK_SMART_PTR_NULL(levelTempAlg);
     u32 rankIdxInPod = INVALID_VALUE_RANKID;
     CHK_RET(GetLocalSDMAGroupInfo(topoAttr_.userRank, devNumInlocalPod, rankIdxInPod));
 
@@ -319,9 +304,6 @@ HcclResult CollRunAlltoAllDirectFullmesh::KernelRun(const OpParam &param, ExecMe
     // 获取通信域
     CHK_RET(CheckCommSize(COMM_COMBINE_ORDER, COMM_INDEX_0 + 1));
     SubCommInfo level0CommInfo = GetSubCommInfo(COMM_COMBINE_ORDER, COMM_INDEX_0);
-
-    CHK_RET(AddSubStreamToProfiling());
-
     bool isA2MultiModule = topoAttr_.deviceType == DevType::DEV_TYPE_910B &&
                             !topoAttr_.isSingleMeshAggregation;
     // isSuPodAsym 表示A2A3卡数不一致场景或者A3多超节点server数不同场景
@@ -358,7 +340,6 @@ HcclResult CollRunAlltoAllDirectFullmesh::KernelRun(const OpParam &param, ExecMe
     prepareData.isSuPodAsym = isSuPodAsym;
     prepareData.opType = param.opType;
     prepareData.algOpContext = algOpContext_;
-    prepareData.isA2AlltoallvMutliModule = isA2AlltoallvMutliModule_;
 
     CHK_RET(tempAlg->Prepare(prepareData));
 

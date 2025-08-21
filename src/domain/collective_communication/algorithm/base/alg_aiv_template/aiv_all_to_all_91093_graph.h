@@ -9,21 +9,22 @@
  */
 
 #include "aiv_communication_base.h"
-#include "aiv_all_to_all_91093_base.h"
+#include "aiv_crossnode_91093_base.h"
 
 using namespace AscendC;
 
-class AivAll2AllGraph91093 : public AivAll2All91093Base {
+class AivAll2AllGraph91093 : public AivCrossNode91093Base {
 public:
     __aicore__ inline AivAll2AllGraph91093() {}
 
     template<typename T>
-    __aicore__ inline void Process(GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t len);
+    __aicore__ inline void Process(GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input, GM_ADDR output,
+        int32_t tag, uint64_t len);
 };
 
 template<typename T>
-__aicore__ inline void AivAll2AllGraph91093::Process(GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag,
-    uint64_t len)
+__aicore__ inline void AivAll2AllGraph91093::Process(GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input,
+    GM_ADDR output, int32_t tag, uint64_t len)
 {
     // 内存准备
     __gm__ T *inputGM = (__gm__ T *)input;
@@ -31,11 +32,9 @@ __aicore__ inline void AivAll2AllGraph91093::Process(GM_ADDR buffOut0, GM_ADDR i
 
     uint64_t argsCount = FLAG_SIZE * rankSize_ / sizeof(uint64_t);
     GlobalTensor<uint64_t> bufferArgsGT;
-    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(buffOut0 + AIV_FLAG_BUFFER_SIZE - COMM_INFO_OFFSET);
+    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(commInfoAddr);
     bufferArgsGT.SetGlobalBuffer(buffersGmAddr, argsCount);
 
-    uint32_t initAckFlagOffset = 0;
-    uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
 
     // 准备参数
     GM_ADDR buffersIn[MAX_TARGET_NUM] = {};
@@ -58,7 +57,7 @@ __aicore__ inline void AivAll2AllGraph91093::Process(GM_ADDR buffOut0, GM_ADDR i
     PipeBarrier<PIPE_ALL>();
 
     // 首同步
-    BatchRecordWait(buffersOut, initAckFlagOffset, tag);
+    BatchRecordWait(tag, buffersOut);
 
     PipeBarrier<PIPE_ALL>();
 
@@ -71,7 +70,7 @@ __aicore__ inline void AivAll2AllGraph91093::Process(GM_ADDR buffOut0, GM_ADDR i
     PipeBarrier<PIPE_ALL>();
 
     // read后的同步
-    BatchRecordWait(buffersOut, finalAckFlagOffset, tag);
+    BatchRecordWait(tag, buffersOut, AivNotifyType::DataSignal);
 
     // 最后一个核做localcopy
     if (block_idx == block_num - 1) {
@@ -83,10 +82,9 @@ template<typename T>
 __aicore__ inline void aiv_all_to_all_91093_graph(KERNEL_ARGS_DEF)
 {
     AivAll2AllGraph91093 op;
-    uint32_t baseFlagOffset = AIV_ALL_TO_ALL_91093_GRAPH * MAX_RANK_SIZE_A3 * FLAG_SIZE;
-    op.Init(buffOut0, rank, rankSize, tag, baseFlagOffset, true);
+    op.Init(buffOut0, rank, rankSize, true);
     op.InitOpCounter(headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter);
     op.HeadCounter();
-    op.Process<T>(buffOut0, input, output, tag, len);
+    op.Process<T>(buffOut0, buffOut1, input, output, tag, len);
     op.TailCounter();
 }

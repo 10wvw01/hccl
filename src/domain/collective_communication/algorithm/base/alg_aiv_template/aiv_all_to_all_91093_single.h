@@ -18,31 +18,31 @@ public:
 
     template<typename T>
     __aicore__ inline void Process(GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t remoteSendOffset,
-        uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset);
+        uint64_t localRecvOffset, uint64_t remoteSendCount);
 
     template<typename T>
     __aicore__ inline void ProcessSmall(GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t remoteSendOffset,
-        uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset);
+        uint64_t localRecvOffset, uint64_t remoteSendCount);
 
     template<typename T>
     __aicore__ inline void ProcessBig(GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t remoteSendOffset,
-        uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset);
+        uint64_t localRecvOffset, uint64_t remoteSendCount);
 };
 
 template<typename T>
 __aicore__ inline void AivAll2All91093Single::Process(GM_ADDR input, GM_ADDR output, int32_t tag,
-    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset)
+    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount)
 {
     if (remoteSendCount * sizeof(T) <= AIV_A3_ALL_TO_ALL_GRAPH_GUIYI_SIZE) {
-        ProcessSmall<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        ProcessSmall<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount);
     } else {
-        ProcessBig<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        ProcessBig<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount);
     }
 }
 
 template<typename T>
 __aicore__ inline void AivAll2All91093Single::ProcessBig(GM_ADDR input, GM_ADDR output, int32_t tag,
-    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset)
+    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount)
 {
     uint32_t blockNumPerGroup = blockdim_/ rankSize_; 
     uint32_t blockIdxInGroup = GetBlockIdx()% blockNumPerGroup;
@@ -55,22 +55,14 @@ __aicore__ inline void AivAll2All91093Single::ProcessBig(GM_ADDR input, GM_ADDR 
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[dstRank]);
 
     // 使用96个flag
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[dstRank] + baseFlagOffset;
-    uint32_t initAckFlagOffset = 0;
-    uint32_t finalAckFlagOffset = blockdim_* FLAG_SIZE;
-
-    uint32_t flagSetOffset = rank_ * blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE;
-    uint32_t flagCheckOffset = GetBlockIdx()* FLAG_SIZE;
-
     uint64_t blockRecvCount = 0;
     uint64_t blockRecvOffset = 0;
     CalBlockCountAndOffset(remoteSendCount, blockNumPerGroup, blockIdxInGroup, padCount, blockRecvCount,
         blockRecvOffset);
 
     // 确认对端已经准备好
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + flagSetOffset), localSetTensor, tag);
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + flagCheckOffset), localCheckTensor, tag);
+    Record(tag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
+    Wait(tag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
     PipeBarrier<PIPE_ALL>();
 
     CpGM2GM(outputGM + localRecvOffset + blockRecvOffset, cclGMOther + remoteSendOffset + blockRecvOffset,
@@ -78,23 +70,23 @@ __aicore__ inline void AivAll2All91093Single::ProcessBig(GM_ADDR input, GM_ADDR 
     PipeBarrier<PIPE_ALL>();
 
     // 确认对端已经读完本端
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + flagSetOffset), localSetTensor, tag);
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + flagCheckOffset), localCheckTensor, tag);
+    Record(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
+    Wait(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
 
     return;
 }
 
 template<typename T>
 __aicore__ inline void AivAll2All91093Single::ProcessSmall(GM_ADDR input, GM_ADDR output, int32_t tag,
-    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount, uint32_t baseFlagOffset)
+    uint64_t remoteSendOffset, uint64_t localRecvOffset, uint64_t remoteSendCount)
 {
     uint32_t blockNumPerGroup = blockdim_/ rankSize_; 
     uint32_t blockIdxInGroup = GetBlockIdx()% blockNumPerGroup;
     uint32_t dstRank = GetBlockIdx()/ blockNumPerGroup;
     uint32_t padCount = UB_ALIGN_SIZE / sizeof(T);
 
-    uint32_t flagOffset = (((tag % 2 == 0) ? 0 : blockdim_* FLAG_SIZE)) + baseFlagOffset;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
+    bool ifPingpong = (tag % 2 == 0);
 
     // 内存准备
     __gm__ T *inputGM = (__gm__ T *)input;
@@ -103,12 +95,6 @@ __aicore__ inline void AivAll2All91093Single::ProcessSmall(GM_ADDR input, GM_ADD
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[dstRank] + dataOffset);
 
     // 使用96个flag
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + flagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[dstRank] + flagOffset;
-
-    uint32_t flagSetOffset = rank_ * blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE;
-    uint32_t flagCheckOffset = GetBlockIdx()* FLAG_SIZE;
-
     uint64_t blockRecvCount = 0;
     uint64_t blockRecvOffset = 0;
     CalBlockCountAndOffset(remoteSendCount, blockNumPerGroup, blockIdxInGroup, padCount, blockRecvCount,
@@ -121,8 +107,8 @@ __aicore__ inline void AivAll2All91093Single::ProcessSmall(GM_ADDR input, GM_ADD
     PipeBarrier<PIPE_ALL>();
 
     // 卡间同步，确认对端已经准备好
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + flagSetOffset), localSetTensor, tag);
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + flagCheckOffset), localCheckTensor, tag);
+    Record(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
+    Wait(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
 
     PipeBarrier<PIPE_ALL>();
 
@@ -140,7 +126,6 @@ __aicore__ inline void aiv_all_to_all_vc_91093_single_graph(KERNEL_ARGS_DEF, Ext
 
     uint32_t blockNumPerGroup = op.blockdim_/ rankSize; 
     uint32_t dstRank = GetBlockIdx()/ blockNumPerGroup;
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_VC_91093_SINGLE_GRAPH;
 
     uint64_t remoteSendOffset = 0;
     for (uint32_t i = 0; i < rank; i++) {
@@ -153,7 +138,7 @@ __aicore__ inline void aiv_all_to_all_vc_91093_single_graph(KERNEL_ARGS_DEF, Ext
     uint64_t remoteSendCount = extraArgs->sendCountMatrix[dstRank * rankSize + rank];
 
     op.HeadCounter();
-    op.ProcessBig<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+    op.ProcessBig<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount);
     op.TailCounter();
 }
 
@@ -165,14 +150,13 @@ __aicore__ inline void aiv_all_to_all_91093_single(KERNEL_ARGS_DEF)
 
     uint32_t blockNumPerGroup = op.blockdim_/ rankSize; 
     uint32_t dstRank = GetBlockIdx()/ blockNumPerGroup;
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_91093_SINGLE_GRAPH;
 
     uint64_t remoteSendOffset = rank * len;
     uint64_t localRecvOffset = dstRank * len;
     uint64_t remoteSendCount = len;
 
     op.HeadCounter();
-    op.Process<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+    op.Process<T>(input, output, tag, remoteSendOffset, localRecvOffset, remoteSendCount);
     op.TailCounter();
 }
 
@@ -182,29 +166,28 @@ __aicore__ inline void sk_all_to_all_91093_single(SUPERKERNEL_ARGS_DEF)
     op.Init(SUPERKERNEL_CLASS_INIT, AIV_A3_ALL_TO_ALL_GRAPH_GUIYI_SIZE);
     uint32_t blockNumPerGroup = op.blockdim_/ op.rankSize_; 
     uint32_t dstRank = GetBlockIdx()/ blockNumPerGroup;
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_91093_SINGLE_GRAPH;
 
     uint64_t remoteSendOffset = op.rank_ * op.len_;
     uint64_t localRecvOffset = dstRank * op.len_;
     uint64_t remoteSendCount = op.len_;
     #ifdef HCCL_DTYPE_INT8
-        op.Process<int8_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<int8_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_INT16
-        op.Process<int16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<int16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_INT32
-        op.Process<int32_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<int32_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_FP16
-        op.Process<half>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<half>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_FP32
-        op.Process<float>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<float>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_BFP16
-        op.Process<bfloat16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<bfloat16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_UINT8
-        op.Process<uint8_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<uint8_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_UINT16
-        op.Process<uint16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<uint16_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #elif defined HCCL_DTYPE_UINT32
-        op.Process<uint32_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount, baseFlagOffset);
+        op.Process<uint32_t>(input, output, op.tag_, remoteSendOffset, localRecvOffset, remoteSendCount);
     #else
     #endif
 }

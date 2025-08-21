@@ -26,10 +26,8 @@ __aicore__ inline void AivAllReduceSmall910B::Process(GM_ADDR input, GM_ADDR out
     uint64_t count = len;
 
     // 用4个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_SMALLDATA;
-    uint32_t flagOffsetOut = ((tag % 2 == 0) ? FLAG_ONE_OFFSET : FLAG_THREE_OFFSET) + baseFlagOffset;
-    uint32_t flagOffsetIn = ((tag % 2 == 0) ? FLAG_TWO_OFFSET : FLAG_FOUR_OFFSET) + baseFlagOffset;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
+    bool ifPingpong = (tag % 2 == 0);
 
     if (block_idx == rank_) {
         __gm__ T *inputGM = (__gm__ T *)input;
@@ -52,7 +50,7 @@ __aicore__ inline void AivAllReduceSmall910B::Process(GM_ADDR input, GM_ADDR out
         PipeBarrier<PIPE_MTE3>();
 
         // 卡间同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag);
+        Record1vN(tag, CommPattern::interRank, AivNotifyType::DataSignal, 0, ifPingpong);
 
         DataCopyUB2GM(outputGT, localOut, count);
         inOutQue.FreeTensor(localOut);
@@ -60,7 +58,7 @@ __aicore__ inline void AivAllReduceSmall910B::Process(GM_ADDR input, GM_ADDR out
         PipeBarrier<PIPE_MTE3>();
         
         // 卡内同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, tag);
+        Record1vN(tag, CommPattern::intraRank, AivNotifyType::DataSignal, 0, ifPingpong);
     } else {
         __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[block_idx] + dataOffset);
         __gm__ T *outputGM = (__gm__ T *)output;
@@ -71,7 +69,7 @@ __aicore__ inline void AivAllReduceSmall910B::Process(GM_ADDR input, GM_ADDR out
         outputGT.SetGlobalBuffer(outputGM, count);
 
         // 卡间同步
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetOut), localCheckTensor, tag);
+        WaitNv1(tag, block_idx, AivNotifyType::DataSignal, 0, ifPingpong);
         PipeBarrier<PIPE_ALL>();
 
         LocalTensor<T> localIn = inOutQue.AllocTensor<T>();
@@ -80,7 +78,7 @@ __aicore__ inline void AivAllReduceSmall910B::Process(GM_ADDR input, GM_ADDR out
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
         // 卡内同步
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localCheckTensor, tag);
+        WaitNv1(tag, rank_, AivNotifyType::DataSignal, 0, ifPingpong);
         PipeBarrier<PIPE_ALL>();
 
         SetAtomicOp<T>(reduceOp_);
@@ -100,3 +98,4 @@ __aicore__ inline void aiv_all_reduce_910b_smalldata(KERNEL_ARGS_DEF)
     op.Process<T>(input, output, len, tag);
     op.TailCounter();
 }
+

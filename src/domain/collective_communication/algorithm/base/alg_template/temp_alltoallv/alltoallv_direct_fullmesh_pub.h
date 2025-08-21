@@ -21,7 +21,8 @@ public:
     ~AlltoAllVDirectFullMesh() override;
     HcclResult RunAsync() override;
     HcclResult Prepare(PrepareData &param) override;
-
+    HcclResult GetNslbAdjInfo(const u32 rank, const u32 rankSize,
+                              const std::vector<LINK> &links, AdjInfo& nslbAdjInfo) override;
 protected:
 private:
     HcclResult GenerateSubStreamInfo(const std::vector<Stream> &subStreams,
@@ -54,7 +55,6 @@ private:
     HcclResult RunSDMA(HcclOpMetaInfoDef &opMeta);
     HcclResult RunSDMATasks(u32 roundIdx, u32 step, u32 groupRankSize, u32 leftRankSize);
     HcclResult RunSDMAFineGrained(u32 totalStep, HcclOpMetaInfoDef& opMeta);
-    HcclResult RunAsyncForA2AlltoallvMutliModule();
 
     // RDMA处理相关函数
     HcclResult MainNotifyRdmaControlStart();
@@ -88,7 +88,6 @@ private:
     bool isSuPodAsym_;
     HcclCMDType opType_;
     bool isBigCount_;
-    bool isA2AlltoallvMutliModule_ = false;
 
     DeviceMem userInput_;
     DeviceMem userOutput_;

@@ -37,13 +37,7 @@ template <typename T>
 __aicore__ inline void AivAllReduceRdmaSmall910B::ReduceScatter(__gm__ T *inputGM, __gm__ T *cclGMSelf,
     __gm__ T *cclGMOther, __gm__ T *outputGM, uint64_t sliceCount, uint64_t avgLengthPerRank, uint64_t tailLength,
     int32_t tag)
-{
-    // reduce scatter，数据从input输入，inputMem+0作为buffer，结果放在inputMem+2M处
-    uint32_t flagBaseOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_RDMA_SMALLDATA_STEP1;
-    uint32_t flagOffsetOut = flagBaseOffset + block_idx * FLAG_SIZE; // 给其他卡的标记，数据已在buffer中就绪
-    uint32_t flagOffsetRemote = flagBaseOffset + rank_ * FLAG_SIZE;  // 本卡aiv需要读的其他卡的标记
-    uint32_t flagOffsetIn = flagBaseOffset + block_num * FLAG_SIZE;  // 给本卡其他aiv的标记，数据已在output中，可以累加
- 
+{ 
     if (block_idx == rank_) {
         int64_t curCount = CalActualCount(rank_, rankSize_, avgLengthPerRank, tailLength);
  
@@ -62,13 +56,13 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::ReduceScatter(__gm__ T *inputG
  
         // 卡间同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag); // 本卡该片数据已经可以被跨片读取
+        //SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag); // 本卡该片数据已经可以被跨片读取
         DataCopyUB2GM(outputGT, localOut, curCount);
         inOutQue.FreeTensor(localOut);
  
         // 卡内同步
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localSetTensor, tag); // 本卡目的分片已经在output中
+        Record1vN(tag, CommPattern::intraRank); // 本卡目的分片已经在output中
     } else {
         int64_t curCountBlk = CalActualCount(block_idx, rankSize_, avgLengthPerRank, tailLength);
  
@@ -80,12 +74,12 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::ReduceScatter(__gm__ T *inputG
         // 从input搬运到buffer
         CpGM2GM(cclGMSelf + avgLengthPerRank * block_idx, inputGM + avgLengthPerRank * block_idx, curCountBlk);
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag); // 本卡该片数据已经可以被跨片读取
+        Record(tag, block_idx, AivNotifyType::ACK); // 本卡该片数据已经可以被跨片读取
  
         // 对端数据就绪后先搬到自己的UB，注意这里搬运的长度应当由rank_决定，而不是block_idx决定
         int64_t curCount = CalActualCount(rank_, rankSize_, avgLengthPerRank, tailLength);
         
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localCheckTensor, tag);
+        Wait(tag, block_idx, AivNotifyType::ACK);
         pipe_barrier(PIPE_ALL);
         LocalTensor<T> localIn = inOutQue.AllocTensor<T>();
         DataCopyGM2UB(localIn, cclGTOther[avgLengthPerRank * rank_], curCount);
@@ -93,7 +87,7 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::ReduceScatter(__gm__ T *inputG
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
  
         // 本端数据在output就绪后从UB中搬入
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localCheckTensor, tag);
+        WaitNv1(tag, rank_);
         pipe_barrier(PIPE_ALL);
         SetAtomicOp<T>(reduceOp_);
         DataCopyUB2GM(outputGT, localOut, curCount);
@@ -108,7 +102,7 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::AllReduce(__gm__ T *inputGM, _
     __gm__ T *outputGM, int64_t len, int32_t tag)
 {
     // all reduce，仅适用于A + X单机跨aggregation场景，数据在buffer中，先本端数据拷贝到output中，再从对端拷贝到output中
-    uint32_t flagBaseOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_RDMA_SMALLDATA_STEP2;
+    uint32_t flagBaseOffset = 0;
     uint32_t flagOffsetStart = flagBaseOffset;           //  起始同步
     uint32_t flagOffsetEnd = flagBaseOffset + FLAG_SIZE; // 末尾同步
     uint32_t peerRank = 1 - rank_;
@@ -140,10 +134,6 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::AllGather(__gm__ T *inputGM, _
     int32_t tag)
 {
     // all gather, 数据从input输入（rdma结果位置），inputMem+8M作为buffer，结果放在output中
-    uint32_t flagBaseOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_RDMA_SMALLDATA_STEP3;
-    uint32_t flagOffsetRemote = flagBaseOffset + block_idx * FLAG_SIZE;           // 本卡aiv需要读的其他卡的标记
-    uint32_t flagOffsetOut = flagBaseOffset + rank_ * FLAG_SIZE;          // 注意与RS不同，设置本卡的数据已经在buffer中就绪
- 
     if (block_idx == rank_) {
         int64_t curCount = CalActualCount(rank_, rankSize_, avgLengthPerRank, tailLength);
  
@@ -162,15 +152,22 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::AllGather(__gm__ T *inputGM, _
         pipe_barrier(PIPE_ALL);
  
         // 卡间同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag); // 本卡该片数据已经可以被跨片读取
+        Record1vN(tag, CommPattern::interRank);
         DataCopyUB2GM(outputGT[avgLengthPerRank * block_idx], localOut, curCount);
         inOutQue.FreeTensor(localOut);
     } else {
         int64_t curCount = CalActualCount(block_idx, rankSize_, avgLengthPerRank, tailLength);
  
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localCheckTensor, tag);
+        WaitNv1(tag, block_idx);
         pipe_barrier(PIPE_ALL);
         CpGM2GM(outputGM + (block_idx * avgLengthPerRank), cclGMOther + block_idx * avgLengthPerRank, curCount);
+        pipe_barrier(PIPE_ALL);
+ 
+        // 末尾同步
+        // 本卡已读完block_idx号对端上的rank号数据
+        Record(tag, block_idx, AivNotifyType::DataSignal);
+        // 检查本卡上是否有block_idx号对端的读完标记
+        Wait(tag, block_idx, AivNotifyType::DataSignal);
     }
  
     return;
@@ -188,14 +185,16 @@ __aicore__ inline void AivAllReduceRdmaSmall910B::Process(GM_ADDR input, GM_ADDR
     uint64_t sliceCount = CeilDiv(len, avgLengthPerRank);
     uint64_t tailLength = len - (sliceCount - 1) * avgLengthPerRank;
  
-    if (aivRdmaStep == 0) {
-        ReduceScatter(inputGM, cclGMSelf, cclGMOther, outputGM, sliceCount, avgLengthPerRank, tailLength, tag);
-    }
-    if (aivRdmaStep == 1) {
-        AllReduce(inputGM, cclGMSelf, outputGM, len, tag);
-    }
-    if (aivRdmaStep == 2) {
-        AllGather(inputGM, cclGMSelf, cclGMOther, outputGM, sliceCount, avgLengthPerRank, tailLength, tag);
+    switch (aivRdmaStep) {
+        case 0:
+            ReduceScatter(inputGM, cclGMSelf, cclGMOther, outputGM, sliceCount, avgLengthPerRank, tailLength, tag);
+            break;
+        case 1:
+            AllReduce(inputGM, cclGMSelf, outputGM, len, tag);
+            break;
+        case 2:
+            AllGather(inputGM, cclGMSelf, cclGMOther, outputGM, sliceCount, avgLengthPerRank, tailLength, tag);
+            break;
     }
     return;
 }

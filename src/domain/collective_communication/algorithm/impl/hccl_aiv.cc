@@ -154,6 +154,16 @@ static std::vector<AivKernelInfo> g_aivKernelInfoList = {
     {"aiv_all_gather_v_int8_t", HcclCMDType::HCCL_CMD_ALLGATHER_V, HcclDataType::HCCL_DATA_TYPE_INT8},
     {"aiv_all_gather_v_uint8_t", HcclCMDType::HCCL_CMD_ALLGATHER_V, HcclDataType::HCCL_DATA_TYPE_UINT8},
     {"aiv_all_gather_v_bfloat16_t", HcclCMDType::HCCL_CMD_ALLGATHER_V, HcclDataType::HCCL_DATA_TYPE_BFP16},
+         // broadcast
+    {"aiv_broadcast_half", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_FP16},
+    {"aiv_broadcast_int16_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_INT16},
+    {"aiv_broadcast_uint16_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_UINT16},
+    {"aiv_broadcast_float", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_FP32},
+    {"aiv_broadcast_int32_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_INT32},
+    {"aiv_broadcast_uint32_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_UINT32},
+    {"aiv_broadcast_int8_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_INT8},
+    {"aiv_broadcast_uint8_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_UINT8},
+    {"aiv_broadcast_bfloat16_t", HcclCMDType::HCCL_CMD_BROADCAST, HcclDataType::HCCL_DATA_TYPE_BFP16},
     // 同步
     {"hccl_aiv_sync", HcclCMDType::HCCL_CMD_INVALID, HcclDataType::HCCL_DATA_TYPE_RESERVED},
 };
@@ -358,8 +368,14 @@ HcclResult GetAivOpBinaryPath(DevType deviceType, std::string &binaryPath)
 
 HcclResult ReadBinFile(const string& fileName, string& buffer)
 {
+    char realFile[PATH_MAX] = { 0 };
+    if (realpath(fileName.c_str(), realFile) == nullptr)
+    {
+        HCCL_INFO("[AIV][ReadBinFile] Binfile path %s is not a valid real path.", realFile);
+        return HCCL_E_NOT_FOUND;
+    }
     std::ifstream filestr;
-    filestr.open(fileName.c_str(), std::ios::binary);
+    filestr.open(realFile, std::ios::binary);
     if (!filestr) {
         HCCL_ERROR("[AIV][ReadBinFile]open file [%s] failed!", fileName.c_str());
         return HCCL_E_OPEN_FILE_FAILURE;
@@ -443,17 +459,40 @@ HcclResult RegisterKernel(DevType deviceType)
     return HCCL_SUCCESS;
 }
 
-HcclResult Barrier(void** cclBuffersOut, u32 rank, u32 rankSize, rtStream_t stream, s32 step, u32 serverNum, u32 devType)
+HcclResult Barrier(void** cclBuffersOut, u32 rank, u32 rankSize, rtStream_t stream, s32 step, u32 serverNum, u32 devType,
+                const std::string& comm)
 {
+    uint64_t beginTime = 0;
+    SetAivProfilingInfoBeginTime(beginTime);
     AivKernelArgs aivKernelArgs {
         cclBuffersOut, cclBuffersOut, nullptr, nullptr, rank, rankSize, 0,
         HcclDataType::HCCL_DATA_TYPE_RESERVED, HcclReduceOp::HCCL_REDUCE_RESERVED, 0, step,
         false, 0, 0, false, serverNum, devType
     };
+    
     rtTaskCfgInfo_t taskCfgInfo = { 0, 0, 1 };
     rtArgsEx_t argsEx { &aivKernelArgs, nullptr, sizeof(aivKernelArgs), 0, 0, 0, 0, 0 };
     HcclResult ret = hrtKernelLaunchWithFlagV2(GetStubFunc(HcclCMDType::HCCL_CMD_INVALID,
-        HcclDataType::HCCL_DATA_TYPE_RESERVED), rankSize, &argsEx, nullptr, stream, 0, &taskCfgInfo);
+        HcclDataType::HCCL_DATA_TYPE_RESERVED), rankSize < MAX_BLOCK_DIM ? rankSize: MAX_BLOCK_DIM,
+        &argsEx, nullptr, stream, 0, &taskCfgInfo);
+    struct TaskParaGeneral taskParaGeneral;
+
+    u8* flagAddr;
+    if (devType == static_cast<u32>(DevType::DEV_TYPE_910_93) && serverNum > 1) {
+        flagAddr = static_cast<u8 *>(cclBuffersOut[0]);
+    } else {
+        flagAddr = static_cast<u8 *>(cclBuffersOut[rank]);
+    }
+
+    TaskParaAiv taskParaAiv(HcclCMDType::HCCL_CMD_INVALID, step, 0,
+                rankSize < MAX_BLOCK_DIM ? rankSize: MAX_BLOCK_DIM, rankSize, -1, flagAddr, rank);
+
+    taskParaGeneral.isMainStream = true;
+    taskParaGeneral.stream = stream;
+    taskParaGeneral.beginTime = beginTime;
+    taskParaGeneral.aiv = taskParaAiv;
+
+    AlgWrap::GetInstance().TaskAivProfiler(comm, taskParaGeneral);
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[AIV][Barrier] errNo[0x%016llx] rtKernelLaunch aiv fail, "
         "return[%d]", HCCL_ERROR_CODE(HCCL_E_RUNTIME), ret), HCCL_E_RUNTIME);
     return HCCL_SUCCESS;
@@ -465,7 +504,7 @@ HcclResult ClearAivSyncBuf(void** cclBuffersOut, rtStream_t stream,  const AivTo
     u32 rankSize = topoArgs.rankSize;
     u32 serverNum = topoArgs.serverNum;
     u32 devType = static_cast<u32>(topoArgs.devType);
-    CHK_RET(Barrier(cclBuffersOut, rank, rankSize, stream, 1, serverNum, devType));
+    CHK_RET(Barrier(cclBuffersOut, rank, rankSize, stream, 1, serverNum, devType, topoArgs.identify));
 
     u8* flagAddr;
     if (topoArgs.devType == DevType::DEV_TYPE_910_93 && serverNum > 1) {
@@ -479,26 +518,8 @@ HcclResult ClearAivSyncBuf(void** cclBuffersOut, rtStream_t stream,  const AivTo
 
     CHK_RET(hrtMemAsyncCopy(flagMem.ptr(), AIV_FLAG_AREA_SIZE, zeroMem.ptr(), AIV_FLAG_AREA_SIZE,
         HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_DEVICE_TO_DEVICE, stream));
-    CHK_RET(Barrier(cclBuffersOut, rank, rankSize, stream, RESET_TAIL_SYNC_TAG, serverNum, devType));
+    CHK_RET(Barrier(cclBuffersOut, rank, rankSize, stream, RESET_TAIL_SYNC_TAG, serverNum, devType, topoArgs.identify));
     HCCL_INFO("[AIV][ClearAivSyncBuf] clearaiv done");
-    return HCCL_SUCCESS;
-}
-
-HcclResult AivResumeClearSyncBuf(DeviceMem &inAIVbuffer, DeviceMem &outAIVbuffer)
-{
-    if (inAIVbuffer.ptr() == nullptr || outAIVbuffer.ptr() == nullptr) {
-        HCCL_ERROR("[AIV][AivResumeClearSyncBuf] aiv buffer ptr is invaid");
-        return HCCL_E_PARA;
-    }
-
-    s64 inAIVFlagOffset = AIV_DATA_SIZE - AIV_FLAG_SIZE;
-    CHK_RET(hrtMemSet(static_cast<u8 *>(inAIVbuffer.ptr()) + inAIVFlagOffset,
-        AIV_FLAG_CLEAR_SIZE, AIV_FLAG_CLEAR_SIZE));
-    HCCL_INFO("[AIV][AivResumeClearSyncBuf] clear in aiv buffer done");
-
-    CHK_RET(hrtMemSet(outAIVbuffer.ptr(), AIV_FLAG_CLEAR_SIZE, AIV_FLAG_CLEAR_SIZE));
-    HCCL_INFO("[AIV][AivResumeClearSyncBuf] clear out aiv buffer done");
-
     return HCCL_SUCCESS;
 }
 
@@ -520,7 +541,7 @@ void TaskAivProfilerWrap(const AivOpArgs& opArgs, const AivTopoArgs& topoArgs,
     taskParaGeneral.beginTime = aivProfilingInfo.beginTime;
     taskParaGeneral.aiv = taskParaAiv;
 
-    TaskAivProfiler(taskParaGeneral);
+    AlgWrap::GetInstance().TaskAivProfiler(topoArgs.identify, taskParaGeneral);
 }
 
 // KernelLaunch内部接口
@@ -545,6 +566,7 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, const AivTopoArgs &
         resourceArgs.buffersOut[RANK_FIVE], resourceArgs.buffersOut[RANK_SIX], resourceArgs.buffersOut[RANK_SEVEN]);
 
     KernelArgsType argsType = KernelArgsType::ARGS_TYPE_SERVER;
+    bool ifMultiServer91093 = topoArgs.devType == DevType::DEV_TYPE_910_93 &&  topoArgs.serverNum > 1;
     if (topoArgs.devType == DevType::DEV_TYPE_910_93 && opArgs.cmdType == HcclCMDType::HCCL_CMD_ALLTOALLV &&
         topoArgs.serverNum > 1) {
         argsType = KernelArgsType::ARGS_TYPE_SUPERPOD;
@@ -554,18 +576,21 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, const AivTopoArgs &
     rtArgsEx_t argsEx { args, nullptr, argsSize, 0, 0, 0, 0, 0 };
     HcclResult ret = hrtKernelLaunchWithFlagV2(GetStubFunc(opArgs.cmdType, opArgs.dataType, argsType),
         resourceArgs.blockDim, &argsEx, nullptr, resourceArgs.stream, 0, &taskCfgInfo);
+    TaskAivProfilerWrap(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo,
+        ifMultiServer91093 ? resourceArgs.buffersOut[0]: resourceArgs.buffersOut[topoArgs.rank]);
 
-    if (opArgs.isOpBase && (topoArgs.devType == DevType::DEV_TYPE_910B || topoArgs.serverNum == 1)) {
-        if (resourceArgs.aivTag == TAG_RESET_COUNT) { // 当前仅A2场景或者A3单机可以使用统一清零机制
+    if (resourceArgs.aivTag == TAG_RESET_COUNT) {
+        if (opArgs.isOpBase) {
             SetWorkflowMode(HcclWorkflowMode::HCCL_WORKFLOW_MODE_OPS_KERNEL_INFO_LIB);
-            ClearAivSyncBuf(resourceArgs.buffersOut, resourceArgs.stream, topoArgs);
+        }
+        ClearAivSyncBuf(resourceArgs.buffersOut, resourceArgs.stream, topoArgs);
+        if (opArgs.isOpBase) {
             SetWorkflowMode(HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
         }
     }
 
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[AIV][ExecuteKernelLaunch] errNo[0x%016llx] rtKernelLaunch aiv fail, "
         "return[%d]", HCCL_ERROR_CODE(HCCL_E_RUNTIME), ret), HCCL_E_RUNTIME);
-    TaskAivProfilerWrap(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
     return HCCL_SUCCESS;
 }
 
@@ -574,11 +599,7 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs, const AivTopoArgs &topoA
     const AivResourceArgs &resourceArgs, const AivAlgArgs &algArgs,
     AivProfilingInfo& aivProfilingInfo)
 {
-    #ifndef CCL_KERNEL_AICPU
-    #ifndef HCCD
-    aivProfilingInfo.beginTime = MsprofSysCycleTime();
-    #endif
-    #endif
+    SetAivProfilingInfoBeginTime(aivProfilingInfo);
     CHK_PTR_NULL(resourceArgs.buffersIn);
     CHK_PTR_NULL(resourceArgs.buffersOut);
 
@@ -601,11 +622,7 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs, const AivTopoArgs &topoA
     const AivResourceArgs &resourceArgs, const AivAlgArgs &algArgs, const ExtraArgs &extraArgs, 
     AivProfilingInfo& aivProfilingInfo)
 {
-    #ifndef CCL_KERNEL_AICPU
-    #ifndef HCCD
-    aivProfilingInfo.beginTime = MsprofSysCycleTime();
-    #endif
-    #endif
+    SetAivProfilingInfoBeginTime(aivProfilingInfo);
     CHK_PTR_NULL(resourceArgs.buffersIn);
     CHK_PTR_NULL(resourceArgs.buffersOut);
 
@@ -628,11 +645,7 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs, const AivTopoArgs &topoA
     const AivResourceArgs &resourceArgs, const AivAlgArgs &algArgs, const ExtraArgsV2 &extraArgs, 
     AivProfilingInfo& aivProfilingInfo)
 {
-    #ifndef CCL_KERNEL_AICPU
-    #ifndef HCCD
-    aivProfilingInfo.beginTime = MsprofSysCycleTime();
-    #endif
-    #endif
+    SetAivProfilingInfoBeginTime(aivProfilingInfo);
     CHK_PTR_NULL(resourceArgs.buffersIn);
     CHK_PTR_NULL(resourceArgs.buffersOut);
 

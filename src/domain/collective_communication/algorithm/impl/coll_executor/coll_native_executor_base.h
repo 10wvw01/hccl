@@ -55,14 +55,14 @@ protected:
     virtual HcclResult CalcStreamNum(u32& streamNum);
     virtual HcclResult CalcScratchMemSize(u64& scratchMemSize);
     virtual HcclResult CalcNotifyNum(u32 streamNum, u32 &notifyNum);
-    virtual HcclResult GetIfNeedAivBuffer(bool &needAivBuffer);
+    virtual HcclResult CalcAivBufferRequest(u64 &aivBufferRequest);
 
     // 考虑新建一个资源计算类ResourceCalculator，将资源推导、资源解析的都放进去。
     // 推导通信域信息的公用函数，不同Executor的在计算Level0、Level1、Level2时使用。
     HcclResult CalcCommPlaneInfo(const std::string &tag, const CommParaInfo &commParaInfo,
         std::vector<SingleSubCommTransport> &commTransport, TransportMemType inPutMemType,
         TransportMemType outPutMemType);
-    HcclResult BuildResourceRequest(u64 scratchMemSize, u32 streamNum, u32 notifyNum, bool needAivBuffer,
+    HcclResult BuildResourceRequest(u64 scratchMemSize, u32 streamNum, u32 notifyNum, u64 aivBufferRequest,
         std::vector<LevelNSubCommTransport>& opTransport, AlgResourceRequest& resourceRequest);
     HcclResult PrintTransportRequest(AlgResourceRequest& resourceRequest);
     /* *************** 算法编排 *************** */

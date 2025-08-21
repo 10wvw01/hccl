@@ -26,15 +26,6 @@ HcclResult CollAlltoAllMeshAivExecutor::CalcStreamNum(u32& streamNum)
     return HCCL_SUCCESS;
 }
 
-HcclResult CollAlltoAllMeshAivExecutor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    // AIV通信需要AIV buffer
-    needAivBuffer = true;
-    HCCL_INFO("[CollAlltoAllMeshAivExecutor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u].",
-        tag_.c_str(), needAivBuffer);
-    return HCCL_SUCCESS;
-}
-
 HcclResult CollAlltoAllMeshAivExecutor::CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport)
 {
     TransportMemType inputType = TransportMemType::RESERVED;
@@ -68,9 +59,9 @@ HcclResult CollAlltoAllMeshAivExecutor::CalcLevel0CommInfo(TransportMemType inpu
     return HCCL_SUCCESS;
 }
 
-u32 CollAlltoAllMeshAivExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAlltoAllMeshAivExecutor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    u32 blockDim = rankSize; // 默认情况使用rankSize个AIV
+    blockDim = rankSize; // 默认情况使用rankSize个AIV
 
     bool isOpBase = (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
     if (cmdType == HcclCMDType::HCCL_CMD_ALLTOALL) {
@@ -92,8 +83,26 @@ u32 CollAlltoAllMeshAivExecutor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMD
         }
     }
 
-    HCCL_INFO("[CollAlltoAllMeshAivExecutor][CalBlockDim] blockDim is set to [%u]", blockDim);
-    return blockDim;
+    u32 bestBlockDim = blockDim;
+    if (isOpBase) {
+        if (cmdType == HcclCMDType::HCCL_CMD_ALLTOALLV) {
+            CHK_PRT_RET(blockDim_ < rankSize,
+                HCCL_ERROR("[CollAlltoAllMeshAivExecutor][CalBlockDim]aivCore[%u] is less than rankSize[%u].",
+                blockDim_, rankSize), HCCL_E_PARA);
+            if (blockDim_ < blockDim) {
+                blockDim = blockDim_ / rankSize * rankSize;
+            }
+        }
+        else {
+            CHK_PRT_RET(blockDim_ < blockDim,
+                HCCL_ERROR("[CollAlltoAllMeshAivExecutor][CalBlockDim]aivCore[%u] is less than need[%u].",
+                blockDim_, blockDim), HCCL_E_PARA);
+        }
+    }
+
+    HCCL_INFO("[CollAlltoAllMeshAivExecutor][CalBlockDim] blockDim is set to [%u], limit[%u], best[%u]",
+        blockDim, blockDim_, bestBlockDim);
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAlltoAllMeshAivExecutor::Orchestrate(OpParam& param, AlgResourceResponse& algRes)
@@ -213,17 +222,13 @@ HcclResult CollAlltoAllMeshAivExecutor::KernelRun(const OpParam &param, ExecMem 
             param.All2AllDataDes.sendType, HCCL_REDUCE_RESERVED, 0, isOpbase
     };
     AivTopoArgs topoArgs { localRank, localRankSize, MAX_RANK_SIZE, 0, topoAttr_.serverNum, topoAttr_.deviceType };
+    topoArgs.identify = algoAttr_.identifier;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), buffersIn, buffersOut, execMem.inputMem.size(), 0, param.aivTag
     };
     AivAlgArgs algArgs {};
     struct AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG_AIV(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
-
     if (aivClearEnable_) {
         ClearAivSyncBuf(buffersOut, param.stream.ptr(), topoArgs);
     }
@@ -231,7 +236,9 @@ HcclResult CollAlltoAllMeshAivExecutor::KernelRun(const OpParam &param, ExecMem 
     if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL && ((isOpbase && dataSize < AIV_ALL_TO_ALL_BIG_SIZE) ||
         (!isOpbase && topoAttr_.deviceType == DevType::DEV_TYPE_910_93))) {
         opArgs.count = param.All2AllDataDes.sendCount;
-        blockDim_ = CalBlockDim(localRankSize, dataSize, opArgs.cmdType);
+        u32 blockDim;
+        CHK_RET(CalBlockDim(blockDim, localRankSize, dataSize, opArgs.cmdType));
+        blockDim_ = blockDim;
         resourceArgs.blockDim = blockDim_;
         ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, aivProfilingInfo);
     } else if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC || param.opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
@@ -249,7 +256,9 @@ HcclResult CollAlltoAllMeshAivExecutor::KernelRun(const OpParam &param, ExecMem 
         }
         opArgs.count = extraArgs.maxCount;
         opArgs.cmdType = HcclCMDType::HCCL_CMD_ALLTOALLVC;
-        blockDim_ = CalBlockDim(localRankSize, dataSize, opArgs.cmdType);
+        u32 blockDim;
+        CHK_RET(CalBlockDim(blockDim, localRankSize, dataSize, opArgs.cmdType));
+        blockDim_ = blockDim;
         resourceArgs.blockDim = blockDim_;
         ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, extraArgs, aivProfilingInfo);
     } else {
@@ -261,16 +270,12 @@ HcclResult CollAlltoAllMeshAivExecutor::KernelRun(const OpParam &param, ExecMem 
         }
 
         opArgs.cmdType = HcclCMDType::HCCL_CMD_ALLTOALLV;
-        blockDim_ = CalBlockDim(localRankSize, dataSize, opArgs.cmdType);
+        u32 blockDim;
+        CHK_RET(CalBlockDim(blockDim, localRankSize, dataSize, opArgs.cmdType));
+        blockDim_ = blockDim;
         resourceArgs.blockDim = blockDim_;
         ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, extraArgs, aivProfilingInfo);
     }
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){ 
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
-
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAlltoAllMeshAivExecutor][KernelRun]alltoall aiv failed, return[%d]", ret), ret);
 

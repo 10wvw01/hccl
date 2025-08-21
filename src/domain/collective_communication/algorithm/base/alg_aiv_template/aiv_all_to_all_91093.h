@@ -9,22 +9,22 @@
  */
 
 #include "aiv_communication_base.h"
-#include "aiv_all_to_all_91093_base.h"
+#include "aiv_crossnode_91093_base.h"
 
 using namespace AscendC;
 
-class AivAll2All91093 : public AivAll2All91093Base {
+class AivAll2All91093 : public AivCrossNode91093Base {
 public:
     __aicore__ inline AivAll2All91093() {}
 
     template<typename T>
-    __aicore__ inline void Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag,
-        uint64_t bufferSize, uint64_t len);
+    __aicore__ inline void Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input,
+        GM_ADDR output, int32_t tag, uint64_t bufferSize, uint64_t len);
 };
 
 template<typename T>
-__aicore__ inline void AivAll2All91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output,
-    int32_t tag, uint64_t bufferSize, uint64_t len)
+__aicore__ inline void AivAll2All91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input,
+    GM_ADDR output, int32_t tag, uint64_t bufferSize, uint64_t len)
 {
     // 每张卡的CCLBuffer大小为bufferSize，平均分给ranksize块，每块的大小
     uint64_t avgBufferCount = bufferSize / rankSize_ / sizeof(T);
@@ -35,11 +35,8 @@ __aicore__ inline void AivAll2All91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut
     __gm__ T *cclGMSelf = (__gm__ T *)buffIn0;
 
     GlobalTensor<uint64_t> bufferArgsGT;
-    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(buffOut0 + AIV_FLAG_BUFFER_SIZE - COMM_INFO_OFFSET);
+    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(commInfoAddr);
     bufferArgsGT.SetGlobalBuffer(buffersGmAddr, FLAG_SIZE * rankSize_ / sizeof(uint64_t));
-
-    uint32_t cclReadyFlagOffset = 0;
-    uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
 
     // 准备参数，buffer地址和最大收发count
     GM_ADDR buffersIn[MAX_TARGET_NUM] = {};
@@ -76,7 +73,7 @@ __aicore__ inline void AivAll2All91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut
         PipeBarrier<PIPE_ALL>();
 
         // localcopy后的同步
-        BatchRecordWait(buffersOut, cclReadyFlagOffset, curTag);
+        BatchRecordWait(curTag, buffersOut);
 
         PipeBarrier<PIPE_ALL>();
 
@@ -92,7 +89,7 @@ __aicore__ inline void AivAll2All91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut
         PipeBarrier<PIPE_ALL>();
 
         // read后的同步
-        BatchRecordWait(buffersOut, finalAckFlagOffset, curTag);
+        BatchRecordWait(curTag, buffersOut, AivNotifyType::DataSignal);
 
         curTag += 1;
         curOffset += curCount;
@@ -109,10 +106,9 @@ template<typename T>
 __aicore__ inline void aiv_all_to_all_91093(KERNEL_ARGS_DEF)
 {
     AivAll2All91093 op;
-    uint32_t baseFlagOffset = AIV_ALL_TO_ALL_91093 * MAX_RANK_SIZE_A3 * FLAG_SIZE;
-    op.Init(buffOut0, rank, rankSize, tag, baseFlagOffset, true);
+    op.Init(buffOut0, rank, rankSize, true);
     op.InitOpCounter(headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter);
     op.HeadCounter();
-    op.Process<T>(buffIn0, buffOut0, input, output, tag, bufferSize, len);
+    op.Process<T>(buffIn0, buffOut0, buffOut1, input, output, tag, bufferSize, len);
     op.TailCounter();
 }

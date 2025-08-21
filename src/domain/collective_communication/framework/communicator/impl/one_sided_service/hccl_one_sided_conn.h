@@ -19,15 +19,24 @@
 #include "notify_pool.h"
 #include "transport_mem.h"
 #include "exception_handler.h"
-
+#include "rma_buffer_mgr.h"
+#include "hccl_mem.h"
 namespace hccl {
+constexpr u32 MAX_REMOTE_MEM_NUM = 256;
 
+using RemoteRmaBufferMgr = RmaBufferMgr<BufferKey<uintptr_t, u64>, void*>; // (addr, size) handle 
 class HcclOneSidedConn {
 public:
     struct ProcessInfo {
         u32 pid;
         u32 sdid;
         u32 serverId;
+    };
+
+    struct RmaMemDesc {
+        u32 localRankId;
+        u32 remoteRankId;
+        char memDesc[TRANSPORT_EMD_ESC_SIZE];
     };
 
     // 参数超过5个，最终交付前完成优化
@@ -41,7 +50,6 @@ public:
     ~HcclOneSidedConn();
 
     HcclResult Connect(const std::string &commIdentifier, s32 timeoutSec);
-
     HcclResult ExchangeIpcProcessInfo(const ProcessInfo &localProcess, ProcessInfo &remoteProcess);
     HcclResult ExchangeMemDesc(const HcclMemDescs &localMemDescs, HcclMemDescs &remoteMemDescs, u32 &actualNumOfRemote);
 
@@ -51,7 +59,19 @@ public:
     void BatchWrite(const HcclOneSideOpDesc* oneSideDescs, u32 descNum, const rtStream_t& stream);
     void BatchRead(const HcclOneSideOpDesc* oneSideDescs, u32 descNum, const rtStream_t& stream);
 
+    HcclResult ConnectWithRemote(const std::string &commIdentifier, ProcessInfo localProcess, s32 timeoutSec);
+    HcclResult GetRemoteProcessInfo(ProcessInfo& remoteProcess);
+
+    HcclResult ExchangeMemDesc(const HcclMemDescs &localMemDescs);
+    HcclResult EnableMemAccess();
+    HcclResult DisableMemAccess();
+
 private:
+    std::string RmaMemDescCopyToStr(const RmaMemDesc &rmaMemDesc) const
+    {
+        return std::string(rmaMemDesc.memDesc, TRANSPORT_EMD_ESC_SIZE);
+    }
+    HcclResult GetMemType(const char *description, RmaMemType &memType);
     HcclNetDevCtx netDevCtx_{};
 
     const HcclRankLinkInfo &localRankInfo_;
@@ -64,7 +84,13 @@ private:
 
     std::shared_ptr<TransportMem> transportMemPtr_{};
 
+    RemoteRmaBufferMgr remoteRmaBufferMgr_{};
+    std::unordered_map <std::string, HcclBuf> memDescMap_;
     bool useRdma_{true};
+
+    ProcessInfo remoteProcess_{};
+    std::vector<TransportMem::RmaMemDesc> remoteMemDescsVec_{};
+    u32 actualNumOfRemote_;
 };
 }
 #endif

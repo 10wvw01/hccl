@@ -104,14 +104,14 @@ struct AlgResourceRequest {
     u64 scratchMemSize = 0;
     u32 streamNum = 0;
     u32 notifyNum = 0;
-    bool needAivBuffer = false;
+    u64 aivBufferRequest = 0;
     DeviceMode mode = DeviceMode::HOST;     // 用于区分是host模式，还是aicpu模式
     OpCommTransport opTransport;
     bool isInGraphCaptureZeroCopy = false;
     void Describe()
     {
-        HCCL_DEBUG("[AlgResourceRequest], scratchMemSize[%u], streamNum[%u], notifyNum[%u], needAivBuffer[%u], "
-            "DeviceMode[%d].", scratchMemSize, streamNum, notifyNum, needAivBuffer, mode);
+        HCCL_DEBUG("[AlgResourceRequest], scratchMemSize[%u], streamNum[%u], notifyNum[%u], aivBufferRequest[%llu], "
+            "DeviceMode[%d].", scratchMemSize, streamNum, notifyNum, aivBufferRequest, mode);
     };
 };
 
@@ -123,6 +123,7 @@ struct AlgResourceResponse {
     DeviceMem scratchMem;
     DeviceMem aivInputMem;
     DeviceMem aivOutputMem;
+    DeviceMem aivCommInfoMem;
     std::vector<Stream> slaveStreams;
     std::vector<Stream> slaveDevStreams;
     std::vector<std::shared_ptr<LocalNotify> > notifiesMain; // Main Signals, 与Aux成对使用，大小等同于slaveStreams
@@ -195,12 +196,40 @@ struct OpParam {
     s32 aivTag = 0; // AIV场景使用的软同步标记位
     u32 index = 0;
     bool isInplaceError = false;
+
+    inline HcclDataType GetDataType() const
+    {
+        if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+            return VDataDes.dataType;
+        }
+        return DataDes.dataType;
+    }
+    inline u64 GetDataCount(RankId rankId) const
+    {
+        if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+            return static_cast<const u64 *>(VDataDes.counts)[rankId];
+        }
+        return DataDes.count;
+    }
+    inline u64 GetStrideCount() const
+    {
+        if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+            return 0;
+        }
+        return DataDes.strideCount;
+    }
 };
 
 struct AlgDesc {
     bool isZeroCopy = false;
     bool isAivMode = false;
+    bool isAivCrossNode = false;
     s32 aivTagNum = 1;
+    // executor所支持的各级算法，当vector为空时表示不校验，若外部传入的algType不支持，重定向为vector第一个元素
+    // 由于默认算法要从列表里的第一个取，因此使用顺序确定的vector而非set
+    std::vector<AlgTypeLevel0> level0SupportedAlgos;
+    std::vector<AlgTypeLevel1> level1SupportedAlgos;
+    std::vector<AlgTypeLevel2> level2SupportedAlgos;
 };
 
 struct ResourceLimit {

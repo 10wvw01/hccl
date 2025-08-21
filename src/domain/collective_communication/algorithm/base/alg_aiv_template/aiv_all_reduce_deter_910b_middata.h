@@ -39,15 +39,15 @@ __aicore__ inline void AivAllReduceDeterMid910B::EndSync(int32_t tag)
 {
     uint32_t targetRank = block_idx % rankSize_;
 
-    int64_t flagOffsetBasic = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_MIDDATA;
+    int64_t flagOffsetBasic = seperateOffset + BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_MIDDATA;
     uint32_t flagOffset = (((tag % 2 == 0) ? 3 : 9) * rankSize_ * FLAG_SIZE) + flagOffsetBasic;
 
     if (block_idx < rankSize_) {
         if (targetRank != rank_) {
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
             WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-            pipe_barrier(PIPE_ALL);
+            PipeBarrier<PIPE_ALL>();
             SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
         }
     }
@@ -210,7 +210,7 @@ __aicore__ inline void AivAllReduceDeterMid910B::Process(GM_ADDR input, GM_ADDR 
     int64_t x = block_idx % blockNumPerGroup;
     int64_t avgDataNum = curCount / rankSize_;
     int64_t lastDataNum = curCount - (rankSize_ - 1) * avgDataNum;
-    int64_t flagOffsetBasic = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_MIDDATA;
+    int64_t flagOffsetBasic = seperateOffset + BASE_FLAG_OFFSET * AIV_ALL_REDUCE_DETER_910B_MIDDATA;
 
     uint32_t flagOffsetBase = ((tag % 2 == 0) ? 0 : 6 * rankSize_ * FLAG_SIZE) + flagOffsetBasic;
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;

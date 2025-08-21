@@ -19,6 +19,7 @@
 #include "exception_handler.h"
 
 namespace hccl {
+extern bool g_isRdmaError;
 constexpr u32 OP_RETRY_MAX_CNT = 3;
 constexpr u32 OP_RETRY_WAIT_AICPU_TIMEOUT = 5; // 等待Aicpu的时长, 单位s
 constexpr u32 OP_RETRY_POLL_AICPU_ERROR_INTERVAL = 1; // 正常状态轮询Aicpu错误码的间隔, 单位s
@@ -31,6 +32,21 @@ constexpr u32 OP_RETRY_SWITCH_WAIT_RESUM = 10; // 切入和切出等待通信域
 constexpr u32 OP_RETRY_RUNNING_POLL_INTERVAL = 100000; // 重执行状态轮询状态的间隔, 单位us
 constexpr u32 TIME_MS_TO_US = 1000;
 constexpr u32 OP_RETRY_WAIT_CAN_RETRY_RANK = 60;
+
+// 重执行初始化需要用到的参数
+struct OpRetryAgentParam {
+    std::string group;
+    std::shared_ptr<HcclSocket> agentConnection;
+    std::shared_ptr<HDCommunicate> h2dPtr;
+    std::shared_ptr<HDCommunicate> d2hPtr;
+    std::shared_ptr<HcclOpStreamRes> opStreamPtr;
+    OpRetryResetNotifyCallback notifyResetCallback;
+    OpRetrySetTransportStatusCallback setTransportStatusCallback;
+    OpRetryGetSwitchRanksCallback getSwitchRanksCallback;
+    OpRetrySetTransportResumeStatusCallBack setTransportResumeStatusCallback;
+    bool isEnableBackupLink;
+    OpRetryAgentInfo agentInfo;
+};
 
 struct LinkPortStatus {
     bool defaultPort = false;
@@ -149,24 +165,28 @@ private:
 
 class RetryContext {
 public:
-    // agent状态机初始化
-    RetryContext(const std::string& group, std::shared_ptr<HcclSocket> socket, std::shared_ptr<HDCommunicate> h2dPtr,
-        std::shared_ptr<HDCommunicate> d2hPtr, std::shared_ptr<HcclOpStreamRes> opStreamPtr,
-        OpRetryResetNotifyCallback notifyResetCallback, std::shared_ptr<OpRetryBase> retryBase,
-        OpRetrySetTransportStatusCallback setTransportStatusCallback,
-        OpRetryGetSwitchRanksCallback getSwitchRanksCallback,
-        bool isEnableBackupLink, const OpRetryAgentInfo& agentInfo):
-        group_(group), agentSocket_(socket), h2dPtr_(h2dPtr), d2hPtr_(d2hPtr), opStreamPtr_(opStreamPtr),
-        notifyResetCallback_(notifyResetCallback), setTransportStatusCallback_(setTransportStatusCallback),
-        getSwitchRanksCallback_(getSwitchRanksCallback), isEnableBackupLink_(isEnableBackupLink),
-        retryBase_(retryBase), isRootRetryCtx_(false)
+     // agent状态机初始化
+    RetryContext(OpRetryAgentParam &param, std::shared_ptr<OpRetryBase> retryBase)
     {
-        rankId_ = agentInfo.userRank;
-        deviceLogicId_ = agentInfo.deviceLogicId;
-        netDevCtx_ = agentInfo.netDevCtx;
-        backUpNetDevCtx_ = agentInfo.backUpNetDevCtx;
-        std::string dfxInfo = "deviceIP:" + std::string(agentInfo.deviceIP.GetReadableIP()) +
-            ";hostIP:" + std::string(agentInfo.hostIP.GetReadableIP());
+        group_ = param.group;
+        agentSocket_ = param.agentConnection;
+        h2dPtr_ = param.h2dPtr;
+        d2hPtr_ = param.d2hPtr;
+        opStreamPtr_ = param.opStreamPtr;
+        notifyResetCallback_ = param.notifyResetCallback;
+        setTransportStatusCallback_ = param.setTransportStatusCallback;
+        getSwitchRanksCallback_ = param.getSwitchRanksCallback;
+        setTransportReseumeStatusCallback_ = param.setTransportResumeStatusCallback;
+        isEnableBackupLink_ = param.isEnableBackupLink;
+        retryBase_ = retryBase;
+        isRootRetryCtx_ = false;
+
+        rankId_ = param.agentInfo.userRank;
+        deviceLogicId_ = param.agentInfo.deviceLogicId;
+        netDevCtx_ = param.agentInfo.netDevCtx;
+        backUpNetDevCtx_ = param.agentInfo.backUpNetDevCtx;
+        std::string dfxInfo = "deviceIP:" + std::string(param.agentInfo.deviceIP.GetReadableIP()) +
+            ";hostIP:" + std::string(param.agentInfo.hostIP.GetReadableIP());
         EXCEPTION_THROW_IF_COND_ERR(memcpy_s(localRetryInfo_.dfxIpInfo, sizeof(localRetryInfo_.dfxIpInfo),
             dfxInfo.c_str(), dfxInfo.size()) != EOK, "memcpy_s dfxIpInfo failed.");
         localRetryInfo_.dfxIpInfo[dfxInfo.size()] = '\0';
@@ -174,9 +194,10 @@ public:
 
     // server状态机初始化
     RetryContext(std::map<u32, std::shared_ptr<HcclSocket> > &sockets,
-        std::shared_ptr<OpRetryBase> retryBase, const OpRetryAgentInfo& agentInfo) :
-        retryBase_(retryBase), isRootRetryCtx_(true)
+        std::shared_ptr<OpRetryBase> retryBase, const OpRetryAgentInfo& agentInfo)
     {
+        retryBase_ = retryBase;
+        isRootRetryCtx_ = true;
         for (auto it = sockets.begin(); it != sockets.end(); ++it) {
             HcclAgentRetryInfo tempAgentInfo;
             tempAgentInfo.socket = it->second;
@@ -224,11 +245,16 @@ public:
         return ctxType.c_str();
     }
 
+    bool IsRootRetryCtx() {
+        return isRootRetryCtx_;
+    }
+
     const char *GetDfxIpInfo() const {
         return localRetryInfo_.dfxIpInfo;
     }
 
     void ResetAgentState () {
+        localRetryInfo_.opInfo.execStatus.kfcError = KfcError::kNone;
         localRetryInfo_.isNeedReportOpRetryErr = false;
         isBSRRdmaRecvError_ = false;
         isBSRRdmaSendError_ = false;
@@ -237,8 +263,15 @@ public:
     void ResetServerState () {
         errorRankList_.clear();
         needRetryServerRanks_.clear();
-        isRdmaError = false;
         isNeedReportOpRetryErr = false;
+    }
+
+    std::shared_ptr<HDCommunicate> GetH2dPtr() {
+        return h2dPtr_;
+    }
+
+    std::shared_ptr<HDCommunicate> GetD2hPtr() {
+        return d2hPtr_;
     }
 
     std::string group_ = "";
@@ -247,12 +280,11 @@ public:
 
     // agent状态机储存信息
     std::shared_ptr<HcclSocket> agentSocket_ = nullptr;
-    std::shared_ptr<HDCommunicate> h2dPtr_ = nullptr;
-    std::shared_ptr<HDCommunicate> d2hPtr_ = nullptr;
     std::shared_ptr<HcclOpStreamRes> opStreamPtr_ = nullptr;
     OpRetryResetNotifyCallback notifyResetCallback_ = nullptr;
     OpRetrySetTransportStatusCallback setTransportStatusCallback_ = nullptr;
     OpRetryGetSwitchRanksCallback getSwitchRanksCallback_ = nullptr;
+    OpRetrySetTransportResumeStatusCallBack setTransportReseumeStatusCallback_ = nullptr;
     bool isEnableBackupLink_ = false;
     RetryInfo localRetryInfo_;
     ChangeLinkInfo localChangeLinkInfo_;
@@ -268,6 +300,9 @@ public:
     HcclOpIdentifier RemainRecvOpId_;
     ActiveSwitchInfo switchInfo_;
     bool isAgentStateWaitResume_ = false;
+    
+    bool isRecivedCmdToRunning = false;
+    bool isRecivedCmdToCheckLink = false;
     // server状态机储存信息
     std::map<u32, HcclAgentRetryInfo> serverSockets_;
     std::vector<u32> needRetryServerRanks_;
@@ -278,10 +313,15 @@ public:
     std::map<u32, ActiveSwitchInfo> switchInfoMap_;
     bool isServerStateWaitResume_ = false;
     bool isNeedReportOpRetryErr = false; // 针对重执行算子不一致和inplace场景，上报故障
+
+    bool isOpRetryQuit = false;
 private:
     std::shared_ptr<OpRetryBase> retryBase_ = nullptr;
     RetryState state_ = RETRY_STATE_RESERVED;
     bool isRootRetryCtx_ = false;
+
+    std::shared_ptr<HDCommunicate> h2dPtr_ = nullptr;
+    std::shared_ptr<HDCommunicate> d2hPtr_ = nullptr;
 };
 }
 #endif

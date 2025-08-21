@@ -31,23 +31,14 @@ __aicore__ inline void AivAll2AllVCGraph910B::Process(GM_ADDR input, GM_ADDR out
     __gm__ T *outputGM = (__gm__ T *)output;
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[targetRank]);
 
-    // 使用16个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_VC_910B_GRAPH;
-    
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[targetRank] + baseFlagOffset;
-
     // 共使用2组flag
     uint32_t initAckFlagOffset = 0;
     uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
 
     // 本卡已进入算子，通知其他卡可以搬运，使用第1个flag
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-    // 确认对端已进入算子
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
+    Record(tag, targetRank, AivNotifyType::ACK);
+    Wait(tag, targetRank, AivNotifyType::ACK);
     PipeBarrier<PIPE_ALL>();
-    SetSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
-
     uint64_t remoteSendOffset = 0; // 远端usrin发送给本端output的数据偏移，远端卡号为block_idx，可能为本rank
     for (uint32_t i = 0; i < rank_; i++) {
         remoteSendOffset += extraArgs.sendCountMatrix[targetRank * rankSize_ + i];
@@ -64,15 +55,8 @@ __aicore__ inline void AivAll2AllVCGraph910B::Process(GM_ADDR input, GM_ADDR out
     CpGM2GM(outputGM + localRecvOffset, cclGMOther + remoteSendOffset, remoteSendCount);
     PipeBarrier<PIPE_ALL>();
 
-    // 通知对端，自己已经把对端的那片数据拉回来了
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-    
-    // 确认对端已经将对应的数据拉走
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-    PipeBarrier<PIPE_ALL>();
-
-    // 图模式最后清零flag
-    SetSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
+    Record(tag, targetRank, AivNotifyType::DataSignal);
+    Wait(tag, targetRank, AivNotifyType::DataSignal);
     return;
 }
 

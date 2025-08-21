@@ -194,7 +194,7 @@ HcclResult ReduceScatterNB::RunReduceScatterNB(const u32 rank, const u32 rankSiz
                 HCCL_ERROR("[Run][ReduceScatterNB]rank[%u] step[%u] blocknum[%u] rx wait done failed", rank, step,
                 nSlices),
                 ret);
-            ret = linkLeft->IsSpInlineReduce() ? linkLeft->TxDataSignal(stream_) : linkLeft->PostFinAck(stream_);
+            ret = linkLeft->PostFinAck(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][ReduceScatter]PostFinAck failed"), ret);
         }
         if (txCount > 0) {
@@ -203,8 +203,12 @@ HcclResult ReduceScatterNB::RunReduceScatterNB(const u32 rank, const u32 rankSiz
                 HCCL_ERROR("[Run][ReduceScatterNB]rank[%u] step[%u] blocknum[%u] tx wait done failed", rank, step,
                 nSlices),
                 ret);
-            ret = linkRight->IsSpInlineReduce() ? linkRight->RxDataSignal(stream_) : linkRight->WaitFinAck(stream_);
+            ret = linkRight->WaitFinAck(stream_);
             CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][ReduceScatter]WaitFinAck failed"), ret);
+        }
+        if (linkRight->IsSpInlineReduce() || linkLeft->IsSpInlineReduce()) {
+            // SDMA场景同步
+            CHK_RET(ExecuteBarrier(linkLeft, linkRight));
         }
     }
     return HCCL_SUCCESS;

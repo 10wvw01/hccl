@@ -14,6 +14,7 @@
 #include <vector>
 #include <hccl/hccl_types.h>
 #include "base.h"
+#include "alg_env_config.h"
 
 /*************** Interfaces ***************/
 using HcclSocketPortRange = struct HcclSocketPortRangeDef {
@@ -65,23 +66,40 @@ struct EnvConfig {
     std::vector<HcclSocketPortRange> npuSocketPortRange;
     u32 rdmaTrafficClass;
     u32 rdmaServerLevel;
-    u64 debugConfig;
     bool enableClusterHeartBeat;
     bool opCounterEnable;
     s32 dfsConnectionFaultDetctionTime;
 
+    // HCCL_ALGO环境变量参数
+    bool specificAlgoMode;
+    std::map<HcclCMDType, std::vector<HcclAlgoType>> hcclAlgoConfig;
+
     EnvConfig()
-    : hostSocketPortSwitch(false),
-    npuSocketPortSwitch(false),
-    hostSocketPortRange(),
-    npuSocketPortRange(),
-    rdmaTrafficClass(HCCL_RDMA_TC_DEFAULT),
-    rdmaServerLevel(HCCL_RDMA_SL_DEFAULT),
-    debugConfig(0),
-    enableClusterHeartBeat(true),
-    opCounterEnable(true),
-    dfsConnectionFaultDetctionTime(HCCL_MIN_CONNECT_FAULT_DETCTION_TIME)
     {
+        SetDefaultParams();
+    }
+    void SetDefaultParams()
+    {
+        initialized = false;
+        // 环境变量参数
+        hostSocketPortSwitch = false;
+        npuSocketPortSwitch = false;
+        // 初始化 SocketPortRange 为默认值
+        hostSocketPortRange.clear();
+        npuSocketPortRange.clear();
+        // 初始化 rdmaTrafficClass 为默认值
+        rdmaTrafficClass = HCCL_RDMA_TC_DEFAULT;
+        // 初始化 rdmaServerLevel 为默认值
+        rdmaServerLevel = HCCL_RDMA_SL_DEFAULT;
+        // 初始化 enableClusterHeartBeat 为默认值
+        enableClusterHeartBeat = true;
+        opCounterEnable = true;
+        dfsConnectionFaultDetctionTime = HCCL_MIN_CONNECT_FAULT_DETCTION_TIME;
+        specificAlgoMode = false;
+        for (u32 opType = 0; opType < static_cast<u32>(HcclCMDType::HCCL_CMD_MAX); opType++) {
+            hcclAlgoConfig[static_cast<HcclCMDType>(opType)] =
+                std::vector<HcclAlgoType>(HCCL_ALGO_LEVEL_NUM, HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT);
+        }
     }
 
     static const u32 MAX_LEN_OF_DIGIT_ENV = 10;     // 数字环境变量最大长度
@@ -98,16 +116,15 @@ struct EnvConfig {
     HcclResult ParseRDMATrafficClass();
     // 解析RDMAServerLevel
     HcclResult ParseRDMAServerLevel();
-    // 解析HCCL_DEBUG_CONFIG
-    HcclResult ParseDebugConfig();
 
     static const u32& GetExternalInputRdmaTrafficClass();
     static const u32& GetExternalInputRdmaServerLevel();
-    static const u64& GetExternalInputDebugConfig();
-    static void SetExternalInputDebugConfig(u64 value);
 
     bool CheckEnvLen(const char *envStr, u32 envMaxLen);
 };
+static EnvConfig g_envConfig;
+
+HcclResult ResetEnvConfigInitState();
 
 HcclResult InitEnvParam();
 
@@ -121,10 +138,18 @@ HcclResult PortRangeSwitchOn(const SocketLocation &socketLoc);
 
 HcclResult ParseDFSConfig();
 
+HcclResult SetHcclAlgoConfig(const std::string &hcclAlgo);
+
+HcclResult ParseHcclAlgo();
+
 void PrintSocketPortRange(const std::string &envName, const std::vector<HcclSocketPortRange> &portRangeVec);
 
 HcclResult ParseEnvConfig(const EnvConfigParam& param, std::string& envValue, u32& resultValue);
 
 HcclResult ParseSingleDFSConfigItem(const std::string& dfsConfigEnv, const std::string& configName,
     std::string& configResult);
+
+HcclResult GetKeyWordPath(const std::string &cannEnvStr, const std::string &keyStr, std::string &cannPath);
+
+HcclResult ParseLibraryPath(std::string &cannPath);
 #endif // HCCL_ENV_INPUT_H

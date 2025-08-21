@@ -20,6 +20,8 @@
 #include "externalinput_pub.h"
 #include "profiling_manager_pub.h"
 #include "adapter_rts_common.h"
+#include "global_mem_manager.h"
+
 using namespace hccl;
 using namespace std;
 
@@ -85,7 +87,7 @@ HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, u64 co
         CHK_PTR_NULL(hcclComm);
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        CHK_RET(reinterpret_cast<HcclOneSidedService*>(service)->ReMapMem(memInfoArray, arraySize));
+        CHK_RET(static_cast<HcclOneSidedService*>(service)->ReMapMem(memInfoArray, arraySize));
     }
 
     return HCCL_SUCCESS;
@@ -144,14 +146,14 @@ HcclResult HcclRegisterMem(HcclComm comm, u32 remoteRank, int type,
 
         // 校验netDevCtx是否为空
         bool useRdma;
-        CHK_RET(reinterpret_cast<HcclOneSidedService*>(service)->GetIsUsedRdma(remoteRank, useRdma));
+        CHK_RET(static_cast<HcclOneSidedService*>(service)->GetIsUsedRdma(remoteRank, useRdma));
         HcclNetDevCtx netDevCtx;
         CHK_RET(service->GetNetDevCtx(netDevCtx, useRdma));
         if (netDevCtx == nullptr) {
             HCCL_INFO("[%s]Network resources are not initialized, start to initOneSidedServiceNetDevCtx", __func__);
             CHK_RET(hcclComm->InitOneSidedServiceNetDevCtx(remoteRank));
         }
-        CHK_RET(reinterpret_cast<HcclOneSidedService*>(service)->RegMem(addr, size, static_cast<HcclMemType>(type), remoteRank, *desc));
+        CHK_RET(static_cast<HcclOneSidedService*>(service)->RegMem(addr, size, static_cast<HcclMemType>(type), remoteRank, *desc));
 
         HCCL_RUN_INFO("%s success:comm[%s], remoteRank[%u], memType[%d], memAddr[%p], memSize[%llu], memDescPtr[%p]",
                       __func__, commIdentifier.c_str(), remoteRank, type, addr, size, desc);
@@ -176,7 +178,7 @@ HcclResult HcclDeregisterMem(HcclComm comm, HcclMemDesc* desc)
         IHcclOneSidedService *service = nullptr;
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        CHK_RET(reinterpret_cast<HcclOneSidedService*>(service)->DeregMem(*desc));
+        CHK_RET(static_cast<HcclOneSidedService*>(service)->DeregMem(*desc));
 
         HCCL_RUN_INFO("%s success:comm[%s], memDescPtr[%p]", __func__, commIdentifier.c_str(), desc);
     EXCEPTION_HANDLE_END
@@ -203,7 +205,7 @@ HcclResult HcclExchangeMemDesc(HcclComm comm, u32 remoteRank, HcclMemDescs* loca
 
         hccl::hcclComm* hcclComm = static_cast<hccl::hcclComm *>(comm);
         std::string commIdentifier = hcclComm->GetIdentifier();
-        HCCL_RUN_INFO("Entry-%s:comm[%s], remoteRank[%u], localMemDescPtr[%p], timeout[%d], remoteMemDescPtr[%p], "
+        HCCL_RUN_INFO("Entry-%s:comm[%s], remoteRank[%u], localMemDescPtr[%p], timeout[%d s], remoteMemDescPtr[%p], "
                       "actualNum[%u]", __func__, commIdentifier.c_str(), remoteRank, local, timeout, remote, *actualNum);
         u32 localRank = INVALID_VALUE_RANKID;
         CHK_RET(hcclComm->GetUserRank(localRank));
@@ -213,10 +215,10 @@ HcclResult HcclExchangeMemDesc(HcclComm comm, u32 remoteRank, HcclMemDescs* loca
         IHcclOneSidedService *service = nullptr;
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        CHK_RET(reinterpret_cast<HcclOneSidedService *>(service)->ExchangeMemDesc(
+        CHK_RET(static_cast<HcclOneSidedService *>(service)->ExchangeMemDesc(
                 remoteRank, *local, *remote, *actualNum, commIdentifier, timeout));
 
-        HCCL_RUN_INFO("%s success:comm[%s], remoteRank[%u], localMemDescPtr[%p], timeout[%d], remoteMemDescPtr[%p], "
+        HCCL_RUN_INFO("%s success:comm[%s], remoteRank[%u], localMemDescPtr[%p], timeout[%d s], remoteMemDescPtr[%p], "
                       "actualNum[%u]", __func__, commIdentifier.c_str(), remoteRank, local, timeout, remote, *actualNum);
     EXCEPTION_HANDLE_END
     return HCCL_SUCCESS;
@@ -243,7 +245,7 @@ HcclResult HcclEnableMemAccess(HcclComm comm, HcclMemDesc* remoteMemDesc, HcclMe
         IHcclOneSidedService *service = nullptr;
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        reinterpret_cast<HcclOneSidedService*>(service)->EnableMemAccess(*remoteMemDesc, *remoteMem);
+        static_cast<HcclOneSidedService*>(service)->EnableMemAccess(*remoteMemDesc, *remoteMem);
 
         HCCL_RUN_INFO("%s success:comm[%s], remoteMemDescPtr[%p], remoteMemPtr[%p]", __func__, commIdentifier.c_str(), remoteMemDesc,
                       remoteMem);
@@ -268,7 +270,7 @@ HcclResult HcclDisableMemAccess(HcclComm comm, HcclMemDesc* remoteMemDesc)
         IHcclOneSidedService *service = nullptr;
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        reinterpret_cast<HcclOneSidedService*>(service)->DisableMemAccess(*remoteMemDesc);
+        static_cast<HcclOneSidedService*>(service)->DisableMemAccess(*remoteMemDesc);
 
         HCCL_RUN_INFO("%s success:comm[%s], remoteMemDescPtr[%p]", __func__, commIdentifier.c_str(), remoteMemDesc);
     EXCEPTION_HANDLE_END
@@ -341,7 +343,7 @@ HcclResult HcclBatchPut(HcclComm comm, u32 remoteRank, HcclOneSideOpDesc* desc, 
 
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        reinterpret_cast<HcclOneSidedService*>(service)->BatchPut(remoteRank, desc, descNum, stream);
+        static_cast<HcclOneSidedService*>(service)->BatchPut(remoteRank, desc, descNum, stream);
 
         CHK_RET(CallOneSideMsprofReportHostApi(hcclComm, HcclCMDType::HCCL_CMD_BATCH_PUT, beginTime, desc->count,
                                                desc->dataType, getTag));
@@ -376,7 +378,7 @@ HcclResult HcclBatchGet(HcclComm comm, u32 remoteRank, HcclOneSideOpDesc* desc, 
 
         CHK_RET(hcclComm->GetOneSidedService(&service));
         CHK_PTR_NULL(service);
-        reinterpret_cast<HcclOneSidedService*>(service)->BatchGet(remoteRank, desc, descNum, stream);
+        static_cast<HcclOneSidedService*>(service)->BatchGet(remoteRank, desc, descNum, stream);
 
         CHK_RET(CallOneSideMsprofReportHostApi(hcclComm, HcclCMDType::HCCL_CMD_BATCH_GET, beginTime, desc->count,
                                                desc->dataType, getTag));
@@ -393,6 +395,21 @@ HcclResult HcclBatchGet(HcclComm comm, u32 remoteRank, HcclOneSideOpDesc* desc, 
     return HCCL_SUCCESS;
 }
 
+inline static HcclResult HcclMemHandleParamCheck(void *memHandle, const std::string &funcName)
+{
+    const bool isValid = GlobalMemRegMgr::GetInstance().CheckHandleIsValid(memHandle);
+    if (isValid) {
+        return HCCL_SUCCESS;
+    }
+    std::stringstream ss;
+    ss << std::hex << std::uppercase << reinterpret_cast<uintptr_t>(memHandle);
+    const std::string hexStr = ss.str();
+    RPT_INPUT_ERR(true, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),
+        std::vector<std::string>({funcName, "memHandle", hexStr, "please check memHandle"}));
+    HCCL_ERROR("[HcclMemHandleParamCheck][%s] The parameter memHandle[%p] is invalid.", funcName.c_str(), memHandle);
+    return HCCL_E_PARA;
+}
+
 // 通信域创建OneSidedService对象的回调函数
 HcclResult HcclBuildOneSidedService(std::unique_ptr<IHcclOneSidedService> &service, std::unique_ptr<hccl::HcclSocketManager> &socketManager,
                                     std::unique_ptr<hccl::NotifyPool> &notifyPool)
@@ -402,3 +419,159 @@ HcclResult HcclBuildOneSidedService(std::unique_ptr<IHcclOneSidedService> &servi
     EXCEPTION_HANDLE_END
     return HCCL_SUCCESS;
 }
+
+// 进程粒度注册内存
+HcclResult HcclRegisterGlobalMem(const HcclMem* mem, void** memHandle)
+{
+    EXCEPTION_HANDLE_BEGIN
+    // 入参校验
+    RPT_INPUT_ERR(mem == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),\
+        std::vector<std::string>({"HcclRegisterGlobalMem", "mem", "nullptr", "please check mem"}));
+    CHK_PTR_NULL(mem);
+
+    HCCL_RUN_INFO("Entry-%s:mem[%p]", __func__, mem);
+
+    // 注册内存
+    // 内部检查内存是否重复
+    CHK_RET(GlobalMemRegMgr::GetInstance().Reg(mem, memHandle));
+
+    HCCL_RUN_INFO("%s success:mem addr[%p], size[%llu], type[%d], memHandle[%p]",
+        __func__, mem->addr, mem->size, mem->type, *memHandle);
+        
+    EXCEPTION_HANDLE_END
+    return HCCL_SUCCESS;
+}
+
+// 进程粒度注销内存
+HcclResult HcclDeregisterGlobalMem(void* memHandle)
+{
+    EXCEPTION_HANDLE_BEGIN
+    // 入参校验
+    CHK_RET(HcclMemHandleParamCheck(memHandle, "HcclDeregisterGlobalMem"));
+
+    HCCL_RUN_INFO("Entry-%s:memHandle[%p]", __func__, memHandle);
+
+    // 注销内存
+    // 内部判断内存是否还再使用
+    CHK_RET(GlobalMemRegMgr::GetInstance().DeReg(memHandle));
+
+    // 状态打印
+    HCCL_RUN_INFO("%s success:memHandle[%p]", __func__, memHandle);
+
+    EXCEPTION_HANDLE_END
+    return HCCL_SUCCESS;
+}
+
+inline static HcclResult HcclCommHandleMem(HcclComm comm, void* memHandle, const char* funcName,
+                            std::function<HcclResult(IHcclOneSidedService*, const std::string&)> operation)
+{
+    EXCEPTION_HANDLE_BEGIN
+    // 入参校验
+    RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),
+        std::vector<std::string>({funcName, "comm", "nullptr", "please check comm"}));
+    CHK_PTR_NULL(comm);
+    CHK_RET(HcclMemHandleParamCheck(memHandle, funcName));
+
+    hccl::hcclComm* hcclComm = static_cast<hccl::hcclComm *>(comm);
+    std::string commIdentifier = hcclComm->GetIdentifier();
+
+    IHcclOneSidedService *service = nullptr;
+    CHK_RET(hcclComm->GetOneSidedService(&service));
+    CHK_PTR_NULL(service);
+
+    // 在单边service中绑定/解绑内存
+    // 注册成功还是失败在service里处理，该接口只透传handle
+    HCCL_RUN_INFO("Entry-%s:comm[%s], memHandle[%p]", funcName, commIdentifier.c_str(), memHandle);
+    CHK_RET(operation(service, commIdentifier));
+
+    EXCEPTION_HANDLE_END
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclCommBindMem(HcclComm comm, void* memHandle)
+{
+    return HcclCommHandleMem(comm, memHandle, __func__,
+        [memHandle](IHcclOneSidedService *service, const std::string& commIdentifier) {
+            return static_cast<HcclOneSidedService *>(service)->BindMem(memHandle, commIdentifier);
+        });
+}
+
+HcclResult HcclCommUnbindMem(HcclComm comm, void* memHandle)
+{
+    return HcclCommHandleMem(comm, memHandle, __func__,
+        [memHandle](IHcclOneSidedService *service, const std::string& commIdentifier) {
+            return static_cast<HcclOneSidedService *>(service)->UnbindMem(memHandle, commIdentifier);
+        });
+}
+
+// 使用固定的连接方式为通信域预先分配需要协商的资源，阻塞接口
+HcclResult HcclCommPrepare(HcclComm comm, const HcclPrepareConfig* prepareConfig, int timeout)
+{
+    EXCEPTION_HANDLE_BEGIN
+    // 参数校验和适配
+    RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),\
+    std::vector<std::string>({"HcclCommPrepare", "comm", "nullptr", "please check comm"}));
+    RPT_INPUT_ERR(prepareConfig == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),\
+    std::vector<std::string>({"HcclCommPrepare", "prepareConfig", "nullptr", "please check prepareConfig"}));
+    CHK_PTR_NULL(comm);
+    CHK_PTR_NULL(prepareConfig);
+
+    // timeout = 0 非法，timeout=-1 永不超时，其他为合法值
+    const auto timeoutIsInvalid = timeout == 0 || timeout <= -2;
+    RPT_INPUT_ERR(timeoutIsInvalid, "EI0003", std::vector<std::string>({"ccl_op", "parameter", "value", "tips"}),\
+    std::vector<std::string>({"HcclCommPrepare", "prepareConfig", std::to_string(timeout), "please check timeout"}));
+    CHK_PRT_RET(timeoutIsInvalid,
+        HCCL_ERROR("[HcclCommPrepare] The parameter timeout[%d s] is invalid. It should be -1(never timeout) or any "
+                   "integer greater than 0.", timeout),
+        HCCL_E_PARA);
+
+    hccl::hcclComm* hcclComm = static_cast<hccl::hcclComm *>(comm);
+    std::string commIdentifier = hcclComm->GetIdentifier();
+    HCCL_RUN_INFO("Entry-%s:comm[%s], timeout[%d s]", __func__, commIdentifier.c_str(), timeout);
+
+    IHcclOneSidedService *service = nullptr;
+    CHK_RET(hcclComm->GetOneSidedService(&service));
+    CHK_PTR_NULL(service);
+
+    // 校验netDevCtx是否为空
+    bool useNic;
+    bool useVnic;
+    CHK_RET(static_cast<HcclOneSidedService*>(service)->InitIsUsedRdmaMap(useNic, useVnic));
+    HcclNetDevCtx nicNetDevCtx;
+    CHK_RET(service->GetNetDevCtx(nicNetDevCtx, true));
+
+    HcclNetDevCtx vnicNetDevCtx;
+    CHK_RET(service->GetNetDevCtx(vnicNetDevCtx, false));
+    bool needInitNic = useNic && nicNetDevCtx == nullptr;
+    bool needInitVnic = useVnic && vnicNetDevCtx == nullptr;
+
+    if (needInitNic) {
+        CHK_RET(GlobalMemRegMgr::GetInstance().InitNic());
+        HcclIpAddress ipAddr;
+        u32 port{};
+        CHK_RET(hcclComm->GetOneSidedServiceDevIpAndPort(NicType::DEVICE_NIC_TYPE, ipAddr, port));
+        HcclNetDevCtx netDevCtx{};
+        CHK_RET(GlobalMemRegMgr::GetInstance().GetNetDevCtx(NicType::DEVICE_NIC_TYPE, ipAddr, port, netDevCtx));
+        CHK_PTR_NULL(netDevCtx);
+        CHK_RET(hcclComm->OneSidedServiceStartListen(NicType::DEVICE_NIC_TYPE, netDevCtx));
+        CHK_RET(service->SetNetDevCtx(netDevCtx, true));
+        HCCL_INFO("[%s]Network resources are not initialized, start to initnic", __func__);
+    }
+    if (needInitVnic) {
+        HcclIpAddress ipAddr;
+        u32 port{};
+        CHK_RET(hcclComm->GetOneSidedServiceDevIpAndPort(NicType::VNIC_TYPE, ipAddr, port));
+        HcclNetDevCtx netDevCtx{};
+        CHK_RET(GlobalMemRegMgr::GetInstance().GetNetDevCtx(NicType::VNIC_TYPE, ipAddr, port, netDevCtx));
+        CHK_PTR_NULL(netDevCtx);
+        CHK_RET(service->SetNetDevCtx(netDevCtx, false));
+        HCCL_INFO("[%s]Network resources are not initialized, start to initvnic", __func__);
+    }
+
+    CHK_RET(static_cast<HcclOneSidedService*>(service)->Prepare(commIdentifier, prepareConfig, timeout));
+
+    HCCL_RUN_INFO("%s success:comm[%s], timeout[%d s]", __func__, commIdentifier.c_str(), timeout);
+    EXCEPTION_HANDLE_END
+    return HCCL_SUCCESS;
+}
+

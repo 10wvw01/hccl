@@ -249,7 +249,7 @@ HcclResult ReduceScatterPlantLocalReduce::RunLocalReduce(u32 groupId, const MemB
 {
     u32 reduceStep = static_cast<u32>(std::ceil(log2(rankSize_)));
     u64 srcOffset = memBlockInfo.inputOffsets[localRank_];
-    u32 sliceSize = memBlockInfo.size[localRank_];
+    u64 sliceSize = memBlockInfo.size[localRank_];
     u64 count = sliceSize / DataUnitSize(dataType_);
 
     for (u32 round = 0; round < reduceStep; round++) {

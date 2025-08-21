@@ -9,53 +9,44 @@
  */
 
 #include "aiv_communication_base.h"
-#include "aiv_all_to_all_91093_base.h"
+#include "aiv_crossnode_91093_base.h"
 
 using namespace AscendC;
 
-class AivAll2AllV91093 : public AivAll2All91093Base {
+class AivAll2AllV91093 : public AivCrossNode91093Base {
 public:
     __aicore__ inline AivAll2AllV91093() {}
 
-    __aicore__ inline void BatchRecordWaitV(GM_ADDR* buffersOut, uint32_t flagOffset, int32_t curTag,
-        bool* needTx, bool* needRx);
+    __aicore__ inline void BatchRecordWaitV(int32_t curTag, GM_ADDR* buffersOut,
+    bool* needTx, bool* needRx, AivNotifyType notifyType =  AivNotifyType::ACK);
 
     template<typename T>
-    __aicore__ inline void Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag,
-        uint64_t bufferSize, ExtraArgsV2* extraArgs);
+    __aicore__ inline void Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input,
+        GM_ADDR output, int32_t tag, uint64_t bufferSize, ExtraArgsV2* extraArgs);
 };
 
-__aicore__ inline void AivAll2AllV91093::BatchRecordWaitV(GM_ADDR* buffersOut, uint32_t flagOffset, int32_t curTag,
-    bool* needTx, bool* needRx)
+__aicore__ inline void AivAll2AllV91093::BatchRecordWaitV(int32_t curTag, GM_ADDR* buffersOut,
+    bool* needTx, bool* needRx, AivNotifyType notifyType)
 {
     // tx
-    localSetTensor.SetValue(0, curTag);
-    GlobalTensor<int32_t> globalTag;
-    SyncFunc<HardEvent::S_MTE3>();
     for (uint32_t i = 0; i < numTargets; i++) {
         if (!needTx[i]) {
             continue;
         }
-        GM_ADDR flagAddrOther = buffersOut[i] + baseFlagOffset_;
-        globalTag.SetGlobalBuffer((__gm__ int32_t *)(flagAddrOther + flagOffset + rank_ * FLAG_SIZE),
-            UB_FLAG_PAD_COUNT);
-        DataCopy(globalTag, localSetTensor, UB_FLAG_PAD_COUNT);
+        Record(curTag, buffersOut[i], notifyType);
     }
     // rx and clear
     for (uint32_t i = 0; i < numTargets; i++) {
         if (!needRx[i]) {
             continue;
         }
-        globalTag.SetGlobalBuffer((__gm__ int32_t *)(flagAddrSelf_ + flagOffset + targetRanks[i] * FLAG_SIZE),
-            UB_FLAG_PAD_COUNT);
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf_ + flagOffset + targetRanks[i] * FLAG_SIZE), localCheckTensor, curTag);
-        DataCopy(globalTag, localClearTensor, UB_FLAG_PAD_COUNT); //清零
+        Wait(curTag, targetRanks[i], notifyType);
     }
 }
 
 template<typename T>
-__aicore__ inline void AivAll2AllV91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output,
-    int32_t tag, uint64_t bufferSize, ExtraArgsV2* extraArgs)
+__aicore__ inline void AivAll2AllV91093::Process(GM_ADDR buffIn0, GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input,
+    GM_ADDR output, int32_t tag, uint64_t bufferSize, ExtraArgsV2* extraArgs)
 {
     // 每张卡的CCLBuffer大小为bufferSize，平均分给ranksize块，每块的大小
     uint64_t avgBufferCount = bufferSize / rankSize_ / sizeof(T);
@@ -66,7 +57,7 @@ __aicore__ inline void AivAll2AllV91093::Process(GM_ADDR buffIn0, GM_ADDR buffOu
     __gm__ T *cclGMSelf = (__gm__ T *)buffIn0;
 
     GlobalTensor<uint64_t> bufferArgsGT;
-    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(buffOut0 + AIV_FLAG_BUFFER_SIZE - COMM_INFO_OFFSET);
+    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(commInfoAddr);
     bufferArgsGT.SetGlobalBuffer(buffersGmAddr, FLAG_SIZE * rankSize_ / sizeof(uint64_t));
 
     uint32_t cclReadyFlagOffset = 0;
@@ -125,7 +116,7 @@ __aicore__ inline void AivAll2AllV91093::Process(GM_ADDR buffIn0, GM_ADDR buffOu
         PipeBarrier<PIPE_ALL>();
 
         // localcopy后的同步
-        BatchRecordWaitV(buffersOut, cclReadyFlagOffset, curTag, needSend, needRead);
+        BatchRecordWaitV(curTag, buffersOut, needSend, needRead);
 
         PipeBarrier<PIPE_ALL>();
 
@@ -144,7 +135,7 @@ __aicore__ inline void AivAll2AllV91093::Process(GM_ADDR buffIn0, GM_ADDR buffOu
         PipeBarrier<PIPE_ALL>();
 
         // read后的同步
-        BatchRecordWaitV(buffersOut, finalAckFlagOffset, curTag, needRead, needSend);
+        BatchRecordWaitV(curTag, buffersOut, needRead, needSend, AivNotifyType::DataSignal);
 
         curTag += 1;
     }
@@ -162,10 +153,9 @@ template<typename T>
 __aicore__ inline void aiv_all_to_all_v_91093(KERNEL_ARGS_DEF, ExtraArgsV2* extraArgs)
 {
     AivAll2AllV91093 op;
-    uint32_t baseFlagOffset = AIV_ALL_TO_ALL_V_91093 * MAX_RANK_SIZE_A3 * FLAG_SIZE;
-    op.Init(buffOut0, rank, rankSize, tag, baseFlagOffset, true);
+    op.Init(buffOut0, rank, rankSize, true);
     op.InitOpCounter(headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter);
     op.HeadCounter();
-    op.Process<T>(buffIn0, buffOut0, input, output, tag, bufferSize, extraArgs);
+    op.Process<T>(buffIn0, buffOut0, buffOut1, input, output, tag, bufferSize, extraArgs);
     op.TailCounter();
 }

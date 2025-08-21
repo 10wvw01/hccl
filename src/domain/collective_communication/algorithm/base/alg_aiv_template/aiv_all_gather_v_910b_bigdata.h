@@ -17,62 +17,19 @@ public:
     __aicore__ inline AivAllGatherVBig910B() {}
 
     template<typename T>
-    __aicore__ inline void MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther, uint64_t count,
-        __gm__ int32_t* ctrlFlagsGMX, int32_t tag);
+    __aicore__ inline void MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther,
+        uint64_t count, int32_t dstRank, int32_t tag);
 
     template<typename T>
     __aicore__ inline void Process(GM_ADDR input, GM_ADDR output, uint64_t curCount,
-                                   ExtraArgs &extraArgs, int32_t tag, uint32_t flagOffsetBase);
+                                   ExtraArgs &extraArgs, int32_t tag);
 
-    template<typename T>
-    __aicore__ inline void ClearFlag(uint32_t flagOffsetBase);
-
-    template<typename T>
-    __aicore__ inline void EndSync(int32_t tag, uint32_t flagOffsetBase);
 };
 
-template<typename T>
-__aicore__ inline void AivAllGatherVBig910B::ClearFlag(uint32_t flagOffsetBase)
-{
-    //从576开始，用10个flag
-    uint32_t flagOffsetCount = flagOffsetBase;
-    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount);
-    if (block_idx < rankSize_ && block_idx == rank_) {
-        SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
-    }
-}
-
-template<typename T>
-__aicore__ inline void AivAllGatherVBig910B::EndSync(int32_t tag, uint32_t flagOffsetBase)
-{
-    //从576开始，用10个flag
-    uint32_t flagOffset = FLAG_SIZE + FLAG_SIZE + rankSize_ * FLAG_SIZE + flagOffsetBase;
-    __gm__ int32_t *ctrlFlagsGM;
-    if (block_idx < rankSize_ && block_idx == rank_) {
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[targetRank ] + flagOffset + rank_ * FLAG_SIZE);
-            SetSignalValue(ctrlFlagsGM, localSetTensor, tag);
-        }
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE);
-            WaitSignalValue(ctrlFlagsGM, localCheckTensor, tag);
-        }
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < rankSize_; i++) {
-            uint32_t targetRank = (rank_ + i) % rankSize_;
-            ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset + targetRank * FLAG_SIZE);
-            SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
-        }
-    }
-}
 
 template<typename T>
 __aicore__ inline void AivAllGatherVBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmSelf, __gm__ T *cclGmOther,
-    uint64_t count, __gm__ int32_t* ctrlFlagsGMX, int32_t tag)
+    uint64_t count, int32_t dstRank, int32_t tag)
 {
     uint64_t processedBatchCount = 0;
     uint64_t avgSizePerSlice = count * sizeof(T);
@@ -82,12 +39,7 @@ __aicore__ inline void AivAllGatherVBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmS
             break;
         }
 
-        LocalTensor<int32_t> localFlagX = flagInQue.AllocTensor<int32_t>();
-
-        uint64_t localFlagValueX = GetSignalValue(ctrlFlagsGMX, localFlagX);
-
-        flagInQue.FreeTensor(localFlagX);
-
+        uint64_t localFlagValueX = CountWait(dstRank, dstRank);
         if (localFlagValueX <= tag) {
             continue;
         }
@@ -113,14 +65,11 @@ __aicore__ inline void AivAllGatherVBig910B::MemcpyWithFlagWrap(__gm__ T *cclGmS
 
 template<typename T>
 __aicore__ inline void AivAllGatherVBig910B::Process(GM_ADDR input, GM_ADDR output, uint64_t curCount,
-                                                     ExtraArgs &extraArgs, int32_t tag, uint32_t flagOffsetBase)
+                                                     ExtraArgs &extraArgs, int32_t tag)
 {
     uint32_t blockNumPerGroup = rankSize_;
     uint32_t targetRank = block_idx >= rankSize_ ? block_idx - rankSize_ : block_idx;
 
-    // 用10个flag
-    uint32_t flagOffsetCount = flagOffsetBase;
-    uint32_t flagOffsetLocal = FLAG_SIZE + flagOffsetBase;
 
     __gm__ T *inputGm = (__gm__ T *)input;
     __gm__ T *outputGm = (__gm__ T *)output;
@@ -129,18 +78,14 @@ __aicore__ inline void AivAllGatherVBig910B::Process(GM_ADDR input, GM_ADDR outp
 
     if (block_idx < blockNumPerGroup) {
         if (block_idx == rank_) {   //把数据从UserIn 搬运到 CCLIn，同时检测有多少个核在搬运这个数据
-            __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetCount);
-            CpGM2GMWithFlagWrap(cclGmSelf, inputGm, curCount, ctrlFlagsGM, 8, tag);
+            CpGM2GMWithFlagWrap(cclGmSelf, inputGm, curCount, rank_, 8, tag);
             // 所有对端都取走数据
             pipe_barrier(PIPE_ALL);
-            WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetLocal), localCheckTensor, (rankSize_ - 1) * tag);
-            pipe_barrier(PIPE_ALL);
-            SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetLocal), localSetTensor, 0);
+            Wait1vN((rankSize_ - 1) * tag, CommPattern::interRank, true);
         } else {
-            __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetCount);
-            MemcpyWithFlagWrap(outputGm + extraArgs.recvDispls[targetRank], cclGmOther, curCount, ctrlFlagsGMX, tag);
+            MemcpyWithFlagWrap(outputGm + extraArgs.recvDispls[targetRank], cclGmOther, curCount, targetRank, tag);
             pipe_barrier(PIPE_ALL);
-            AddSignalValue((__gm__ int32_t *)(GM_OUT[targetRank] + flagOffsetLocal), localSetTensor, tag);
+            RecordNv1(tag, targetRank);
         }
     } else {
         CpGM2GM(outputGm + extraArgs.recvDispls[rank_], inputGm, curCount);
@@ -164,24 +109,19 @@ __aicore__ inline void aiv_all_gather_v_910b_bigdata(EXTERN_KERNEL_ARGS_DEF)
 
     GM_ADDR curInput = input;
     GM_ADDR curOutput = output;
-    int32_t curTag = (tag << 15);
-    uint32_t flagOffsetBase = BASE_FLAG_OFFSET  * AIV_ALL_GATHER_V_910B_BIGDATA;
+    int32_t curTag = (tag << TAG_MOVE_LEFT_BITS);
 
     while (countLeft > 0) {
         uint64_t curCount = countLeft > maxCountPerLoop ? maxCountPerLoop : countLeft;
         uint64_t curSize = curCount * sizeof(T);
 
         // 执行kernel
-        op.Process<T>(curInput, curOutput, curCount, extraArgs, curTag, flagOffsetBase);
+        op.Process<T>(curInput, curOutput, curCount, extraArgs, curTag);
 
         countLeft -= curCount;
         curInput += curSize;
         curOutput += curSize;
         curTag += maxCountPerLoop * sizeof(T) / UB_DB_DATA_BATCH_SIZE + 1;  //确认按最大值增加tag的合理性
-    }
-    op.ClearFlag<T>(flagOffsetBase);
-    if (tag == 1000) {
-        op.EndSync<T>(tag, flagOffsetBase);
     }
     op.TailCounter();
 }

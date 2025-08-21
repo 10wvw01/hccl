@@ -283,7 +283,7 @@ HcclResult AllReduceRecursiveHalvingDoubling::GatherInPartOne(u32 rank, const st
             CHK_PRT_RET(ret != HCCL_SUCCESS,
                 HCCL_ERROR("[Gather][InPartOneToEven]rank[%u] rx ack from peerank[%u] failed", rank, peerRank), ret);
             // 等待对端可以接收数据
-            HCCL_DEBUG("rank[%u] outputMem[%p] recieve from PeerRank[%u] outputMem, Offset[%llu], "\
+            HCCL_DEBUG("rank[%u] outputMem[%p] receive from PeerRank[%u] outputMem, Offset[%llu], "\
                 "Size[%llu]", rank, outputMem_.ptr(), peerRank, baseOffset_, outputMem_.size());
             ret = ExecuteRxSync(links[peerRank], UserMemType::OUTPUT_MEM, baseOffset_, outputMem_.ptr(),
                 outputMem_.size(), stream_);

@@ -391,8 +391,8 @@ HcclResult TransportManager::Alloc(const std::string &tag, const TransportIOMem 
 
                     std::vector<std::shared_ptr<HcclSocket> > connectSockets;
                     bool isInterRdma;
-                    HCCL_DEBUG("[%s]: remoteUserRank[%u], userRank[%u], isUsedRdma[%u]", __func__,
-                        transportRequest.remoteUserRank, userRank_, transportRequest.isUsedRdma);
+                    HCCL_DEBUG("[%s]: remoteUserRank[%u], userRank[%u], isUsedRdma[%u], tag[%s]", __func__,
+                        transportRequest.remoteUserRank, userRank_, transportRequest.isUsedRdma, tag.c_str());
                     bool chooseBackup = transportRequest.isUsedRdma ? isBackup : false;
                     HcclResult ret = CreateDestSockets(tag, transportRequest.remoteUserRank, singleSubCommTransport.taskNum,
                         connectSockets, isInterRdma, transportRequest.isUsedRdma, chooseBackup, subCommIndex,
@@ -661,7 +661,6 @@ u32 TransportManager::GetHostPort(s32 devicePhyId)
 
 u32 TransportManager::GetRemoteNicPort(s32 devicePhyId, u32 dstUserRank, bool isInterRdma)
 {
-#ifndef CCL_KERNEL_AICPU
     if (nicDeployment_ == NICDeployment::NIC_DEPLOYMENT_HOST) {
         return GetHostPort(devicePhyId);
     }
@@ -670,9 +669,6 @@ u32 TransportManager::GetRemoteNicPort(s32 devicePhyId, u32 dstUserRank, bool is
     bool useVnicPort = devPortSwitchOn_ && !isInterRdma && !Is310PDevice();
     const std::vector<u32> &ranksPorts = useVnicPort ? vnicRanksPort_ : nicRanksPort_;
     return GetNicPort(devicePhyId, ranksPorts, dstUserRank, isUseRankPort_);
-#else
-    return 0;
-#endif
 }
 
 HcclResult TransportManager::CreateDestSockets(const std::string &tag, RankId remoteRank, u64 taskNum,
@@ -741,8 +737,8 @@ HcclResult TransportManager::CreateDestSockets(const std::string &tag, RankId re
                 if (ret == HCCL_E_DRV) {
                     RankInfo loaclRankInfo = rankInfoList_[userRank_];
                     RankInfo remoteRankInfo  = rankInfoList_[remoteRank];
-                    NicType nicType  = NicType::VNIC_TYPE;
-                    DetectConnectionAnomalies::GetInstance(deviceLogicId_).AddIpQueue(loaclRankInfo, remoteRankInfo, nicType);
+                    DetectConnectionAnomalies::GetInstance(deviceLogicId_).AddIpQueue(loaclRankInfo, remoteRankInfo,
+                        NicType::VNIC_TYPE, deviceLogicId_);
                 }
                 CHK_PRT_RET(true,
                     HCCL_ERROR("[Create][DestSockets]Wait Enable P2P Failed, src devicePhyId[%d], dst devicePhyId[%d], ret[%u]",
@@ -822,8 +818,8 @@ HcclResult TransportManager::CreateLink(const std::string &tag, const ErrContext
         }
 
         NicType nicType = sockets[0]->GetSocketType();
-        DetectConnectionAnomalies::GetInstance(deviceLogicId_).AddIpQueue(loaclRankInfo, remoteRankInfo, nicType);
-  
+        DetectConnectionAnomalies::GetInstance(deviceLogicId_).AddIpQueue(loaclRankInfo, remoteRankInfo, nicType,
+            deviceLogicId_);
         const std::string  CREATE_LINK_ERR = "[Create][DestLink]Create Dest error! createLink para:rank[" +
             std::to_string(userRank_) + "]-localUserrank[" + std::to_string(rankInfoList_[userRank_].worldRank) +
             "]-localIpAddr[" + rankInfoList_[userRank_].serverId.c_str() + "], dst_rank[" +

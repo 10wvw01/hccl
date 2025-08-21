@@ -30,6 +30,7 @@ public:
 protected:
 private:
     ProfilerBase *profiler_;
+    HcclResult isStreamCapture(rtStream_t stream, bool& isCapture) const;
 };
 } // namespace hccl
 

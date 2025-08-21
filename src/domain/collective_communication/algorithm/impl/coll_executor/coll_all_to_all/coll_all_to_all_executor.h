@@ -68,9 +68,8 @@ protected:
     bool isAlltoAllZCopyMode_ = false;
 
     HcclDispatcher vDispatcher_;
-#ifndef CCL_KERNEL_AICPU
+
     ParallelTaskLoader* parallelTaskLoader_; // 并行下发taskloader管理
-#endif
 };
 
 } // namespace hccl

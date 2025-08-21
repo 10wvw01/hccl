@@ -15,7 +15,7 @@
 namespace hccl {
 
 RankConsistentcyChecker::RankConsistentcyChecker() : cannVersion_{0}, cannVerCheckSwitch_(false),
-    infoFlagVer_(false), configFileExist_(false)
+    cannVerInfoRecordFlag_(false), configFileExist_(false)
 {
 }
 
@@ -135,6 +135,14 @@ HcclResult RankConsistentcyChecker::DelOpPara(const std::string &tag)
 
 HcclResult RankConsistentcyChecker::RecordVerInfo(const std::string &versionInfo)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Only record once, in case of multiple calls while other process is reading CANN version information 
+    // in CompareFrame func and get the intermediate state.
+    if (cannVerInfoRecordFlag_) {
+        HCCL_INFO("[RankConsistentcyChecker][RecordVerInfo]Cann version information has been recorded.");
+        return HCCL_SUCCESS;
+    }
+
     u32 strLen = versionInfo.length();
     s32 sRet = memset_s(cannVersion_, MAX_CANN_VERSION_LEN + 1, 0, MAX_CANN_VERSION_LEN + 1);
     CHK_PRT_RET(sRet != EOK, HCCL_WARNING("[RankConsistentcyChecker][RecordVerInfo]memory set 0 fail for version str "
@@ -146,10 +154,10 @@ HcclResult RankConsistentcyChecker::RecordVerInfo(const std::string &versionInfo
     CHK_PRT_RET(strLen >= MAX_CANN_VERSION_LEN, HCCL_WARNING("[Record][CannVersion]"
         "length of version information str is too long."), HCCL_SUCCESS);
     sRet = strncpy_s(cannVersion_, MAX_CANN_VERSION_LEN + 1, versionInfo.c_str(), strLen);
-    CHK_PRT_RET(sRet != EOK, HCCL_WARNING("[Record][CannVersion] length of version information str is too long."),
+    CHK_PRT_RET(sRet != EOK, HCCL_WARNING("[Record][CannVersion] call strncpy_s failed, return [%d].", sRet),
         HCCL_SUCCESS);
 
-    infoFlagVer_ = true;
+    cannVerInfoRecordFlag_ = true;
     return HCCL_SUCCESS;
 }
 
@@ -222,7 +230,7 @@ HcclResult RankConsistentcyChecker::CheckFrameRecv(const u8 *recvBuf, u32 recvBu
 void RankConsistentcyChecker::ClearCheckInfo()
 {
     configFileExist_ = false;
-    infoFlagVer_ = false;
+    cannVerInfoRecordFlag_ = false;
     ClearCrcInfo();
     cmdInfoMap_.clear();
     infoFlagCmdMap_.clear();
@@ -361,17 +369,17 @@ HcclResult RankConsistentcyChecker::GenerateCheckFrame(HcclCheckInfo &checkInfo,
             HCCL_E_INTERNAL);
     }
     // 添加HCCL版本信息到校验帧
-    if (infoFlagVer_) {
-        HCCL_DEBUG("version information is [%s].", cannVersion_);
+    if (cannVerInfoRecordFlag_) {
+        HCCL_DEBUG("[RankConsistentcyChecker][GenerateCheckFrame] CANN version information is [%s].", cannVersion_);
         s32 sret = memcpy_s(checkInfo.version, MAX_CANN_VERSION_LEN + 1, cannVersion_, strlen(cannVersion_));
         CHK_PRT_RET(sret != EOK,
-            HCCL_ERROR("[RankConsistentcyChecker][GenerateCheckFrame] memcpy failed. errorno [%d].",
-            sret), HCCL_E_MEMORY);
+            HCCL_ERROR("[RankConsistentcyChecker][GenerateCheckFrame] memcpy CANN version information failed, "
+                "errorno [%d].", sret), HCCL_E_MEMORY);
     }
     // 添加拉远通信传输类型校验
     // 910* 不会配置isTcpMode，因此910*在此处的待校验值是一致的
     checkInfo.protocolType = protocolType_;
-    HCCL_INFO("loc protocolType is [%d].", checkInfo.protocolType);
+    HCCL_INFO("[RankConsistentcyChecker][GenerateCheckFrame] loc protocolType is [%d].", checkInfo.protocolType);
 
     return HCCL_SUCCESS;
 }
@@ -523,12 +531,12 @@ bool RankConsistentcyChecker::CompareFrame(HcclCheckInfo &checkInfo, HcclCheckIn
         std::string localCannVersion = checkInfo.version;
         std::string remoteCannVersion = checkInfoRecv.version;
         if (localCannVersion.empty() || remoteCannVersion.empty()) { // cann版本信息读取失败，返回告警
-            HCCL_WARNING("[RankConsistentcyChecker][CompareFrame] Cann version str is empty. local_version %s,"
+            HCCL_WARNING("[RankConsistentcyChecker][CompareFrame] CANN version str is empty. local_version %s, "
                 "remote_version %s.", checkInfo.version, checkInfoRecv.version);
         } else if (localCannVersion != remoteCannVersion) { // cann版本信息读取成功，且版本不一致
             RPT_INPUT_ERR(true, "EI0008", std::vector<std::string>({"tag", "local_version", "remote_version"}),
                 std::vector<std::string>({checkInfo.cmdInfo.tag, localCannVersion, remoteCannVersion}));
-            HCCL_ERROR("[RankConsistentcyChecker][CompareFrame] errNo[0x%016llx] Inconsistent CANN Versions."
+            HCCL_ERROR("[RankConsistentcyChecker][CompareFrame] errNo[0x%016llx] Inconsistent CANN Versions. "
                 "local_version %s, remote_version %s.", HCCL_ERROR_CODE(HCCL_E_INTERNAL),
                 checkInfo.version, checkInfoRecv.version);
             bIsDiff = true;

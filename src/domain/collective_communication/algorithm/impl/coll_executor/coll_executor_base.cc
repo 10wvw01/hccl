@@ -20,7 +20,29 @@ CollExecutorBase::CollExecutorBase(const HcclDispatcher dispatcher, std::unique_
 
 HcclResult CollExecutorBase::SetAlgType(const AlgType algType)
 {
+    const std::vector<AlgTypeLevel0> &l0Algo = desc_.level0SupportedAlgos;
+    const std::vector<AlgTypeLevel1> &l1Algo = desc_.level1SupportedAlgos;
+    const std::vector<AlgTypeLevel2> &l2Algo = desc_.level2SupportedAlgos;
+
     algType_ = algType;
+    if (!l0Algo.empty()
+        && std::find(l0Algo.begin(), l0Algo.end(), algType_.algoLevel0) == l0Algo.end()) {
+        HCCL_WARNING("[%s] not support level0 algo[%d], reset to algo[%d]", __func__,
+            algType_.algoLevel0, l0Algo[0]);
+        algType_.algoLevel0 = l0Algo[0];
+    }
+    if (!l1Algo.empty()
+        && std::find(l1Algo.begin(), l1Algo.end(), algType_.algoLevel1) == l1Algo.end()) {
+        HCCL_WARNING("[%s] not support level1 algo[%d], reset to algo[%d]", __func__,
+            algType_.algoLevel1, l1Algo[0]);
+        algType_.algoLevel1 = l1Algo[0];
+    }
+    if (!l2Algo.empty()
+        && std::find(l2Algo.begin(), l2Algo.end(), algType_.algoLevel2) == l2Algo.end()) {
+        HCCL_WARNING("[%s] not support level2 algo[%d], reset to algo[%d]", __func__,
+            algType_.algoLevel2, l2Algo[0]);
+        algType_.algoLevel2 = l2Algo[0];
+    }
     return HCCL_SUCCESS;
 }
 
@@ -54,6 +76,7 @@ HcclResult CollExecutorBase::GetAivExecParam(const OpParam& param, AlgResourceRe
 
 HcclResult CollExecutorBase::PrepareCommInfoToDevice(AlgResourceResponse& algResource)
 {
+    (void) algResource;
     return HCCL_SUCCESS;
 }
 
@@ -84,23 +107,32 @@ HcclResult CollExecutorBase::SetAivClearEnable(bool aivClearEnable)
     return HCCL_SUCCESS;
 }
 
-u32 CollExecutorBase::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollExecutorBase::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
-    return rankSize;
+    blockDim = rankSize;
+    return HCCL_SUCCESS;
 }
 
-HcclResult CollExecutorBase::GetBlockDim(u32& blockDim){
-   blockDim = blockDim_; 
-   return HCCL_SUCCESS;
+HcclResult CollExecutorBase::GetBlockDim(u32& blockDim)
+{
+    blockDim = blockDim_;
+    return HCCL_SUCCESS;
+}
+
+HcclResult CollExecutorBase::SetBlockDim(const u32& blockDim)
+{
+    blockDim_ = blockDim;
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollExecutorBase::SetOpCounter(const OpCounterInfo& opCounter)
 {
-   opCounter_ = opCounter; 
-   return HCCL_SUCCESS;
+    opCounter_ = opCounter;
+    return HCCL_SUCCESS;
 }
-HcclResult CollExecutorBase::GetAdjInfo(AlgResourceResponse& algRes, AdjInfo& adjInfo){
-   return HCCL_SUCCESS;
+HcclResult CollExecutorBase::GetAdjInfo(AlgResourceResponse& algRes, AdjInfo& adjInfo)
+{
+    return HCCL_SUCCESS;
 }
 
 }

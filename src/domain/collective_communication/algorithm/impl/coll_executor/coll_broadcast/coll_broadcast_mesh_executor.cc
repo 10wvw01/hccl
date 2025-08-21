@@ -244,6 +244,7 @@ HcclResult CollBroadcastMeshExecutor::SelectTempAlg(std::unique_ptr<AlgTemplateB
                 TemplateType::TEMPLATE_BROADCAST_RECURSIVE_HD, dispatcher_);
             HCCL_INFO("broadcast mesh: using Recursive halving-doubling algo inter-server.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
     }
     return HCCL_SUCCESS;
 }

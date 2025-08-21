@@ -31,19 +31,7 @@ __aicore__ inline void AivAll2AllVCNoLoop910B::Process(GM_ADDR input, GM_ADDR ou
     __gm__ T *outputGM = (__gm__ T *)output;
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[targetRank]);
-
-    // 使用24个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_VC_910B_NO_LOOP;
-    
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[targetRank] + baseFlagOffset;
-
-    // 共使用3组flag
-    uint32_t pipelineCtrlFlagOffset = 0;
-    uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
-    uint32_t countResetFlagOffset = 2 * rankSize_ * FLAG_SIZE;
-    uint32_t initAckFlagOffset = 3 * rankSize_ * FLAG_SIZE;
-
+    tag = tag << TAG_MOVE_LEFT_BITS;
     if (block_idx < rankSize_) { // 前rankSize个aiv负责userin->cclin
         uint64_t localSendOffset = 0;
         for (uint32_t i = 0; i < block_idx; i++) {
@@ -51,20 +39,9 @@ __aicore__ inline void AivAll2AllVCNoLoop910B::Process(GM_ADDR input, GM_ADDR ou
         }
         uint64_t localSendCount = extraArgs.sendCountMatrix[rank_ * rankSize_ + block_idx];
 
-        __gm__ int32_t* ctrlFlagsGM = (__gm__ int32_t *)(flagAddrSelf + pipelineCtrlFlagOffset + block_idx * FLAG_SIZE);
-        CpGM2GMWithFlagWrap(cclGMSelf + localSendOffset, inputGM + localSendOffset, localSendCount, ctrlFlagsGM, 16);
-
-        PipeBarrier<PIPE_ALL>();
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + countResetFlagOffset + block_idx * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
-
+        CpGM2GMWithFlagWrap(cclGMSelf + localSendOffset, inputGM + localSendOffset, localSendCount, block_idx, 16, tag);
     } else { // 后rankSize个aiv负责cclother->usrout
         // 读对端数据前确认对端已进入本算子
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-
         uint64_t remoteSendOffset = 0; // 远端ccl发送给本端output的数据偏移，远端卡号为block_idx，可能为本rank
         for (uint32_t i = 0; i < rank_; i++) {
             remoteSendOffset += extraArgs.sendCountMatrix[targetRank * rankSize_ + i];
@@ -79,8 +56,6 @@ __aicore__ inline void AivAll2AllVCNoLoop910B::Process(GM_ADDR input, GM_ADDR ou
         uint64_t remoteSendCount = extraArgs.sendCountMatrix[targetRank * rankSize_ + rank_];
         uint64_t remoteSendSize = remoteSendCount * sizeof(T);
 
-        __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(flagAddrOther + pipelineCtrlFlagOffset + rank_ * FLAG_SIZE);
-
         uint64_t processedBatchCount = 0;
 
         while (true) {
@@ -88,13 +63,13 @@ __aicore__ inline void AivAll2AllVCNoLoop910B::Process(GM_ADDR input, GM_ADDR ou
                 break;
             }
 
-            LocalTensor<int32_t> localFlagX = flagInQue.AllocTensor<int32_t>();
+            int32_t localFlag = CountWait(targetRank, rank_);
+            if (localFlag <= tag){
+                continue;
+            }
+            uint64_t preparedBatchCount = localFlag - tag;
 
-            uint64_t preparedBatchCount = GetSignalValue(ctrlFlagsGMX, localFlagX);
-
-            flagInQue.FreeTensor(localFlagX);
-
-            if (preparedBatchCount == 0 || processedBatchCount >= preparedBatchCount) {
+            if (preparedBatchCount <= 0 || processedBatchCount >= preparedBatchCount) {
                 continue;
             }
 
@@ -115,17 +90,11 @@ __aicore__ inline void AivAll2AllVCNoLoop910B::Process(GM_ADDR input, GM_ADDR ou
 
         // 通知对端，自己已经把对端的那片数据拉回来了
         PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+        Record(tag, targetRank, AivNotifyType::DataSignal);
         PipeBarrier<PIPE_ALL>();
         
         // 确认对端已经将对应的数据拉走
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
-        PipeBarrier<PIPE_ALL>();
-
-        // 用于清零count flag
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + countResetFlagOffset + targetRank * FLAG_SIZE), localSetTensor, tag);
+        Wait(tag, targetRank, AivNotifyType::DataSignal);
     }
 }
 

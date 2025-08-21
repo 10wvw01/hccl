@@ -9,10 +9,13 @@
  */
 
 #include "hccl_one_sided_service.h"
+#include <future>
 #include "device_capacity.h"
 #include "sal_pub.h"
+#include "threads_guard.h"
 
 namespace hccl {
+constexpr u32 INVALID_REMOTE_RANK_ID = 0xFFFFFFFF;
 using namespace std;
 
 HcclOneSidedService::HcclOneSidedService(unique_ptr<HcclSocketManager> &socketManager,
@@ -142,7 +145,7 @@ HcclResult HcclOneSidedService::RegMem(void* addr, u64 size, HcclMemType type, R
 
     char *desc = nullptr;
     uint64_t descLen = 0;
-    ret = HcclMemGetDesc(&buf, &desc, &descLen);
+    ret = HcclMemExport(&buf, &desc, &descLen);
     if (ret != HCCL_SUCCESS) {
         HCCL_ERROR("[HcclOneSidedService][RegMem] get mem desc fialed, ret[%d]", ret);
         throw logic_error("[HcclOneSidedService][RegMem] get mem desc fialed");
@@ -392,5 +395,380 @@ void HcclOneSidedService::BatchGet(RankId remoteRankId, const HcclOneSideOpDesc*
         throw out_of_range("Can't find oneSidedConn by remoteRank.");
     }
     it->second->BatchRead(desc, descNum, stream);
+}
+
+// 绑定一块全局内存
+HcclResult HcclOneSidedService::BindMem(void* memRecordHandle, const std::string &commIdentifier)
+{
+    if (boundMemPtrSet_.size() == MAX_COMM_MEM_BIND_COUNT) {
+        // 进程粒度最多注册MAX_COMM_MEM_BIND_COUNT块独立的内存，报错退出
+        HCCL_ERROR("[HcclOneSidedService][BindMem] The number of memory bound in the comm has reached the maximum"
+                   " value[%u]. Cannot bind more memories.",
+            MAX_COMM_MEM_BIND_COUNT);
+        return HCCL_E_UNAVAIL;
+    }
+
+    auto memRecordPtr = static_cast<GlobalMemRecord*>(memRecordHandle);
+    CHK_RET(memRecordPtr->BindToComm(commIdentifier));
+
+    // 是否重复绑定在前面BindToComm已经检查过了
+    auto emplaceResult = boundMemPtrSet_.emplace(memRecordPtr);
+    CHK_PRT_RET(emplaceResult.second == false,
+        HCCL_ERROR("[HcclOneSidedService][BindMem] Emplace mem record ptr failed, memRecordPtr[%p], comm[%s].",
+            memRecordPtr, commIdentifier.c_str()), HCCL_E_INTERNAL);
+
+    HCCL_INFO("[HcclOneSidedService][BindMem] Bind mem successfully, memHandle[%p], comm[%s].",
+        memRecordHandle, commIdentifier.c_str());
+    return HCCL_SUCCESS;
+}
+
+// 解绑一块全局内存
+HcclResult HcclOneSidedService::UnbindMem(void *memRecordHandle, const std::string &commIdentifier)
+{
+    auto memRecordPtr = static_cast<GlobalMemRecord*>(memRecordHandle);
+    CHK_RET(memRecordPtr->UnbindFromComm(commIdentifier));
+
+    const auto eraseCount = boundMemPtrSet_.erase(memRecordPtr);
+    CHK_PRT_RET(eraseCount == 0,
+        HCCL_ERROR("[HcclOneSidedService][UnbindMem] Erase mem record ptr failed, memRecordPtr[%p], comm[%s].",
+            memRecordHandle, commIdentifier.c_str()), HCCL_E_INTERNAL);
+
+    HCCL_INFO("[HcclOneSidedService][UnbindMem] Unbind mem successfully, memHandle[%p], comm[%s].",
+        memRecordHandle, commIdentifier.c_str());
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::DeInit()
+{
+    // 检查是否还绑定着全局内存
+    if (!boundMemPtrSet_.empty()) {
+        HCCL_ERROR("[HcclOneSidedService][DeInit] There are memories still bound to this comm; please unbind them "
+                   "before destroying the comm.");
+        HCCL_ERROR("[HcclOneSidedService][DeInit] List of bound memories:");
+        for (auto handle : boundMemPtrSet_) {
+            auto memRecordPtr = static_cast<GlobalMemRecord*>(handle);
+            const auto info = memRecordPtr->PrintInfo();
+            HCCL_ERROR("[HcclOneSidedService][DeInit][Bound mem] ptr:%p, %s", handle, info.c_str());
+        }
+        return HCCL_E_PARA;
+    }
+
+    if (prepared_) {
+        // 去使能内存
+        CHK_RET(DisableMemAccess());
+        prepared_ = false;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::PrepareFullMesh(const std::string &commIdentifier, s32 timeoutSec)
+{
+    if (deviceLogicId_ != static_cast<u32>(HOST_DEVICE_ID)) {
+        CHK_RET(hrtSetDevice(deviceLogicId_));
+    }
+    // 创建连接
+    CHK_RET(CreateLinkFullmesh(commIdentifier, timeoutSec));
+    // 注册内存
+    CHK_RET(RegisterBoundMems());
+    // 交换内存描述符
+    CHK_RET(ExchangeMemDescFullMesh());
+    // 使能访问
+    CHK_RET(EnableMemAccess());
+
+    CHK_RET(hrtResetDevice(deviceLogicId_));
+    HCCL_INFO("[HcclOneSidedService][PrepareFullMesh] Prepare finished. comm[%s].", commIdentifier.c_str());
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::Prepare(const std::string &commIdentifier, const HcclPrepareConfig* prepareConfig,
+    s32 timeoutSec)
+{
+    // 如果已经prepare过，直接返回Success
+    CHK_PRT_RET(prepared_,
+        HCCL_WARNING("[HcclOneSidedService][Prepare] This comm[%s] has prepared.", commIdentifier.c_str()),
+        HCCL_SUCCESS);
+
+    CHK_RET(hrtGetDevice(&deviceLogicId_));
+
+    if (needRegIpcMem_) {
+        SalGetBareTgid(&localProcess_.pid);
+        RankId localRankId = localRankInfo_.userRank;
+        localProcess_.sdid = rankTable_->rankList.at(localRankId).superDeviceId;
+        localProcess_.serverId = rankTable_->rankList.at(localRankId).serverIdx;
+    }
+
+    HcclTopoType configTopoType = prepareConfig->topoType;
+    std::future<HcclResult> futureResult;
+    if (configTopoType == HcclTopoType::HCCL_TOPO_FULLMESH) {
+        HCCL_INFO("[HcclOneSidedService][Prepare] topoType is fullmesh.");
+        futureResult =
+            std::async(std::launch::async, &HcclOneSidedService::PrepareFullMesh, this, commIdentifier, timeoutSec);
+    } else {
+        HCCL_ERROR("[HcclOneSidedService][Prepare] topoType[%u] is not supported.", configTopoType);
+        return HCCL_E_NOT_SUPPORT;
+    }
+
+    CHK_PRT_RET(!futureResult.valid(),
+        HCCL_ERROR("[HcclOneSidedService][Prepare] futureResult is not assigned."),
+        HCCL_E_INTERNAL);
+
+    // 超时检查，若timeout设置为-1则不检查，上层已经保证timeout不会为0
+    if (timeoutSec != -1 && futureResult.wait_for(std::chrono::seconds(timeoutSec)) == std::future_status::timeout) {
+        // 发生超时，设置stop flag让socket线程停止，避免进程长时间无法退出
+        CHK_RET(socketManager_->SetStopFlag(true));
+        HCCL_ERROR("[HcclOneSidedService][Prepare] Prepare timeout. commIdentifier[%s], timeout[%ds]",
+            commIdentifier.c_str(), timeoutSec);
+        return HCCL_E_TIMEOUT;
+    }
+
+    HcclResult ret = futureResult.get();
+    CHK_PRT_RET(ret != HCCL_SUCCESS,
+        HCCL_ERROR("[HcclOneSidedService][Prepare] Prepare failed. commIdentifier[%s]", commIdentifier.c_str()),
+        ret);
+
+    prepared_ = true;
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::InitIsUsedRdmaMap(bool& needInitNic, bool& needInitVnic)
+{
+    u32 rankSize = (rankTable_->rankList).size();
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        bool isUseRdma;
+        CHK_RET(IsUsedRdma(remoteRankId, isUseRdma));
+        isUsedRdmaMap_[remoteRankId] = isUseRdma;
+
+        if (isUseRdma) {
+            needRegRoceMem_ = true;
+        } else {
+            needRegIpcMem_ = true;
+        }
+    }
+    needInitNic = needRegRoceMem_;
+    needInitVnic = needRegIpcMem_;
+
+    HCCL_INFO("[HcclOneSidedService][InitIsUsedRdmaMap] needInitNic is [%d], needInitVnic is [%d]",
+        needInitNic, needInitVnic);
+    return HCCL_SUCCESS;
+}
+
+void HcclOneSidedService::ConnectByThread(std::shared_ptr<HcclOneSidedConn>& conn, const std::string &commIdentifier,
+    s32 timeoutSec)
+{
+    if (deviceLogicId_ != static_cast<u32>(HOST_DEVICE_ID)) {
+        hrtSetDevice(deviceLogicId_);
+    }
+    HcclResult ret = conn->ConnectWithRemote(commIdentifier, localProcess_, timeoutSec);
+    if (ret != HCCL_SUCCESS) {
+        hasErrorFlag_ = true;
+        HCCL_ERROR("[ConnectByThread] Connect failed. userrank[%u], ret[%d].", localRankInfo_.userRank, ret);
+    }
+    hrtResetDevice(deviceLogicId_);
+}
+
+
+HcclResult HcclOneSidedService::CreateLinkFullmesh(const std::string &commIdentifier, s32 timeoutSec)
+{
+    u32 rankSize = (rankTable_->rankList).size();
+
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        HcclRankLinkInfo remoteRankInfo;
+        CHK_RET(SetupRemoteRankInfo(remoteRankId, remoteRankInfo));
+        CHK_RET(CreateConnection(remoteRankId, remoteRankInfo, oneSidedConns_[remoteRankId]));
+    }
+
+    std::vector<std::unique_ptr<std::thread>> linkThreads;
+    linkThreads.resize(rankSize);
+    hasErrorFlag_ = false;
+    ThreadsGuard threadsGuard(linkThreads);
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        linkThreads[remoteRankId].reset(
+                    new (std::nothrow) std::thread(&HcclOneSidedService::ConnectByThread, this,
+                    std::ref(oneSidedConns_[remoteRankId]), commIdentifier, timeoutSec));
+        CHK_SMART_PTR_NULL(linkThreads[remoteRankId]);
+    }
+
+    for (u32 remoteRankId = 0; remoteRankId < linkThreads.size(); remoteRankId++) {
+        if (linkThreads[remoteRankId] == nullptr || !linkThreads[remoteRankId]->joinable()) {
+            continue;
+        }
+        linkThreads[remoteRankId]->join(); // 等待线程执行完毕
+    }
+    linkThreads.clear();
+
+    CHK_PRT_RET(hasErrorFlag_ == true,
+        HCCL_ERROR("[HcclOneSidedService][CreateLinkFullmesh] Create links failed. commIdentifier[%s].",
+            commIdentifier.c_str()),
+        HCCL_E_INTERNAL);
+
+    HCCL_INFO("[HcclOneSidedService][CreateLinkFullmesh] Create links success. commIdentifier[%s].",
+        commIdentifier.c_str());
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::RegBoundMem(HcclNetDevCtx netDevCtx, const HcclMem& localMem,
+    HcclMemDesc &localMemDesc, HcclBuf& buf)
+{
+    HcclResult ret = HcclMemReg(netDevCtx, &localMem, &buf);
+    if ((ret != HCCL_SUCCESS) && (ret != HCCL_E_AGAIN)) {  // HCCL_E_AGAIN:调用HcclMemReg前，内存已注册过
+        return ret;
+    }
+
+    char *desc = nullptr;
+    uint64_t descLen = 0;
+    ret = HcclMemExport(&buf, &desc, &descLen);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[HcclOneSidedService][RegBoundMem] get mem desc failed, ret[%d]", ret);
+        throw logic_error("[HcclOneSidedService][RegBoundMem] get mem desc failed");
+    }
+
+    HcclMemDescData *ptr = static_cast<HcclMemDescData *>(static_cast<void *>(localMemDesc.desc));
+    ptr->localRankId = localRankInfo_.userRank; 
+    ptr->remoteRankId = INVALID_REMOTE_RANK_ID; //进程粒度注册，不区分对端rank, 填为全F
+    memset_s(ptr->memDesc, HCCL_MEM_DESC_STR_LEN, 0, HCCL_MEM_DESC_STR_LEN);
+    if (memcpy_s(ptr->memDesc, HCCL_MEM_DESC_STR_LEN, desc, descLen + 1) != EOK) {
+        HCCL_ERROR("[HcclOneSidedService][RegBoundMem] memcpy_s memDesc failed");
+        return HCCL_E_INTERNAL;
+    }
+
+    HCCL_INFO("[HcclOneSidedService][RegBoundMem] RegBoundMem success. addr[%p], size[%llu].", buf.addr, buf.len);
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::RegisterBoundMems()
+{
+    HcclResult ret = HCCL_SUCCESS;
+
+    localMemIpcDescs_.reserve(boundMemPtrSet_.size());
+    localMemRoceDescs_.reserve(boundMemPtrSet_.size());
+    localMemIpcDescs_.clear();
+    localMemRoceDescs_.clear();
+    for (auto& recordPtr : boundMemPtrSet_) {
+        HcclMem mem{recordPtr->GetMemType(), const_cast<void*>(recordPtr->GetAddr()), recordPtr->GetSize()};
+        if (needRegRoceMem_) {
+            HcclBuf buf;
+            HcclMemDesc localMemDesc;
+            CHK_RET(RegBoundMem(netDevRdmaCtx_, mem, localMemDesc, buf));
+            localMemRoceDescs_.push_back(localMemDesc);
+        }
+        if (needRegIpcMem_) {
+            HcclBuf buf;
+            HcclMemDesc localMemDesc;
+            CHK_RET(RegBoundMem(netDevIpcCtx_, mem, localMemDesc, buf));
+            if (recordPtr->GetMemType() == HCCL_MEM_TYPE_DEVICE) {
+                localMemIpcDescs_.push_back(localMemDesc);
+            }
+            CHK_RET(Grant(buf));
+        }
+    }
+    HCCL_INFO("[HcclOneSidedService][RegisterBoundMems] Register bound mems success.");
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::ExchangeMemDescFullMesh()
+{
+    u32 rankSize = (rankTable_->rankList).size();
+    std::vector<std::unique_ptr<std::thread>> exchangeThreads;
+    exchangeThreads.resize(rankSize);
+    
+    hasErrorFlag_ = false;
+    ThreadsGuard threadsGuard(exchangeThreads);
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        exchangeThreads[remoteRankId].reset(
+                    new (std::nothrow) std::thread(&HcclOneSidedService::ExchangeMemDescByThread, this,
+                    std::ref(oneSidedConns_[remoteRankId]), isUsedRdmaMap_[remoteRankId]));
+        CHK_SMART_PTR_NULL(exchangeThreads[remoteRankId]);
+    }
+
+    for (u32 remoteRankId = 0; remoteRankId < exchangeThreads.size(); remoteRankId++) {
+        if (exchangeThreads[remoteRankId] == nullptr || !exchangeThreads[remoteRankId]->joinable()) {
+            continue;
+        }
+        exchangeThreads[remoteRankId]->join(); // 等待线程执行完毕
+    }
+    CHK_PRT_RET(hasErrorFlag_ == true,
+        HCCL_ERROR("[HcclOneSidedService][ExchangeMemDescFullMesh] Exchange mem desc failed."),
+        HCCL_E_INTERNAL);
+
+    HCCL_INFO("[HcclOneSidedService][ExchangeMemDescFullMesh] Exchange mem desc success.");
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::ExchangeMemDescByThread(std::shared_ptr<HcclOneSidedConn>& conn, bool isUseRdma)
+{
+    if (deviceLogicId_ != static_cast<u32>(HOST_DEVICE_ID)) {
+        hrtSetDevice(deviceLogicId_);
+    }
+
+    HcclMemDescs localMemDescs;
+    if (isUseRdma) {
+        localMemDescs.array = localMemRoceDescs_.data();
+        localMemDescs.arrayLength = localMemRoceDescs_.size();
+    } else {
+        localMemDescs.array = localMemIpcDescs_.data();
+        localMemDescs.arrayLength = localMemIpcDescs_.size();
+    }
+
+    HcclResult ret = conn->ExchangeMemDesc(localMemDescs);
+    if (ret != HCCL_SUCCESS) {
+        hasErrorFlag_ = true;
+        HCCL_ERROR("[ExchangeMemDescByThread] ExchangeMemDescByThread failed. userRank[%u], ret[%d].",
+            localRankInfo_.userRank, ret);
+    }
+    CHK_RET(hrtResetDevice(deviceLogicId_));
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::EnableMemAccess()
+{
+    u32 rankSize = (rankTable_->rankList).size();
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        CHK_RET(oneSidedConns_.at(remoteRankId)->EnableMemAccess());
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::DisableMemAccess()
+{
+    u32 rankSize = (rankTable_->rankList).size();
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank) {
+            continue;
+        }
+        CHK_RET(oneSidedConns_.at(remoteRankId)->DisableMemAccess());
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclOneSidedService::Grant(HcclBuf& buf)
+{
+    u32 rankSize = (rankTable_->rankList).size();
+    for (u32 remoteRankId = 0; remoteRankId < rankSize; remoteRankId++) {
+        if (remoteRankId == localRankInfo_.userRank || isUsedRdmaMap_[remoteRankId] == true) {
+            continue;
+        }
+        ProcessInfo remoteProcess;
+        CHK_RET(oneSidedConns_.at(remoteRankId)->GetRemoteProcessInfo(remoteProcess));
+        HcclMemGrantInfo grantInfo = {remoteProcess.sdid, static_cast<int32_t>(remoteProcess.pid)};
+
+        HcclResult ret = HcclMemGrant(&buf, &grantInfo);
+        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[HcclOneSidedService][Grant] Grant error"), ret);
+    }
+    return HCCL_SUCCESS;
 }
 }

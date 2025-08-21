@@ -253,6 +253,7 @@ HcclResult CollAllGatherMeshGraphExecutor::SelectTempAlg(std::unique_ptr<AlgTemp
             level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_ALL_GATHER_RECURSIVE_HALVING_DOUBLING, dispatcher_);
             HCCL_INFO("allgather mesh: algo is [%s] using halving-doubling algo inter-server.", (HCCL_ALGO_LEVEL1_MAP.at(algType_.algoLevel1)).c_str());
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

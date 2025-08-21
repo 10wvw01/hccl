@@ -54,16 +54,6 @@ __aicore__ inline void AivAll2AllV91093Single::Process(GM_ADDR input, GM_ADDR ou
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[dstRank]);
 
-    // 使用96个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_TO_ALL_V_91093_SINGLE;
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[dstRank] + baseFlagOffset;
-    uint32_t initAckFlagOffset = 0;
-    uint32_t finalAckFlagOffset = block_num * FLAG_SIZE;
-
-    uint32_t flagSetOffset = rank_ * blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE;
-    uint32_t flagCheckOffset = block_idx * FLAG_SIZE; // dstRank * blockNumPerGroup * FLAG_SIZE
-
     uint64_t sendCount = extraArgs->sendCounts[dstRank];
     uint64_t recvCount = extraArgs->recvCounts[dstRank];
     uint64_t sendDispl = extraArgs->sendDispls[dstRank];
@@ -102,10 +92,10 @@ __aicore__ inline void AivAll2AllV91093Single::Process(GM_ADDR input, GM_ADDR ou
 
         // localcopy后的同步
         if (needSend) {
-            SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + flagSetOffset), localSetTensor, curTag);
+            Record(curTag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
         }
         if (needRead) {
-            WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + flagCheckOffset), localCheckTensor, curTag);
+            Wait(curTag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
         }
 
         PipeBarrier<PIPE_ALL>();
@@ -121,10 +111,10 @@ __aicore__ inline void AivAll2AllV91093Single::Process(GM_ADDR input, GM_ADDR ou
 
         // read后的同步
         if (needRead) {
-            SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + flagSetOffset), localSetTensor, curTag);
+            Record(curTag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
         }
         if (needSend) {
-            WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + flagCheckOffset), localCheckTensor, curTag);
+            Wait(curTag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
         }
 
         curTag += 1;

@@ -22,6 +22,7 @@
 
 using namespace hccl;
 using namespace std;
+int TaskExceptionHandler::communicatorCount_ = 0;
 GetErrStatusVecCallBack g_GetErrStatusVecCallBack = nullptr;
 std::mutex g_communicatorCallbackMapMutex;
 array<map<s32, GetAicpuTaskExceptionCallBack>, MAX_MODULE_DEVICE_NUM> g_communicatorCallbackMap;
@@ -59,73 +60,6 @@ namespace hccl {
     }
 }
 
-static std::string g_kernelNameList[] = {
- "aiv_all_gather_91093_smalldata_graph.h",
- "aiv_all_gather_910b_bigdata.h",
- "aiv_all_gather_910b_graph.h",
- "aiv_all_gather_910B_rdma_graph.h",
- "aiv_all_gather_910B_rdma.h",
- "aiv_all_gather_910b_smalldata.h",
- "aiv_all_gather_v_910b_bigdata.h",
- "aiv_all_gather_v_910b_smalldata.h",
- "aiv_all_reduce_910b_bigdata_graph.h",
- "aiv_all_reduce_910b_bigdata.h",
- "aiv_all_reduce_910b_middata.h",
- "aiv_all_reduce_910b_rdma_middata_graph_step1",
- "aiv_all_reduce_910b_rdma_middata_step1",
- "aiv_all_reduce_910b_rdma_smalldata_graph_step1",
- "aiv_all_reduce_910b_rdma_smalldata_step1",
- "aiv_all_reduce_910b_smalldata_graph.h",
- "aiv_all_reduce_910b_smalldata.h",
- "aiv_all_to_all_91093_base.h",
- "aiv_all_to_all_91093_graph.h",
- "aiv_all_to_all_91093.h",
- "aiv_all_to_all_910b_smalldata.h",
- "aiv_all_to_all_rdma_910b.h",
- "aiv_all_to_all_v_91093_graph.h",
- "aiv_all_to_all_v_91093.h",
- "aiv_all_to_all_v_91093_single.h",
- "aiv_all_to_all_v_910b_graph.h",
- "aiv_all_to_all_v_910b.h",
- "aiv_all_to_all_vc_910b_graph.h",
- "aiv_all_to_all_vc_910b.h",
- "aiv_all_to_all_vc_910b_no_loop.h",
- "aiv_reduce_scatter_91093_smalldata_graph.h",
- "aiv_reduce_scatter_910b_bigdata.h",
- "aiv_reduce_scatter_910b_graph.h",
- "aiv_reduce_scatter_910b_middata.h",
- "aiv_reduce_scatter_910b_rdma_graph.h",
- "aiv_reduce_scatter_910b_rdma.h",
- "aiv_reduce_scatter_910b_smalldata.h",
- "aiv_reduce_scatter_v_910b_bigdata.h",
- "aiv_reduce_scatter_v_910b_middata.h",
- "aiv_reduce_scatter_v_910b_smalldata.h",
- "aiv_sync_910b.h",
- "aiv_all_gather_91093_smalldata.h",
- "aiv_reduce_scatter_91093_smalldata.h",
- "aiv_all_reduce_910b_rdma_middata_graph_step2",
- "aiv_all_reduce_910b_rdma_middata_step2",
- "aiv_all_reduce_910b_rdma_smalldata_graph_step2",
- "aiv_all_reduce_910b_rdma_smalldata_step2",
- "aiv_all_reduce_910b_rdma_smalldata_graph_step3",
- "aiv_all_reduce_910b_rdma_smalldata_step3",
- "aiv_all_to_all_91093_single_pingpong.h",
- "aiv_all_to_all_91093_single_graph.h",
- "aiv_all_to_all_vc_91093_single_graph.h",
- "aiv_all_reduce_91093_smalldata.h",
- "aiv_all_reduce_91093_bigdata_graph.h",
- "aiv_all_reduce_deter_910b_smalldata.h",
- "aiv_all_reduce_deter_910b_middata.h",
- "aiv_all_reduce_deter_910b_bigdata.h",
- "aiv_all_reduce_deter_910b_bigdata_pre",
- "aiv_all_reduce_deter_910b_bigdata_post",
- "aiv_reduce_scatter_deter_910b_smalldata.h",
- "aiv_reduce_scatter_deter_910b_middata.h",
- "aiv_reduce_scatter_deter_910b_bigdata.h",
- "aiv_reduce_scatter_deter_910b_bigdata_pre",
- "aiv_reduce_scatter_deter_910b_bigdata_post"
-};
-
 std::string GetTaskName(TaskType taskType, bool isAlgInfo = false);
 std::string GetLinkTypeName(LinkType linkInput);
 std::string GetAlgTypeStr(AlgType algType);
@@ -138,17 +72,17 @@ constexpr u32 TASK_COUNT_UPPER_LIMIT_OP_BASE = 65535; // 单算子模式task数�
 constexpr u32 TASK_CONTEXT_SIZE = 50; // task 执行失败时打印前序task的数量
 constexpr u32 TASK_CONTEXT_INFO_SIZE = LOG_TMPBUF_SIZE - 50; // task 执行失败时打印前序task信息的长度限制
 constexpr u32 PRINT_TASK_AIV_INFO_COUNT = 10;
-constexpr u32 TASK_AIV_KERNEL_NUM = 64; //g_kernelNameList数组长度
 constexpr u32 AIV_KERNEL_FLAG_SIZE_PER_OP = 6;
 
 constexpr u32 MAX_BLOCK_DIM = 48;
+constexpr u32 MAX_RANK_SIZE_SUPERPOD = 768;
 constexpr u32 INTERVAL_1VN = 128;
 constexpr u32 INTERVAL_NV1 = 128;
-constexpr u32 INTERVAL_1V1 = 4;
+constexpr u32 INTERVAL_1V1 = 8;
 constexpr u32 PING_PONG_NUM = 2;
 constexpr u32 PRINT_NV1_NUM = 4;
 constexpr u32 PRINT_1VN_NUM = 4;
-constexpr u32 INTERVAL_COUNT = 4;
+constexpr u32 INTERVAL_COUNT = 8;
 constexpr u32 NOTIFY_NUM = 3;
 constexpr u32 BLOCK_DIM_PER_RANK = 4;
 constexpr u32 CORE_PER_CARDS = 4;
@@ -215,6 +149,7 @@ TaskInfo::TaskInfo(u32 &streamID, u32 &taskID, string &tag, const TaskParaAiv& p
     taskPara.Aiv.rankSize = para.rankSize;
     taskPara.Aiv.flagMem = para.flagMem;
     taskPara.Aiv.aivRdmaStep = para.aivRdmaStep;
+    taskPara.Aiv.rank = para.rank;
 }
 CtxInfo::CtxInfo(TaskType &taskType, const TaskParaDMA &para)
     : taskType(taskType)
@@ -1015,12 +950,12 @@ void TaskExceptionHandler::PrintTaskContextInfo(const std::shared_ptr<std::deque
 
 void TaskExceptionHandler::ParseTaskSyncFlag(s32 *flagMem, u32 flagMemSize, u32 rankSize, u32 rank, u32 index)
 {    
-    u32 chips1v1 = rankSize * BLOCK_DIM_PER_RANK * NOTIFY_NUM * INTERVAL_1V1;
+    u32 chips1v1 = std::min(rankSize * BLOCK_DIM_PER_RANK, MAX_RANK_SIZE_SUPERPOD) * NOTIFY_NUM * INTERVAL_1V1;
     u32 cores1v1 = MAX_BLOCK_DIM * NOTIFY_GROUPS_1V1 * INTERVAL_1V1;
-    u32 chips1vN = PRINT_1VN_NUM * INTERVAL_1VN;
-    u32 cores1vN = PRINT_1VN_NUM * INTERVAL_1VN;
-    u32 chipsNv1 = PRINT_NV1_NUM * INTERVAL_NV1;
-    u32 coresNv1 = PRINT_NV1_NUM * INTERVAL_NV1;
+    u32 chips1vN = PRINT_1VN_NUM * INTERVAL_1VN * NOTIFY_GROUPS_1V1;
+    u32 cores1vN = PRINT_1VN_NUM * INTERVAL_1VN * NOTIFY_GROUPS_1V1;
+    u32 chipsNv1 = PRINT_NV1_NUM * INTERVAL_NV1 * NOTIFY_GROUPS_1V1;
+    u32 coresNv1 = PRINT_NV1_NUM * INTERVAL_NV1 * NOTIFY_GROUPS_1V1;
     u32 count = rankSize * CORE_PER_CARDS * INTERVAL_COUNT;
     u32 syncCount = (chips1v1 + cores1v1 + chips1vN + cores1vN + chipsNv1 + coresNv1) * PING_PONG_NUM + count;
     u32 total = syncCount * sizeof(u32);
@@ -1038,27 +973,27 @@ void TaskExceptionHandler::ParseTaskSyncFlag(s32 *flagMem, u32 flagMemSize, u32 
         // print chips1v1
         str = SerializeSyncFlag(buf + offset, rankSize * BLOCK_DIM_PER_RANK * NOTIFY_NUM, INTERVAL_1V1);
         offset += chips1v1;
-        HCCL_ERROR("rank %u opIndex %u chips 1v1 sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u chips 1v1 sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
 
         str = SerializeSyncFlag(buf + offset, MAX_BLOCK_DIM * NOTIFY_GROUPS_1V1, INTERVAL_1V1);
         offset += cores1v1;
-        HCCL_ERROR("rank %u opIndex %u cores 1v1 sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u cores 1v1 sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
 
-        str = SerializeSyncFlag(buf + offset, PRINT_1VN_NUM, INTERVAL_1VN);
+        str = SerializeSyncFlag(buf + offset, PRINT_1VN_NUM * NOTIFY_GROUPS_1V1, INTERVAL_1VN);
         offset += chips1vN;
-        HCCL_ERROR("rank %u opIndex %u chips 1vn sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u chips 1vn sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
 
-        str = SerializeSyncFlag(buf + offset, PRINT_1VN_NUM, INTERVAL_1VN);
+        str = SerializeSyncFlag(buf + offset, PRINT_1VN_NUM * NOTIFY_GROUPS_1V1, INTERVAL_1VN);
         offset += cores1vN;
-        HCCL_ERROR("rank %u opIndex %u cores 1vn sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u cores 1vn sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
 
-        str = SerializeSyncFlag(buf + offset, PRINT_NV1_NUM, INTERVAL_NV1);
+        str = SerializeSyncFlag(buf + offset, PRINT_NV1_NUM * NOTIFY_GROUPS_1V1, INTERVAL_NV1);
         offset += chipsNv1;
-        HCCL_ERROR("rank %u opIndex %u chips nv1 sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u chips nv1 sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
 
-        str = SerializeSyncFlag(buf + offset, PRINT_NV1_NUM, INTERVAL_NV1);
+        str = SerializeSyncFlag(buf + offset, PRINT_NV1_NUM * NOTIFY_GROUPS_1V1, INTERVAL_NV1);
         offset += coresNv1;
-        HCCL_ERROR("rank %u opIndex %u cores nv1 sync flag [%s]", rank, index, PREFIX[i].c_str(), str.c_str());
+        HCCL_ERROR("rank %u opIndex %u cores nv1 sync flag [%s] %s", rank, index, PREFIX[i].c_str(), str.c_str());
     }
     str = SerializeSyncFlag(buf + offset, rankSize * CORE_PER_CARDS, INTERVAL_COUNT);
     HCCL_ERROR("rank %u opIndex %u sync count [%u]", rank, index, str.c_str());
@@ -1085,7 +1020,11 @@ void TaskExceptionHandler::PrintTaskAivBuffer(const std::shared_ptr<std::deque<T
     u32 flagMemSize = 1024*1024;
     auto& taskInfo = taskQue->back();
     u32 realRankSize = taskInfo.taskPara.Aiv.rankSize;
-    s32* flagMem = static_cast<s32*>(malloc(flagMemSize));
+    void* tmpFlagMem = malloc(flagMemSize);
+    if(tmpFlagMem == nullptr){
+        return;
+    }
+    s32* flagMem = static_cast<s32*>(tmpFlagMem);
     hrtMemSyncCopy(flagMem, flagMemSize, reinterpret_cast<u8 *>(taskInfo.taskPara.Aiv.flagMem), flagMemSize, 
                    HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_DEVICE_TO_HOST);
 
@@ -1189,23 +1128,9 @@ void TaskExceptionHandler::PrintAicpuErrorMessage(rtExceptionInfo *exceptionInfo
         g_communicatorCallbackMap[exceptionInfo->deviceid].end()) {
         // 找到对应的通信域，并调用回调函数从HDC通道获取AICPU异常信息
         errorMessage = (g_communicatorCallbackMap[exceptionInfo->deviceid])[exceptionInfo->streamid]();
-        std::string groupUdi;
-        std::string groupName = std::string(errorMessage.group);
-        ProfilerBase::GetUdiByGroup(groupName, groupUdi);
         if (strlen(errorMessage.tag) > 0) {
             isExistAicpuError = true;
             string groupRankContent;
-            groupRankContent += "group:[";
-            groupRankContent += std::string(errorMessage.group);
-            groupRankContent += "], user define information[";
-            groupRankContent += groupUdi;
-            groupRankContent += "], rankSize[";
-            groupRankContent += std::to_string(errorMessage.rankSize);
-            groupRankContent += "], rankId[";
-            groupRankContent += std::to_string(errorMessage.rankId);
-            groupRankContent += " ";
-            groupRankContent += std::to_string(errorMessage.remoteUserRank);
-            groupRankContent += "].";
             u32 streamId = static_cast<u32>(errorMessage.streamId);
             std::string tag = std::string(errorMessage.tag);
             u32 index = 0;
@@ -1217,14 +1142,15 @@ void TaskExceptionHandler::PrintAicpuErrorMessage(rtExceptionInfo *exceptionInfo
                 exceptionTaskInfo.GetBaseInfoStr().c_str());
             HCCL_ERROR("[TaskExceptionHandler][Callback][HOST]Task run failed, para information is %s, tag[%s].",
                 exceptionTaskInfo.GetParaInfoStr().c_str(), exceptionTaskInfo.tag.c_str());
-            HCCL_ERROR("[TaskExceptionHandler][Callback][HOST]Task run failed, group information is %s, tag[%s].",
-                groupRankContent.c_str(), exceptionTaskInfo.tag.c_str());
+            PrintGroupErrorMessage(errorMessage, exceptionTaskInfo, groupRankContent);
+            PrintOpDataErrorMessage(exceptionInfo->deviceid, errorMessage);
+            std::string errMsg = GetAndPrintHeartbeatErr(exceptionInfo);
             RPT_INPUT_ERR(true,
                 "EI0002",
                 std::vector<std::string>({"remote_rankid", "base_information", "task_information", "group_rank_content"}),
                 std::vector<std::string>({
                     std::to_string(exceptionTaskInfo.GetRemoteUserRank()), exceptionTaskInfo.GetBaseInfoStr().c_str(),
-                    exceptionTaskInfo.GetParaInfoStr().c_str(), groupRankContent.c_str()})
+                    (exceptionTaskInfo.GetParaInfoStr() + errMsg).c_str(), groupRankContent.c_str()})
                 );
             lock.lock();
             g_commHadCallbackArray[exceptionInfo->deviceid] = true;
@@ -1232,6 +1158,63 @@ void TaskExceptionHandler::PrintAicpuErrorMessage(rtExceptionInfo *exceptionInfo
     } else {
         HCCL_INFO("PrintAicpuErrorMessage streamId[%d] is not found.", exceptionInfo->streamid);
     }
+    return;
+}
+
+void TaskExceptionHandler::PrintGroupErrorMessage(ErrorMessageReport &errorMessage, TaskInfo &exceptionTaskInfo,
+    string &groupRankContent)
+{
+    std::string groupUdi;
+    std::string groupName = std::string(errorMessage.group);
+    ProfilerBase::GetUdiByGroup(groupName, groupUdi);
+
+    groupRankContent += "group:[";
+    groupRankContent += std::string(errorMessage.group);
+    groupRankContent += "], user define information[";
+    groupRankContent += groupUdi;
+    groupRankContent += "], rankSize[";
+    groupRankContent += std::to_string(errorMessage.rankSize);
+    groupRankContent += "], rankId[";
+    groupRankContent += std::to_string(errorMessage.rankId);
+    groupRankContent += " ";
+    groupRankContent += std::to_string(errorMessage.remoteUserRank);
+    groupRankContent += "]";
+
+    HCCL_ERROR("[TaskExceptionHandler][Callback][HOST]Task run failed, group information is %s, tag[%s].",
+        groupRankContent.c_str(), exceptionTaskInfo.tag.c_str());
+    return;
+}
+
+void TaskExceptionHandler::PrintOpDataErrorMessage(u32 deviceId, ErrorMessageReport &errorMessage)
+{
+    stringstream opDataStr;
+    opDataStr << "src" << "[0x"
+            << std::hex << errorMessage.srcAddr << "], dst[0x"
+            << std::hex << errorMessage.dstAddr << "], ";
+
+    string opStr;
+    if (errorMessage.reduceType != HcclReduceOp::HCCL_REDUCE_RESERVED) {
+        opStr += "reduceType[";
+        opStr += GetReduceOpEnumStr(static_cast<HcclReduceOp>(errorMessage.reduceType));
+        opStr += "], ";
+    }
+
+    string opDataContent;
+    opDataContent += "deviceId:[";
+    opDataContent += std::to_string(deviceId);
+    opDataContent += "], index[";
+    opDataContent += std::to_string(errorMessage.opIndex);
+    opDataContent += "], count[";
+    opDataContent += std::to_string(errorMessage.count);
+    opDataContent += "], ";
+    opDataContent += opStr;
+    opDataContent += opDataStr.str();
+    opDataContent += "dataType[";
+    opDataContent += GetDataTypeEnumStr(errorMessage.dataType);
+    opDataContent += "].";
+
+    HCCL_ERROR("[TaskExceptionHandler][Callback][HOST]Task run failed, opData information is %s",
+        opDataContent.c_str());
     return;
 }
 
@@ -1272,7 +1255,10 @@ void TaskExceptionHandler::Callback(rtExceptionInfo *exceptionInfo)
 }
 HcclResult TaskExceptionHandler::Init()
 {
-    CHK_RET(hrtRegTaskFailCallbackByModule(Callback));
+    communicatorCount_++;
+    if (communicatorCount_ == 1){
+        CHK_RET(hrtRegTaskFailCallbackByModule(Callback));
+    }
 
     CHK_RET(hrtGetMaxStreamAndTask(maxStrCount, maxTaskCount));
 
@@ -1301,8 +1287,11 @@ HcclResult TaskExceptionHandler::Init()
 
 HcclResult TaskExceptionHandler::DeInit()
 {
-    CHK_RET(hrtRegTaskFailCallbackByModule(nullptr));
-    HCCL_INFO("deInit taskFailCallback");
+    communicatorCount_--;
+    if (communicatorCount_ == 0){
+        CHK_RET(hrtRegTaskFailCallbackByModule(nullptr));
+        HCCL_INFO("deInit taskFailCallback");
+    }
     return HCCL_SUCCESS;
 }
 
@@ -1434,7 +1423,10 @@ HcclResult TaskExceptionHandler::Save(u32 &streamID, u32 &taskID, const TaskPara
 
     std::string tag;
     CHK_RET(ProfilerBase::GetTagByStream(streamID, tag));
+    u32 index = 0;
+    ProfilerBase::GetSubmittedOpCnt(index);
     TaskInfo tmpTaskInfo(streamID, taskID, tag, para);
+    tmpTaskInfo.index = index;
     CHK_RET(InsertTaskMap(streamID, tmpTaskInfo));
     CHK_RET(InsertRankInfo(tag));
     CHK_RET(InsertOpData(tag));

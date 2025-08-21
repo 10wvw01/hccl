@@ -110,11 +110,4 @@ __aicore__ inline void SetFlagBatchValue(__gm__ int32_t *ctrlFlagGM, TQue<QuePos
     batchQue.FreeTensor(localBatchSet);
 }
 
-// 算法分析器无法对GetSignalValue进行打桩，需使用如下函数进行替换
-__aicore__ inline int32_t GetSignalValueWithExpected(__gm__ int32_t *gmSignalAddr, LocalTensor<int32_t>& localTensor, int32_t expectedValue)
-{
-    // 函数体需要进行打桩实现
-    return expectedValue;
-}
-
 #endif

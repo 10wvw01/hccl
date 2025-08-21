@@ -26,9 +26,6 @@ HcclResult CollAlltoAllExecutor::Orchestrate(OpParam& param, AlgResourceResponse
     tag_ = param.tag;
     algResResp_ = &algRes;
     AlltoAllVParam_ = param;
-
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-
     ExecMem execMem;
     execMem.count = 0;
     execMem.inputPtr = param.inputPtr;
@@ -57,9 +54,6 @@ HcclResult CollAlltoAllExecutor::Orchestrate(OpParam& param, AlgResourceResponse
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollRunAlltoAllVFullMesh][Orchestrate]errNo[0x%016llx]excutor run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-
     HCCL_INFO("tag[%s], AlltoAll executor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
 
@@ -115,7 +109,7 @@ HcclResult CollAlltoAllExecutor::CalcResRequest(const OpParam& param, AlgResourc
     u64 scratchMemSize = 0U;
     u32 streamNum = 0U;
     u32 notifyNum = 0U;
-    bool needAivBuffer = false;
+    u64 aivBufferRequest = 0U;
     std::vector<LevelNSubCommTransport> opTransport {
         std::vector<LevelNSubCommTransport>(static_cast<u32>(COMM_LEVEL_RESERVED))
     };
@@ -123,13 +117,13 @@ HcclResult CollAlltoAllExecutor::CalcResRequest(const OpParam& param, AlgResourc
     CHK_RET(CalcScratchMemSize(scratchMemSize));
     CHK_RET(CalcStreamNum(streamNum));
     CHK_RET(CalcNotifyNum(streamNum, notifyNum));
-    CHK_RET(GetIfNeedAivBuffer(needAivBuffer));
+    CHK_RET(CalcAivBufferRequest(aivBufferRequest));
     CHK_RET(CalcCommInfo(opTransport));
 
-    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, needAivBuffer, opTransport, resourceRequest));
-    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], needAivBuffer[%u]",
+    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, aivBufferRequest, opTransport, resourceRequest));
+    HCCL_INFO("streamNum[%u], notifyNum[%u], sctrachMemSize[%llu], aivBufferRequest[%llu]",
         resourceRequest.streamNum, resourceRequest.notifyNum, resourceRequest.scratchMemSize,
-        resourceRequest.needAivBuffer);
+        resourceRequest.aivBufferRequest);
     // 打印建链诉求
     for (u32 levelIndex = 0; levelIndex < COMM_LEVEL_RESERVED; levelIndex++) {
         LevelNSubCommTransport &levelTransport = resourceRequest.opTransport[levelIndex];
@@ -150,6 +144,7 @@ HcclResult CollAlltoAllExecutor::CalcResRequest(const OpParam& param, AlgResourc
         }
     }
     CHK_RET(CheckNeedCreateVirtualLinks(resourceRequest));
+    HCCL_DEBUG("[%s] process success", __func__);
     return HCCL_SUCCESS;
 }
 
@@ -271,6 +266,7 @@ void CollAlltoAllExecutor::CalcIntraMeshAggregationRecvInfoInMeshAggregation(u32
             break;
         }
     }
+    HCCL_DEBUG("[%s] process success", __func__);
 }
 
 void CollAlltoAllExecutor::CalcIntraMeshAggregationRecvInfo(const AlltoAllUserRankInfo &userRankInfo,
@@ -421,14 +417,6 @@ bool CollAlltoAllExecutor::HasMassTasks(std::vector<SendRecvInfo> &allMeshAggreg
 HcclResult CollAlltoAllExecutor::SetVirtualDispatcher(const HcclDispatcher vDispatcher)
 {
     vDispatcher_ = vDispatcher;
-    return HCCL_SUCCESS;
-}
-
-HcclResult CollAlltoAllExecutor::SetParallelTaskLoader(ParallelTaskLoader* parallelTaskLoader)
-{
-#ifndef CCL_KERNEL_AICPU
-    parallelTaskLoader_ = parallelTaskLoader;
-#endif
     return HCCL_SUCCESS;
 }
 

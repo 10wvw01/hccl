@@ -59,6 +59,8 @@ public:
     HcclResult GetInterAlgTemplateOpInstance(const AHCOpType opType, std::unique_ptr<AlgTemplateBase> &tempAlg,
         const HcclDispatcher &dispatcher, const u64 reduceAttr, bool extendFlag,
         AHCExtendPreparePara extendPara, AHCLevel ahcLevel = AHCLevel::AHC_LEVEL_0);
+    void GetIntraCommGroup(u32 rank, std::vector<u32> &intraCommGroup);
+    void GetInterCommGroupList(u32 rank, std::vector<std::vector<u32>> &interCommGroupList);        
 protected:
     AHCOpType opType_;  // 当前处理的算子类型
     u32 minSubGroupIdx_; // 第一层分组最小的分组下标
@@ -78,8 +80,7 @@ private:
     HcclResult GetAlgTemplateOpInstance(const AHCOpType opType, std::unique_ptr<AlgTemplateBase> &tempAlg,
         const HcclDispatcher &dispatcher, const u64 reduceAttr, bool extendFlag,
         AHCExtendPreparePara extendPara, AHCLevel ahcLevel, ConcType concType);
-    HcclResult GetIntraCommGroup(u32 rank, std::vector<u32> &intraCommGroup);
-    HcclResult GetInterCommGroupIdxList(u32 rank, std::vector<u32> &interCommGroupIdxList);
+    void GetInterCommGroupIdxList(u32 rank, std::vector<u32> &interCommGroupIdxList);        
 };
  
 class CommBrokeAlignInfo : public CommAHCBaseInfo {

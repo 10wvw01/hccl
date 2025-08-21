@@ -52,19 +52,7 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
     __gm__ T *outputGM = (__gm__ T *)output;
     __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[targetRank]);
-
-    // 使用32个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * (isAlltoAllVC ? AIV_ALL_TO_ALL_VC_910B : AIV_ALL_TO_ALL_V_910B);
-    
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + baseFlagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[targetRank] + baseFlagOffset;
-
-    // 共使用4组flag
-    uint32_t pipelineCtrlFlagOffset = 0;
-    uint32_t finalAckFlagOffset = rankSize_ * FLAG_SIZE;
-    uint32_t countResetFlagOffset = 2 * rankSize_ * FLAG_SIZE;
-    uint32_t bufferLoopFlagOffset = 3 * rankSize_ * FLAG_SIZE;
-    uint32_t initAckFlagOffset = 4 * rankSize_ * FLAG_SIZE;
+    tag = tag << TAG_MOVE_LEFT_BITS;
 
     if (block_idx < rankSize_) { // 前rankSize个aiv负责userin->cclin
         uint64_t localSendOffset = 0;
@@ -79,19 +67,23 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
                                 : extraArgs.sendCounts[targetRank];
         uint64_t localRecvOffset = avgBufferCount * block_idx; // userin搬到ccl的偏移
 
-        __gm__ int32_t* ctrlFlagsGM = (__gm__ int32_t *)(flagAddrSelf + pipelineCtrlFlagOffset + block_idx * FLAG_SIZE);
-
         GlobalTensor<T> inputGT;
         inputGT.SetGlobalBuffer(inputGM + localSendOffset, localSendCount);
         // ccl只有avgBufferCount大小，可能小于localSendCount
         GlobalTensor<T> outputGT;
         outputGT.SetGlobalBuffer(cclGMSelf + localRecvOffset, avgBufferCount);
         
-        uint64_t flushFrequency = 16;
+        uint64_t flushFrequency = 8;
         uint64_t curBatchCount = 0;
         uint64_t curInOffset = 0;
         uint64_t curOutOffset = 0;
         while (localSendCount > 0) {
+            if ((curBatchCount % maxLoopCount == 0) && (curBatchCount!=0)) {
+                PipeBarrier<PIPE_ALL>();
+                // 告诉写数据的aiv读完一小块cclbuffer
+		        curOutOffset = 0;
+                Wait(tag + curBatchCount, targetRank, AivNotifyType::DataSignal);
+            }
             curBatchCount += 1;
 
             uint64_t curCount = localSendCount > maxCountPerLoop ? maxCountPerLoop : localSendCount;
@@ -102,14 +94,6 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
             LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
             // 如果curBatchCount超过了maxLoopCount，则重新从这小块ccl的起始开始放
-            if (curBatchCount > maxLoopCount && curBatchCount % maxLoopCount == 1) {
-                // 等读数据的aiv读完一小块cclbuffer
-                WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + bufferLoopFlagOffset + block_idx * FLAG_SIZE), localCheckTensor,
-                    (tag << TAG_MOVE_LEFT_BITS) + curBatchCount / maxLoopCount);
-                curOutOffset = 0;
-                PipeBarrier<PIPE_ALL>();
-            }
-
             DataCopyUB2GM(outputGT[curOutOffset], localOut, curCount);
             inOutQue.FreeTensor(localOut);
 
@@ -117,26 +101,21 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
             curInOffset += curCount;
             curOutOffset += curCount;
 
+
             if (curBatchCount % flushFrequency == 0 || curBatchCount % maxLoopCount == 0 || localSendCount == 0) {
                 set_flag(PIPE_MTE3, PIPE_S, EVENT_ID0);
                 wait_flag(PIPE_MTE3, PIPE_S, EVENT_ID0);
 
-                SetSignalValue(ctrlFlagsGM, localSetTensor, curBatchCount);
+                CountRecord(tag, curBatchCount, block_idx);
             }
         }
+        PipeBarrier<PIPE_ALL>();
+        Wait(tag, targetRank, AivNotifyType::Done);
+        PipeBarrier<PIPE_ALL>();
 
         // 检查其他卡对本卡该aiv的依赖，清空计数
-        PipeBarrier<PIPE_ALL>();
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + countResetFlagOffset + block_idx * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue(ctrlFlagsGM, localSetTensor, 0);
 
     } else { // 后rankSize个aiv负责cclother->usrout
-        // 读对端数据前确认对端已进入本算子
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + initAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + initAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-
         uint64_t remoteSendOffset = avgBufferCount * rank_; // ccl读到usrout的偏移
 
         // 本端output接收远端ccl的数据偏移，远端卡号为block_idx，可能为本rank
@@ -154,8 +133,6 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
                                 : extraArgs.recvCounts[targetRank];
         uint64_t remoteSendSize = remoteSendCount * sizeof(T);
 
-        __gm__ int32_t *ctrlFlagsGMX = (__gm__ int32_t *)(flagAddrOther + pipelineCtrlFlagOffset + rank_ * FLAG_SIZE);
-
         uint64_t processedBatchCount = 0;
 
         while (true) {
@@ -163,11 +140,12 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
                 break;
             }
 
-            LocalTensor<int32_t> localFlagX = flagInQue.AllocTensor<int32_t>();
+            int32_t localFlag = CountWait(targetRank, rank_);
+            if (localFlag < tag) {
+                continue;
+            }
 
-            uint64_t preparedBatchCount = GetSignalValue(ctrlFlagsGMX, localFlagX);
-
-            flagInQue.FreeTensor(localFlagX);
+            uint64_t preparedBatchCount = localFlag - tag;
 
             // 还没有数据准备好，或者没有新的数据准备好，继续等
             if (preparedBatchCount == 0 || processedBatchCount >= preparedBatchCount) {
@@ -193,24 +171,14 @@ __aicore__ inline void AivAll2AllV910B::ProcessAllToAllV910B(GM_ADDR input, GM_A
             if (processedBatchCount % maxLoopCount == 0) {
                 PipeBarrier<PIPE_ALL>();
                 // 告诉写数据的aiv读完一小块cclbuffer
-                SetSignalValue((__gm__ int32_t *)(flagAddrOther + bufferLoopFlagOffset + rank_ * FLAG_SIZE), localSetTensor,
-                    (tag << TAG_MOVE_LEFT_BITS) + processedBatchCount / maxLoopCount);
+                Record(tag + processedBatchCount, targetRank, AivNotifyType::DataSignal);
             }
         }
 
         // 通知对端，自己已经把对端的那片数据拉回来了
         PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrOther + finalAckFlagOffset + rank_ * FLAG_SIZE), localSetTensor, tag);
+        Record(tag, targetRank, AivNotifyType::Done);
         PipeBarrier<PIPE_ALL>();
-        
-        // 确认对端已经将对应的数据拉走
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localCheckTensor, tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + finalAckFlagOffset + targetRank * FLAG_SIZE), localSetTensor, 0);
-        PipeBarrier<PIPE_ALL>();
-
-        // 用于清零count flag
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + countResetFlagOffset + targetRank * FLAG_SIZE), localSetTensor, tag);
     }
 }
 

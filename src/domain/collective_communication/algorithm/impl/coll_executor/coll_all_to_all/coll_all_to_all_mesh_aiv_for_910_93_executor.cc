@@ -17,15 +17,7 @@ CollAlltoAllMeshAivFor91093Executor::CollAlltoAllMeshAivFor91093Executor(const H
     : CollAlltoAllExecutor(dispatcher, topoMatcher)
 {
     desc_.isAivMode = true;
-}
-
-HcclResult CollAlltoAllMeshAivFor91093Executor::GetIfNeedAivBuffer(bool &needAivBuffer)
-{
-    // AIV通信需要AIV buffer
-    needAivBuffer = true;
-    HCCL_INFO("[CollAlltoAllMeshAivFor91093Executor][GetIfNeedAivBuffer]tag[%s] needAivBuffer is [%u].",
-        tag_.c_str(), needAivBuffer);
-    return HCCL_SUCCESS;
+    desc_.isAivCrossNode = true;
 }
 
 HcclResult CollAlltoAllMeshAivFor91093Executor::CalcCommInfo(std::vector<LevelNSubCommTransport>& opTransport)
@@ -71,12 +63,25 @@ HcclResult CollAlltoAllMeshAivFor91093Executor::CalcLevel0CommInfo(TransportMemT
     return HCCL_SUCCESS;
 }
 
-u32 CollAlltoAllMeshAivFor91093Executor::CalBlockDim(u32 rankSize, u64 dataSize, HcclCMDType cmdType)
+HcclResult CollAlltoAllMeshAivFor91093Executor::CalBlockDim(u32& blockDim, u32 rankSize, u64 dataSize, HcclCMDType cmdType)
 {
     // A3超节点内多机场景，block_num需要为偶数
-    u32 blockDim = (rankSize < MAX_BLOCK_DIM ? rankSize + rankSize % BLOCK_DIM_FACTOR_TWO : MAX_BLOCK_DIM);
-    HCCL_INFO("[CollAlltoAllMeshAivFor91093Executor][CalBlockDim] blockDim is set to [%u]", blockDim);
-    return blockDim;
+    blockDim = (rankSize < MAX_BLOCK_DIM ? rankSize + rankSize % BLOCK_DIM_FACTOR_TWO : MAX_BLOCK_DIM);
+    u32 bestBlockDim = blockDim;
+
+    bool isOpbase = (GetWorkflowMode() == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE);
+    if (isOpbase) {
+        CHK_PRT_RET(blockDim_ < BLOCK_DIM_FACTOR_TWO,
+            HCCL_ERROR("[CollAlltoAllMeshAivFor91093Executor][CalBlockDim]aivCore[%u] is invalid, at lest need 2.",
+            blockDim_), HCCL_E_PARA);
+        if (blockDim_ < blockDim) {
+            blockDim = blockDim_ / BLOCK_DIM_FACTOR_TWO * BLOCK_DIM_FACTOR_TWO;
+        }
+    }
+
+    HCCL_INFO("[CollAlltoAllMeshAivFor91093Executor][CalBlockDim] blockDim is set to [%u], limit[%u], best[%u]",
+        blockDim, blockDim_, bestBlockDim);
+    return HCCL_SUCCESS;
 }
 
 HcclResult CollAlltoAllMeshAivFor91093Executor::PrepareCommInfoToDevice(AlgResourceResponse& algResource)
@@ -129,20 +134,20 @@ HcclResult CollAlltoAllMeshAivFor91093Executor::KernelRun(const OpParam &param, 
     void* buffersOut[MAX_RANK_SIZE] = {};
     buffersIn[0] = execMem.inputMem.ptr();
     buffersOut[0] = execMem.outputMem.ptr();
+    constexpr u32 BUFFER_IDX_ONE = 1;
+    buffersOut[BUFFER_IDX_ONE] = algResResp_->aivCommInfoMem.ptr(); // 通信域信息
 
     AivTopoArgs topoArgs { localRank, localRankSize, MAX_RANK_SIZE, 0, topoAttr_.serverNum, topoAttr_.deviceType };
-    blockDim_ = CalBlockDim(localRankSize);
+    u32 blockDim;
+    CHK_RET(CalBlockDim(blockDim, localRankSize));
+    blockDim_ = blockDim;
+    topoArgs.identify = algoAttr_.identifier;
     AivResourceArgs resourceArgs {
         param.tag, param.stream.ptr(), buffersIn, buffersOut, execMem.inputMem.size(), blockDim_, param.aivTag
     };
     AivAlgArgs algArgs {};
     AivProfilingInfo aivProfilingInfo;
     aivProfilingInfo.counter = opCounter_;
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){
-        HCCL_PROFILER_ADD_TAG_AIV(param.tag, algoAttr_.identifier, workflowMode_);
-        HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    }
-
     if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
         AivOpArgs opArgs {
             HcclCMDType::HCCL_CMD_ALLTOALL, execMem.inputPtr, execMem.outputPtr, param.All2AllDataDes.sendCount,
@@ -180,12 +185,6 @@ HcclResult CollAlltoAllMeshAivFor91093Executor::KernelRun(const OpParam &param, 
         };
         ret = ExecuteKernelLaunch(opArgs, topoArgs, resourceArgs, algArgs, extraArgs, aivProfilingInfo);
     }
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE){ 
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-    }
-
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollAlltoAllMeshAivFor91093Executor][KernelRun]alltoall aiv failed, return[%d]", ret), ret);
 

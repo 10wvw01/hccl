@@ -409,10 +409,10 @@ HcclResult TaskProfiling::SaveToLog(const TaskParaHost &paraHost)
 void TaskProfiling::DumpReportDataInfo(uint32_t type, const MsprofHcclInfo &profInfo)
 {
     HCCL_DEBUG(
-        "[DumpReportDataInfo] type[%u], itemId[%llu], cclTag[%llu], groupName[%llu], localRank[%u], remoteRank[%u], \
-        rankSize[%u], workFlowMode[%u], planeID[%u], ctxId[%u], notifyID[%llu], stage[%u], role[%u], \
-        durationEstimated[%f], srcAddr[%llu], dstAddr[%llu], dataSize[%llu Byte], opType[%u], dataType[%u], linkType[%u], \
-        transportType[%u], rdmaType[%u]",
+        "[DumpReportDataInfo] type[%u], itemId[%llu], cclTag[%llu], groupName[%llu], localRank[%u], remoteRank[%u], " \
+        "rankSize[%u], workFlowMode[%u], planeID[%u], ctxId[%u], notifyID[%llu], stage[%u], role[%u], " \
+        "durationEstimated[%f], srcAddr[%llu], dstAddr[%llu], dataSize[%llu Byte], opType[%u], dataType[%u], linkType[%u], " \
+        "transportType[%u], rdmaType[%u]",
         type,
         profInfo.itemId,
         profInfo.cclTag,

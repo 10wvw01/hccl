@@ -37,6 +37,18 @@ typedef struct {
     HcclDataType dataType;
 } HcclOneSideOpDesc;
 
+typedef enum {
+    HCCL_TOPO_FULLMESH = 0, // fullmesh连接
+    HCCL_TOPO_NUM,
+} HcclTopoType;
+
+typedef struct {
+    HcclTopoType topoType;
+    u64 rsvd0;
+    u64 rsvd1;
+    u64 rsvd2;
+} HcclPrepareConfig;
+
 /**
  * @brief comm粒度注册内存
  * 
@@ -125,6 +137,46 @@ extern HcclResult HcclBatchGet(HcclComm comm, u32 remoteRank, HcclOneSideOpDesc*
  * @return HcclResult
  */
 extern HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, u64 commSize, u64 arraySize);
+
+/**
+ * @brief 进程粒度注册内存
+ *
+ * @param mem [input]要注册的内存信息
+ * @param memHandle [output]注册成功后返回的内存句柄
+ */
+extern HcclResult HcclRegisterGlobalMem(const HcclMem* mem, void** memHandle);
+
+/**
+ * @brief 进程粒度注销内存
+ *
+ * @param memHandle [input]注册过的内存句柄
+ */
+extern HcclResult HcclDeregisterGlobalMem(void* memHandle);
+
+/**
+ * @brief 将注册过的内存绑定到通信域
+ *
+ * @param comm [input]通信域句柄
+ * @param memHandle [output]要绑定的内存句柄
+ */
+extern HcclResult HcclCommBindMem(HcclComm comm, void* memHandle);
+
+/**
+ * @brief 将绑定过的内存从通信域解绑
+ *
+ * @param comm [input]通信域句柄
+ * @param memHandle [output]要解绑的内存句柄
+ */
+extern HcclResult HcclCommUnbindMem(HcclComm comm, void* memHandle);
+
+/**
+ * @brief 使用固定的连接方式为通信域预先分配需要协商的资源，阻塞接口
+ *
+ * @param comm [input]通信域句柄
+ * @param prepareConfig [input]预分配资源的配置参数
+ * @param timeout 连接超时时间，单位秒
+ */
+extern HcclResult HcclCommPrepare(HcclComm comm, const HcclPrepareConfig* prepareConfig, const int timeout);
 
 #ifdef __cplusplus
 }

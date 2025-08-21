@@ -154,8 +154,6 @@ using ErrCqeInfo = struct TagErrCqeInfo {
 
 class Heartbeat {
 public:
-    HcclResult Init(u32 userRank, std::vector<RankInfo> &rankInfoList, DevType devType, const bool useSuperPodMode,
-        const bool isNeedNic, const u32 port);
     static Heartbeat& GetInstance(s32 deviceLogicID);
     HcclResult RegisterToHeartBeat(u32 userRank, DevType devType, std::vector<RankInfo> &rankInfoList, const u32 port,
         const bool isNeedNic, const std::string &commIdentifier, bool useSuperPodMode, bool isUsedRdmaLevel0,
@@ -182,9 +180,9 @@ public:
 private:
     Heartbeat() = default;
     ~Heartbeat();
-
+    HcclResult Init(const RankInfo& locRank, const bool useSuperPodMode, const bool isNeedNic, const u32 port);
     HcclResult DeInit();
-    HcclResult RegisterRanks(const RankInfo& locRank, std::vector<RankInfo>& rankInfos, const u32 port,
+    HcclResult RegisterRanks(DevType devType, const RankInfo& locRank, std::vector<RankInfo>& rankInfos, const u32 port,
         const bool isNeedNic, const std::string& group = HCCL_WORLD_GROUP, bool isUsedRdmaLevel0 = false,
         bool isUsedRdma = false);
     std::string GetConnTag(HcclSocketRole role, UIDType &rem);
@@ -284,7 +282,6 @@ private:
     std::map<HcclIpAddress, HcclNetDevCtx> netDevCtxMap_;
     std::map<HcclIpAddress, std::shared_ptr<HcclSocket>> listenSocketMap_;
     s32 stuckDetectTime_;
-    std::vector<RankInfo> rankInfoList_;
 };
 } // namespace hccl
 

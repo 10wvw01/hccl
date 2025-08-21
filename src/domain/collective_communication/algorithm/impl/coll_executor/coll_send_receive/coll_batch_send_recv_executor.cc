@@ -41,13 +41,13 @@ HcclResult CollBatchSendRecvExecutor::CalcIncreLinkRequest(const OpParam& param,
     u64 scratchMemSize = 0U;
     u32 streamNum = 0U;
     u32 notifyNum = 0U;
-    bool needAivBuffer = false;
+    u64 aivBufferRequest = 0U;
  
     std::vector<LevelNSubCommTransport> opTransport {
         std::vector<LevelNSubCommTransport>(static_cast<u32>(COMM_LEVEL_RESERVED))
     };
     CHK_RET(CalcCommInfo(opTransport));
-    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, needAivBuffer, opTransport, resourceRequest));
+    CHK_RET(BuildResourceRequest(scratchMemSize, streamNum, notifyNum, aivBufferRequest, opTransport, resourceRequest));
     return HCCL_SUCCESS;
 }
 
@@ -140,21 +140,13 @@ HcclResult CollBatchSendRecvExecutor::Orchestrate(OpParam& param, AlgResourceRes
 
     algResResp_ = &algResource;
     CHK_RET(CheckCommSize(COMM_COMBINE_ORDER, COMM_SIZE_TWO));
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    CHK_RET(AddSubStreamToProfiling());
-
     CHK_RET(GetPairWiseList(param.BatchSendRecvDataDes.sendRecvItemsPtr, param.BatchSendRecvDataDes.itemNum));
     CHK_RET(ProcessSelfSendRecvTasks(param.stream));
-
     if (topoAttr_.userRankSize == 1) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
         HCCL_INFO("tag[%s] BatchSendRecv Excutor orchestrate success, take time [%lld]us.",
             param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
         return HCCL_SUCCESS;
     }
-    
     CHK_RET(CalcSendSlices(algResource));
     CHK_RET(CalcRecvSlices(algResource));
     if(aicpuUnfoldMode_) {
@@ -162,9 +154,6 @@ HcclResult CollBatchSendRecvExecutor::Orchestrate(OpParam& param, AlgResourceRes
     } else {
         CHK_RET(RunLoopInHostUnfoldMode(param));
     }
-
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-    HCCL_PROFILER_DEL_TAG(param.tag);
     HCCL_INFO("tag[%s] BatchSendRecv Excutor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;

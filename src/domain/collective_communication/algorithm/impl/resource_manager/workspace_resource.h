@@ -16,6 +16,7 @@
 #include "stream_pub.h"
 #include "ccl_buffer_manager.h"
 #include "mem_device_pub.h"
+#include "common.h"
 
 namespace hccl {
 class WorkspaceResourceImpl;

@@ -51,13 +51,10 @@ __aicore__ inline void AivAllReduce91093::ProcessSmall(GM_ADDR input, GM_ADDR ou
     uint64_t count = CalActualCount(blockIdxInGroup, sliceCount, avgLengthPerSlice, tailLength);
     uint64_t blockOffset = blockIdxInGroup * avgLengthPerSlice;
     uint32_t dstRank = GetBlockIdx() / blockNumPerGroup;
-
-    // 用4个flag
-    uint32_t baseFlagOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_91093_SMALLDATA;
-    uint32_t flagOffsetOut = ((tag % 2 == 0) ? FLAG_ONE_OFFSET : FLAG_THREE_OFFSET) * blockNumPerGroup + baseFlagOffset;
-    uint32_t flagOffsetIn = ((tag % 2 == 0) ? FLAG_TWO_OFFSET : FLAG_FOUR_OFFSET) * blockNumPerGroup + baseFlagOffset;
+    bool ifPingpong = (tag % 2 == 0);
     uint32_t dataOffset = (tag % 2 == 0) ? AIV_INIT_OFFSET : AIV_PING_PONG_SIZE;
 
+    // 用4个flag
     if (dstRank == rank_) {
         __gm__ T *inputGM = (__gm__ T *)input;
         __gm__ T *cclGMSelf = (__gm__ T *)(GM_IN[rank_] + dataOffset);
@@ -79,7 +76,7 @@ __aicore__ inline void AivAllReduce91093::ProcessSmall(GM_ADDR input, GM_ADDR ou
         PipeBarrier<PIPE_MTE3>();
 
         // 卡间同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut + blockIdxInGroup * FLAG_SIZE), localSetTensor, tag);
+        Record1vN(tag, CommPattern::interRank, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
 
         DataCopyUB2GM(outputGT, localOut, count);
         inOutQue.FreeTensor(localOut);
@@ -87,7 +84,7 @@ __aicore__ inline void AivAllReduce91093::ProcessSmall(GM_ADDR input, GM_ADDR ou
         PipeBarrier<PIPE_MTE3>();
         
         // 卡内同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn + blockIdxInGroup * FLAG_SIZE), localSetTensor, tag);
+        Record1vN(tag, CommPattern::intraRank, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
     } else {
         __gm__ T *cclGMOther = (__gm__ T *)(GM_IN[dstRank] + dataOffset);
         __gm__ T *outputGM = (__gm__ T *)output;
@@ -98,7 +95,7 @@ __aicore__ inline void AivAllReduce91093::ProcessSmall(GM_ADDR input, GM_ADDR ou
         outputGT.SetGlobalBuffer(outputGM + blockOffset, count);
 
         // 卡间同步
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[dstRank] + flagOffsetOut + blockIdxInGroup * FLAG_SIZE), localCheckTensor, tag);
+        WaitNv1(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
         PipeBarrier<PIPE_ALL>();
 
         LocalTensor<T> localIn = inOutQue.AllocTensor<T>();
@@ -107,7 +104,7 @@ __aicore__ inline void AivAllReduce91093::ProcessSmall(GM_ADDR input, GM_ADDR ou
         LocalTensor<T> localOut = inOutQue.DeQue<T>();
 
         // 卡内同步
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn + blockIdxInGroup * FLAG_SIZE), localCheckTensor, tag);
+        WaitNv1(tag, rank_, AivNotifyType::DataSignal, blockIdxInGroup, ifPingpong);
         PipeBarrier<PIPE_ALL>();
 
         SetAtomicOp<T>(reduceOp_);
@@ -133,24 +130,19 @@ __aicore__ inline void AivAllReduce91093::ProcessBig(GM_ADDR input, GM_ADDR outp
 
     uint64_t count = 0;
     // 使用19个flag
-    uint32_t flagOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_91093_BIGDATA_GRAPH;
 
-    GM_ADDR flagAddrSelf = GM_OUT[rank_] + flagOffset;
-    GM_ADDR flagAddrOther = GM_OUT[dstRank] + flagOffset;
-
-    uint32_t flagSetOffset = rank_ * blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE;
-    uint32_t flagCheckOffset = GetBlockIdx() * FLAG_SIZE; // dstRank * blockNumPerGroup * FLAG_SIZE
+    
 
     __gm__ T *outputGm = (__gm__ T *)output;
     __gm__ T *cclGmSelf = (__gm__ T *)(GM_IN[rank_]);
     __gm__ T *cclGmOther = (__gm__ T *)(GM_IN[dstRank]);
 
     // 本卡已进入算子，通知其他卡可以搬运，使用第1个flag
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + 2 * blockNumPerGroup * FLAG_SIZE + flagSetOffset), localSetTensor, tag);
+
+    Record(tag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
 
     // 确认对端已经将对应的数据拉走
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + 2 * blockNumPerGroup * FLAG_SIZE + flagCheckOffset), localCheckTensor, tag);
-
+    Wait(tag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
     PipeBarrier<PIPE_ALL>();
     
     // ReduceScatter
@@ -165,27 +157,25 @@ __aicore__ inline void AivAllReduce91093::ProcessBig(GM_ADDR input, GM_ADDR outp
         PipeBarrier<PIPE_MTE3>();
 
         // 本aiv reduce完成，使用第2个flag
-        AddSignalValue((__gm__ int32_t*)(flagAddrSelf + blockIdxInGroup * FLAG_SIZE), localSetTensor, tag);
+        RecordNv1(tag, rank_, AivNotifyType::ACK, blockIdxInGroup);
     }
     
     // 全卡同步
     PipeBarrier<PIPE_ALL>();
     if (dstRank == rank_) {
         // check 本端aiv 所有reduce结果是否完成
-        WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + blockIdxInGroup * FLAG_SIZE), localCheckTensor, (rankSize_ - 1) * tag);
-        PipeBarrier<PIPE_ALL>();
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + blockIdxInGroup * FLAG_SIZE), localSetTensor, 0);
+        Wait1vN((rankSize_-1) * tag, CommPattern::intraRank, true, AivNotifyType::ACK, blockIdxInGroup);
 
         SyncFunc<HardEvent::MTE3_S>();
 
         // 告诉别人自己已经加完所有卡了，使用第3个flag
-        SetSignalValue((__gm__ int32_t *)(flagAddrSelf + blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE), localSetTensor, tag);
+        Record1vN(tag, CommPattern::interRank, AivNotifyType::ACK, blockIdxInGroup);
 
         SyncFunc<HardEvent::MTE3_MTE2>();
-    }
-
+    } else {
     // 每个aiv读相应对端的flag
-    WaitSignalValue((__gm__ int32_t *)(flagAddrOther + blockNumPerGroup * FLAG_SIZE + blockIdxInGroup * FLAG_SIZE), localCheckTensor, tag);
+        WaitNv1(tag, dstRank, AivNotifyType::ACK, blockIdxInGroup);
+    }
     PipeBarrier<PIPE_ALL>();
 
     // AllGather
@@ -196,9 +186,9 @@ __aicore__ inline void AivAllReduce91093::ProcessBig(GM_ADDR input, GM_ADDR outp
 
     PipeBarrier<PIPE_ALL>();
     // 通知对端，自己已经把对端的那片数据拉回来了
-    SetSignalValue((__gm__ int32_t *)(flagAddrOther + 2 * blockNumPerGroup * FLAG_SIZE + blockdim_ * FLAG_SIZE + flagSetOffset), localSetTensor, tag);
+    Record(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
     // 确认对端已经将对应的数据拉走
-    WaitSignalValue((__gm__ int32_t *)(flagAddrSelf + 2 * blockNumPerGroup * FLAG_SIZE + blockdim_ * FLAG_SIZE + flagCheckOffset), localCheckTensor, tag);
+    Wait(tag, dstRank, AivNotifyType::DataSignal, blockIdxInGroup);
     return;
 }
 
@@ -231,3 +221,4 @@ __aicore__ inline void sk_all_reduce_91093(SUPERKERNEL_ARGS_DEF)
     #else
     #endif
 }
+

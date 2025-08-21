@@ -131,7 +131,7 @@ HcclResult AllGatherSlimRing::RunAsync(const u32 rank, const u32 rankSize, const
 
     if (barrierSwitchOn_) {
         // 执行barrier，保证数据收发完成
-        CHK_RET(ExecuteBarrier(linkLeft_, linkRight_, notifyIdx_));
+        CHK_RET(ExecuteBarrier(linkRight_, linkLeft_, notifyIdx_));
         notifyIdx_++;
     }
 

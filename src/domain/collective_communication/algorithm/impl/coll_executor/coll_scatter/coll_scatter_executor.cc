@@ -246,13 +246,6 @@ HcclResult CollScatterExecutor::Orchestrate(OpParam& param, AlgResourceResponse&
     HcclUs startut = TIME_NOW();
     tag_ = param.tag;
     algResResp_ = &algRes;
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    HCCL_PROFILER_ADD_OPDATA_OP(param.tag, param.DataDes.count, param.inputPtr, param.outputPtr, param.DataDes.dataType, \
-        param.root, algoAttr_.identifier, param.reduceType);
-    HCCL_PROFILER_ADD_GROUPRANK(algoAttr_.identifier, topoAttr_.userRankSize, topoAttr_.userRank);
-    CHK_RET(AddSubStreamToProfiling());
-
     HcclResult ret = HCCL_SUCCESS;
     // 图模式和单卡场景下不需要Loop
     ExecMem execMem;
@@ -270,15 +263,8 @@ HcclResult CollScatterExecutor::Orchestrate(OpParam& param, AlgResourceResponse&
         ret = RunLoop(param, algRes);
     }
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[CollScatterExecutor][Orchestrate]errNo[0x%016llx]all reudce excutor kernel run failed",
+        HCCL_ERROR("[CollScatterExecutor][Orchestrate]errNo[0x%016llx]all reduce excutor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-        HCCL_PROFILER_DEL_OPDATA(param.tag);
-        HCCL_PROFILER_DEL_GROUPRANK(algoAttr_.identifier);
-    }
     HCCL_INFO("tag[%s] Scatter executor orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;

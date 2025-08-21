@@ -23,8 +23,8 @@ HcclResult CollBatchWriteExecutor::CalcResRequest(const OpParam &param, AlgResou
     };
     CommParaInfo commCombinePara(COMM_COMBINE_ORDER, CommType::COMM_TAG_MESH);
     commCombinePara.meshSinglePlane = true;
-    CHK_RET(CalcCommPlaneInfo(tag_, commCombinePara, opTransport[COMM_COMBINE_ORDER], TransportMemType::CCL_INPUT,
-                              TransportMemType::AIV_OUTPUT));
+    CHK_RET(topoMatcher_->CalcCommPlaneInfo(param.tag, commCombinePara, opTransport[COMM_COMBINE_ORDER],
+                                            TransportMemType::CCL_INPUT, TransportMemType::CCL_OUTPUT));
 
     LevelNSubCommTransport &commTransportLevel0 = opTransport[COMM_COMBINE_ORDER];
     for (u32 subCommIndex = 0; subCommIndex < commTransportLevel0.size(); subCommIndex++) {
@@ -34,10 +34,10 @@ HcclResult CollBatchWriteExecutor::CalcResRequest(const OpParam &param, AlgResou
     }
     resourceRequest.opTransport = opTransport;
     resourceRequest.streamNum = param.BatchWriteDataDes.queueNum;
-    resourceRequest.needAivBuffer = true;
-    HCCL_INFO("Calc resource request for tag %s, stream number %u.", param.tag.c_str(), resourceRequest.streamNum);
+    HCCL_INFO("[Sdma-BatchWrite]Calc resource request for tag %s, stream number %u.",
+              param.tag.c_str(), resourceRequest.streamNum);
     return HCCL_SUCCESS;
 }
 
-REGISTER_EXEC("BatchWriteBySdma", BatchWritr, CollBatchWriteExecutor);
+REGISTER_EXEC(BATCH_WRITE_ALG_NAME, BatchWrite, CollBatchWriteExecutor);
 } // namespace hccl

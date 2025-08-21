@@ -32,11 +32,12 @@ public:
             return;
         }
 
-        if (block_idx == 0) {
+        if (block_idx == rank_) {
             // 本卡该片数据已经可以被跨片读取
-            SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + FLAG_SIZE), localSetTensor, tag);
-        }
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + FLAG_SIZE), localCheckTensor, tag);
+            Record1vN(tag, CommPattern::interRank);
+        } else {
+            WaitNv1(tag, block_idx);
+	}
         pipe_barrier(PIPE_ALL);
 
         // todo:1、serverNum需要赋值。 2、len是inputCount 还是inputSize还是 output相关？
@@ -48,11 +49,11 @@ public:
         }
         pipe_barrier(PIPE_ALL);
         //尾同步，每个卡搬完完后要进行标记。要确保所有卡都搬完再退出。
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_]) + FLAG_SIZE + block_idx*FLAG_SIZE, localSetTensor, tag);
-        pipe_barrier(PIPE_ALL);
-        for (int j = 0; j< rankSize_; j++) {
-            WaitSignalValue((__gm__ int32_t *)(GM_OUT[j]) + FLAG_SIZE + block_idx*FLAG_SIZE, localCheckTensor, tag);
-        }
+	if (block_idx == rank_){
+           Wait1vN(tag * (rankSize_ - 1), CommPattern::interRank);
+  } else {
+	  RecordNv1(tag, block_idx);
+	}
     }
 };
 
@@ -66,3 +67,4 @@ FORCE_INLINE_AICORE void aiv_all_gather_910b_rdma(KERNEL_ARGS_DEF)
     op.TailCounter();
 }
 #endif // AIV_ALL_GATHER_910B_RDMA_H
+

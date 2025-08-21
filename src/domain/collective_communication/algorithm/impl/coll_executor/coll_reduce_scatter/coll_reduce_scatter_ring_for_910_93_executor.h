@@ -19,6 +19,9 @@ public:
     std::unique_ptr<TopoMatcher> &topoMatcher);
     ~CollReduceScatterRingFor91093Executor() = default;
 
+protected:
+    u64 CalcTotalCount(const OpParam &param) const;
+
 private:
     void ParseParam(const OpParam& param) override;
     /* *************** 资源计算 *************** */
@@ -46,16 +49,49 @@ private:
     HcclResult KernelRun(const OpParam &param, ExecMem &execMem) override;
     HcclResult Getlevel1CommRank(SubCommInfo& level1CommInfo) override;
     HcclResult SelectTempAlg(std::unique_ptr<AlgTemplateBase> &level1TempAlg, u32 level1RankSize) override;
+    virtual bool IsEnableRdmaSdmaConcurrent() const;
+    virtual bool IsUnifiedMarch(const OpParam &param) const;
+    HcomCollOpInfo GetHcomCollOpInfo(const OpParam &param, const ExecMem &execMem) const;
+    u64 CalcSrcMemOffset(const ExecMem &execMem, const OpParam &param, u32 perDataSize) const;
     /* **************** 数据准备*************** */
-    void FillMultiRingSlice(const ExecMem &execMem, const std::vector<std::vector<Slice>> &multiStreamSlice,
-        u32 sliceNum, u32 level1RankSize, u32 level2RankSize,
-        const u32 ringIndex, std::vector<Slice> &dataSlice);
-    void CalLevel0DataSegsSlice(const ExecMem &execMem, const std::vector<std::vector<Slice>> &multiStreamSlice,
-        u32 sliceNum, u32 level1RankSize, u32 level2RankSize,
+    virtual void FillMultiRingSlice(const ExecMem &execMem, const std::vector<std::vector<Slice>> &multiStreamSlice,
+        u32 sliceNum, u32 level1RankSize, u32 level2RankSize, const u32 ringIndex, std::vector<Slice> &dataSlice);
+    virtual HcclResult CalLevel0DataSegsSlice(const ExecMem &execMem, std::vector<std::vector<Slice>> &multiStreamSlice,
+        const OpParam &param, u32 ringNum, u32 sliceNum, u32 level1RankSize, u32 level2RankSize, HcclDataType dataType,
         std::vector<std::vector<Slice>> &level0DataSegsSlice);
-    HcclResult CalLevel1DataSegsSlice(const ExecMem &execMem, CommPlane commPlaneLevel, const u32 &commIndex,
-        u32 sliceNum, u32 level1RankSize, u32 level2RankSize,
+    virtual HcclResult CalUserMemDataSegsSlice(const ExecMem &execMem,
+        const std::vector<std::vector<Slice>> &level0DataSegsSlice,
+        const std::vector<std::vector<Slice>> &multiStreamSlice, const OpParam &param, u32 ringNum, u32 sliceNum,
+        u32 level1RankSize, u32 level2RankSize, HcclDataType dataType, u32 perDataSize, HcomCollOpInfo *opInfoPtr,
+        bool disableDMAReduce, std::vector<std::vector<Slice>> &multRingsUserMemSlice);
+    virtual HcclResult CalLevel1DataSegsSlice(const ExecMem &execMem, const OpParam &param, CommPlane commPlaneLevel,
+        const u32 &commIndex, u32 sliceNum, u32 level1RankSize, u32 level2RankSize, u32 perDataSize,
         std::vector<Slice> &level1DataSegsSlice);
+    virtual HcclResult CalLevel2DataSegsSlice(const ExecMem &execMem, const OpParam &param, u32 level2RankSize,
+        u32 perDataSize, std::vector<Slice> &level2DataSegsSlice);
+
+    using Level0SlicesCalculator = void(*)(const OpParam &param, u32 sliceNum, u32 level1RankSize, u32 level1Index,
+        u32 level2Index, u32 perDataSize, std::vector<Slice> &segSlices);
+    static void PrepareLevel0Slices(const OpParam &param, u32 sliceNum, u32 level1RankSize, u32 level1Index,
+        u32 level2Index, u32 perDataSize, std::vector<Slice> &cclSegSlices);
+    static void PrepareLevel0UserSlices(const OpParam &param, u32 sliceNum, u32 level1RankSize, u32 level1Index,
+        u32 level2Index, u32 perDataSize, std::vector<Slice> &userSegSlices);
+    bool IsCceReduceAligned(const std::vector<Slice> &dataSlices) const;
+    HcclResult FillMultiRingSliceV(const ExecMem &execMem, const OpParam &param, u32 ringNum, u32 sliceNum,
+        u32 level1RankSize, u32 level2RankSize, HcclDataType dataType,
+        std::vector<std::vector<Slice>> &level0DataSegsSlice,
+        std::vector<std::vector<std::vector<Slice>>> &serverSlices, const Level0SlicesCalculator &calcLevel0Slices);
+    virtual HcclResult CalUserMemDataSegsSliceV(const ExecMem &execMem, const OpParam &param, u32 ringNum, u32 sliceNum,
+        u32 level1RankSize, u32 level2RankSize, HcclDataType dataType,
+        std::vector<std::vector<Slice>> &multRingsUserMemSlice);
+    virtual HcclResult CalLevel0DataSegsSliceV(const ExecMem &execMem,
+        std::vector<std::vector<Slice>> &multiStreamSlice, const OpParam &param, u32 ringNum, u32 sliceNum,
+        u32 level1RankSize, u32 level2RankSize, HcclDataType dataType,
+        std::vector<std::vector<Slice>> &level0DataSegsSlice);
+    virtual HcclResult CalLevel1DataSegsSliceV(const OpParam &param, CommPlane commPlaneLevel, const u32 &commIndex,
+        u32 sliceNum, u32 level1RankSize, u32 level2RankSize, u32 perDataSize, std::vector<Slice> &level1DataSegsSlice);
+    virtual HcclResult CalLevel2DataSegsSliceV(const OpParam &param, u32 level2RankSize, u32 perDataSize,
+        std::vector<Slice> &level2DataSegsSlice);
 };
 
 } // namespace hccl

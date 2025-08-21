@@ -56,7 +56,7 @@ public:
     HcclResult CalcIncreLinkRequest(const std::string& algName, const OpParam& param,
         AlgResourceRequest& resourceRequest);
     AlgType GetAlgType();
-    void SetLegacyHcclImpl(std::unique_ptr<hcclImpl> &hcclImpl);
+    void SetLegacyHcclImpl(std::unique_ptr<hcclImpl> &impl);
     HcclResult SetAlgOpContext(AlgOpContext algOpContext);
     HcclResult SetRetryEnable(bool retryEnable);
     HcclResult GetAivExecParam(std::string& algName, const OpParam& param,
@@ -67,6 +67,7 @@ public:
         const HcclCMDType &opType, OpParam &param, std::string& algName, u8 &isInplaceStatus,
         InplaceSupportRetryStatus &inPlaceSupportRetryStatus);
     HcclResult GetBlockDim(u32& blockDim);
+    HcclResult SetBlockDim(const u32& blockDim);
     HcclResult SetOpCounter(const OpCounterInfo& opCounter);
 protected:
     std::string GenerateNewTagByAlgTypeLevel1(std::string tag, std::string algTypeLevel1Tag) const;

@@ -31,7 +31,7 @@ protected:
     HcclResult AvoidSubgraphLoop(OpParam &param, AlgResourceResponse &algRes);
 
     // 工具类
-    HcclResult GetSliceNum(const u64 totalSize, const bool isSmallData, u64& sliceNum);
+    HcclResult GetSliceNum(const u64 totalSize, const bool isSmallData, u64& sliceNum, u32 unitSize=0);
     bool IsAllReduceSmallData(u64 size);
     HcclResult PrepareSliceDataWithAlignSize(u64 totalSize, u32 sliceNum,
         u64 piplineOffset, std::vector<Slice>& dataSlice, u64 alignSize);

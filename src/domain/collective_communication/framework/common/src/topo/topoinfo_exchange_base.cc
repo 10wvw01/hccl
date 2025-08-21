@@ -73,8 +73,8 @@ HcclResult TopoInfoExchangeBase::RecvClusterInfoMsg(std::shared_ptr<HcclSocket> 
     HcclResult ret = socket->Recv(reinterpret_cast<char *>(&msgLen), sizeof(msgLen));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[Recv][ClusterInfoMsg]receive msg length from fdhandle failed, ret[%d]", ret), HCCL_E_INTERNAL);
-    CHK_PRT_RET(((msgLen == 0) || (msgLen > recvBufferLimit)), HCCL_ERROR("[Recv][ClusterInfoMsg]receive msg length "\
-        "from fdhandle failed, msg length is beyond [1 ~ %u].", recvBufferLimit), HCCL_E_INTERNAL);
+    CHK_PRT_RET(((msgLen == 0) || (msgLen > recvBufferLimit)), HCCL_ERROR("[Recv][ClusterInfoMsg]receive msg "\
+        "length[%u] from fdhandle failed, msg length is beyond [1 ~ %u].", msgLen, recvBufferLimit), HCCL_E_INTERNAL);
 
     u32 recvBufferLen = msgLen + 1;
     HostMem recvMsg = HostMem::alloc(recvBufferLen);
@@ -82,7 +82,7 @@ HcclResult TopoInfoExchangeBase::RecvClusterInfoMsg(std::shared_ptr<HcclSocket> 
     char *recvMsgBuf = static_cast<char *>(recvMsg.ptr());
 
     s32 sRet = memset_s(recvMsgBuf, recvBufferLen, 0, recvBufferLen);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[Recv][ClusterInfoMsg]sockBuff memset falied"), HCCL_E_MEMORY);
+    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[Recv][ClusterInfoMsg]sockBuff memset failed"), HCCL_E_MEMORY);
     ret = socket->Recv(recvMsgBuf, msgLen);
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Recv][ClusterInfoMsg]receive from fdhandle failed ,ret[%d]",
         ret), HCCL_E_INTERNAL);
@@ -144,7 +144,7 @@ HcclResult TopoInfoExchangeBase::RecvClusterJson(std::shared_ptr<HcclSocket> soc
     char *recvMsgBuf = static_cast<char *>(recvMsg.ptr());
 
     s32 sRet = memset_s(recvMsgBuf, recvBufferLen, 0, recvBufferLen);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[Recv][ClusterInfoMsg]sockBuff memset falied"), HCCL_E_MEMORY);
+    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[Recv][ClusterInfoMsg]sockBuff memset failed"), HCCL_E_MEMORY);
     ret = socket->Recv(recvMsgBuf, msgLen);
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Recv][ClusterInfoMsg]receive from fdhandle failed ,ret[%d]",
         ret), HCCL_E_INTERNAL);

@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (c) 2024 Huawei Technologies Co., Ltd.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
@@ -78,8 +78,23 @@ HcclResult Sender::run(const std::shared_ptr<Transport> &link, const std::vector
 HcclResult Sender::run(const std::shared_ptr<Transport> &link, const std::vector<SenderMemoryInfo> &senderMems,
     u32 notifyIdx, Stream &stream) const
 {
+    CHK_SMART_PTR_NULL(link);
     bool isSpInlineReduce = link->IsSpInlineReduce();
+
+    std::vector<TxMemoryInfo> txMems;
+    for (const SenderMemoryInfo& senderMem : senderMems) {
+        txMems.emplace_back(TxMemoryInfo{UserMemType::INPUT_MEM, senderMem.dstOffset,
+            senderMem.src.ptr(), senderMem.src.size()});
+    }
+
     if (isSpInlineReduce && (INLINE_REDUCE_BITMASK & reduceAttribute_)) {
+        // link支持inline reduce 并且 reduceAttribute_ 也支持
+        // notify 下一个rank做 inline reduce
+        CHK_RET(link->Post(notifyIdx, stream));
+    } else {
+        for (TxMemoryInfo& txMem : txMems) {
+            txMem.dstMemType = UserMemType::OUTPUT_MEM;
+        }
         CHK_RET(link->Post(notifyIdx, stream));
     }
     return HCCL_SUCCESS;

@@ -23,14 +23,6 @@ HcclResult CollAllReduceExecutor::Orchestrate(OpParam& param, AlgResourceRespons
     HcclUs startut = TIME_NOW();
     tag_ = param.tag;
     algResResp_ = &algRes;
-
-    HCCL_PROFILER_ADD_TAG(param.tag, algoAttr_.identifier, workflowMode_);
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-    HCCL_PROFILER_ADD_OPDATA_OP(param.tag, param.DataDes.count, param.inputPtr, param.outputPtr, param.DataDes.dataType, \
-        param.root, algoAttr_.identifier, param.reduceType);
-    HCCL_PROFILER_ADD_GROUPRANK(algoAttr_.identifier, topoAttr_.userRankSize, topoAttr_.userRank);
-    CHK_RET(AddSubStreamToProfiling());
-
     HcclResult ret = HCCL_SUCCESS;
     // 图模式和单卡场景下不需要Loop
     if (workflowMode_ != HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
@@ -64,7 +56,7 @@ HcclResult CollAllReduceExecutor::Orchestrate(OpParam& param, AlgResourceRespons
         
         ret = KernelRunIntraServerPre(param, execMem);
         CHK_PRT_RET(ret != HCCL_SUCCESS,
-            HCCL_ERROR("[CollAllReduceExecutor][Orchestrate]errNo[0x%016llx]all reudce excutor level0 reducescatter failed",
+            HCCL_ERROR("[CollAllReduceExecutor][Orchestrate]errNo[0x%016llx]all reduce excutor level0 reducescatter failed",
                 HCCL_ERROR_CODE(ret)), ret);
 
         // 在Level1和Level2执行RunLoop
@@ -100,15 +92,8 @@ HcclResult CollAllReduceExecutor::Orchestrate(OpParam& param, AlgResourceRespons
         }
     }
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[CollAllReduceExecutor][Orchestrate]errNo[0x%016llx]all reudce excutor kernel run failed",
+        HCCL_ERROR("[CollAllReduceExecutor][Orchestrate]errNo[0x%016llx]all reduce excutor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    if (workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE && !is310P3Common_) {
-        HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-        HCCL_PROFILER_DEL_TAG(param.tag);
-        HCCL_PROFILER_DEL_OPDATA(param.tag);
-        HCCL_PROFILER_DEL_GROUPRANK(algoAttr_.identifier);
-    }
     HCCL_INFO("tag[%s], AllReduce executor orchestrate success, take time [%lld]us",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;
@@ -141,7 +126,7 @@ bool CollAllReduceExecutor::IsDataSplitForRdmaSdmaConcurrent(const u64 curSize)
     return false;
 }
 
-HcclResult CollAllReduceExecutor::GetSliceNum(const u64 totalSize, const bool isSmallData, u64& sliceNum)
+HcclResult CollAllReduceExecutor::GetSliceNum(const u64 totalSize, const bool isSmallData, u64& sliceNum, u32 unitSize)
 {
     u64 actualSize = 0;
     u32 actualRankSize = 0;
@@ -169,7 +154,9 @@ HcclResult CollAllReduceExecutor::GetSliceNum(const u64 totalSize, const bool is
     }
 
     if (topoMatcher_->GetDeterministicConfig() == DETERMINISTIC_STRICT) {
-        sliceNum = isSmallData ? 1 : std::min((totalSize - 1) / HCCL_MIN_SLICE_ALIGN + 1,
+        u64 sizePerBlock = (totalSize / unitSize  + topoAttr_.userRankSize - 1) / topoAttr_.userRankSize * unitSize;
+        sizePerBlock = AlgTemplateBase::RoundUpWithDivisor(sizePerBlock, HCCL_MIN_SLICE_ALIGN);
+        sliceNum = isSmallData ? 1 : std::min((totalSize - 1) / sizePerBlock + 1,
             static_cast<u64>(topoAttr_.userRankSize));
     } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NB) {
         if (totalSize > HCCL_MIN_SLICE_ALIGN) {
@@ -270,7 +257,7 @@ HcclResult CollAllReduceExecutor::RunLoopInner(OpParam &param, const ReduceType 
 
         bool smallData = IsSmallData(param.DataDes.count * unitSize, curSize);  // override
         u64 sliceNum = 0;
-        CHK_RET(GetSliceNum(execMem.count * unitSize, smallData, sliceNum));
+        CHK_RET(GetSliceNum(execMem.count * unitSize, smallData, sliceNum, unitSize));
         bool dataSplit = IsDataSplitForRdmaSdmaConcurrent(curSize);
         u8 deterministic = topoMatcher_->GetExternalInputHcclDeterministic();
         CopyPattern copy =  DMAReduceFlag_? CopyPattern::ZCOPY : CopyPattern::BCOPY;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -9,34 +9,30 @@
  */
 
 #include "aiv_communication_base.h"
-#include "aiv_reduce_scatter_crossnode_91093_base.h"
+#include "aiv_crossnode_91093_base.h"
 
 using namespace AscendC;
 
-class AivReduceScatterCrossNodeGraph91093 : public AivReduceScatterCrossNode91093Base {
+class AivReduceScatterCrossNodeGraph91093 : public AivCrossNode91093Base {
 public:
     __aicore__ inline AivReduceScatterCrossNodeGraph91093() {}
 
     template<typename T>
-    __aicore__ inline void Process(GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t len);
+    __aicore__ inline void Process(GM_ADDR buffOut0, GM_ADDR commInfoAddr, GM_ADDR input, GM_ADDR output, int32_t tag,
+        uint64_t len);
 };
 
 template<typename T>
-__aicore__ inline void AivReduceScatterCrossNodeGraph91093::Process(GM_ADDR buffOut0, GM_ADDR input, GM_ADDR output, int32_t tag,
-    uint64_t len)
+__aicore__ inline void AivReduceScatterCrossNodeGraph91093::Process(GM_ADDR buffOut0, GM_ADDR commInfoAddr,
+    GM_ADDR input, GM_ADDR output, int32_t tag, uint64_t len)
 {
     // 内存准备
     __gm__ T *inputGM = (__gm__ T *)input;
     __gm__ T *outputGM = (__gm__ T *)output;
 
     GlobalTensor<uint64_t> bufferArgsGT;
-    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(buffOut0 + AIV_FLAG_BUFFER_SIZE - COMM_INFO_OFFSET);
+    __gm__ uint64_t *buffersGmAddr = (__gm__ uint64_t *)(commInfoAddr);
     bufferArgsGT.SetGlobalBuffer(buffersGmAddr, FLAG_SIZE * rankSize_ / sizeof(uint64_t));
-
-    // Flag位准备，共3组flag
-    uint32_t localCopyReadyFlagOffset = 0; // 占 blockNumPerGroup 个flag
-    uint32_t initAckFlagOffset = blockNumPerGroup * FLAG_SIZE; // 占 rankSize_ * blockNumPerGroup 个flag
-    uint32_t finalAckFlagOffset = initAckFlagOffset + rankSize_ * blockNumPerGroup * FLAG_SIZE; // 占 rankSize_ * blockNumPerGroup 个flag
 
     // 准备参数，buffer地址
     GM_ADDR buffersIn[MAX_TARGET_NUM] = {};
@@ -66,35 +62,34 @@ __aicore__ inline void AivReduceScatterCrossNodeGraph91093::Process(GM_ADDR buff
     }
 
     // localcopy后的卡内核间同步，多等一（Case1/2目标核做完localcopy后告知本卡其他核）
-    SingleRecordBatchWaitCoreLevel(localCopyReadyFlagOffset, tag, isLocalCopyCores);
+    SingleRecordBatchWaitCoreLevel(tag, isLocalCopyCores);
 
     PipeBarrier<PIPE_ALL>();
 
     // 首次卡间同步
-    BatchRecordWait(buffersOut, initAckFlagOffset, tag);
+    BatchRecordWait(tag, buffersOut);
 
     PipeBarrier<PIPE_ALL>();
 
     // 读对端userin到usrout
     for (uint32_t i = 0; i < numTargets && targetRanks[i] != rank_; i++) {
         __gm__ T *inputGMOther = (__gm__ T *)(buffersIn[i]);
-        CpGM2GMInlineReduce(outputGM + blockOffset, inputGMOther + rank_ * len + blockOffset, countPerCore, reduceOp_);
+        CpGM2GM(outputGM + blockOffset, inputGMOther + rank_ * len + blockOffset, countPerCore, true, reduceOp_);
     }
 
     PipeBarrier<PIPE_ALL>();
 
     // 结尾卡间同步
-    BatchRecordWait(buffersOut, finalAckFlagOffset, tag);
+    BatchRecordWait(tag, buffersOut, AivNotifyType::DataSignal);
 }
 
 template<typename T>
 __aicore__ inline void aiv_reduce_scatter_crossnode_91093_graph(KERNEL_ARGS_DEF)
 {
     AivReduceScatterCrossNodeGraph91093 op;
-    uint32_t baseFlagOffset = AIV_REDUCE_SCATTER_CROSSNODE_91093_GRAPH * MAX_RANK_SIZE_A3 * FLAG_SIZE;
-    op.Init<T>(buffOut0, rank, rankSize, baseFlagOffset, reduceOp, len);
+    op.Init<T>(buffOut0, rank, rankSize, len, reduceOp, true);
     op.InitOpCounter(headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter);
     op.HeadCounter();
-    op.Process<T>(buffOut0, input, output, tag, len);
+    op.Process<T>(buffOut0, buffOut1, input, output, tag, len);
     op.TailCounter();
 }

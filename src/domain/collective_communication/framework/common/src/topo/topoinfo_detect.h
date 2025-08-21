@@ -35,7 +35,7 @@ public:
     HcclResult SetupServer(HcclRootHandle &rootInfo);
     HcclResult GroupLeaderAccept(HcclRankHandle &grpLeaderInfo, std::vector<HcclIpAddress> whitelist,
         std::shared_ptr<HcclSocket> grpLeaderToRoot);
-    HcclResult GroupLeaderListen(u32 myrank, HcclRankHandle &rankHandle, std::vector<HcclIpAddress> &whitelist);
+    HcclResult GroupLeaderListen(HcclRankHandle &rankHandle, std::vector<HcclIpAddress> &whitelist);
     HcclResult SetupServerByMasterInfo(const HcclIpAddress &masterIP, u32 masterPort, const HcclRootHandle &rootInfo);
     HcclResult Teardown();
     HcclResult WaitComplete(const HcclRootHandle &rootInfo);

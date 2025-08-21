@@ -136,7 +136,9 @@ HcclResult AllGatherGraphPipeline::RunAsync()
     u32 prevInterRankId = (interRankId_ + interRankSize_ - 1) % interRankSize_;
     u32 nextInterRankId = (interRankId_ + 1) % interRankSize_;
     LINK prevInterLink = interLinks_[prevInterRankId];
+    CHK_SMART_PTR_NULL(prevInterLink);
     LINK nextInterLink = interLinks_[nextInterRankId];
+    CHK_SMART_PTR_NULL(nextInterLink);
 
     // intra fullmesh algo
     // intra 使用全部连接，不再映射

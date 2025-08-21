@@ -107,6 +107,15 @@ HcclResult CollAllReduceOrderPreservedExecutor::CalcLevel1CommInfo(TransportMemT
     return HCCL_SUCCESS;
 }
 
+bool CollAllReduceOrderPreservedExecutor::IsHugeData(const u64 curSize)
+{
+    bool hugeData = curSize / topoAttr_.deviceNumPerAggregation / HCCL_INTERNODE_MAX_DATA_RATE > RDMA_SEND_MAX_SIZE ||
+        curSize > SDMA_SEND_MAX_SIZE;
+    HCCL_DEBUG("[%s]isHugeData[%d], curSize[%llu], topoAttr_.deviceNumPerAggregation[%u]",
+        __func__, hugeData, curSize, topoAttr_.deviceNumPerAggregation);
+    return hugeData;
+}
+
 void CollAllReduceOrderPreservedExecutor::CalcSizePerBlock(const OpParam &param, ExecMem &execMem)
 {
     sizePerBlock_ = (execMem.count  + topoAttr_.userRankSize - 1) / topoAttr_.userRankSize
@@ -318,7 +327,7 @@ HcclResult CollAllReduceOrderPreservedExecutor::KernelRun(const OpParam &param, 
 
     // 单算子需要 execMem.outputMem最后拷贝至UserOut
     if (scratchMemFlag_ || workflowMode_ == HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) {
-        u32 dataSize = execMem.count * SIZE_TABLE[param.DataDes.dataType];
+        u64 dataSize = execMem.count * SIZE_TABLE[param.DataDes.dataType];
         void *srcPtr = scratchMemFlag_ ? execMem.scratchMem.ptr() : execMem.outputMem.ptr();
         DeviceMem srcMem = DeviceMem::create(srcPtr, dataSize);
         DeviceMem dstMem = DeviceMem::create(execMem.outputPtr, dataSize);

@@ -19,6 +19,7 @@ JOB_NUM="-j${CPU_NUM}"
 ASAN="false"
 COV="false"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
+KERNEL="false"  # 新增变量，用于控制是否只编译 ccl_kernel.so
 
 if [ "${USER_ID}" != "0" ]; then
     DEFAULT_TOOLKIT_INSTALL_DIR="${HOME}/Ascend/ascend-toolkit/latest"
@@ -44,7 +45,7 @@ function clean()
         rm -rf ${BUILD_DIR}
     fi
 
-    if [ -z "${TEST}" ];then
+    if [ -z "${TEST}" ] && [ -z "${KERNEL}" ];then
         if [ -n "${OUTPUT_DIR}" ];then
             rm -rf ${OUTPUT_DIR}
         fi
@@ -62,18 +63,73 @@ function cmake_config()
 
 function build()
 {
-    local target="$1"
-    cmake --build . --target ${target} ${JOB_NUM} #--verbose
+    cmake --build . --target "$@" ${JOB_NUM} #--verbose
 }
 
 function build_package(){
     cmake_config
+    log "Info: build_package"
     build package
 }
 
 function build_test() {
     cmake_config
-    build all
+
+    LIBRARY_DIR="${BUILD_DIR}/test:${ASCEND_HOME_PATH}/lib64:"
+    # 每日构建sdk包安装路径
+    if [ -d "${ASCEND_HOME_PATH}/opensdk" ];then
+        LIBRARY_DIR="${LIBRARY_DIR}${ASCEND_HOME_PATH}/opensdk/opensdk/gtest_shared/lib64:"
+    fi
+
+    # 社区sdk包安装路径
+    if [ -d "${ASCEND_HOME_PATH}/../../latest/opensdk" ];then
+        LIBRARY_DIR="${LIBRARY_DIR}${ASCEND_HOME_PATH}/../../latest/opensdk/opensdk/gtest_shared/lib64:"
+    fi
+
+    GCC_MAJOR=`gcc -dumpversion | cut -d. -f1`
+    if [ "${ASAN}" == "true" ];then
+        ARCH=$(uname -m)
+        if [[ $ARCH == "x86_64" || $ARCH == "i386" || $ARCH == "i686" ]]; then
+            PRELOAD="/usr/lib/gcc/x86_64-linux-gnu/${GCC_MAJOR}/libasan.so:/usr/lib/gcc/x86_64-linux-gnu/${GCC_MAJOR}/libstdc++.so"
+        elif [[ $ARCH == "aarch64" || $ARCH == "armv8l" || $ARCH == "armv7l" ]]; then
+            PRELOAD="/usr/lib/gcc/aarch64-linux-gnu/${GCC_MAJOR}/libasan.so:/usr/lib/gcc/aarch64-linux-gnu/${GCC_MAJOR}/libstdc++.so"
+        else
+            echo "未知架构: $ARCH"
+        fi
+        echo "PRELOAD is ${PRELOAD}"
+        ASAN_OPT="detect_leaks=0"
+    fi
+
+    if [ "${TEST_TASK_NAME}" == "open_hccl_test" ] || [ "$TEST" = "all" ];then
+        build open_hccl_test
+        export LD_LIBRARY_PATH=${LIBRARY_DIR}${LD_LIBRARY_PATH} && export LD_PRELOAD=${PRELOAD} && export ASAN_OPTIONS=${ASAN_OPT} \
+        && ${BUILD_DIR}/test/open_hccl_test
+    fi
+
+    if [ "${TEST_TASK_NAME}" == "executor_hccl_test" ] || [ "$TEST" = "all" ];then
+        build executor_hccl_test
+        export LD_LIBRARY_PATH=${LIBRARY_DIR}${LD_LIBRARY_PATH} && export LD_PRELOAD=${PRELOAD} && export ASAN_OPTIONS=${ASAN_OPT} \
+        && ${BUILD_DIR}/test/executor_hccl_test
+    fi
+
+    if [ "${TEST_TASK_NAME}" == "executor_reduce_hccl_test" ] || [ "$TEST" = "all" ];then
+        build executor_reduce_hccl_test
+        export LD_LIBRARY_PATH=${LIBRARY_DIR}${LD_LIBRARY_PATH} && export LD_PRELOAD=${PRELOAD} && export ASAN_OPTIONS=${ASAN_OPT} \
+        && ${BUILD_DIR}/test/executor_reduce_hccl_test
+    fi
+
+    if [ "${TEST_TASK_NAME}" == "executor_pipeline_hccl_test" ] || [ "$TEST" = "all" ];then
+        build executor_pipeline_hccl_test
+        export LD_LIBRARY_PATH=${LIBRARY_DIR}${LD_LIBRARY_PATH} && export LD_PRELOAD=${PRELOAD} && export ASAN_OPTIONS=${ASAN_OPT} \
+        && ${BUILD_DIR}/test/executor_pipeline_hccl_test
+    fi
+
+}
+
+function build_kernel() {
+    cmake_config
+    log "Info: build_kernel"
+    build ccl_kernel  aicpu_custom_json # 假设 ccl_kernel.so 的构建目标是 "ccl_kernel"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -94,6 +150,30 @@ while [[ $# -gt 0 ]]; do
         TEST="all"
         shift
         ;;
+    --open_hccl_test)
+        TEST="partial"
+        TEST_TASK_NAME="open_hccl_test"
+        shift
+        ;;
+    --executor_hccl_test)
+        TEST="partial"
+        TEST_TASK_NAME="executor_hccl_test"
+        shift
+        ;;
+    --executor_reduce_hccl_test)
+        TEST="partial"
+        TEST_TASK_NAME="executor_reduce_hccl_test"
+        shift
+        ;;
+    --executor_pipeline_hccl_test)
+        TEST="partial"
+        TEST_TASK_NAME="executor_pipeline_hccl_test"
+        shift
+        ;;
+    --aicpu)  # 新增选项，用于只编译 ccl_kernel.so
+        KERNEL="true"
+        shift
+        ;;
     --asan)
         ASAN="true"
         shift
@@ -110,6 +190,10 @@ done
 
 if [ -n "${TEST}" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_TEST=ON"
+fi
+
+if [ "${KERNEL}" == "true" ];then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DKERNEL_MODE=ON"
 fi
 
 if [ "${ASAN}" == "true" ];then
@@ -149,6 +233,8 @@ cd ${BUILD_DIR}
 
 if [ -n "${TEST}" ];then
     build_test
+elif [ "${KERNEL}" == "true" ]; then
+    build_kernel
 else
     build_package
 fi

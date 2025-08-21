@@ -68,7 +68,7 @@ u64 CollAllGatherVFor310PExecutor::CalcLoopMaxCount(const u64 cclBuffSize, const
     u64 maxCountPerLoop = cclBuffSize / topoAttr_.userRankSize / HCCL_MIN_SLICE_ALIGN
         * HCCL_MIN_SLICE_ALIGN / unitSize;
 
-    HCCL_WARNING("[CollAllGatherVExecutor][CalcLoopMaxCount]" \
+    HCCL_INFO("[CollAllGatherVExecutor][CalcLoopMaxCount]" \
         "using default maxCountPerLoop[%llu] as CCLBuffSize / unitSize.", maxCountPerLoop);
     return maxCountPerLoop;
 }

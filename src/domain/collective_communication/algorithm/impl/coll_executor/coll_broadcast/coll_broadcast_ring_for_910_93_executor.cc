@@ -22,6 +22,15 @@ CollBroadCastRingFor91093::CollBroadCastRingFor91093(const HcclDispatcher dispat
     } else {
         DMAReduceFlag_ = false;
     }
+    desc_.level1SupportedAlgos = {
+        AlgTypeLevel1::ALG_LEVEL1_NHR,
+        AlgTypeLevel1::ALG_LEVEL1_NB
+    };
+    desc_.level2SupportedAlgos = {
+        AlgTypeLevel2::ALG_LEVEL2_NHR,
+        AlgTypeLevel2::ALG_LEVEL2_NB,
+        AlgTypeLevel2::ALG_LEVEL2_HD
+    };
 }
 
 HcclResult CollBroadCastRingFor91093::CalcStreamNum(u32& streamNum)
@@ -444,6 +453,7 @@ HcclResult CollBroadCastRingFor91093::SelectTempAlg(std::unique_ptr<AlgTemplateB
                 TemplateType::TEMPLATE_BROADCAST_RECURSIVE_HD, dispatcher_);
             HCCL_INFO("[superpod]Broadcast level2-broadcast: using Recursive halving-doubling algo inter-superPod.");
         }
+        CHK_SMART_PTR_NULL(level1TempAlg);
         return HCCL_SUCCESS;
     }
     return HCCL_E_UNAVAIL;

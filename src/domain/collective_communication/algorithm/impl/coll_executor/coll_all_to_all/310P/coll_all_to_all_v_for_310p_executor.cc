@@ -26,9 +26,6 @@ HcclResult CollRunAlltoAllVFor310PExecutor::Orchestrate(OpParam& param, AlgResou
     tag_ = param.tag;
     algResResp_ = &algRes;
     AlltoAllVParam_ = param;
-
-    HCCL_PROFILER_ADD_STREAM_BY_STREAMID(param.stream.id(), param.tag, 0, algType_);
-
     ExecMem execMem;
     execMem.count = 0;
     execMem.inputPtr = param.inputPtr;
@@ -40,9 +37,6 @@ HcclResult CollRunAlltoAllVFor310PExecutor::Orchestrate(OpParam& param, AlgResou
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[CollRunAlltoAllVFor310PExecutor][Orchestrate]errNo[0x%016llx]excutor run failed",
             HCCL_ERROR_CODE(ret)), ret);
-
-    HCCL_PROFILER_DEL_STREAM_BY_STREAMID(param.stream.id());
-
     HCCL_INFO("tag[%s], AlltoAllVFor310P orchestrate success, take time [%lld]us.",
         param.tag.c_str(), DURATION_US(TIME_NOW() - startut));
 
@@ -105,9 +99,6 @@ HcclResult CollRunAlltoAllVFor310PExecutor::KernelRun(const OpParam &param, Exec
     // 获取通信域
     CHK_RET(CheckCommSize(COMM_LEVEL0, COMM_INDEX_0 + 1));
     SubCommInfo outerCommInfo = GetSubCommInfo(COMM_LEVEL0, COMM_INDEX_0);
-
-    CHK_RET(AddSubStreamToProfiling());
-
     // 执行
     std::unique_ptr<AlgTemplateBase> executor = AlgTemplateRegistry::Instance().GetAlgTemplate(
         TemplateType::TEMPLATE_ALL_2_ALL_V_FOR310P, dispatcher_);

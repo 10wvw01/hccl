@@ -9,9 +9,14 @@
  */
 
 #pragma once 
+#include <string>
+#include <map>
+#include <array>
 #include "hccl_types.h"
 #include "hccl_common.h"
-#include "adapter_rts_common.h"
+#include "common.h"
+
+namespace hccl{
 
 typedef void (*TaskCallBack)(void *userPtr, void *param, u32 length);
 
@@ -47,8 +52,22 @@ struct TaskParaGeneral{
     ~TaskParaGeneral() {}
 };
 
+class AlgWrap{
+public:
+    static AlgWrap& GetInstance();
+    HcclResult RegisterAlgCallBack(const std::string& comm, void* userPtr, TaskCallBack callback, s32 deviceLogicID);
+    void UnregisterAlgCallBack(const std::string& comm);
+    HcclResult TaskAivProfiler(const std::string& comm, struct TaskParaGeneral& taskParaGeneral);
 
-HcclResult RegisterAlgCallBack(void* userPtr, TaskCallBack callback, s32 deviceLogicID);
+private:
+    AlgWrap(){ initialized_ = true; };
+    ~AlgWrap(){ initialized_ = false; };
+    
+    // initialized 是否已初始化，避免析构后访问类成员
+    bool initialized_ = false;
+    std::mutex aivCallBackMutex_;
+    std::map<std::string, std::array<TaskCallBack, MAX_MODULE_DEVICE_NUM>> aivCallBackMap_;
+    std::map<std::string, std::array<void*, MAX_MODULE_DEVICE_NUM>> aivCallBackUserPtrMap_;
+};
 
-HcclResult TaskAivProfiler(struct TaskParaGeneral& taskParaGeneral);
-
+}

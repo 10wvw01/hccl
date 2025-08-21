@@ -164,6 +164,7 @@ private:
     u32 meshAggregationRankSize_{0};
     bool multiModuleDiffDeviceNumMode_{false};
     bool multiSuperPodDiffServerNumMode_{false};    //判断每个超节点中的server数是否一致
+    u32 gcdServerNumPerSuperPod_{0};
     bool isStandardCard_{false};
     bool is310PDuoCard_{false};
     bool isCommon310P3DUO_{false};

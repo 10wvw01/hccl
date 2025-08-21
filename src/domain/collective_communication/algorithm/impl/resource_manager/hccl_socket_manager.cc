@@ -14,7 +14,6 @@
 #include "hccl_socket.h"
 #include "hccl_socket_manager.h"
 #include "sal_pub.h"
-#include "detect_connect_anomalies.h"
 
 namespace hccl {
 HcclSocketManager::HcclSocketManager(NICDeployment nicDeployment, s32 deviceLogicId, u32 devicePhyId, u32 userRank)
@@ -31,6 +30,7 @@ HcclSocketManager::~HcclSocketManager()
 std::map<PortInfo, std::shared_ptr<HcclSocket>> HcclSocketManager::serverSocketMap_;
 std::map<PortInfo, Referenced> HcclSocketManager::serverSocketRefMap_;
 std::mutex HcclSocketManager::serverMapMutex_;
+RegisterDetectCallBack g_RegisterDetectCallBack = nullptr;
 
 HcclResult HcclSocketManager::ServerInit(const HcclNetDevCtx netDevCtx, u32 port)
 {
@@ -52,7 +52,6 @@ HcclResult HcclSocketManager::ServerInit(const HcclNetDevCtx netDevCtx, u32 port
         netDevCtx, port)), return HCCL_E_PTR);
     CHK_RET(tempSocket->Init());
     CHK_RET(tempSocket->Listen());
-
     HCCL_INFO("[Init][Server]ip[%s] port[%u]", localIp.GetReadableAddress(), port);
     serverSocketMap_.insert(std::make_pair(portInfo, tempSocket));
 
@@ -67,6 +66,30 @@ HcclResult HcclSocketManager::ServerDeInit(const HcclNetDevCtx netDevCtx, u32 po
 {
     HcclIpAddress localIp{0};
     CHK_RET(HcclNetDevGetLocalIp(netDevCtx, localIp));
+    PortInfo portInfo(localIp, port);
+
+    std::unique_lock<std::mutex> lock(serverMapMutex_);
+    auto res = serverSocketMap_.find(portInfo);
+    if (res == serverSocketMap_.end()) {
+        return HCCL_SUCCESS;
+    }
+
+    auto &serverSocketRef = serverSocketRefMap_[portInfo];
+    serverSocketRef.Unref();
+
+    HCCL_INFO("[DeInit][Server]ip[%s] port[%u] serverSocketRef.Count() = %d", localIp.GetReadableAddress(), port, serverSocketRef.Count());
+    if (serverSocketRef.Count() == 0) {
+        HCCL_INFO("[DeInit][Server]ip[%s] port[%u]", localIp.GetReadableAddress(), port);
+        serverSocketMap_[portInfo]->DeInit();
+        serverSocketMap_.erase(portInfo);
+        serverSocketRefMap_.erase(portInfo);
+    }
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclSocketManager::ServerDeInit(const HcclIpAddress& localIp, u32 port)
+{
     PortInfo portInfo(localIp, port);
 
     std::unique_lock<std::mutex> lock(serverMapMutex_);
@@ -594,19 +617,6 @@ void HcclSocketManager::PrintErrorConnection(HcclSocketRole localRole,
         "|-----------------|");
 
     PrintErrorConnectionInfo(localRole, rankSocketsMap, dstRankToUserRank);
-
-    HCCL_ERROR("   ___________________________________________________________________  ");
-    HCCL_ERROR("the connection failure between this device and target device may be due to the following reasons:");
-    HCCL_ERROR("1. the connection between this device and the target device is abnormal.");
-    HCCL_ERROR("2. an exception occurred at the target devices.");
-    HCCL_ERROR("3. the time difference between the execution of hcom on this device and the target device exceeds the "\
-        "timeout threshold. make sure this by keyworld [Entry-]");
-    HCCL_ERROR("4. the behavior of executing the calculation graph on this device and the target device is " \
-        "inconsistent. ");
-    HCCL_ERROR("5. The TLS switch is inconsistent, or the TLS certificate expires. ");
-    HCCL_ERROR("6. If src and dst IP address can be pinged, check whether the device IP address conflicts. ");
-    HCCL_ERROR("7. Now you can freely specify a port for listening and connecting. If an invalid port is chosen, "
-        "it may result in failed listening and connection timeouts");
     return;
 }
 
@@ -772,7 +782,7 @@ HcclResult HcclSocketManager::WaitLinkEstablish(std::shared_ptr<HcclSocket> sock
         CHK_PRT_RET(needStop(), HCCL_ERROR("Terminating operation due to external request"), HCCL_E_INTERNAL);
 
         if ((std::chrono::steady_clock::now() - startTime) >= timeout) {
-            HCCL_ERROR("[Wait][LinkEstablish]wait socket establish timeout, role[%u] rank[%u] timeout[%lld]",
+            HCCL_ERROR("[Wait][LinkEstablish]wait socket establish timeout, role[%u] rank[%u] timeout[%lld s]",
                 static_cast<u32>(socket->GetLocalRole()), userRank_, timeout);
             socket->SetStatus(HcclSocketStatus::SOCKET_TIMEOUT);
             RPT_INPUT_ERR(true, "EI0006", std::vector<std::string>({"reason"}), \
@@ -813,11 +823,20 @@ HcclResult HcclSocketManager::WaitLinksEstablishCompleted(HcclSocketRole localRo
         // 只有多qp场景才会出现同一个src + dst出现多个socket，但是socket链路类型一致
         // vnic多server场景下，需要添加nic白名单，loaclRankInfo，remoteRankInfo保存的ip为nicIp
         NicType nicType = socketsMap[remoteRankInfo.userRank][0]->GetSocketType();
-        DetectConnectionAnomalies::GetInstance(deviceLogicId_).AddIpQueue(loaclRankInfo, remoteRankInfo, nicType);
+        AddIpQueue(loaclRankInfo, remoteRankInfo, nicType, deviceLogicId_);
         HCCL_ERROR("[Create][Sockets]Wait links establish completed failed, local role is client. ret[%d]", ret);
         return ret;
     }
     return HCCL_SUCCESS;
+}
+
+void HcclSocketManager::AddIpQueue(RankInfo &localRankInfo, RankInfo &remoteRankInfo, NicType nicType, s32 deviceLogicId)
+{
+    if (g_RegisterDetectCallBack != nullptr) {
+        g_RegisterDetectCallBack(localRankInfo, remoteRankInfo, nicType, deviceLogicId);
+    } else {
+        HCCL_RUN_WARNING("[AddIpQueue] g_RegisterDetectCallBack is nullptr");
+    }
 }
 
 // private
@@ -856,5 +875,16 @@ bool HcclSocketManager::GetStopFlag()
 {
     return stopFlag_.load();
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+void DetectCallBack(RegisterDetectCallBack p1)
+{
+    g_RegisterDetectCallBack = p1;
+}
+#ifdef __cplusplus
+}
+#endif // __cplusplus
 
 }  // namespace hccl

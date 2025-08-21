@@ -56,30 +56,26 @@ __aicore__ inline void AivAllReduceRdmaMid910B::ReduceScatter(__gm__ T *inputGM,
     __gm__ T *cclGMOther, uint64_t sliceCount, uint64_t avgLengthPerSlice, uint64_t tailLength, int32_t tag)
 {
     // reduce scatter，数据从input输入，inputMem+0作为buffer，结果放在原位
-    uint32_t flagBaseOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_RDMA_MIDDATA_STEP1;
-    uint32_t flagOffsetOut = flagBaseOffset + block_idx * FLAG_INTERVAL;  // 给其他卡的标记，数据已在buffer中就绪
-    uint32_t flagOffsetRemote = flagBaseOffset + rank_ * FLAG_INTERVAL;  // 本卡aiv需要读的其他卡的标记
-    uint32_t flagOffsetIn = flagBaseOffset + rank_ * FLAG_INTERVAL;  // 给本卡其他aiv的标记，数据已在output中，可以累加
     if (block_idx == rank_) {
         int64_t curCount = CalActualCount(block_idx, sliceCount, avgLengthPerSlice, tailLength);
         
         // 本地拷贝 & 卡间同步
         CpGM2GM(cclGMSelf + avgLengthPerSlice * block_idx, inputGM + avgLengthPerSlice * block_idx, curCount);
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag);  // 本卡该片数据已可以被跨片读取（也可累加）
+        Record1vN(tag, CommPattern::intraRank);
     } else {
         int64_t curCount = CalActualCount(block_idx, sliceCount, avgLengthPerSlice, tailLength);
  
         // 本地拷贝 & 卡间同步
         CpGM2GM(cclGMSelf + avgLengthPerSlice * block_idx, inputGM + avgLengthPerSlice * block_idx, curCount);
         pipe_barrier(PIPE_ALL);
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag);  // 本卡该片数据已经可以被跨片读取
+        Record(tag, block_idx, AivNotifyType::ACK); // 本卡该片数据已经可以被跨片读取
         
         // 检查对端数据就绪且本端就绪 & 跨片搬运
         curCount = CalActualCount(rank_, sliceCount, avgLengthPerSlice, tailLength);
  
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localCheckTensor, tag);
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetIn), localCheckTensor, tag);
+        Wait(tag, block_idx, AivNotifyType::ACK);
+         WaitNv1(tag, rank_);
         pipe_barrier(PIPE_ALL);
         CpGM2GM(cclGMSelf + avgLengthPerSlice * rank_, cclGMOther + avgLengthPerSlice * rank_, curCount,
             true, reduceOp_);
@@ -91,32 +87,27 @@ template<typename T>
 __aicore__ inline void AivAllReduceRdmaMid910B::AllGather(__gm__ T *outputGM, __gm__ T *cclGMSelf,
     __gm__ T *cclGMOther, uint64_t sliceCount, uint64_t avgLengthPerSlice, uint64_t tailLength, int32_t tag)
 {
-    // all gather, outputMem作为buffer且数据已经在对应位置，拷贝到output中
-    uint32_t flagBaseOffset = BASE_FLAG_OFFSET * AIV_ALL_REDUCE_910B_RDMA_MIDDATA_STEP2;
-    uint32_t flagOffsetOut = flagBaseOffset + rank_ * FLAG_INTERVAL;  // 注意与RS不同，设置本卡的数据已经在buffer中就绪
-    uint32_t flagOffsetRemote = flagBaseOffset + block_idx * FLAG_INTERVAL;  // 本卡aiv需要读的其他卡的标记
- 
     if (block_idx == rank_) {
         int64_t curCount = CalActualCount(block_idx, sliceCount, avgLengthPerSlice, tailLength);
  
         // 本地拷贝 & 卡间同步
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetOut), localSetTensor, tag);  // 本卡该片数据已经可以被跨片读取
+        Record1vN(tag, CommPattern::interRank);
         CpGM2GM(outputGM + avgLengthPerSlice * block_idx, cclGMSelf + avgLengthPerSlice * block_idx, curCount);
     } else {
         int64_t curCount = CalActualCount(block_idx, sliceCount, avgLengthPerSlice, tailLength);
  
         // 检查对端就绪 & 跨片拷贝
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetRemote), localCheckTensor, tag);
+        WaitNv1(tag, block_idx);
         pipe_barrier(PIPE_ALL);
         CpGM2GM(outputGM + (block_idx * avgLengthPerSlice), cclGMOther + block_idx * avgLengthPerSlice, curCount);
         pipe_barrier(PIPE_ALL);
         
         // 末尾同步
         // 本卡已读完block_idx号对端上的rank号数据
-        SetSignalValue((__gm__ int32_t *)(GM_OUT[block_idx] + flagOffsetOut + FLAG_SIZE), localSetTensor, tag);
+        Record(tag, block_idx, AivNotifyType::DataSignal);
         pipe_barrier(PIPE_ALL);
         // 检查本卡上是否有block_idx号对端的读完标记
-        WaitSignalValue((__gm__ int32_t *)(GM_OUT[rank_] + flagOffsetRemote + FLAG_SIZE), localCheckTensor, tag);
+        Wait(tag, block_idx, AivNotifyType::DataSignal);
     }
     return;
 }

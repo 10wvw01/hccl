@@ -3,6 +3,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/task_exception_handler.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/profiler_base.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/plugin_runner.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugin_runner_host.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/command_handle.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/profiling_manager.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/task_overflow.cc

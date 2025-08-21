@@ -23,6 +23,7 @@ public:
     HcclResult SelectAlg(const std::string& tag, const OpParam& param, std::string& algName, std::string& newTag);
 
 private:
+    HcclResult SelectAlgfor91093(const OpParam& param, std::string& algName);
     HcclResult SelectAlgfor910B(const OpParam& param, std::string& algName);
     HcclResult SelectAlgfor310P3(const OpParam& param, std::string& algName);
 };

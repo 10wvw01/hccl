@@ -56,6 +56,9 @@ typedef enum {
     RETRY_STATE_SERVER_RETRY_FAIL,
     RETRY_STATE_CMD_PLAN_SWITCH_NIC,
     RETRY_STATE_SERVER_WAIT_RESUME,
+    RETRY_RESUME_STATE_SERVER_CHECK_LINK,
+    RETRY_RESUME_STATE_SERVER_CHANGE_LINK,
+
     // agent状态
     RETRY_STATE_AGENT_RUNNING,
     RETRY_STATE_RESP_AICPU_ERR,
@@ -89,6 +92,8 @@ typedef enum {
     RETRY_STATE_SEND_SWITCH_INFO,
     RETRY_STATE_WAIT_CMD_SEND_AICPU,
     RETRY_STATE_AGENT_WAIT_RESUME,
+    RETRY_RESUME_STATE_AGENT_CHECK_LINK,
+    RETRY_RESUME_STATE_AGENT_CHANGE_LINK,
 
     RETRY_STATE_RESERVED,
 } RetryState;
@@ -123,6 +128,8 @@ const std::map<RetryState, std::string> RETRY_STATE_STR_MAP {
     {RETRY_STATE_SERVER_RETRY_FAIL, "RETRY_STATE_SERVER_RETRY_FAIL"},
     {RETRY_STATE_CMD_PLAN_SWITCH_NIC, "RETRY_STATE_CMD_PLAN_SWITCH_NIC"},
     {RETRY_STATE_SERVER_WAIT_RESUME, "RETRY_STATE_SERVER_WAIT_RESUME"},
+    {RETRY_RESUME_STATE_SERVER_CHECK_LINK, "RETRY_RESUME_STATE_SERVER_CHECK_LINK"},
+    {RETRY_RESUME_STATE_SERVER_CHANGE_LINK, "RETRY_RESUME_STATE_SERVER_CHANGE_LINK"},
     
     // agent状态
     {RETRY_STATE_AGENT_RUNNING, "RETRY_STATE_AGENT_RUNNING"},
@@ -156,6 +163,9 @@ const std::map<RetryState, std::string> RETRY_STATE_STR_MAP {
     {RETRY_STATE_SEND_SWITCH_INFO, "RETRY_STATE_SEND_SWITCH_INFO"},
     {RETRY_STATE_WAIT_CMD_SEND_AICPU, "RETRY_STATE_WAIT_CMD_SEND_AICPU"},
     {RETRY_STATE_AGENT_WAIT_RESUME, "RETRY_STATE_AGENT_WAIT_RESUME"},
+    {RETRY_RESUME_STATE_AGENT_CHECK_LINK, "RETRY_RESUME_STATE_AGENT_CHECK_LINK"},
+    {RETRY_RESUME_STATE_AGENT_CHANGE_LINK, "RETRY_RESUME_STATE_AGENT_CHANGE_LINK"},
+
     {RETRY_STATE_RESERVED, "RETRY_STATE_RESERVED"}
 };
 
@@ -175,6 +185,8 @@ typedef enum {
     RETRY_CMD_NOTIFY_SWITCH_FAIL,
     RETRY_CMD_RESERVED,
     RETRY_CMD_RETRY_CONSTRAINT_FAIL, // 当前需要上报故障的重执行约束：inplace约束、算子不一致
+    RESUME_CMD_CHECK_LINK,
+    RESUME_CMD_RUNNING,
 } RetryCommand;
 
 const std::map<RetryCommand, std::string> RETRY_COMMAND_STR_MAP {
@@ -193,6 +205,8 @@ const std::map<RetryCommand, std::string> RETRY_COMMAND_STR_MAP {
     {RETRY_CMD_NOTIFY_SWITCH_FAIL, "RETRY_CMD_NOTIFY_SWITCH_FAIL"},
     {RETRY_CMD_RESERVED, "RETRY_CMD_RESERVED"},
     {RETRY_CMD_RETRY_CONSTRAINT_FAIL, "RETRY_CMD_RETRY_CONSTRAINT_FAIL"},
+    {RESUME_CMD_CHECK_LINK, "RESUME_CMD_CHECK_LINK"},
+    {RESUME_CMD_RUNNING, "RESUME_CMD_RUNNING"},
 };
 
 // server状态机 WaitResp状态对应的agent状态
@@ -241,6 +255,6 @@ using OpRetryResetNotifyCallback = std::function<HcclResult(bool, s64)>;
 using OpRetrySetTransportStatusCallback = std::function<HcclResult(const HcclOpIdentifier &, bool,
     const std::map<u32, bool> &, const std::map<u32, bool> &, bool)>;
 using OpRetryGetSwitchRanksCallback = std::function<HcclResult(u32 *, bool*, u32 &, u8 *, u32 &, bool &, bool &)>;
-
+using OpRetrySetTransportResumeStatusCallBack = std::function<HcclResult(const std::map<u32, bool> &, const std::map<u32, bool> &, bool, bool)>;
 }
 #endif
