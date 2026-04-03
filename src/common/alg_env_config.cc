@@ -360,7 +360,8 @@ HcclResult ParserHcclAlgoLevel(const std::string &algoLevel, u32 &level, HcclAlg
     const std::map<std::string, u32> hcclAlgoLevelMap = {{"level0", HCCL_ALGO_LEVEL_0},
         {"level1", HCCL_ALGO_LEVEL_1},
         {"level2", HCCL_ALGO_LEVEL_2},
-        {"level3", HCCL_ALGO_LEVEL_3}};
+        {"level3", HCCL_ALGO_LEVEL_3},
+        {"level", HCCL_ALGO_LEVEL}};
 
     const std::map<std::string, HcclAlgoType> hcclAlgoTypeMap = {
         {"null", HcclAlgoType::HCCL_ALGO_TYPE_NULL},
@@ -375,6 +376,7 @@ HcclResult ParserHcclAlgoLevel(const std::string &algoLevel, u32 &level, HcclAlg
         {"AHC_BROKE", HcclAlgoType::HCCL_ALGO_TYPE_AHC_BROKE},
         {"NB", HcclAlgoType::HCCL_ALGO_TYPE_NB},
         {"NA", HcclAlgoType::HCCL_ALGO_TYPE_NA},
+        {"OMNI", HcclAlgoType::HCCL_ALGO_TYPE_OMNI},
     };
 
     auto iterAlgoLevel = hcclAlgoLevelMap.find(orginalLevel);
@@ -429,8 +431,10 @@ HcclResult ParseAlgoString(std::string opName, std::string &algoString, std::vec
     auto level1Iter = HcclAlgoTypeMap.find(algType[HCCL_ALGO_LEVEL_1]);
     auto level2Iter = HcclAlgoTypeMap.find(algType[HCCL_ALGO_LEVEL_2]);
     auto level3Iter = HcclAlgoTypeMap.find(algType[HCCL_ALGO_LEVEL_3]);
+    auto levelIter = HcclAlgoTypeMap.find(algType[HCCL_ALGO_LEVEL]);
     HCCL_RUN_INFO("hccl algo op %s config: config level0:%s, level1:%s, level2:%s, level3:%s",
         opName.c_str(),
+        levelIter->second.c_str(),
         level0Iter->second.c_str(),
         level1Iter->second.c_str(),
         level2Iter->second.c_str(),
