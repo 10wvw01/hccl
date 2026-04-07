@@ -19,62 +19,6 @@
 
 namespace ops_hccl {
 
-// 用于判断操作类型
-enum OpType {
-    OP_LOCAL_COPY = 0,
-    OP_LOCAL_REDUCE = 1,
-    OP_SEND_RECV_WRITE,
-    OP_SEND_WRITE,
-    OP_RECV_WRITE,
-    OP_SEND_RECV_WRITE_REDUCE,
-    OP_SEND_WRITE_REDUCE,
-    OP_RECV_WRITE_REDUCE = 7,
-    OP_SEND_RECV_READ,
-    OP_SEND_READ,
-    OP_RECV_READ,
-    OP_SEND_RECV_READ_REDUCE = 11,
-    OP_SEND_READ_REDUCE,
-    OP_RECV_READ_REDUCE,
-    OP_GROUP_BROAD_CAST,
-    OP_GROUP_REDUCE
-};
-
-struct OmniSliceInfo {
-    uint64_t sliceType; // 0 : input  1 : output 2 : cclbuf
-    uint64_t sliceIdx;
-    uint64_t remoteRank;
-};
-
-struct OmniSendRecvInfo {
-    OpType                optype;
-    HcclDataType          inputDataType;
-    HcclDataType          outputDataType;
-    HcclReduceOp          reduceType;   // 0 : sum  1 : max  2 : min
-    uint64_t              channelId;
-    uint64_t              sliceNum;
-    std::vector<OmniSliceInfo> srcSliceInfo;
-    std::vector<OmniSliceInfo> dstSliceInfo;
-    uint64_t remoteRank;
-};
-
-struct OmniChannelInfo {
-    CommProtocol channelProtocol; ///< 通信协议
-    uint64_t     remoteRank;    ///< 远端rankId
-    uint64_t     channelId;
-};
-
-struct ResInfo {
-    uint32_t slaveThreadNum;
-    uint32_t notifyNumOnMainThread;
-    uint32_t notifyNumPerThread;
-    uint32_t netLayerNum;
-    std::vector<std::map<u32, OmniChannelInfo>> mapchannelInfo; // netlayer<dstrankid, channelinfo>
-};
-
-struct XmlInfo {
-    ResInfo resInfo; // calc计算需要的资源
-    std::vector<OmniSendRecvInfo> vecSendRecvInfo; // kernel处理的数据通信
-};
 
 using RankId = u32;
 
