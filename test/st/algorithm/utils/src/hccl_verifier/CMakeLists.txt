@@ -45,6 +45,7 @@ if (BUILD_OPEN_PROJECT)
 
         # hccl-dev头文件
         ${HCCL_DEV_BASE}/src/common
+        ${HCCL_DEV_BASE}/src/common/hcomm_dlsym
 
         ${UTILS_DIR}/sim_world
         ${UTILS_DIR}/hccl_proxy
