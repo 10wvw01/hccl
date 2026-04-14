@@ -9,6 +9,7 @@
  */
 
 #include "template_utils.h"
+#include "aicpu/ins_temp_all_to_all_v_omni.h"
 #include "ins_omni_sole_executor.h"
 
 
@@ -244,7 +245,7 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate(
 
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
-    if (param.engine != CommEngine::COMM_ENGINE_AIV && param.engine != CommEngine::COMM_ENGINE_CCU) {
+    if (param.engine != CommEngine::COMM_ENGINE_AIV && param.engine != CommEngine::COMM_ENGINE_CCU && param.engine != CommEngine::COMM_ENGINE_AICPU) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
     }
 
@@ -314,5 +315,11 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLVC,
                 InsOmniSoleExecutor,
                 TopoMatch1D,
                 CcuTempOmni);
+
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV,
+                AicpuOMNI,
+                InsOmniSoleExecutor,
+                TopoMatch1D,
+                InsTempAlltoAllVOmni);
 
 }
