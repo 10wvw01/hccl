@@ -500,13 +500,13 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
     const std::vector<u32> &notifyIdxSubToMain)
 {
     CHK_PRT_RET(subThreads.size() == 0 || notifyIdxSubToMain.size() == 0,
-        HCCL_ERROR("[AlgDataTransWrapper] [PreSyncInterThreads] subThreads size: [%u], notifyIdxSubToMain size [%u] "
+        HCCL_ERROR("[AlgDataTransWrapper] [PostSyncInterThreads] subThreads size: [%u], notifyIdxSubToMain size [%u] "
                    "0 is not correct.",
             subThreads.size(),
             notifyIdxSubToMain.size()),
         HcclResult::HCCL_E_INTERNAL);
     CHK_PRT_RET(subThreads.size() != notifyIdxSubToMain.size(),
-        HCCL_ERROR("[AlgDataTransWrapper] [PreSyncInterThreads] subThreads size: [%u], notifyIdxSubToMain size [%u] "
+        HCCL_ERROR("[AlgDataTransWrapper] [PostSyncInterThreads] subThreads size: [%u], notifyIdxSubToMain size [%u] "
                    "is not equal.",
             subThreads.size(),
             notifyIdxSubToMain.size()),
