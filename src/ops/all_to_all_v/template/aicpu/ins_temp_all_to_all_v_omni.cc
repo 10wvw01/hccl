@@ -80,10 +80,11 @@ HcclResult InsTempAlltoAllVOmni::KernelRun(const OpParam& param,
     HCCL_INFO("[InsTempAlltoAllVOmni] Run Start");
 
     // 检查XML信息是否已传递
-    if (xmlInfo_.vecSendRecvInfo.empty()) {
+    if (xmlInfo_.vecSendRecvInfo.empty() && xmlInfo_.vecSyncInfo.empty()) {
         HCCL_WARNING("[InsTempAlltoAllVOmni] XML information is empty, OMNI operations may not execute correctly");
     } else {
-        HCCL_INFO("[InsTempAlltoAllVOmni] XML information contains %lu signals", xmlInfo_.vecSendRecvInfo.size());
+        HCCL_INFO("[InsTempAlltoAllVOmni] XML information contains %lu sync signals and %lu data signals",
+                  xmlInfo_.vecSyncInfo.size(), xmlInfo_.vecSendRecvInfo.size());
     }
 
     // 多线程同步处理
@@ -122,6 +123,30 @@ void InsTempAlltoAllVOmni::DoRepeatOmni(const std::map<u32, std::vector<ChannelI
                                        const TemplateDataParams &tempAlgParams)
 {
     HCCL_INFO("[InsTempAlltoAllVOmni][DoRepeatOmni] Start processing OMNI signals");
+
+    // 处理同步指令
+    for (const auto& syncInfo : xmlInfo_.vecSyncInfo) {
+        HcclResult ret = HCCL_SUCCESS;
+
+        switch (syncInfo.optype) {
+            case OP_PRE_SYNC_INTER_THREADS:
+                ret = HandlePreSyncInterThreads(syncInfo, threads);
+                break;
+            case OP_POST_SYNC_INTER_THREADS:
+                ret = HandlePostSyncInterThreads(syncInfo, threads);
+                break;
+            default:
+                HCCL_ERROR("[DoRepeatOmni] Unsupported sync operation type: %d", syncInfo.optype);
+                ret = HCCL_E_INTERNAL;
+                break;
+        }
+
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("[DoRepeatOmni] Failed to handle sync operation type: %d, error: 0x%016llx",
+                      syncInfo.optype, HCCL_ERROR_CODE(ret));
+            return;
+        }
+    }
 
     // 遍历XML中的所有信号信息
     for (const auto& signalInfo : xmlInfo_.vecSendRecvInfo) {
@@ -1087,6 +1112,122 @@ HcclResult InsTempAlltoAllVOmni::HandleGroupReduce(const OmniSendRecvInfo& signa
                                signalInfo.inputDataType, signalInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[0])));
     }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVOmni::HandlePreSyncInterThreads(const OmniSyncInfo& syncInfo,
+                                                          const std::vector<ThreadHandle> &threads)
+{
+    HCCL_INFO("[HandlePreSyncInterThreads] Start pre-sync inter threads, mainThreadIdx: %lu, subThreadNum: %lu",
+              syncInfo.mainThreadIdx, syncInfo.subThreadNum);
+
+    // 验证主线程索引
+    if (syncInfo.mainThreadIdx >= threads.size()) {
+        HCCL_ERROR("[HandlePreSyncInterThreads] Invalid mainThreadIdx: %lu, threads size: %lu",
+                  syncInfo.mainThreadIdx, threads.size());
+        return HCCL_E_INTERNAL;
+    }
+
+    // 验证子线程数量
+    if (syncInfo.subThreadNum == 0 || syncInfo.subThreadNum >= threads.size()) {
+        HCCL_ERROR("[HandlePreSyncInterThreads] Invalid subThreadNum: %lu, threads size: %lu",
+                  syncInfo.subThreadNum, threads.size());
+        return HCCL_E_INTERNAL;
+    }
+
+    // 准备子线程句柄
+    std::vector<ThreadHandle> subThreads;
+    if (syncInfo.subThreadIds.empty()) {
+        // 如果没有指定子线程ID，使用默认顺序（排除主线程）
+        for (size_t i = 0; i < threads.size(); i++) {
+            if (i != syncInfo.mainThreadIdx) {
+                subThreads.push_back(threads[i]);
+            }
+        }
+        // 确保子线程数量匹配
+        if (subThreads.size() != syncInfo.subThreadNum) {
+            HCCL_WARNING("[HandlePreSyncInterThreads] subThreadNum mismatch: expected %lu, got %lu",
+                        syncInfo.subThreadNum, subThreads.size());
+        }
+    } else {
+        // 使用指定的子线程ID
+        for (const auto& threadId : syncInfo.subThreadIds) {
+            if (threadId < threads.size()) {
+                subThreads.push_back(threads[threadId]);
+            } else {
+                HCCL_WARNING("[HandlePreSyncInterThreads] Invalid threadId in subThreadIds: %u", threadId);
+            }
+        }
+    }
+
+    // 准备通知索引
+    std::vector<u32> notifyIdxMainToSub;
+    for (size_t i = 0; i < subThreads.size(); i++) {
+        notifyIdxMainToSub.push_back(0); // 使用默认通知索引
+    }
+
+    // 执行前同步
+    CHK_RET(PreSyncInterThreads(threads[syncInfo.mainThreadIdx], subThreads, notifyIdxMainToSub));
+
+    HCCL_INFO("[HandlePreSyncInterThreads] Pre-sync inter threads completed successfully");
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVOmni::HandlePostSyncInterThreads(const OmniSyncInfo& syncInfo,
+                                                           const std::vector<ThreadHandle> &threads)
+{
+    HCCL_INFO("[HandlePostSyncInterThreads] Start post-sync inter threads, mainThreadIdx: %lu, subThreadNum: %lu",
+              syncInfo.mainThreadIdx, syncInfo.subThreadNum);
+
+    // 验证主线程索引
+    if (syncInfo.mainThreadIdx >= threads.size()) {
+        HCCL_ERROR("[HandlePostSyncInterThreads] Invalid mainThreadIdx: %lu, threads size: %lu",
+                  syncInfo.mainThreadIdx, threads.size());
+        return HCCL_E_INTERNAL;
+    }
+
+    // 验证子线程数量
+    if (syncInfo.subThreadNum == 0 || syncInfo.subThreadNum >= threads.size()) {
+        HCCL_ERROR("[HandlePostSyncInterThreads] Invalid subThreadNum: %lu, threads size: %lu",
+                  syncInfo.subThreadNum, threads.size());
+        return HCCL_E_INTERNAL;
+    }
+
+    // 准备子线程句柄
+    std::vector<ThreadHandle> subThreads;
+    if (syncInfo.subThreadIds.empty()) {
+        // 如果没有指定子线程ID，使用默认顺序（排除主线程）
+        for (size_t i = 0; i < threads.size(); i++) {
+            if (i != syncInfo.mainThreadIdx) {
+                subThreads.push_back(threads[i]);
+            }
+        }
+        // 确保子线程数量匹配
+        if (subThreads.size() != syncInfo.subThreadNum) {
+            HCCL_WARNING("[HandlePostSyncInterThreads] subThreadNum mismatch: expected %lu, got %lu",
+                        syncInfo.subThreadNum, subThreads.size());
+        }
+    } else {
+        // 使用指定的子线程ID
+        for (const auto& threadId : syncInfo.subThreadIds) {
+            if (threadId < threads.size()) {
+                subThreads.push_back(threads[threadId]);
+            } else {
+                HCCL_WARNING("[HandlePostSyncInterThreads] Invalid threadId in subThreadIds: %u", threadId);
+            }
+        }
+    }
+
+    // 准备通知索引
+    std::vector<u32> notifyIdxSubToMain;
+    for (size_t i = 0; i < subThreads.size(); i++) {
+        notifyIdxSubToMain.push_back(i); // 使用递增通知索引
+    }
+
+    // 执行后同步
+    CHK_RET(PostSyncInterThreads(threads[syncInfo.mainThreadIdx], subThreads, notifyIdxSubToMain));
+
+    HCCL_INFO("[HandlePostSyncInterThreads] Post-sync inter threads completed successfully");
     return HCCL_SUCCESS;
 }
 

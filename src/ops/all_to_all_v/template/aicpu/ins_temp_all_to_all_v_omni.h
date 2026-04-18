@@ -113,6 +113,12 @@ private:
                                 const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParams);
 
+    // 同步指令处理函数
+    HcclResult HandlePreSyncInterThreads(const OmniSyncInfo& syncInfo,
+                                        const std::vector<ThreadHandle> &threads);
+    HcclResult HandlePostSyncInterThreads(const OmniSyncInfo& syncInfo,
+                                         const std::vector<ThreadHandle> &threads);
+
     // XML配置相关
     XmlInfo xmlInfo_;  // 从执行器传递的XML配置信息
 

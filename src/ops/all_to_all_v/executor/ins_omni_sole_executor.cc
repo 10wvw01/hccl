@@ -67,6 +67,19 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::ParseXmlInfo(const
     xmlInfo_.resInfo.notifyNumOnMainThread = 3;
     xmlInfo_.resInfo.notifyNumPerThread = 3;
     xmlInfo_.resInfo.netLayerNum = 1;
+    OmniSyncInfo syncInfo;
+    syncInfo.optype = OP_PRE_SYNC_INTER_THREADS;
+    syncInfo.mainThreadIdx = myRank_;
+    syncInfo.subThreadNum = 3;
+
+    std::vector<uint8_t> subThreadIds;
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (i != myRank_) {
+            subThreadIds.push_back(i);
+        }
+    }
+    syncInfo.subThreadIds = subThreadIds;
+    xmlInfo_.vecSyncInfo.push_back(syncInfo);
 
     if (myRank_ == 0) {
         std::map<u32, OmniChannelInfo> tmp;

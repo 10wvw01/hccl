@@ -23,18 +23,20 @@ namespace ops_hccl {
 
 // 用于判断操作类型
 enum OpType {
-    OP_LOCAL_COPY = 0,
-    OP_LOCAL_REDUCE = 1,
+    OP_PRE_SYNC_INTER_THREADS = 1,
+    OP_POST_SYNC_INTER_THREADS = 2,
+    OP_LOCAL_COPY,
+    OP_LOCAL_REDUCE,
     OP_SEND_RECV_WRITE,
     OP_SEND_WRITE,
     OP_RECV_WRITE,
     OP_SEND_RECV_WRITE_REDUCE,
     OP_SEND_WRITE_REDUCE,
-    OP_RECV_WRITE_REDUCE = 7,
+    OP_RECV_WRITE_REDUCE,
     OP_SEND_RECV_READ,
     OP_SEND_READ,
     OP_RECV_READ,
-    OP_SEND_RECV_READ_REDUCE = 11,
+    OP_SEND_RECV_READ_REDUCE,
     OP_SEND_READ_REDUCE,
     OP_RECV_READ_REDUCE,
     OP_GROUP_BROAD_CAST,
@@ -61,6 +63,13 @@ struct OmniSendRecvInfo {
     uint64_t remoteRank;
 };
 
+struct OmniSyncInfo {
+    OpType optype;
+    uint64_t mainThreadIdx;
+    uint64_t subThreadNum;
+    std::vector<uint8_t> subThreadIds;
+};
+
 // OMNI通道信息结构
 struct OmniChannelInfo {
     CommProtocol channelProtocol; ///< 通信协议
@@ -80,6 +89,7 @@ struct ResInfo {
 // OMNI XML信息结构
 struct XmlInfo {
     ResInfo resInfo; // calc计算需要的资源
+    std::vector<OmniSyncInfo> vecSyncInfo; // kernel处理的数据通信
     std::vector<OmniSendRecvInfo> vecSendRecvInfo; // kernel处理的数据通信
 };
 
