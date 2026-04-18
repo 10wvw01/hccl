@@ -27,6 +27,15 @@ At the beginning of each session, read these key files to understand the current
 
 ## Build Commands
 
+### Prerequisites
+Must source CANN environment before building:
+```bash
+# Default root installation
+source /usr/local/Ascend/cann/set_env.sh
+# OR custom installation
+source ${install_path}/cann/set_env.sh
+```
+
 ### Basic Build
 The main build script is `build.sh` in the root directory:
 
@@ -39,14 +48,29 @@ bash build.sh --pkg --full
 
 # Build with custom third-party libraries path
 bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
+
+# Debug build with ASAN
+bash build.sh --asan --build-type=Debug
+
+# Release build
+bash build.sh --build-type=Release
+
+# Build for ARM64/aarch64
+bash build.sh --build_aarch
+
+# Build only AICPU kernel
+bash build.sh --aicpu
+
+# Custom thread count
+bash build.sh --pkg -j16
 ```
 
-### Testing
+### Testing Commands
 ```bash
-# Run unit tests (LLT)
+# Run all unit tests (LLT)
 bash build.sh --ut
 
-# Run system tests
+# Run all system tests
 bash build.sh --st
 
 # Run specific test targets
@@ -54,27 +78,15 @@ bash build.sh --open_hccl_test
 bash build.sh --executor_hccl_test
 bash build.sh --executor_reduce_hccl_test
 bash build.sh --executor_pipeline_hccl_test
+
+# Run smoke tests
+bash build.sh --cb_test_verify
 ```
 
 ### Custom Operations
 ```bash
 # Build custom operators
 bash build.sh --custom_ops_path=<CUSTOM_OPS_PATH> --ops=<OPS> --vendor=<VENDOR>
-
-# Build only AICPU kernel
-bash build.sh --aicpu
-
-# Build for ARM64/aarch64
-bash build.sh --build_aarch
-```
-
-### Development Builds
-```bash
-# Debug build with ASAN
-bash build.sh --asan --build-type=Debug
-
-# Release build
-bash build.sh --build-type=Release
 ```
 
 ### Output Location
@@ -113,6 +125,12 @@ src/
 ├── include/             # Public API headers (hccl.h, hccl_mc2.h)
 └── interface_graph_mode/ # Graph mode execution interface
 ```
+
+### Build System Structure
+- Root CMakeLists.txt: Main build configuration
+- `src/CMakeLists.txt`: Source compilation rules
+- Cross-compilation via `AARCH_MODE=ON` for ARM64 (aarch64-linux-gnu target)
+- Separate host (`./build/`) and device (`./build_device/`) build directories
 
 ### Core Design Patterns
 
@@ -203,17 +221,35 @@ Custom operators can be built using the `--custom_ops_path`, `--ops`, and `--ven
 - Focus on individual module functionality
 - Built with `-DENABLE_UT=ON`
 - Executed via `bash build.sh --ut`
+- Specific test targets: `open_hccl_test`, `executor_hccl_test`, `executor_reduce_hccl_test`, `executor_pipeline_hccl_test`
 
 ### System Tests
 - Located in `test/st/`
 - End-to-end communication validation
 - Includes algorithm correctness verification in `test/st/algorithm/`
 - Uses simulation framework in `test/st/algorithm/utils/src/`
+- Executed via `bash build.sh --st`
 
 ### Test Infrastructure
 - **HCLL Proxy**: Communication layer simulation
 - **Topology Model**: Hardware topology simulation  
 - **Verifier**: Communication semantic validation
+
+### Running Specific Tests
+Use these commands to run targeted test suites:
+```bash
+# Open HCCL tests
+bash build.sh --open_hccl_test
+
+# Executor framework tests
+bash build.sh --executor_hccl_test
+
+# Reduce operation tests
+bash build.sh --executor_reduce_hccl_test
+
+# Pipeline execution tests
+bash build.sh --executor_pipeline_hccl_test
+```
 
 ## Important Configuration Notes
 
@@ -242,6 +278,7 @@ Automatically downloaded during build unless specified via `--cann_3rd_lib_path`
 2. Verify environment variables are sourced
 3. Check third-party libraries are available
 4. Use `--build-type=Debug` for debug symbols
+5. Use `--asan` for address sanitizer builds
 
 ### Performance Optimization
 - Algorithm selection happens at runtime based on data size and topology
