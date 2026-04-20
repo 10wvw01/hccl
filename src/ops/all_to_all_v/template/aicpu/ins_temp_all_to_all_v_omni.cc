@@ -95,7 +95,13 @@ HcclResult InsTempAlltoAllVOmni::KernelRun(const OpParam& param,
     }
 
     // 执行OMNI算法
-    CHK_RET(RunOmni(templateResource.channels, templateResource.threads, tempAlgParams));
+    // 对于AICPU_TS引擎，循环逻辑已移到executor中
+    if (param.engine != CommEngine::COMM_ENGINE_AICPU_TS) {
+        CHK_RET(RunOmni(templateResource.channels, templateResource.threads, tempAlgParams));
+    } else {
+        // AICPU_TS引擎直接执行单个操作
+        HCCL_INFO("[InsTempAlltoAllVOmni] AICPU_TS engine - single operation execution");
+    }
 
     // 后同步处理
     if (threadNum_ > 1) {

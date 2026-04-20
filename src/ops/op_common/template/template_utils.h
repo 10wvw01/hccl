@@ -259,6 +259,7 @@ struct TemplateResource {
     void *npu2DpuShmemPtr;
     void *dpu2NpuShmemPtr;
     void* aivCommInfoPtr = nullptr;
+    omni::OpType optype;
 };
 
 struct DPURunInfo { // AICPU构造信息，写入共享内存

@@ -43,6 +43,14 @@ public:
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub) override;
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 
+    // 公共执行接口 - 用于AICPU_TS引擎直接调用
+    HcclResult ExecuteSync(const OmniSyncInfo& syncInfo,
+                         const TemplateDataParams& tempAlgParams,
+                         const TemplateResource& templateResource);
+    HcclResult ExecuteSignal(const OmniSendRecvInfo& signalInfo,
+                           const TemplateDataParams& tempAlgParams,
+                           const TemplateResource& templateResource);
+
 private:
     HcclResult RunOmni(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams);

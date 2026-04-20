@@ -11,6 +11,7 @@
 #include "template_utils.h"
 #include "aicpu/ins_temp_all_to_all_v_omni.h"
 #include "ins_omni_sole_executor.h"
+#include "ins_omni_template_params_gen.h"
 
 
 namespace ops_hccl {
@@ -280,7 +281,44 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLoop(
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate =
         std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, resCtx.algHierarchyInfo.infos[0]);
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+        // 准备参数生成配置
+        ops_hccl::omni::OmniParamGenConfig config;
+        config.dataSize = dataSize_;
+        config.sliceNum = xmlInfo_.vecSendRecvInfo.empty() ? 1 : xmlInfo_.vecSendRecvInfo[0].sliceNum;
+        config.dataTypeSize = dataTypeSize_;
+        config.dataType = dataType_;
+        config.myRank = myRank_;
 
+        for (const auto& syncInfo : xmlInfo_.vecSyncInfo) {
+            TemplateDataParams tempAlgParams = ops_hccl::omni::InsOmniTemplateParamsGenerator::GenerateForSync(
+                syncInfo, param, resCtx, config);
+            TemplateResource templateAlgRes;
+            templateAlgRes.threads = resCtx.threads;
+            templateAlgRes.optype = syncInfo.optype;
+            CHK_RET(algTemplate->KernelRun(param, tempAlgParams, templateAlgRes));
+        }
+        for (const auto& instructionInfo : xmlInfo_.vecSendRecvInfo) {
+            TemplateDataParams tempAlgParams = ops_hccl::omni::InsOmniTemplateParamsGenerator::GenerateForInstruction(
+                instructionInfo, param, resCtx, config);
+            TemplateResource templateAlgRes;
+            templateAlgRes.threads = resCtx.threads;
+            templateAlgRes.optype = instructionInfo.optype;
+            // 设置通道信息
+            if (instructionInfo.remoteRank != INVALID_VALUE_RANKID) {
+                // 查找对应远程rank的通道信息
+                for (const auto& channelMap : resCtx.channelInfos) {
+                    auto it = channelMap.find(instructionInfo.remoteRank);
+                    if (it != channelMap.end() && !it->second.empty()) {
+                        templateAlgRes.channels[instructionInfo.remoteRank] = it->second;
+                        break;
+                    }
+                }
+            }
+            CHK_RET(algTemplate->KernelRun(param, tempAlgParams, templateAlgRes));
+        }
+        return;
+    }
     // 准备资源
     TemplateResource templateAlgRes;
     if (remoteRankToChannelInfo_.size() > 0) {
