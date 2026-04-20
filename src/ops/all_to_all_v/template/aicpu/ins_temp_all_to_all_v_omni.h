@@ -44,12 +44,7 @@ public:
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 
     // 公共执行接口 - 用于AICPU_TS引擎直接调用
-    HcclResult ExecuteSync(const OmniSyncInfo& syncInfo,
-                         const TemplateDataParams& tempAlgParams,
-                         const TemplateResource& templateResource);
-    HcclResult ExecuteSignal(const OmniSendRecvInfo& signalInfo,
-                           const TemplateDataParams& tempAlgParams,
-                           const TemplateResource& templateResource);
+    // 注意：现在通过KernelRun直接处理，不再需要单独的Execute接口
 
 private:
     HcclResult RunOmni(const std::map<u32, std::vector<ChannelInfo>> &channels,
@@ -58,74 +53,56 @@ private:
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams);
 
     // 操作类型处理函数
-    HcclResult HandleLocalCopy(const OmniSendRecvInfo& signalInfo,
-                              const std::vector<ThreadHandle> &threads,
+    HcclResult HandleLocalCopy(const std::vector<ThreadHandle> &threads,
                               const TemplateDataParams &tempAlgParams);
-    HcclResult HandleLocalReduce(const OmniSendRecvInfo& signalInfo,
-                                const std::vector<ThreadHandle> &threads,
+    HcclResult HandleLocalReduce(const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendRecvWrite(const OmniSendRecvInfo& signalInfo,
-                                  const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendRecvWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                   const std::vector<ThreadHandle> &threads,
                                   const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendWrite(const OmniSendRecvInfo& signalInfo,
-                              const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                               const std::vector<ThreadHandle> &threads,
                               const TemplateDataParams &tempAlgParams);
-    HcclResult HandleRecvWrite(const OmniSendRecvInfo& signalInfo,
-                              const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleRecvWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                               const std::vector<ThreadHandle> &threads,
                               const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendRecvWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                        const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendRecvWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                         const std::vector<ThreadHandle> &threads,
                                         const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                    const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                     const std::vector<ThreadHandle> &threads,
                                     const TemplateDataParams &tempAlgParams);
-    HcclResult HandleRecvWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                    const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleRecvWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                     const std::vector<ThreadHandle> &threads,
                                     const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendRecvRead(const OmniSendRecvInfo& signalInfo,
-                                 const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendRecvRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                  const std::vector<ThreadHandle> &threads,
                                  const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendRead(const OmniSendRecvInfo& signalInfo,
-                             const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                              const std::vector<ThreadHandle> &threads,
                              const TemplateDataParams &tempAlgParams);
-    HcclResult HandleRecvRead(const OmniSendRecvInfo& signalInfo,
-                             const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleRecvRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                              const std::vector<ThreadHandle> &threads,
                              const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendRecvReadReduce(const OmniSendRecvInfo& signalInfo,
-                                       const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendRecvReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                        const std::vector<ThreadHandle> &threads,
                                        const TemplateDataParams &tempAlgParams);
-    HcclResult HandleSendReadReduce(const OmniSendRecvInfo& signalInfo,
-                                   const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleSendReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                    const std::vector<ThreadHandle> &threads,
                                    const TemplateDataParams &tempAlgParams);
-    HcclResult HandleRecvReadReduce(const OmniSendRecvInfo& signalInfo,
-                                   const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleRecvReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                    const std::vector<ThreadHandle> &threads,
                                    const TemplateDataParams &tempAlgParams);
-    HcclResult HandleGroupBroadcast(const OmniSendRecvInfo& signalInfo,
-                                   const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleGroupBroadcast(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                    const std::vector<ThreadHandle> &threads,
                                    const TemplateDataParams &tempAlgParams);
-    HcclResult HandleGroupReduce(const OmniSendRecvInfo& signalInfo,
-                                const std::map<u32, std::vector<ChannelInfo>> &channels,
+    HcclResult HandleGroupReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                 const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParams);
 
     // 同步指令处理函数
-    HcclResult HandlePreSyncInterThreads(const OmniSyncInfo& syncInfo,
-                                        const std::vector<ThreadHandle> &threads);
-    HcclResult HandlePostSyncInterThreads(const OmniSyncInfo& syncInfo,
-                                         const std::vector<ThreadHandle> &threads);
+    HcclResult HandlePreSyncInterThreads(const std::vector<ThreadHandle> &threads);
+    HcclResult HandlePostSyncInterThreads(const std::vector<ThreadHandle> &threads);
 
     // XML配置相关
     XmlInfo xmlInfo_;  // 从执行器传递的XML配置信息
@@ -135,6 +112,7 @@ private:
     u64 processSize_{0};
     u64 dataTypeSize_{0};
     HcclDataType dataType_{HCCL_DATA_TYPE_RESERVED};
+    u64 cclBufferCountPerRank_{0}; // 每个rank的ccl buffer元素个数
 
     // 线程相关
     u32 threadNum_{0};

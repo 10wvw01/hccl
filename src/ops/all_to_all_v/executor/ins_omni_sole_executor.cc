@@ -291,31 +291,60 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLoop(
         config.myRank = myRank_;
 
         for (const auto& syncInfo : xmlInfo_.vecSyncInfo) {
-            TemplateDataParams tempAlgParams = ops_hccl::omni::InsOmniTemplateParamsGenerator::GenerateForSync(
-                syncInfo, param, resCtx, config);
+            // 同步指令通常只需要执行一次
+            TemplateDataParams tempAlgParams;
+            tempAlgParams.buffInfo.inputPtr = param.inputPtr;
+            tempAlgParams.buffInfo.outputPtr = param.outputPtr;
+            tempAlgParams.buffInfo.hcclBuff = resCtx.cclMem;
+            tempAlgParams.buffInfo.inBuffBaseOff = 0;
+            tempAlgParams.buffInfo.outBuffBaseOff = 0;
+            tempAlgParams.buffInfo.hcclBuffBaseOff = 0;
+            tempAlgParams.repeatNum = 1;
+            tempAlgParams.inputRepeatStride = 0;
+            tempAlgParams.outputRepeatStride = 0;
+            tempAlgParams.buffInfo.inBuffType = BufferType::INPUT;
+            tempAlgParams.buffInfo.outBuffType = BufferType::OUTPUT;
+            tempAlgParams.sliceSize = dataSize_ / config.sliceNum;
+            tempAlgParams.count = dataSize_ / dataTypeSize_;
+            tempAlgParams.dataType = dataType_;
+
             TemplateResource templateAlgRes;
             templateAlgRes.threads = resCtx.threads;
             templateAlgRes.optype = syncInfo.optype;
             CHK_RET(algTemplate->KernelRun(param, tempAlgParams, templateAlgRes));
         }
         for (const auto& instructionInfo : xmlInfo_.vecSendRecvInfo) {
-            TemplateDataParams tempAlgParams = ops_hccl::omni::InsOmniTemplateParamsGenerator::GenerateForInstruction(
-                instructionInfo, param, resCtx, config);
-            TemplateResource templateAlgRes;
-            templateAlgRes.threads = resCtx.threads;
-            templateAlgRes.optype = instructionInfo.optype;
-            // 设置通道信息
-            if (instructionInfo.remoteRank != INVALID_VALUE_RANKID) {
-                // 查找对应远程rank的通道信息
-                for (const auto& channelMap : resCtx.channelInfos) {
-                    auto it = channelMap.find(instructionInfo.remoteRank);
-                    if (it != channelMap.end() && !it->second.empty()) {
-                        templateAlgRes.channels[instructionInfo.remoteRank] = it->second;
-                        break;
+            // 使用参数生成器处理可能需要多次执行的指令
+            ops_hccl::omni::InsOmniTemplateParamsGenerator paramGen;
+            HcclResult ret = paramGen.StartInstruction(instructionInfo, param, resCtx, config);
+            if (ret != HCCL_SUCCESS) {
+                HCCL_ERROR("[InsOmniSoleExecutor][Execute] StartInstruction failed: %d", ret);
+                return ret;
+            }
+
+            while (paramGen.HasNext()) {
+                TemplateDataParams tempAlgParams;
+                HcclResult ret = paramGen.GetNext(tempAlgParams);
+                if (ret != HCCL_SUCCESS) {
+                    HCCL_ERROR("[InsOmniSoleExecutor][Execute] GetNext failed: %d", ret);
+                    return ret;
+                }
+                TemplateResource templateAlgRes;
+                templateAlgRes.threads = resCtx.threads;
+                templateAlgRes.optype = instructionInfo.optype;
+                // 设置通道信息
+                if (instructionInfo.remoteRank != INVALID_VALUE_RANKID) {
+                    // 查找对应远程rank的通道信息
+                    for (const auto& channelMap : resCtx.channelInfos) {
+                        auto it = channelMap.find(instructionInfo.remoteRank);
+                        if (it != channelMap.end() && !it->second.empty()) {
+                            templateAlgRes.channels[instructionInfo.remoteRank] = it->second;
+                            break;
+                        }
                     }
                 }
+                CHK_RET(algTemplate->KernelRun(param, tempAlgParams, templateAlgRes));
             }
-            CHK_RET(algTemplate->KernelRun(param, tempAlgParams, templateAlgRes));
         }
         return;
     }

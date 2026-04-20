@@ -29,7 +29,7 @@ struct OmniParamGenConfig {
 
 /**
  * @brief OMNI模板参数生成器
- * 负责为AICPU_TS引擎生成TemplateDataParams
+ * 负责为AICPU_TS引擎生成TemplateDataParams，支持多次执行的指令
  */
 class InsOmniTemplateParamsGenerator {
 public:
@@ -37,41 +37,45 @@ public:
     ~InsOmniTemplateParamsGenerator() = default;
 
     /**
-     * @brief 为同步操作生成TemplateDataParams
-     * @param syncInfo 同步信息
-     * @param param 算子参数
-     * @param resCtx 资源上下文
-     * @param config 参数生成配置
-     * @return TemplateDataParams 生成的模板数据参数
-     */
-    static TemplateDataParams GenerateForSync(const OmniSyncInfo& syncInfo,
-                                             const OpParam& param,
-                                             const AlgResourceCtxSerializable& resCtx,
-                                             const OmniParamGenConfig& config);
-
-    /**
-     * @brief 为指令操作生成TemplateDataParams
+     * @brief 开始处理一个指令
      * @param instructionInfo 指令信息
      * @param param 算子参数
      * @param resCtx 资源上下文
      * @param config 参数生成配置
-     * @return TemplateDataParams 生成的模板数据参数
+     * @return HcclResult 执行结果
      */
-    static TemplateDataParams GenerateForInstruction(const OmniSendRecvInfo& instructionInfo,
-                                                    const OpParam& param,
-                                                    const AlgResourceCtxSerializable& resCtx,
-                                                    const OmniParamGenConfig& config);
+    HcclResult StartInstruction(const OmniSendRecvInfo& instructionInfo,
+                               const OpParam& param,
+                               const AlgResourceCtxSerializable& resCtx,
+                               const OmniParamGenConfig& config);
+
+    /**
+     * @brief 检查是否还有下一次执行
+     * @return true 如果还有下一次执行
+     */
+    bool HasNext() const;
+
+    /**
+     * @brief 获取下一次执行的TemplateDataParams
+     * @param[out] params 输出参数，返回下一次执行的参数
+     * @return HcclResult 执行结果
+     */
+    HcclResult GetNext(TemplateDataParams& params);
+
 
 private:
-    // 私有辅助方法
-    static void PopulateCommonParams(TemplateDataParams& params,
-                                    const OpParam& param,
-                                    const AlgResourceCtxSerializable& resCtx,
-                                    const OmniParamGenConfig& config);
+    // 当前指令状态
+    const OmniSendRecvInfo* currentInstruction_{nullptr};
+    const OpParam* currentParam_{nullptr};
+    const AlgResourceCtxSerializable* currentResCtx_{nullptr};
+    OmniParamGenConfig currentConfig_{};
+    TemplateDataParams params_;
+    size_t currentIndex_{0};
+    bool isLast_{false};
 
-    static void SetupSliceParamsForInstruction(TemplateDataParams& params,
-                                              const OmniSendRecvInfo& instructionInfo,
-                                              const OmniParamGenConfig& config);
+    // 私有辅助方法
+    HcclResult InitializeParams();
+    HcclResult UpdateParamsForCurrentRun();
 };
 
 } // namespace omni

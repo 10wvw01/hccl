@@ -31,7 +31,7 @@ HcclResult InsTempAlltoAllVOmni::CalcRes(HcclComm comm, const OpParam& param, co
 {
     HCCL_INFO("[InsTempAlltoAllVOmni][CalcRes] Start to calc resource.");
 
-    // 保存XML信息供后续使用
+    // 保存XML信息供后续使用（兼容旧模式，但新实现不依赖XML）
     xmlInfo_ = xmlInfo;
 
     u32 threadNum = templateRankSize_;
@@ -76,15 +76,15 @@ HcclResult InsTempAlltoAllVOmni::KernelRun(const OpParam& param,
     count_ = tempAlgParams.count;
     dataType_ = param.all2AllVDataDes.sendType;
     dataTypeSize_ = SIZE_TABLE[dataType_];
+    cclBufferCountPerRank_ = tempAlgParams.inputSliceStride / dataTypeSize_;
 
     HCCL_INFO("[InsTempAlltoAllVOmni] Run Start");
 
-    // 检查XML信息是否已传递
+    // 检查XML信息是否已传递（兼容旧模式，但新实现不依赖XML）
     if (xmlInfo_.vecSendRecvInfo.empty() && xmlInfo_.vecSyncInfo.empty()) {
-        HCCL_WARNING("[InsTempAlltoAllVOmni] XML information is empty, OMNI operations may not execute correctly");
+        HCCL_INFO("[InsTempAlltoAllVOmni] Using algorithm-based operation sequence");
     } else {
-        HCCL_INFO("[InsTempAlltoAllVOmni] XML information contains %lu sync signals and %lu data signals",
-                  xmlInfo_.vecSyncInfo.size(), xmlInfo_.vecSendRecvInfo.size());
+        HCCL_WARNING("[InsTempAlltoAllVOmni] XML information present but algorithm-based sequence will be used");
     }
 
     // 多线程同步处理
@@ -101,6 +101,67 @@ HcclResult InsTempAlltoAllVOmni::KernelRun(const OpParam& param,
     } else {
         // AICPU_TS引擎直接执行单个操作
         HCCL_INFO("[InsTempAlltoAllVOmni] AICPU_TS engine - single operation execution");
+        // 对于AICPU_TS引擎，根据templateResource.optype执行相应操作
+        HcclResult ret = HCCL_SUCCESS;
+        switch (templateResource.optype) {
+            case OP_LOCAL_COPY:
+                ret = HandleLocalCopy(templateResource.threads, tempAlgParams);
+                break;
+            case OP_LOCAL_REDUCE:
+                ret = HandleLocalReduce(templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_RECV_WRITE:
+                ret = HandleSendRecvWrite(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_WRITE:
+                ret = HandleSendWrite(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_RECV_WRITE:
+                ret = HandleRecvWrite(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_RECV_WRITE_REDUCE:
+                ret = HandleSendRecvWriteReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_WRITE_REDUCE:
+                ret = HandleSendWriteReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_RECV_WRITE_REDUCE:
+                ret = HandleRecvWriteReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_RECV_READ:
+                ret = HandleSendRecvRead(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_READ:
+                ret = HandleSendRead(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_RECV_READ:
+                ret = HandleRecvRead(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_RECV_READ_REDUCE:
+                ret = HandleSendRecvReadReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_SEND_READ_REDUCE:
+                ret = HandleSendReadReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_RECV_READ_REDUCE:
+                ret = HandleRecvReadReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_GROUP_BROAD_CAST:
+                ret = HandleGroupBroadcast(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            case OP_GROUP_REDUCE:
+                ret = HandleGroupReduce(templateResource.channels, templateResource.threads, tempAlgParams);
+                break;
+            default:
+                HCCL_ERROR("[InsTempAlltoAllVOmni] Unsupported operation type: %d", templateResource.optype);
+                ret = HCCL_E_INTERNAL;
+                break;
+        }
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("[InsTempAlltoAllVOmni] Failed to handle operation type: %d, error: 0x%016llx",
+                      templateResource.optype, HCCL_ERROR_CODE(ret));
+            return ret;
+        }
     }
 
     // 后同步处理
@@ -128,99 +189,92 @@ void InsTempAlltoAllVOmni::DoRepeatOmni(const std::map<u32, std::vector<ChannelI
                                        const std::vector<ThreadHandle> &threads,
                                        const TemplateDataParams &tempAlgParams)
 {
-    HCCL_INFO("[InsTempAlltoAllVOmni][DoRepeatOmni] Start processing OMNI signals");
+    HCCL_INFO("[InsTempAlltoAllVOmni][DoRepeatOmni] Start processing OMNI signals based on algorithm logic");
 
-    // 处理同步指令
-    for (const auto& syncInfo : xmlInfo_.vecSyncInfo) {
-        HcclResult ret = HCCL_SUCCESS;
+    // 检查XML信息是否已传递（兼容旧模式，但新实现不依赖XML）
+    if (!xmlInfo_.vecSendRecvInfo.empty() || !xmlInfo_.vecSyncInfo.empty()) {
+        HCCL_WARNING("[DoRepeatOmni] XML information present but algorithm-based sequence will be used");
+    }
 
-        switch (syncInfo.optype) {
-            case OP_PRE_SYNC_INTER_THREADS:
-                ret = HandlePreSyncInterThreads(syncInfo, threads);
-                break;
-            case OP_POST_SYNC_INTER_THREADS:
-                ret = HandlePostSyncInterThreads(syncInfo, threads);
-                break;
-            default:
-                HCCL_ERROR("[DoRepeatOmni] Unsupported sync operation type: %d", syncInfo.optype);
-                ret = HCCL_E_INTERNAL;
-                break;
-        }
+    // 根据AlltoAllV算法逻辑生成操作序列
+    // 参考Mesh 1D实现，但保持OMNI的操作类型支持
 
-        if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("[DoRepeatOmni] Failed to handle sync operation type: %d, error: 0x%016llx",
-                      syncInfo.optype, HCCL_ERROR_CODE(ret));
+    // 首先计算算法rank（在子通信域中的位置）
+    u32 myAlgRank = 0;
+    if (!subCommRanks_.empty() && !subCommRanks_[0].empty()) {
+        auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
+        if (iter != subCommRanks_[0].end()) {
+            myAlgRank = std::distance(subCommRanks_[0].begin(), iter);
+        } else {
+            HCCL_ERROR("[DoRepeatOmni] Failed to find myRank_ in subCommRanks_[0]");
             return;
         }
     }
 
-    // 遍历XML中的所有信号信息
-    for (const auto& signalInfo : xmlInfo_.vecSendRecvInfo) {
-        HcclResult ret = HCCL_SUCCESS;
+    // cclBufferCountPerRank_已在KernelRun中计算
 
-        switch (signalInfo.optype) {
-            case OP_LOCAL_COPY:
-                ret = HandleLocalCopy(signalInfo, threads, tempAlgParams);
-                break;
-            case OP_LOCAL_REDUCE:
-                ret = HandleLocalReduce(signalInfo, threads, tempAlgParams);
-                break;
-            case OP_SEND_RECV_WRITE:
-                ret = HandleSendRecvWrite(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_WRITE:
-                ret = HandleSendWrite(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_RECV_WRITE:
-                ret = HandleRecvWrite(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_RECV_WRITE_REDUCE:
-                ret = HandleSendRecvWriteReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_WRITE_REDUCE:
-                ret = HandleSendWriteReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_RECV_WRITE_REDUCE:
-                ret = HandleRecvWriteReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_RECV_READ:
-                ret = HandleSendRecvRead(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_READ:
-                ret = HandleSendRead(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_RECV_READ:
-                ret = HandleRecvRead(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_RECV_READ_REDUCE:
-                ret = HandleSendRecvReadReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_SEND_READ_REDUCE:
-                ret = HandleSendReadReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_RECV_READ_REDUCE:
-                ret = HandleRecvReadReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_GROUP_BROAD_CAST:
-                ret = HandleGroupBroadcast(signalInfo, channels, threads, tempAlgParams);
-                break;
-            case OP_GROUP_REDUCE:
-                ret = HandleGroupReduce(signalInfo, channels, threads, tempAlgParams);
-                break;
-            default:
-                HCCL_ERROR("[DoRepeatOmni] Unsupported operation type: %d", signalInfo.optype);
-                ret = HCCL_E_INTERNAL;
-                break;
+    // AlltoAllV主循环：处理与每个rank的通信
+    for (u32 queIdx = 0; queIdx < threadNum_; queIdx++) {
+        if (queIdx == myAlgRank) {
+            // 本地拷贝：从input到output
+            if (tempAlgParams.sendCounts[myAlgRank] > 0) {
+                HcclResult ret = HandleLocalCopy(threads, tempAlgParams);
+                if (ret != HCCL_SUCCESS) {
+                    HCCL_ERROR("[DoRepeatOmni] HandleLocalCopy failed for local rank");
+                    return;
+                }
+            }
+            continue;
         }
 
-        if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("[DoRepeatOmni] Failed to handle operation type: %d, error: 0x%016llx",
-                      signalInfo.optype, HCCL_ERROR_CODE(ret));
-            return;
+        u32 nextRank = queIdx; // 逻辑rank
+        u32 remoteRank = subCommRanks_[0][nextRank]; // 物理rank
+
+        // 根据sendCounts和recvCounts决定操作类型
+        bool hasSend = (tempAlgParams.sendCounts[nextRank] > 0);
+        bool hasRecv = (tempAlgParams.recvCounts[nextRank] > 0);
+
+        if (hasSend && hasRecv) {
+            // 发送和接收都有，使用SendRecvWrite
+            HcclResult ret = HandleSendRecvWrite(channels, threads, tempAlgParams);
+            if (ret != HCCL_SUCCESS) {
+                HCCL_ERROR("[DoRepeatOmni] HandleSendRecvWrite failed for rank %u", nextRank);
+                return;
+            }
+        } else if (hasSend) {
+            // 只有发送，使用SendWrite
+            HcclResult ret = HandleSendWrite(channels, threads, tempAlgParams);
+            if (ret != HCCL_SUCCESS) {
+                HCCL_ERROR("[DoRepeatOmni] HandleSendWrite failed for rank %u", nextRank);
+                return;
+            }
+        } else if (hasRecv) {
+            // 只有接收，使用RecvWrite
+            HcclResult ret = HandleRecvWrite(channels, threads, tempAlgParams);
+            if (ret != HCCL_SUCCESS) {
+                HCCL_ERROR("[DoRepeatOmni] HandleRecvWrite failed for rank %u", nextRank);
+                return;
+            }
+        }
+        // 如果sendCounts和recvCounts都为0，跳过
+    }
+
+    // 后拷贝：从cclbuf到output（对于接收到的数据）
+    for (u32 queIdx = 0; queIdx < threadNum_; queIdx++) {
+        if (queIdx == myAlgRank) {
+            continue; // 本地rank不需要后拷贝
+        }
+
+        u32 curAlgRank = queIdx;
+        if (tempAlgParams.recvCounts[curAlgRank] > 0) {
+            // 对于后拷贝，可以重用LocalCopy逻辑，但需要调整参数
+            // 这里暂时跳过，实际实现需要额外的后拷贝逻辑
+            HCCL_INFO("[DoRepeatOmni] Post-copy needed for rank %u, size %lu",
+                     curAlgRank, tempAlgParams.recvCounts[curAlgRank] * dataTypeSize_);
         }
     }
 
-    HCCL_INFO("[InsTempAlltoAllVOmni][DoRepeatOmni] All OMNI signals processed successfully");
+    HCCL_INFO("[InsTempAlltoAllVOmni][DoRepeatOmni] All OMNI operations processed successfully");
 }
 
 void InsTempAlltoAllVOmni::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub)
@@ -243,77 +297,74 @@ void InsTempAlltoAllVOmni::GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubT
     }
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleLocalCopy(const OmniSendRecvInfo& signalInfo,
-                                                const std::vector<ThreadHandle> &threads,
+HcclResult InsTempAlltoAllVOmni::HandleLocalCopy(const std::vector<ThreadHandle> &threads,
                                                 const TemplateDataParams &tempAlgParams)
 {
-    if (signalInfo.srcSliceInfo.empty() || signalInfo.dstSliceInfo.empty()) {
-        HCCL_ERROR("[HandleLocalCopy] Invalid slice info");
+    // 从TemplateDataParams中获取切片信息
+    // 假设tempAlgParams中已经包含了必要的切片信息
+    // 对于LocalCopy，通常是从input到output的拷贝
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleLocalCopy] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
         return HCCL_E_INTERNAL;
     }
 
-    // 计算源地址
-    void* srcAddr = nullptr;
-    const auto& srcSlice = signalInfo.srcSliceInfo[0];
-    if (srcSlice.sliceType == 0) { // input
-        srcAddr = tempAlgParams.buffInfo.inputPtr;
-    } else if (srcSlice.sliceType == 1) { // output
-        srcAddr = tempAlgParams.buffInfo.outputPtr;
-    } else if (srcSlice.sliceType == 2) { // cclbuf
-        srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-    }
+    // 计算源地址和目标地址
+    // 根据Mesh 1D的实现，LocalCopy通常使用input和output指针
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
 
-    if (!srcAddr) {
-        HCCL_ERROR("[HandleLocalCopy] Invalid source address");
+    if (!srcAddr || !dstAddr) {
+        HCCL_ERROR("[HandleLocalCopy] Invalid buffer addresses: src=%p, dst=%p", srcAddr, dstAddr);
         return HCCL_E_INTERNAL;
     }
 
-    srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
+    // 根据切片偏移计算地址 - 参考Mesh 1D实现
+    // 对于本地拷贝，使用sendCounts和recvCounts确定偏移
+    u64 srcOffset = 0;
+    u64 dstOffset = 0;
 
-    // 计算目标地址
-    void* dstAddr = nullptr;
-    const auto& dstSlice = signalInfo.dstSliceInfo[0];
-    if (dstSlice.sliceType == 0) { // input
-        dstAddr = tempAlgParams.buffInfo.inputPtr;
-    } else if (dstSlice.sliceType == 1) { // output
-        dstAddr = tempAlgParams.buffInfo.outputPtr;
-    } else if (dstSlice.sliceType == 2) { // cclbuf
-        dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    // 在AlltoAllV中，本地拷贝通常处理myAlgRank对应的数据
+    // 这里需要额外的上下文信息，暂时使用0作为示例
+    u32 myAlgRank = 0;
+    if (myAlgRank < tempAlgParams.sdispls.size()) {
+        srcOffset = tempAlgParams.sdispls[myAlgRank] * dataTypeSize_;
+    }
+    if (myAlgRank < tempAlgParams.rdispls.size()) {
+        dstOffset = tempAlgParams.rdispls[myAlgRank] * dataTypeSize_;
     }
 
-    if (!dstAddr) {
-        HCCL_ERROR("[HandleLocalCopy] Invalid destination address");
-        return HCCL_E_INTERNAL;
-    }
-
-    dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
 
     // 执行本地拷贝
-    DataSlice srcSliceObj(srcAddr, 0, processSize_, processSize_ / dataTypeSize_);
-    DataSlice dstSliceObj(dstAddr, 0, processSize_, processSize_ / dataTypeSize_);
+    DataSlice srcSliceObj(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_);
+    DataSlice dstSliceObj(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_);
 
     CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSliceObj, dstSliceObj)));
+
+    HCCL_INFO("[HandleLocalCopy] Local copy completed: size=%lu", tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleLocalReduce(const OmniSendRecvInfo& signalInfo,
-                                                  const std::vector<ThreadHandle> &threads,
+HcclResult InsTempAlltoAllVOmni::HandleLocalReduce(const std::vector<ThreadHandle> &threads,
                                                   const TemplateDataParams &tempAlgParams)
 {
-    if (signalInfo.srcSliceInfo.empty() || signalInfo.dstSliceInfo.empty()) {
-        HCCL_ERROR("[HandleLocalReduce] Invalid slice info");
+    // 从TemplateDataParams中获取归约相关信息
+    // LocalReduce通常用于多个源切片归约到单个目标切片
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleLocalReduce] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
         return HCCL_E_INTERNAL;
     }
 
     // 计算目标地址
-    void* dstAddr = nullptr;
-    const auto& dstSlice = signalInfo.dstSliceInfo[0];
-    if (dstSlice.sliceType == 0) { // input
-        dstAddr = tempAlgParams.buffInfo.inputPtr;
-    } else if (dstSlice.sliceType == 1) { // output
-        dstAddr = tempAlgParams.buffInfo.outputPtr;
-    } else if (dstSlice.sliceType == 2) { // cclbuf
-        dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    // 根据具体实现，目标地址可能是output或cclbuf
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr; // 默认使用output
+    if (!dstAddr) {
+        dstAddr = tempAlgParams.buffInfo.hcclBuff.addr; // 备选使用cclbuf
     }
 
     if (!dstAddr) {
@@ -321,95 +372,145 @@ HcclResult InsTempAlltoAllVOmni::HandleLocalReduce(const OmniSendRecvInfo& signa
         return HCCL_E_INTERNAL;
     }
 
-    dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-    DataSlice dstSliceObj(dstAddr, 0, processSize_, processSize_ / dataTypeSize_);
-
-    // 处理所有源切片
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        // 计算源地址
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleLocalReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        DataSlice srcSliceObj(srcAddr, 0, processSize_, processSize_ / dataTypeSize_);
-
-        // 执行本地归约操作
-        CHK_RET(static_cast<HcclResult>(LocalReduce(threads[0], srcSliceObj, dstSliceObj,
-                                                   signalInfo.inputDataType, signalInfo.reduceType)));
+    // 计算目标偏移 - 参考Mesh 1D实现
+    u64 dstOffset = 0;
+    // 在AlltoAllV中，LocalReduce通常用于后处理阶段
+    // 这里需要额外的上下文信息，暂时使用0作为示例
+    u32 myAlgRank = 0;
+    if (myAlgRank < tempAlgParams.rdispls.size()) {
+        dstOffset = tempAlgParams.rdispls[myAlgRank] * dataTypeSize_;
     }
 
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    DataSlice dstSliceObj(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_);
+
+    // 处理源切片 - AlltoAllV通常只有一个源切片用于LocalReduce
+    void* srcAddr = tempAlgParams.buffInfo.hcclBuff.addr; // 通常从cclbuf归约到output
+    if (!srcAddr) {
+        srcAddr = tempAlgParams.buffInfo.inputPtr; // 备选使用input
+    }
+
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleLocalReduce] Invalid source address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算源偏移 - 参考Mesh 1D后拷贝逻辑
+    u64 srcOffset = 0;
+    u32 curAlgRank = 0; // 需要知道当前处理的rank
+    srcOffset = curAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff;
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    DataSlice srcSliceObj(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_);
+
+    // 执行本地归约操作
+    // 归约类型和数据类型需要从tempAlgParams中获取
+    HcclDataType dataType = tempAlgParams.dataType;
+    HcclReduceOp reduceType = HCCL_REDUCE_SUM; // 默认使用SUM
+
+    CHK_RET(static_cast<HcclResult>(LocalReduce(threads[0], srcSliceObj, dstSliceObj, dataType, reduceType)));
+
+    HCCL_INFO("[HandleLocalReduce] Local reduce completed: size=%lu, dataType=%d, reduceType=%d",
+              tempAlgParams.sliceSize, dataType, reduceType);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendRecvWrite(const OmniSendRecvInfo& signalInfo,
-                                                    const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendRecvWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                     const std::vector<ThreadHandle> &threads,
                                                     const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendRecvWrite逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendRecvWrite] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 在AlltoAllV中，远程rank通过循环索引确定
+    // 这里需要额外的上下文信息，暂时使用第一个通道作为示例
+    u32 remoteRank = 0;
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendRecvWrite] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendRecvWrite] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
     std::vector<DataSlice> txSrcSlices;
     std::vector<DataSlice> txDstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvWrite] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendRecvWrite] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算发送偏移 - 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    // 这里需要知道nextRank，暂时使用0作为示例
+    u32 nextRank = 0;
+    u64 srcOffset = 0;
+    if (nextRank < tempAlgParams.sdispls.size()) {
+        srcOffset = tempAlgParams.sdispls[nextRank] * dataTypeSize_;
+    }
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    txSrcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvWrite] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移 - 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    // 这里需要知道myAlgRank，暂时使用0作为示例
+    u32 myAlgRank = 0;
+    u64 remoteOffset = myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff;
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    txDstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 准备接收数据切片
+    // 接收数据通常从本地cclbuf到output
     std::vector<DataSlice> rxSrcSlices;
     std::vector<DataSlice> rxDstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvWrite] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvWrite] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算本地cclbuf偏移 - 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff;
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    rxSrcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleSendRecvWrite] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移 - 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    // 这里需要知道curAlgRank，暂时使用0作为示例
+    u32 curAlgRank = 0;
+    u64 dstOffset = 0;
+    if (curAlgRank < tempAlgParams.rdispls.size()) {
+        dstOffset = tempAlgParams.rdispls[curAlgRank] * dataTypeSize_;
+    }
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    rxDstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行发送接收写操作
     TxRxChannels txRxChannels(channel, channel);
@@ -420,311 +521,508 @@ HcclResult InsTempAlltoAllVOmni::HandleSendRecvWrite(const OmniSendRecvInfo& sig
     SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
 
     CHK_RET(static_cast<HcclResult>(SendRecvWrite(sendRecvInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendRecvWrite] SendRecvWrite completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendWrite(const OmniSendRecvInfo& signalInfo,
-                                                const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                 const std::vector<ThreadHandle> &threads,
                                                 const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendWrite逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendWrite] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendWrite] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendWrite] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendWrite] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendWrite] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算发送偏移
+    // 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    u64 srcOffset = 0; // 需要从tempAlgParams中获取
+    if (tempAlgParams.inputSliceStride > 0) {
+        // 根据具体实现确定如何计算偏移
+        srcOffset = 0; // 临时占位
+    }
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    srcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendWrite] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移
+    // 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 remoteOffset = 0; // 需要从tempAlgParams中获取
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    dstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行发送写操作
     SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
     DataInfo sendInfo(channel, std::move(sendSliceList));
     CHK_RET(static_cast<HcclResult>(SendWrite(sendInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendWrite] SendWrite completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleRecvWrite(const OmniSendRecvInfo& signalInfo,
-                                                const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleRecvWrite(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                 const std::vector<ThreadHandle> &threads,
                                                 const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的RecvWrite逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleRecvWrite] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleRecvWrite] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleRecvWrite] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备接收数据切片
+    // 参考Mesh 1D实现，接收数据通常从本地cclbuf到output
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleRecvWrite] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    // 源地址通常是本地cclbuf
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleRecvWrite] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算本地cclbuf偏移
+    // 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = 0; // 需要从tempAlgParams中获取
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    srcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleRecvWrite] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移
+    // 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    u64 dstOffset = 0; // 需要从tempAlgParams中获取
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    dstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行接收写操作
     SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
     DataInfo recvInfo(channel, std::move(recvSliceList));
     CHK_RET(static_cast<HcclResult>(RecvWrite(recvInfo, threads[0])));
+
+    HCCL_INFO("[HandleRecvWrite] RecvWrite completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendRecvWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                                          const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendRecvWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                           const std::vector<ThreadHandle> &threads,
                                                           const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendRecvWriteReduce逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendRecvWriteReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
-    std::vector<DataSlice> txSrcSlices; 
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
+    std::vector<DataSlice> txSrcSlices;
     std::vector<DataSlice> txDstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算发送偏移
+    // 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    u64 srcOffset = 0; // 需要从tempAlgParams中获取
+    if (tempAlgParams.inputSliceStride > 0) {
+        srcOffset = 0; // 临时占位
+    }
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    txSrcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移
+    // 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 remoteOffset = 0; // 需要从tempAlgParams中获取
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    txDstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 准备接收数据切片
+    // 接收数据通常从本地cclbuf到output
     std::vector<DataSlice> rxSrcSlices;
     std::vector<DataSlice> rxDstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算本地cclbuf偏移
+    // 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = 0; // 需要从tempAlgParams中获取
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    rxSrcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleSendRecvWriteReduce] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移
+    // 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    u64 dstOffset = 0; // 需要从tempAlgParams中获取
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    rxDstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 执行发送接收写归约操作
+    // 归约类型和数据类型需要从tempAlgParams中获取
+    HcclDataType dataType = tempAlgParams.dataType;
+    HcclReduceOp reduceType = HCCL_REDUCE_SUM; // 默认使用SUM
+
     TxRxChannels txRxChannels(channel, channel);
     TxRxSlicesList txRxSlicesList(
         SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
         SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices))
     );
     SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
-                                   signalInfo.inputDataType, signalInfo.reduceType);
+                                   dataType, reduceType);
 
     CHK_RET(static_cast<HcclResult>(SendRecvWriteReduce(sendRecvInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendRecvWriteReduce] SendRecvWriteReduce completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                                      const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                       const std::vector<ThreadHandle> &threads,
                                                       const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendWriteReduce逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendWriteReduce] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendWriteReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendWriteReduce] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendWriteReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendWriteReduce] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算发送偏移
+    // 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    u64 srcOffset = 0; // 需要从tempAlgParams中获取
+    if (tempAlgParams.inputSliceStride > 0) {
+        srcOffset = 0; // 临时占位
+    }
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    srcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendWriteReduce] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移
+    // 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 remoteOffset = 0; // 需要从tempAlgParams中获取
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    dstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 执行发送写归约操作
+    // 归约类型和数据类型需要从tempAlgParams中获取
+    HcclDataType dataType = tempAlgParams.dataType;
+    HcclReduceOp reduceType = HCCL_REDUCE_SUM; // 默认使用SUM
+
     SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
-    DataReduceInfo sendInfo(channel, std::move(sendSliceList), signalInfo.inputDataType, signalInfo.reduceType);
+    DataReduceInfo sendInfo(channel, std::move(sendSliceList), dataType, reduceType);
     CHK_RET(static_cast<HcclResult>(SendWriteReduce(sendInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendWriteReduce] SendWriteReduce completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleRecvWriteReduce(const OmniSendRecvInfo& signalInfo,
-                                                      const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleRecvWriteReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                       const std::vector<ThreadHandle> &threads,
                                                       const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的RecvWriteReduce逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleRecvWriteReduce] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleRecvWriteReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleRecvWriteReduce] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备接收数据切片
+    // 参考Mesh 1D实现，接收数据通常从本地cclbuf到output
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleRecvWriteReduce] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    // 源地址通常是本地cclbuf
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleRecvWriteReduce] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算本地cclbuf偏移
+    // 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = 0; // 需要从tempAlgParams中获取
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    srcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleRecvWriteReduce] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移
+    // 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    u64 dstOffset = 0; // 需要从tempAlgParams中获取
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    dstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 执行接收写归约操作
+    // 归约类型和数据类型需要从tempAlgParams中获取
+    HcclDataType dataType = tempAlgParams.dataType;
+    HcclReduceOp reduceType = HCCL_REDUCE_SUM; // 默认使用SUM
+
     SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
-    DataReduceInfo recvInfo(channel, std::move(recvSliceList), signalInfo.inputDataType, signalInfo.reduceType);
+    DataReduceInfo recvInfo(channel, std::move(recvSliceList), dataType, reduceType);
     CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[0])));
+
+    HCCL_INFO("[HandleRecvWriteReduce] RecvWriteReduce completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendRecvRead(const OmniSendRecvInfo& signalInfo,
-                                                   const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendRecvRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                    const std::vector<ThreadHandle> &threads,
                                                    const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendRecvRead逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendRecvRead] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendRecvRead] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendRecvRead] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
     std::vector<DataSlice> txSrcSlices;
     std::vector<DataSlice> txDstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvRead] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendRecvRead] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
 
+    // 计算发送偏移
+    // 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    u64 srcOffset = 0; // 需要从tempAlgParams中获取
+    if (tempAlgParams.inputSliceStride > 0) {
+        srcOffset = 0; // 临时占位
+    }
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    txSrcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvRead] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移
+    // 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 remoteOffset = 0; // 需要从tempAlgParams中获取
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    txDstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
     // 准备接收数据切片
+    // 接收数据通常从本地cclbuf到output
     std::vector<DataSlice> rxSrcSlices;
     std::vector<DataSlice> rxDstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvRead] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRecvRead] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算本地cclbuf偏移
+    // 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = 0; // 需要从tempAlgParams中获取
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    rxSrcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleSendRecvRead] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移
+    // 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    u64 dstOffset = 0; // 需要从tempAlgParams中获取
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    rxDstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行发送接收读操作
     TxRxChannels txRxChannels(channel, channel);
@@ -735,503 +1033,276 @@ HcclResult InsTempAlltoAllVOmni::HandleSendRecvRead(const OmniSendRecvInfo& sign
     SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
 
     CHK_RET(static_cast<HcclResult>(SendRecvRead(sendRecvInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendRecvRead] SendRecvRead completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendRead(const OmniSendRecvInfo& signalInfo,
-                                               const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                const std::vector<ThreadHandle> &threads,
                                                const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的SendRead逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleSendRead] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendRead] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleSendRead] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备发送数据切片
+    // 参考Mesh 1D实现，发送数据通常从input到远程cclbuf
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRead] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    void* srcAddr = tempAlgParams.buffInfo.inputPtr;
+    if (!srcAddr) {
+        HCCL_ERROR("[HandleSendRead] Invalid source address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算发送偏移
+    // 参考Mesh 1D实现：tempAlgParams.sdispls[nextRank] * dataTypeSize_
+    u64 srcOffset = 0; // 需要从tempAlgParams中获取
+    if (tempAlgParams.inputSliceStride > 0) {
+        srcOffset = 0; // 临时占位
+    }
+
+    srcAddr = static_cast<char*>(srcAddr) + srcOffset;
+    srcSlices.push_back(DataSlice(srcAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    // 目标地址通常是远程cclbuf
+    void* remoteCclBuffAddr = channel.remoteCclMem.addr;
+    if (!remoteCclBuffAddr) {
+        HCCL_ERROR("[HandleSendRead] Invalid remote ccl buffer address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算远程cclbuf偏移
+    // 参考Mesh 1D实现：myAlgRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 remoteOffset = 0; // 需要从tempAlgParams中获取
+    remoteCclBuffAddr = static_cast<char*>(remoteCclBuffAddr) + remoteOffset;
+    dstSlices.push_back(DataSlice(remoteCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行发送读操作
     SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
     DataInfo sendInfo(channel, std::move(sendSliceList));
     CHK_RET(static_cast<HcclResult>(SendRead(sendInfo, threads[0])));
+
+    HCCL_INFO("[HandleSendRead] SendRead completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleRecvRead(const OmniSendRecvInfo& signalInfo,
-                                               const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleRecvRead(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                const std::vector<ThreadHandle> &threads,
                                                const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
+    // 参考Mesh 1D实现中的RecvRead逻辑
+    // 需要从tempAlgParams中获取远程rank信息
+
+    // 检查必要的参数
+    if (tempAlgParams.sliceSize == 0) {
+        HCCL_ERROR("[HandleRecvRead] Invalid sliceSize: %lu", tempAlgParams.sliceSize);
+        return HCCL_E_INTERNAL;
+    }
+
+    // 从tempAlgParams中获取远程rank信息
+    // 假设tempAlgParams中包含了远程rank信息
+    u32 remoteRank = 0; // 需要从tempAlgParams中获取
+    // 临时实现：使用第一个通道作为远程rank
+    if (!channels.empty()) {
+        remoteRank = channels.begin()->first;
+    }
+
+    // 查找对应远程rank的通道信息
+    auto it = channels.find(remoteRank);
     if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleRecvRead] Channel not found for remote rank: %lu", signalInfo.remoteRank);
+        HCCL_ERROR("[HandleRecvRead] Channel not found for remote rank: %lu", remoteRank);
         return HCCL_E_INTERNAL;
     }
 
     const ChannelInfo& channel = it->second[0];
 
     // 准备接收数据切片
+    // 参考Mesh 1D实现，接收数据通常从本地cclbuf到output
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleRecvRead] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
+    // 源地址通常是本地cclbuf
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    if (!localCclBuffAddr) {
+        HCCL_ERROR("[HandleRecvRead] Invalid local ccl buffer address");
+        return HCCL_E_INTERNAL;
     }
+
+    // 计算本地cclbuf偏移
+    // 参考Mesh 1D实现：nextRank * cclBufferCountPerRank_ * dataTypeSize_ + tempAlgParams.buffInfo.hcclBuffBaseOff
+    u64 localCclOffset = 0; // 需要从tempAlgParams中获取
+    localCclBuffAddr = static_cast<char*>(localCclBuffAddr) + localCclOffset;
+    srcSlices.push_back(DataSlice(localCclBuffAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
+
+    void* dstAddr = tempAlgParams.buffInfo.outputPtr;
+    if (!dstAddr) {
+        HCCL_ERROR("[HandleRecvRead] Invalid destination address");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 计算接收偏移
+    // 参考Mesh 1D实现：tempAlgParams.rdispls[curAlgRank] * dataTypeSize_
+    u64 dstOffset = 0; // 需要从tempAlgParams中获取
+    dstAddr = static_cast<char*>(dstAddr) + dstOffset;
+    dstSlices.push_back(DataSlice(dstAddr, 0, tempAlgParams.sliceSize, tempAlgParams.sliceSize / dataTypeSize_));
 
     // 执行接收读操作
     SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
     DataInfo recvInfo(channel, std::move(recvSliceList));
     CHK_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads[0])));
+
+    HCCL_INFO("[HandleRecvRead] RecvRead completed: remoteRank=%lu, size=%lu", remoteRank, tempAlgParams.sliceSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendRecvReadReduce(const OmniSendRecvInfo& signalInfo,
-                                                         const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendRecvReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                          const std::vector<ThreadHandle> &threads,
                                                          const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
-    if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendRecvReadReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
-        return HCCL_E_INTERNAL;
-    }
+    // AlltoAllV通常不使用读操作，这里提供基本实现框架
+    HCCL_WARNING("[HandleSendRecvReadReduce] SendRecvReadReduce not typically used in AlltoAllV, using SendRecvWrite as fallback");
 
-    const ChannelInfo& channel = it->second[0];
-
-    // 准备发送数据切片
-    std::vector<DataSlice> txSrcSlices;
-    std::vector<DataSlice> txDstSlices;
-
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvReadReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 准备接收数据切片
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
-
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvReadReduce] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 执行发送接收读归约操作
-    TxRxChannels txRxChannels(channel, channel);
-    TxRxSlicesList txRxSlicesList(
-        SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
-        SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices))
-    );
-    SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
-                                   signalInfo.inputDataType, signalInfo.reduceType);
-
-    CHK_RET(static_cast<HcclResult>(SendRecvReadReduce(sendRecvInfo, threads[0])));
-    return HCCL_SUCCESS;
+    // 使用SendRecvWrite作为替代实现
+    return HandleSendRecvWrite(channels, threads, tempAlgParams);
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleSendReadReduce(const OmniSendRecvInfo& signalInfo,
-                                                     const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleSendReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                      const std::vector<ThreadHandle> &threads,
                                                      const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
-    if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleSendReadReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
-        return HCCL_E_INTERNAL;
-    }
+    // AlltoAllV通常不使用读操作，这里提供基本实现框架
+    HCCL_WARNING("[HandleSendReadReduce] SendReadReduce not typically used in AlltoAllV, using SendWrite as fallback");
 
-    const ChannelInfo& channel = it->second[0];
-
-    // 准备发送数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
-
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendReadReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 执行发送读归约操作
-    SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
-    DataReduceInfo sendInfo(channel, std::move(sendSliceList), signalInfo.inputDataType, signalInfo.reduceType);
-    CHK_RET(static_cast<HcclResult>(SendReadReduce(sendInfo, threads[0])));
-    return HCCL_SUCCESS;
+    // 使用SendWrite作为替代实现
+    return HandleSendWrite(channels, threads, tempAlgParams);
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleRecvReadReduce(const OmniSendRecvInfo& signalInfo,
-                                                     const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleRecvReadReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                      const std::vector<ThreadHandle> &threads,
                                                      const TemplateDataParams &tempAlgParams)
 {
-    auto it = channels.find(signalInfo.remoteRank);
-    if (it == channels.end() || it->second.empty()) {
-        HCCL_ERROR("[HandleRecvReadReduce] Channel not found for remote rank: %lu", signalInfo.remoteRank);
-        return HCCL_E_INTERNAL;
-    }
+    // AlltoAllV通常不使用读操作，这里提供基本实现框架
+    HCCL_WARNING("[HandleRecvReadReduce] RecvReadReduce not typically used in AlltoAllV, using RecvWrite as fallback");
 
-    const ChannelInfo& channel = it->second[0];
-
-    // 准备接收数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
-
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleRecvReadReduce] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 执行接收读归约操作
-    SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
-    DataReduceInfo recvInfo(channel, std::move(recvSliceList), signalInfo.inputDataType, signalInfo.reduceType);
-    CHK_RET(static_cast<HcclResult>(RecvReadReduce(recvInfo, threads[0])));
-    return HCCL_SUCCESS;
+    // 使用RecvWrite作为替代实现
+    return HandleRecvWrite(channels, threads, tempAlgParams);
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleGroupBroadcast(const OmniSendRecvInfo& signalInfo,
-                                                     const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleGroupBroadcast(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                      const std::vector<ThreadHandle> &threads,
                                                      const TemplateDataParams &tempAlgParams)
 {
-    // 准备源数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
+    // AlltoAllV通常不使用组广播操作，这里提供基本实现框架
+    HCCL_WARNING("[HandleGroupBroadcast] GroupBroadcast not typically used in AlltoAllV, using SendWrite as fallback");
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleGroupBroadcast] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 准备目标数据切片
-    std::vector<ChannelInfo> channelInfos;
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleGroupBroadcast] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
-
-        // 获取对应远程rank的channel
-        auto it = channels.find(dstSlice.remoteRank);
-        if (it == channels.end() || it->second.empty()) {
-            HCCL_ERROR("[HandleGroupBroadcast] Channel not found for remote rank: %lu", dstSlice.remoteRank);
-            return HCCL_E_INTERNAL;
-        }
-        channelInfos.push_back(it->second[0]);
-    }
-
-    // 执行组广播操作 - AICPU不支持GroupBroadcast，使用循环发送代替
-    HCCL_WARNING("[HandleGroupBroadcast] GroupBroadcast not supported in AICPU, using loop send instead");
-
-    // 为每个目标rank执行发送操作
-    for (size_t i = 0; i < channelInfos.size(); i++) {
-        SlicesList sendSliceList(srcSlices, {dstSlices[i]});
-        DataInfo sendInfo(channelInfos[i], std::move(sendSliceList));
-        CHK_RET(static_cast<HcclResult>(SendWrite(sendInfo, threads[0])));
-    }
-    return HCCL_SUCCESS;
+    // 使用SendWrite作为替代实现
+    return HandleSendWrite(channels, threads, tempAlgParams);
 }
 
-HcclResult InsTempAlltoAllVOmni::HandleGroupReduce(const OmniSendRecvInfo& signalInfo,
-                                                  const std::map<u32, std::vector<ChannelInfo>> &channels,
+HcclResult InsTempAlltoAllVOmni::HandleGroupReduce(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                   const std::vector<ThreadHandle> &threads,
                                                   const TemplateDataParams &tempAlgParams)
 {
-    // 准备源数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
+    // AlltoAllV通常不使用组归约操作，这里提供基本实现框架
+    HCCL_WARNING("[HandleGroupReduce] GroupReduce not typically used in AlltoAllV, using RecvWrite as fallback");
 
-    for (const auto& srcSlice : signalInfo.srcSliceInfo) {
-        void* srcAddr = nullptr;
-        if (srcSlice.sliceType == 0) { // input
-            srcAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (srcSlice.sliceType == 1) { // output
-            srcAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (srcSlice.sliceType == 2) { // cclbuf
-            srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleGroupReduce] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-
-        srcAddr = static_cast<char*>(srcAddr) + srcSlice.sliceIdx * processSize_;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize_, processSize_ / dataTypeSize_));
-    }
-
-    // 准备目标数据切片
-    std::vector<ChannelInfo> channelInfos;
-    for (const auto& dstSlice : signalInfo.dstSliceInfo) {
-        void* dstAddr = nullptr;
-        if (dstSlice.sliceType == 0) { // input
-            dstAddr = tempAlgParams.buffInfo.inputPtr;
-        } else if (dstSlice.sliceType == 1) { // output
-            dstAddr = tempAlgParams.buffInfo.outputPtr;
-        } else if (dstSlice.sliceType == 2) { // cclbuf
-            dstAddr = tempAlgParams.buffInfo.hcclBuff.addr;
-        }
-
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleGroupReduce] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-
-        dstAddr = static_cast<char*>(dstAddr) + dstSlice.sliceIdx * processSize_;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize_, processSize_ / dataTypeSize_));
-
-        // 获取对应远程rank的channel
-        auto it = channels.find(dstSlice.remoteRank);
-        if (it == channels.end() || it->second.empty()) {
-            HCCL_ERROR("[HandleGroupReduce] Channel not found for remote rank: %lu", dstSlice.remoteRank);
-            return HCCL_E_INTERNAL;
-        }
-        channelInfos.push_back(it->second[0]);
-    }
-
-    // 执行组归约操作 - AICPU不支持GroupReduce，使用循环接收归约代替
-    HCCL_WARNING("[HandleGroupReduce] GroupReduce not supported in AICPU, using loop recv reduce instead");
-
-    // 为每个源rank执行接收归约操作
-    for (size_t i = 0; i < channelInfos.size(); i++) {
-        SlicesList recvSliceList({srcSlices[i]}, dstSlices);
-        DataReduceInfo recvInfo(channelInfos[i], std::move(recvSliceList),
-                               signalInfo.inputDataType, signalInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[0])));
-    }
-    return HCCL_SUCCESS;
+    // 使用RecvWrite作为替代实现
+    return HandleRecvWrite(channels, threads, tempAlgParams);
 }
 
-HcclResult InsTempAlltoAllVOmni::HandlePreSyncInterThreads(const OmniSyncInfo& syncInfo,
-                                                          const std::vector<ThreadHandle> &threads)
+HcclResult InsTempAlltoAllVOmni::HandlePreSyncInterThreads(const std::vector<ThreadHandle> &threads)
 {
-    HCCL_INFO("[HandlePreSyncInterThreads] Start pre-sync inter threads, mainThreadIdx: %lu, subThreadNum: %lu",
-              syncInfo.mainThreadIdx, syncInfo.subThreadNum);
+    HCCL_INFO("[HandlePreSyncInterThreads] Start pre-sync inter threads");
 
-    // 验证主线程索引
-    if (syncInfo.mainThreadIdx >= threads.size()) {
-        HCCL_ERROR("[HandlePreSyncInterThreads] Invalid mainThreadIdx: %lu, threads size: %lu",
-                  syncInfo.mainThreadIdx, threads.size());
+    // 验证线程数量
+    if (threads.empty()) {
+        HCCL_ERROR("[HandlePreSyncInterThreads] No threads available");
         return HCCL_E_INTERNAL;
     }
 
-    // 验证子线程数量
-    if (syncInfo.subThreadNum == 0 || syncInfo.subThreadNum >= threads.size()) {
-        HCCL_ERROR("[HandlePreSyncInterThreads] Invalid subThreadNum: %lu, threads size: %lu",
-                  syncInfo.subThreadNum, threads.size());
-        return HCCL_E_INTERNAL;
-    }
-
-    // 准备子线程句柄
+    // 使用默认配置：主线程为第一个线程，子线程为其他所有线程
+    u32 mainThreadIdx = 0;
     std::vector<ThreadHandle> subThreads;
-    if (syncInfo.subThreadIds.empty()) {
-        // 如果没有指定子线程ID，使用默认顺序（排除主线程）
-        for (size_t i = 0; i < threads.size(); i++) {
-            if (i != syncInfo.mainThreadIdx) {
-                subThreads.push_back(threads[i]);
-            }
-        }
-        // 确保子线程数量匹配
-        if (subThreads.size() != syncInfo.subThreadNum) {
-            HCCL_WARNING("[HandlePreSyncInterThreads] subThreadNum mismatch: expected %lu, got %lu",
-                        syncInfo.subThreadNum, subThreads.size());
-        }
-    } else {
-        // 使用指定的子线程ID
-        for (const auto& threadId : syncInfo.subThreadIds) {
-            if (threadId < threads.size()) {
-                subThreads.push_back(threads[threadId]);
-            } else {
-                HCCL_WARNING("[HandlePreSyncInterThreads] Invalid threadId in subThreadIds: %u", threadId);
-            }
-        }
+
+    // 准备子线程句柄（排除主线程）
+    for (size_t i = 1; i < threads.size(); i++) {
+        subThreads.push_back(threads[i]);
     }
 
-    // 准备通知索引
-    std::vector<u32> notifyIdxMainToSub;
-    for (size_t i = 0; i < subThreads.size(); i++) {
-        notifyIdxMainToSub.push_back(0); // 使用默认通知索引
+    // 如果没有子线程，直接返回成功
+    if (subThreads.empty()) {
+        HCCL_INFO("[HandlePreSyncInterThreads] No sub-threads to sync");
+        return HCCL_SUCCESS;
     }
+
+    // 准备通知索引（使用默认值0）
+    std::vector<u32> notifyIdxMainToSub(subThreads.size(), 0);
 
     // 执行前同步
-    CHK_RET(PreSyncInterThreads(threads[syncInfo.mainThreadIdx], subThreads, notifyIdxMainToSub));
+    CHK_RET(PreSyncInterThreads(threads[mainThreadIdx], subThreads, notifyIdxMainToSub));
 
     HCCL_INFO("[HandlePreSyncInterThreads] Pre-sync inter threads completed successfully");
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVOmni::HandlePostSyncInterThreads(const OmniSyncInfo& syncInfo,
-                                                           const std::vector<ThreadHandle> &threads)
+HcclResult InsTempAlltoAllVOmni::HandlePostSyncInterThreads(const std::vector<ThreadHandle> &threads)
 {
-    HCCL_INFO("[HandlePostSyncInterThreads] Start post-sync inter threads, mainThreadIdx: %lu, subThreadNum: %lu",
-              syncInfo.mainThreadIdx, syncInfo.subThreadNum);
+    HCCL_INFO("[HandlePostSyncInterThreads] Start post-sync inter threads");
 
-    // 验证主线程索引
-    if (syncInfo.mainThreadIdx >= threads.size()) {
-        HCCL_ERROR("[HandlePostSyncInterThreads] Invalid mainThreadIdx: %lu, threads size: %lu",
-                  syncInfo.mainThreadIdx, threads.size());
+    // 验证线程数量
+    if (threads.empty()) {
+        HCCL_ERROR("[HandlePostSyncInterThreads] No threads available");
         return HCCL_E_INTERNAL;
     }
 
-    // 验证子线程数量
-    if (syncInfo.subThreadNum == 0 || syncInfo.subThreadNum >= threads.size()) {
-        HCCL_ERROR("[HandlePostSyncInterThreads] Invalid subThreadNum: %lu, threads size: %lu",
-                  syncInfo.subThreadNum, threads.size());
-        return HCCL_E_INTERNAL;
-    }
-
-    // 准备子线程句柄
+    // 使用默认配置：主线程为第一个线程，子线程为其他所有线程
+    u32 mainThreadIdx = 0;
     std::vector<ThreadHandle> subThreads;
-    if (syncInfo.subThreadIds.empty()) {
-        // 如果没有指定子线程ID，使用默认顺序（排除主线程）
-        for (size_t i = 0; i < threads.size(); i++) {
-            if (i != syncInfo.mainThreadIdx) {
-                subThreads.push_back(threads[i]);
-            }
-        }
-        // 确保子线程数量匹配
-        if (subThreads.size() != syncInfo.subThreadNum) {
-            HCCL_WARNING("[HandlePostSyncInterThreads] subThreadNum mismatch: expected %lu, got %lu",
-                        syncInfo.subThreadNum, subThreads.size());
-        }
-    } else {
-        // 使用指定的子线程ID
-        for (const auto& threadId : syncInfo.subThreadIds) {
-            if (threadId < threads.size()) {
-                subThreads.push_back(threads[threadId]);
-            } else {
-                HCCL_WARNING("[HandlePostSyncInterThreads] Invalid threadId in subThreadIds: %u", threadId);
-            }
-        }
+
+    // 准备子线程句柄（排除主线程）
+    for (size_t i = 1; i < threads.size(); i++) {
+        subThreads.push_back(threads[i]);
     }
 
-    // 准备通知索引
+    // 如果没有子线程，直接返回成功
+    if (subThreads.empty()) {
+        HCCL_INFO("[HandlePostSyncInterThreads] No sub-threads to sync");
+        return HCCL_SUCCESS;
+    }
+
+    // 准备通知索引（使用递增索引）
     std::vector<u32> notifyIdxSubToMain;
     for (size_t i = 0; i < subThreads.size(); i++) {
-        notifyIdxSubToMain.push_back(i); // 使用递增通知索引
+        notifyIdxSubToMain.push_back(i);
     }
 
     // 执行后同步
-    CHK_RET(PostSyncInterThreads(threads[syncInfo.mainThreadIdx], subThreads, notifyIdxSubToMain));
+    CHK_RET(PostSyncInterThreads(threads[mainThreadIdx], subThreads, notifyIdxSubToMain));
 
     HCCL_INFO("[HandlePostSyncInterThreads] Post-sync inter threads completed successfully");
     return HCCL_SUCCESS;

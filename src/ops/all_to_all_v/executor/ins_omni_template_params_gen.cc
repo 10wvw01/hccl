@@ -14,97 +14,158 @@
 namespace ops_hccl {
 namespace omni {
 
-TemplateDataParams InsOmniTemplateParamsGenerator::GenerateForSync(
-    const OmniSyncInfo& syncInfo,
-    const OpParam& param,
-    const AlgResourceCtxSerializable& resCtx,
-    const OmniParamGenConfig& config)
-{
-    HCCL_INFO("[InsOmniTemplateParamsGenerator][GenerateForSync] Generating template params for sync operation type: %d",
-              syncInfo.optype);
-
-    TemplateDataParams params;
-
-    // 填充通用参数
-    PopulateCommonParams(params, param, resCtx, config);
-
-    // 同步操作通常不需要额外的切片参数
-    HCCL_INFO("[InsOmniTemplateParamsGenerator][GenerateForSync] Template params generated");
-    return params;
-}
-
-TemplateDataParams InsOmniTemplateParamsGenerator::GenerateForInstruction(
+HcclResult InsOmniTemplateParamsGenerator::StartInstruction(
     const OmniSendRecvInfo& instructionInfo,
     const OpParam& param,
     const AlgResourceCtxSerializable& resCtx,
     const OmniParamGenConfig& config)
 {
-    HCCL_INFO("[InsOmniTemplateParamsGenerator][GenerateForInstruction] Generating template params for instruction operation type: %d",
+    // 参数验证
+    if (currentInstruction_ != nullptr) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][StartInstruction] Another instruction is already in progress");
+        return HCCL_E_PARA;
+    }
+
+    if (config.dataSize == 0 || config.dataTypeSize == 0) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][StartInstruction] Invalid config: dataSize=%lu, dataTypeSize=%lu",
+                   config.dataSize, config.dataTypeSize);
+        return HCCL_E_PARA;
+    }
+
+    if (config.sliceNum == 0) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][StartInstruction] Invalid config: sliceNum=%lu",
+                   config.sliceNum);
+        return HCCL_E_PARA;
+    }
+
+    currentInstruction_ = &instructionInfo;
+    currentParam_ = &param;
+    currentResCtx_ = &resCtx;
+    currentConfig_ = config;
+    currentIndex_ = 0;
+    isLast_ = false;
+
+    // 初始化参数
+    HcclResult ret = InitializeParams();
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][StartInstruction] InitializeParams failed: %d", ret);
+        return ret;
+    }
+
+    HCCL_INFO("[InsOmniTemplateParamsGenerator][StartInstruction] Starting instruction type: %d",
               instructionInfo.optype);
-
-    TemplateDataParams params;
-
-    // 填充通用参数
-    PopulateCommonParams(params, param, resCtx, config);
-
-    // 根据指令类型设置切片参数
-    SetupSliceParamsForInstruction(params, instructionInfo, config);
-
-    HCCL_INFO("[InsOmniTemplateParamsGenerator][GenerateForInstruction] Template params generated");
-    return params;
+    return HCCL_SUCCESS;
 }
 
-void InsOmniTemplateParamsGenerator::PopulateCommonParams(
-    TemplateDataParams& params,
-    const OpParam& param,
-    const AlgResourceCtxSerializable& resCtx,
-    const OmniParamGenConfig& config)
+bool InsOmniTemplateParamsGenerator::HasNext() const
 {
+    return !isLast_;
+}
+
+HcclResult InsOmniTemplateParamsGenerator::GetNext(TemplateDataParams& params)
+{
+    if (isLast_) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][GetNext] No more runs available");
+        return HCCL_E_PARA;
+    }
+
+    if (currentInstruction_ == nullptr) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][GetNext] No instruction in progress, call StartInstruction first");
+        return HCCL_E_PARA;
+    }
+
+    // 根据当前执行索引更新参数
+    HcclResult ret = UpdateParamsForCurrentRun();
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[InsOmniTemplateParamsGenerator][GetNext] UpdateParamsForCurrentRun failed: %d", ret);
+        return ret;
+    }
+
+    // 返回当前参数
+    params = params_;
+
+    HCCL_INFO("[InsOmniTemplateParamsGenerator][GetNext] Generated params for run %lu, isLast: %d",
+              currentIndex_ + 1, isLast_);
+
+    currentIndex_++;
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsOmniTemplateParamsGenerator::InitializeParams()
+{
+    // 参数检查
+    if (currentParam_ == nullptr || currentResCtx_ == nullptr) {
+        HCCL_ERROR("[InitializeParams] Invalid state: currentParam_ or currentResCtx_ is null");
+        return HCCL_E_INTERNAL;
+    }
+
+    // 检查除零情况
+    if (currentConfig_.dataTypeSize == 0) {
+        HCCL_ERROR("[InitializeParams] Invalid dataTypeSize: %lu", currentConfig_.dataTypeSize);
+        return HCCL_E_PARA;
+    }
+
+    if (currentConfig_.sliceNum == 0) {
+        HCCL_ERROR("[InitializeParams] Invalid sliceNum: %lu", currentConfig_.sliceNum);
+        return HCCL_E_PARA;
+    }
+
     // 设置基本缓冲信息
-    params.buffInfo.inputPtr = param.inputPtr;
-    params.buffInfo.outputPtr = param.outputPtr;
-    params.buffInfo.hcclBuff = resCtx.cclMem;
-    params.buffInfo.inBuffBaseOff = 0;
-    params.buffInfo.outBuffBaseOff = 0;
-    params.buffInfo.hcclBuffBaseOff = 0;
-    params.buffInfo.inBuffType = BufferType::INPUT;
-    params.buffInfo.outBuffType = BufferType::OUTPUT;
+    params_.buffInfo.inputPtr = currentParam_->inputPtr;
+    params_.buffInfo.outputPtr = currentParam_->outputPtr;
+    params_.buffInfo.hcclBuff = currentResCtx_->cclMem;
+    params_.buffInfo.inBuffBaseOff = 0;
+    params_.buffInfo.outBuffBaseOff = 0;
+    params_.buffInfo.hcclBuffBaseOff = 0;
+    params_.buffInfo.inBuffType = BufferType::INPUT;
+    params_.buffInfo.outBuffType = BufferType::OUTPUT;
 
     // 设置数据参数
-    params.count = config.dataSize / config.dataTypeSize;
-    params.sliceSize = config.dataSize / config.sliceNum;
-    params.dataType = config.dataType;
+    params_.count = currentConfig_.dataSize / currentConfig_.dataTypeSize;
+    params_.sliceSize = currentConfig_.dataSize / currentConfig_.sliceNum;
+    params_.dataType = currentConfig_.dataType;
 
     // 设置重复参数
-    params.repeatNum = 1;
-    params.inputRepeatStride = 0;
-    params.outputRepeatStride = 0;
+    params_.repeatNum = 1;
+    params_.inputRepeatStride = 0;
+    params_.outputRepeatStride = 0;
 
-    HCCL_INFO("[PopulateCommonParams] dataSize=%lu, sliceNum=%lu, sliceSize=%lu, count=%lu",
-              config.dataSize, config.sliceNum, params.sliceSize, params.count);
+    HCCL_INFO("[InitializeParams] dataSize=%lu, sliceNum=%lu, sliceSize=%lu, count=%lu",
+              currentConfig_.dataSize, currentConfig_.sliceNum, params_.sliceSize, params_.count);
+    return HCCL_SUCCESS;
 }
 
-void InsOmniTemplateParamsGenerator::SetupSliceParamsForInstruction(
-    TemplateDataParams& params,
-    const OmniSendRecvInfo& instructionInfo,
-    const OmniParamGenConfig& config)
+HcclResult InsOmniTemplateParamsGenerator::UpdateParamsForCurrentRun()
 {
-    // 根据指令类型设置切片相关参数
-    if (!instructionInfo.srcSliceInfo.empty() || !instructionInfo.dstSliceInfo.empty()) {
-        // 如果有切片信息，可以设置切片偏移
-        params.inputSliceStride = config.dataSize / config.sliceNum;
-        params.outputSliceStride = config.dataSize / config.sliceNum;
+    if (!currentInstruction_) {
+        HCCL_ERROR("[UpdateParamsForCurrentRun] No current instruction");
+        return HCCL_E_PARA;
+    }
 
-        HCCL_INFO("[SetupSliceParamsForInstruction] inputSliceStride=%lu, outputSliceStride=%lu",
-                  params.inputSliceStride, params.outputSliceStride);
+    // 根据指令类型设置切片相关参数
+    if (!currentInstruction_->srcSliceInfo.empty() || !currentInstruction_->dstSliceInfo.empty()) {
+        // 检查除零错误
+        if (currentConfig_.sliceNum == 0) {
+            HCCL_ERROR("[UpdateParamsForCurrentRun] Invalid sliceNum for stride calculation: %lu",
+                       currentConfig_.sliceNum);
+            return HCCL_E_PARA;
+        }
+
+        // 如果有切片信息，可以设置切片偏移
+        params_.inputSliceStride = currentConfig_.dataSize / currentConfig_.sliceNum;
+        params_.outputSliceStride = currentConfig_.dataSize / currentConfig_.sliceNum;
+
+        HCCL_INFO("[UpdateParamsForCurrentRun] inputSliceStride=%lu, outputSliceStride=%lu",
+                  params_.inputSliceStride, params_.outputSliceStride);
     }
 
     // 根据操作类型可能需要设置其他参数
-    switch (instructionInfo.optype) {
+    switch (currentInstruction_->optype) {
         case OP_GROUP_BROAD_CAST:
         case OP_GROUP_REDUCE:
             // 组操作可能需要特殊的参数设置
-            HCCL_INFO("[SetupSliceParamsForInstruction] Setting up for group operation");
+            HCCL_INFO("[UpdateParamsForCurrentRun] Setting up for group operation, run %lu",
+                     currentIndex_ + 1);
             break;
 
         case OP_LOCAL_REDUCE:
@@ -115,13 +176,15 @@ void InsOmniTemplateParamsGenerator::SetupSliceParamsForInstruction(
         case OP_SEND_READ_REDUCE:
         case OP_RECV_READ_REDUCE:
             // 归约操作可能需要设置归约类型
-            HCCL_INFO("[SetupSliceParamsForInstruction] Setting up for reduce operation");
+            HCCL_INFO("[UpdateParamsForCurrentRun] Setting up for reduce operation");
             break;
 
         default:
             // 其他操作使用默认参数
             break;
     }
+    isLast_ = true;
+    return HCCL_SUCCESS;
 }
 
 } // namespace omni
