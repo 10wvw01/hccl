@@ -230,16 +230,25 @@ HcclResult CcuAlgTemplateBase::ReverseChannelPerDieIfNeed(const HcclComm comm, c
 HcclResult CcuAlgTemplateBase::GetToken(const BuffInfo &buffinfo, uint64_t &token) const
 {
     if (buffinfo.inputPtr != nullptr && buffinfo.inputSize != 0) {
+        HCCL_INFO("buffinfo.inputSize = %lld",buffinfo.inputSize);
+        HCCL_INFO("buffinfo.inputPtr = %lld",PointerToAddr(buffinfo.inputPtr));
         token = hcomm::CcuRep::GetTokenInfo(PointerToAddr(buffinfo.inputPtr),
                                      static_cast<uint64_t>(buffinfo.inputSize));
+        HCCL_INFO("token = %lld",token);
         return HCCL_SUCCESS;
     } else if (buffinfo.outputPtr != nullptr && buffinfo.outputSize != 0) {
+        HCCL_INFO("buffinfo.outputSize = %lld",buffinfo.outputSize);
+        HCCL_INFO("buffinfo.outputPtr = %lld",PointerToAddr(buffinfo.outputPtr));
         token = hcomm::CcuRep::GetTokenInfo(PointerToAddr(buffinfo.outputPtr),
                                      static_cast<uint64_t>(buffinfo.outputSize));
+        HCCL_INFO("token = %lld",token);
         return HCCL_SUCCESS;
     } else if (buffinfo.hcclBuff.addr != nullptr && buffinfo.hcclBuff.size != 0) {
+        HCCL_INFO("buffinfo.hcclBuff.size = %lld",buffinfo.hcclBuff.size);
+        HCCL_INFO("buffinfo.hcclBuff.addr = %lld",PointerToAddr(buffinfo.hcclBuff.addr));
         token = hcomm::CcuRep::GetTokenInfo(PointerToAddr(buffinfo.hcclBuff.addr),
                                      static_cast<uint64_t>(buffinfo.hcclBuff.size));
+        HCCL_INFO("token = %lld",token);
         return HCCL_SUCCESS;
     }
     HCCL_WARNING("[GetToken] inputMem, outputMem and hcclBuff are all null");
