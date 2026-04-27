@@ -2113,4 +2113,5 @@ std::vector<u64> CalcCountToDataSize(const std::vector<u64> &vecCount, u64 dataT
     }
     return vecDataSize;
 }
+
 }  // namespace ops_hccl
