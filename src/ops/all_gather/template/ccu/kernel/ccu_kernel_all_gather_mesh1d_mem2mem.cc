@@ -221,7 +221,7 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
 
     CCU_CHK_RET(PreSync(ctx));
 
-    CCU_CHK_RET(DoRepeatAllGather(ctx));
+    // CCU_CHK_RET(DoRepeatAllGather(ctx));
 
     CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuKernelAllGatherMesh1DMem2Mem] AllGatherMesh1DMem2Mem end");
