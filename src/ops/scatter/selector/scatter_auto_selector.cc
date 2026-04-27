@@ -13,6 +13,7 @@
 #include "hccl_aiv_utils.h"
 
 namespace ops_hccl {
+constexpr u32 OMNI2D_UBX_SC_DATA_SIZE = 16 * 1024 * 1024;
 
 SelectorStatus ScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -87,7 +88,11 @@ SelectorStatus ScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWith
             HCCL_WARNING("[ScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
+            if (dataSize < OMNI2D_UBX_SC_DATA_SIZE) {
+                selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
+            } else {
+                selectAlgName = "CcuV2ScatterOmniPipe2D";
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.",
