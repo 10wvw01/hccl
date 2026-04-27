@@ -243,6 +243,7 @@ struct TemplateDataParams {
     bool enableRemoteMemAccess{false};
     u64 processedDataCount{0};
     u64 root{0};
+    u64 localCopyFlag{0};
     HcclDataType dataType{HCCL_DATA_TYPE_INT8};
     std::vector<u64> allRankSliceSize;
     std::vector<u64> allRankDispls;
@@ -276,6 +277,7 @@ struct TemplateDataParams {
         binaryStream << rdispls;
         binaryStream << allRankProcessedDataCount;
         binaryStream << root;
+        binaryStream << localCopyFlag;
         binaryStream << dataType;
         binaryStream << stepSliceInfo.Serialize();
         binaryStream << opType;
@@ -305,6 +307,7 @@ struct TemplateDataParams {
         binaryStream >> rdispls;
         binaryStream >> allRankProcessedDataCount;
         binaryStream >> root;
+        binaryStream >> localCopyFlag;
         binaryStream >> dataType;
         std::vector<char> stepSliceInfoData;
         binaryStream >> stepSliceInfoData;
