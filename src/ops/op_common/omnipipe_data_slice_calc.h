@@ -38,6 +38,8 @@ constexpr double BW_OMNI_UBX_CCU_MS_RS_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_MS_RS_CLOS = 170;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_CLOS = 180;
+constexpr double BW_OMNI_UBX_CCU_SCHED_SC_MESH = 47;
+constexpr double BW_OMNI_UBX_CCU_SCHED_SC_CLOS = 175;
 
 enum OmniPipeLevel{
     OMNIPIPE_LEVEL0 = 0,
@@ -248,5 +250,50 @@ HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std:
 bool isSameLoop(const std::vector<u64>& splitData1, const std::vector<u64>& splitData2);
 std::vector<u64> CalcCountToDataSize(const std::vector<u64>& vecCount, u64 dataType);
 int SetMaxStepNumOmni(OmniNeedSetStepNum needSetStepNum);
+// Scatter专用数据切分和偏移计算的相关函数
+void CalcScatterCornerStep(int innerStepNum, int outerStepNum, double xB, double yB, int zConnerStep, int &xyConnerStep,
+    int &xInCornerStep, int &yInCornerStep);
+void PushScatterZStepSize(std::vector<std::vector<u64>> &scatterStepDataSize, u64 *zScatterDataSize, int zConnerStep,
+    int outerStepNum, u64 xRankSize, u64 yRankSize);
+void PushScatterAxisStepSize(std::vector<std::vector<u64>> &scatterStepDataSize, u64 *axisScatterDataSize,
+    int axisInCornerStep, int innerStepNum, int xyConnerStep, int outerStepNum, u64 maxStepNum, u64 crossAxisRankSize,
+    u64 zRankSize, int axisLevel);
+std::vector<std::vector<u64>> CalScatterDataSizeStep(u64 *xScatterDataSize, u64 *yScatterDataSize,
+    u64 *zScatterDataSize, std::vector<u64> levelRankSize, u64 cornerStep, u64 outerStepNum, u64 innerStepNum,
+    u64 maxStepNum, double xB, double yB);
+void CalScatter2DOffset(
+    u64 *xSOffset, u64 *ySOffset, u64 stepNum, u64 xRankSize, u64 yRankSize, u64 *xSDataSize, u64 *ySDataSize);
+void CalcScatterStepAndScale(
+    double bandwidthRatio, double omniPipeRatio, u64 xRankSize, u64 maxStep, u64 &step, double &scale);
+void CalcScatterFirstStepSize(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, double bandwidthRatio, u64 xRankSize,
+    u64 yRankSize, u64 dataSizeEachRank, double scale, u64 step);
+void CalcScatterMidStepsSize(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, double bandwidthRatio, u64 xRankSize,
+    u64 dataSizeEachRank, u64 step, u64 &sumXDataSize, u64 &sumYDataSize);
+u64 CalScatterDataSize2D(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, double xB, double yB, u64 xRankSize,
+    u64 yRankSize, u64 dataSizeEachRank, u64 maxStep);
+void CheckRootOrSameAxisAsRoot(
+    u64 xRankSize, u64 yRankSize, u64 zRankSize, uint32_t root, uint32_t rankId, bool &ifRoot, bool &ifSameAxisAsRoot);
+int CalcScatterOuterStepNum(u64 *xySCDataSize, u64 *zSCDataSize, double xyB, double zB, u64 xRankSize, u64 yRankSize,
+    u64 zRankSize, u64 dataSize, int maxStepNum);
+int CalcScatterInnerStepNum(u64 xSCDataSize[][MAX_STEP_NUM], u64 ySCDataSize[][MAX_STEP_NUM], u64 *xySCDataSize,
+    double xB, double yB, u64 xRankSize, u64 yRankSize, int outerStepNum, int maxStepNum);
+u64 CalcScatterZConnerStep(bool zGreaterThanXy, int outerStepNum, u64 finStepMark);
+u64 CalcScatterAllCclBufferSize(const std::vector<u64> &scratchSize, OpMode opMode, CommEngine engine, u64 dataSize,
+    u64 xRankSize, u64 yRankSize, u64 zRankSize);
+bool CalcScatterBufferRatio(
+    u64 allCclBufferSize, u64 maxTmpMemSize, double &bufferRatio, std::vector<u64> &scratchInfo);
+std::vector<u64> CalScatterScratchSize(u64 *xSDataSize, u64 *ySDataSize, u64 *zSDataSize,
+    std::vector<u64> levelRankSize, u64 cornerStep, u64 outerStepNum, u64 innerStepNum, u64 maxStepNum,
+    std::vector<u64> levelAlgType, CommEngine engine, double xB, double yB);
+std::vector<u64> CalcScatterScratchInfo(OmniPipeScratchParam &omniPipeScratchParam);
+void PushStepFields(StepSliceInfo &s, const std::vector<u64> &sz, const std::vector<u64> &cnt,
+    const std::vector<u64> &in, const std::vector<u64> &out, u64 inStride, u64 outStride);
+void PushStepZeros(StepSliceInfo &s, u64 n, u64 inStride, u64 outStride);
+void PushRootOrZeros(StepSliceInfo &s, const std::vector<u64> &sz, const std::vector<u64> &cnt,
+    const std::vector<u64> &in, const std::vector<u64> &out, u64 peerIdx, u64 peerRoot, u64 outStride);
+void CalcAndPushPiece(u64 pieceId, u64 xyBaseOffset, u64 sDataSize, const std::vector<OmniPipeSplitSliceInfo> &perLoop,
+    const std::vector<OmniPipeSplitSliceInfo> &total, u64 dataTypeSize, std::vector<u64> &sz, std::vector<u64> &cnt,
+    std::vector<u64> &in, std::vector<u64> &out);
+OmniPipeSliceInfo CalcScatterOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam, uint32_t root);
 }  // namespace ops_hccl
 #endif
