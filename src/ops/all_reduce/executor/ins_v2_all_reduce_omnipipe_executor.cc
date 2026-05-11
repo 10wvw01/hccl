@@ -12,9 +12,11 @@
 #include "topo_match_3_level.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1d_dpu.h"
+#include "ins_temp_reduce_scatter_omnipipe_mesh_1d_nda.h"
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "ins_temp_all_gather_omnipipe_mesh_1D.h"
 #include "ins_temp_all_gather_omnipipe_nhr_dpu.h"
+#include "ins_temp_all_gather_omnipipe_nhr_nda.h"
 #include "ins_temp_all_gather_omnipipe_nhr.h"
 #include "omnipipe_data_slice_calc.h"
 #include <cmath>
@@ -888,5 +890,9 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE, InsV2AllReduceOmniPipeUb
                        TopoMatch3Level, InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeNHR,
                        InsTempReduceScatterOmniPipeMesh1D, InsTempAllGatherOmniPipeMesh1D, InsTempAllGatherOmniPipeNHR,
                        InsTempAllGatherOmniPipeNHR);
+REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE, InsV2AllReduceNdaOmniPipe, InsV2AllReduceOmniPipeExecutor,
+                       TopoMatchUBX, InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeNHR,
+                       InsTempReduceScatterOmniPipeMesh1dNDA, InsTempAllGatherOmniPipeMesh1D, InsTempAllGatherOmniPipeNHR,
+                       InsTempAllGatherOmniPipeNHRNDA);
 
 }  // namespace ops_hccl
