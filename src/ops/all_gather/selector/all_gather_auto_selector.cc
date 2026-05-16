@@ -18,7 +18,9 @@ constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u64 AG_CCU_SMALL_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 AG_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
+constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
+constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 1 * 1024 * 1024 * 1024;
 
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -198,7 +200,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             selectAlgName = "InsAllGatherNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
-                selectAlgName = "InsAllGatherParallelMesh1DNHR";
+                selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
+                    "InsAllGatherSequenceNHRMesh1D" : "InsAllGatherParallelMesh1DNHR";
             } else {
                 selectAlgName = "InsAllGatherNHR";
             }
@@ -210,7 +213,11 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         }
     } else {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            selectAlgName = "InsAllGatherMesh1D";
+            if (IsTwoLevelNetLayer(topoInfo) && dataSize * topoInfo->userRankSize > AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD) {
+                selectAlgName = "InsAllGatherMesh1D1DZAxisDetour";
+            } else {
+                selectAlgName = "InsAllGatherMesh1D";
+            }
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             // UBX机型
             bool isMeshNumEqualToClosNum = false;
