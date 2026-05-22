@@ -19,6 +19,7 @@
 #include "ccu_kernel_all_to_all_mesh1d.h"
 
 
+
 namespace ops_hccl {
 CcuTempAllToAllMesh1D2Die::CcuTempAllToAllMesh1D2Die(const OpParam &param, RankId rankId,
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -179,7 +180,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::RestoreChannelMap(const std::vector<std::v
     return HCCL_SUCCESS;
 }
 
-
 HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& param,
  	     const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
@@ -236,7 +236,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     kernelInfoMesh.channels = channels_[meshDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoMesh);
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
-        meshDieId, channels_[meshDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
+        meshDieId, meshChannels_[meshDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
 
     // 下发clos的kenrel
     CcuKernelInfo kernelInfoClos;
@@ -254,10 +254,10 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     kernelInfoClos.channels = channels_[closDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoClos);
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
-        closDieId, channels_[closDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
+        closDieId, closChannels_[closDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
 
     //下发2port_clos的kernel
-    if (channels2port_.size() == 0) {
+    if (closChannels_[meshDieId].size() == 0) {
         return HcclResult::HCCL_SUCCESS;
     }
     CcuKernelInfo kernelInfoClos2Port;
