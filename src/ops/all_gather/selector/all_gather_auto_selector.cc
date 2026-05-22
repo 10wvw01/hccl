@@ -119,6 +119,10 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0Algo(
             selectAlgName = "CcuAllGatherMesh1DMem2Mem";
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+        if (topoInfo->level0PcieMix) {
+            HCCL_WARNING("[AllGatherAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+            return SelectorStatus::NOT_MATCH;
+        }
         if (dataSize > AG_CCU_CLOS_SMALL_DATA_SIZE) {
             selectAlgName = "CcuAllGatherMesh1DMem2Mem";
         } else {
