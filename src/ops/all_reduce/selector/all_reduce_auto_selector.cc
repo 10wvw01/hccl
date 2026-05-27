@@ -25,6 +25,7 @@ constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
 constexpr u64 AR_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_CCU_CLOS_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 1 * 1024 * 1024 * 1024;
+constexpr u64 OMNI_PCIE_AR_DATA_SIZE = 32 * 1024 * 1024;
 
 SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -369,9 +370,30 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetL
             selectAlgName = "InsAllReduceNHR";
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-        if (isDataTypeOrReduceTypeSpecial) {	 
-            HCCL_ERROR("[SelectAicpuAlgo] INT64, UINT64, FP64 and PROD reduceType not support now."); 
-            return SelectorStatus::NOT_MATCH; 
+        if (topoInfo->level0PcieMix) {
+            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+                if (isDataTypeOrReduceTypeSpecial) {
+                    selectAlgName = dataSize <= AR_AICPU_1D_64DATATYPE_DATA_SIZE ?
+                                    "InsAllReduceMesh1DOneShot" :
+                                    "InsAllReduceMesh1DTwoShot";
+                } else if (dataSize <= AR_AICPU_1D_SMALL_DATA_SIZE) {
+                    selectAlgName = "InsAllReduceMesh1DOneShot";
+                } else if (dataSize * ratio > AR_AICPU_1D_MAX_DATA_SIZE) { 
+                    selectAlgName = "InsAllReduceMesh1DTwoShotMeshChunk";
+                } else {
+                    selectAlgName = "InsAllReduceMesh1DTwoShot";
+                }
+            } else {
+                if (isDataTypeOrReduceTypeSpecial) {
+                    selectAlgName = "InsAllReduceAicpuReduceNHR";
+                } else {
+                    if (dataSize < OMNI_PCIE_AR_DATA_SIZE) {
+                        selectAlgName = "InsAllReduceParallelMesh1DNHRPcie";
+                    } else {
+                        selectAlgName = "InsV2AllReduceOmniPipePcie";
+                    }
+                }
+            }
         } else { 
             return SelectMeshAlgoAicpuUBX(topoInfo, dataSize, selectAlgName);
         }
