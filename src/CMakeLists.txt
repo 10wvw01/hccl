@@ -546,6 +546,7 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
 hccl_apply_cann_compat(hccl)
 
 target_compile_options(hccl PRIVATE
+    -include securec.h
     -Werror
     -fno-common
     -fno-strict-aliasing
