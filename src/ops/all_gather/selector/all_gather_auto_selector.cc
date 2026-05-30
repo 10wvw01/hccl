@@ -48,36 +48,45 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
                                                      std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
-    // u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
-    // u64 dataSize = opParam.DataDes.count * perDataSize;
-    // if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-    //     selectAlgName = "CcuAllGatherMesh1D";
-    // } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-    //     // UBX机型
-    //     bool isMeshNumEqualToClosNum = false;
-    //     bool isClosNumMultipleOfMeshNum = false;
-    //     CHK_PRT_RET(CheckMeshNumEqualToClosNum(topoInfo, isMeshNumEqualToClosNum) != HCCL_SUCCESS,
-    //         HCCL_DEBUG("[AllGatherAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);
-    //     CHK_PRT_RET(CheckClosNumMultipleOfMeshNum(topoInfo, isClosNumMultipleOfMeshNum) != HCCL_SUCCESS,
-    //         HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
-    //     if (dataSize > SMALL_COUNT_512KB) {
-    //         // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
-    //         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-    //             selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
-    //             return SelectorStatus::MATCH;
-    //         } else {
-    //             HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
-    //             return SelectorStatus::NOT_MATCH;
-    //         }
-    //     } else {
-    //             selectAlgName = "CcuAllGatherMesh1DUBX";
-    //             return SelectorStatus::MATCH;
-    //         }
-    //     } else {
-    //     HCCL_DEBUG("[AllGatherAutoSelector] Level0Topo[%u] is not supported for ccu_ms mode, reset to default.", topoInfo->level0Topo);
-    //     return SelectorStatus::NOT_MATCH;
-    // }
-    selectAlgName = "CcuAllGatherOmniPipe2D";
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+        if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
+            return SelectorStatus::NOT_MATCH;
+        } else {
+            selectAlgName = "CcuAllGatherMesh1D";
+            return SelectorStatus::MATCH;
+        }
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+        if (topoInfo->level0PcieMix && !IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            HCCL_WARNING("[AllGatherAutoSelector] pcie mixed topo is not supported yet for ccu ms mode.");
+            return SelectorStatus::NOT_MATCH;
+        }
+        // UBX机型
+        bool isMeshNumEqualToClosNum = false;
+        bool isClosNumMultipleOfMeshNum = false;
+        CHK_PRT_RET(CheckMeshNumEqualToClosNum(topoInfo, isMeshNumEqualToClosNum) != HCCL_SUCCESS,
+            HCCL_DEBUG("[AllGatherAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);
+        CHK_PRT_RET(CheckClosNumMultipleOfMeshNum(topoInfo, isClosNumMultipleOfMeshNum) != HCCL_SUCCESS,
+            HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
+        if (dataSize > SMALL_COUNT_512KB) {
+            // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
+            if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
+                selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
+                return SelectorStatus::MATCH;
+            } else {
+                HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
+                return SelectorStatus::NOT_MATCH;
+            }
+        } else {
+                selectAlgName = "CcuAllGatherMesh1D";
+                return SelectorStatus::MATCH;
+            }
+        } else {
+        HCCL_DEBUG("[AllGatherAutoSelector] Level0Topo[%u] is not supported for ccu_ms mode, reset to default.", topoInfo->level0Topo);
+        return SelectorStatus::NOT_MATCH;
+    }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }
