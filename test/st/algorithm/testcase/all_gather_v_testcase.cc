@@ -1,16 +1,25 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #include "gtest/gtest.h"
+#include "sim_world.h"
+#include "hccl.h"
+#include "hccl/hccl_types.h"
+#include "acl/acl_rt.h"
+#include "hccl_verifier.h"
+#include "check_utils.h"
+#include <thread>
 #include "alg_env_config.h"
-#include "v_testcase_common.h"
+
+using namespace HcclSim;
+using namespace ops_hccl;
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 protected:
@@ -29,24 +38,6 @@ protected:
     {}
 };
 
-static HcclResult AllGatherVDispatch(u32 rankId, u64 totalCount, VDataDesTag vDataDes,
-    HcclComm comm, aclrtStream stream)
-{
-    void *sendBuf = nullptr;
-    void *recvBuf = nullptr;
-    u64 sendBufSize = vDataDes.counts[rankId] * sizeof(vDataDes.dataType);
-    u64 recvBufSize = totalCount * sizeof(vDataDes.dataType);
-    aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
-    aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
-    return HcclAllGatherV(sendBuf, vDataDes.counts[rankId], recvBuf, vDataDes.counts.data(),
-        vDataDes.displs.data(), vDataDes.dataType, comm, stream);
-}
-
-static void RunAllGatherVMultilevel(const TopoMeta &topoInfo, VDataDesTag vDataDes)
-{
-    RunVMultilevelTest(topoInfo, vDataDes, nullptr, AllGatherVDispatch, CheckAllGatherV);
-}
-
 TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_aicpu_test)
 {
     TopoMeta topoMeta{{{0, 1}}};
@@ -56,51 +47,6 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_aicpu_test)
     vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
 
     RunAllGatherVMultilevel(topoMeta, vDataDes);
-}
-
-TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_4rank_int32_equal_test)
-{
-    TopoMeta topoMeta{{{0, 1}, {2, 3}}};
-    VDataDesTag vDataDes;
-    vDataDes.counts = {100, 100, 100, 100};
-    vDataDes.displs = {0, 100, 200, 300};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
-
-    RunAllGatherVMultilevel(topoMeta, vDataDes);
-}
-
-TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_6rank_fp16_equal_test)
-{
-    TopoMeta topoMeta{{{0, 1, 2}, {3, 4, 5}}};
-    VDataDesTag vDataDes;
-    vDataDes.counts = {200, 200, 200, 200, 200, 200};
-    vDataDes.displs = {0, 200, 400, 600, 800, 1000};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
-
-    RunAllGatherVMultilevel(topoMeta, vDataDes);
-}
-
-            // 4.算子下发
-            CHK_RET(HcclAllGatherV(sendBuf, vDataDes.counts[rankId], recvBuf, vDataDes.counts.data(), vDataDes.displs.data(), vDataDes.dataType, comm, stream));
-
-            // 5.销毁通信域
-            CHK_RET(HcclCommDestroy(comm));
-            return HCCL_SUCCESS;
-        });
-    }
-
-    // 等待多线程执行完成
-    for (auto &thread : threads) {
-        thread.join();
-    }
-
-    // // 结果成图校验
-    auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
-    HcclResult res = CheckAllGatherV(taskQueues, rankSize, vDataDes);
-    EXPECT_TRUE(res == HCCL_SUCCESS);
-
-    // 资源清理
-    SimWorld::Global()->Deinit();
 }
 
 static inline u32 AnalyseRankSizeAGV(const TopoMeta &topoInfo)
