@@ -454,6 +454,8 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/send/template/ins_temp_send_dpu.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/recv/template/ins_temp_recv_dpu.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template/ins_temp_batch_send_recv_dpu.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/executor/ins_v2_scatter_sequence_executor.cc
+ 	        ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/template/aicpu/ins_temp_scatter_nhr_dpu_inter_node.cc
         )
     endif()
 
