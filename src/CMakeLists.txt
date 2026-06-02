@@ -24,13 +24,9 @@ if(BUILD_OPEN_PROJECT)
         file(STRINGS "${_hccl_cann_version_header}" _hccl_cann_ver_line
             REGEX "^#define[ \t]+CANN_VERSION_NUM[ \t]+")
         if(_hccl_cann_ver_line)
-            string(REGEX MATCH
-                "\\(([0-9]+) \\* 10000000\\) \\+ \\(([0-9]+) \\* 100000\\) \\+ \\(([0-9]+) \\* 1000\\)"
-                _ "${_hccl_cann_ver_line}")
-            if(NOT CMAKE_MATCH_1 STREQUAL "" AND NOT CMAKE_MATCH_2 STREQUAL "" AND NOT CMAKE_MATCH_3 STREQUAL "")
-                math(EXPR HCCL_CANN_VERSION_NUM
-                    "${CMAKE_MATCH_1} * 10000000 + ${CMAKE_MATCH_2} * 100000 + ${CMAKE_MATCH_3} * 1000")
-            endif()
+            string(REGEX REPLACE "^#define[ \t]+CANN_VERSION_NUM[ \t]+(.+)$" "\\1"
+                CANN_EXPR "${_hccl_cann_ver_line}")
+            math(EXPR HCCL_CANN_VERSION_NUM "${CANN_EXPR}" OUTPUT_FORMAT DECIMAL)
         endif()
     endif()
 else()

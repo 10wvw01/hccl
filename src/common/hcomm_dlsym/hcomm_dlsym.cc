@@ -38,7 +38,7 @@ int GetHcommVersion(void) {
 
 bool HcommIsProfilingSupported()
 {
-    if (GetHcommVersion() >= CANN_VERSION_9_0_0) {
+    if (GetHcommVersion() >= CANN_VERSION(9, 0, 0)) {
         return true;
     } else {
         return false;
@@ -47,7 +47,7 @@ bool HcommIsProfilingSupported()
 
 bool HcommIsExportThreadSupported()
 {
-    if (GetHcommVersion() >= CANN_VERSION_9_0_0 && HcommIsSupportHcclThreadExportToCommEngine()) {
+    if (GetHcommVersion() >= CANN_VERSION(9, 0, 0) && HcommIsSupportHcclThreadExportToCommEngine()) {
         return true;
     } else {
         return false;

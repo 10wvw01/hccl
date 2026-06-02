@@ -14,8 +14,8 @@
 #include "dlsym_common.h"
 #include "hccl_comm.h"   // 原始头文件，包含所有类型和声明
 
-/* 9.1.0 之前提供桩类型，兼容 9.0.0 和 8.5.0 环境 */
-#if CANN_VERSION_NUM < CANN_VERSION_9_1_0
+/* beta.1 起 hccl_comm.h 已提供 HcclOpExpansionMode/HcclConfigType，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
 typedef enum {
     HCCL_OP_EXPANSION_MODE_INVALID = -1,
     HCCL_OP_EXPANSION_MODE_AI_CPU = 0,
@@ -34,7 +34,7 @@ typedef enum {
 
 typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
 
-#endif /* CANN_VERSION_NUM < CANN_VERSION_9_1_0 */
+#endif /* CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1) */
 
 #ifdef __cplusplus
 extern "C" {
