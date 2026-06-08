@@ -40,11 +40,16 @@ public:
     u64 GetThreadNum() const override;
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 <<<<<<< HEAD
+<<<<<<< HEAD
     uint32_t RemoteRankId2RankId(const uint32_t remoteRankId) const;
     
 =======
 
 >>>>>>> a0135a4 (rs_nhr)
+=======
+    uint32_t RemoteRankId2RankId(const uint32_t remoteRankId) const;
+    
+>>>>>>> 3ca097f (reduce)
     uint32_t mySubCommRank_ = 0;
     uint32_t subCommRootId_ = 99999;
     uint32_t rankId_ = 0;

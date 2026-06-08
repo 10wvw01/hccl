@@ -95,7 +95,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     return HCCL_SUCCESS;
 }
 
-
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::InitCommInfo(
             const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo, const AlgHierarchyInfoForAllLevel& algHierarchyInfo)
@@ -641,6 +640,10 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
        //     // tempAlgParamLocalCopy.repeatNum = rankSize_;
         //     tempAlgParamLocalCopy.sliceSize = currDataCount * dataTypeSize_;
         //     tempAlgParamLocalCopy.localCopyFlag = 1;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3ca097f (reduce)
         //     // templateResourceGX.threads.clear();
         //     // templateResourceGX.threads.emplace_back(threads_[0]);
         //     CHK_RET(gAlgTempX->KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
