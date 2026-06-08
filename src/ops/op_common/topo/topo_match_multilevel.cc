@@ -321,7 +321,7 @@ HcclResult TopoMatchMultilevel::MatchTopo(const HcclComm comm, TopoInfoWithNetLa
     }
 
     // 4. 计算layer1的topo
-    uint32_t layer1Size = algHierarchyInfo.infos[1][0].size();
+    uint32_t netLayer = 1;
     bool hostDPUOnly = false;
     if ((CheckHostDPUOnly(comm, topoInfo, hostDPUOnly) == HcclResult::HCCL_SUCCESS) && hostDPUOnly) {
         // host dpu场景使用最高层的链路
