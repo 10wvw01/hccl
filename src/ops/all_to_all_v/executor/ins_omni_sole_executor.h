@@ -104,6 +104,7 @@ protected:
 
 private:
     XmlInfo xmlInfo_;
+    bool xmlInfoLoaded_ = false;
 };
 }
 

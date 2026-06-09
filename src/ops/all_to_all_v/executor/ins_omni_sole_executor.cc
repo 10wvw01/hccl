@@ -80,6 +80,9 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::ParseXmlInfo(const
     const TopoInfoWithNetLayerDetails* topoInfo)
 {
     (void)topoInfo;
+    xmlInfo_ = XmlInfo{};
+    xmlInfoLoaded_ = false;
+
     const char *omniBinPath = std::getenv("HCCL_OMNI_BIN_PATH");
     std::vector<std::string> candidatePaths;
     if (omniBinPath != nullptr && omniBinPath[0] != '\0') {
@@ -271,6 +274,7 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::ParseXmlInfo(const
         "mapchannelInfo.size[%zu] finalOffset[%llu].",
         instrIdx, xmlInfo_.vecSendRecvInfo.size(), xmlInfo_.resInfo.mapchannelInfo.size(), offset);
 
+    xmlInfoLoaded_ = true;
     return HCCL_SUCCESS;
 }
 
@@ -309,6 +313,9 @@ HcclResult InsOmniSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate(
 
     // 初始化一些基本成员变量
     CHK_RET(InitCommInfo(param, &resCtx.topoInfo));
+    if (!xmlInfoLoaded_) {
+        CHK_RET(ParseXmlInfo(param, &resCtx.topoInfo));
+    }
 
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
