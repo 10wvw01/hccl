@@ -11,7 +11,7 @@
 #ifndef CCU_LOCAL_ADDR_DL_HPP
 #define CCU_LOCAL_ADDR_DL_HPP
 
-#if CANN_VERSION_NUM >= 90100000
+#if CANN_VERSION_NUM > 90100000
 #include "ccu_local_addr.hpp"
 #else
 #include <type_traits>

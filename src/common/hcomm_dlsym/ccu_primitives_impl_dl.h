@@ -18,7 +18,7 @@
 #endif // __cplusplus
 
 #include "dlsym_common.h"
-#if CANN_VERSION_NUM >= 90100000
+#if CANN_VERSION_NUM > 90100000
 #include "hccl_types.h"
 #include "ccu_types.h"
 #include "hcomm_primitives.h"

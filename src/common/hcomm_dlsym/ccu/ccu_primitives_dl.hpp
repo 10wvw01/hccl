@@ -11,7 +11,7 @@
 #ifndef CCU_PRIMITIVES_DL_HPP
 #define CCU_PRIMITIVES_DL_HPP
 
-#if CANN_VERSION_NUM >= 90100000
+#if CANN_VERSION_NUM > 90100000
 #include "ccu_primitives.hpp"
 #else
 #include "ccu_primitives_impl_dl.h"

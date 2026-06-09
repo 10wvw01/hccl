@@ -11,7 +11,7 @@
 #ifndef CCU_CONTROL_FLOW_MACRO_DL_H
 #define CCU_CONTROL_FLOW_MACRO_DL_H
 
-#if CANN_VERSION_NUM >= 90100000
+#if CANN_VERSION_NUM > 90100000
 #include "ccu_control_flow_macro.h"
 #else
 #include "ccu_variable_dl.hpp"
