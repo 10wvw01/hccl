@@ -14,7 +14,7 @@
 GTEST_API_ int main(int argc, char **argv)
 {
     std::cout << "Start to run demo for hccl_checker_ops_stest." << std::endl;
-    testing::GTEST_FLAG(filter) = "ST_ALL_REDUCE_MULTILEVEL_TEST.st_all_reduce_test_02";
+    testing::GTEST_FLAG(filter) = "ST_ALL_REDUCE_MULTILEVEL_TEST.*";
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

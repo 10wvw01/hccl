@@ -254,7 +254,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
 
     tempAlgParamsRSL0.inputSliceStride = tempAlgParamsRSL0.sliceSize;
     tempAlgParamsRSL0.outputSliceStride = 0;
- 
+
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] RSL0.inputSliceStride [%u], "
         "RSL0.outputSliceStride [%u], RSL0.sliceSize [%u], RSL0.tailSize [%u], "
         "RSL0.inBuffBaseOff [%u], RSL0.outBuffBaseOff [%u]",
@@ -419,7 +419,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL0.count = currDataCount;
     tempAlgParamsAGL0.buffInfo.inBuffBaseOff = 0;
     tempAlgParamsAGL0.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
-    tempAlgParamsAGL0.buffInfo.hcclBuffBaseOff = meshCommBuffOffset_;
+    tempAlgParamsAGL0.buffInfo.hcclBuffBaseOff = 0;
 
     tempAlgParamsAGL0.sliceSize = sliceSize;
     tempAlgParamsAGL0.tailSize = tailSize;
@@ -583,7 +583,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE,
     InsTempReduceScatterNHR,
     InsTempReduceScatterNHR,
     InsTempAllGatherNHR,
-     InsTempAllGatherNHR,
-     InsTempAllGatherMesh1D);
+    InsTempAllGatherNHR,
+    InsTempAllGatherMesh1D1DZAxisDetour);
 
 }
