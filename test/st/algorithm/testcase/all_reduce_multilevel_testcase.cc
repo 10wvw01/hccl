@@ -105,7 +105,18 @@ void RunAllReduceMultiLevelCase(const TopoMeta &topoInfo, const u64 dataCount,
     SimWorld::Global()->Deinit();
 }
 
-// P0: basic correctness on 128-card topology
+// P0: most basic case
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_test_01)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 2);
+    u64 dataCount = 18;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// P0: basic correctness on 128-rank topology
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_8x8x2_fp32_sum_basic)
 {
     TopoMeta topoMeta;
@@ -193,7 +204,7 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x4_int32_sum_repea
     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
 }
 
-// P2: BFP16 data type on 16-card topology
+// P2: BFP16 data type on 16-rank topology
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x2_bfp16_max_dtype)
 {
     TopoMeta topoMeta;
@@ -204,7 +215,7 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x2_bfp16_max_dtype
     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
 }
 
-// P2: FP16 data type on 32-card topology
+// P2: FP16 data type on 32-rank topology
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x4x2_fp16_sum_dtype)
 {
     TopoMeta topoMeta;
@@ -305,8 +316,6 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_1x4x2_fp32_sum_l0_deg
     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
 }
 
-// --- Strange / weird dataCount = aligned_value + 1 cases ---
-
 // dataCount=4+1=5: just over power-of-2, tests remainder element in stride slicing
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x3x2_fp32_min_data4_plus_1)
 {
@@ -318,7 +327,7 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x3x2_fp32_min_data4_
     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
 }
 
-// dataCount=64K+1=65537: just over 64K boundary, loop slicing remainder on 32-card
+// dataCount=64K+1=65537: just over 64K boundary, loop slicing remainder on 32-rank
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x4x2_int16_max_data64k_plus_1)
 {
     TopoMeta topoMeta;
