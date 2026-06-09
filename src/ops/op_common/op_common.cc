@@ -408,7 +408,6 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
         if (cacheHit) {
             return HCCL_SUCCESS;
         }
-
         // Miss, continue start recording
         g_recordingQueue = std::make_shared<InsQueue>();
         g_baseInputAddr = reinterpret_cast<u64>(param.inputPtr);
