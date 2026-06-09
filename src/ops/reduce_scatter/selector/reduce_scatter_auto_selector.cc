@@ -304,6 +304,8 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     }
 
     if (topoInfo->topoLevelNums > 1) {
+        HCCL_INFO("[ReduceScatterAutoSelector]topoInfo->level0Topo[%d], topoInfo->.at(0)[%d], topoInfo->Level1Nhr[%s], topoInfo->Level0Nhr[%s]",
+            topoInfo->level0Topo, topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0), topoInfo->Level1Nhr, topoInfo->Level0Nhr);
         if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2ReduceScatterOmniPipeUboe";
