@@ -118,7 +118,8 @@ HcclResult InsTempReduceScatterMesh1dDpu::KernelRun(const OpParam& param,
 }
 
 HcclResult InsTempReduceScatterMesh1dDpu::DPUKernelRun(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank, const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     u32 myAlgRank = 0;
@@ -171,7 +172,7 @@ HcclResult InsTempReduceScatterMesh1dDpu::DPUKernelRun(const TemplateDataParams&
         SendRecvInfo sendRecvInfo{{linkSend, linkRecv},
                              {{txSrcSlices, txDstSlices},{rxSrcSlices, rxDstSlices}}};
 
-        CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+        CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
                     HCCL_ERROR("[InsTempReduceScatterMesh1dDpu] RunReduceScatter Send failed"),
                     HcclResult::HCCL_E_INTERNAL);
     }
