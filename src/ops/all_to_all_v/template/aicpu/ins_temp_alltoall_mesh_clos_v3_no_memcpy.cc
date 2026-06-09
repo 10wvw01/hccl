@@ -20,6 +20,26 @@ constexpr u32 COPY_THREAD_NUM = 0;
 constexpr u32 COPY_NOTIFY_BASE_IDX = 1;
 constexpr u32 INVALID_GROUP_ID = static_cast<u32>(-1);
 
+void DumpChannelMapForDebug(u32 myRank, const std::map<u32, std::vector<ChannelInfo>> &channels)
+{
+    for (const auto &peerChannels : channels) {
+        u32 peer = peerChannels.first;
+        const std::vector<ChannelInfo> &links = peerChannels.second;
+        HCCL_WARNING("[ALLTOALL_NO_MEMCPY_CHANNEL_DUMP] rank[%u] peer[%u] channelNum[%zu]",
+                     myRank, peer, links.size());
+        for (u32 idx = 0; idx < links.size(); ++idx) {
+            const ChannelInfo &link = links[idx];
+            HCCL_WARNING("[ALLTOALL_NO_MEMCPY_CHANNEL_DUMP] rank[%u] peer[%u] idx[%u] "
+                         "remoteRank[%u] handle[%llu] protocol[%d] notifyNum[%u] portGroupSize[%u] "
+                         "remoteCcl[%p/%llu] remoteOutput[%p/%llu]",
+                         myRank, peer, idx, link.remoteRank,
+                         static_cast<unsigned long long>(link.handle), static_cast<int>(link.protocol),
+                         link.notifyNum, link.portGroupSize, link.remoteCclMem.addr, link.remoteCclMem.size,
+                         link.remoteOutputGraphMode.addr, link.remoteOutputGraphMode.size);
+        }
+    }
+}
+
 u32 GetPairwiseRoundNum(u32 groupNum)
 {
     if (groupNum <= 1) {
@@ -162,6 +182,7 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllMesh(
     HCCL_WARNING("[ALLTOALL_V2_DEBUG][MeshClos][RunAlltoAllMesh] schedule by mesh-group pairwise. "
                  "myRank=%d groupNum=%u meshSize=%u commThreads=%zu colorRounds=%u numSteps=%u",
                  myRank_, groupNum, meshSize_, commThreads.size(), colorRoundNum, numSteps);
+    DumpChannelMapForDebug(myRank_, channels);
     for (u32 step = 0; step < numSteps; step++) {
         for (u32 linkIdx = 0; linkIdx < commThreads.size(); linkIdx++) {
             CHK_RET(RunAlltoAllOnLink(commThreads, channels, linkIdx, step));
@@ -282,6 +303,12 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllOnLink(
             return HcclResult::HCCL_E_INTERNAL;
         }
 
+        HCCL_WARNING("[ALLTOALL_NO_MEMCPY_QUEUE] rank[%d] peer[%u] step[%u] linkIdx[%u] "
+                     "micro[%u] shift[%u] color[%u] myGroup[%u] peerGroup[%u] "
+                     "myLocal[%u] peerLocal[%u] selectedLinkIdx[%u/%u] threadNum[%zu]",
+                     myRank_, connectedRank, step, linkIdx, microRound, shift, colorRound, myGroup, peerGroup,
+                     myLocalRank, connectedLocalRank, selectedLinkIdx, totalLinksToNeighbor, commThreads.size());
+
         HCCL_WARNING("[ALLTOALL_V2_DEBUG][MeshClos][RunAlltoAllOnLink] linkIdx[%u] matched: "
                   "myRank=%d connectedRank=%u step=%u micro=%u shift=%u color=%u myGroup=%u peerGroup=%u "
                   "myLocal=%u peerLocal=%u "
@@ -299,6 +326,14 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllOnLink(
         }
 
         const ChannelInfo &linkRemote = it->second[linkIdx];
+        HCCL_WARNING("[ALLTOALL_NO_MEMCPY_SELECTED_CHANNEL] rank[%d] peer[%u] step[%u] linkIdx[%u] "
+                     "remoteRank[%u] handle[%llu] protocol[%d] notifyNum[%u] portGroupSize[%u] "
+                     "remoteCcl[%p/%llu] remoteOutput[%p/%llu]",
+                     myRank_, connectedRank, step, linkIdx, linkRemote.remoteRank,
+                     static_cast<unsigned long long>(linkRemote.handle), static_cast<int>(linkRemote.protocol),
+                     linkRemote.notifyNum, linkRemote.portGroupSize, linkRemote.remoteCclMem.addr,
+                     linkRemote.remoteCclMem.size, linkRemote.remoteOutputGraphMode.addr,
+                     linkRemote.remoteOutputGraphMode.size);
         void *remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
         if (!remoteCclBuffAddr) {
             HCCL_ERROR("[ALLTOALL_V2_DEBUG][MeshClos][RunAlltoAllOnLink] remoteCclMem.addr is NULL for peer %u. "
