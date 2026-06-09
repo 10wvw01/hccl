@@ -269,7 +269,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::InitReduceScatterAddr()
 
         scratchMem_[rankIdx].addr = scratch_[rankId_];
         scratchMem_[rankIdx].addr += scratchOffset;
-        scratchOffset += normalSliceSize_;
+        scratchOffset += (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
         scratchMem_[rankIdx].token = token_[rankId_];
     }
 }
@@ -283,7 +283,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::ResetReduceScatterAddr()
     for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
         scratchMem_[rankIdx].addr = scratch_[rankId_];
         scratchMem_[rankIdx].addr += scratchOffset;
-        scratchOffset += normalSliceSize_;
+        scratchOffset += (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
     }
 }
 
