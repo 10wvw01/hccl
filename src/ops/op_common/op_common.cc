@@ -442,7 +442,7 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 }
 
 HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, 
-    const std::string &algName, const ResPackGraphMode &resPack)
+    std::string &algName, const ResPackGraphMode &resPack)
 {   
     void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = ALG_MAX_LENGTH;
@@ -1194,7 +1194,7 @@ HcclResult HcclAllocAlgResourceAICPU(
 }
 
 HcclResult HcclGetThread(
-    HcclComm comm, const OpParam &param, const AlgResourceRequest &resRequest,
+    HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
 {
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
