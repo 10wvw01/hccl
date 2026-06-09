@@ -190,13 +190,13 @@ HcclResult InsTempScatterNHRDPUInterNode::KernelRun(const OpParam& param, const 
 
 HcclResult InsTempScatterNHRDPUInterNode::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(channels, tempAlgParams));
+    CHK_RET(RunNHR(channels, tempAlgParams)); // TODO把taskexpShmem往里传
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
