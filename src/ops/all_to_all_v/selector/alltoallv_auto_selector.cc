@@ -11,6 +11,7 @@
 #include "alltoallv_auto_selector.h"
 #include "selector_registry.h"
 #include "hccl_aiv_utils.h"
+#include "alltoall_ocs_selector_helper.h"
 
 namespace ops_hccl {
 constexpr uint32_t INDEX_0 = 0;
@@ -85,6 +86,12 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                                                       std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (IsUseOcsAlgorithm(topoInfo)) {
+        selectAlgName = "InsAlltoAllMesh1DOCS";
+        HCCL_INFO("[AlltoAllAutoSelector][SelectAicpuAlgo][OXC] groupNum=%u, Algo match[%s]",
+            GetOcsGroupNum(topoInfo), selectAlgName.c_str());
+        return SelectorStatus::MATCH;
+    }
     (void)opParam;
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
