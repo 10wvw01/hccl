@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include "aicpu_task_cache_utils.h"
 namespace ops_hccl {
 
 bool AicpuTaskCacheUtils::IsNonVariableOpType(HcclCMDType opType)

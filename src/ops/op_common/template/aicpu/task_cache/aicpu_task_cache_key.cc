@@ -20,7 +20,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
 {
     // 校验opType
     const HcclCMDType opType = param.opType;
-    CHK_RET(opType == HcclCMDType::HCCL_CMD_INVALID,
+    CHK_PRT_RET(opType == HcclCMDType::HCCL_CMD_INVALID,
         HCCL_ERROR("[AicpuTaskCacheKey][AicpuTaskCacheKey] opType is invalid"),
         HCCL_E_PARA);
 
@@ -29,9 +29,9 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) { // alltoall算子
         dataType = param.all2AllDataDes.sendType;
     } else if (AicpuTaskCacheUtils::IsNonVariableOpType(opType)) { // 非alltoall的非v类算子
-        dataType = param.dataType;
+        dataType = param.DataDes.dataType;
     }
-    CHK_RET(dataType == HcclDataType::HCCL_DATA_TYPE_RESERVED,
+    CHK_PRT_RET(dataType == HcclDataType::HCCL_DATA_TYPE_RESERVED,
         HCCL_ERROR("[AicpuTaskCacheKey][AicpuTaskCacheKey] dataType is reserved"),
         HCCL_E_PARA);
 

@@ -40,7 +40,7 @@ DEFINE_WEAK_FUNC(int32_t, HcommChannelFenceOnThread, ThreadHandle thread, Channe
 DEFINE_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
 
 DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, const void* addrs, uint32_t count);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count, uint64_t debugConfig);
 DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
 
 using HcclHcommBatchTransferOnThreadFunc =

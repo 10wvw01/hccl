@@ -27,7 +27,7 @@
 #include "hccl_device_comm_dl.h"
 #include "exec_timeout_manager.h"
 #include "alg_data_trans_wrapper.h"
-#include "aipcu_task_cache_key.h"
+#include "aicpu_task_cache_key.h"
 
 using namespace ops_hccl;
 namespace {
@@ -437,7 +437,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             // 提交aicpu task cache
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
             if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
-                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT, param->opConfig.debugConfig)));
             }
         }
 

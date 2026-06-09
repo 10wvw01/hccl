@@ -124,6 +124,8 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     CHK_RET(SetExecTimeout(param));
     // 获取多维度切分比例
     CHK_RET(SetMultipleDimensionSplitRatio(param));
+    // 设置task或alg编排的运行日志
+    param.opConfig.debugConfig = GetDebugConfig();
     HCCL_INFO("Success to execute Selector.");
     return HCCL_SUCCESS;
 }
