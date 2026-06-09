@@ -40,7 +40,7 @@ public:
     HcclResult DPUKernelRun(const TemplateDataParams& tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>>& channels,
                             const u32 myRank,
-                            const std::vector<std::vector<uint32_t>>& subCommRanks) override;
+                            const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem) override;
 
 
 private:
