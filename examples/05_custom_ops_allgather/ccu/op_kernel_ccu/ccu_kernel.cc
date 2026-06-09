@@ -211,7 +211,7 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     }
 
     CCU_CHK_RET(GroupCopy(ctx, localDst, src, ctx.goSize)); // 用loop资源做本地拷贝
-    CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
+    CCU_CHK_RET(ccu::EventRecord(ctx.event, 1 << ctx.arg->rankId));
 
     const uint16_t totalMask = (1 << ctx.arg->rankSize) - 1;
     CCU_CHK_RET(ccu::EventWait(ctx.event, totalMask)); // 等待本卡的数据搬运完成
