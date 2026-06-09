@@ -122,7 +122,8 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::KernelRun(const OpParam& param,
 }
 
 HcclResult InsTempReduceScatterMesh1dDpuInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank, const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     u32 myAlgRank = 0;
@@ -158,6 +159,7 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::DPUKernelRun(const TemplateDataPa
         DpuTransferCtx ctx;
         ctx.txCh = sendSize > 0 ? &link : nullptr;
         ctx.rxCh = recvSize > 0 ? &link : nullptr;  // samePeer when both
+        ctx.taskexpShmem = taskexpShmem;
 
         for (u32 repeatIdx = 0; repeatIdx < tempAlgParams.repeatNum; repeatIdx++) {
             void* remoteCclBuffAddr = link.remoteCclMem.addr;

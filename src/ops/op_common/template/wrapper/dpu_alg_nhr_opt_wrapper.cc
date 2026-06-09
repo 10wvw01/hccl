@@ -78,7 +78,8 @@ HcclResult BatchTransferNHR(
     const TemplateDataParams &tempAlgParam,
     u32 repeat,
     u32 myRank,
-    u32 templateRankSize)
+    u32 templateRankSize,
+    void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     bool hasTx = stepInfo.txSliceIdxs.size() > 0;
@@ -111,6 +112,7 @@ HcclResult BatchTransferNHR(
     DpuTransferCtx ctx;
     ctx.txCh = txCh;
     ctx.rxCh = rxCh;
+    ctx.taskexpShmem = taskexpShmem;
     if (hasTx) {
         BuildTxSlices(stepInfo, tempAlgParam, repeat, templateRankSize,
             sendCclBuffAddr, ctx.txSrcSlices, ctx.txDstSlices);
@@ -141,14 +143,14 @@ HcclResult DpuBatchTransfer(std::vector<DpuTransferCtx> &pairs)
     // ====== Phase 1: 前同步 — 批量 rx Record + tx Wait ======
     for (auto &p : pairs) {
         if (p.hasRecv()) {
-            CHK_RET(static_cast<HcclResult>(
-                HcommChannelNotifyRecordOnThread(0, p.rxCh->handle, NOTIFY_IDX_STEP_SYNC)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(
+                HcommChannelNotifyRecordOnThread(0, p.rxCh->handle, NOTIFY_IDX_STEP_SYNC)), p.taskexpShmem, p.rxCh));
         }
     }
     for (auto &p : pairs) {
         if (p.hasSend()) {
-            CHK_RET(static_cast<HcclResult>(
-                HcommChannelNotifyWaitOnThread(0, p.txCh->handle, NOTIFY_IDX_STEP_SYNC, STEP_SYNC_TIMEOUT)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(
+                HcommChannelNotifyWaitOnThread(0, p.txCh->handle, NOTIFY_IDX_STEP_SYNC, STEP_SYNC_TIMEOUT)), p.taskexpShmem, p.txCh));
         }
     }
 
@@ -158,8 +160,8 @@ HcclResult DpuBatchTransfer(std::vector<DpuTransferCtx> &pairs)
             for (u32 i = 0; i < p.txSrcSlices.size(); i++) {
                 void *dst = static_cast<s8 *>(p.txDstSlices[i].addr_) + p.txDstSlices[i].offset_;
                 void *src = static_cast<s8 *>(p.txSrcSlices[i].addr_) + p.txSrcSlices[i].offset_;
-                CHK_RET(static_cast<HcclResult>(HcommWriteWithNotifyNbiOnThread(
-                    0, p.txCh->handle, dst, src, p.txSrcSlices[i].size_, NOTIFY_IDX_DATA_SIGNAL)));
+                CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommWriteWithNotifyNbiOnThread(
+                    0, p.txCh->handle, dst, src, p.txSrcSlices[i].size_, NOTIFY_IDX_DATA_SIGNAL)), p.taskexpShmem, p.txCh));
             }
         }
     }
@@ -168,18 +170,18 @@ HcclResult DpuBatchTransfer(std::vector<DpuTransferCtx> &pairs)
     for (auto &p : pairs) {
         if (p.hasRecv()) {
             for (u32 i = 0; i < p.rxSrcSlices.size(); i++) {
-                CHK_RET(static_cast<HcclResult>(
-                    HcommChannelNotifyWaitOnThread(0, p.rxCh->handle, NOTIFY_IDX_DATA_SIGNAL, STEP_SYNC_TIMEOUT)));
+                CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(
+                    HcommChannelNotifyWaitOnThread(0, p.rxCh->handle, NOTIFY_IDX_DATA_SIGNAL, STEP_SYNC_TIMEOUT)), p.taskexpShmem, p.rxCh));
             }
         }
     }
     // Fence：发送通道 + 接收通道（去重，samePeer 时仅一次）
     for (auto &p : pairs) {
         if (p.hasSend() && !p.txSrcSlices.empty()) {
-            CHK_RET(static_cast<HcclResult>(HcommChannelFenceOnThread(0, p.txCh->handle)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelFenceOnThread(0, p.txCh->handle)), p.taskexpShmem, p.txCh));
         }
         if (p.hasRecv() && !p.rxSrcSlices.empty() && p.rxCh != p.txCh) {
-            CHK_RET(static_cast<HcclResult>(HcommChannelFenceOnThread(0, p.rxCh->handle)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelFenceOnThread(0, p.rxCh->handle)), p.taskexpShmem, p.rxCh));
         }
     }
     CHK_RET(static_cast<HcclResult>(HcommFenceOnThread(0)));
