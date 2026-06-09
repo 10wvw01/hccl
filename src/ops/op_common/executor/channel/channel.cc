@@ -196,7 +196,7 @@ HcclResult CalcLevel2ChannelRequest(const OpParam& param, const TopoInfo* topoIn
 HcclResult GetProtocolByEngine(const OpParam& param, std::vector<CommProtocol> &protocols)
 {
     protocols.clear();
-#if CANN_VERSION_NUM > CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     switch (param.engine) {
         case CommEngine::COMM_ENGINE_AICPU:
         case CommEngine::COMM_ENGINE_AICPU_TS:
