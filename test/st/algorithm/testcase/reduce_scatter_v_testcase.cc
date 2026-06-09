@@ -85,7 +85,7 @@ TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_multilevel_2pod_4rank_int3
 
 TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_3layer_2pod_2server_4rank_fp16_equal_test)
 {
-    TopoMeta topoMeta{{{0, 1}, {2, 3}}, {{0, 1}, {2, 3}}};
+    TopoMeta topoMeta{{{0}, {1}}, {{0}, {1}}};
     VDataDesTag vDataDes;
     vDataDes.counts = {200, 200, 200, 200};
     vDataDes.displs = {0, 200, 400, 600};
