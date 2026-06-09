@@ -45,17 +45,19 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
 }
 HcclResult InsTempAllGatherNHR::GetRes(AlgResourceRequest &resourceRequest) const
 {
+    u32 threadSize = 2;
     u32 threadNum = GetThreadNum();
     resourceRequest.slaveThreadNum = threadNum - 1;
     // 一个notify用于主从流之间的同步，另一个用于PostLocalCopy和NHR最后一个step并行执行时的前同步
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 2);
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, threadSize);
     resourceRequest.notifyNumOnMainThread = threadNum - 1;
     return HCCL_SUCCESS;
 }
 u64 InsTempAllGatherNHR::GetThreadNum() const
 {
     // 多申请一倍的流用来最后做PostLocalCopy和NHR最后一个step并行执行
-    return channelsPerRank_ * 2;
+    u32 threadMultiple = 2;
+    return channelsPerRank_ * threadMultiple;
 }
 
 u64 InsTempAllGatherNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)

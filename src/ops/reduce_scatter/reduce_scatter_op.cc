@@ -24,7 +24,8 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
     HcclReduceOp op, HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclReduceScatter");
-    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
+    u32 versioncheck = 9;
+    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) { // compat handle
         return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
     }
     DevType deviceType = DevType::DEV_TYPE_COUNT;

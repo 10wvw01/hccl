@@ -393,6 +393,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
                                                std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
                                                u64 maxCountPerLoop) const
 {
+    (void) maxCountPerLoop;
     std::vector<u64> levelRankSizeVec = {rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_};
     std::vector<u64> levelRankIdVec = {rankIdxLevel0_, rankIdxLevel1_, rankIdxLevel2_};
     std::vector<u64> levelAlgType;
@@ -530,8 +531,10 @@ template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTe
           typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
 HcclResult InsV2AllReduceOmniPipeExecutor<
     AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX, InsAgAlgTemplateY,
-    InsAgAlgTemplateZ>::ClacOmniBandwidthInSever(const AlgResourceCtxSerializable &resCtx, std::vector<double>& bdvec)
+    InsAgAlgTemplateZ>::ClacOmniBandwidthInSever(const AlgResourceCtxSerializable &resCtx, std::vector<double>& bdvec) const
 {
+    u32 rankSizeLevel_2 = 2;
+    u32 rankSizeLevel_4 = 4;
     bdvec.clear();
     double bw_ag_l0 = BW_OMNI_DEFAULT;
     double bw_ag_l1 = BW_OMNI_DEFAULT;
@@ -541,10 +544,10 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     double bw_rs_l2 = BW_OMNI_DEFAULT;
 
     if (resCtx.topoInfo.level0PcieMix) {
-        if (rankSizeLevel1_ == 2) {
+        if (rankSizeLevel1_ == rankSizeLevel_2) {
             bw_ag_l1 = BW_OMNI_PCIE_EIGHT_AG_CLOS;
             bw_rs_l1 = BW_OMNI_PCIE_EIGHT_RS_CLOS;
-        } else if (rankSizeLevel1_ == 4) {
+        } else if (rankSizeLevel1_ == rankSizeLevel_4) {
             bw_ag_l1 = BW_OMNI_PCIE_SIXTEEN_AG_CLOS;
             bw_rs_l1 = BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
         }

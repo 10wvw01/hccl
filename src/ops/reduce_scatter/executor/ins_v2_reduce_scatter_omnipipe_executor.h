@@ -67,7 +67,7 @@ protected:
     uint64_t rankIdxLevel2_{0};
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
-    ThreadHandle              controlThread_;
+    ThreadHandle              controlThread_ = 0;
     std::vector<std::vector<ThreadHandle>> levelThreads_;
     // xy两轴间同步使用
     std::vector<u32>          notifyIdxCtrlToTempLevel01_;

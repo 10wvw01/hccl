@@ -29,7 +29,7 @@ public:
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
 
 #ifndef AICPU_COMPILE
-    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *resCtx) override;
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *ctx) override;
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgResInter,
                                  const TemplateResource &templateAlgResIntra, u32 notifyNumOnMainThread);
 #endif
@@ -42,7 +42,7 @@ private:
     void GenIntraTemplateParams( TemplateDataParams &intraTempDataParams, const u64 processedDataCount,
                             const u64 currDataCount, const u64 loop) const;
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                               InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter);
+                               InsAlgTemplate0 &intraTempAlg, InsAlgTemplate1 &interTempAlg);
     template <typename InsAlgTemplate>
     HcclResult GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
         const InsAlgTemplate &algTemplate, TemplateResource &tempReousrce) const;

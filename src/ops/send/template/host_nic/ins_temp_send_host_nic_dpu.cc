@@ -124,6 +124,7 @@ HcclResult InsTempSendHostNicDpu::DPUKernelRun(const TemplateDataParams &tempAlg
     const u32 myRank, const std::vector<std::vector<uint32_t>> &subCommRanks)
 {
 #ifndef AICPU_COMPILE
+    uint64_t notifyIdx = 2;
     uint64_t sizePerRound = 0;
     uint64_t offset = 0;
     uint64_t timeOutSize = 120000;
@@ -157,7 +158,7 @@ HcclResult InsTempSendHostNicDpu::DPUKernelRun(const TemplateDataParams &tempAlg
 
             // 后同步
             CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle,
-                2, timeOutSize)));
+                notifyIdx, timeOutSize)));
             CHK_RET(static_cast<HcclResult>(HcommChannelFenceOnThread(0, channels.at(rankIdx)[0].handle)));
         }
     }

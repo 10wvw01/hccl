@@ -66,7 +66,7 @@ protected:
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap, u64 maxCountPerLoop) const;
 
     HcclResult CalcResLevel(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
+        const std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
 
     HcclResult PrepareResForTemplateLevelRS(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
     HcclResult PrepareResForTemplateLevelAG(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
@@ -89,7 +89,7 @@ protected:
     HcclResult DoLocalCopy(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread,
         const std::vector<u64>& allRankSplitData, const std::vector<u64>& curLoopAllRankSplitData) const;
 
-    HcclResult ClacOmniBandwidthInSever(const AlgResourceCtxSerializable &resCtx, std::vector<double>& bdvec);
+    HcclResult ClacOmniBandwidthInSever(const AlgResourceCtxSerializable &resCtx, std::vector<double>& bdvec) const;
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};

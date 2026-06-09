@@ -56,9 +56,9 @@ private:
 
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
-    OpMode opMode_;
+    OpMode opMode_{0};
 
-    ThreadHandle controlThread_;
+    ThreadHandle controlThread_ = 0;
     std::vector<ThreadHandle> templateMainThreads_;
     std::vector<ThreadHandle> threads_;
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;

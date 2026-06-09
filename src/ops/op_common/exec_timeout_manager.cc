@@ -13,7 +13,7 @@
 namespace ops_hccl {
 
 ExecTimeoutManager::ExecTimeoutManager() 
-    : execTimeout_(1800), // 默认值，与 CUSTOM_TIMEOUT 一致
+    : execTimeout_(CUSTOM_TIMEOUT), // 默认值，与 CUSTOM_TIMEOUT 一致
       timeoutSet_(false) {
     HCCL_INFO("[ExecTimeoutManager] Initialized with default timeout: 1800 seconds");
 }

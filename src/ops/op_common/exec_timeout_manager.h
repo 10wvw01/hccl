@@ -17,6 +17,7 @@ namespace ops_hccl {
 
 class ExecTimeoutManager {
 public:
+    constexpr uint32_t CUSTOM_TIMEOUT = 1800;
     static ExecTimeoutManager& Instance();
     
     void SetExecTimeout(u32 execTimeout);

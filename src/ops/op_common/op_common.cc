@@ -80,7 +80,7 @@ HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetL
     return HCCL_SUCCESS;
 }
 
-HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+HcclResult Selector(const HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     std::string &algName)
 {
     //判断通信域状态
@@ -430,7 +430,7 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 }
 
 HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, 
-    std::string &algName, const ResPackGraphMode &resPack)
+    const std::string &algName, const ResPackGraphMode &resPack)
 {   
     void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = ALG_MAX_LENGTH;
@@ -446,7 +446,7 @@ HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
     return HCCL_SUCCESS;
 }
 
-HcclResult ReSelector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+HcclResult ReSelector(const HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     std::string &algName)
 {
     (void) comm;
@@ -649,6 +649,7 @@ HcclResult GeReuseResource(HcclComm comm, OpParam &param, std::unique_ptr<InsCol
 HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHandle cpuTsThread,
     ThreadHandle exportedCpuTsThread, u32 notifyNumOnMainThread, void *resCtxSequence, std::string &algName, ThreadHandle unfoldThread)
 {
+    (void) algName;
     HCCL_DEBUG("[HcclAicpuKernelEntranceLaunch]start to run aicpu kernel");
     // 当前aicpu launch接口只能有一个输入参数，将Context指针放在param参数中
     param.resCtx = resCtxSequence;
@@ -1110,7 +1111,6 @@ HcclResult GetAlgResAICPU(HcclComm comm, const OpParam &param, AlgResourceReques
     uint64_t hostCtxSize = 0;
     HcclResult hostCtxRet = HcclEngineCtxGet(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS,
         &hostCtxPtr, &hostCtxSize);
-
     if (!increCreateChannelFlag || hostCtxRet != HCCL_SUCCESS) {
         resCtxHost->commInfoPtr = static_cast<void*>(comm);
         resCtxHost->topoInfo = *topoInfo;
@@ -1175,7 +1175,7 @@ HcclResult HcclAllocAlgResourceAICPU(
 }
 
 HcclResult HcclGetThread(
-    HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
+    HcclComm comm, const OpParam &param, const AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
 {
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {

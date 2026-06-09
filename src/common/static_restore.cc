@@ -47,13 +47,15 @@ static int crc32_table_initialized = 0;
  * @brief 初始化 CRC32 查找表
  */
 static void init_crc32_table(void) {
+    uint32_t crc32_size = 256;
+    uint32_t crc32_num = 8;
     if (crc32_table_initialized) {
         return;
     }
 
-    for (uint32_t i = 0; i < 256; i++) {
+    for (uint32_t i = 0; i < crc32_size; i++) {
         uint32_t crc = i;
-        for (int j = 0; j < 8; j++) {
+        for (int j = 0; j < crc32_num; j++) {
             crc = (crc >> 1) ^ ((crc & 1) ? 0xEDB88320 : 0);
         }
         crc32_table[i] = crc;
@@ -73,9 +75,10 @@ static uint32_t calc_crc32(const void* data, size_t length) {
 
     const uint8_t* bytes = (const uint8_t*)data;
     uint32_t crc = 0xFFFFFFFF;
+    uint32_t bitSize = 8;
 
     for (size_t i = 0; i < length; i++) {
-        crc = (crc >> 8) ^ crc32_table[(crc ^ bytes[i]) & 0xFF];
+        crc = (crc >> bitSize) ^ crc32_table[(crc ^ bytes[i]) & 0xFF];
     }
 
     return crc ^ 0xFFFFFFFF;
@@ -102,11 +105,12 @@ static int has_valid_chars(const char* path) {
  * @brief 检查路径是否包含穿越序列
  */
 static int has_no_traversal(const char* path, size_t len) {
+    uint32_t lenSize = 3;
     if (strstr(path, "/../") != NULL) {
         HCCL_ERROR("Path contains traversal sequence '../': '%s'", path);
         return 0;
     }
-    if (len >= 3 && strcmp(path + len - 3, "/..") == 0) {
+    if (len >= lenSize && strcmp(path + len - lenSize, "/..") == 0) {
         HCCL_ERROR("Path ends with traversal sequence '/..': '%s'", path);
         return 0;
     }
@@ -114,7 +118,7 @@ static int has_no_traversal(const char* path, size_t len) {
         HCCL_ERROR("Path contains current directory sequence './': '%s'", path);
         return 0;
     }
-    if (len >= 3 && strcmp(path + len - 3, "/./") == 0) {
+    if (len >= lenSize && strcmp(path + len - lenSize, "/./") == 0) {
         HCCL_ERROR("Path ends with current directory sequence '/./': '%s'", path);
         return 0;
     }
@@ -221,6 +225,7 @@ static int safe_open_dir_chain(const char* path) {
     char buf[PATH_BUFFER_SIZE];
     char* saveptr = NULL;
     int dirfd;
+    int filePermission = 0755;
 
     if (path == NULL || path[0] != '/' ||
         safe_strcpy(buf, sizeof(buf), path) != 0) {
@@ -236,7 +241,7 @@ static int safe_open_dir_chain(const char* path) {
         struct stat st;
         int next_fd;
 
-        if (mkdirat(dirfd, comp, 0755) == -1 && errno != EEXIST) {
+        if (mkdirat(dirfd, comp, filePermission) == -1 && errno != EEXIST) {
             HCCL_ERROR("mkdirat '%s' failed: %s", comp, strerror(errno));
             close(dirfd); return -1;
         }
@@ -295,7 +300,7 @@ static const char* get_safe_base_path(void) {
 static int build_safe_path(const char* base_path, const char* relative_path,
                           char* output, size_t output_size) {
     size_t base_len, rel_len;
-
+    int lenSize = 2;
     if (base_path == NULL || relative_path == NULL || output == NULL) {
         return -1;
     }
@@ -303,7 +308,7 @@ static int build_safe_path(const char* base_path, const char* relative_path,
     base_len = strlen(base_path);
     rel_len = strlen(relative_path);
     /* 检查总长度是否溢出 */
-    if (base_len + rel_len + 2 > output_size) {
+    if (base_len + rel_len + lenSize > output_size) {
         HCCL_ERROR("Combined path too long");
         return -1;
     }
@@ -336,6 +341,7 @@ static FILE* lock_file(FILE* fp, const char* target_path) {
 
     /* 5 秒超时，每 50ms 重试一次 */
     const int timeout_ms = 5000;
+    const int timeout_mult = 1000;
     const int retry_interval_ms = 50;
     const int max_retries = timeout_ms / retry_interval_ms;
 
@@ -349,7 +355,7 @@ static FILE* lock_file(FILE* fp, const char* target_path) {
             fclose(fp);
             return NULL;
         }
-        usleep(retry_interval_ms * 1000);
+        usleep(retry_interval_ms * timeout_mult);
     }
 
     HCCL_ERROR("Timeout acquiring lock on '%s' after %dms",
@@ -381,6 +387,7 @@ static FILE* open_target_secure(const char* target_path, int* file_exists) {
     char* slash;
     const char* basename;
     FILE* fp;
+    int filePermission = 0644;
 
     if (file_exists) *file_exists = 0;
     if (target_path == NULL ||
@@ -405,7 +412,7 @@ static FILE* open_target_secure(const char* target_path, int* file_exists) {
     } else if (errno == ENOENT) {
         /* O_EXCL 让多进程并发创建只赢一个；EEXIST 时回退按已存在打开 */
         fd = openat(parent_fd, basename,
-                    O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0644);
+                    O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW | O_CLOEXEC, filePermission);
         if (fd < 0 && errno == EEXIST) {
             fd = openat(parent_fd, basename, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
             if (fd >= 0 && file_exists) *file_exists = 1;

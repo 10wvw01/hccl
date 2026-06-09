@@ -348,15 +348,15 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1] + resCtx_.ccuKernelNum[2] + resCtx_.ccuKernelNum[3]);
         }
     } else {
-        tempAlgResArr_.at(stage * 2).channels = intraLinks_;
-        tempAlgResArr_.at(stage * 2 + 1).channels = interLinks_;
+        tempAlgResArr_.at(stage * stageNum).channels = intraLinks_;
+        tempAlgResArr_.at(stage * stageNum + 1).channels = interLinks_;
     }
 
-    tempAlgResArr_.at(stage * 2).threads = intraThreads_;
-    tempAlgResArr_.at(stage * 2).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * stageNum).threads = intraThreads_;
+    tempAlgResArr_.at(stage * stageNum).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
-    tempAlgResArr_.at(stage * 2 + 1).threads = interThreads_;
-    tempAlgResArr_.at(stage * 2 + 1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * stageNum + 1).threads = interThreads_;
+    tempAlgResArr_.at(stage * stageNum + 1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
     return HCCL_SUCCESS;
 }
@@ -494,6 +494,8 @@ HcclResult
         dataOffsetPerLoop_.at(1) = dataOffsetPerLoop_.at(0) + dataCountPerLoop_.at(0) * dataTypeSize_;
 
         u32 stageNum = 2;
+        u32 tempAlgNum_2 = 2;
+        u32 tempAlgNum_3 = 3;
         for (u32 stageIdx = 0; stageIdx < stageNum; stageIdx++) {
             // 计算算法模板所需资源
             CHK_RET(PrepareResForStage(stageIdx));
@@ -510,11 +512,11 @@ HcclResult
 						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
                         ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
                     } else if (stageIdx == 1 && stepIdx == 0) {
-						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(2).submitInfos.size();
-                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(3).submitInfos.size();
+						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(tempAlgNum_2).submitInfos.size();
+                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(tempAlgNum_3).submitInfos.size();
                     } else if (stageIdx == 1 && stepIdx == 1 && param_.opMode != OpMode::OFFLOAD) {
-						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
-    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
+						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(tempAlgNum_2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
+    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(tempAlgNum_3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
                         CHK_RET(FastLaunchSaveCtx());
                     }
                 }
@@ -559,11 +561,13 @@ template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, t
 HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::RunTemplate(
     u32 dataSliceIdx, u32 stageIdx, u32 stepIdx, bool isInter)
 {
+    u32 tempAlgNum_2 = 2;
+    u32 tempAlgNum_3 = 3;
     if (dataCountPerLoop_.at(dataSliceIdx) == 0) {
         return HCCL_SUCCESS;
     }
     const TemplateDataParams dataParams = GenDataParamsTempAlg(dataSliceIdx, stageIdx, stepIdx, isInter);
-    CHK_RET(algTemplatePtrArr_.at(stageIdx).at(isInter)->KernelRun(param_, dataParams, tempAlgResArr_.at(stageIdx == 0 ? (stepIdx == dataSliceIdx ? 0 : 1) : (stepIdx == dataSliceIdx ? 3 : 2))));
+    CHK_RET(algTemplatePtrArr_.at(stageIdx).at(isInter)->KernelRun(param_, dataParams, tempAlgResArr_.at(stageIdx == 0 ? (stepIdx == dataSliceIdx ? 0 : 1) : (stepIdx == dataSliceIdx ? tempAlgNum_3 : tempAlgNum_2))));
     return HCCL_SUCCESS;
 }
 

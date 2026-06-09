@@ -122,9 +122,10 @@ HcclResult InsV2ReduceScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchest
 
     // 计算最小传输大小
     u64 maxDataSizePerLoop = 0;
+    u64 buffSize = 1024;
     maxTmpMemSize_ = tempAlgParams.buffInfo.hcclBuff.size;
     if (param.engine != COMM_ENGINE_AIV) {
-        maxTmpMemSize_ = maxTmpMemSize_ - 1 * 1024 * 1024;
+        maxTmpMemSize_ = maxTmpMemSize_ - 1 * buffSize * buffSize;
     }
     u64 transportBoundDataSize = (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) ?
         maxTmpMemSize_ : UB_MAX_DATA_SIZE;

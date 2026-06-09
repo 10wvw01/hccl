@@ -23,7 +23,8 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
     const void *recvDispls, HcclDataType dataType, HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclAllGatherV");
-    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
+    u32 versioncheck = 9;
+    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) { // compat handle
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
  

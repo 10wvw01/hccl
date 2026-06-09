@@ -23,7 +23,8 @@ extern "C" unsigned int LaunchAicpuKernel(OpParam *param);
 HcclResult HcclBroadcast(void *buf, uint64_t count, HcclDataType dataType, uint32_t root, HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclBroadcast");
-    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
+    u32 versioncheck = 9;
+    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) { // compat handle
         return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
     }
 
