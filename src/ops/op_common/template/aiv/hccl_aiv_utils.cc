@@ -148,7 +148,8 @@ struct AivKernelLookupResult {
 };
 
 struct AivDeviceRegistry {
-    bool initialized = false;
+    bool normalInitialized = false;
+    bool omniOnlyInitialized = false;
     std::unordered_map<std::string, aclrtBinHandle> binHandles;
     std::unordered_map<s8*, AivKernelEntry> kernels;
 };
@@ -534,6 +535,8 @@ static HcclResult RegisterBinaryKernel(AivDeviceRegistry &registry, const char* 
         HCCL_E_NOT_FOUND);
 
     registry.kernels[const_cast<s8*>(funcKey)] = AivKernelEntry(binHandle, funcHandle, std::string(funcName));
+    HCCL_INFO("[AIV][RegisterBinaryKernel] register kernelName[%s] funcKey[%p] overwrite[%d].",
+        funcName, funcKey, overwrite);
 
     return HCCL_SUCCESS;
 }
@@ -596,7 +599,8 @@ static HcclResult ClearDeviceRegistry(AivDeviceRegistry &registry)
     }
     if (result == HCCL_SUCCESS) {
         registry.kernels.clear();
-        registry.initialized = false;
+        registry.normalInitialized = false;
+        registry.omniOnlyInitialized = false;
     }
     return result;
 }
@@ -657,8 +661,11 @@ HcclResult RegisterKernel()
         return HCCL_E_RUNTIME;
     }
     AivDeviceRegistry &registry = g_aivRegistryByDevice[deviceId];
-    if (registry.initialized) {
+    if (registry.normalInitialized) {
         return HCCL_SUCCESS;
+    }
+    if (registry.omniOnlyInitialized || !registry.kernels.empty() || !registry.binHandles.empty()) {
+        CHK_RET(ClearDeviceRegistry(registry));
     }
     for (const auto& item : g_aivKernelInfoMap) {
         HcclResult ret = RegisterKernelList(registry, item.first, item.second.first, item.second.second);
@@ -667,7 +674,8 @@ HcclResult RegisterKernel()
             return ret;
         }
     }
-    registry.initialized = true;
+    registry.normalInitialized = true;
+    registry.omniOnlyInitialized = false;
     return HCCL_SUCCESS;
 }
 
@@ -685,7 +693,15 @@ HcclResult RegisterKernel(HcclCMDType cmdType, const std::string &aivBinaryName,
         return HCCL_E_RUNTIME;
     }
     AivDeviceRegistry &registry = g_aivRegistryByDevice[deviceId];
+    if (registry.normalInitialized || (!registry.omniOnlyInitialized &&
+        (!registry.kernels.empty() || !registry.binHandles.empty()))) {
+        CHK_RET(ClearDeviceRegistry(registry));
+    }
+    HCCL_INFO("[AIV][RegisterKernel] register omni-only aiv binary[%s] cmdType[%d].",
+        aivBinaryName.c_str(), cmdType);
     CHK_RET(RegisterKernelList(registry, cmdType, aivBinaryName, aivKernelInfoList, true));
+    registry.normalInitialized = false;
+    registry.omniOnlyInitialized = true;
     return HCCL_SUCCESS;
 }
 
