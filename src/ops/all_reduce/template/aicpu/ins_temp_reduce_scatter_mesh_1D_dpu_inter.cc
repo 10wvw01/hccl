@@ -121,7 +121,8 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::KernelRun(const OpParam& param,
 }
 
 HcclResult InsTempReduceScatterMesh1dDpuInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank, const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     u32 myAlgRank = 0;
@@ -195,19 +196,19 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::DPUKernelRun(const TemplateDataPa
                 TxRxChannels sendRecvChannels(linkSend, linkRecv);
                 TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
                 SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-                CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+                CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
                     HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter] SendRecvWrite failed."),
                     HcclResult::HCCL_E_INTERNAL);
             } else if (sendSize > 0) {
                 SlicesList sendSliceList(txSrcSlices, txDstSlices);
                 DataInfo sendInfo(linkSend, sendSliceList);
-                CHK_PRT_RET(SendWrite(sendInfo),
+                CHK_PRT_RET(SendWrite(sendInfo, taskexpShmem),
                     HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter][DPUKernelRun] Send failed."),
                     HcclResult::HCCL_E_INTERNAL);
             } else if (recvSize > 0) {
                 SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
                 DataInfo recvInfo(linkRecv, recvSliceList);
-                CHK_PRT_RET(RecvWrite(recvInfo),
+                CHK_PRT_RET(RecvWrite(recvInfo, taskexpShmem),
                     HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter][DPUKernelRun] Recv failed."),
                     HcclResult::HCCL_E_INTERNAL);
             }

@@ -91,7 +91,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::KernelRun(const OpParam& param, const
 }
 
 HcclResult InsTempAllGatherOmniPipeNHRDPU::RunNHR(
-    const TemplateDataParams &tempAlgParams, const std::map<u32, std::vector<ChannelInfo>> &channels) const
+    const TemplateDataParams &tempAlgParams, const std::map<u32, std::vector<ChannelInfo>> &channels, void *taskexpShmem) const
 {
 #ifndef AICPU_COMPILE
     u32 myAlgRank = 0;
@@ -150,7 +150,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::RunNHR(
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
 
         CHK_PRT_RET(
-            SendRecvWrite(sendRecvInfo),
+            SendRecvWrite(sendRecvInfo, taskexpShmem),
             HCCL_ERROR("[InsTempAllGatherOmniPipeNHRDPU] SendRecvWrite failed (step=%u)", step),
             HcclResult::HCCL_E_INTERNAL);
     }

@@ -18,9 +18,39 @@
 
 namespace ops_hccl {
 
-HcclResult SendWrite(const DataInfo &sendInfo);
-HcclResult RecvWrite(const DataInfo &recvInfo);
-HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo);
+struct DpuTaskexceptionInfo {
+    HcclResult retCode;
+    ChannelHandle handle;
+    CommProtocol protocol = CommProtocol::COMM_PROTOCOL_RESERVED;
+    EndpointLocType locationType = EndpointLocType::ENDPOINT_LOC_TYPE_RESERVED;
+};
+
+HcclResult SendWrite(const DataInfo &sendInfo, void *taskexpShmem = nullptr);
+HcclResult RecvWrite(const DataInfo &recvInfo, void *taskexpShmem = nullptr);
+HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo, void *taskexpShmem = nullptr);
+
+/* 检查函数返回值, 并返回指定错误码，触发taskexception */
+inline HcclResult ChkRetAndTaskexception(HcclResult hcclRet, void *taskexpShmem, ChannelInfo channelInfo)
+{
+    if (UNLIKELY(hcclRet != HCCL_SUCCESS)) {
+        if (hcclRet == HCCL_E_AGAIN) {
+            HCCL_WARNING("[%s]call trace: hcclRet -> %d", __func__, hcclRet);
+        } else {
+            HCCL_ERROR("[%s]call trace: hcclRet -> %d", __func__, hcclRet);
+            if (taskexpShmem != nullptr) {
+                DpuTaskexceptionInfo dpuTaskexceptionInfo{};
+                dpuTaskexceptionInfo.retCode = hcclRet;
+                dpuTaskexceptionInfo.handle = channelInfo.handle;
+                dpuTaskexceptionInfo.protocol = channelInfo.protocol;
+                dpuTaskexceptionInfo.locationType = channelInfo.locationType;
+                uint8_t *dstDataPtr = reinterpret_cast<uint8_t *>(taskexpShmem);
+                memcpy_s(dstDataPtr + sizeof(DpuTaskexceptionInfo), sizeof(HcclResult), &hcclRet, sizeof(HcclResult));
+                memcpy_s(dstDataPtr, sizeof(DpuTaskexceptionInfo), &dpuTaskexceptionInfo, sizeof(DpuTaskexceptionInfo));
+            }
+        }
+    }
+    return hcclRet;           
+};
 
 }
 #endif // DPU_ALG_DATA_TRANS_WRAPPER
