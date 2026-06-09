@@ -1011,6 +1011,48 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
     TraceDataSlice("AicpuReduce", "AICPU_REDUCE", 0, 1, srcSlice, dstSlice, src, dst,
         srcSlice.size_, dataType, reduceOp);
     switch (dataType) {
+        case HcclDataType::HCCL_DATA_TYPE_INT8:
+            AicpuReduceTemplate<int8_t>(reinterpret_cast<int8_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int8_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_INT16:
+            AicpuReduceTemplate<int16_t>(reinterpret_cast<int16_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int16_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_INT32:
+            AicpuReduceTemplate<int32_t>(reinterpret_cast<int32_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int32_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_FP16:
+            AicpuReduceTemplate<half>(reinterpret_cast<half *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<half *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_FP32:
+            AicpuReduceTemplate<float>(reinterpret_cast<float *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<float *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_BFP16:
+            AicpuReduceTemplate<bfloat16_t>(reinterpret_cast<bfloat16_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<bfloat16_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
         case HcclDataType::HCCL_DATA_TYPE_INT64:
             AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst),
                 dstSlice.size_,
