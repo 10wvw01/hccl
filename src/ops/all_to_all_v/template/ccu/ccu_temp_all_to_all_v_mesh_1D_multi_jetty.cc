@@ -131,8 +131,6 @@ HcclResult CcuTempAllToAllVMesh1DMultiJetty::FastLaunch(const OpParam& param,
     localSendRecvInfo.recvLength.resize(rankSize, 0);
     localSendRecvInfo.recvOffset.resize(rankSize, 0);
     const u64* data = reinterpret_cast<const u64*>(param.varData);
-    u32 valNum_2 = 2;
-    u32 valNum_3 = 3;
     for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize; i++) {
         u64 val = i / rankSize;
         u64 curRank = i % rankSize;
@@ -140,10 +138,10 @@ HcclResult CcuTempAllToAllVMesh1DMultiJetty::FastLaunch(const OpParam& param,
             case 0:
                 localSendRecvInfo.sendLength[curRank] = data[i] * dataTypeSize;
                 break;
-            case valNum_2:
+            case 2:
                 localSendRecvInfo.sendOffset[curRank] = data[i] * dataTypeSize;
                 break;
-            case valNum_3:
+            case 3:
                 localSendRecvInfo.recvOffset[curRank] = data[i] * dataTypeSize;
                 break;
             default:
