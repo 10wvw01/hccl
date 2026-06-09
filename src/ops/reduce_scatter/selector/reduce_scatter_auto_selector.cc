@@ -302,6 +302,8 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     }
 
     if (topoInfo->topoLevelNums > 1) {
+        HCCL_INFO("[ReduceScatterAutoSelector]topoInfo->level0Topo[%d], topoInfo->.at(0)[%d], topoInfo->Level1Nhr[%s], topoInfo->Level0Nhr[%s]",
+            topoInfo->level0Topo, topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0), topoInfo->Level1Nhr, topoInfo->Level0Nhr);
         if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterAicpuReduceNHR";
         } else if (topoInfo->topoLevelNums == 3) {
