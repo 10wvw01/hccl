@@ -10,6 +10,7 @@
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_task_cache_key.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_task_cache_utils.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_task_cache_comm_manager.cc
 )
 
 target_sources(hccl PRIVATE

@@ -28,6 +28,7 @@
 #include "exec_timeout_manager.h"
 #include "alg_data_trans_wrapper.h"
 #include "aipcu_task_cache_key.h"
+#include "aicpu_task_cache_manager.h"
 
 using namespace ops_hccl;
 namespace {
@@ -406,7 +407,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         CHK_RET(InitHcommBatchTransferOnThreadSupported(resCtxPtr->isHcommBatchTransferOnThreadSupported));
 
         // TODO: AR4 检查aicpu task cache使能约束
-        bool enableCache = false;
+        bool enableCache = param->aicpuCacheEnable;
         
         std::string cacheTag = "";
         bool isCacheMiss = true;
@@ -435,6 +436,10 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             // 提交aicpu task cache
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
             CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+            // 首次缓存记录通信域与tag的关系
+            if (isCacheMiss) {
+                AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
+            }
         }
 
         // 上报mainstream数据,最后一个任务
