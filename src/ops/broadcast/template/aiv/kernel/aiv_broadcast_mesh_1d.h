@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
  
 #include "aiv_communication_base_v2.h"
  
@@ -25,6 +25,10 @@ public:
 
     template<typename T>
     __aicore__ inline void ProcessBigData(uint64_t curCount, uint64_t sliceId);
+
+    template<typename T>
+    __aicore__ inline void ProcessBigDataOpt(uint64_t curCount, uint64_t sliceId);
+
 private:
     __aicore__ inline void CalculateOffsetAndCount(uint64_t totalData, uint64_t index, 
                                                    uint64_t totalParts, uint64_t &offset, uint64_t &count);
@@ -170,6 +174,106 @@ __aicore__ inline void AivBroadcastMesh1D::ProcessBigData(uint64_t curCount, uin
         PipeBarrier<PIPE_ALL>();
     }
 }
+
+/**
+ * 优化版大数据量广播实现
+ * 优化策略：
+ * 1. 保持原有的三阶段架构，确保正确性
+ * 2. 优化flag管理，减少同步开销
+ * 3. 提高核利用率，让所有核参与数据传输
+ * 4. 优化数据切分策略，减少重复计算
+ */
+template<typename T>
+__aicore__ inline void AivBroadcastMesh1D::ProcessBigDataOpt(uint64_t curCount, uint64_t sliceId)
+{
+    curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
+    
+    uint64_t curStageCoreNum = numBlocks_ / rankSize_ * rankSize_;
+    if (block_idx >= curStageCoreNum) {
+        return;
+    }
+    
+    uint64_t coreNumPerRank = curStageCoreNum / rankSize_;
+    uint64_t targetRank = block_idx / coreNumPerRank;
+    uint64_t coreIndex = block_idx % coreNumPerRank;
+    
+    // Stage1: root节点所有核并行写本地CCL Buffer
+    uint64_t rankInnerDispls = 0;
+    uint64_t targetRankCurCount = 0;
+    CalculateOffsetAndCount(curCount, targetRank, rankSize_, rankInnerDispls, targetRankCurCount);
+    
+    uint64_t innerDispls = 0;
+    uint64_t sendCurCount = 0;
+    CalculateOffsetAndCount(targetRankCurCount, coreIndex, coreNumPerRank, innerDispls, sendCurCount);
+    
+    uint64_t sendInputOffset = input_ + (rankInnerDispls + innerDispls) * sizeof(T);
+    uint64_t sendCclInOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (rankInnerDispls + innerDispls) * sizeof(T);
+    
+    if (rank_ == root_) {
+        // root节点并行写本地CCL Buffer
+        CpGM2GM((__gm__ T *)sendCclInOffset, (__gm__ T *)sendInputOffset, sendCurCount);
+        PipeBarrier<PIPE_ALL>();
+        // 每个核写rankSize个flag，让其他卡的对应核可以开始读取
+        for (uint32_t i = 0; i < rankSize_; i++) {
+            Record(root_, block_idx * rankSize_ + i, curTag_);
+        }
+    }
+    
+    // Stage2: 所有节点的所有核并行从root读取数据到本地CCL Buffer
+    // 计算本rank需要读取的数据偏移
+    uint64_t localRankInnerDispls = 0;
+    uint64_t localRankCurCount = 0;
+    CalculateOffsetAndCount(curCount, rank_, rankSize_, localRankInnerDispls, localRankCurCount);
+    
+    // 按rankSize分组，每组有coreNumPerRank个核
+    uint64_t groupIndex = block_idx / rankSize_;
+    uint64_t groupInnerDispls = 0;
+    uint64_t groupCurCount = 0;
+    CalculateOffsetAndCount(localRankCurCount, groupIndex, coreNumPerRank, groupInnerDispls, groupCurCount);
+    
+    // 组内每个核再切分
+    uint64_t innerCoreIndex = block_idx % rankSize_;
+    uint64_t innerCoreDispls = 0;
+    uint64_t innerCoreCount = 0;
+    CalculateOffsetAndCount(groupCurCount, innerCoreIndex, rankSize_, innerCoreDispls, innerCoreCount);
+    
+    uint64_t recvOffset = localRankInnerDispls + groupInnerDispls + innerCoreDispls;
+    uint64_t recvCclInOffset = reinterpret_cast<uint64_t>(GM_IN[root_]) + recvOffset * sizeof(T);
+    uint64_t recvCclOutOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + recvOffset * sizeof(T);
+    
+    // 等待root节点对应数据块完成
+    uint64_t flag_offset = targetRank * coreNumPerRank * rankSize_ + groupIndex * rankSize_ + innerCoreIndex;
+    WaitFlag(root_, flag_offset, curTag_);
+    
+    if (rank_ != root_ && innerCoreCount > 0) {
+        CpGM2GM((__gm__ T *)recvCclOutOffset, (__gm__ T *)recvCclInOffset, innerCoreCount);
+        PipeBarrier<PIPE_ALL>();
+        Record(rank_, flag_offset, curTag_);
+    }
+    
+    // Stage2完成后的同步 - 只有特定核负责等待和通知
+    if (innerCoreIndex == 0) {
+        uint64_t flagTotal = rankSize_ * curStageCoreNum;
+        for (uint32_t i = 0; i < rankSize_; i++) {
+            uint64_t flag_offset_w = rank_ * coreNumPerRank * rankSize_ + groupIndex * rankSize_ + i;
+            WaitFlag(rank_, flag_offset_w, curTag_);
+        }
+        for (uint32_t i = 0; i < rankSize_; i++) {
+            Record(i, flagTotal + rank_ + groupIndex * rankSize_, curTag_);
+        }
+    }
+    
+    // Stage3: 所有节点将本地CCL Buffer的数据拷贝到input（完成最终广播）
+    uint64_t gatherSrcOffset = reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (rankInnerDispls + innerDispls) * sizeof(T);
+    uint64_t outputOffset = input_ + (rankInnerDispls + innerDispls) * sizeof(T);
+    
+    if ((rank_ != root_) && (sendCurCount > 0)) {
+        uint64_t flagTotal = rankSize_ * curStageCoreNum;
+        WaitFlag(rank_, flagTotal + targetRank + coreIndex * rankSize_, curTag_);
+        CpGM2GM((__gm__ T *)outputOffset, (__gm__ T *)gatherSrcOffset, sendCurCount);
+        PipeBarrier<PIPE_ALL>();
+    }
+}
  
 template<typename T>
 __aicore__ inline void AivBroadcastV2Mesh1D(KERNEL_ARGS_DEF)
@@ -182,7 +286,8 @@ __aicore__ inline void AivBroadcastV2Mesh1D(KERNEL_ARGS_DEF)
     }
     SyncAll<true>();
     if (len * sizeof(T) >= DATA_LIMIT) {
-        op.ProcessBigData<T>(len, sliceId);
+        // 使用优化版大数据量处理函数
+        op.ProcessBigDataOpt<T>(len, sliceId);
     } else {
         op.Process<T>(len, sliceId, inputSliceStride);
     }
