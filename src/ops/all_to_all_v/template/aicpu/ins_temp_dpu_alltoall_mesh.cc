@@ -397,7 +397,7 @@ void InsTempDpuAlltoAllMesh::GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSu
 
 HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAlgParams,
                                                 const std::map<u32, std::vector<ChannelInfo>> &channels,
-                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks)
+                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     // 网卡通信流程
@@ -493,7 +493,7 @@ HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAl
                 tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize + remoteRank * hcclbuffBlockMemSize,
                 recvSliceSize);
             SendRecvInfo sendRecvInfo{{link, link}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
-            CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+            CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [DpuKernelRun] AlltoAll SendRecv failed"),
                         HcclResult::HCCL_E_INTERNAL);
         } else if (sendCount > 0) {
@@ -513,7 +513,7 @@ HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAl
                       tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize + myRank * hcclbuffBlockMemSize,
                       sendSliceSize);
             DataInfo sendDataInfo{link, {txSrcSlices, txDstSlices}};
-            CHK_PRT_RET(SendWrite(sendDataInfo),
+            CHK_PRT_RET(SendWrite(sendDataInfo, taskexpShmem),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [DpuKernelRun] AlltoAll only Send failed"),
                         HcclResult::HCCL_E_INTERNAL);
         } else if (recvCount > 0) {
@@ -534,7 +534,7 @@ HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAl
                 tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize + remoteRank * hcclbuffBlockMemSize,
                 recvSliceSize);
             DataInfo recvDataInfo{link, {rxSrcSlices, rxDstSlices}};
-            CHK_PRT_RET(RecvWrite(recvDataInfo),
+            CHK_PRT_RET(RecvWrite(recvDataInfo, taskexpShmem),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [DpuKernelRun] AlltoAll only Recv failed"),
                         HcclResult::HCCL_E_INTERNAL);
         }
