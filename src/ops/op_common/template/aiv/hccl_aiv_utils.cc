@@ -929,11 +929,6 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
     cfg.numAttrs = AIV_ATTRNUM_THREE;
     cfg.attrs = attr;
 
-    HCCL_INFO("[ExecuteKernelLaunchInner] KernelAttr attr[0]: id=%u, schemMode=%u; attr[1]: id=%u, timeoutLow=%u, "
-        "timeoutHigh=%u; attr[2]: id=%u, engineType=%u; cfg: numAttrs=%u",
-        attr[0].id, attr[0].value.schemMode, attr[1].id, attr[1].value.timeoutUs.timeoutLow,
-        attr[1].value.timeoutUs.timeoutHigh, attr[2].id, attr[2].value.engineType, cfg.numAttrs);
-
     s8* funcKey = GetFuncKey(opArgs.cmdType, opArgs.dataType, opArgs.argsType);
     AivKernelLookupResult kernelLookupResult;
     HcclResult ret = GetKernelEntry(kernelLookupResult, funcKey);
@@ -941,6 +936,15 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
         "return[%d]", funcKey, HCCL_ERROR_CODE(HCCL_E_RUNTIME), ret), HCCL_E_RUNTIME);
 
     aclrtFuncHandle funcHandle = kernelLookupResult.entry.funcHandle;
+    HCCL_INFO("[ExecuteKernelLaunchInner] launch kernelName[%s] funcKey[%p] cmdType[%d] dataType[%d] "
+        "argsType[%d] blockDim[%u] argsSize[%u] count[%llu] omniInfoAddr[0x%llx] omniInfoSize[%llu], "
+        "KernelAttr attr[0]: id=%u, schemMode=%u; attr[1]: id=%u, timeoutLow=%u, timeoutHigh=%u; "
+        "attr[2]: id=%u, engineType=%u; cfg: numAttrs=%u.",
+        kernelLookupResult.entry.kernelName.c_str(), funcKey, opArgs.cmdType, opArgs.dataType,
+        opArgs.argsType, opArgs.numBlocks, argsSize, opArgs.count, opArgs.extraArgs.omniInfoAddr,
+        opArgs.extraArgs.omniInfoSize,
+        attr[0].id, attr[0].value.schemMode, attr[1].id, attr[1].value.timeoutUs.timeoutLow,
+        attr[1].value.timeoutUs.timeoutHigh, attr[2].id, attr[2].value.engineType, cfg.numAttrs);
     aclError aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream,
         &cfg, args, argsSize, nullptr, 0);
     if (aclRet == ACL_ERROR_RT_INVALID_HANDLE) {

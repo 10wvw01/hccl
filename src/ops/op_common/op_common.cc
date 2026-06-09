@@ -1986,8 +1986,7 @@ HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param)
 
     // omni算子与普通AIV算子的funcKey冲突，omni模式下只注册omni算子
     if ((finalMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AIV ||
-        finalMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) &&
-        GetExternalInputHcclAivMode() == true) {
+        finalMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY)) {
         const std::vector<HcclAlgoType> algConfig = GetExternalInputHcclAlgoConfig(param.opType);
         const bool isOmni = (algConfig.size() > HCCL_ALGO_LEVEL) &&
             (algConfig[HCCL_ALGO_LEVEL] == HcclAlgoType::HCCL_ALGO_TYPE_OMNI);
