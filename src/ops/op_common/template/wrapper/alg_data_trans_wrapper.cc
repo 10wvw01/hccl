@@ -12,6 +12,9 @@
 #include "exec_timeout_manager.h"
 #include "hcomm_primitives_dl.h"
 #include <atomic>
+#include <limits>
+#include <algorithm>
+#include <vector>
 
 namespace ops_hccl {
 
@@ -994,6 +997,219 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
     return HcclResult::HCCL_SUCCESS;
 }
 
+float Fp16ToFp32(uint16_t fp16Bits)
+{
+    uint32_t sign = (fp16Bits >> 15) & 0x1;
+    uint32_t exponent = (fp16Bits >> 10) & 0x1F;
+    uint32_t mantissa = fp16Bits & 0x3FF;
+
+    if (exponent == 0) {
+        if (mantissa == 0) {
+            uint32_t result = sign << 31;
+            float f;
+            memcpy_s(&f, sizeof(f), &result, sizeof(f));
+            return f;
+        }
+        int shift = 0;
+        while ((mantissa & 0x400) == 0) {
+            mantissa <<= 1;
+            shift++;
+        }
+        mantissa &= 0x3FF;
+        int32_t fp32Exp = 127 - 15 + 1 - shift;
+        if (fp32Exp <= 0) {
+            uint32_t result = sign << 31;
+            float f;
+            memcpy_s(&f, sizeof(f), &result, sizeof(f));
+            return f;
+        }
+        uint32_t result = (sign << 31) | (static_cast<uint32_t>(fp32Exp) << 23) | (mantissa << 13);
+        float f;
+        memcpy_s(&f, sizeof(f), &result, sizeof(f));
+        return f;
+    }
+    if (exponent == 0x1F) {
+        if (mantissa == 0) {
+            uint32_t result = (sign << 31) | (0xFF << 23);
+            float f;
+            memcpy_s(&f, sizeof(f), &result, sizeof(f));
+            return f;
+        }
+        uint32_t result = (sign << 31) | (0xFF << 23) | (mantissa << 13);
+        float f;
+        memcpy_s(&f, sizeof(f), &result, sizeof(f));
+        return f;
+    }
+    uint32_t result = (sign << 31) | ((exponent + 112) << 23) | (mantissa << 13);
+    float f;
+    memcpy_s(&f, sizeof(f), &result, sizeof(f));
+    return f;
+}
+
+uint16_t Fp32ToFp16(float value)
+{
+    uint32_t fp32Bits;
+    memcpy_s(&fp32Bits, sizeof(fp32Bits), &value, sizeof(fp32Bits));
+    uint32_t sign = (fp32Bits >> 31) & 0x1;
+    uint32_t exponent = (fp32Bits >> 23) & 0xFF;
+    uint32_t mantissa = fp32Bits & 0x7FFFFF;
+
+    if (exponent == 0) {
+        if (mantissa == 0) {
+            return static_cast<uint16_t>(sign << 15);
+        }
+        return static_cast<uint16_t>(sign << 15);
+    }
+    if (exponent == 0xFF) {
+        if (mantissa == 0) {
+            return static_cast<uint16_t>((sign << 15) | 0x7C00);
+        }
+        uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> 13);
+        if (fp16Mant == 0) {
+            fp16Mant = 1;
+        }
+        return static_cast<uint16_t>((sign << 15) | 0x7C00 | fp16Mant);
+    }
+
+    int32_t fp16Exp = static_cast<int32_t>(exponent) - 127 + 15;
+
+    if (fp16Exp >= 31) {
+        return static_cast<uint16_t>((sign << 15) | 0x7C00);
+    }
+
+    if (fp16Exp <= 0) {
+        if (fp16Exp < -10) {
+            return static_cast<uint16_t>(sign << 15);
+        }
+        mantissa |= 0x800000;
+        int32_t shift = 1 - fp16Exp;
+        uint32_t roundBit = (mantissa >> (shift + 10)) & 0x1;
+        uint32_t truncated = mantissa & ((1U << (shift + 10)) - 1);
+        uint32_t sticky = (truncated != 0) ? 1 : 0;
+        uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> (shift + 10));
+        if (roundBit && sticky) {
+            fp16Mant++;
+        } else if (roundBit && !sticky && (fp16Mant & 0x1)) {
+            fp16Mant++;
+        }
+        if (fp16Mant & 0x400) {
+            return static_cast<uint16_t>((sign << 15) | (1 << 10));
+        }
+        return static_cast<uint16_t>((sign << 15) | fp16Mant);
+    }
+
+    uint32_t discarded = mantissa & 0x1FFF;
+    uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> 13);
+    uint32_t roundBit = (discarded >> 12) & 0x1;
+    uint32_t sticky = (discarded & 0xFFF) ? 1 : 0;
+    if (roundBit && sticky) {
+        fp16Mant++;
+    } else if (roundBit && !sticky && (fp16Mant & 0x1)) {
+        fp16Mant++;
+    }
+    if (fp16Mant == 0x400) {
+        fp16Mant = 0;
+        fp16Exp++;
+    }
+    if (fp16Exp >= 31) {
+        return static_cast<uint16_t>((sign << 15) | 0x7C00);
+    }
+    return static_cast<uint16_t>((sign << 15) | (fp16Exp << 10) | fp16Mant);
+}
+
+float Bfp16ToFp32(uint16_t bfp16Bits)
+{
+    uint32_t sign = (bfp16Bits >> 15) & 0x1;
+    uint32_t exponent = (bfp16Bits >> 7) & 0xFF;
+    uint32_t mantissa = bfp16Bits & 0x7F;
+
+    if (exponent == 0) {
+        if (mantissa == 0) {
+            uint32_t result = sign << 31;
+            float f;
+            memcpy_s(&f, sizeof(f), &result, sizeof(f));
+            return f;
+        }
+        uint32_t result = (sign << 31) | (mantissa << 16);
+        float f;
+        memcpy_s(&f, sizeof(f), &result, sizeof(f));
+        return f;
+    }
+    if (exponent == 0xFF) {
+        if (mantissa == 0) {
+            uint32_t result = (sign << 31) | (0xFF << 23);
+            float f;
+            memcpy_s(&f, sizeof(f), &result, sizeof(f));
+            return f;
+        }
+        uint32_t result = (sign << 31) | (0xFF << 23) | (mantissa << 16);
+        float f;
+        memcpy_s(&f, sizeof(f), &result, sizeof(f));
+        return f;
+    }
+    uint32_t result = (sign << 31) | (exponent << 23) | (mantissa << 16);
+    float f;
+    memcpy_s(&f, sizeof(f), &result, sizeof(f));
+    return f;
+}
+
+uint16_t Fp32ToBfp16(float value)
+{
+    uint32_t fp32Bits;
+    memcpy_s(&fp32Bits, sizeof(fp32Bits), &value, sizeof(fp32Bits));
+    return static_cast<uint16_t>(fp32Bits >> 16);
+}
+
+HcclResult AicpuReduceFp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp)
+{
+    u64 count = size / sizeof(uint16_t);
+    std::vector<float> srcFp32(count);
+    std::vector<float> dstFp32(count);
+    uint16_t *srcFp16 = reinterpret_cast<uint16_t *>(src);
+    uint16_t *dstFp16 = reinterpret_cast<uint16_t *>(dst);
+    for (u64 i = 0; i < count; ++i) {
+        srcFp32[i] = Fp16ToFp32(srcFp16[i]);
+        dstFp32[i] = Fp16ToFp32(dstFp16[i]);
+    }
+    HcclResult ret = AicpuReduceTemplate<float>(dstFp32.data(),
+        dstFp32.size() * sizeof(float),
+        srcFp32.data(),
+        srcFp32.size() * sizeof(float),
+        reduceOp);
+    CHK_PRT_RET(ret != HcclResult::HCCL_SUCCESS,
+        HCCL_ERROR("[AicpuReduceFp16] AicpuReduceTemplate failed, ret[%d].", static_cast<int>(ret)),
+        ret);
+    for (u64 i = 0; i < count; ++i) {
+        dstFp16[i] = Fp32ToFp16(dstFp32[i]);
+    }
+    return ret;
+}
+
+HcclResult AicpuReduceBfp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp)
+{
+    u64 count = size / sizeof(uint16_t);
+    std::vector<float> srcFp32(count);
+    std::vector<float> dstFp32(count);
+    uint16_t *srcBfp16 = reinterpret_cast<uint16_t *>(src);
+    uint16_t *dstBfp16 = reinterpret_cast<uint16_t *>(dst);
+    for (u64 i = 0; i < count; ++i) {
+        srcFp32[i] = Bfp16ToFp32(srcBfp16[i]);
+        dstFp32[i] = Bfp16ToFp32(dstBfp16[i]);
+    }
+    HcclResult ret = AicpuReduceTemplate<float>(dstFp32.data(),
+        dstFp32.size() * sizeof(float),
+        srcFp32.data(),
+        srcFp32.size() * sizeof(float),
+        reduceOp);
+    CHK_PRT_RET(ret != HcclResult::HCCL_SUCCESS,
+        HCCL_ERROR("[AicpuReduceBfp16] AicpuReduceTemplate failed, ret[%d].", static_cast<int>(ret)),
+        ret);
+    for (u64 i = 0; i < count; ++i) {
+        dstBfp16[i] = Fp32ToBfp16(dstFp32[i]);
+    }
+    return ret;
+}
+
 HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice,
     const HcclDataType dataType, const HcclReduceOp reduceOp)
 {
@@ -1011,22 +1227,56 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
     TraceDataSlice("AicpuReduce", "AICPU_REDUCE", 0, 1, srcSlice, dstSlice, src, dst,
         srcSlice.size_, dataType, reduceOp);
     switch (dataType) {
+        case HcclDataType::HCCL_DATA_TYPE_INT8:
+            ret = AicpuReduceTemplate<int8_t>(reinterpret_cast<int8_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int8_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_INT16:
+            ret = AicpuReduceTemplate<int16_t>(reinterpret_cast<int16_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int16_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_INT32:
+            ret = AicpuReduceTemplate<int32_t>(reinterpret_cast<int32_t *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<int32_t *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_FP16:
+            ret = AicpuReduceFp16(dst, src, srcSlice.size_, reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_FP32:
+            ret = AicpuReduceTemplate<float>(reinterpret_cast<float *>(dst),
+                dstSlice.size_,
+                reinterpret_cast<float *>(src),
+                srcSlice.size_,
+                reduceOp);
+            break;
+        case HcclDataType::HCCL_DATA_TYPE_BFP16:
+            ret = AicpuReduceBfp16(dst, src, srcSlice.size_, reduceOp);
+            break;
         case HcclDataType::HCCL_DATA_TYPE_INT64:
-            AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst),
+            ret = AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst),
                 dstSlice.size_,
                 reinterpret_cast<int64_t *>(src),
                 srcSlice.size_,
                 reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_UINT64:
-            AicpuReduceTemplate<uint64_t>(reinterpret_cast<uint64_t *>(dst),
+            ret = AicpuReduceTemplate<uint64_t>(reinterpret_cast<uint64_t *>(dst),
                 dstSlice.size_,
                 reinterpret_cast<uint64_t *>(src),
                 srcSlice.size_,
                 reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_FP64:
-            AicpuReduceTemplate<double>(reinterpret_cast<double *>(dst),
+            ret = AicpuReduceTemplate<double>(reinterpret_cast<double *>(dst),
                 dstSlice.size_,
                 reinterpret_cast<double *>(src),
                 srcSlice.size_,
@@ -1038,6 +1288,50 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
             break;
     }
     return ret;
+}
+
+template <typename T>
+typename std::enable_if<!std::is_same<typename WiderType<T>::Type, T>::value, T>::type
+SaturatedAdd(T a, T b)
+{
+    using W = typename WiderType<T>::Type;
+    W result = static_cast<W>(a) + static_cast<W>(b);
+    if (result > static_cast<W>(std::numeric_limits<T>::max())) {
+        return std::numeric_limits<T>::max();
+    }
+    if (result < static_cast<W>(std::numeric_limits<T>::min())) {
+        return std::numeric_limits<T>::min();
+    }
+    return static_cast<T>(result);
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<typename WiderType<T>::Type, T>::value, T>::type
+SaturatedAdd(T a, T b)
+{
+    return a + b;
+}
+
+template <typename T>
+typename std::enable_if<!std::is_same<typename WiderType<T>::Type, T>::value, T>::type
+SaturatedMul(T a, T b)
+{
+    using W = typename WiderType<T>::Type;
+    W result = static_cast<W>(a) * static_cast<W>(b);
+    if (result > static_cast<W>(std::numeric_limits<T>::max())) {
+        return std::numeric_limits<T>::max();
+    }
+    if (result < static_cast<W>(std::numeric_limits<T>::min())) {
+        return std::numeric_limits<T>::min();
+    }
+    return static_cast<T>(result);
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<typename WiderType<T>::Type, T>::value, T>::type
+SaturatedMul(T a, T b)
+{
+    return a * b;
 }
 
 template <typename T>
@@ -1054,10 +1348,10 @@ HcclResult AicpuReduceTemplate(T *dst, u64 dstSize, T *src, u64 srcSize, const H
         T srcData = *(src + i);
         switch (reduceOp) {
             case HcclReduceOp::HCCL_REDUCE_SUM:
-                *(dst + i) = srcData + dstData;
+                *(dst + i) = SaturatedAdd(srcData, dstData);
                 break;
             case HcclReduceOp::HCCL_REDUCE_PROD:
-                *(dst + i) = srcData * dstData;
+                *(dst + i) = SaturatedMul(srcData, dstData);
                 break;
             case HcclReduceOp::HCCL_REDUCE_MAX:
                 *(dst + i) = std::max(srcData, dstData);
