@@ -162,9 +162,6 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                 } else if (dataSize * topoInfo->userRankSize <= RS_CCU_64P_MIN_DATA_SIZE && topoInfo->userRankSize == ccuSize){
                     selectAlgName = "CcuReduceScatterParallelMesh1DNHR";//64M以下跑ccu
                     return SelectorStatus::MATCH;
-                } else if (dataSize * topoInfo->userRankSize <= RS_CCU_8P_MIN_DATA_SIZE) {
-                    selectAlgName = "CcuReduceScatterParallelMesh1DNHR";//64M以下跑ccu
-                    return SelectorStatus::MATCH;
                 } else {
                     return SelectorStatus::NOT_MATCH;//64M以上切为aicpu
                 }
