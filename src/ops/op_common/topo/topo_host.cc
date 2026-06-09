@@ -60,6 +60,40 @@ HcclResult InitRankInfo(HcclComm comm, TopoInfo* topoInfo)
     return HCCL_SUCCESS;
 }
 
+HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
+{
+    CHK_PTR_NULL(topoInfo);
+    constexpr u32 kNetLayerL1 = 1;
+    if (topoInfo->netLayerDetails.instSizeListOfLayer.size() <= kNetLayerL1) {
+        topoInfo->ocsGroupNum = 1;
+        return HCCL_SUCCESS;
+    }
+    const auto& physicalSizes = topoInfo->netLayerDetails.instSizeListOfLayer[kNetLayerL1];
+    if (physicalSizes.size() <= 1) {
+        topoInfo->ocsGroupNum = 1;
+        HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] L1 instNum[%zu], oxcGroupNum=1",
+            physicalSizes.size());
+        return HCCL_SUCCESS;
+    }
+
+    std::vector<u32> sizes(physicalSizes.begin(), physicalSizes.end());
+    u32 gcd = CalGCD(sizes);
+    if (gcd <= 1) {
+        topoInfo->ocsGroupNum = 1;
+        HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] gcd[%u] <= 1, oxcGroupNum=1", gcd);
+        return HCCL_SUCCESS;
+    }
+
+    u32 virtualGroupNum = 0;
+    for (u32 sz : physicalSizes) {
+        virtualGroupNum += sz / gcd;
+    }
+    topoInfo->ocsGroupNum = virtualGroupNum;
+    HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] physicalGroupNum[%zu] gcd[%u] oxcGroupNum[%u]",
+        physicalSizes.size(), gcd, virtualGroupNum);
+    return HCCL_SUCCESS;
+}
+
 HcclResult InitRankInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
 {
     CHK_RET(InitRankInfo(comm, static_cast<TopoInfo*>(topoInfo)));
@@ -628,6 +662,7 @@ HcclResult CalcTopoShape(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
 {
     CHK_RET(ExtractNetLayerDetails(comm, topoInfo));
     CHK_RET(CalcLevel1Nhr(comm, topoInfo));
+    CHK_RET(CalcOcsGroupNumFromL1(topoInfo));
     CHK_RET(ExtractTopoDetails(comm, topoInfo));
     CHK_RET(CalcLevel0TopoShape(comm, topoInfo));
     CHK_RET(Is2DieFullMesh(comm, topoInfo));
