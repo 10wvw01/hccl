@@ -42,7 +42,8 @@ HcclResult BatchTransferNHR(
     const TemplateDataParams &tempAlgParam,
     u32 repeat,
     u32 myRank,
-    u32 templateRankSize);
+    u32 templateRankSize,
+    void *taskexpShmem = nullptr);
 
 // ========== 三阶段批量传输 ==========
 
@@ -53,6 +54,7 @@ struct DpuTransferCtx {
     std::vector<DataSlice> txDstSlices;   // 发送目标切片
     std::vector<DataSlice> rxSrcSlices;   // 接收源切片
     std::vector<DataSlice> rxDstSlices;   // 接收目标切片
+    void *taskexpShmem; // 做taskexception使用的共享内存
 
     bool hasSend() const { return txCh != nullptr; }
     bool hasRecv() const { return rxCh != nullptr; }

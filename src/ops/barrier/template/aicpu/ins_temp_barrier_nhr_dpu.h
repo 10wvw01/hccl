@@ -41,11 +41,12 @@ public:
     HcclResult DPUKernelRun(const TemplateDataParams &tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>> &channels,
                             const u32 myRank,
-                            const std::vector<std::vector<uint32_t>> &subCommRanks) override;
+                            const std::vector<std::vector<uint32_t>> &subCommRanks,
+                            void *taskexpShmem) override;
 
 protected:
     u32 GetRankFromMap(const uint32_t rankIdx) const;
-    HcclResult RunNHRBarrier(const std::map<u32, std::vector<ChannelInfo>> &channels) const;
+    HcclResult RunNHRBarrier(const std::map<u32, std::vector<ChannelInfo>> &channels, void *taskexpShmem) const;
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override {}
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override {}
 };

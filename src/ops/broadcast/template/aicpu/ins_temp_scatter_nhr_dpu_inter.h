@@ -41,7 +41,7 @@ public:
     HcclResult DPUKernelRun(const TemplateDataParams& tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>>& channels,
                             const u32 myRank,
-                            const std::vector<std::vector<uint32_t>>& subCommRanks) override;
+                            const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem) override;
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                         AlgResourceRequest& resourceRequest) override;
@@ -54,7 +54,7 @@ public:
 private:
     HcclResult LocalDataCopy(const TemplateDataParams& tempAlgParams, const TemplateResource& templateResource);
     HcclResult PostLocalCopy(const TemplateDataParams& tempAlgParams, const TemplateResource& templateResource); 
-    HcclResult RunNHR(const std::map<u32, std::vector<ChannelInfo>> &channels, const TemplateDataParams &tempAlgParams);
+    HcclResult RunNHR(const std::map<u32, std::vector<ChannelInfo>> &channels, const TemplateDataParams &tempAlgParams, void *taskexpShmem);
     
     u64 count_{0};
     u64 dataTypeSize_{0};
