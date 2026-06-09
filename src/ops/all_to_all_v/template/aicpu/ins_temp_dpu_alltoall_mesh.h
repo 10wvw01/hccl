@@ -52,7 +52,7 @@ public:
 
     HcclResult DPUKernelRun(const TemplateDataParams &tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-                            const std::vector<std::vector<u32>> &subCommRanks) override;
+                            const std::vector<std::vector<u32>> &subCommRanks, void *taskexpShmem) override;
 
 private:
     HcclResult LocalCopyforMyRank(const std::vector<u32> &commRanks, const TemplateDataParams &tempAlgParams,

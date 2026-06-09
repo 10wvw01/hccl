@@ -39,7 +39,7 @@ public:
     HcclResult DPUKernelRun(const TemplateDataParams& tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>>& channels,
                             const u32 myRank,
-                            const std::vector<std::vector<uint32_t>>& subCommRanks) override;
+                            const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem) override;
 
 protected:
     HcclResult GetStepInfo(uint32_t step, uint32_t nSteps, AicpuNHRStepInfo &stepInfo) const;
