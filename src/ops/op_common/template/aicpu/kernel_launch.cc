@@ -415,7 +415,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, cacheTag);
 
             // 查询aicpu task cache
-            CHK_RET(static_cast<HcclResult>(HcommAicpuTsCacheLookup(cacheTag.c_str(), &isCacheMiss)));
+            if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
+            }
         }
 
         if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
@@ -434,7 +436,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
             // 提交aicpu task cache
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
-            CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+            if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+            }
         }
 
         // 上报mainstream数据,最后一个任务

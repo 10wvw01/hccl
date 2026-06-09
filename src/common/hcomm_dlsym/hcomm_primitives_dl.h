@@ -90,6 +90,13 @@ DECL_SUPPORT_FLAG(HcommBatchTransferOnThread);
 int32_t HcclHcommBatchTransferOnThread(ThreadHandle thread, ChannelHandle channel,
     const HcclHcommBatchTransferDesc *transferDescs, uint32_t transferDescNum);
 
+DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
+DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheLookup);
+DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, const void* addrs, uint32_t count);
+DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheSubmit);
+DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
+DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheClear);
+
 void HcommPrimitivesDlInit(void* libHcommHandle);  // 本模块独立初始化
 
 #ifdef __cplusplus
