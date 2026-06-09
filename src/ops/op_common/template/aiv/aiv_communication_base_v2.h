@@ -179,7 +179,7 @@ public:
                                 uint64_t hcclBuffSize,
                                 GM_ADDR headCountMem,
                                 GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter,
-                                bool useDoubleBuffer, uint32_t pingpong = 0)
+                                bool useDoubleBuffer, bool pingpong = false)
     {
         rank_ = rank;
         sendRecvRemoteRank_  = sendRecvRemoteRank;
@@ -227,7 +227,7 @@ public:
         GetTag(buffIn);
     }
 
-    __aicore__ inline void Init(GM_ADDR hiddenInput, GM_ADDR input, GM_ADDR output, uint32_t pingpong = 0)
+    __aicore__ inline void Init(GM_ADDR hiddenInput, GM_ADDR input, GM_ADDR output, bool pingpong = false)
     {
         __gm__ AivSuperKernelArgs* args = reinterpret_cast<__gm__ AivSuperKernelArgs*>(hiddenInput);
 
@@ -277,11 +277,11 @@ public:
         GetTag(args->buffersIn);
     }
 
-    __aicore__ inline void InitBuffArray(GM_ADDR buffIn, uint32_t pingpong)
+    __aicore__ inline void InitBuffArray(GM_ADDR buffIn, bool pingpong = false)
     {
         GlobalTensor<uint64_t> ipcBufferGlobal;
         ipcBufferGlobal.SetGlobalBuffer((__gm__ uint64_t*)(buffIn));
-        if(pingpong == 0){
+        if(!pingpong){
             for(int i=0; i<rankSize_;i++){
                 GM_IN[i] = (GM_ADDR)ipcBufferGlobal.GetValue(i);
                 GM_OUT[i] = (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG_ADDR_OFFSET;
