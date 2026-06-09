@@ -397,7 +397,7 @@ void InsTempDpuAlltoAllMesh::GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSu
 
 HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAlgParams,
                                                 const std::map<u32, std::vector<ChannelInfo>> &channels,
-                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks)
+                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     // 网卡通信流程

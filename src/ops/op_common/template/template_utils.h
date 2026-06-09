@@ -330,6 +330,7 @@ struct DPURunInfo { // AICPU构造信息，写入共享内存
     std::map<uint32_t, std::vector<ChannelInfo>> channels;
     u32 myRank;
     std::vector<std::vector<uint32_t>> subCommRanks;
+    void *taskexpShmem = nullptr;
 
     std::vector<char> Serialize() const
     {
@@ -339,6 +340,7 @@ struct DPURunInfo { // AICPU构造信息，写入共享内存
         binaryStream << channels;
         binaryStream << myRank;
         binaryStream << subCommRanks;
+        binaryStream << taskexpShmem;
 
         std::vector<char> result;
         binaryStream.Dump(result);
@@ -355,6 +357,7 @@ struct DPURunInfo { // AICPU构造信息，写入共享内存
         binaryStream >> channels;
         binaryStream >> myRank;
         binaryStream >> subCommRanks;
+        binaryStream >> taskexpShmem;
     }
 };
 

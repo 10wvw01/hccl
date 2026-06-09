@@ -112,12 +112,12 @@ HcclResult InsTempAllGatherNhrDpuInter::KernelRun(const OpParam& param, const Te
 
 HcclResult InsTempAllGatherNhrDpuInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(tempAlgParams, channels));
+    CHK_RET(RunNHR(tempAlgParams, channels, taskexpShmem));
 
     return HcclResult::HCCL_SUCCESS;
 }
@@ -195,7 +195,7 @@ HcclResult InsTempAllGatherNhrDpuInter::LocalDataCopy(const TemplateDataParams& 
 }
 
 HcclResult InsTempAllGatherNhrDpuInter::RunNHR(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     const uint32_t nSteps = GetNHRStepNum(templateRankSize_);
