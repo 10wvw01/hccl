@@ -245,7 +245,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::PostReduce(
 // 进行数据从ccl搬运到ccl。不reduce，只涉及receive/write
 HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DPUKernelRun(const TemplateDataParams &tempAlgParam,
         const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-        const std::vector<std::vector<uint32_t>> &subCommRanks)
+        const std::vector<std::vector<uint32_t>> &subCommRanks, void *taskexpShmem)
 {
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
@@ -307,7 +307,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DPUKernelRun(const TemplateDat
             txDstSlices.push_back(txDstSlice);
         }
         SendRecvInfo sendRecvInfo{{linkRemote, linkRemote}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
-        CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+        CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
             HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] RunReduceScatter Send failed"),
             HcclResult::HCCL_E_INTERNAL);
     }

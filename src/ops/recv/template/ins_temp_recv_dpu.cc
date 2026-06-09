@@ -164,7 +164,7 @@ namespace ops_hccl
 
     HcclResult InsTempRecvDpu::DPUKernelRun(const TemplateDataParams &tempAlgParam,
                                             const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-                                            const std::vector<std::vector<uint32_t>> &subCommRanks)
+                                            const std::vector<std::vector<uint32_t>> &subCommRanks, void *taskexpShmem)
     {
 #ifndef AICPU_COMPILE
         if (subCommRanks.empty() || subCommRanks[0].size() < 2)
@@ -201,7 +201,7 @@ namespace ops_hccl
         // 发送
         SlicesList recvSlicesList({remoteInputBuffer}, {localCclBuffer});
         DataInfo recvInfo(linkRecv, recvSlicesList);
-        CHK_PRT_RET(RecvWrite(recvInfo), HCCL_ERROR("[InsTempRecvDpu][DPUKernelRun] Run Recv failed"), HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(RecvWrite(recvInfo, taskexpShmem), HCCL_ERROR("[InsTempRecvDpu][DPUKernelRun] Run Recv failed"), HcclResult::HCCL_E_INTERNAL);
         HCCL_INFO("[InsTempRecvDpu][DPUKernelRun] Run Recv success!");
 #endif
         return HCCL_SUCCESS;
