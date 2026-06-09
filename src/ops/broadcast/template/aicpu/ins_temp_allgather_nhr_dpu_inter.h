@@ -40,7 +40,7 @@ public:
     HcclResult DPUKernelRun(const TemplateDataParams& tempAlgParams,
                             const std::map<u32, std::vector<ChannelInfo>>& channels,
                             const u32 myRank,
-                            const std::vector<std::vector<uint32_t>>& subCommRanks) override;
+                            const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem) override;
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override {};
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override {};                        
  
@@ -48,7 +48,7 @@ private:
     HcclResult GetStepInfo(uint32_t step, uint32_t nSteps, AicpuNHRStepInfo &stepInfo);
     u32 GetRankFromMap(const uint32_t rankIdx);
     HcclResult LocalDataCopy(const TemplateDataParams& tempAlgParams, const TemplateResource& templateResource);
-    HcclResult RunNHR(const TemplateDataParams& tempAlgParams, const std::map<u32, std::vector<ChannelInfo>>& channels, const std::vector<std::vector<uint32_t>>& subCommRanks);
+    HcclResult RunNHR(const TemplateDataParams& tempAlgParams, const std::map<u32, std::vector<ChannelInfo>>& channels, const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem);
     HcclResult PostLocalCopy(const TemplateDataParams& tempAlgParams, const TemplateResource& templateResource); 
 
     u64 tempRankSize_{0};
