@@ -11,7 +11,7 @@
 #ifndef CCU_BUFFER_DL_HPP
 #define CCU_BUFFER_DL_HPP
 
-#if CANN_VERSION_NUM > 90100000
+#if CANN_VERSION_NUM >=90100000
 #include "ccu_buffer.hpp"
 #else
 #include <cstdint>

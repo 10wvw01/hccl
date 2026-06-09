@@ -11,7 +11,7 @@
 #ifndef CCU_EVENT_DL_HPP
 #define CCU_EVENT_DL_HPP
 
-#if CANN_VERSION_NUM > 90100000
+#if CANN_VERSION_NUM >=90100000
 #include "ccu_event.hpp"
 #else
 #include <cstdint>

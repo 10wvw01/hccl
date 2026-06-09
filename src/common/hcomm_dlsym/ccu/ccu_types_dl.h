@@ -11,7 +11,7 @@
 #ifndef CCU_TYPES_DL_H
 #define CCU_TYPES_DL_H
 
-#if CANN_VERSION_NUM > 90100000
+#if CANN_VERSION_NUM >=90100000
 #include "ccu_types.h"
 #else
 #include <cstdint>
