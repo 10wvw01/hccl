@@ -61,8 +61,8 @@ HcclResult CcuTempAllReduceMesh1D::CalcSliceInfo(const u64 dataSize, RankSliceIn
         accumOff += currChunkSize;
     }
 
-    CHK_PRT_RET(
-        (sliceInfoVec[templateRankSize_ - 1][0].offset + sliceInfoVec[templateRankSize_ - 1][0].size != dataSize),
+    CHK_PRT_RET((templateRankSize_ != 0 &&
+        sliceInfoVec[templateRankSize_ - 1][0].offset + sliceInfoVec[templateRankSize_ - 1][0].size != dataSize),
         HCCL_ERROR(
             "[CcuTempAllReduceMesh1D] chunkSize:[%llu], Rank:[%d], SliceInfo calculation error!",
             chunkSize, myRank_),
