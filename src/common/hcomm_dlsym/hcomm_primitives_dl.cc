@@ -39,6 +39,10 @@ DEFINE_WEAK_FUNC(int32_t, HcommFenceOnThread, ThreadHandle thread);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelFenceOnThread, ThreadHandle thread, ChannelHandle channel);
 DEFINE_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
 
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count, uint64_t debugConfig);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
+
 using HcclHcommBatchTransferOnThreadFunc =
     int32_t (*)(ThreadHandle, ChannelHandle, const HcclHcommBatchTransferDesc *, uint32_t);
 
@@ -82,6 +86,11 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommFenceOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelFenceOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadJoin);
+
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheLookup);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheSubmit);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheClear);
+
     g_HcommBatchTransferOnThread = reinterpret_cast<HcclHcommBatchTransferOnThreadFunc>(
         dlsym(libHcommHandle, "HcommBatchTransferOnThread"));
     if (g_HcommBatchTransferOnThread == nullptr) {
