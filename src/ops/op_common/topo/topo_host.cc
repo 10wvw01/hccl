@@ -77,6 +77,7 @@ HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
     }
 
     std::vector<u32> sizes(physicalSizes.begin(), physicalSizes.end());
+    // GCD操作已拉齐每个group间的rank个数，保证group间rank均衡
     u32 gcd = CalGCD(sizes);
     if (gcd <= 1) {
         topoInfo->ocsGroupNum = 1;

@@ -12,6 +12,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/alltoall_auto_selector.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/alltoallv_auto_selector.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/alltoallvc_auto_selector.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/alltoall_ocs_selector_helper.cc
 )
 
 target_sources(hccl PRIVATE
