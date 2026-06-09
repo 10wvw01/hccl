@@ -15,7 +15,6 @@ using namespace AscendC;
 // todo 简化参数
  
 class AivBroadcastMesh1D : public AivCommBase {
-    constexpr static uint64_t CORE_NUMS_ALL = 2;
 
 public:
     __aicore__ inline AivBroadcastMesh1D() {}
@@ -54,14 +53,17 @@ __aicore__ inline void AivBroadcastMesh1D::Process(uint64_t curCount, uint64_t s
 {
     curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
     uint64_t dataTypeSize = sizeof(T);
-    if (block_idx >= rankSize_) {
+    uint64_t coreNumPerRank = 1;
+    uint64_t curStageCoreNum = coreNumPerRank * rankSize_;
+    if (block_idx >= curStageCoreNum) {
         return;
     }
-    uint32_t peerRank = block_idx / (rankSize_ / rankSize_);
-    uint64_t offsetPerCore = curCount / rankSize_ * dataTypeSize;
+
+    uint64_t peerRank = block_idx / coreNumPerRank;
+    uint64_t offsetPerCore = curCount / curStageCoreNum * dataTypeSize;
     uint64_t dataOffset = offsetPerCore * block_idx;
-    uint64_t countPerCore = block_idx == rankSize_ - 1 ? curCount - (rankSize_ - 1) * (curCount / rankSize_)
-                                    : curCount / rankSize_;
+    uint64_t countPerCore = block_idx == curStageCoreNum - 1 ? curCount - (curStageCoreNum - 1) * (curCount / curStageCoreNum)
+                                    : curCount / curStageCoreNum;
     uint64_t flag_offset = block_idx;
     __gm__ T *inputGM = (__gm__ T *)(input_ + dataOffset);
     __gm__ T *cclGM = (__gm__ T *)(GM_IN[peerRank] + dataOffset);
@@ -69,14 +71,12 @@ __aicore__ inline void AivBroadcastMesh1D::Process(uint64_t curCount, uint64_t s
     if (rank_ == root_) {
         CpGM2GM(cclGM, inputGM, countPerCore);
         PipeBarrier<PIPE_ALL>();
-        // 避免多核同时访问一个flag
-        for (uint32_t i = 0; i < rankSize_; i++) {
-            Record(i, flag_offset, curTag_);
-        }
+        Record(peerRank, block_idx % coreNumPerRank, curTag_);
     }
- 
     // allgather
-    WaitFlag(rank_, flag_offset, curTag_);
+    WaitFlag(rank_, block_idx % coreNumPerRank, curTag_);
+    Record(peerRank, coreNumPerRank + block_idx % coreNumPerRank + rank_ * coreNumPerRank, curTag_);
+    WaitFlag(rank_, coreNumPerRank + block_idx % coreNumPerRank + peerRank * coreNumPerRank, curTag_);
     CpGM2GM(inputGM, cclGM, countPerCore);
     PipeBarrier<PIPE_ALL>();
 }
@@ -176,12 +176,10 @@ __aicore__ inline void AivBroadcastV2Mesh1D(KERNEL_ARGS_DEF)
 {
     AivBroadcastMesh1D op;
     op.Init(KERNEL_CLASS_INIT, true);
-    SyncAll<true>();
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
-    SyncAll<true>();
-    if (len * sizeof(T) >= DATA_LIMIT) {
+    if (len * sizeof(T) >= DATA_LIMIT && rankSize != 8) {
         op.ProcessBigData<T>(len, sliceId);
     } else {
         op.Process<T>(len, sliceId, inputSliceStride);
