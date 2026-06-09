@@ -69,6 +69,7 @@ if (BUILD_OPEN_PROJECT)
         ${HCCL_DEV_BASE}/src/ops/inc
         ${HCCL_DEV_BASE}/src/ops/op_common/inc
         ${HCCL_DEV_BASE}/src/common/hcomm_dlsym
+        ${HCCL_DEV_BASE}/src/common/hcomm_dlsym/ccu
     )
 endif()
 
