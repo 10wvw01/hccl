@@ -9,13 +9,14 @@
  */
 
 #include "aicpu_task_cache_policy.h"
+#include "alg_env_config.h"
 #include "log.h"
 
 namespace ops_hccl {
 
 bool AicpuOpCachePolicy::IsOpTaskCacheEnable(const OpParam& param)
 {
-    if (!param.opConfig.aicpuCacheEnable) {
+    if (!GetExternalInputHcclAicpuCacheEnable()) {
         return false;
     }
 

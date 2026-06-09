@@ -50,6 +50,7 @@
 #include "hcomm_diag_dl.h"
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
+#include "aicpu_task_cache_policy.h"
 
 namespace ops_hccl {
 // 用于维护增量建链算子的host ctx信息
@@ -578,6 +579,8 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         CHK_RET(GetUnfoldThreadInfo(comm, param, unfoldThread));
         // 根据主流的捕获状态决定展开流的状态
         CHK_RET(CaptureSlaveStreams(comm, param.stream, {mainThread, unfoldThread}));
+        // aicpu task cache使能
+        param.aicpuCacheEnable = AicpuOpCachePolicy::IsOpTaskCacheEnable(param);
         CHK_RET(HcclAicpuKernelEntranceLaunch(comm, param, cpuTsThread, exportedCpuTsThread, notifyNumOnMainThread,
             resCtxSequence, algName, unfoldThread));
     } else if (param.engine == COMM_ENGINE_AIV) {
