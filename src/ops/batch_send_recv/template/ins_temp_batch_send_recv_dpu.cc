@@ -186,7 +186,7 @@ namespace ops_hccl
 
     HcclResult InsTempBatchSendRecvDpu::DPUKernelRun(const TemplateDataParams &tempAlgParam,
                                             const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-                                            const std::vector<std::vector<uint32_t>> &subCommRanks)
+                                            const std::vector<std::vector<uint32_t>> &subCommRanks, void *taskexpShmem)
     {
 #ifndef AICPU_COMPILE
         if (subCommRanks.empty() || subCommRanks[0].size() < 2) {
@@ -210,7 +210,7 @@ namespace ops_hccl
 
         if (tempAlgParam.opType == BatchSendRecvOpType::RECORD) {
             ChannelInfo linkRecv = channelIter->second[0];
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, linkRecv.handle, NOTIFY_IDX_ACK)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, linkRecv.handle, NOTIFY_IDX_ACK)), taskexpShmem, linkRecv));
             return HCCL_SUCCESS;
         } else if (tempAlgParam.opType == BatchSendRecvOpType::SEND) {
             ChannelInfo linkSend = channelIter->second[0];
@@ -225,14 +225,14 @@ namespace ops_hccl
             const std::vector<DataSlice> dstSlices = sendInfo.slices_.dstSlices_;
             const ChannelInfo &sendChannel = sendInfo.channel_;
             u32 sliceNum = srcSlices.size();
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, sendChannel.handle, NOTIFY_IDX_ACK, DPU_TIMEOUT)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, sendChannel.handle, NOTIFY_IDX_ACK, DPU_TIMEOUT)), taskexpShmem, sendChannel));
             for (int i = 0; i < sliceNum; i++) {
                 const DataSlice srcSlice = srcSlices[i];
                 const DataSlice dstSlcie = dstSlices[i];
                 void *dst = static_cast<void *>(static_cast<s8 *>(dstSlcie.addr_) + dstSlcie.offset_);
                 void *src = static_cast<void *>(static_cast<s8 *>(srcSlice.addr_) + srcSlice.offset_);
-                CHK_RET(static_cast<HcclResult>(
-                    HcommWriteWithNotifyNbiOnThread(0, sendChannel.handle, dst, src, srcSlice.size_, NOTIFY_IDX_DATA_SIGNAL)));
+                CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(
+                    HcommWriteWithNotifyNbiOnThread(0, sendChannel.handle, dst, src, srcSlice.size_, NOTIFY_IDX_DATA_SIGNAL)), taskexpShmem, sendChannel));
             }
             return HCCL_SUCCESS;
         } else if (tempAlgParam.opType == BatchSendRecvOpType::RECV) {
@@ -253,14 +253,14 @@ namespace ops_hccl
             const ChannelInfo &recvChannel = recvInfo.channel_;
             u32 sliceNum = srcSlices.size();
             for (int i = 0; i < sliceNum; i++) {
-                CHK_RET(static_cast<HcclResult>(
-                    HcommChannelNotifyWaitOnThread(0, recvChannel.handle, NOTIFY_IDX_DATA_SIGNAL, DPU_TIMEOUT)));
+                CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(
+                    HcommChannelNotifyWaitOnThread(0, recvChannel.handle, NOTIFY_IDX_DATA_SIGNAL, DPU_TIMEOUT)), taskexpShmem, recvChannel));
             }
             CHK_RET(static_cast<HcclResult>(HcommFenceOnThread(0)));
             return HCCL_SUCCESS;
         } else if (tempAlgParam.opType == BatchSendRecvOpType::FENCE) {
             ChannelInfo linkRecv = channelIter->second[0];
-            CHK_RET(static_cast<HcclResult>(HcommChannelFenceOnThread(0, linkRecv.handle)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelFenceOnThread(0, linkRecv.handle)), taskexpShmem, linkRecv));
             CHK_RET(static_cast<HcclResult>(HcommFenceOnThread(0)));
         }
 

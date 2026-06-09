@@ -50,7 +50,7 @@ HcclResult InsAlgTemplateBase::KernelRun(const OpParam& param,
 
 HcclResult InsAlgTemplateBase::DPUKernelRun(const TemplateDataParams& tempAlgParam,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
     (void)tempAlgParam;
     (void)channels;
