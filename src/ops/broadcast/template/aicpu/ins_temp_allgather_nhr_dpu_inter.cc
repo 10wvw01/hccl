@@ -113,13 +113,13 @@ HcclResult InsTempAllGatherNHRDPUInter::KernelRun(const OpParam& param, const Te
 
 HcclResult InsTempAllGatherNHRDPUInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     myRank_ = myRank;
     tempRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(tempAlgParams, channels, subCommRanks));
+    CHK_RET(RunNHR(tempAlgParams, channels, subCommRanks, taskexpShmem));
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
@@ -199,7 +199,7 @@ HcclResult InsTempAllGatherNHRDPUInter::LocalDataCopy(const TemplateDataParams& 
 }
  
 HcclResult InsTempAllGatherNHRDPUInter::RunNHR(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels, const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     const uint32_t nSteps = GetNHRStepNum(tempRankSize_);
@@ -208,11 +208,10 @@ HcclResult InsTempAllGatherNHRDPUInter::RunNHR(const TemplateDataParams& tempAlg
         for (uint32_t step = 0; step < nSteps; ++step) {
             AicpuNHRStepInfo stepInfo;
             CHK_RET(GetStepInfo(step, nSteps, stepInfo));
-
             HCCL_DEBUG("[InsTempAllGatherNHRDPUInter] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
                 myRank_, tempRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
-            CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParams, rpt, myRank_, tempRankSize_));
+            CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParams, rpt, myRank_, tempRankSize_, taskexpShmem));
         }
     }
 #endif
