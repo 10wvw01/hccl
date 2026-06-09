@@ -415,9 +415,7 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
         g_baseOutputAddr = reinterpret_cast<u64>(param.outputPtr);
     }
 
-    g_aivCurrentCclBufferSize = resCtxHost.cclMem.size;
     CHK_RET(executor->Orchestrate(param, resCtxHost));
-    g_aivCurrentCclBufferSize = 0;
 
     // 插入cache
     if (useCache && g_recordingQueue) {

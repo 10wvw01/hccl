@@ -343,7 +343,6 @@ thread_local std::shared_ptr<InsQueue> g_recordingQueue = nullptr;
 thread_local bool g_recordOnlyMode = false;
 thread_local u64 g_baseInputAddr = 0;
 thread_local u64 g_baseOutputAddr = 0;
-thread_local u64 g_aivCurrentCclBufferSize = 0;
 static HcclResult GetMinAndMaxNpuSchedTimeOut(u64 &minNpuSchedTimeout, u64 &maxNpuSchedTimeout)
 {
     uint64_t interval = 0;
@@ -412,7 +411,6 @@ using AivKernelArgs = struct AivKernelArgsDef {
     u64 repeatNum;
     u64 inputRepeatStride;
     u64 outputRepeatStride;
-    u64 hcclBuffSize;
     bool isOpBase;
     const void* headCountMem;
     const void* tailCountMem;
@@ -424,7 +422,6 @@ using AivKernelArgs = struct AivKernelArgsDef {
         u32 rankSize, u64 xRankSize, u64 yRankSize, u64 zRankSize,
         u64 len, u32 dataType, u32 reduceOp, u32 root, u32 tag,
         u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride,
-        u64 hcclBuffSize,
         bool isOpBase = true,
         const void* headCountMem = nullptr, const void* tailCountMem = nullptr, const void* addOneMem = nullptr,
         u32 counterMemSize = 0, bool isEnableCounter = false)
@@ -432,7 +429,6 @@ using AivKernelArgs = struct AivKernelArgsDef {
         len(len) ,dataType(dataType),
         reduceOp(reduceOp), root(root), tag(tag),
         inputSliceStride(inputSliceStride), outputSliceStride(outputSliceStride), repeatNum(repeatNum), inputRepeatStride(inputRepeatStride), outputRepeatStride(outputRepeatStride),
-        hcclBuffSize(hcclBuffSize),
         isOpBase(isOpBase),
         headCountMem(headCountMem), tailCountMem(tailCountMem), addOneMem(addOneMem),
         counterMemSize(counterMemSize), isEnableCounter(isEnableCounter)
@@ -460,7 +456,6 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
     u64 repeatNum;
     u64 inputRepeatStride;
     u64 outputRepeatStride;
-    u64 hcclBuffSize;
     bool isOpBase;
     const void* headCountMem;
     const void* tailCountMem;
@@ -473,7 +468,6 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
         u32 rankSize, u64 xRankSize, u64 yRankSize, u64 zRankSize,
         u64 len, u32 dataType, u32 reduceOp, u32 root, u32 tag,
         u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride,
-        u64 hcclBuffSize,
         bool isOpBase = true,
         const void* headCountMem = nullptr, const void* tailCountMem = nullptr, const void* addOneMem = nullptr,
         u32 counterMemSize = 0, const ExtraArgs* extraArgsPtr = nullptr)
@@ -481,7 +475,6 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
         len(len) ,dataType(dataType),
         reduceOp(reduceOp), root(root), tag(tag),
         inputSliceStride(inputSliceStride), outputSliceStride(outputSliceStride), repeatNum(repeatNum), inputRepeatStride(inputRepeatStride), outputRepeatStride(outputRepeatStride),
-        hcclBuffSize(hcclBuffSize),
         isOpBase(isOpBase),
         headCountMem(headCountMem), tailCountMem(tailCountMem), addOneMem(addOneMem),
         counterMemSize(counterMemSize)
@@ -936,25 +929,20 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
 // Kernel单次调用Launch外部接口
 HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs)
 {
-    AivOpArgs launchArgs = opArgs;
-    if (launchArgs.hcclBuffSize == 0) {
-        launchArgs.hcclBuffSize = g_aivCurrentCclBufferSize;
-    }
-
     // Recording Logic
     if (g_recordingQueue) {
         AivInstruction ins;
-        ins.opArgs = launchArgs;
+        ins.opArgs = opArgs;
         // Calculate offsets
         // Note: opArgs.input is absolute address.
-        if (launchArgs.input >= g_baseInputAddr) {
-             ins.inputOffset = launchArgs.input - g_baseInputAddr;
+        if (opArgs.input >= g_baseInputAddr) {
+             ins.inputOffset = opArgs.input - g_baseInputAddr;
         } else {
              ins.inputOffset = 0;
         }
         
-        if (launchArgs.output >= g_baseOutputAddr) {
-             ins.outputOffset = launchArgs.output - g_baseOutputAddr;
+        if (opArgs.output >= g_baseOutputAddr) {
+             ins.outputOffset = opArgs.output - g_baseOutputAddr;
         } else {
              ins.outputOffset = 0;
         }
@@ -965,30 +953,28 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs)
         }
     }
 
-    if (launchArgs.cmdType == HcclCMDType::HCCL_CMD_ALLTOALLV) {
+    if (opArgs.cmdType == HcclCMDType::HCCL_CMD_ALLTOALLV) {
         AivExtraKernelArgs aivExtraKernelArgs {
-            launchArgs.buffersIn, launchArgs.input, launchArgs.output,
-            launchArgs.rank, launchArgs.sendRecvRemoteRank, launchArgs.rankSize, launchArgs.xRankSize, launchArgs.yRankSize, launchArgs.zRankSize, launchArgs.count, launchArgs.dataType, launchArgs.op, launchArgs.root, launchArgs.sliceId,
-            launchArgs.inputSliceStride, launchArgs.outputSliceStride, launchArgs.repeatNum, launchArgs.inputRepeatStride, launchArgs.outputRepeatStride,
-            launchArgs.hcclBuffSize,
-            launchArgs.isOpBase,
-            reinterpret_cast<void*>(launchArgs.counter.headCountMem),
-            reinterpret_cast<void*>(launchArgs.counter.tailCountMem), reinterpret_cast<void*>(launchArgs.counter.addOneMem),
-            launchArgs.counter.memSize, &launchArgs.extraArgs
+            opArgs.buffersIn, opArgs.input, opArgs.output,
+            opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.xRankSize, opArgs.yRankSize, opArgs.zRankSize, opArgs.count, opArgs.dataType, opArgs.op, opArgs.root, opArgs.sliceId,
+            opArgs.inputSliceStride, opArgs.outputSliceStride, opArgs.repeatNum, opArgs.inputRepeatStride, opArgs.outputRepeatStride,
+            opArgs.isOpBase,
+            reinterpret_cast<void*>(opArgs.counter.headCountMem),
+            reinterpret_cast<void*>(opArgs.counter.tailCountMem), reinterpret_cast<void*>(opArgs.counter.addOneMem),
+            opArgs.counter.memSize, &opArgs.extraArgs
         };
-        CHK_RET(ExecuteKernelLaunchInner(launchArgs, &aivExtraKernelArgs, sizeof(aivExtraKernelArgs)));
+        CHK_RET(ExecuteKernelLaunchInner(opArgs, &aivExtraKernelArgs, sizeof(aivExtraKernelArgs)));
     } else {
         AivKernelArgs aivKernelArgs {
-            launchArgs.buffersIn, launchArgs.input, launchArgs.output,
-            launchArgs.rank, launchArgs.sendRecvRemoteRank, launchArgs.rankSize, launchArgs.xRankSize, launchArgs.yRankSize, launchArgs.zRankSize, launchArgs.count, launchArgs.dataType, launchArgs.op, launchArgs.root, launchArgs.sliceId,
-            launchArgs.inputSliceStride, launchArgs.outputSliceStride, launchArgs.repeatNum, launchArgs.inputRepeatStride, launchArgs.outputRepeatStride,
-            launchArgs.hcclBuffSize,
-            launchArgs.isOpBase,
-            reinterpret_cast<void*>(launchArgs.counter.headCountMem),
-            reinterpret_cast<void*>(launchArgs.counter.tailCountMem), reinterpret_cast<void*>(launchArgs.counter.addOneMem),
-            launchArgs.counter.memSize
+            opArgs.buffersIn, opArgs.input, opArgs.output,
+            opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.xRankSize, opArgs.yRankSize, opArgs.zRankSize, opArgs.count, opArgs.dataType, opArgs.op, opArgs.root, opArgs.sliceId,
+            opArgs.inputSliceStride, opArgs.outputSliceStride, opArgs.repeatNum, opArgs.inputRepeatStride, opArgs.outputRepeatStride,
+            opArgs.isOpBase,
+            reinterpret_cast<void*>(opArgs.counter.headCountMem),
+            reinterpret_cast<void*>(opArgs.counter.tailCountMem), reinterpret_cast<void*>(opArgs.counter.addOneMem),
+            opArgs.counter.memSize
         };
-        CHK_RET(ExecuteKernelLaunchInner(launchArgs, &aivKernelArgs, sizeof(aivKernelArgs)));
+        CHK_RET(ExecuteKernelLaunchInner(opArgs, &aivKernelArgs, sizeof(aivKernelArgs)));
     }
     return HCCL_SUCCESS;
 }
