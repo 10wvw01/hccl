@@ -90,6 +90,7 @@ HcclResult CcuKernelReduceScatterMesh1DMem2Mem::InitResource()
     outputRepeatStride_          = CreateVariable();
     repeatNum_                   = CreateVariable();
     lastSliceSize_               = CreateVariable();
+    sliceSize_                   = CreateVariable();
     flag_                        = CreateVariable();
     constVar1_                   = CreateVariable();
     constVar1_                   = 1;
@@ -164,24 +165,19 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoReduceScatterRead(uint32_t unrollIdx
 {
     uint32_t channelId = 0;
     uint32_t numEventsPerIter = (rankSize_ + BIT_NUM_PER_CKE - 1) / BIT_NUM_PER_CKE;
-    CcuRep::Variable sliceSize = CreateVariable();
-    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_ : normalSliceSize_;
 
-    CCU_IF(sliceSize != 0)
-    {
-        for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
-            uint32_t eventIdx = unrollIdx * numEventsPerIter + rankIdx / BIT_NUM_PER_CKE;
-            event_[eventIdx].SetMask(1 << (rankIdx % BIT_NUM_PER_CKE));
-            if (rankIdx == rankId_) {
-                if (rankSize_ <= GROUP_REDUCE_MAX_PIECE_CNT) {
-                    RecordEvent(event_[eventIdx]);
-                } else {
-                    LocalCopyNb(scratchMem_[rankIdx], myInput_, sliceSize, event_[eventIdx]);
-                }
+    for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
+        uint32_t eventIdx = unrollIdx * numEventsPerIter + rankIdx / BIT_NUM_PER_CKE;
+        event_[eventIdx].SetMask(1 << (rankIdx % BIT_NUM_PER_CKE));
+        if (rankIdx == rankId_) {
+            if (rankSize_ <= GROUP_REDUCE_MAX_PIECE_CNT) {
+                RecordEvent(event_[eventIdx]);
             } else {
-                ReadNb(channels_[channelId], scratchMem_[rankIdx], remoteInput_[rankIdx], sliceSize, event_[eventIdx]);
-                channelId++;
+                LocalCopyNb(scratchMem_[rankIdx], myInput_, sliceSize_, event_[eventIdx]);
             }
+        } else {
+            ReadNb(channels_[channelId], scratchMem_[rankIdx], remoteInput_[rankIdx], sliceSize_, event_[eventIdx]);
+            channelId++;
         }
     }
 }
@@ -207,16 +203,10 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoReduceScatter()
     myOutput.addr  += currentRankSliceOutputOffset_;
     myOutput.token  = token_[rankId_];
 
-    CcuRep::Variable sliceSize = CreateVariable();
-    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
-
-    CCU_IF(sliceSize != 0)
-    {
-        if (rankSize_ <= GROUP_REDUCE_MAX_PIECE_CNT) {
-            ReduceLoopGroup(myOutput, myInput_, scratchMem_, GoSize_, dataType_, outputDataType_, reduceOp_);
-        } else {
-            PairwiseLocalReduce(myOutput, scratchMem_, sliceSize, dataType_, outputDataType_, reduceOp_);
-        }
+    if (rankSize_ <= GROUP_REDUCE_MAX_PIECE_CNT) {
+        ReduceLoopGroup(myOutput, myInput_, scratchMem_, GoSize_, dataType_, outputDataType_, reduceOp_);
+    } else {
+        PairwiseLocalReduce(myOutput, scratchMem_, sliceSize_, dataType_, outputDataType_, reduceOp_);
     }
 }
 
@@ -269,7 +259,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::InitReduceScatterAddr()
 
         scratchMem_[rankIdx].addr = scratch_[rankId_];
         scratchMem_[rankIdx].addr += scratchOffset;
-        scratchOffset += (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
+        scratchOffset += sliceSize_;
         scratchMem_[rankIdx].token = token_[rankId_];
     }
 }
@@ -283,7 +273,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::ResetReduceScatterAddr()
     for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
         scratchMem_[rankIdx].addr = scratch_[rankId_];
         scratchMem_[rankIdx].addr += scratchOffset;
-        scratchOffset += (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
+        scratchOffset += sliceSize_;
     }
 }
 
@@ -525,7 +515,12 @@ HcclResult CcuKernelReduceScatterMesh1DMem2Mem::Algorithm()
 
     PreSync();
 
-    DoRepeatReduceScatter();
+    sliceSize_ = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_ : normalSliceSize_;
+    // sliceSize == 0时不需要read/wait/reduce，只需前后同步
+    CCU_IF(sliceSize_ != 0)
+    {
+        DoRepeatReduceScatter();
+    }
 
     PostSync();
 

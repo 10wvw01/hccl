@@ -129,6 +129,7 @@ private:
     CcuRep::Variable outputRepeatStride_;
     CcuRep::Variable normalSliceSize_;
     CcuRep::Variable lastSliceSize_;
+    CcuRep::Variable sliceSize_; // (rankId_ == rankSize_ - 1) ? lastSliceSize_ : normalSliceSize_
     GroupOpSize GoSize_;
     uint16_t selfBit_{0};
     uint16_t allBit_{0};
