@@ -14,7 +14,7 @@
 #include "alg_v2_template_register.h"
 
 namespace ops_hccl {
-int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
+int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size) // hcomm中加工，把taskexception共享内存指针带过来
 {
     if ((ptr == 0) || (size <= 0)) {
         HCCL_ERROR("%s get nullptr or error size", __func__);
@@ -32,9 +32,9 @@ int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
         HCCL_ERROR("Fail to find template of %s", dpuRunInfo.templateName.c_str());
         return static_cast<int32_t>(HCCL_E_INTERNAL);
     }
-
+    HCCL_INFO("HcclLaunchDPUKernel param: templateName[%s], taskexpShmem[0x%llx]", dpuRunInfo.templateName.c_str(), dpuRunInfo.taskexpShmem); //test
     // dpu算法展开
-    if (templateIns->DPUKernelRun(dpuRunInfo.tempAlgParams, dpuRunInfo.channels, dpuRunInfo.myRank, dpuRunInfo.subCommRanks) != HCCL_SUCCESS) {
+    if (templateIns->DPUKernelRun(dpuRunInfo.tempAlgParams, dpuRunInfo.channels, dpuRunInfo.myRank, dpuRunInfo.subCommRanks, dpuRunInfo.taskexpShmem) != HCCL_SUCCESS) {
         HCCL_ERROR("Template[%s] DPUKernelRun failed", dpuRunInfo.templateName.c_str());
         return static_cast<int32_t>(HCCL_E_INTERNAL);
     }

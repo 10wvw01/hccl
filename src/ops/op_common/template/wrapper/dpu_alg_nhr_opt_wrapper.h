@@ -42,7 +42,8 @@ HcclResult BatchTransferNHR(
     const TemplateDataParams &tempAlgParam,
     u32 repeat,
     u32 myRank,
-    u32 templateRankSize);
+    u32 templateRankSize,
+    void *taskexpShmem);
 
 // ========== 三阶段批量传输 ==========
 
@@ -53,6 +54,7 @@ struct DpuTransferCtx {
     std::vector<DataSlice> txDstSlices;   // 发送目标切片
     std::vector<DataSlice> rxSrcSlices;   // 接收源切片
     std::vector<DataSlice> rxDstSlices;   // 接收目标切片
+    void *taskexpShmem; // 做taskexception使用的共享内存
 
     bool hasSend() const { return txCh != nullptr; }
     bool hasRecv() const { return rxCh != nullptr; }
@@ -64,6 +66,50 @@ struct DpuTransferCtx {
  *        本函数批量执行 Phase 1（step sync）/ Phase 2（HcommWriteNbi）/ Phase 3（data sync + Fence）。
  */
 HcclResult DpuBatchTransfer(std::vector<DpuTransferCtx> &pairs);
+
+struct DpuTaskexceptionInfo {
+    HcclResult retCode;
+    ChannelHandle handle;
+    CommProtocol protocol = CommProtocol::COMM_PROTOCOL_RESERVED;
+    EndpointLocType locationType = EndpointLocType::ENDPOINT_LOC_TYPE_RESERVED;
+};
+
+// 共享内存排布：|HcclResult|DpuTaskexceptionInfo| 其中，HcclResult为aicpu侧读取标志位
+/* 检查函数返回值, 并返回指定错误码，触发taskexception */
+inline HcclResult ChkRetAndTaskexception(HcclResult hcclRet, void *taskexpShmem, ChannelInfo channelInfo)
+{
+    if (UNLIKELY(hcclRet != HCCL_SUCCESS)) {
+        if (hcclRet == HCCL_E_AGAIN) {
+            HCCL_WARNING("[%s]call trace: hcclRet -> %d", __func__, hcclRet);
+        } else {
+            HCCL_ERROR("[%s]call trace: hcclRet -> %d", __func__, hcclRet);
+            HCCL_INFO("[ChkRetAndTaskexception] taskexpShmem[0x%llx].", taskexpShmem); //test
+            if (taskexpShmem != nullptr) {
+                HCCL_INFO("[ChkRetAndTaskexception] start dpu taskexception in dpu."); //test
+                DpuTaskexceptionInfo dpuTaskexceptionInfo{};
+                dpuTaskexceptionInfo.retCode = hcclRet;
+                dpuTaskexceptionInfo.handle = channelInfo.handle;
+                dpuTaskexceptionInfo.protocol = channelInfo.protocol;
+                dpuTaskexceptionInfo.locationType = channelInfo.locationType;
+                HCCL_INFO("[ChkRetAndTaskexception] dpuTaskexceptionInfo.retCode[%u], handle[%llu].",
+                    dpuTaskexceptionInfo.retCode, dpuTaskexceptionInfo.handle); // test
+                uint8_t *dstDataPtr = reinterpret_cast<uint8_t *>(taskexpShmem);
+                HCCL_INFO("[ChkRetAndTaskexception] dstDataPtr[0x%llx].", dstDataPtr); //test
+                auto ret = memcpy_s(dstDataPtr, sizeof(uint16_t), &hcclRet, sizeof(uint16_t));
+                if (ret != 0) {
+                    HCCL_ERROR("[ChkRetAndTaskexception] memcpy dpuTaskexceptionInfo failed.");
+                }
+                ret = memcpy_s(dstDataPtr + sizeof(uint16_t), sizeof(DpuTaskexceptionInfo), &dpuTaskexceptionInfo, sizeof(DpuTaskexceptionInfo));
+                if (ret != 0) {
+                    HCCL_ERROR("[ChkRetAndTaskexception] memcpy dpuTaskexceptionInfo failed.");
+                }
+                HCCL_INFO("[ChkRetAndTaskexception] after cpy flag[%u].", *(reinterpret_cast<uint16_t *>(dstDataPtr))); //test
+                HCCL_INFO("[ChkRetAndTaskexception] end dpu taskexception in dpu."); //test
+            }
+        }
+    }
+    return hcclRet;           
+};
 
 }  // namespace ops_hccl
 
