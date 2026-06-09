@@ -21,6 +21,38 @@
 using namespace std;
 using namespace ops_hccl_ag;
 
+static HcclResult InitAlgResourceCtx(HcclComm comm, OpParam &param,
+                                      std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
+{
+    void *ctx = nullptr;
+    uint64_t size = 0;
+
+    if (HcclEngineCtxGet(comm, param.tag, param.engine, &ctx, &size) == HCCL_SUCCESS) {
+        HCCL_INFO("[HcclAllGatherCustom] Engine context already exists, reuse it");
+        param.ctxSize = size;
+        char *resCtxSequence = static_cast<char *>(ctx);
+        std::vector<char> ctxData(resCtxSequence, resCtxSequence + param.ctxSize);
+        resCtxHost->DeSerialize(ctxData);
+    } else {
+        HCCL_INFO("[HcclAllGatherCustom] Creating engine context");
+        HcclResult ret = AllocAlgResource(comm, param, *resCtxHost);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("failed to alloc alg resource.");
+            return ret;
+        }
+        std::vector<char> seq = resCtxHost->Serialize();
+        uint64_t ctxSize = seq.size();
+
+        void *newCtx = nullptr;
+        CHK_RET(HcclEngineCtxCreate(comm, param.tag, param.engine, ctxSize, &newCtx));
+        memcpy_s(newCtx, ctxSize, seq.data(), ctxSize);
+        param.ctxSize = ctxSize;
+        HCCL_INFO("Execute GetAlgResCCU success.");
+    }
+
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclAllGatherCustom(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, 
                                 HcclComm comm, aclrtStream stream)
 {
@@ -70,38 +102,8 @@ HcclResult HcclAllGatherCustom(void *sendBuf, void *recvBuf, uint64_t sendCount,
 
     // 3. 创建资源
     std::unique_ptr<AlgResourceCtxSerializable> resCtxHost = std::make_unique<AlgResourceCtxSerializable>();
-    
-    void* ctx = nullptr;
-    uint64_t size = 0;
-    
-    if (HcclEngineCtxGet(comm, param.tag, param.engine, &ctx, &size) == HCCL_SUCCESS) {
-        // 资源已经存在，复用资源
-        HCCL_INFO("[HcclAllGatherCustom] Engine context already exists, reuse it");
-        param.ctxSize = size;
-        // 从engineCtx取得资源序列，进行反序列化
-        char *resCtxSequence = static_cast<char*>(ctx);
-        std::vector<char> ctxData(resCtxSequence, resCtxSequence + param.ctxSize);
-        resCtxHost->DeSerialize(ctxData);
-    } else {
-        // 资源不存在，新创建Context
-        HCCL_INFO("[HcclAllGatherCustom] Creating engine context");
-        // 创建资源，并填充到Host内存上
-        HcclResult ret = AllocAlgResource(comm, param, *resCtxHost);
-        if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("failed to alloc alg resource.");
-            return ret;
-        }
-        // 序列化
-        std::vector<char> seq = resCtxHost->Serialize();
-        uint64_t size = seq.size();
+    CHK_RET(InitAlgResourceCtx(comm, param, resCtxHost));
 
-        void *ctx = nullptr;
-        CHK_RET(HcclEngineCtxCreate(comm, param.tag, param.engine, size, &ctx));
-        memcpy_s(ctx, size, seq.data(), size);
-        param.ctxSize = size;
-        HCCL_INFO("Execute GetAlgResCCU success.");
-    }
-    
     // 4.下发 CCU 任务
     CHK_RET(ExecOp(param, *resCtxHost));
 
