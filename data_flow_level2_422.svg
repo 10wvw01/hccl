@@ -1,0 +1,1227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="2434" viewBox="0 0 2600 2434">
+<rect x="0" y="0" width="2600" height="2434" fill="white" stroke="white" rx="2" stroke-width="1"/>
+<text x="1300" y="22" font-size="18" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">Level 2: Pod间数据流 + Output — CCL[源+目的] / OUTPUT[目的]</text>
+<text x="80" y="42" font-size="11" fill="#BF360C" text-anchor="left" font-family="Consolas,Arial,sans-serif" font-weight="bold">━━ WriteReduce: CCL→远端CCL (跨Pod)</text>
+<text x="430" y="42" font-size="11" fill="#00695C" text-anchor="left" font-family="Consolas,Arial,sans-serif" font-weight="bold">━━ Output: CCL→OUTPUT (最终输出)</text>
+<rect x="15" y="65" width="2570" height="1138" fill="#FBE9E7" stroke="#D84315" rx="6" stroke-width="2"/>
+<text x="70" y="83" font-size="14" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">Pod0</text>
+<rect x="30" y="100" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="114" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R0</text>
+<text x="195" y="146" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="122" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="122" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="144.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="122" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="144.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="122" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="144.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="122" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="144.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="122" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="144.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="122" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="144.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="122" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="144.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="122" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="144.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="122" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="144.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="122" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="144.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="122" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="144.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="122" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="144.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="122" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="144.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="122" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="144.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="122" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="144.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="122" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="144.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="200" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="176" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="176" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="198.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="176" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="198.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="176" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="198.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="176" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="198.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="176" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="198.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="176" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="198.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="176" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="198.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="176" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="198.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="176" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="198.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="176" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="198.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="176" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="198.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="176" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="198.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="176" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="198.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="176" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="198.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="176" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="198.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="176" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="198.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="250.0" y="176" width="144.375" height="36" fill="#B2DFDB" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="1405.0" y="122" width="144.375" height="36" fill="#FFCC80" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="30" y="236" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="250" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R1</text>
+<text x="195" y="282" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="258" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="258" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="280.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="258" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="280.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="258" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="280.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="258" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="280.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="258" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="280.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="258" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="280.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="258" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="280.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="258" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="280.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="258" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="280.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="258" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="280.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="258" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="280.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="258" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="280.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="258" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="280.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="258" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="280.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="258" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="280.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="258" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="280.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="336" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="312" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="312" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="334.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="312" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="334.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="312" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="334.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="312" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="334.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="312" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="334.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="312" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="334.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="312" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="334.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="312" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="334.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="312" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="334.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="312" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="334.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="312" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="334.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="312" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="334.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="312" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="334.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="312" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="334.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="312" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="334.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="312" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="334.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="394.375" y="312" width="144.375" height="36" fill="#B2DFDB" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="1549.375" y="258" width="144.375" height="36" fill="#FFCC80" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="30" y="372" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="386" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R2</text>
+<text x="195" y="418" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="394" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="394" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="416.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="394" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="416.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="394" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="416.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="394" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="416.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="394" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="416.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="394" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="416.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="394" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="416.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="394" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="416.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="394" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="416.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="394" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="416.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="394" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="416.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="394" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="416.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="394" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="416.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="394" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="416.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="394" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="416.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="394" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="416.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="472" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="448" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="448" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="470.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="448" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="470.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="448" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="470.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="448" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="470.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="448" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="470.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="448" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="470.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="448" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="470.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="448" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="470.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="448" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="470.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="448" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="470.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="448" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="470.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="448" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="470.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="448" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="470.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="448" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="470.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="448" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="470.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="448" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="470.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="538.75" y="448" width="144.375" height="36" fill="#B2DFDB" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="1693.75" y="394" width="144.375" height="36" fill="#FFCC80" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="30" y="508" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="522" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R3</text>
+<text x="195" y="554" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="530" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="530" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="552.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="530" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="552.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="530" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="552.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="530" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="552.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="530" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="552.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="530" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="552.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="530" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="552.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="530" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="552.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="530" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="552.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="530" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="552.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="530" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="552.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="530" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="552.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="530" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="552.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="530" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="552.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="530" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="552.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="530" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="552.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="608" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="584" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="584" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="606.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="584" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="606.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="584" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="606.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="584" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="606.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="584" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="606.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="584" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="606.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="584" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="606.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="584" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="606.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="584" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="606.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="584" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="606.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="584" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="606.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="584" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="606.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="584" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="606.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="584" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="606.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="584" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="606.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="584" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="606.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="683.125" y="584" width="144.375" height="36" fill="#B2DFDB" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="1838.125" y="530" width="144.375" height="36" fill="#FFCC80" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="30" y="644" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="658" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R4</text>
+<text x="195" y="690" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="666" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="666" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="688.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="666" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="688.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="666" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="688.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="666" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="688.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="666" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="688.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="666" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="688.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="666" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="688.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="666" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="688.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="666" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="688.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="666" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="688.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="666" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="688.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="666" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="688.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="666" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="688.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="666" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="688.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="666" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="688.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="666" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="688.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="744" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="720" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="720" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="742.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="720" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="742.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="720" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="742.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="720" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="742.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="720" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="742.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="720" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="742.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="720" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="742.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="720" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="742.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="720" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="742.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="720" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="742.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="720" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="742.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="720" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="742.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="720" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="742.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="720" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="742.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="720" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="742.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="720" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="742.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="827.5" y="720" width="144.375" height="36" fill="#B2DFDB" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="1982.5" y="666" width="144.375" height="36" fill="#FFCC80" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="30" y="780" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="794" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R5</text>
+<text x="195" y="826" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="802" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="802" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="824.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="802" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="824.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="802" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="824.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="802" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="824.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="802" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="824.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="802" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="824.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="802" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="824.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="802" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="824.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="802" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="824.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="802" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="824.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="802" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="824.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="802" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="824.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="802" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="824.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="802" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="824.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="802" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="824.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="802" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="824.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="880" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="856" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="856" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="878.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="856" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="878.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="856" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="878.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="856" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="878.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="856" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="878.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="856" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="878.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="856" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="878.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="856" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="878.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="856" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="878.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="856" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="878.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="856" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="878.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="856" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="878.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="856" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="878.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="856" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="878.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="856" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="878.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="856" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="878.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="971.875" y="856" width="144.375" height="36" fill="#B2DFDB" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="2126.875" y="802" width="144.375" height="36" fill="#FFCC80" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="30" y="916" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="930" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R6</text>
+<text x="195" y="962" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="938" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="938" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="960.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="938" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="960.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="938" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="960.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="938" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="960.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="938" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="960.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="938" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="960.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="938" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="960.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="938" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="960.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="938" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="960.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="938" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="960.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="938" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="960.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="938" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="960.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="938" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="960.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="938" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="960.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="938" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="960.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="938" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="960.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1016" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="992" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="992" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1014.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="992" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1014.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="992" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1014.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="992" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1014.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="992" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1014.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="992" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1014.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="992" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1014.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="992" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1014.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="992" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1014.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="992" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1014.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="992" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1014.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="992" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1014.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="992" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1014.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="992" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1014.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="992" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1014.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="992" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1014.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1116.25" y="992" width="144.375" height="36" fill="#B2DFDB" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="2271.25" y="938" width="144.375" height="36" fill="#FFCC80" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="30" y="1052" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1066" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R7</text>
+<text x="195" y="1098" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1074" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1074" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1096.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1074" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1096.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1074" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1096.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1074" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1096.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1074" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1096.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1074" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1096.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1074" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1096.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1074" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1096.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1074" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1096.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1074" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1096.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1074" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1096.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1074" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1096.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1074" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1096.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1074" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1096.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1074" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1096.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1074" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1096.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1152" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1128" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1128" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1150.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1128" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1150.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1128" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1150.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1128" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1150.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1128" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1150.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1128" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1150.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1128" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1150.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1128" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1150.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1128" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1150.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1128" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1150.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1128" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1150.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1128" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1150.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1128" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1150.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1128" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1150.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1128" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1150.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1128" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1150.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1260.625" y="1128" width="144.375" height="36" fill="#B2DFDB" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="2415.625" y="1074" width="144.375" height="36" fill="#FFCC80" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="15" y="1227" width="2570" height="1138" fill="#FBE9E7" stroke="#D84315" rx="6" stroke-width="2"/>
+<text x="70" y="1245" font-size="14" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">Pod1</text>
+<rect x="30" y="1262" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1276" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R8</text>
+<text x="195" y="1308" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1284" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1284" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1306.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1284" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1306.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1284" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1306.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1284" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1306.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1284" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1306.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1284" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1306.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1284" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1306.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1284" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1306.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1284" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1306.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1284" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1306.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1284" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1306.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1284" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1306.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1284" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1306.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1284" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1306.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1284" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1306.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1284" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1306.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1362" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1338" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1338" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1360.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1338" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1360.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1338" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1360.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1338" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1360.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1338" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1360.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1338" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1360.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1338" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1360.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1338" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1360.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1338" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1360.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1338" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1360.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1338" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1360.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1338" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1360.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1338" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1360.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1338" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1360.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1338" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1360.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1338" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1360.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1405.0" y="1338" width="144.375" height="36" fill="#B2DFDB" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="250.0" y="1284" width="144.375" height="36" fill="#FFCC80" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="30" y="1398" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1412" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R9</text>
+<text x="195" y="1444" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1420" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1420" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1442.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1420" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1442.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1420" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1442.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1420" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1442.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1420" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1442.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1420" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1442.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1420" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1442.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1420" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1442.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1420" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1442.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1420" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1442.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1420" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1442.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1420" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1442.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1420" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1442.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1420" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1442.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1420" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1442.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1420" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1442.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1498" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1474" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1474" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1496.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1474" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1496.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1474" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1496.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1474" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1496.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1474" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1496.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1474" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1496.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1474" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1496.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1474" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1496.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1474" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1496.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1474" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1496.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1474" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1496.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1474" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1496.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1474" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1496.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1474" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1496.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1474" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1496.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1474" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1496.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1549.375" y="1474" width="144.375" height="36" fill="#B2DFDB" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="394.375" y="1420" width="144.375" height="36" fill="#FFCC80" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="30" y="1534" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1548" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R10</text>
+<text x="195" y="1580" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1556" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1556" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1578.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1556" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1578.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1556" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1578.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1556" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1578.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1556" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1578.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1556" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1578.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1556" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1578.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1556" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1578.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1556" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1578.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1556" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1578.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1556" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1578.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1556" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1578.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1556" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1578.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1556" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1578.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1556" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1578.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1556" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1578.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1634" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1610" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1610" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1632.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1610" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1632.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1610" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1632.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1610" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1632.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1610" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1632.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1610" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1632.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1610" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1632.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1610" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1632.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1610" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1632.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1610" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1632.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1610" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1632.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1610" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1632.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1610" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1632.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1610" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1632.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1610" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1632.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1610" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1632.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1693.75" y="1610" width="144.375" height="36" fill="#B2DFDB" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="538.75" y="1556" width="144.375" height="36" fill="#FFCC80" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="30" y="1670" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1684" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R11</text>
+<text x="195" y="1716" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1692" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1692" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1714.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1692" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1714.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1692" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1714.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1692" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1714.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1692" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1714.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1692" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1714.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1692" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1714.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1692" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1714.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1692" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1714.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1692" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1714.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1692" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1714.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1692" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1714.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1692" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1714.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1692" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1714.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1692" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1714.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1692" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1714.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1770" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1746" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1746" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1768.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1746" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1768.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1746" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1768.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1746" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1768.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1746" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1768.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1746" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1768.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1746" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1768.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1746" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1768.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1746" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1768.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1746" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1768.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1746" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1768.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1746" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1768.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1746" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1768.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1746" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1768.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1746" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1768.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1746" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1768.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1838.125" y="1746" width="144.375" height="36" fill="#B2DFDB" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="683.125" y="1692" width="144.375" height="36" fill="#FFCC80" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="30" y="1806" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1820" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R12</text>
+<text x="195" y="1852" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1828" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1828" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1850.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1828" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1850.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1828" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1850.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1828" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1850.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1828" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1850.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1828" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1850.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1828" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1850.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1828" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1850.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1828" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1850.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1828" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1850.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1828" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1850.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1828" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1850.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1828" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1850.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1828" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1850.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1828" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1850.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1828" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1850.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="1906" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="1882" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1882" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1904.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1882" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1904.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1882" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1904.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1882" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1904.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1882" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1904.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1882" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1904.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1882" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1904.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1882" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1904.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1882" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1904.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1882" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1904.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1882" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1904.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1882" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1904.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1882" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1904.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1882" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1904.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1882" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1904.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1882" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1904.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="1982.5" y="1882" width="144.375" height="36" fill="#B2DFDB" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="827.5" y="1828" width="144.375" height="36" fill="#FFCC80" stroke="#2E7D32" rx="0" stroke-width="2"/>
+<rect x="30" y="1942" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="1956" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R13</text>
+<text x="195" y="1988" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="1964" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="1964" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="1986.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="1964" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="1986.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="1964" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="1986.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="1964" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="1986.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="1964" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="1986.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="1964" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="1986.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="1964" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="1986.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="1964" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="1986.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="1964" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="1986.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="1964" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="1986.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="1964" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="1986.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="1964" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="1986.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="1964" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="1986.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="1964" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="1986.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="1964" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="1986.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="1964" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="1986.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="2042" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="2018" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="2018" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="2040.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="2018" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="2040.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="2018" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="2040.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="2018" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="2040.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="2018" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="2040.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="2018" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="2040.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="2018" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="2040.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="2018" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="2040.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="2018" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="2040.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="2018" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="2040.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="2018" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="2040.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="2018" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="2040.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="2018" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="2040.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="2018" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="2040.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="2018" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="2040.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="2018" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="2040.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="2126.875" y="2018" width="144.375" height="36" fill="#B2DFDB" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="971.875" y="1964" width="144.375" height="36" fill="#FFCC80" stroke="#1565C0" rx="0" stroke-width="2"/>
+<rect x="30" y="2078" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="2092" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R14</text>
+<text x="195" y="2124" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="2100" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="2100" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="2122.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="2100" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="2122.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="2100" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="2122.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="2100" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="2122.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="2100" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="2122.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="2100" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="2122.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="2100" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="2122.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="2100" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="2122.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="2100" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="2122.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="2100" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="2122.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="2100" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="2122.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="2100" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="2122.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="2100" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="2122.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="2100" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="2122.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="2100" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="2122.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="2100" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="2122.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="2178" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="2154" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="2154" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="2176.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="2154" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="2176.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="2154" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="2176.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="2154" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="2176.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="2154" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="2176.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="2154" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="2176.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="2154" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="2176.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="2154" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="2176.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="2154" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="2176.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="2154" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="2176.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="2154" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="2176.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="2154" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="2176.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="2154" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="2176.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="2154" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="2176.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="2154" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="2176.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="2154" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="2176.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="2271.25" y="2154" width="144.375" height="36" fill="#B2DFDB" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="1116.25" y="2100" width="144.375" height="36" fill="#FFCC80" stroke="#E65100" rx="0" stroke-width="2"/>
+<rect x="30" y="2214" width="2540" height="128" fill="#FAFAFA" stroke="#FFAB91" rx="3" stroke-width="1"/>
+<text x="70" y="2228" font-size="13" fill="#BF360C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">R15</text>
+<text x="195" y="2260" font-size="13" fill="#4A148C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">CCL[源+目的]</text>
+<rect x="250" y="2236" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="2236" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="2258.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="2236" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="2258.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="2236" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="2258.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="2236" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="2258.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="2236" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="2258.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="2236" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="2258.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="2236" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="2258.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="2236" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="2258.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="2236" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="2258.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="2236" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="2258.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="2236" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="2258.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="2236" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="2258.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="2236" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="2258.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="2236" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="2258.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="2236" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="2258.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="2236" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="2258.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<text x="195" y="2314" font-size="13" fill="#00695C" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">OUTPUT[目的]</text>
+<rect x="250" y="2290" width="2310.0" height="36" fill="#F5F5F5" stroke="#9E9E9E" rx="2" stroke-width="1"/>
+<rect x="250.0" y="2290" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="322.1875" y="2312.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">0</text>
+<rect x="394.375" y="2290" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="466.5625" y="2312.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">600</text>
+<rect x="538.75" y="2290" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="610.9375" y="2312.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1200</text>
+<rect x="683.125" y="2290" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="755.3125" y="2312.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">1800</text>
+<rect x="827.5" y="2290" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="899.6875" y="2312.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">2400</text>
+<rect x="971.875" y="2290" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1044.0625" y="2312.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3000</text>
+<rect x="1116.25" y="2290" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1188.4375" y="2312.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">3600</text>
+<rect x="1260.625" y="2290" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1332.8125" y="2312.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4200</text>
+<rect x="1405.0" y="2290" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="1477.1875" y="2312.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">4800</text>
+<rect x="1549.375" y="2290" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="1621.5625" y="2312.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">5400</text>
+<rect x="1693.75" y="2290" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="1765.9375" y="2312.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6000</text>
+<rect x="1838.125" y="2290" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="1910.3125" y="2312.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">6600</text>
+<rect x="1982.5" y="2290" width="144.375" height="36" fill="#C8E6C9" stroke="#2E7D32" rx="0" stroke-width="1"/>
+<text x="2054.6875" y="2312.0" font-size="8" fill="#2E7D32" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7200</text>
+<rect x="2126.875" y="2290" width="144.375" height="36" fill="#BBDEFB" stroke="#1565C0" rx="0" stroke-width="1"/>
+<text x="2199.0625" y="2312.0" font-size="8" fill="#1565C0" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">7800</text>
+<rect x="2271.25" y="2290" width="144.375" height="36" fill="#FFE0B2" stroke="#E65100" rx="0" stroke-width="1"/>
+<text x="2343.4375" y="2312.0" font-size="8" fill="#E65100" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">8400</text>
+<rect x="2415.625" y="2290" width="144.375" height="36" fill="#F8BBD0" stroke="#AD1457" rx="0" stroke-width="1"/>
+<text x="2487.8125" y="2312.0" font-size="8" fill="#AD1457" text-anchor="middle" font-family="Consolas,Arial,sans-serif" font-weight="bold">9000</text>
+<rect x="2415.625" y="2290" width="144.375" height="36" fill="#B2DFDB" stroke="#AD1457" rx="0" stroke-width="2"/>
+<rect x="1260.625" y="2236" width="144.375" height="36" fill="#FFCC80" stroke="#AD1457" rx="0" stroke-width="2"/>
+<line x1="1477.1875" y1="158" x2="1477.1875" y2="1284" stroke="#2E7D32" stroke-width="2.5"/>
+<polygon points="1477.1875,1284 1480.1875,1279.0 1474.1875,1279.0" fill="#2E7D32"/>
+<path d="M322.1875,158 C342.1875,158 342.1875,176 322.1875,176" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="322.1875,176 327.1875,179.0 327.1875,173.0" fill="#00695C"/>
+<line x1="1621.5625" y1="294" x2="1621.5625" y2="1420" stroke="#1565C0" stroke-width="2.5"/>
+<polygon points="1621.5625,1420 1624.5625,1415.0 1618.5625,1415.0" fill="#1565C0"/>
+<path d="M466.5625,294 C486.5625,294 486.5625,312 466.5625,312" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="466.5625,312 471.5625,315.0 471.5625,309.0" fill="#00695C"/>
+<line x1="1765.9375" y1="430" x2="1765.9375" y2="1556" stroke="#E65100" stroke-width="2.5"/>
+<polygon points="1765.9375,1556 1768.9375,1551.0 1762.9375,1551.0" fill="#E65100"/>
+<path d="M610.9375,430 C630.9375,430 630.9375,448 610.9375,448" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="610.9375,448 615.9375,451.0 615.9375,445.0" fill="#00695C"/>
+<line x1="1910.3125" y1="566" x2="1910.3125" y2="1692" stroke="#AD1457" stroke-width="2.5"/>
+<polygon points="1910.3125,1692 1913.3125,1687.0 1907.3125,1687.0" fill="#AD1457"/>
+<path d="M755.3125,566 C775.3125,566 775.3125,584 755.3125,584" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="755.3125,584 760.3125,587.0 760.3125,581.0" fill="#00695C"/>
+<line x1="2054.6875" y1="702" x2="2054.6875" y2="1828" stroke="#2E7D32" stroke-width="2.5"/>
+<polygon points="2054.6875,1828 2057.6875,1823.0 2051.6875,1823.0" fill="#2E7D32"/>
+<path d="M899.6875,702 C919.6875,702 919.6875,720 899.6875,720" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="899.6875,720 904.6875,723.0 904.6875,717.0" fill="#00695C"/>
+<line x1="2199.0625" y1="838" x2="2199.0625" y2="1964" stroke="#1565C0" stroke-width="2.5"/>
+<polygon points="2199.0625,1964 2202.0625,1959.0 2196.0625,1959.0" fill="#1565C0"/>
+<path d="M1044.0625,838 C1064.0625,838 1064.0625,856 1044.0625,856" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1044.0625,856 1049.0625,859.0 1049.0625,853.0" fill="#00695C"/>
+<line x1="2343.4375" y1="974" x2="2343.4375" y2="2100" stroke="#E65100" stroke-width="2.5"/>
+<polygon points="2343.4375,2100 2346.4375,2095.0 2340.4375,2095.0" fill="#E65100"/>
+<path d="M1188.4375,974 C1208.4375,974 1208.4375,992 1188.4375,992" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1188.4375,992 1193.4375,995.0 1193.4375,989.0" fill="#00695C"/>
+<line x1="2487.8125" y1="1110" x2="2487.8125" y2="2236" stroke="#AD1457" stroke-width="2.5"/>
+<polygon points="2487.8125,2236 2490.8125,2231.0 2484.8125,2231.0" fill="#AD1457"/>
+<path d="M1332.8125,1110 C1352.8125,1110 1352.8125,1128 1332.8125,1128" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1332.8125,1128 1337.8125,1131.0 1337.8125,1125.0" fill="#00695C"/>
+<line x1="322.1875" y1="1320" x2="322.1875" y2="122" stroke="#2E7D32" stroke-width="2.5"/>
+<polygon points="322.1875,122 319.1875,127.0 325.1875,127.0" fill="#2E7D32"/>
+<path d="M1477.1875,1320 C1497.1875,1320 1497.1875,1338 1477.1875,1338" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1477.1875,1338 1482.1875,1341.0 1482.1875,1335.0" fill="#00695C"/>
+<line x1="466.5625" y1="1456" x2="466.5625" y2="258" stroke="#1565C0" stroke-width="2.5"/>
+<polygon points="466.5625,258 463.5625,263.0 469.5625,263.0" fill="#1565C0"/>
+<path d="M1621.5625,1456 C1641.5625,1456 1641.5625,1474 1621.5625,1474" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1621.5625,1474 1626.5625,1477.0 1626.5625,1471.0" fill="#00695C"/>
+<line x1="610.9375" y1="1592" x2="610.9375" y2="394" stroke="#E65100" stroke-width="2.5"/>
+<polygon points="610.9375,394 607.9375,399.0 613.9375,399.0" fill="#E65100"/>
+<path d="M1765.9375,1592 C1785.9375,1592 1785.9375,1610 1765.9375,1610" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1765.9375,1610 1770.9375,1613.0 1770.9375,1607.0" fill="#00695C"/>
+<line x1="755.3125" y1="1728" x2="755.3125" y2="530" stroke="#AD1457" stroke-width="2.5"/>
+<polygon points="755.3125,530 752.3125,535.0 758.3125,535.0" fill="#AD1457"/>
+<path d="M1910.3125,1728 C1930.3125,1728 1930.3125,1746 1910.3125,1746" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="1910.3125,1746 1915.3125,1749.0 1915.3125,1743.0" fill="#00695C"/>
+<line x1="899.6875" y1="1864" x2="899.6875" y2="666" stroke="#2E7D32" stroke-width="2.5"/>
+<polygon points="899.6875,666 896.6875,671.0 902.6875,671.0" fill="#2E7D32"/>
+<path d="M2054.6875,1864 C2074.6875,1864 2074.6875,1882 2054.6875,1882" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="2054.6875,1882 2059.6875,1885.0 2059.6875,1879.0" fill="#00695C"/>
+<line x1="1044.0625" y1="2000" x2="1044.0625" y2="802" stroke="#1565C0" stroke-width="2.5"/>
+<polygon points="1044.0625,802 1041.0625,807.0 1047.0625,807.0" fill="#1565C0"/>
+<path d="M2199.0625,2000 C2219.0625,2000 2219.0625,2018 2199.0625,2018" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="2199.0625,2018 2204.0625,2021.0 2204.0625,2015.0" fill="#00695C"/>
+<line x1="1188.4375" y1="2136" x2="1188.4375" y2="938" stroke="#E65100" stroke-width="2.5"/>
+<polygon points="1188.4375,938 1185.4375,943.0 1191.4375,943.0" fill="#E65100"/>
+<path d="M2343.4375,2136 C2363.4375,2136 2363.4375,2154 2343.4375,2154" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="2343.4375,2154 2348.4375,2157.0 2348.4375,2151.0" fill="#00695C"/>
+<line x1="1332.8125" y1="2272" x2="1332.8125" y2="1074" stroke="#AD1457" stroke-width="2.5"/>
+<polygon points="1332.8125,1074 1329.8125,1079.0 1335.8125,1079.0" fill="#AD1457"/>
+<path d="M2487.8125,2272 C2507.8125,2272 2507.8125,2290 2487.8125,2290" fill="none" stroke="#00695C" stroke-width="2.5"/>
+<polygon points="2487.8125,2290 2492.8125,2293.0 2492.8125,2287.0" fill="#00695C"/>
+</svg>

@@ -1,0 +1,1048 @@
+st_build_shell = /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/build.sh
+开始执行st...
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Final Ascend Path: /home/crx/toolkit/cann-9.1.0/x86_64-linux
+-- [ST] Detected CANN_VERSION_NUM = 90100000
+-- [ThirdParty] GTEST_INSTALL_PATH=/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/../../../third_party/gtest
+-- Found gtest: /home/crx/code/hccl_three_sequence_rs/hccl_2039/third_party/gtest/include  
+-- [ThirdParty] Found GTest: TRUE
+-- [ThirdParty] GTest found in /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/../../../third_party/gtest, and not force rebuild cann third_party
+-- utils path= /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/utils/src
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/build
+[  1%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/checker.cc.o
+[  1%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/acl_rt.dir/hccl_depends_stub.cc.o
+[  1%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/hcomm.dir/hccl_depends_stub.cc.o
+[  1%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/unified_dlog.dir/hccl_depends_stub.cc.o
+[  1%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/mem_conflict_check/check_rank_mem.cc.o
+[  2%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/hccl_verifier.cc.o
+[  3%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/mem_conflict_check/task_graph_revamp.cc.o
+[  3%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/utils.cc.o
+[  4%] Linking CXX shared library libacl_rt.so
+[  6%] Linking CXX shared library libhcomm.so
+[  6%] Linking CXX shared library libunified_dlog.so
+[  6%] Built target acl_rt
+[  6%] Built target hcomm
+[  6%] Built target unified_dlog
+[  8%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/sal.cc.o
+[  8%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/task_check_op_semantics.cc.o
+[  9%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/config_log.cc.o
+[  9%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/log.cc.o
+[ 10%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/adapter_error_manager_pub.cc.o
+[ 10%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/alg_env_config.cc.o
+[ 10%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allgather_semantics_checker.cc.o
+[ 11%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/hcomm_dlsym/hcomm_primitives_dl.cc.o
+[ 12%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allgather_v_semantics_checker.cc.o
+[ 12%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allreduce_semantics_checker.cc.o
+[ 13%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/exec_timeout_manager.cc.o
+[ 13%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/channel/channel.cc.o
+[ 14%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/channel/channel_request.cc.o
+[ 15%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_scatter_v_semantics_checker.cc.o
+[ 16%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_scatter_semantics_checker.cc.o
+[ 16%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/all2all_semantics_checker.cc.o
+[ 17%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/all2allv_semantics_checker.cc.o
+[ 18%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/broadcast_semantics_checker.cc.o
+[ 19%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/registry/coll_alg_exec_registry.cc.o
+[ 19%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_semantics_checker.cc.o
+[ 20%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/send_recv_semantics_checker.cc.o
+[ 20%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/scatter_semantics_checker.cc.o
+[ 21%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/batchsendrecv_semantics_checker.cc.o
+[ 22%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/singletask_check/singletask_check.cc.o
+[ 22%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/task_graph_generator/task_graph_generator.cc.o
+[ 22%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/registry/coll_alg_v2_exec_registry.cc.o
+[ 23%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/executor_base.cc.o
+[ 23%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/executor_v2_base.cc.o
+[ 24%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/alg_template_base.cc.o
+[ 25%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/alg_v2_template_base.cc.o
+[ 25%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/template_utils.cc.o
+[ 26%] Linking CXX shared library libhccl-verifier.so
+[ 27%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/aicpu/kernel_launch.cc.o
+[ 27%] Built target hccl-verifier
+[ 28%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/aicpu/dfx/task_exception_fun.cc.o
+[ 28%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/registry/alg_template_register.cc.o
+[ 29%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/registry/alg_v2_template_register.cc.o
+[ 29%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/wrapper/alg_data_trans_wrapper.cc.o
+[ 30%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/wrapper/dpu_alg_data_trans_wrapper.cc.o
+[ 31%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo.cc.o
+[ 31%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_1d.cc.o
+[ 32%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_base.cc.o
+[ 32%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_multilevel.cc.o
+[ 33%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_ubx.cc.o
+[ 34%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_pcie_mix.cc.o
+[ 34%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_comm_executor.cc.o
+[ 35%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_executor_base.cc.o
+[ 36%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_mesh_executor.cc.o
+[ 36%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_ring_executor.cc.o
+[ 37%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_single_executor.cc.o
+[ 37%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/nhr_base.cc.o
+[ 38%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_mesh.cc.o
+[ 39%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_nb.cc.o
+[ 39%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_nhr.cc.o
+[ 40%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_ring_direct.cc.o
+[ 40%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_ring.cc.o
+[ 41%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/executor/ins_v2_scatter_sole_executor.cc.o
+[ 42%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/executor/ins_v2_scatter_parallel_executor.cc.o
+[ 42%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/template/aicpu/ins_temp_scatter_mesh_1D.cc.o
+[ 43%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/template/aicpu/ins_temp_scatter_nhr.cc.o
+[ 44%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sole_executor.cc.o
+[ 44%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_reduce_scatter_parallel_executor.cc.o
+[ 45%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor.cc.o
+[ 45%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_aicpu.cc.o
+[ 46%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_3level.cc.o
+[ 47%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D.cc.o
+[ 47%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_nhr.cc.o
+[ 48%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D_meshchunk.cc.o
+[ 48%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D_Z_axis_detour.cc.o
+[ 49%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1d_dpu.cc.o
+[ 50%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sole_executor.cc.o
+[ 50%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_parallel_executor.cc.o
+[ 51%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sequence_executor_aicpu.cc.o
+[ 52%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D.cc.o
+[ 52%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr.cc.o
+[ 53%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D_Z_axis_detour.cc.o
+[ 53%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sequence_executor.cc.o
+[ 54%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr_dpu.cc.o
+[ 55%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_gather_mesh_1D_intra.cc.o
+[ 55%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_gather_nhr_dpu_inter.cc.o
+[ 56%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_reduce_scatter_mesh_1D_dpu_inter.cc.o
+[ 57%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_reduce_scatter_mesh_1D_intra.cc.o
+[ 57%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather_v/executor/ins_v2_all_gather_v_sole_executor.cc.o
+[ 58%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather_v/template/aicpu/ins_temp_all_gather_v_mesh_1D.cc.o
+[ 58%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/executor/ins_v2_all_to_all_v_sole_executor.cc.o
+[ 59%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/template/aicpu/ins_temp_all_to_all_v_mesh_1D.cc.o
+[ 60%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/template/aicpu/ins_temp_dpu_alltoall_mesh.cc.o
+[ 60%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/executor/ins_v2_send_sole_executor.cc.o
+[ 61%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/executor/ins_send_executor.cc.o
+[ 61%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/template/ins_temp_send_dpu.cc.o
+[ 62%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/executor/ins_v2_recv_sole_executor.cc.o
+[ 63%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/executor/ins_recv_executor.cc.o
+[ 63%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/template/ins_temp_recv_dpu.cc.o
+[ 64%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sole_executor.cc.o
+[ 65%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_parallel_executor.cc.o
+[ 65%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sequence_executor.cc.o
+[ 66%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sequence_executor_aicpu.cc.o
+[ 66%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_two_shot_sole_executor.cc.o
+[ 67%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_one_shot.cc.o
+[ 68%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_two_shot.cc.o
+[ 68%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_nhr.cc.o
+[ 69%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_aicpu_reduce_nhr.cc.o
+[ 69%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_two_shot_mesh_chunk.cc.o
+[ 70%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/executor/ins_v2_broadcast_sole_executor.cc.o
+[ 71%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/executor/ins_v2_broadcast_parallel_executor.cc.o
+[ 71%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/template/aicpu/ins_temp_broadcast_mesh_1D_two_shot.cc.o
+[ 72%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/template/aicpu/ins_temp_broadcast_nhr.cc.o
+[ 73%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/batch_send_recv/executor/ins_v2_batch_send_recv_executor.cc.o
+[ 73%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/executor/reduce_sole_executor.cc.o
+[ 74%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/executor/reduce_parallel_executor.cc.o
+[ 74%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_mesh_1D.cc.o
+[ 75%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_nhr.cc.o
+[ 76%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_aicpu_reduce_nhr.cc.o
+[ 76%] Linking CXX shared library libscatter_aicpu_kernel.so
+[ 76%] Built target scatter_aicpu_kernel
+[ 78%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_task_queue.cc.o
+[ 78%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_npu.cc.o
+[ 78%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_world.cc.o
+[ 79%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hcclinner_stub.cc.o
+[ 79%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/comm_domain.cc.o
+[ 80%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_task.cc.o
+[ 80%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/aclrt_stub.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hccl_stub.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/log_stub.cc.o
+[ 82%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/error_manager_stub.cc.o
+[ 83%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hcomm_ccu_stub.cc.o
+[ 83%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hccl_profiling_dfx_stub.cc.o
+[ 84%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_communicator.cc.o
+[ 84%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_thread_manager.cc.o
+[ 85%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_thread.cc.o
+[ 86%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel.cc.o
+[ 86%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel_manager.cc.o
+[ 87%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel_exchange_handler.cc.o
+[ 87%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_context_manager.cc.o
+[ 88%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/topo_model/topo_model.cc.o
+[ 89%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/exception/exception_defination.cc.o
+[ 89%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/exception/hccl_exception.cc.o
+[ 90%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/utils/check_utils.cc.o
+[ 91%] Linking CXX shared library libhccl-model-proxy.so
+[ 91%] Built target hccl-model-proxy
+[ 92%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/main.cc.o
+[ 92%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_reduce_parallel_testcase.cc.o
+[ 92%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/scatter_testcase.cc.o
+[ 93%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_aicpu_testcase.cc.o
+[ 94%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_reduce_testcase.cc.o
+[ 95%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_dpu_testcase.cc.o
+[ 95%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_v_testcase.cc.o
+[ 96%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_aicpu_testcase.cc.o
+[ 96%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_v_testcase.cc.o
+[ 97%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_3level_testcase.cc.o
+[ 98%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoall_testcase.cc.o
+[ 98%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoallv_testcase.cc.o
+[ 99%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoallvc_testcase.cc.o
+[100%] Linking CXX executable hccl_checker_ops_stest
+[100%] Built target hccl_checker_ops_stest
+[2026-06-08 14:25:30.171702][pid:14283][INFO][alg_template_register.cc:36] [14283][AlgTemplateRegistry]template type[0] already registered.
+[2026-06-08 14:25:30.171778][pid:14283][INFO][alg_template_register.cc:36] [14283][AlgTemplateRegistry]template type[2] already registered.
+[2026-06-08 14:25:30.171797][pid:14283][INFO][alg_template_register.cc:36] [14283][AlgTemplateRegistry]template type[3] already registered.
+[2026-06-08 14:25:30.171814][pid:14283][INFO][alg_template_register.cc:36] [14283][AlgTemplateRegistry]template type[4] already registered.
+[2026-06-08 14:25:30.171832][pid:14283][INFO][alg_template_register.cc:36] [14283][AlgTemplateRegistry]template type[1] already registered.
+[2026-06-08 14:25:30.171917][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsScatterMesh1D] already registered.
+[2026-06-08 14:25:30.171923][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsScatterNHR] already registered.
+[2026-06-08 14:25:30.171946][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHR] already registered.
+[2026-06-08 14:25:30.171952][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.171956][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHRUBX] already registered.
+[2026-06-08 14:25:30.176229][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1D] already registered.
+[2026-06-08 14:25:30.176256][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1DMeshChunk] already registered.
+[2026-06-08 14:25:30.176260][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterNHR] already registered.
+[2026-06-08 14:25:30.176263][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterAicpuReduceNHR] already registered.
+[2026-06-08 14:25:30.176265][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1DZAxisDetour] already registered.
+[2026-06-08 14:25:30.177008][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHR] already registered.
+[2026-06-08 14:25:30.177023][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHRUBX] already registered.
+[2026-06-08 14:25:30.177026][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.177053][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMesh1DNhr] already registered.
+[2026-06-08 14:25:30.177074][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMesh1DNHRNHR] already registered.
+[2026-06-08 14:25:30.177097][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMeshMeshDPU] already registered.
+[2026-06-08 14:25:30.180458][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherMesh1D] already registered.
+[2026-06-08 14:25:30.180471][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherMesh1D1DZAxisDetour] already registered.
+[2026-06-08 14:25:30.180475][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherNHR] already registered.
+[2026-06-08 14:25:30.180504][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHR] already registered.
+[2026-06-08 14:25:30.180509][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHRMultiJetty] already registered.
+[2026-06-08 14:25:30.180589][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.180622][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherSequenceNHRMesh1D] already registered.
+[2026-06-08 14:25:30.180643][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherMeshNhrDPU] already registered.
+[2026-06-08 14:25:30.181807][pid:14283][INFO][alg_v2_template_register.cc:25] [14283][InsAlgTemplateRegistry]template name[InsTempAllGatherNHRDPU] already registered.
+[2026-06-08 14:25:30.183473][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1D] already registered.
+[2026-06-08 14:25:30.183485][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DSingleChannel] already registered.
+[2026-06-08 14:25:30.183488][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1D] already registered.
+[2026-06-08 14:25:30.183491][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DUBX] already registered.
+[2026-06-08 14:25:30.183493][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1DUBX] already registered.
+[2026-06-08 14:25:30.183496][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCMesh1D] already registered.
+[2026-06-08 14:25:30.183498][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DDPU] already registered.
+[2026-06-08 14:25:30.183501][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1DDPU] already registered.
+[2026-06-08 14:25:30.183504][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCMesh1DDPU] already registered.
+[2026-06-08 14:25:30.183506][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllClosMesh1DDPU] already registered.
+[2026-06-08 14:25:30.183509][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVClosMesh1DDPU] already registered.
+[2026-06-08 14:25:30.183511][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCClosMesh1DDPU] already registered.
+[2026-06-08 14:25:30.185183][pid:14283][INFO][alg_v2_template_register.cc:25] [14283][InsAlgTemplateRegistry]template name[InsTempDpuAlltoAllMesh] already registered.
+[2026-06-08 14:25:30.186918][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBroadcastMesh1DTwoShot] already registered.
+[2026-06-08 14:25:30.186929][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBroadcastNHR] already registered.
+[2026-06-08 14:25:30.187216][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHR] already registered.
+[2026-06-08 14:25:30.187227][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHRUBX] already registered.
+[2026-06-08 14:25:30.187230][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.188375][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DOneShot] already registered.
+[2026-06-08 14:25:30.188384][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShot] already registered.
+[2026-06-08 14:25:30.188388][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceNHR] already registered.
+[2026-06-08 14:25:30.188464][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShotMeshChunk] already registered.
+[2026-06-08 14:25:30.188472][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceAicpuReduceNHR] already registered.
+[2026-06-08 14:25:30.188883][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelRSAG] already registered.
+[2026-06-08 14:25:30.188891][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.188894][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelRSAGUBX] already registered.
+[2026-06-08 14:25:30.188916][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceSequenceMesh1DNhr] already registered.
+[2026-06-08 14:25:30.189021][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShotZAxisDetour] already registered.
+[2026-06-08 14:25:30.189561][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllReduceSequenceMeshNhrDPU] already registered.
+[2026-06-08 14:25:30.191025][pid:14283][INFO][alg_v2_template_register.cc:25] [14283][InsAlgTemplateRegistry]template name[InsTempAllGatherNhrDpuInter] already registered.
+[2026-06-08 14:25:30.192796][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsSend] already registered.
+[2026-06-08 14:25:30.193176][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsSendDPU] already registered.
+[2026-06-08 14:25:30.193685][pid:14283][INFO][alg_v2_template_register.cc:25] [14283][InsAlgTemplateRegistry]template name[InsTempSendDpu] already registered.
+[2026-06-08 14:25:30.194027][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsRecv] already registered.
+[2026-06-08 14:25:30.194052][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsRecvDPU] already registered.
+[2026-06-08 14:25:30.194452][pid:14283][INFO][alg_v2_template_register.cc:25] [14283][InsAlgTemplateRegistry]template name[InsTempRecvDpu] already registered.
+[2026-06-08 14:25:30.195182][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsAllGatherVMesh1D] already registered.
+[2026-06-08 14:25:30.195936][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceMesh1D] already registered.
+[2026-06-08 14:25:30.195945][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceMesh1DTwoShot] already registered.
+[2026-06-08 14:25:30.195949][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceNHR] already registered.
+[2026-06-08 14:25:30.195952][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceAicpuReduceNHR] already registered.
+[2026-06-08 14:25:30.196314][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHR] already registered.
+[2026-06-08 14:25:30.196358][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHRUBX] already registered.
+[2026-06-08 14:25:30.196362][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHRPcie] already registered.
+[2026-06-08 14:25:30.198312][pid:14283][INFO][coll_alg_v2_exec_registry.cc:26] [14283][CollAlgExecRegistryV2]Exec tag[InsBatchSendRecv] already registered.
+Start to run demo for hccl_checker_ops_stest.
+Note: Google Test filter = ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_4x1x2_int8_sum_l1_degenerate_recv8_plus_1
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ST_REDUCE_SCATTER_3LEVEL_TEST
+[ RUN      ] ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_4x1x2_int8_sum_l1_degenerate_recv8_plus_1
+=======================================================
+rankId is : 0 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:0, threadIdx:0, [LocalPostTo]:[topicId=7]
+rankIdx:0, threadIdx:0, [LocalWaitFrom]:[topicId=0]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=7]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=8]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=15]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=22]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=29]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=36]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=43]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=1]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=2]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=3]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=4]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=5]
+rankIdx:0, threadIdx:1, [LocalWaitFrom]:[topicId=6]
+rankIdx:0, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:0, threadIdx:1, [Post]:[remoteRank=4, notifyId=32836, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:1, [Wait]:[remoteRank=4, notifyId=68, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:1, [WriteReduce]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:0, threadIdx:1, [Post]:[remoteRank=4, notifyId=32837, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:1, [Wait]:[remoteRank=4, notifyId=69, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:0, threadIdx:1, [LocalPostTo]:[topicId=0]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:2, [LocalWaitFrom]:[topicId=8]
+rankIdx:0, threadIdx:2, [Post]:[remoteRank=1, notifyId=8242, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:2, [Wait]:[remoteRank=1, notifyId=50, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:2, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:0, threadIdx:2, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:0, threadIdx:2, [Post]:[remoteRank=1, notifyId=8243, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:2, [Wait]:[remoteRank=1, notifyId=51, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:2, [LocalPostTo]:[topicId=1]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:3, [LocalWaitFrom]:[topicId=15]
+rankIdx:0, threadIdx:3, [Post]:[remoteRank=1, notifyId=8251, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:3, [Wait]:[remoteRank=1, notifyId=59, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:3, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:0, threadIdx:3, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:0, threadIdx:3, [Post]:[remoteRank=1, notifyId=8252, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:3, [Wait]:[remoteRank=1, notifyId=60, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:3, [LocalPostTo]:[topicId=2]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:4, [LocalWaitFrom]:[topicId=22]
+rankIdx:0, threadIdx:4, [Post]:[remoteRank=2, notifyId=16434, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:4, [Wait]:[remoteRank=2, notifyId=53, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:4, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:0, threadIdx:4, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:0, threadIdx:4, [Post]:[remoteRank=2, notifyId=16435, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:4, [Wait]:[remoteRank=2, notifyId=54, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:4, [LocalPostTo]:[topicId=3]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:5, [LocalWaitFrom]:[topicId=29]
+rankIdx:0, threadIdx:5, [Post]:[remoteRank=2, notifyId=16443, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:5, [Wait]:[remoteRank=2, notifyId=62, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:5, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:0, threadIdx:5, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:0, threadIdx:5, [Post]:[remoteRank=2, notifyId=16444, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:5, [Wait]:[remoteRank=2, notifyId=63, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:5, [LocalPostTo]:[topicId=4]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:6, [LocalWaitFrom]:[topicId=36]
+rankIdx:0, threadIdx:6, [Post]:[remoteRank=3, notifyId=24626, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:6, [Wait]:[remoteRank=3, notifyId=56, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:6, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:0, threadIdx:6, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:0, threadIdx:6, [Post]:[remoteRank=3, notifyId=24627, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:6, [Wait]:[remoteRank=3, notifyId=57, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:6, [LocalPostTo]:[topicId=5]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:0, threadIdx:7, [LocalWaitFrom]:[topicId=43]
+rankIdx:0, threadIdx:7, [Post]:[remoteRank=3, notifyId=24635, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:7, [Wait]:[remoteRank=3, notifyId=65, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:7, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:0, threadIdx:7, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:0, threadIdx:7, [Post]:[remoteRank=3, notifyId=24636, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:0, threadIdx:7, [Wait]:[remoteRank=3, notifyId=66, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:0, threadIdx:7, [LocalPostTo]:[topicId=6]
+=======================================================
+rankId is : 1 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:1, threadIdx:0, [LocalPostTo]:[topicId=8199]
+rankIdx:1, threadIdx:0, [LocalWaitFrom]:[topicId=8192]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8199]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8200]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8207]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8214]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8221]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8228]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8235]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8193]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8194]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8195]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8196]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8197]
+rankIdx:1, threadIdx:1, [LocalWaitFrom]:[topicId=8198]
+rankIdx:1, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:1, threadIdx:1, [Post]:[remoteRank=5, notifyId=41028, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:1, [Wait]:[remoteRank=5, notifyId=8260, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:1, [WriteReduce]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:1, threadIdx:1, [Post]:[remoteRank=5, notifyId=41029, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:1, [Wait]:[remoteRank=5, notifyId=8261, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:1, threadIdx:1, [LocalPostTo]:[topicId=8192]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:2, [LocalWaitFrom]:[topicId=8200]
+rankIdx:1, threadIdx:2, [Post]:[remoteRank=2, notifyId=16437, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:2, [Wait]:[remoteRank=2, notifyId=8245, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:2, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:1, threadIdx:2, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:1, threadIdx:2, [Post]:[remoteRank=2, notifyId=16438, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:2, [Wait]:[remoteRank=2, notifyId=8246, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:2, [LocalPostTo]:[topicId=8193]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:3, [LocalWaitFrom]:[topicId=8207]
+rankIdx:1, threadIdx:3, [Post]:[remoteRank=2, notifyId=16446, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:3, [Wait]:[remoteRank=2, notifyId=8254, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:3, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:1, threadIdx:3, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:1, threadIdx:3, [Post]:[remoteRank=2, notifyId=16447, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:3, [Wait]:[remoteRank=2, notifyId=8255, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:3, [LocalPostTo]:[topicId=8194]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:4, [LocalWaitFrom]:[topicId=8214]
+rankIdx:1, threadIdx:4, [Post]:[remoteRank=3, notifyId=24629, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:4, [Wait]:[remoteRank=3, notifyId=8248, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:4, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:1, threadIdx:4, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:1, threadIdx:4, [Post]:[remoteRank=3, notifyId=24630, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:4, [Wait]:[remoteRank=3, notifyId=8249, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:4, [LocalPostTo]:[topicId=8195]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:5, [LocalWaitFrom]:[topicId=8221]
+rankIdx:1, threadIdx:5, [Post]:[remoteRank=3, notifyId=24638, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:5, [Wait]:[remoteRank=3, notifyId=8257, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:5, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:1, threadIdx:5, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:1, threadIdx:5, [Post]:[remoteRank=3, notifyId=24639, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:5, [Wait]:[remoteRank=3, notifyId=8258, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:5, [LocalPostTo]:[topicId=8196]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:6, [LocalWaitFrom]:[topicId=8228]
+rankIdx:1, threadIdx:6, [Post]:[remoteRank=0, notifyId=50, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:6, [Wait]:[remoteRank=0, notifyId=8242, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:6, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:1, threadIdx:6, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:1, threadIdx:6, [Post]:[remoteRank=0, notifyId=51, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:6, [Wait]:[remoteRank=0, notifyId=8243, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:6, [LocalPostTo]:[topicId=8197]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:1, threadIdx:7, [LocalWaitFrom]:[topicId=8235]
+rankIdx:1, threadIdx:7, [Post]:[remoteRank=0, notifyId=59, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:7, [Wait]:[remoteRank=0, notifyId=8251, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:7, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:1, threadIdx:7, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:1, threadIdx:7, [Post]:[remoteRank=0, notifyId=60, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:1, threadIdx:7, [Wait]:[remoteRank=0, notifyId=8252, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:1, threadIdx:7, [LocalPostTo]:[topicId=8198]
+=======================================================
+rankId is : 2 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:2, threadIdx:0, [LocalPostTo]:[topicId=16391]
+rankIdx:2, threadIdx:0, [LocalWaitFrom]:[topicId=16384]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16391]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16392]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16399]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16406]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16413]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16420]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16427]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16385]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16386]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16387]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16388]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16389]
+rankIdx:2, threadIdx:1, [LocalWaitFrom]:[topicId=16390]
+rankIdx:2, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:2, threadIdx:1, [Post]:[remoteRank=6, notifyId=49220, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:1, [Wait]:[remoteRank=6, notifyId=16452, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:1, [WriteReduce]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:2, threadIdx:1, [Post]:[remoteRank=6, notifyId=49221, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:1, [Wait]:[remoteRank=6, notifyId=16453, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:2, threadIdx:1, [LocalPostTo]:[topicId=16384]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:2, [LocalWaitFrom]:[topicId=16392]
+rankIdx:2, threadIdx:2, [Post]:[remoteRank=3, notifyId=24632, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:2, [Wait]:[remoteRank=3, notifyId=16440, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:2, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:2, threadIdx:2, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:2, threadIdx:2, [Post]:[remoteRank=3, notifyId=24633, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:2, [Wait]:[remoteRank=3, notifyId=16441, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:2, [LocalPostTo]:[topicId=16385]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:3, [LocalWaitFrom]:[topicId=16399]
+rankIdx:2, threadIdx:3, [Post]:[remoteRank=3, notifyId=24641, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:3, [Wait]:[remoteRank=3, notifyId=16449, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:3, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:2, threadIdx:3, [Write]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:2, threadIdx:3, [Post]:[remoteRank=3, notifyId=24642, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:3, [Wait]:[remoteRank=3, notifyId=16450, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:3, [LocalPostTo]:[topicId=16386]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:4, [LocalWaitFrom]:[topicId=16406]
+rankIdx:2, threadIdx:4, [Post]:[remoteRank=0, notifyId=53, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:4, [Wait]:[remoteRank=0, notifyId=16434, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:4, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:2, threadIdx:4, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:2, threadIdx:4, [Post]:[remoteRank=0, notifyId=54, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:4, [Wait]:[remoteRank=0, notifyId=16435, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:4, [LocalPostTo]:[topicId=16387]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:5, [LocalWaitFrom]:[topicId=16413]
+rankIdx:2, threadIdx:5, [Post]:[remoteRank=0, notifyId=62, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:5, [Wait]:[remoteRank=0, notifyId=16443, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:5, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:2, threadIdx:5, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:2, threadIdx:5, [Post]:[remoteRank=0, notifyId=63, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:5, [Wait]:[remoteRank=0, notifyId=16444, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:5, [LocalPostTo]:[topicId=16388]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:6, [LocalWaitFrom]:[topicId=16420]
+rankIdx:2, threadIdx:6, [Post]:[remoteRank=1, notifyId=8245, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:6, [Wait]:[remoteRank=1, notifyId=16437, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:6, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:2, threadIdx:6, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:2, threadIdx:6, [Post]:[remoteRank=1, notifyId=8246, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:6, [Wait]:[remoteRank=1, notifyId=16438, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:6, [LocalPostTo]:[topicId=16389]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:2, threadIdx:7, [LocalWaitFrom]:[topicId=16427]
+rankIdx:2, threadIdx:7, [Post]:[remoteRank=1, notifyId=8254, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:7, [Wait]:[remoteRank=1, notifyId=16446, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:7, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:2, threadIdx:7, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:2, threadIdx:7, [Post]:[remoteRank=1, notifyId=8255, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:2, threadIdx:7, [Wait]:[remoteRank=1, notifyId=16447, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:2, threadIdx:7, [LocalPostTo]:[topicId=16390]
+=======================================================
+rankId is : 3 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:3, threadIdx:0, [LocalPostTo]:[topicId=24583]
+rankIdx:3, threadIdx:0, [LocalWaitFrom]:[topicId=24576]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24583]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24584]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24591]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24598]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24605]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24612]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24619]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24577]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24578]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24579]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24580]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24581]
+rankIdx:3, threadIdx:1, [LocalWaitFrom]:[topicId=24582]
+rankIdx:3, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:3, threadIdx:1, [Post]:[remoteRank=7, notifyId=57412, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:1, [Wait]:[remoteRank=7, notifyId=24644, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:1, [WriteReduce]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:3, threadIdx:1, [Post]:[remoteRank=7, notifyId=57413, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:1, [Wait]:[remoteRank=7, notifyId=24645, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:3, threadIdx:1, [LocalPostTo]:[topicId=24576]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:2, [LocalWaitFrom]:[topicId=24584]
+rankIdx:3, threadIdx:2, [Post]:[remoteRank=0, notifyId=56, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:2, [Wait]:[remoteRank=0, notifyId=24626, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:2, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:3, threadIdx:2, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:3, threadIdx:2, [Post]:[remoteRank=0, notifyId=57, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:2, [Wait]:[remoteRank=0, notifyId=24627, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:2, [LocalPostTo]:[topicId=24577]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:3, [LocalWaitFrom]:[topicId=24591]
+rankIdx:3, threadIdx:3, [Post]:[remoteRank=0, notifyId=65, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:3, [Wait]:[remoteRank=0, notifyId=24635, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:3, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:3, threadIdx:3, [Write]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:3, threadIdx:3, [Post]:[remoteRank=0, notifyId=66, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:3, [Wait]:[remoteRank=0, notifyId=24636, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:3, [LocalPostTo]:[topicId=24578]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:4, [LocalWaitFrom]:[topicId=24598]
+rankIdx:3, threadIdx:4, [Post]:[remoteRank=1, notifyId=8248, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:4, [Wait]:[remoteRank=1, notifyId=24629, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:4, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:3, threadIdx:4, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:3, threadIdx:4, [Post]:[remoteRank=1, notifyId=8249, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:4, [Wait]:[remoteRank=1, notifyId=24630, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:4, [LocalPostTo]:[topicId=24579]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:5, [LocalWaitFrom]:[topicId=24605]
+rankIdx:3, threadIdx:5, [Post]:[remoteRank=1, notifyId=8257, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:5, [Wait]:[remoteRank=1, notifyId=24638, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:5, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:3, threadIdx:5, [Write]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:3, threadIdx:5, [Post]:[remoteRank=1, notifyId=8258, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:5, [Wait]:[remoteRank=1, notifyId=24639, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:5, [LocalPostTo]:[topicId=24580]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:6, [LocalWaitFrom]:[topicId=24612]
+rankIdx:3, threadIdx:6, [Post]:[remoteRank=2, notifyId=16440, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:6, [Wait]:[remoteRank=2, notifyId=24632, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:6, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:3, threadIdx:6, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:3, threadIdx:6, [Post]:[remoteRank=2, notifyId=16441, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:6, [Wait]:[remoteRank=2, notifyId=24633, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:6, [LocalPostTo]:[topicId=24581]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:3, threadIdx:7, [LocalWaitFrom]:[topicId=24619]
+rankIdx:3, threadIdx:7, [Post]:[remoteRank=2, notifyId=16449, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:7, [Wait]:[remoteRank=2, notifyId=24641, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:7, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:3, threadIdx:7, [Write]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:3, threadIdx:7, [Post]:[remoteRank=2, notifyId=16450, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:3, threadIdx:7, [Wait]:[remoteRank=2, notifyId=24642, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:3, threadIdx:7, [LocalPostTo]:[topicId=24582]
+=======================================================
+rankId is : 4 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:4, threadIdx:0, [LocalPostTo]:[topicId=32775]
+rankIdx:4, threadIdx:0, [LocalWaitFrom]:[topicId=32768]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32775]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32776]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32783]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32790]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32797]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32804]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32811]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32769]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32770]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32771]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32772]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32773]
+rankIdx:4, threadIdx:1, [LocalWaitFrom]:[topicId=32774]
+rankIdx:4, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9]]
+rankIdx:4, threadIdx:1, [Post]:[remoteRank=0, notifyId=68, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:1, [Wait]:[remoteRank=0, notifyId=32836, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:1, [WriteReduce]:[remoteRank=0, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [Post]:[remoteRank=0, notifyId=69, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:1, [Wait]:[remoteRank=0, notifyId=32837, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:4, threadIdx:1, [LocalPostTo]:[topicId=32768]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:2, [LocalWaitFrom]:[topicId=32776]
+rankIdx:4, threadIdx:2, [Post]:[remoteRank=5, notifyId=41010, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:2, [Wait]:[remoteRank=5, notifyId=32818, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:2, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:4, threadIdx:2, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:4, threadIdx:2, [Post]:[remoteRank=5, notifyId=41011, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:2, [Wait]:[remoteRank=5, notifyId=32819, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:2, [LocalPostTo]:[topicId=32769]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:3, [LocalWaitFrom]:[topicId=32783]
+rankIdx:4, threadIdx:3, [Post]:[remoteRank=5, notifyId=41019, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:3, [Wait]:[remoteRank=5, notifyId=32827, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:3, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:4, threadIdx:3, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:4, threadIdx:3, [Post]:[remoteRank=5, notifyId=41020, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:3, [Wait]:[remoteRank=5, notifyId=32828, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:3, [LocalPostTo]:[topicId=32770]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:4, [LocalWaitFrom]:[topicId=32790]
+rankIdx:4, threadIdx:4, [Post]:[remoteRank=6, notifyId=49202, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:4, [Wait]:[remoteRank=6, notifyId=32821, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:4, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:4, threadIdx:4, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:4, threadIdx:4, [Post]:[remoteRank=6, notifyId=49203, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:4, [Wait]:[remoteRank=6, notifyId=32822, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:4, [LocalPostTo]:[topicId=32771]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:5, [LocalWaitFrom]:[topicId=32797]
+rankIdx:4, threadIdx:5, [Post]:[remoteRank=6, notifyId=49211, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:5, [Wait]:[remoteRank=6, notifyId=32830, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:5, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:4, threadIdx:5, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:4, threadIdx:5, [Post]:[remoteRank=6, notifyId=49212, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:5, [Wait]:[remoteRank=6, notifyId=32831, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:5, [LocalPostTo]:[topicId=32772]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:6, [LocalWaitFrom]:[topicId=32804]
+rankIdx:4, threadIdx:6, [Post]:[remoteRank=7, notifyId=57394, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:6, [Wait]:[remoteRank=7, notifyId=32824, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:6, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x4]]
+rankIdx:4, threadIdx:6, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x4]]
+rankIdx:4, threadIdx:6, [Post]:[remoteRank=7, notifyId=57395, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:6, [Wait]:[remoteRank=7, notifyId=32825, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:6, [LocalPostTo]:[topicId=32773]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:4, threadIdx:7, [LocalWaitFrom]:[topicId=32811]
+rankIdx:4, threadIdx:7, [Post]:[remoteRank=7, notifyId=57403, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:7, [Wait]:[remoteRank=7, notifyId=32833, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:7, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x4, size=0x5]]
+rankIdx:4, threadIdx:7, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x28, size=0x5]]
+rankIdx:4, threadIdx:7, [Post]:[remoteRank=7, notifyId=57404, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:4, threadIdx:7, [Wait]:[remoteRank=7, notifyId=32834, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:4, threadIdx:7, [LocalPostTo]:[topicId=32774]
+=======================================================
+rankId is : 5 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:5, threadIdx:0, [LocalPostTo]:[topicId=40967]
+rankIdx:5, threadIdx:0, [LocalWaitFrom]:[topicId=40960]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40967]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40968]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40975]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40982]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40989]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40996]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=41003]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40961]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40962]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40963]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40964]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40965]
+rankIdx:5, threadIdx:1, [LocalWaitFrom]:[topicId=40966]
+rankIdx:5, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9]]
+rankIdx:5, threadIdx:1, [Post]:[remoteRank=1, notifyId=8260, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:1, [Wait]:[remoteRank=1, notifyId=41028, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:1, [WriteReduce]:[remoteRank=1, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9]]
+rankIdx:5, threadIdx:1, [Post]:[remoteRank=1, notifyId=8261, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:1, [Wait]:[remoteRank=1, notifyId=41029, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:5, threadIdx:1, [LocalPostTo]:[topicId=40960]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:2, [LocalWaitFrom]:[topicId=40968]
+rankIdx:5, threadIdx:2, [Post]:[remoteRank=6, notifyId=49205, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:2, [Wait]:[remoteRank=6, notifyId=41013, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:2, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:5, threadIdx:2, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:5, threadIdx:2, [Post]:[remoteRank=6, notifyId=49206, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:2, [Wait]:[remoteRank=6, notifyId=41014, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:2, [LocalPostTo]:[topicId=40961]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:3, [LocalWaitFrom]:[topicId=40975]
+rankIdx:5, threadIdx:3, [Post]:[remoteRank=6, notifyId=49214, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:3, [Wait]:[remoteRank=6, notifyId=41022, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:3, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:5, threadIdx:3, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:5, threadIdx:3, [Post]:[remoteRank=6, notifyId=49215, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:3, [Wait]:[remoteRank=6, notifyId=41023, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:3, [LocalPostTo]:[topicId=40962]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:4, [LocalWaitFrom]:[topicId=40982]
+rankIdx:5, threadIdx:4, [Post]:[remoteRank=7, notifyId=57397, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:4, [Wait]:[remoteRank=7, notifyId=41016, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:4, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:5, threadIdx:4, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:5, threadIdx:4, [Post]:[remoteRank=7, notifyId=57398, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:4, [Wait]:[remoteRank=7, notifyId=41017, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:4, [LocalPostTo]:[topicId=40963]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:5, [LocalWaitFrom]:[topicId=40989]
+rankIdx:5, threadIdx:5, [Post]:[remoteRank=7, notifyId=57406, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:5, [Wait]:[remoteRank=7, notifyId=41025, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:5, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:5, threadIdx:5, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:5, threadIdx:5, [Post]:[remoteRank=7, notifyId=57407, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:5, [Wait]:[remoteRank=7, notifyId=41026, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:5, [LocalPostTo]:[topicId=40964]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:6, [LocalWaitFrom]:[topicId=40996]
+rankIdx:5, threadIdx:6, [Post]:[remoteRank=4, notifyId=32818, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:6, [Wait]:[remoteRank=4, notifyId=41010, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:6, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x4]]
+rankIdx:5, threadIdx:6, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x4]]
+rankIdx:5, threadIdx:6, [Post]:[remoteRank=4, notifyId=32819, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:6, [Wait]:[remoteRank=4, notifyId=41011, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:6, [LocalPostTo]:[topicId=40965]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:5, threadIdx:7, [LocalWaitFrom]:[topicId=41003]
+rankIdx:5, threadIdx:7, [Post]:[remoteRank=4, notifyId=32827, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:7, [Wait]:[remoteRank=4, notifyId=41019, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:7, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0xD, size=0x5]]
+rankIdx:5, threadIdx:7, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x31, size=0x5]]
+rankIdx:5, threadIdx:7, [Post]:[remoteRank=4, notifyId=32828, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:5, threadIdx:7, [Wait]:[remoteRank=4, notifyId=41020, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:5, threadIdx:7, [LocalPostTo]:[topicId=40966]
+=======================================================
+rankId is : 6 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:6, threadIdx:0, [LocalPostTo]:[topicId=49159]
+rankIdx:6, threadIdx:0, [LocalWaitFrom]:[topicId=49152]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49159]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49160]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49167]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49174]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49181]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49188]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49195]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49153]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49154]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49155]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49156]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49157]
+rankIdx:6, threadIdx:1, [LocalWaitFrom]:[topicId=49158]
+rankIdx:6, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9]]
+rankIdx:6, threadIdx:1, [Post]:[remoteRank=2, notifyId=16452, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:1, [Wait]:[remoteRank=2, notifyId=49220, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:1, [WriteReduce]:[remoteRank=2, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9]]
+rankIdx:6, threadIdx:1, [Post]:[remoteRank=2, notifyId=16453, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:1, [Wait]:[remoteRank=2, notifyId=49221, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:6, threadIdx:1, [LocalPostTo]:[topicId=49152]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:2, [LocalWaitFrom]:[topicId=49160]
+rankIdx:6, threadIdx:2, [Post]:[remoteRank=7, notifyId=57400, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:2, [Wait]:[remoteRank=7, notifyId=49208, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:2, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:6, threadIdx:2, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:6, threadIdx:2, [Post]:[remoteRank=7, notifyId=57401, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:2, [Wait]:[remoteRank=7, notifyId=49209, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:2, [LocalPostTo]:[topicId=49153]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:3, [LocalWaitFrom]:[topicId=49167]
+rankIdx:6, threadIdx:3, [Post]:[remoteRank=7, notifyId=57409, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:3, [Wait]:[remoteRank=7, notifyId=49217, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:3, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x1F, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:6, threadIdx:3, [Write]:[remoteRank=7, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x43, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:6, threadIdx:3, [Post]:[remoteRank=7, notifyId=57410, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:3, [Wait]:[remoteRank=7, notifyId=49218, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:3, [LocalPostTo]:[topicId=49154]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:4, [LocalWaitFrom]:[topicId=49174]
+rankIdx:6, threadIdx:4, [Post]:[remoteRank=4, notifyId=32821, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:4, [Wait]:[remoteRank=4, notifyId=49202, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:4, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:6, threadIdx:4, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:6, threadIdx:4, [Post]:[remoteRank=4, notifyId=32822, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:4, [Wait]:[remoteRank=4, notifyId=49203, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:4, [LocalPostTo]:[topicId=49155]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:5, [LocalWaitFrom]:[topicId=49181]
+rankIdx:6, threadIdx:5, [Post]:[remoteRank=4, notifyId=32830, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:5, [Wait]:[remoteRank=4, notifyId=49211, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:5, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:6, threadIdx:5, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:6, threadIdx:5, [Post]:[remoteRank=4, notifyId=32831, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:5, [Wait]:[remoteRank=4, notifyId=49212, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:5, [LocalPostTo]:[topicId=49156]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:6, [LocalWaitFrom]:[topicId=49188]
+rankIdx:6, threadIdx:6, [Post]:[remoteRank=5, notifyId=41013, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:6, [Wait]:[remoteRank=5, notifyId=49205, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:6, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x4]]
+rankIdx:6, threadIdx:6, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x4]]
+rankIdx:6, threadIdx:6, [Post]:[remoteRank=5, notifyId=41014, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:6, [Wait]:[remoteRank=5, notifyId=49206, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:6, [LocalPostTo]:[topicId=49157]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:6, threadIdx:7, [LocalWaitFrom]:[topicId=49195]
+rankIdx:6, threadIdx:7, [Post]:[remoteRank=5, notifyId=41022, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:7, [Wait]:[remoteRank=5, notifyId=49214, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:7, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x16, size=0x5]]
+rankIdx:6, threadIdx:7, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x3A, size=0x5]]
+rankIdx:6, threadIdx:7, [Post]:[remoteRank=5, notifyId=41023, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:6, threadIdx:7, [Wait]:[remoteRank=5, notifyId=49215, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:6, threadIdx:7, [LocalPostTo]:[topicId=49158]
+=======================================================
+rankId is : 7 
+threadIdx : 0, taskNum : 2 
+-------------------------------------------------------
+rankIdx:7, threadIdx:0, [LocalPostTo]:[topicId=57351]
+rankIdx:7, threadIdx:0, [LocalWaitFrom]:[topicId=57344]
+threadIdx : 1, taskNum : 28 
+-------------------------------------------------------
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57351]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57352]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57359]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57366]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57373]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57380]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57387]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57345]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57346]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57347]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57348]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57349]
+rankIdx:7, threadIdx:1, [LocalWaitFrom]:[topicId=57350]
+rankIdx:7, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x1B, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x0, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x9, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x12, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::INPUT, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x24, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x2D, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalReduce]:[dataType=0, reduceOp=0, srcSlice=DataSlice[BufferType::CCL, offset=0x36, size=0x9], dstSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9]]
+rankIdx:7, threadIdx:1, [Post]:[remoteRank=3, notifyId=24644, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:1, [Wait]:[remoteRank=3, notifyId=57412, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:1, [WriteReduce]:[remoteRank=3, link=link prototyp=LinkProtoStub::SDMA, dataType=0, reduceOp=0, localSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x9]]
+rankIdx:7, threadIdx:1, [Post]:[remoteRank=3, notifyId=24645, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:1, [Wait]:[remoteRank=3, notifyId=57413, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:1, [LocalCopy]:[srcSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x9], dstSlice=DataSlice[BufferType::OUTPUT, offset=0x0, size=0x9]]
+rankIdx:7, threadIdx:1, [LocalPostTo]:[topicId=57344]
+threadIdx : 2, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:2, [LocalWaitFrom]:[topicId=57352]
+rankIdx:7, threadIdx:2, [Post]:[remoteRank=4, notifyId=32824, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:2, [Wait]:[remoteRank=4, notifyId=57394, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:2, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x0, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:7, threadIdx:2, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x24, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:7, threadIdx:2, [Post]:[remoteRank=4, notifyId=32825, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:2, [Wait]:[remoteRank=4, notifyId=57395, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:2, [LocalPostTo]:[topicId=57345]
+threadIdx : 3, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:3, [LocalWaitFrom]:[topicId=57359]
+rankIdx:7, threadIdx:3, [Post]:[remoteRank=4, notifyId=32833, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:3, [Wait]:[remoteRank=4, notifyId=57403, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:3, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x4, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:7, threadIdx:3, [Write]:[remoteRank=4, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x28, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:7, threadIdx:3, [Post]:[remoteRank=4, notifyId=32834, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:3, [Wait]:[remoteRank=4, notifyId=57404, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:3, [LocalPostTo]:[topicId=57346]
+threadIdx : 4, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:4, [LocalWaitFrom]:[topicId=57366]
+rankIdx:7, threadIdx:4, [Post]:[remoteRank=5, notifyId=41016, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:4, [Wait]:[remoteRank=5, notifyId=57397, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:4, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x9, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:7, threadIdx:4, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x2D, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:7, threadIdx:4, [Post]:[remoteRank=5, notifyId=41017, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:4, [Wait]:[remoteRank=5, notifyId=57398, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:4, [LocalPostTo]:[topicId=57347]
+threadIdx : 5, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:5, [LocalWaitFrom]:[topicId=57373]
+rankIdx:7, threadIdx:5, [Post]:[remoteRank=5, notifyId=41025, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:5, [Wait]:[remoteRank=5, notifyId=57406, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:5, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0xD, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:7, threadIdx:5, [Write]:[remoteRank=5, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x31, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:7, threadIdx:5, [Post]:[remoteRank=5, notifyId=41026, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:5, [Wait]:[remoteRank=5, notifyId=57407, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:5, [LocalPostTo]:[topicId=57348]
+threadIdx : 6, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:6, [LocalWaitFrom]:[topicId=57380]
+rankIdx:7, threadIdx:6, [Post]:[remoteRank=6, notifyId=49208, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:6, [Wait]:[remoteRank=6, notifyId=57400, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:6, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x12, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x1B, size=0x4]]
+rankIdx:7, threadIdx:6, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x36, size=0x4], remoteSlice=DataSlice[BufferType::CCL, offset=0x3F, size=0x4]]
+rankIdx:7, threadIdx:6, [Post]:[remoteRank=6, notifyId=49209, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:6, [Wait]:[remoteRank=6, notifyId=57401, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:6, [LocalPostTo]:[topicId=57349]
+threadIdx : 7, taskNum : 8 
+-------------------------------------------------------
+rankIdx:7, threadIdx:7, [LocalWaitFrom]:[topicId=57387]
+rankIdx:7, threadIdx:7, [Post]:[remoteRank=6, notifyId=49217, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:7, [Wait]:[remoteRank=6, notifyId=57409, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:7, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x16, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x1F, size=0x5]]
+rankIdx:7, threadIdx:7, [Write]:[remoteRank=6, link=link prototyp=LinkProtoStub::SDMA, localSlice=DataSlice[BufferType::INPUT, offset=0x3A, size=0x5], remoteSlice=DataSlice[BufferType::CCL, offset=0x43, size=0x5]]
+rankIdx:7, threadIdx:7, [Post]:[remoteRank=6, notifyId=49218, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=POST]
+rankIdx:7, threadIdx:7, [Wait]:[remoteRank=6, notifyId=57410, link=link prototyp=LinkProtoStub::SDMA, notifyType=NotifyTypeStub::READY, originated tag=WAIT]
+rankIdx:7, threadIdx:7, [LocalPostTo]:[topicId=57350]
+[       OK ] ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_4x1x2_int8_sum_l1_degenerate_recv8_plus_1 (425 ms)
+[----------] 1 test from ST_REDUCE_SCATTER_3LEVEL_TEST (425 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (426 ms total)
+[  PASSED  ] 1 test.

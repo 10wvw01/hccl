@@ -1,0 +1,167 @@
+.\" Man page generated from reStructuredText
+.\" by the Docutils 0.23 manpage writer.
+.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.TH "ctags-lang-odin" "" "" ""
+.SH Name
+ctags-lang-odin \- 
+.sp
+Notes about tagging Odin source code with Universal Ctags
+.INDENT 0.0
+.TP
+.B Version
+6.2.0
+.TP
+.B Manual group
+Universal Ctags
+.TP
+.B Manual section
+7
+.UNINDENT
+.SH SYNOPSIS
+.nf
+\fBctags\fP ... \-\-languages=+Odin ...
+\fBctags\fP ... \-\-language\-force=Odin ...
+\fBctags\fP ... \-\-map\-Odin=+.odin ...
+.fi
+.sp
+.SH DESCRIPTION
+.sp
+This man page gathers notes about tagging Odin source code
+with Universal Ctags.
+.sp
+The Odin parser tags packages, procedures, constants, variables,
+structs, enums, unions, struct members, enum values, type aliases,
+and foreign imports.
+.SH Distinguishing types from constants
+.sp
+In Odin, the syntax for a type alias and a constant binding are
+identical:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+My_Type :: Other_Type
+MY_CONST :: OTHER_CONST
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+When the right\-hand side of a \fB::\fP binding is a plain identifier,
+the parser cannot syntactically determine whether it is a type alias
+or a constant. In this case, the parser uses a naming\-convention
+heuristic: if the name on the left\-hand side contains any lowercase
+letter, it is tagged as a \fBtype\fP (kind \fBt\fP); if the name is
+entirely uppercase (and underscores/digits), it is tagged as a
+\fBconst\fP (kind \fBc\fP).
+.sp
+This follows the strong Odin convention that type names use
+\fBAda_Case\fP and constants use \fBSCREAMING_SNAKE_CASE\fP\&.
+.sp
+\(dqinput.odin\(dq
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+package example
+
+Handle :: distinct rawptr
+Vector2 :: [2]f32
+Callback :: proc(x: int) \-> bool
+My_Alias :: Some_Type
+MAX_SIZE :: SOME_VALUE
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+\(dqoutput.tags\(dq
+with \(dq\-\-options=NONE \-\-sort=no \-\-fields=+K \-o \- input.odin\(dq
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+example input.odin      /^package example$/;\(dq   package
+Handle  input.odin      /^Handle :: distinct rawptr$/;\(dq type    package:example
+Vector2 input.odin      /^Vector2 :: [2]f32$/;\(dq type    package:example
+Callback        input.odin      /^Callback :: proc(x: int) \-> bool$/;\(dq  type    package:example
+My_Alias        input.odin      /^My_Alias :: Some_Type$/;\(dq     type    package:example
+MAX_SIZE        input.odin      /^MAX_SIZE :: SOME_VALUE$/;\(dq    const   package:example
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+Note that when the right\-hand side is a keyword such as \fBstruct\fP,
+\fBenum\fP, \fBunion\fP, \fBdistinct\fP, \fBproc\fP, \fBmap\fP, or a syntactic
+form such as \fB^Type\fP, \fB[N]Type\fP, or \fB#type\fP, the parser
+identifies the kind unambiguously without relying on the heuristic.
+.sp
+The heuristic will misclassify names that break the convention, such
+as an all\-uppercase type alias (\fBHANDLE :: Some_Type\fP would be
+tagged as \fBconst\fP) or a lowercase\-containing constant
+(\fBkMaxSize :: SOME_VALUE\fP would be tagged as \fBtype\fP).
+In practice, these cases are rare in idiomatic Odin code.
+.SH Foreign blocks
+.sp
+The parser extracts procedure and variable declarations from
+\fBforeign\fP blocks.
+.sp
+\(dqinput.odin\(dq
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+package ffi
+
+foreign import libc \(dqsystem:libc.so\(dq
+
+foreign libc {
+    puts :: proc \(dqc\(dq (s: cstring) \-> i32 \-\-\-
+    errno: i32
+}
+.EE
+.UNINDENT
+.UNINDENT
+.sp
+\(dqoutput.tags\(dq
+with \(dq\-\-options=NONE \-\-sort=no \-\-fields=+K \-o \- input.odin\(dq
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.EX
+ffi     input.odin      /^package ffi$/;\(dq       package
+libc    input.odin      /^foreign import libc \(dqsystem:libc.so\(dq$/;\(dq      foreign package:ffi
+puts    input.odin      /^    puts :: proc \(dqc\(dq (s: cstring) \-> i32 \-\-\-$/;\(dq      proc    package:ffi
+errno   input.odin      /^    errno: i32$/;\(dq    var     package:ffi
+.EE
+.UNINDENT
+.UNINDENT
+.SH SEE ALSO
+.sp
+ctags(1), ctags\-client\-tools(7)
+.\" End of generated man page.

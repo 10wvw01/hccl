@@ -1,0 +1,3 @@
+test/st/algorithm/build/
+third_party/gtest/
+third_party/makeself/

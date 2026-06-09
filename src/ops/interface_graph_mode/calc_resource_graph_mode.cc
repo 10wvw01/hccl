@@ -190,7 +190,7 @@ HcclResult HcclSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit)
 }
 
 HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op, HcclCMDType opType,
-                           u32 aivCoreLimit, bool *ifAiv, char **algName)
+                           u32 aivCoreLimit, bool *ifAiv, char *algName)
 {
     HCCL_INFO("[HcclSelectAlgGraphMode] Start: group[%s] count[%llu] dataType[%u] reduceOp[%u] opType[%u] aivCoreLimit[%u]",
         group, count, dataType, op, opType, aivCoreLimit);
@@ -207,6 +207,7 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     s32 deviceLogicId = 0;
     CHK_PRT_RET(aclrtGetDevice(&deviceLogicId) != ACL_SUCCESS,
         HCCL_WARNING("[HcclSelectAlgGraphMode] device is not set."), HCCL_SUCCESS);
+    
     HcclComm hcclComm = nullptr;
     CHK_RET(HcomGetCommHandleByGroup(group, &hcclComm));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -276,15 +277,10 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     
     *ifAiv = (param.engine == CommEngine::COMM_ENGINE_AIV);
     
-    // 分配内存并拷贝字符串
-    *algName = (char*)malloc(localAlgName.size() + 1);
-    if (*algName == nullptr) {
-        HCCL_ERROR("[HcclSelectAlgGraphMode] malloc failed for algName");
-        return HCCL_E_INTERNAL;
-    }
-    strncpy_s(*algName, localAlgName.size() + 1, localAlgName.c_str(), localAlgName.size());
+    // 拷贝字符串
+    strncpy_s(algName, ALG_NAME_MAX_LEN, localAlgName.c_str(), ALG_NAME_MAX_LEN - 1);
     
-    HCCL_INFO("[HcclSelectAlgGraphMode] Success. ifAiv=%d, algName=%s", *ifAiv, *algName);
+    HCCL_INFO("[HcclSelectAlgGraphMode] Success. ifAiv=%d, algName=%s", *ifAiv, algName);
     return HCCL_SUCCESS;
 }
 
@@ -493,6 +489,13 @@ HcclResult HcclCalcAivResOffline(ResResponseGraphMode *resResponse, OpParamGraph
     if (resResponse == nullptr || paramPtr == nullptr || paramPtr->aivCoreLimit == 0) {
         return HCCL_E_PARA;
     }
+    constexpr u64 AIV_WORKSPACE_MEM_SIZE = 512;
+    constexpr u32 AIV_STREAM_NUM = 0;
+    constexpr u32 AIV_TASK_NUM = 3;
+
+    resResponse->opMemSize = std::max(resResponse->opMemSize, AIV_WORKSPACE_MEM_SIZE);
+    resResponse->streamNum = std::max(resResponse->streamNum, AIV_STREAM_NUM);
+    resResponse->taskNum = std::max(resResponse->taskNum, AIV_TASK_NUM);
     resResponse->aivCoreNum = paramPtr->aivCoreLimit;
     return HCCL_SUCCESS;
 }

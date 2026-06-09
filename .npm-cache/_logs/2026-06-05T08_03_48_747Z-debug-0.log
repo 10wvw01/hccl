@@ -1,0 +1,669 @@
+0 verbose cli /home/crx/code/hccl_three_sequence_rs/hccl_2039/node-v20.19.0-linux-x64/bin/node /home/crx/code/hccl_three_sequence_rs/hccl_2039/node-v20.19.0-linux-x64/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.19.0
+3 silly config load:file:/home/crx/code/hccl_three_sequence_rs/hccl_2039/node-v20.19.0-linux-x64/lib/node_modules/npm/npmrc
+4 silly config load:file:/home/crx/.npmrc
+5 silly config load:file:/home/crx/code/hccl_three_sequence_rs/hccl_2039/.npm-global/etc/npmrc
+6 verbose title npm install @fission-ai/openspec@latest
+7 verbose argv "install" "--global" "@fission-ai/openspec@latest"
+8 verbose logfile logs-max:10 dir:/home/crx/code/hccl_three_sequence_rs/hccl_2039/.npm-cache/_logs/2026-06-05T08_03_48_747Z-
+9 verbose logfile /home/crx/code/hccl_three_sequence_rs/hccl_2039/.npm-cache/_logs/2026-06-05T08_03_48_747Z-debug-0.log
+10 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+11 silly logfile done cleaning log files
+12 silly packumentCache corgi:https://registry.npmjs.org/@fission-ai%2fopenspec cache-miss
+13 http fetch GET 200 https://registry.npmjs.org/@fission-ai%2fopenspec 898ms (cache miss)
+14 silly packumentCache corgi:https://registry.npmjs.org/@fission-ai%2fopenspec set size:undefined disposed:false
+15 silly idealTree buildDeps
+16 silly fetch manifest @fission-ai/openspec@1.4.1
+17 silly packumentCache full:https://registry.npmjs.org/@fission-ai%2fopenspec cache-miss
+18 http fetch GET 200 https://registry.npmjs.org/@fission-ai%2fopenspec 274ms (cache miss)
+19 silly packumentCache full:https://registry.npmjs.org/@fission-ai%2fopenspec set size:undefined disposed:false
+20 silly placeDep ROOT @fission-ai/openspec@1.4.1 OK for:  want: 1.4.1
+21 silly fetch manifest @inquirer/core@^10.2.2
+22 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fcore cache-miss
+23 silly fetch manifest @inquirer/prompts@^7.8.0
+24 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fprompts cache-miss
+25 silly fetch manifest chalk@^5.5.0
+26 silly packumentCache full:https://registry.npmjs.org/chalk cache-miss
+27 silly fetch manifest commander@^14.0.0
+28 silly packumentCache full:https://registry.npmjs.org/commander cache-miss
+29 silly fetch manifest cross-spawn@7.0.6
+30 silly packumentCache full:https://registry.npmjs.org/cross-spawn cache-miss
+31 silly fetch manifest fast-glob@^3.3.3
+32 silly packumentCache full:https://registry.npmjs.org/fast-glob cache-miss
+33 silly fetch manifest ora@^8.2.0
+34 silly packumentCache full:https://registry.npmjs.org/ora cache-miss
+35 silly fetch manifest posthog-node@^5.20.0
+36 silly packumentCache full:https://registry.npmjs.org/posthog-node cache-miss
+37 silly fetch manifest yaml@^2.8.2
+38 silly packumentCache full:https://registry.npmjs.org/yaml cache-miss
+39 silly fetch manifest zod@^4.0.17
+40 silly packumentCache full:https://registry.npmjs.org/zod cache-miss
+41 http fetch GET 200 https://registry.npmjs.org/npm 1420ms
+42 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fcore 319ms (cache miss)
+43 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fcore set size:undefined disposed:false
+44 http fetch GET 200 https://registry.npmjs.org/ora 830ms (cache miss)
+45 silly packumentCache full:https://registry.npmjs.org/ora set size:undefined disposed:false
+46 http fetch GET 200 https://registry.npmjs.org/cross-spawn 859ms (cache miss)
+47 silly packumentCache full:https://registry.npmjs.org/cross-spawn set size:undefined disposed:false
+48 http fetch GET 200 https://registry.npmjs.org/chalk 898ms (cache miss)
+49 silly packumentCache full:https://registry.npmjs.org/chalk set size:undefined disposed:false
+50 http fetch GET 200 https://registry.npmjs.org/fast-glob 900ms (cache miss)
+51 silly packumentCache full:https://registry.npmjs.org/fast-glob set size:undefined disposed:false
+52 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fprompts 913ms (cache miss)
+53 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fprompts set size:undefined disposed:false
+54 http fetch GET 200 https://registry.npmjs.org/commander 1042ms (cache miss)
+55 silly packumentCache full:https://registry.npmjs.org/commander set size:undefined disposed:false
+56 http fetch GET 200 https://registry.npmjs.org/posthog-node 1052ms (cache miss)
+57 silly packumentCache full:https://registry.npmjs.org/posthog-node set size:undefined disposed:false
+58 http fetch GET 200 https://registry.npmjs.org/yaml 1075ms (cache miss)
+59 silly packumentCache full:https://registry.npmjs.org/yaml set size:undefined disposed:false
+60 http fetch GET 200 https://registry.npmjs.org/zod 1446ms (cache miss)
+61 silly packumentCache full:https://registry.npmjs.org/zod set size:undefined disposed:false
+62 silly fetch manifest @types/node@>=18
+63 silly packumentCache full:https://registry.npmjs.org/@types%2fnode cache-miss
+64 http fetch GET 200 https://registry.npmjs.org/@types%2fnode 803ms (cache miss)
+65 silly packumentCache full:https://registry.npmjs.org/@types%2fnode set size:undefined disposed:false
+66 silly placeDep node_modules/@fission-ai/openspec @inquirer/core@10.3.2 OK for: @fission-ai/openspec@1.4.1 want: ^10.2.2
+67 silly placeDep node_modules/@fission-ai/openspec @inquirer/prompts@7.10.1 OK for: @fission-ai/openspec@1.4.1 want: ^7.8.0
+68 silly placeDep node_modules/@fission-ai/openspec chalk@5.6.2 OK for: @fission-ai/openspec@1.4.1 want: ^5.5.0
+69 silly placeDep node_modules/@fission-ai/openspec commander@14.0.3 OK for: @fission-ai/openspec@1.4.1 want: ^14.0.0
+70 silly placeDep node_modules/@fission-ai/openspec cross-spawn@7.0.6 OK for: @fission-ai/openspec@1.4.1 want: 7.0.6
+71 silly placeDep node_modules/@fission-ai/openspec fast-glob@3.3.3 OK for: @fission-ai/openspec@1.4.1 want: ^3.3.3
+72 silly placeDep node_modules/@fission-ai/openspec ora@8.2.0 OK for: @fission-ai/openspec@1.4.1 want: ^8.2.0
+73 silly placeDep node_modules/@fission-ai/openspec posthog-node@5.21.2 OK for: @fission-ai/openspec@1.4.1 want: ^5.20.0
+74 silly placeDep node_modules/@fission-ai/openspec yaml@2.9.0 OK for: @fission-ai/openspec@1.4.1 want: ^2.8.2
+75 silly placeDep node_modules/@fission-ai/openspec zod@4.4.3 OK for: @fission-ai/openspec@1.4.1 want: ^4.0.17
+76 silly fetch manifest cli-width@^4.1.0
+77 silly packumentCache full:https://registry.npmjs.org/cli-width cache-miss
+78 silly fetch manifest wrap-ansi@^6.2.0
+79 silly packumentCache full:https://registry.npmjs.org/wrap-ansi cache-miss
+80 silly fetch manifest mute-stream@^2.0.0
+81 silly packumentCache full:https://registry.npmjs.org/mute-stream cache-miss
+82 silly fetch manifest signal-exit@^4.1.0
+83 silly packumentCache full:https://registry.npmjs.org/signal-exit cache-miss
+84 silly fetch manifest @inquirer/ansi@^1.0.2
+85 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fansi cache-miss
+86 silly fetch manifest @inquirer/type@^3.0.10
+87 silly packumentCache full:https://registry.npmjs.org/@inquirer%2ftype cache-miss
+88 silly fetch manifest yoctocolors-cjs@^2.1.3
+89 silly packumentCache full:https://registry.npmjs.org/yoctocolors-cjs cache-miss
+90 silly fetch manifest @inquirer/figures@^1.0.15
+91 silly packumentCache full:https://registry.npmjs.org/@inquirer%2ffigures cache-miss
+92 silly fetch manifest @inquirer/input@^4.3.1
+93 silly packumentCache full:https://registry.npmjs.org/@inquirer%2finput cache-miss
+94 silly fetch manifest @inquirer/editor@^4.2.23
+95 silly packumentCache full:https://registry.npmjs.org/@inquirer%2feditor cache-miss
+96 silly fetch manifest @inquirer/expand@^4.0.23
+97 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fexpand cache-miss
+98 silly fetch manifest @inquirer/number@^3.0.23
+99 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fnumber cache-miss
+100 silly fetch manifest @inquirer/search@^3.2.2
+101 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fsearch cache-miss
+102 silly fetch manifest @inquirer/select@^4.4.2
+103 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fselect cache-miss
+104 silly fetch manifest @inquirer/confirm@^5.1.21
+105 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fconfirm cache-miss
+106 http fetch GET 200 https://registry.npmjs.org/wrap-ansi 236ms (cache miss)
+107 silly packumentCache full:https://registry.npmjs.org/wrap-ansi set size:undefined disposed:false
+108 silly fetch manifest @inquirer/rawlist@^4.1.11
+109 silly packumentCache full:https://registry.npmjs.org/@inquirer%2frawlist cache-miss
+110 http fetch GET 200 https://registry.npmjs.org/yoctocolors-cjs 237ms (cache miss)
+111 silly packumentCache full:https://registry.npmjs.org/yoctocolors-cjs set size:undefined disposed:false
+112 silly fetch manifest @inquirer/checkbox@^4.3.2
+113 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fcheckbox cache-miss
+114 http fetch GET 200 https://registry.npmjs.org/mute-stream 240ms (cache miss)
+115 silly packumentCache full:https://registry.npmjs.org/mute-stream set size:undefined disposed:false
+116 silly fetch manifest @inquirer/password@^4.0.23
+117 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fpassword cache-miss
+118 http fetch GET 200 https://registry.npmjs.org/cli-width 246ms (cache miss)
+119 silly packumentCache full:https://registry.npmjs.org/cli-width set size:undefined disposed:false
+120 silly fetch manifest which@^2.0.1
+121 silly packumentCache full:https://registry.npmjs.org/which cache-miss
+122 http fetch GET 200 https://registry.npmjs.org/signal-exit 250ms (cache miss)
+123 silly packumentCache full:https://registry.npmjs.org/signal-exit set size:undefined disposed:false
+124 silly fetch manifest path-key@^3.1.0
+125 silly packumentCache full:https://registry.npmjs.org/path-key cache-miss
+126 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fansi 257ms (cache miss)
+127 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fansi set size:undefined disposed:false
+128 silly fetch manifest shebang-command@^2.0.0
+129 silly packumentCache full:https://registry.npmjs.org/shebang-command cache-miss
+130 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fexpand 261ms (cache miss)
+131 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fexpand set size:undefined disposed:false
+132 silly fetch manifest @nodelib/fs.stat@^2.0.2
+133 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.stat cache-miss
+134 http fetch GET 200 https://registry.npmjs.org/@inquirer%2ftype 271ms (cache miss)
+135 silly packumentCache full:https://registry.npmjs.org/@inquirer%2ftype set size:undefined disposed:false
+136 silly fetch manifest @nodelib/fs.walk@^1.2.3
+137 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.walk cache-miss
+138 http fetch GET 200 https://registry.npmjs.org/@inquirer%2feditor 278ms (cache miss)
+139 silly packumentCache full:https://registry.npmjs.org/@inquirer%2feditor set size:undefined disposed:false
+140 silly fetch manifest glob-parent@^5.1.2
+141 silly packumentCache full:https://registry.npmjs.org/glob-parent cache-miss
+142 http fetch GET 200 https://registry.npmjs.org/@inquirer%2ffigures 296ms (cache miss)
+143 silly packumentCache full:https://registry.npmjs.org/@inquirer%2ffigures set size:undefined disposed:false
+144 silly fetch manifest merge2@^1.3.0
+145 silly packumentCache full:https://registry.npmjs.org/merge2 cache-miss
+146 http fetch GET 200 https://registry.npmjs.org/@inquirer%2finput 305ms (cache miss)
+147 silly packumentCache full:https://registry.npmjs.org/@inquirer%2finput set size:undefined disposed:false
+148 silly fetch manifest micromatch@^4.0.8
+149 silly packumentCache full:https://registry.npmjs.org/micromatch cache-miss
+150 http fetch GET 200 https://registry.npmjs.org/shebang-command 227ms (cache miss)
+151 silly packumentCache full:https://registry.npmjs.org/shebang-command set size:undefined disposed:false
+152 silly fetch manifest cli-cursor@^5.0.0
+153 silly packumentCache full:https://registry.npmjs.org/cli-cursor cache-miss
+154 http fetch GET 200 https://registry.npmjs.org/path-key 236ms (cache miss)
+155 silly packumentCache full:https://registry.npmjs.org/path-key set size:undefined disposed:false
+156 silly fetch manifest strip-ansi@^7.1.0
+157 silly packumentCache full:https://registry.npmjs.org/strip-ansi cache-miss
+158 http fetch GET 200 https://registry.npmjs.org/which 243ms (cache miss)
+159 silly packumentCache full:https://registry.npmjs.org/which set size:undefined disposed:false
+160 silly fetch manifest log-symbols@^6.0.0
+161 silly packumentCache full:https://registry.npmjs.org/log-symbols cache-miss
+162 http fetch GET 200 https://registry.npmjs.org/glob-parent 220ms (cache miss)
+163 silly packumentCache full:https://registry.npmjs.org/glob-parent set size:undefined disposed:false
+164 silly fetch manifest cli-spinners@^2.9.2
+165 silly packumentCache full:https://registry.npmjs.org/cli-spinners cache-miss
+166 http fetch GET 200 https://registry.npmjs.org/@inquirer%2frawlist 278ms (cache miss)
+167 silly packumentCache full:https://registry.npmjs.org/@inquirer%2frawlist set size:undefined disposed:false
+168 silly fetch manifest string-width@^7.2.0
+169 silly packumentCache full:https://registry.npmjs.org/string-width cache-miss
+170 http fetch GET 200 https://registry.npmjs.org/@nodelib%2ffs.walk 249ms (cache miss)
+171 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.walk set size:undefined disposed:false
+172 silly fetch manifest is-interactive@^2.0.0
+173 silly packumentCache full:https://registry.npmjs.org/is-interactive cache-miss
+174 http fetch GET 200 https://registry.npmjs.org/@nodelib%2ffs.stat 257ms (cache miss)
+175 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.stat set size:undefined disposed:false
+176 silly fetch manifest stdin-discarder@^0.2.2
+177 silly packumentCache full:https://registry.npmjs.org/stdin-discarder cache-miss
+178 http fetch GET 200 https://registry.npmjs.org/merge2 229ms (cache miss)
+179 silly packumentCache full:https://registry.npmjs.org/merge2 set size:undefined disposed:false
+180 silly fetch manifest is-unicode-supported@^2.0.0
+181 silly packumentCache full:https://registry.npmjs.org/is-unicode-supported cache-miss
+182 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fcheckbox 292ms (cache miss)
+183 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fcheckbox set size:undefined disposed:false
+184 silly fetch manifest @posthog/core@1.10.0
+185 silly packumentCache full:https://registry.npmjs.org/@posthog%2fcore cache-miss
+186 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fpassword 309ms (cache miss)
+187 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fpassword set size:undefined disposed:false
+188 http fetch GET 200 https://registry.npmjs.org/micromatch 261ms (cache miss)
+189 silly packumentCache full:https://registry.npmjs.org/micromatch set size:undefined disposed:false
+190 http fetch GET 200 https://registry.npmjs.org/cli-cursor 230ms (cache miss)
+191 silly packumentCache full:https://registry.npmjs.org/cli-cursor set size:undefined disposed:false
+192 http fetch GET 200 https://registry.npmjs.org/strip-ansi 236ms (cache miss)
+193 silly packumentCache full:https://registry.npmjs.org/strip-ansi set size:undefined disposed:false
+194 http fetch GET 200 https://registry.npmjs.org/log-symbols 238ms (cache miss)
+195 silly packumentCache full:https://registry.npmjs.org/log-symbols set size:undefined disposed:false
+196 http fetch GET 200 https://registry.npmjs.org/cli-spinners 231ms (cache miss)
+197 silly packumentCache full:https://registry.npmjs.org/cli-spinners set size:undefined disposed:false
+198 http fetch GET 200 https://registry.npmjs.org/string-width 222ms (cache miss)
+199 silly packumentCache full:https://registry.npmjs.org/string-width set size:undefined disposed:false
+200 http fetch GET 200 https://registry.npmjs.org/stdin-discarder 225ms (cache miss)
+201 silly packumentCache full:https://registry.npmjs.org/stdin-discarder set size:undefined disposed:false
+202 http fetch GET 200 https://registry.npmjs.org/is-unicode-supported 225ms (cache miss)
+203 silly packumentCache full:https://registry.npmjs.org/is-unicode-supported set size:undefined disposed:false
+204 http fetch GET 200 https://registry.npmjs.org/is-interactive 238ms (cache miss)
+205 silly packumentCache full:https://registry.npmjs.org/is-interactive set size:undefined disposed:false
+206 http fetch GET 200 https://registry.npmjs.org/@posthog%2fcore 275ms (cache miss)
+207 silly packumentCache full:https://registry.npmjs.org/@posthog%2fcore set size:undefined disposed:false
+208 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fsearch 832ms (cache miss)
+209 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fsearch set size:undefined disposed:false
+210 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fselect 873ms (cache miss)
+211 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fselect set size:undefined disposed:false
+212 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fnumber 877ms (cache miss)
+213 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fnumber set size:undefined disposed:false
+214 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fconfirm 916ms (cache miss)
+215 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fconfirm set size:undefined disposed:false
+216 silly placeDep node_modules/@fission-ai/openspec @inquirer/ansi@1.0.2 OK for: @inquirer/core@10.3.2 want: ^1.0.2
+217 silly placeDep node_modules/@fission-ai/openspec @inquirer/figures@1.0.15 OK for: @inquirer/core@10.3.2 want: ^1.0.15
+218 silly placeDep node_modules/@fission-ai/openspec @inquirer/type@3.0.10 OK for: @inquirer/core@10.3.2 want: ^3.0.10
+219 silly placeDep node_modules/@fission-ai/openspec cli-width@4.1.0 OK for: @inquirer/core@10.3.2 want: ^4.1.0
+220 silly placeDep node_modules/@fission-ai/openspec mute-stream@2.0.0 OK for: @inquirer/core@10.3.2 want: ^2.0.0
+221 silly placeDep node_modules/@fission-ai/openspec signal-exit@4.1.0 OK for: @inquirer/core@10.3.2 want: ^4.1.0
+222 silly placeDep node_modules/@fission-ai/openspec wrap-ansi@6.2.0 OK for: @inquirer/core@10.3.2 want: ^6.2.0
+223 silly placeDep node_modules/@fission-ai/openspec yoctocolors-cjs@2.1.3 OK for: @inquirer/core@10.3.2 want: ^2.1.3
+224 silly fetch manifest strip-ansi@^6.0.0
+225 silly packumentCache full:https://registry.npmjs.org/strip-ansi cache-miss
+226 silly fetch manifest ansi-styles@^4.0.0
+227 silly packumentCache full:https://registry.npmjs.org/ansi-styles cache-miss
+228 silly fetch manifest string-width@^4.1.0
+229 silly packumentCache full:https://registry.npmjs.org/string-width cache-miss
+230 http fetch GET 200 https://registry.npmjs.org/string-width 7ms (cache hit)
+231 silly packumentCache full:https://registry.npmjs.org/string-width set size:70381 disposed:false
+232 http fetch GET 200 https://registry.npmjs.org/strip-ansi 9ms (cache hit)
+233 silly packumentCache full:https://registry.npmjs.org/strip-ansi set size:44998 disposed:false
+234 http fetch GET 200 https://registry.npmjs.org/ansi-styles 251ms (cache miss)
+235 silly packumentCache full:https://registry.npmjs.org/ansi-styles set size:undefined disposed:false
+236 silly placeDep node_modules/@fission-ai/openspec @inquirer/checkbox@4.3.2 OK for: @inquirer/prompts@7.10.1 want: ^4.3.2
+237 silly placeDep node_modules/@fission-ai/openspec @inquirer/confirm@5.1.21 OK for: @inquirer/prompts@7.10.1 want: ^5.1.21
+238 silly placeDep node_modules/@fission-ai/openspec @inquirer/editor@4.2.23 OK for: @inquirer/prompts@7.10.1 want: ^4.2.23
+239 silly placeDep node_modules/@fission-ai/openspec @inquirer/expand@4.0.23 OK for: @inquirer/prompts@7.10.1 want: ^4.0.23
+240 silly placeDep node_modules/@fission-ai/openspec @inquirer/input@4.3.1 OK for: @inquirer/prompts@7.10.1 want: ^4.3.1
+241 silly placeDep node_modules/@fission-ai/openspec @inquirer/number@3.0.23 OK for: @inquirer/prompts@7.10.1 want: ^3.0.23
+242 silly placeDep node_modules/@fission-ai/openspec @inquirer/password@4.0.23 OK for: @inquirer/prompts@7.10.1 want: ^4.0.23
+243 silly placeDep node_modules/@fission-ai/openspec @inquirer/rawlist@4.1.11 OK for: @inquirer/prompts@7.10.1 want: ^4.1.11
+244 silly placeDep node_modules/@fission-ai/openspec @inquirer/search@3.2.2 OK for: @inquirer/prompts@7.10.1 want: ^3.2.2
+245 silly placeDep node_modules/@fission-ai/openspec @inquirer/select@4.4.2 OK for: @inquirer/prompts@7.10.1 want: ^4.4.2
+246 silly fetch manifest @inquirer/external-editor@^1.0.3
+247 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fexternal-editor cache-miss
+248 http fetch GET 200 https://registry.npmjs.org/@inquirer%2fexternal-editor 239ms (cache miss)
+249 silly packumentCache full:https://registry.npmjs.org/@inquirer%2fexternal-editor set size:undefined disposed:false
+250 silly placeDep node_modules/@fission-ai/openspec @inquirer/external-editor@1.0.3 OK for: @inquirer/editor@4.2.23 want: ^1.0.3
+251 silly fetch manifest chardet@^2.1.1
+252 silly packumentCache full:https://registry.npmjs.org/chardet cache-miss
+253 silly fetch manifest iconv-lite@^0.7.0
+254 silly packumentCache full:https://registry.npmjs.org/iconv-lite cache-miss
+255 http fetch GET 200 https://registry.npmjs.org/chardet 223ms (cache miss)
+256 silly packumentCache full:https://registry.npmjs.org/chardet set size:undefined disposed:false
+257 http fetch GET 200 https://registry.npmjs.org/iconv-lite 268ms (cache miss)
+258 silly packumentCache full:https://registry.npmjs.org/iconv-lite set size:undefined disposed:false
+259 silly placeDep node_modules/@fission-ai/openspec chardet@2.1.1 OK for: @inquirer/external-editor@1.0.3 want: ^2.1.1
+260 silly placeDep node_modules/@fission-ai/openspec iconv-lite@0.7.2 OK for: @inquirer/external-editor@1.0.3 want: ^0.7.0
+261 silly fetch manifest safer-buffer@>= 2.1.2 < 3.0.0
+262 silly packumentCache full:https://registry.npmjs.org/safer-buffer cache-miss
+263 http fetch GET 200 https://registry.npmjs.org/safer-buffer 222ms (cache miss)
+264 silly packumentCache full:https://registry.npmjs.org/safer-buffer set size:undefined disposed:false
+265 silly placeDep node_modules/@fission-ai/openspec path-key@3.1.1 OK for: cross-spawn@7.0.6 want: ^3.1.0
+266 silly placeDep node_modules/@fission-ai/openspec shebang-command@2.0.0 OK for: cross-spawn@7.0.6 want: ^2.0.0
+267 silly placeDep node_modules/@fission-ai/openspec which@2.0.2 OK for: cross-spawn@7.0.6 want: ^2.0.1
+268 silly fetch manifest shebang-regex@^3.0.0
+269 silly packumentCache full:https://registry.npmjs.org/shebang-regex cache-miss
+270 silly fetch manifest isexe@^2.0.0
+271 silly packumentCache full:https://registry.npmjs.org/isexe cache-miss
+272 http fetch GET 200 https://registry.npmjs.org/isexe 208ms (cache miss)
+273 silly packumentCache full:https://registry.npmjs.org/isexe set size:undefined disposed:false
+274 http fetch GET 200 https://registry.npmjs.org/shebang-regex 215ms (cache miss)
+275 silly packumentCache full:https://registry.npmjs.org/shebang-regex set size:undefined disposed:false
+276 silly placeDep node_modules/@fission-ai/openspec @nodelib/fs.stat@2.0.5 OK for: fast-glob@3.3.3 want: ^2.0.2
+277 silly placeDep node_modules/@fission-ai/openspec @nodelib/fs.walk@1.2.8 OK for: fast-glob@3.3.3 want: ^1.2.3
+278 silly placeDep node_modules/@fission-ai/openspec glob-parent@5.1.2 OK for: fast-glob@3.3.3 want: ^5.1.2
+279 silly placeDep node_modules/@fission-ai/openspec merge2@1.4.1 OK for: fast-glob@3.3.3 want: ^1.3.0
+280 silly placeDep node_modules/@fission-ai/openspec micromatch@4.0.8 OK for: fast-glob@3.3.3 want: ^4.0.8
+281 silly fetch manifest fastq@^1.6.0
+282 silly packumentCache full:https://registry.npmjs.org/fastq cache-miss
+283 silly fetch manifest @nodelib/fs.scandir@2.1.5
+284 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.scandir cache-miss
+285 silly fetch manifest is-glob@^4.0.1
+286 silly packumentCache full:https://registry.npmjs.org/is-glob cache-miss
+287 silly fetch manifest braces@^3.0.3
+288 silly packumentCache full:https://registry.npmjs.org/braces cache-miss
+289 silly fetch manifest picomatch@^2.3.1
+290 silly packumentCache full:https://registry.npmjs.org/picomatch cache-miss
+291 http fetch GET 200 https://registry.npmjs.org/is-glob 235ms (cache miss)
+292 silly packumentCache full:https://registry.npmjs.org/is-glob set size:undefined disposed:false
+293 http fetch GET 200 https://registry.npmjs.org/fastq 237ms (cache miss)
+294 silly packumentCache full:https://registry.npmjs.org/fastq set size:undefined disposed:false
+295 http fetch GET 200 https://registry.npmjs.org/braces 241ms (cache miss)
+296 silly packumentCache full:https://registry.npmjs.org/braces set size:undefined disposed:false
+297 http fetch GET 200 https://registry.npmjs.org/picomatch 251ms (cache miss)
+298 silly packumentCache full:https://registry.npmjs.org/picomatch set size:undefined disposed:false
+299 http fetch GET 200 https://registry.npmjs.org/@nodelib%2ffs.scandir 256ms (cache miss)
+300 silly packumentCache full:https://registry.npmjs.org/@nodelib%2ffs.scandir set size:undefined disposed:false
+301 silly placeDep node_modules/@fission-ai/openspec @nodelib/fs.scandir@2.1.5 OK for: @nodelib/fs.walk@1.2.8 want: 2.1.5
+302 silly placeDep node_modules/@fission-ai/openspec fastq@1.20.1 OK for: @nodelib/fs.walk@1.2.8 want: ^1.6.0
+303 silly fetch manifest run-parallel@^1.1.9
+304 silly packumentCache full:https://registry.npmjs.org/run-parallel cache-miss
+305 silly fetch manifest reusify@^1.0.4
+306 silly packumentCache full:https://registry.npmjs.org/reusify cache-miss
+307 http fetch GET 200 https://registry.npmjs.org/run-parallel 217ms (cache miss)
+308 silly packumentCache full:https://registry.npmjs.org/run-parallel set size:undefined disposed:false
+309 http fetch GET 200 https://registry.npmjs.org/reusify 229ms (cache miss)
+310 silly packumentCache full:https://registry.npmjs.org/reusify set size:undefined disposed:false
+311 silly placeDep node_modules/@fission-ai/openspec run-parallel@1.2.0 OK for: @nodelib/fs.scandir@2.1.5 want: ^1.1.9
+312 silly fetch manifest queue-microtask@^1.2.2
+313 silly packumentCache full:https://registry.npmjs.org/queue-microtask cache-miss
+314 http fetch GET 200 https://registry.npmjs.org/queue-microtask 241ms (cache miss)
+315 silly packumentCache full:https://registry.npmjs.org/queue-microtask set size:undefined disposed:false
+316 silly placeDep node_modules/@fission-ai/openspec reusify@1.1.0 OK for: fastq@1.20.1 want: ^1.0.4
+317 silly placeDep node_modules/@fission-ai/openspec is-glob@4.0.3 OK for: glob-parent@5.1.2 want: ^4.0.1
+318 silly fetch manifest is-extglob@^2.1.1
+319 silly packumentCache full:https://registry.npmjs.org/is-extglob cache-miss
+320 http fetch GET 200 https://registry.npmjs.org/is-extglob 221ms (cache miss)
+321 silly packumentCache full:https://registry.npmjs.org/is-extglob set size:undefined disposed:false
+322 silly placeDep node_modules/@fission-ai/openspec safer-buffer@2.1.2 OK for: iconv-lite@0.7.2 want: >= 2.1.2 < 3.0.0
+323 silly placeDep node_modules/@fission-ai/openspec is-extglob@2.1.1 OK for: is-glob@4.0.3 want: ^2.1.1
+324 silly placeDep node_modules/@fission-ai/openspec braces@3.0.3 OK for: micromatch@4.0.8 want: ^3.0.3
+325 silly placeDep node_modules/@fission-ai/openspec picomatch@2.3.2 OK for: micromatch@4.0.8 want: ^2.3.1
+326 silly fetch manifest fill-range@^7.1.1
+327 silly packumentCache full:https://registry.npmjs.org/fill-range cache-miss
+328 http fetch GET 200 https://registry.npmjs.org/fill-range 241ms (cache miss)
+329 silly packumentCache full:https://registry.npmjs.org/fill-range set size:undefined disposed:false
+330 silly placeDep node_modules/@fission-ai/openspec fill-range@7.1.1 OK for: braces@3.0.3 want: ^7.1.1
+331 silly fetch manifest to-regex-range@^5.0.1
+332 silly packumentCache full:https://registry.npmjs.org/to-regex-range cache-miss
+333 http fetch GET 200 https://registry.npmjs.org/to-regex-range 225ms (cache miss)
+334 silly packumentCache full:https://registry.npmjs.org/to-regex-range set size:undefined disposed:false
+335 silly placeDep node_modules/@fission-ai/openspec to-regex-range@5.0.1 OK for: fill-range@7.1.1 want: ^5.0.1
+336 silly fetch manifest is-number@^7.0.0
+337 silly packumentCache full:https://registry.npmjs.org/is-number cache-miss
+338 http fetch GET 200 https://registry.npmjs.org/is-number 230ms (cache miss)
+339 silly packumentCache full:https://registry.npmjs.org/is-number set size:undefined disposed:false
+340 silly placeDep node_modules/@fission-ai/openspec cli-cursor@5.0.0 OK for: ora@8.2.0 want: ^5.0.0
+341 silly placeDep node_modules/@fission-ai/openspec cli-spinners@2.9.2 OK for: ora@8.2.0 want: ^2.9.2
+342 silly placeDep node_modules/@fission-ai/openspec is-interactive@2.0.0 OK for: ora@8.2.0 want: ^2.0.0
+343 silly placeDep node_modules/@fission-ai/openspec is-unicode-supported@2.1.0 OK for: ora@8.2.0 want: ^2.0.0
+344 silly placeDep node_modules/@fission-ai/openspec log-symbols@6.0.0 OK for: ora@8.2.0 want: ^6.0.0
+345 silly placeDep node_modules/@fission-ai/openspec stdin-discarder@0.2.2 OK for: ora@8.2.0 want: ^0.2.2
+346 silly placeDep node_modules/@fission-ai/openspec string-width@7.2.0 OK for: ora@8.2.0 want: ^7.2.0
+347 silly placeDep node_modules/@fission-ai/openspec strip-ansi@7.2.0 OK for: ora@8.2.0 want: ^7.1.0
+348 silly fetch manifest restore-cursor@^5.0.0
+349 silly packumentCache full:https://registry.npmjs.org/restore-cursor cache-miss
+350 silly fetch manifest is-unicode-supported@^1.3.0
+351 silly packumentCache full:https://registry.npmjs.org/is-unicode-supported cache-miss
+352 silly fetch manifest emoji-regex@^10.3.0
+353 silly packumentCache full:https://registry.npmjs.org/emoji-regex cache-miss
+354 silly fetch manifest get-east-asian-width@^1.0.0
+355 silly packumentCache full:https://registry.npmjs.org/get-east-asian-width cache-miss
+356 silly fetch manifest ansi-regex@^6.2.2
+357 silly packumentCache full:https://registry.npmjs.org/ansi-regex cache-miss
+358 http fetch GET 200 https://registry.npmjs.org/is-unicode-supported 8ms (cache hit)
+359 silly packumentCache full:https://registry.npmjs.org/is-unicode-supported set size:19461 disposed:false
+360 http fetch GET 200 https://registry.npmjs.org/get-east-asian-width 219ms (cache miss)
+361 silly packumentCache full:https://registry.npmjs.org/get-east-asian-width set size:undefined disposed:false
+362 http fetch GET 200 https://registry.npmjs.org/restore-cursor 234ms (cache miss)
+363 silly packumentCache full:https://registry.npmjs.org/restore-cursor set size:undefined disposed:false
+364 http fetch GET 200 https://registry.npmjs.org/ansi-regex 231ms (cache miss)
+365 silly packumentCache full:https://registry.npmjs.org/ansi-regex set size:undefined disposed:false
+366 http fetch GET 200 https://registry.npmjs.org/emoji-regex 240ms (cache miss)
+367 silly packumentCache full:https://registry.npmjs.org/emoji-regex set size:undefined disposed:false
+368 silly placeDep node_modules/@fission-ai/openspec restore-cursor@5.1.0 OK for: cli-cursor@5.0.0 want: ^5.0.0
+369 silly fetch manifest onetime@^7.0.0
+370 silly packumentCache full:https://registry.npmjs.org/onetime cache-miss
+371 http fetch GET 200 https://registry.npmjs.org/onetime 226ms (cache miss)
+372 silly packumentCache full:https://registry.npmjs.org/onetime set size:undefined disposed:false
+373 silly placeDep node_modules/@fission-ai/openspec/node_modules/log-symbols is-unicode-supported@1.3.0 OK for: log-symbols@6.0.0 want: ^1.3.0
+374 silly placeDep node_modules/@fission-ai/openspec @posthog/core@1.10.0 OK for: posthog-node@5.21.2 want: 1.10.0
+375 silly placeDep node_modules/@fission-ai/openspec onetime@7.0.0 OK for: restore-cursor@5.1.0 want: ^7.0.0
+376 silly fetch manifest mimic-function@^5.0.0
+377 silly packumentCache full:https://registry.npmjs.org/mimic-function cache-miss
+378 http fetch GET 200 https://registry.npmjs.org/mimic-function 221ms (cache miss)
+379 silly packumentCache full:https://registry.npmjs.org/mimic-function set size:undefined disposed:false
+380 silly placeDep node_modules/@fission-ai/openspec mimic-function@5.0.1 OK for: onetime@7.0.0 want: ^5.0.0
+381 silly placeDep node_modules/@fission-ai/openspec queue-microtask@1.2.3 OK for: run-parallel@1.2.0 want: ^1.2.2
+382 silly placeDep node_modules/@fission-ai/openspec shebang-regex@3.0.0 OK for: shebang-command@2.0.0 want: ^3.0.0
+383 silly placeDep node_modules/@fission-ai/openspec emoji-regex@10.6.0 OK for: string-width@7.2.0 want: ^10.3.0
+384 silly placeDep node_modules/@fission-ai/openspec get-east-asian-width@1.6.0 OK for: string-width@7.2.0 want: ^1.0.0
+385 silly placeDep node_modules/@fission-ai/openspec ansi-regex@6.2.2 OK for: strip-ansi@7.2.0 want: ^6.2.2
+386 silly placeDep node_modules/@fission-ai/openspec is-number@7.0.0 OK for: to-regex-range@5.0.1 want: ^7.0.0
+387 silly placeDep node_modules/@fission-ai/openspec isexe@2.0.0 OK for: which@2.0.2 want: ^2.0.0
+388 silly placeDep node_modules/@fission-ai/openspec ansi-styles@4.3.0 OK for: wrap-ansi@6.2.0 want: ^4.0.0
+389 silly placeDep node_modules/@fission-ai/openspec/node_modules/wrap-ansi string-width@4.2.3 OK for: wrap-ansi@6.2.0 want: ^4.1.0
+390 silly placeDep node_modules/@fission-ai/openspec/node_modules/wrap-ansi strip-ansi@6.0.1 OK for: wrap-ansi@6.2.0 want: ^6.0.0
+391 silly fetch manifest color-convert@^2.0.1
+392 silly packumentCache full:https://registry.npmjs.org/color-convert cache-miss
+393 silly fetch manifest strip-ansi@^6.0.1
+394 silly packumentCache full:https://registry.npmjs.org/strip-ansi cache-hit
+395 silly fetch manifest emoji-regex@^8.0.0
+396 silly packumentCache full:https://registry.npmjs.org/emoji-regex cache-miss
+397 silly fetch manifest is-fullwidth-code-point@^3.0.0
+398 silly packumentCache full:https://registry.npmjs.org/is-fullwidth-code-point cache-miss
+399 silly fetch manifest ansi-regex@^5.0.1
+400 silly packumentCache full:https://registry.npmjs.org/ansi-regex cache-miss
+401 http fetch GET 200 https://registry.npmjs.org/ansi-regex 5ms (cache hit)
+402 silly packumentCache full:https://registry.npmjs.org/ansi-regex set size:43572 disposed:false
+403 http fetch GET 200 https://registry.npmjs.org/emoji-regex 6ms (cache hit)
+404 silly packumentCache full:https://registry.npmjs.org/emoji-regex set size:89064 disposed:false
+405 http fetch GET 200 https://registry.npmjs.org/color-convert 226ms (cache miss)
+406 silly packumentCache full:https://registry.npmjs.org/color-convert set size:undefined disposed:false
+407 http fetch GET 200 https://registry.npmjs.org/is-fullwidth-code-point 229ms (cache miss)
+408 silly packumentCache full:https://registry.npmjs.org/is-fullwidth-code-point set size:undefined disposed:false
+409 silly placeDep node_modules/@fission-ai/openspec color-convert@2.0.1 OK for: ansi-styles@4.3.0 want: ^2.0.1
+410 silly fetch manifest color-name@~1.1.4
+411 silly packumentCache full:https://registry.npmjs.org/color-name cache-miss
+412 http fetch GET 200 https://registry.npmjs.org/color-name 217ms (cache miss)
+413 silly packumentCache full:https://registry.npmjs.org/color-name set size:undefined disposed:false
+414 silly placeDep node_modules/@fission-ai/openspec color-name@1.1.4 OK for: color-convert@2.0.1 want: ~1.1.4
+415 silly placeDep node_modules/@fission-ai/openspec/node_modules/wrap-ansi emoji-regex@8.0.0 OK for: string-width@4.2.3 want: ^8.0.0
+416 silly placeDep node_modules/@fission-ai/openspec is-fullwidth-code-point@3.0.0 OK for: string-width@4.2.3 want: ^3.0.0
+417 silly placeDep node_modules/@fission-ai/openspec/node_modules/wrap-ansi ansi-regex@5.0.1 OK for: strip-ansi@6.0.1 want: ^5.0.1
+418 silly reify moves {}
+419 silly tarball no local data for @fission-ai/openspec@https://registry.npmjs.org/@fission-ai/openspec/-/openspec-1.4.1.tgz. Extracting by manifest.
+420 silly tarball no local data for is-fullwidth-code-point@https://registry.npmjs.org/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz. Extracting by manifest.
+421 silly tarball no local data for color-name@https://registry.npmjs.org/color-name/-/color-name-1.1.4.tgz. Extracting by manifest.
+422 silly tarball no local data for color-convert@https://registry.npmjs.org/color-convert/-/color-convert-2.0.1.tgz. Extracting by manifest.
+423 silly tarball no local data for ansi-styles@https://registry.npmjs.org/ansi-styles/-/ansi-styles-4.3.0.tgz. Extracting by manifest.
+424 silly tarball no local data for isexe@https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz. Extracting by manifest.
+425 silly tarball no local data for is-number@https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz. Extracting by manifest.
+426 silly tarball no local data for ansi-regex@https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.2.2.tgz. Extracting by manifest.
+427 silly tarball no local data for get-east-asian-width@https://registry.npmjs.org/get-east-asian-width/-/get-east-asian-width-1.6.0.tgz. Extracting by manifest.
+428 silly tarball no local data for emoji-regex@https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.6.0.tgz. Extracting by manifest.
+429 silly tarball no local data for shebang-regex@https://registry.npmjs.org/shebang-regex/-/shebang-regex-3.0.0.tgz. Extracting by manifest.
+430 silly tarball no local data for queue-microtask@https://registry.npmjs.org/queue-microtask/-/queue-microtask-1.2.3.tgz. Extracting by manifest.
+431 silly tarball no local data for mimic-function@https://registry.npmjs.org/mimic-function/-/mimic-function-5.0.1.tgz. Extracting by manifest.
+432 silly tarball no local data for onetime@https://registry.npmjs.org/onetime/-/onetime-7.0.0.tgz. Extracting by manifest.
+433 silly tarball no local data for @posthog/core@https://registry.npmjs.org/@posthog/core/-/core-1.10.0.tgz. Extracting by manifest.
+434 silly tarball no local data for strip-ansi@https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.2.0.tgz. Extracting by manifest.
+435 silly tarball no local data for string-width@https://registry.npmjs.org/string-width/-/string-width-7.2.0.tgz. Extracting by manifest.
+436 silly tarball no local data for log-symbols@https://registry.npmjs.org/log-symbols/-/log-symbols-6.0.0.tgz. Extracting by manifest.
+437 silly tarball no local data for restore-cursor@https://registry.npmjs.org/restore-cursor/-/restore-cursor-5.1.0.tgz. Extracting by manifest.
+438 silly tarball no local data for stdin-discarder@https://registry.npmjs.org/stdin-discarder/-/stdin-discarder-0.2.2.tgz. Extracting by manifest.
+439 silly tarball no local data for is-unicode-supported@https://registry.npmjs.org/is-unicode-supported/-/is-unicode-supported-1.3.0.tgz. Extracting by manifest.
+440 silly tarball no local data for is-unicode-supported@https://registry.npmjs.org/is-unicode-supported/-/is-unicode-supported-2.1.0.tgz. Extracting by manifest.
+441 silly tarball no local data for is-interactive@https://registry.npmjs.org/is-interactive/-/is-interactive-2.0.0.tgz. Extracting by manifest.
+442 silly tarball no local data for cli-spinners@https://registry.npmjs.org/cli-spinners/-/cli-spinners-2.9.2.tgz. Extracting by manifest.
+443 silly tarball no local data for cli-cursor@https://registry.npmjs.org/cli-cursor/-/cli-cursor-5.0.0.tgz. Extracting by manifest.
+444 silly tarball no local data for to-regex-range@https://registry.npmjs.org/to-regex-range/-/to-regex-range-5.0.1.tgz. Extracting by manifest.
+445 silly tarball no local data for fill-range@https://registry.npmjs.org/fill-range/-/fill-range-7.1.1.tgz. Extracting by manifest.
+446 silly tarball no local data for picomatch@https://registry.npmjs.org/picomatch/-/picomatch-2.3.2.tgz. Extracting by manifest.
+447 silly tarball no local data for braces@https://registry.npmjs.org/braces/-/braces-3.0.3.tgz. Extracting by manifest.
+448 silly tarball no local data for is-extglob@https://registry.npmjs.org/is-extglob/-/is-extglob-2.1.1.tgz. Extracting by manifest.
+449 silly tarball no local data for safer-buffer@https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz. Extracting by manifest.
+450 silly tarball no local data for is-glob@https://registry.npmjs.org/is-glob/-/is-glob-4.0.3.tgz. Extracting by manifest.
+451 silly tarball no local data for reusify@https://registry.npmjs.org/reusify/-/reusify-1.1.0.tgz. Extracting by manifest.
+452 silly tarball no local data for run-parallel@https://registry.npmjs.org/run-parallel/-/run-parallel-1.2.0.tgz. Extracting by manifest.
+453 silly tarball no local data for fastq@https://registry.npmjs.org/fastq/-/fastq-1.20.1.tgz. Extracting by manifest.
+454 silly tarball no local data for @nodelib/fs.scandir@https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz. Extracting by manifest.
+455 silly tarball no local data for micromatch@https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz. Extracting by manifest.
+456 silly tarball no local data for merge2@https://registry.npmjs.org/merge2/-/merge2-1.4.1.tgz. Extracting by manifest.
+457 silly tarball no local data for glob-parent@https://registry.npmjs.org/glob-parent/-/glob-parent-5.1.2.tgz. Extracting by manifest.
+458 silly tarball no local data for which@https://registry.npmjs.org/which/-/which-2.0.2.tgz. Extracting by manifest.
+459 silly tarball no local data for shebang-command@https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz. Extracting by manifest.
+460 silly tarball no local data for @nodelib/fs.stat@https://registry.npmjs.org/@nodelib/fs.stat/-/fs.stat-2.0.5.tgz. Extracting by manifest.
+461 silly tarball no local data for path-key@https://registry.npmjs.org/path-key/-/path-key-3.1.1.tgz. Extracting by manifest.
+462 silly tarball no local data for iconv-lite@https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.2.tgz. Extracting by manifest.
+463 silly tarball no local data for chardet@https://registry.npmjs.org/chardet/-/chardet-2.1.1.tgz. Extracting by manifest.
+464 silly tarball no local data for @inquirer/select@https://registry.npmjs.org/@inquirer/select/-/select-4.4.2.tgz. Extracting by manifest.
+465 silly tarball no local data for @inquirer/external-editor@https://registry.npmjs.org/@inquirer/external-editor/-/external-editor-1.0.3.tgz. Extracting by manifest.
+466 silly tarball no local data for @inquirer/search@https://registry.npmjs.org/@inquirer/search/-/search-3.2.2.tgz. Extracting by manifest.
+467 silly tarball no local data for @inquirer/rawlist@https://registry.npmjs.org/@inquirer/rawlist/-/rawlist-4.1.11.tgz. Extracting by manifest.
+468 silly tarball no local data for @inquirer/password@https://registry.npmjs.org/@inquirer/password/-/password-4.0.23.tgz. Extracting by manifest.
+469 silly tarball no local data for @inquirer/number@https://registry.npmjs.org/@inquirer/number/-/number-3.0.23.tgz. Extracting by manifest.
+470 silly tarball no local data for @inquirer/input@https://registry.npmjs.org/@inquirer/input/-/input-4.3.1.tgz. Extracting by manifest.
+471 silly tarball no local data for @inquirer/expand@https://registry.npmjs.org/@inquirer/expand/-/expand-4.0.23.tgz. Extracting by manifest.
+472 silly tarball no local data for @inquirer/editor@https://registry.npmjs.org/@inquirer/editor/-/editor-4.2.23.tgz. Extracting by manifest.
+473 silly tarball no local data for @inquirer/confirm@https://registry.npmjs.org/@inquirer/confirm/-/confirm-5.1.21.tgz. Extracting by manifest.
+474 silly tarball no local data for @inquirer/checkbox@https://registry.npmjs.org/@inquirer/checkbox/-/checkbox-4.3.2.tgz. Extracting by manifest.
+475 silly tarball no local data for yoctocolors-cjs@https://registry.npmjs.org/yoctocolors-cjs/-/yoctocolors-cjs-2.1.3.tgz. Extracting by manifest.
+476 silly tarball no local data for @nodelib/fs.walk@https://registry.npmjs.org/@nodelib/fs.walk/-/fs.walk-1.2.8.tgz. Extracting by manifest.
+477 silly tarball no local data for wrap-ansi@https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-6.2.0.tgz. Extracting by manifest.
+478 silly tarball no local data for ansi-regex@https://registry.npmjs.org/ansi-regex/-/ansi-regex-5.0.1.tgz. Extracting by manifest.
+479 silly tarball no local data for emoji-regex@https://registry.npmjs.org/emoji-regex/-/emoji-regex-8.0.0.tgz. Extracting by manifest.
+480 silly tarball no local data for strip-ansi@https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz. Extracting by manifest.
+481 silly tarball no local data for string-width@https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz. Extracting by manifest.
+482 silly tarball no local data for signal-exit@https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz. Extracting by manifest.
+483 silly tarball no local data for mute-stream@https://registry.npmjs.org/mute-stream/-/mute-stream-2.0.0.tgz. Extracting by manifest.
+484 silly tarball no local data for cli-width@https://registry.npmjs.org/cli-width/-/cli-width-4.1.0.tgz. Extracting by manifest.
+485 silly tarball no local data for @inquirer/type@https://registry.npmjs.org/@inquirer/type/-/type-3.0.10.tgz. Extracting by manifest.
+486 silly tarball no local data for @inquirer/figures@https://registry.npmjs.org/@inquirer/figures/-/figures-1.0.15.tgz. Extracting by manifest.
+487 silly tarball no local data for @inquirer/ansi@https://registry.npmjs.org/@inquirer/ansi/-/ansi-1.0.2.tgz. Extracting by manifest.
+488 silly tarball no local data for zod@https://registry.npmjs.org/zod/-/zod-4.4.3.tgz. Extracting by manifest.
+489 silly tarball no local data for yaml@https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz. Extracting by manifest.
+490 silly tarball no local data for posthog-node@https://registry.npmjs.org/posthog-node/-/posthog-node-5.21.2.tgz. Extracting by manifest.
+491 silly tarball no local data for ora@https://registry.npmjs.org/ora/-/ora-8.2.0.tgz. Extracting by manifest.
+492 silly tarball no local data for fast-glob@https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.3.tgz. Extracting by manifest.
+493 silly tarball no local data for cross-spawn@https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz. Extracting by manifest.
+494 silly tarball no local data for commander@https://registry.npmjs.org/commander/-/commander-14.0.3.tgz. Extracting by manifest.
+495 silly tarball no local data for chalk@https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz. Extracting by manifest.
+496 silly tarball no local data for @inquirer/prompts@https://registry.npmjs.org/@inquirer/prompts/-/prompts-7.10.1.tgz. Extracting by manifest.
+497 silly tarball no local data for @inquirer/core@https://registry.npmjs.org/@inquirer/core/-/core-10.3.2.tgz. Extracting by manifest.
+498 http fetch GET 200 https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz 319ms (cache miss)
+499 http fetch GET 200 https://registry.npmjs.org/emoji-regex/-/emoji-regex-10.6.0.tgz 320ms (cache miss)
+500 http fetch GET 200 https://registry.npmjs.org/mimic-function/-/mimic-function-5.0.1.tgz 323ms (cache miss)
+501 http fetch GET 200 https://registry.npmjs.org/color-convert/-/color-convert-2.0.1.tgz 327ms (cache miss)
+502 http fetch GET 200 https://registry.npmjs.org/ansi-styles/-/ansi-styles-4.3.0.tgz 327ms (cache miss)
+503 http fetch GET 200 https://registry.npmjs.org/color-name/-/color-name-1.1.4.tgz 329ms (cache miss)
+504 http fetch GET 200 https://registry.npmjs.org/isexe/-/isexe-2.0.0.tgz 327ms (cache miss)
+505 http fetch GET 200 https://registry.npmjs.org/ansi-regex/-/ansi-regex-6.2.2.tgz 327ms (cache miss)
+506 http fetch GET 200 https://registry.npmjs.org/shebang-regex/-/shebang-regex-3.0.0.tgz 326ms (cache miss)
+507 http fetch GET 200 https://registry.npmjs.org/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz 330ms (cache miss)
+508 http fetch GET 200 https://registry.npmjs.org/onetime/-/onetime-7.0.0.tgz 325ms (cache miss)
+509 http fetch GET 200 https://registry.npmjs.org/queue-microtask/-/queue-microtask-1.2.3.tgz 326ms (cache miss)
+510 http fetch GET 200 https://registry.npmjs.org/get-east-asian-width/-/get-east-asian-width-1.6.0.tgz 329ms (cache miss)
+511 http fetch GET 200 https://registry.npmjs.org/strip-ansi/-/strip-ansi-7.2.0.tgz 459ms (cache miss)
+512 http fetch GET 200 https://registry.npmjs.org/string-width/-/string-width-7.2.0.tgz 468ms (cache miss)
+513 http fetch GET 200 https://registry.npmjs.org/restore-cursor/-/restore-cursor-5.1.0.tgz 479ms (cache miss)
+514 http fetch GET 200 https://registry.npmjs.org/log-symbols/-/log-symbols-6.0.0.tgz 487ms (cache miss)
+515 http fetch GET 200 https://registry.npmjs.org/stdin-discarder/-/stdin-discarder-0.2.2.tgz 507ms (cache miss)
+516 http fetch GET 200 https://registry.npmjs.org/is-unicode-supported/-/is-unicode-supported-1.3.0.tgz 510ms (cache miss)
+517 http fetch GET 200 https://registry.npmjs.org/is-interactive/-/is-interactive-2.0.0.tgz 516ms (cache miss)
+518 http fetch GET 200 https://registry.npmjs.org/cli-spinners/-/cli-spinners-2.9.2.tgz 515ms (cache miss)
+519 http fetch GET 200 https://registry.npmjs.org/fill-range/-/fill-range-7.1.1.tgz 515ms (cache miss)
+520 http fetch GET 200 https://registry.npmjs.org/cli-cursor/-/cli-cursor-5.0.0.tgz 516ms (cache miss)
+521 http fetch GET 200 https://registry.npmjs.org/is-unicode-supported/-/is-unicode-supported-2.1.0.tgz 519ms (cache miss)
+522 http fetch GET 200 https://registry.npmjs.org/to-regex-range/-/to-regex-range-5.0.1.tgz 517ms (cache miss)
+523 http fetch GET 200 https://registry.npmjs.org/@posthog/core/-/core-1.10.0.tgz 526ms (cache miss)
+524 http fetch GET 200 https://registry.npmjs.org/picomatch/-/picomatch-2.3.2.tgz 521ms (cache miss)
+525 http fetch GET 200 https://registry.npmjs.org/braces/-/braces-3.0.3.tgz 663ms (cache miss)
+526 http fetch GET 200 https://registry.npmjs.org/is-extglob/-/is-extglob-2.1.1.tgz 667ms (cache miss)
+527 http fetch GET 200 https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz 686ms (cache miss)
+528 http fetch GET 200 https://registry.npmjs.org/is-glob/-/is-glob-4.0.3.tgz 686ms (cache miss)
+529 http fetch GET 200 https://registry.npmjs.org/reusify/-/reusify-1.1.0.tgz 702ms (cache miss)
+530 http fetch GET 200 https://registry.npmjs.org/run-parallel/-/run-parallel-1.2.0.tgz 703ms (cache miss)
+531 http fetch GET 200 https://registry.npmjs.org/fastq/-/fastq-1.20.1.tgz 705ms (cache miss)
+532 http fetch GET 200 https://registry.npmjs.org/merge2/-/merge2-1.4.1.tgz 704ms (cache miss)
+533 http fetch GET 200 https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz 719ms (cache miss)
+534 http fetch GET 200 https://registry.npmjs.org/glob-parent/-/glob-parent-5.1.2.tgz 722ms (cache miss)
+535 http fetch GET 200 https://registry.npmjs.org/which/-/which-2.0.2.tgz 723ms (cache miss)
+536 http fetch GET 200 https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz 728ms (cache miss)
+537 http fetch GET 200 https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz 741ms (cache miss)
+538 http fetch GET 200 https://registry.npmjs.org/@nodelib/fs.stat/-/fs.stat-2.0.5.tgz 749ms (cache miss)
+539 http fetch GET 200 https://registry.npmjs.org/@fission-ai/openspec/-/openspec-1.4.1.tgz 800ms (cache miss)
+540 http fetch GET 200 https://registry.npmjs.org/path-key/-/path-key-3.1.1.tgz 865ms (cache miss)
+541 http fetch GET 200 https://registry.npmjs.org/@inquirer/select/-/select-4.4.2.tgz 912ms (cache miss)
+542 http fetch GET 200 https://registry.npmjs.org/@inquirer/external-editor/-/external-editor-1.0.3.tgz 920ms (cache miss)
+543 http fetch GET 200 https://registry.npmjs.org/chardet/-/chardet-2.1.1.tgz 921ms (cache miss)
+544 http fetch GET 200 https://registry.npmjs.org/@inquirer/rawlist/-/rawlist-4.1.11.tgz 937ms (cache miss)
+545 http fetch GET 200 https://registry.npmjs.org/@inquirer/search/-/search-3.2.2.tgz 939ms (cache miss)
+546 http fetch GET 200 https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.7.2.tgz 941ms (cache miss)
+547 http fetch GET 200 https://registry.npmjs.org/@inquirer/password/-/password-4.0.23.tgz 947ms (cache miss)
+548 http fetch GET 200 https://registry.npmjs.org/@inquirer/input/-/input-4.3.1.tgz 953ms (cache miss)
+549 http fetch GET 200 https://registry.npmjs.org/@inquirer/expand/-/expand-4.0.23.tgz 955ms (cache miss)
+550 http fetch GET 200 https://registry.npmjs.org/@inquirer/confirm/-/confirm-5.1.21.tgz 962ms (cache miss)
+551 http fetch GET 200 https://registry.npmjs.org/@inquirer/number/-/number-3.0.23.tgz 965ms (cache miss)
+552 http fetch GET 200 https://registry.npmjs.org/yoctocolors-cjs/-/yoctocolors-cjs-2.1.3.tgz 967ms (cache miss)
+553 http fetch GET 200 https://registry.npmjs.org/@inquirer/checkbox/-/checkbox-4.3.2.tgz 972ms (cache miss)
+554 http fetch GET 200 https://registry.npmjs.org/@inquirer/editor/-/editor-4.2.23.tgz 973ms (cache miss)
+555 http fetch GET 200 https://registry.npmjs.org/@nodelib/fs.walk/-/fs.walk-1.2.8.tgz 1085ms (cache miss)
+556 http fetch GET 200 https://registry.npmjs.org/wrap-ansi/-/wrap-ansi-6.2.0.tgz 1112ms (cache miss)
+557 http fetch GET 200 https://registry.npmjs.org/ansi-regex/-/ansi-regex-5.0.1.tgz 1120ms (cache miss)
+558 http fetch GET 200 https://registry.npmjs.org/strip-ansi/-/strip-ansi-6.0.1.tgz 1131ms (cache miss)
+559 http fetch GET 200 https://registry.npmjs.org/emoji-regex/-/emoji-regex-8.0.0.tgz 1133ms (cache miss)
+560 http fetch GET 200 https://registry.npmjs.org/signal-exit/-/signal-exit-4.1.0.tgz 1144ms (cache miss)
+561 http fetch GET 200 https://registry.npmjs.org/string-width/-/string-width-4.2.3.tgz 1150ms (cache miss)
+562 http fetch GET 200 https://registry.npmjs.org/mute-stream/-/mute-stream-2.0.0.tgz 1154ms (cache miss)
+563 http fetch GET 200 https://registry.npmjs.org/cli-width/-/cli-width-4.1.0.tgz 1155ms (cache miss)
+564 http fetch GET 200 https://registry.npmjs.org/@inquirer/type/-/type-3.0.10.tgz 1177ms (cache miss)
+565 http fetch GET 200 https://registry.npmjs.org/@inquirer/figures/-/figures-1.0.15.tgz 1189ms (cache miss)
+566 http fetch GET 200 https://registry.npmjs.org/@inquirer/ansi/-/ansi-1.0.2.tgz 1197ms (cache miss)
+567 http fetch GET 200 https://registry.npmjs.org/posthog-node/-/posthog-node-5.21.2.tgz 1255ms (cache miss)
+568 http fetch GET 200 https://registry.npmjs.org/ora/-/ora-8.2.0.tgz 1288ms (cache miss)
+569 http fetch GET 200 https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz 1305ms (cache miss)
+570 http fetch GET 200 https://registry.npmjs.org/cross-spawn/-/cross-spawn-7.0.6.tgz 1335ms (cache miss)
+571 http fetch GET 200 https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz 1344ms (cache miss)
+572 http fetch GET 200 https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.3.tgz 1349ms (cache miss)
+573 http fetch GET 200 https://registry.npmjs.org/commander/-/commander-14.0.3.tgz 1348ms (cache miss)
+574 http fetch GET 200 https://registry.npmjs.org/@inquirer/prompts/-/prompts-7.10.1.tgz 1363ms (cache miss)
+575 http fetch GET 200 https://registry.npmjs.org/@inquirer/core/-/core-10.3.2.tgz 1418ms (cache miss)
+576 http fetch GET 200 https://registry.npmjs.org/zod/-/zod-4.4.3.tgz 1803ms (cache miss)
+577 info run @fission-ai/openspec@1.4.1 postinstall node_modules/@fission-ai/openspec node scripts/postinstall.js
+578 info run @fission-ai/openspec@1.4.1 postinstall { code: 0, signal: null }
+579 silly ADD node_modules/@fission-ai/openspec
+580 silly ADD node_modules/@fission-ai/openspec/node_modules/is-fullwidth-code-point
+581 silly ADD node_modules/@fission-ai/openspec/node_modules/color-name
+582 silly ADD node_modules/@fission-ai/openspec/node_modules/color-convert
+583 silly ADD node_modules/@fission-ai/openspec/node_modules/ansi-styles
+584 silly ADD node_modules/@fission-ai/openspec/node_modules/isexe
+585 silly ADD node_modules/@fission-ai/openspec/node_modules/is-number
+586 silly ADD node_modules/@fission-ai/openspec/node_modules/ansi-regex
+587 silly ADD node_modules/@fission-ai/openspec/node_modules/get-east-asian-width
+588 silly ADD node_modules/@fission-ai/openspec/node_modules/emoji-regex
+589 silly ADD node_modules/@fission-ai/openspec/node_modules/shebang-regex
+590 silly ADD node_modules/@fission-ai/openspec/node_modules/queue-microtask
+591 silly ADD node_modules/@fission-ai/openspec/node_modules/mimic-function
+592 silly ADD node_modules/@fission-ai/openspec/node_modules/onetime
+593 silly ADD node_modules/@fission-ai/openspec/node_modules/@posthog/core
+594 silly ADD node_modules/@fission-ai/openspec/node_modules/restore-cursor
+595 silly ADD node_modules/@fission-ai/openspec/node_modules/strip-ansi
+596 silly ADD node_modules/@fission-ai/openspec/node_modules/string-width
+597 silly ADD node_modules/@fission-ai/openspec/node_modules/stdin-discarder
+598 silly ADD node_modules/@fission-ai/openspec/node_modules/log-symbols
+599 silly ADD node_modules/@fission-ai/openspec/node_modules/log-symbols/node_modules/is-unicode-supported
+600 silly ADD node_modules/@fission-ai/openspec/node_modules/is-unicode-supported
+601 silly ADD node_modules/@fission-ai/openspec/node_modules/is-interactive
+602 silly ADD node_modules/@fission-ai/openspec/node_modules/cli-spinners
+603 silly ADD node_modules/@fission-ai/openspec/node_modules/cli-cursor
+604 silly ADD node_modules/@fission-ai/openspec/node_modules/to-regex-range
+605 silly ADD node_modules/@fission-ai/openspec/node_modules/fill-range
+606 silly ADD node_modules/@fission-ai/openspec/node_modules/picomatch
+607 silly ADD node_modules/@fission-ai/openspec/node_modules/braces
+608 silly ADD node_modules/@fission-ai/openspec/node_modules/is-extglob
+609 silly ADD node_modules/@fission-ai/openspec/node_modules/safer-buffer
+610 silly ADD node_modules/@fission-ai/openspec/node_modules/is-glob
+611 silly ADD node_modules/@fission-ai/openspec/node_modules/reusify
+612 silly ADD node_modules/@fission-ai/openspec/node_modules/run-parallel
+613 silly ADD node_modules/@fission-ai/openspec/node_modules/fastq
+614 silly ADD node_modules/@fission-ai/openspec/node_modules/@nodelib/fs.scandir
+615 silly ADD node_modules/@fission-ai/openspec/node_modules/micromatch
+616 silly ADD node_modules/@fission-ai/openspec/node_modules/merge2
+617 silly ADD node_modules/@fission-ai/openspec/node_modules/glob-parent
+618 silly ADD node_modules/@fission-ai/openspec/node_modules/@nodelib/fs.walk
+619 silly ADD node_modules/@fission-ai/openspec/node_modules/@nodelib/fs.stat
+620 silly ADD node_modules/@fission-ai/openspec/node_modules/which
+621 silly ADD node_modules/@fission-ai/openspec/node_modules/shebang-command
+622 silly ADD node_modules/@fission-ai/openspec/node_modules/path-key
+623 silly ADD node_modules/@fission-ai/openspec/node_modules/iconv-lite
+624 silly ADD node_modules/@fission-ai/openspec/node_modules/chardet
+625 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/external-editor
+626 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/select
+627 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/search
+628 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/rawlist
+629 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/password
+630 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/number
+631 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/input
+632 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/expand
+633 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/editor
+634 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/confirm
+635 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/checkbox
+636 silly ADD node_modules/@fission-ai/openspec/node_modules/yoctocolors-cjs
+637 silly ADD node_modules/@fission-ai/openspec/node_modules/wrap-ansi
+638 silly ADD node_modules/@fission-ai/openspec/node_modules/wrap-ansi/node_modules/ansi-regex
+639 silly ADD node_modules/@fission-ai/openspec/node_modules/wrap-ansi/node_modules/emoji-regex
+640 silly ADD node_modules/@fission-ai/openspec/node_modules/wrap-ansi/node_modules/strip-ansi
+641 silly ADD node_modules/@fission-ai/openspec/node_modules/wrap-ansi/node_modules/string-width
+642 silly ADD node_modules/@fission-ai/openspec/node_modules/signal-exit
+643 silly ADD node_modules/@fission-ai/openspec/node_modules/mute-stream
+644 silly ADD node_modules/@fission-ai/openspec/node_modules/cli-width
+645 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/type
+646 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/figures
+647 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/ansi
+648 silly ADD node_modules/@fission-ai/openspec/node_modules/zod
+649 silly ADD node_modules/@fission-ai/openspec/node_modules/yaml
+650 silly ADD node_modules/@fission-ai/openspec/node_modules/posthog-node
+651 silly ADD node_modules/@fission-ai/openspec/node_modules/ora
+652 silly ADD node_modules/@fission-ai/openspec/node_modules/fast-glob
+653 silly ADD node_modules/@fission-ai/openspec/node_modules/cross-spawn
+654 silly ADD node_modules/@fission-ai/openspec/node_modules/commander
+655 silly ADD node_modules/@fission-ai/openspec/node_modules/chalk
+656 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/prompts
+657 silly ADD node_modules/@fission-ai/openspec/node_modules/@inquirer/core
+658 verbose cwd /home/crx/code/hccl_three_sequence_rs/hccl_2039
+659 verbose os Linux 6.6.114.1-microsoft-standard-WSL2
+660 verbose node v20.19.0
+661 verbose npm  v10.8.2
+662 notice
+662 notice New [31mmajor[39m version of npm available! [31m10.8.2[39m -> [34m11.16.0[39m
+662 notice Changelog: [34mhttps://github.com/npm/cli/releases/tag/v11.16.0[39m
+662 notice To update run: [4mnpm install -g npm@11.16.0[24m
+662 notice  { force: true, [Symbol(proc-log.meta)]: true }
+663 verbose exit 0
+664 info ok

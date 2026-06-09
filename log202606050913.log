@@ -1,0 +1,316 @@
+st_build_shell = /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/build.sh
+开始执行st...
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Final Ascend Path: /home/crx/toolkit/cann-9.1.0/x86_64-linux
+-- [ST] Detected CANN_VERSION_NUM = 90100000
+-- [ThirdParty] GTEST_INSTALL_PATH=/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/../../../third_party/gtest
+-- Found gtest: /home/crx/code/hccl_three_sequence_rs/hccl_2039/third_party/gtest/include  
+-- [ThirdParty] Found GTest: TRUE
+-- [ThirdParty] GTest found in /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/../../../third_party/gtest, and not force rebuild cann third_party
+-- utils path= /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/utils/src
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/build
+[  0%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/acl_rt.dir/hccl_depends_stub.cc.o
+[  1%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/unified_dlog.dir/hccl_depends_stub.cc.o
+[  0%] Building CXX object utils/src/hccl_depends_stub/CMakeFiles/hcomm.dir/hccl_depends_stub.cc.o
+[  1%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/mem_conflict_check/check_rank_mem.cc.o
+[  2%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/mem_conflict_check/task_graph_revamp.cc.o
+[  2%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/checker.cc.o
+[  3%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/hccl_verifier.cc.o
+[  3%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/utils.cc.o
+[  4%] Linking CXX shared library libacl_rt.so
+[  5%] Linking CXX shared library libhcomm.so
+[  6%] Linking CXX shared library libunified_dlog.so
+[  6%] Built target acl_rt
+[  6%] Built target unified_dlog
+[  6%] Built target hcomm
+[  8%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/config_log.cc.o
+[  8%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/task_check_op_semantics.cc.o
+[  9%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/sal.cc.o
+[  9%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/log.cc.o
+[ 10%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/adapter_error_manager_pub.cc.o
+[ 10%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allgather_semantics_checker.cc.o
+[ 11%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allgather_v_semantics_checker.cc.o
+[ 11%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/allreduce_semantics_checker.cc.o
+[ 11%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/alg_env_config.cc.o
+[ 12%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_scatter_v_semantics_checker.cc.o
+[ 13%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_scatter_semantics_checker.cc.o
+[ 13%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/all2all_semantics_checker.cc.o
+[ 14%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/all2allv_semantics_checker.cc.o
+[ 15%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/broadcast_semantics_checker.cc.o
+[ 15%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/reduce_semantics_checker.cc.o
+[ 16%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/send_recv_semantics_checker.cc.o
+[ 16%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/scatter_semantics_checker.cc.o
+[ 17%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/semantics_check/batchsendrecv_semantics_checker.cc.o
+[ 18%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/singletask_check/singletask_check.cc.o
+[ 18%] Building CXX object utils/src/hccl_verifier/CMakeFiles/hccl-verifier.dir/task_graph_generator/task_graph_generator.cc.o
+[ 19%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/common/hcomm_dlsym/hcomm_primitives_dl.cc.o
+[ 20%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/exec_timeout_manager.cc.o
+[ 20%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/channel/channel.cc.o
+[ 21%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/channel/channel_request.cc.o
+[ 22%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/registry/coll_alg_exec_registry.cc.o
+[ 22%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/registry/coll_alg_v2_exec_registry.cc.o
+[ 23%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/executor_base.cc.o
+[ 23%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/executor/executor_v2_base.cc.o
+[ 24%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/alg_template_base.cc.o
+[ 25%] Linking CXX shared library libhccl-verifier.so
+[ 26%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/alg_v2_template_base.cc.o
+[ 26%] Built target hccl-verifier
+[ 26%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/template_utils.cc.o
+[ 27%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/aicpu/kernel_launch.cc.o
+[ 28%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/aicpu/dfx/task_exception_fun.cc.o
+[ 28%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/registry/alg_template_register.cc.o
+[ 29%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/registry/alg_v2_template_register.cc.o
+[ 29%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/wrapper/alg_data_trans_wrapper.cc.o
+[ 30%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/template/wrapper/dpu_alg_data_trans_wrapper.cc.o
+[ 31%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo.cc.o
+[ 31%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_1d.cc.o
+[ 32%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_base.cc.o
+[ 32%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_multilevel.cc.o
+[ 33%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_ubx.cc.o
+[ 34%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/op_common/topo/topo_match_pcie_mix.cc.o
+[ 34%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_comm_executor.cc.o
+[ 35%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_executor_base.cc.o
+[ 36%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_mesh_executor.cc.o
+[ 36%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_ring_executor.cc.o
+[ 37%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/scatter_single_executor.cc.o
+[ 37%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/nhr_base.cc.o
+[ 38%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_mesh.cc.o
+[ 39%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_nb.cc.o
+[ 39%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_nhr.cc.o
+[ 40%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_ring_direct.cc.o
+[ 40%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/algo/template/scatter_ring.cc.o
+[ 41%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/executor/ins_v2_scatter_sole_executor.cc.o
+[ 42%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/executor/ins_v2_scatter_parallel_executor.cc.o
+[ 42%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/template/aicpu/ins_temp_scatter_mesh_1D.cc.o
+[ 43%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/scatter/template/aicpu/ins_temp_scatter_nhr.cc.o
+[ 44%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sole_executor.cc.o
+[ 44%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_reduce_scatter_parallel_executor.cc.o
+[ 45%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor.cc.o
+[ 45%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_aicpu.cc.o
+[ 46%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_3level.cc.o
+[ 47%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D.cc.o
+[ 47%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_nhr.cc.o
+[ 48%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D_meshchunk.cc.o
+[ 48%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D_Z_axis_detour.cc.o
+[ 49%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1d_dpu.cc.o
+[ 50%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sole_executor.cc.o
+[ 50%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_parallel_executor.cc.o
+[ 51%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sequence_executor_aicpu.cc.o
+[ 52%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D.cc.o
+[ 52%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr.cc.o
+[ 53%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D_Z_axis_detour.cc.o
+[ 53%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/executor/ins_v2_all_gather_sequence_executor.cc.o
+[ 54%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr_dpu.cc.o
+[ 55%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_gather_mesh_1D_intra.cc.o
+[ 55%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_gather_nhr_dpu_inter.cc.o
+[ 56%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_reduce_scatter_mesh_1D_dpu_inter.cc.o
+[ 57%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_reduce_scatter_mesh_1D_intra.cc.o
+[ 57%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather_v/executor/ins_v2_all_gather_v_sole_executor.cc.o
+[ 58%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_gather_v/template/aicpu/ins_temp_all_gather_v_mesh_1D.cc.o
+[ 58%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/executor/ins_v2_all_to_all_v_sole_executor.cc.o
+[ 59%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/template/aicpu/ins_temp_all_to_all_v_mesh_1D.cc.o
+[ 60%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_to_all_v/template/aicpu/ins_temp_dpu_alltoall_mesh.cc.o
+[ 60%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/executor/ins_v2_send_sole_executor.cc.o
+[ 61%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/executor/ins_send_executor.cc.o
+[ 61%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/send/template/ins_temp_send_dpu.cc.o
+[ 62%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/executor/ins_v2_recv_sole_executor.cc.o
+[ 63%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/executor/ins_recv_executor.cc.o
+[ 63%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/recv/template/ins_temp_recv_dpu.cc.o
+[ 64%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sole_executor.cc.o
+[ 65%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_parallel_executor.cc.o
+[ 65%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sequence_executor.cc.o
+[ 66%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_sequence_executor_aicpu.cc.o
+[ 66%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/executor/ins_v2_all_reduce_two_shot_sole_executor.cc.o
+[ 67%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_one_shot.cc.o
+[ 68%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_two_shot.cc.o
+[ 68%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_nhr.cc.o
+[ 69%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_aicpu_reduce_nhr.cc.o
+[ 69%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/all_reduce/template/aicpu/ins_temp_all_reduce_mesh_1D_two_shot_mesh_chunk.cc.o
+[ 70%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/executor/ins_v2_broadcast_sole_executor.cc.o
+[ 71%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/executor/ins_v2_broadcast_parallel_executor.cc.o
+[ 71%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/template/aicpu/ins_temp_broadcast_mesh_1D_two_shot.cc.o
+[ 72%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/broadcast/template/aicpu/ins_temp_broadcast_nhr.cc.o
+[ 73%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/batch_send_recv/executor/ins_v2_batch_send_recv_executor.cc.o
+[ 73%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/executor/reduce_sole_executor.cc.o
+[ 74%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/executor/reduce_parallel_executor.cc.o
+[ 74%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_mesh_1D.cc.o
+[ 75%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_nhr.cc.o
+[ 76%] Building CXX object utils/src/aicpu/CMakeFiles/scatter_aicpu_kernel.dir/home/crx/code/hccl_three_sequence_rs/hccl_2039/src/ops/reduce/template/aicpu/reduce_aicpu_reduce_nhr.cc.o
+[ 76%] Linking CXX shared library libscatter_aicpu_kernel.so
+[ 76%] Built target scatter_aicpu_kernel
+[ 77%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/comm_domain.cc.o
+[ 78%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_world.cc.o
+[ 78%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_npu.cc.o
+[ 79%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hcclinner_stub.cc.o
+[ 79%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_task_queue.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/sim_world/sim_task.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hccl_stub.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/aclrt_stub.cc.o
+[ 81%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/log_stub.cc.o
+[ 82%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/error_manager_stub.cc.o
+[ 83%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hcomm_ccu_stub.cc.o
+[ 83%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/hccl_profiling_dfx_stub.cc.o
+[ 84%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_communicator.cc.o
+[ 84%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_thread_manager.cc.o
+[ 85%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_thread.cc.o
+[ 86%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel.cc.o
+[ 86%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel_manager.cc.o
+[ 87%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_channel_exchange_handler.cc.o
+[ 87%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/communicator/sim_context_manager.cc.o
+[ 88%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/hccl_proxy/topo_model/topo_model.cc.o
+[ 89%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/exception/exception_defination.cc.o
+[ 89%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/exception/hccl_exception.cc.o
+[ 90%] Building CXX object utils/src/CMakeFiles/hccl-model-proxy.dir/common/utils/check_utils.cc.o
+[ 91%] Linking CXX shared library libhccl-model-proxy.so
+[ 91%] Built target hccl-model-proxy
+[ 92%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/main.cc.o
+[ 93%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_reduce_testcase.cc.o
+[ 93%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_reduce_parallel_testcase.cc.o
+[ 94%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_dpu_testcase.cc.o
+[ 94%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/scatter_testcase.cc.o
+[ 95%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_aicpu_testcase.cc.o
+[ 96%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_aicpu_testcase.cc.o
+[ 96%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/all_gather_v_testcase.cc.o
+[ 96%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_v_testcase.cc.o
+[ 97%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/reduce_scatter_3level_testcase.cc.o
+[ 98%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoall_testcase.cc.o
+[ 98%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoallv_testcase.cc.o
+[ 99%] Building CXX object testcase/CMakeFiles/hccl_checker_ops_stest.dir/alltoallvc_testcase.cc.o
+[100%] Linking CXX executable hccl_checker_ops_stest
+[100%] Built target hccl_checker_ops_stest
+[2026-06-05 09:13:44.938019][pid:12835][INFO][alg_template_register.cc:36] [12835][AlgTemplateRegistry]template type[0] already registered.
+[2026-06-05 09:13:44.938099][pid:12835][INFO][alg_template_register.cc:36] [12835][AlgTemplateRegistry]template type[2] already registered.
+[2026-06-05 09:13:44.938122][pid:12835][INFO][alg_template_register.cc:36] [12835][AlgTemplateRegistry]template type[3] already registered.
+[2026-06-05 09:13:44.938143][pid:12835][INFO][alg_template_register.cc:36] [12835][AlgTemplateRegistry]template type[4] already registered.
+[2026-06-05 09:13:44.938165][pid:12835][INFO][alg_template_register.cc:36] [12835][AlgTemplateRegistry]template type[1] already registered.
+[2026-06-05 09:13:44.938274][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsScatterMesh1D] already registered.
+[2026-06-05 09:13:44.938281][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsScatterNHR] already registered.
+[2026-06-05 09:13:44.938310][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHR] already registered.
+[2026-06-05 09:13:44.938315][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.938319][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsScatterParallelMesh1DNHRUBX] already registered.
+[2026-06-05 09:13:44.939299][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1D] already registered.
+[2026-06-05 09:13:44.939311][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1DMeshChunk] already registered.
+[2026-06-05 09:13:44.939315][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterNHR] already registered.
+[2026-06-05 09:13:44.939319][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterAicpuReduceNHR] already registered.
+[2026-06-05 09:13:44.939322][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterMesh1DZAxisDetour] already registered.
+[2026-06-05 09:13:44.939357][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHR] already registered.
+[2026-06-05 09:13:44.939362][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHRUBX] already registered.
+[2026-06-05 09:13:44.939366][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.939392][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMesh1DNhr] already registered.
+[2026-06-05 09:13:44.939418][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMesh1DNHRNHR] already registered.
+[2026-06-05 09:13:44.939447][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsReduceScatterSequenceMeshMeshDPU] already registered.
+[2026-06-05 09:13:44.939980][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherMesh1D] already registered.
+[2026-06-05 09:13:44.939990][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherMesh1D1DZAxisDetour] already registered.
+[2026-06-05 09:13:44.939994][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherNHR] already registered.
+[2026-06-05 09:13:44.940031][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHR] already registered.
+[2026-06-05 09:13:44.940036][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHRMultiJetty] already registered.
+[2026-06-05 09:13:44.940134][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.940181][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherSequenceNHRMesh1D] already registered.
+[2026-06-05 09:13:44.940213][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherMeshNhrDPU] already registered.
+[2026-06-05 09:13:44.940356][pid:12835][INFO][alg_v2_template_register.cc:25] [12835][InsAlgTemplateRegistry]template name[InsTempAllGatherNHRDPU] already registered.
+[2026-06-05 09:13:44.940623][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1D] already registered.
+[2026-06-05 09:13:44.940630][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DSingleChannel] already registered.
+[2026-06-05 09:13:44.940633][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1D] already registered.
+[2026-06-05 09:13:44.940635][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DUBX] already registered.
+[2026-06-05 09:13:44.940638][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1DUBX] already registered.
+[2026-06-05 09:13:44.940640][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCMesh1D] already registered.
+[2026-06-05 09:13:44.940643][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940645][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940647][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940650][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllClosMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940652][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVClosMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940655][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAlltoAllVCClosMesh1DDPU] already registered.
+[2026-06-05 09:13:44.940843][pid:12835][INFO][alg_v2_template_register.cc:25] [12835][InsAlgTemplateRegistry]template name[InsTempDpuAlltoAllMesh] already registered.
+[2026-06-05 09:13:44.941114][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBroadcastMesh1DTwoShot] already registered.
+[2026-06-05 09:13:44.941121][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBroadcastNHR] already registered.
+[2026-06-05 09:13:44.941145][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHR] already registered.
+[2026-06-05 09:13:44.941149][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHRUBX] already registered.
+[2026-06-05 09:13:44.941152][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBroadcastParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.941409][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DOneShot] already registered.
+[2026-06-05 09:13:44.941415][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShot] already registered.
+[2026-06-05 09:13:44.941419][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceNHR] already registered.
+[2026-06-05 09:13:44.941482][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShotMeshChunk] already registered.
+[2026-06-05 09:13:44.941489][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceAicpuReduceNHR] already registered.
+[2026-06-05 09:13:44.941520][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelRSAG] already registered.
+[2026-06-05 09:13:44.941524][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.941527][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceParallelRSAGUBX] already registered.
+[2026-06-05 09:13:44.941547][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceSequenceMesh1DNhr] already registered.
+[2026-06-05 09:13:44.941571][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceMesh1DTwoShotZAxisDetour] already registered.
+[2026-06-05 09:13:44.941624][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllReduceSequenceMeshNhrDPU] already registered.
+[2026-06-05 09:13:44.941791][pid:12835][INFO][alg_v2_template_register.cc:25] [12835][InsAlgTemplateRegistry]template name[InsTempAllGatherNhrDpuInter] already registered.
+[2026-06-05 09:13:44.942079][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsSend] already registered.
+[2026-06-05 09:13:44.942101][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsSendDPU] already registered.
+[2026-06-05 09:13:44.942158][pid:12835][INFO][alg_v2_template_register.cc:25] [12835][InsAlgTemplateRegistry]template name[InsTempSendDpu] already registered.
+[2026-06-05 09:13:44.942211][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsRecv] already registered.
+[2026-06-05 09:13:44.942229][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsRecvDPU] already registered.
+[2026-06-05 09:13:44.942317][pid:12835][INFO][alg_v2_template_register.cc:25] [12835][InsAlgTemplateRegistry]template name[InsTempRecvDpu] already registered.
+[2026-06-05 09:13:44.942471][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsAllGatherVMesh1D] already registered.
+[2026-06-05 09:13:44.942579][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceMesh1D] already registered.
+[2026-06-05 09:13:44.942584][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceMesh1DTwoShot] already registered.
+[2026-06-05 09:13:44.942587][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceNHR] already registered.
+[2026-06-05 09:13:44.942590][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceAicpuReduceNHR] already registered.
+[2026-06-05 09:13:44.942617][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHR] already registered.
+[2026-06-05 09:13:44.942621][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHRUBX] already registered.
+[2026-06-05 09:13:44.942624][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[ReduceParallelMesh1DNHRPcie] already registered.
+[2026-06-05 09:13:44.942955][pid:12835][INFO][coll_alg_v2_exec_registry.cc:26] [12835][CollAlgExecRegistryV2]Exec tag[InsBatchSendRecv] already registered.
+Start to run demo for hccl_checker_ops_stest.
+Note: Google Test filter = ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_2x2x2_int8_prod_recv2_plus_1
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ST_REDUCE_SCATTER_3LEVEL_TEST
+[ RUN      ] ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_2x2x2_int8_prod_recv2_plus_1
+[2026-06-05 09:13:44.947623][pid:12835][ERROR][op_common.cc:1799] [12839][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.947638][pid:12835][ERROR][reduce_scatter_op.cc:59] [12839][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.947642][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12839][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.947757][pid:12835][ERROR][op_common.cc:1799] [12842][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.947770][pid:12835][ERROR][reduce_scatter_op.cc:59] [12842][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.947774][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12842][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.947977][pid:12835][ERROR][op_common.cc:1799] [12837][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.947990][pid:12835][ERROR][reduce_scatter_op.cc:59] [12837][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.947994][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12837][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948213][pid:12835][ERROR][op_common.cc:1799] [12838][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.948226][pid:12835][ERROR][reduce_scatter_op.cc:59] [12838][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948230][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12838][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948398][pid:12835][ERROR][op_common.cc:1799] [12841][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.948410][pid:12835][ERROR][reduce_scatter_op.cc:59] [12841][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948414][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12841][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948622][pid:12835][ERROR][op_common.cc:1799] [12840][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.948635][pid:12835][ERROR][reduce_scatter_op.cc:59] [12840][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948639][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12840][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948798][pid:12835][ERROR][op_common.cc:1799] [12843][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.948812][pid:12835][ERROR][reduce_scatter_op.cc:59] [12843][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948816][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12843][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.948970][pid:12835][ERROR][op_common.cc:1799] [12836][Check][ReduceOp][DataType]errNo[0x0000000005000005] reduceop is [prod] data type[int8] not supported, support range=[int64, uint64, float64]
+[2026-06-05 09:13:44.948983][pid:12835][ERROR][reduce_scatter_op.cc:59] [12836][HcclReduceScatter]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.949049][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:73] [12836][operator()]call trace: hcclRet -> 5
+[2026-06-05 09:13:44.949185][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/utils/src/hccl_verifier/checker.cc:53] [12835][Checker][GenAndCheckGraph] taskQueues is empty!
+[2026-06-05 09:13:44.949194][pid:12835][ERROR][/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/utils/src/hccl_verifier/hccl_verifier.cc:41] [12835][CheckReduceScatter]call trace: hcclRet -> 1
+/home/crx/code/hccl_three_sequence_rs/hccl_2039/test/st/algorithm/testcase/reduce_scatter_3level_testcase.cc:86: Failure
+Value of: res == HCCL_SUCCESS
+  Actual: false
+Expected: true
+
+[  FAILED  ] ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_2x2x2_int8_prod_recv2_plus_1 (5 ms)
+[----------] 1 test from ST_REDUCE_SCATTER_3LEVEL_TEST (5 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (5 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] ST_REDUCE_SCATTER_3LEVEL_TEST.st_reduce_scatter_3level_2x2x2_int8_prod_recv2_plus_1
+
+ 1 FAILED TEST
+❌ Error occurred in build.sh at line 27

@@ -1,0 +1,4 @@
+d|bin
+f|bin/optscript
+f|bin/readtags
+f|bin/ctags

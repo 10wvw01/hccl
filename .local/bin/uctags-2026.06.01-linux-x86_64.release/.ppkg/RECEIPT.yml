@@ -1,0 +1,29 @@
+pkgname: uctags
+pkgtype: exe
+version: 2026.06.01
+summary: Maintained ctags implementation
+web-url: https://ctags.io/
+git-url: https://github.com/universal-ctags/ctags
+git-sha: cb432c71017551e66e4be9261019941b02227206
+dep-pkg: libjansson libyaml libxml2 libiconv
+license: GPL-2.0-or-later
+dep-upp:  git gmake gm4 perl perl gmake gm4 perl gmake gm4 gmake
+bsystem: autogen
+binbstd: 0
+install: configure --disable-static
+parallel: 1
+profile: release
+builtfor: linux-musl-x86_64
+builtby: ppkg-0.27.2
+builtat: 1780306305
+builton:
+    os-arch: x86_64
+    os-kind: linux
+    os-type: linux
+    os-libc: musl
+    os-code: alpine
+    os-name: Alpine Linux
+    os-vers: 3.23.4
+    os-ncpu: 4
+    os-euid: 0
+    os-egid: 0
