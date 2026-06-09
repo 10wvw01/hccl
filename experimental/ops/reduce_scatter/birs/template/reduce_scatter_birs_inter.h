@@ -33,15 +33,15 @@ protected:
     HcclResult LocalCopyPreproc(ThreadHandle &stream, const u32 rank, u64 sliceSize, u64 localStrideSize);
 
     HcclResult Preprocess(const u32 rank, const u32 rankSize, std::vector<ChannelInfo> &channels) override;
-    HcclResult HCCSInterStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
+    HcclResult HCCSIntraStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
                             u64 sliceSize, u64 localStrideSize);
-    HcclResult SIOInterStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
+    HcclResult SIOIntraStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
                             u64 sliceSize, u64 localStrideSize);
-    HcclResult LocalCopyInterStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
+    HcclResult LocalCopyIntraStep(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_,
                             u64 sliceSize, u64 localStrideSize);
-    HcclResult PreprocIntra(const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize,
+    HcclResult PreprocInterServer(const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize,
                             u64 localStrideSize, std::vector<ChannelInfo> &channels);
-    HcclResult IntraLoop(const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize,
+    HcclResult InterServer(const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize,
                         u64 localStrideSize, std::vector<ChannelInfo> &channels);
 
 private:

@@ -140,25 +140,16 @@ HcclResult ReduceScatterBIRS::HCCSProcessMainLoop(u32 round, const u32 rank, con
 
 HcclResult ReduceScatterBIRS::SIOProcessMainLoop(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize, u64 localStrideSize) 
 {
-    if (round != hccs_ranks.size()) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK)));
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
-        
-        u64 localOffsetByte = slices_[hccs_neighbour_rank[round]].offset;
-        u64 remoteOffsetByte = hccs_ranks[round] / rankSizeX_ * localStrideSize;
-        void* src = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + localOffsetByte);
-        void* dst = static_cast<void *>(static_cast<u8 *>(sio_link.remoteOutput.addr) + remoteOffsetByte);
+    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK)));
+    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+    
+    u64 localOffsetByte = (round != hccs_ranks.size()) ? slices_[hccs_neighbour_rank[round]].offset : slices_[sio_rank].offset;
+    u64 remoteOffsetByte = (round != hccs_ranks.size()) ? hccs_ranks[round] / rankSizeX_ * localStrideSize : rank / rankSizeX_ * localStrideSize;
+    void* src = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + localOffsetByte);
+    void* dst = static_cast<void *>(static_cast<u8 *>(sio_link.remoteOutput.addr) + remoteOffsetByte);
 
-        HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, sliceSize / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_));
-    } else {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK)));
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
-        u64 localOffsetByte = slices_[sio_rank].offset;
-        u64 remoteOffsetByte = rank / rankSizeX_ * localStrideSize;
-        void* src = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + localOffsetByte);
-        void* dst = static_cast<void *>(static_cast<u8 *>(sio_link.remoteOutput.addr) + remoteOffsetByte);
-        HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, sliceSize / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_));
-    }
+    HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, sliceSize / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_));
+    
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL)));
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
 
@@ -167,14 +158,10 @@ HcclResult ReduceScatterBIRS::SIOProcessMainLoop(u32 round, const u32 rank, cons
 
 HcclResult ReduceScatterBIRS::LocalCopyMainLoop(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize, u64 localStrideSize) 
 {
-    if (round < hccs_ranks.size() - 1) {
-        void* srcSlice = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + slices_[hccs_ranks[round + 1]].offset);
-        void* dstSlice = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + hccs_ranks[round + 1] / rankSizeX_ * localStrideSize);
-        CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(subThreads[1], dstSlice, srcSlice, sliceSize)));
-    } 
-    if (round == hccs_ranks.size() - 1) {
-        void* srcSlice = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + slices_[rank].offset);
-        void* dstSlice = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + rank / rankSizeX_ * localStrideSize);
+    if (round < hccs_ranks.size()) {
+        u32 rank_idx = (round < hccs_ranks.size() - 1) ? hccs_ranks[round + 1] : rank;
+        void* srcSlice = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + slices_[rank_idx].offset);
+        void* dstSlice = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + rank_idx / rankSizeX_ * localStrideSize);
         CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(subThreads[1], dstSlice, srcSlice, sliceSize)));
     }
     return HCCL_SUCCESS;
