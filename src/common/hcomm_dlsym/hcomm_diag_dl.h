@@ -15,7 +15,7 @@
 #include "hcomm_diag.h"   // 原始头文件，包含所有声明和类型定义
 #include "hccl_res.h"     // CommAbiHeader, CommEngine for HcclDfxOpInfo stub
 
-#if CANN_VERSION_NUM > CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 #include "hccl_diag.h"    // 9.1.0 提供 HcclDfxOpInfo, HCOMM_ALG_TAG_LENGTH
 #endif
 

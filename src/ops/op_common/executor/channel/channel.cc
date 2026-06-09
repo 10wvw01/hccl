@@ -519,7 +519,7 @@ HcclResult CalcChannelRequestMesh2D(HcclComm comm, const OpParam& param, const T
     if (subcommInfo.size() == 2) { // 2D Mesh
         CHK_RET(CalcMesh2DChannelConnect(myRank, subcommInfo, connectRanks));
     }
-#if CANN_VERSION_NUM > CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     CommProtocol protocol = CommProtocol::COMM_PROTOCOL_UBC_CTP;
     if (param.engine == CommEngine::COMM_ENGINE_AIV) {
         protocol = CommProtocol::COMM_PROTOCOL_UB_MEM;
@@ -630,7 +630,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
     return HCCL_SUCCESS;
 }
 
-#if CANN_VERSION_NUM > CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 {
     HCCL_INFO("endPoint0:phyId[%u], protocol[%u], addr.type[%u], addr.id[%u]",
