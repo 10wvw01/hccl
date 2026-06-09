@@ -78,11 +78,32 @@ public:
             LoadInfoFromGm(info, infos + infoIdx);
             curSliceCount_ = (info.sliceNum == 0) ? len : len / info.sliceNum;
             ExecuteInstruction(info);
-            BarrierAll();
+            BarrierByInstruction(infoIdx);
         }
     }
 
 private:
+    __aicore__ inline void BarrierByInstruction(uint64_t infoIdx)
+    {
+        SyncAll<true>();
+        const int32_t barrierTag = curTag_ + static_cast<int32_t>(infoIdx) + 1;
+        const uint32_t perCoreRankNum = rankSize_ / numBlocks_;
+        const uint32_t remainRankNum = rankSize_ % numBlocks_;
+        const uint32_t curCoreRankNum = GetBlockIdx() < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+        const uint32_t startRank = GetBlockIdx() < remainRankNum
+            ? (perCoreRankNum + 1) * GetBlockIdx()
+            : perCoreRankNum * GetBlockIdx() + remainRankNum;
+        const uint64_t localFlagOffset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
+        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
+            Record(rank, localFlagOffset / FLAG_SIZE, barrierTag);
+        }
+        PipeBarrier<PIPE_ALL>();
+        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
+            const uint64_t remoteFlagOffset = BASE_FLAG_OFFSET + rank * FLAG_SIZE;
+            WaitFlag(rank_, remoteFlagOffset / FLAG_SIZE, barrierTag);
+        }
+    }
+
     __aicore__ inline void LoadInfoFromGm(AivOmniSendRecvInfo &dst, const __gm__ AivOmniSendRecvInfo *src)
     {
         dst.opType = src->opType;
@@ -235,5 +256,4 @@ __aicore__ inline void AivOmniV2Entry(EXTERN_KERNEL_ARGS_DEF_V2)
     op.Init(KERNEL_CLASS_INIT, true);
     SyncAll<true>();
     op.Process(len, sliceId, extraArgs);
-    op.BarrierAll();
 }
