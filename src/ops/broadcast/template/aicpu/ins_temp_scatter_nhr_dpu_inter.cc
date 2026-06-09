@@ -187,13 +187,13 @@ HcclResult InsTempScatterNHRDPUInter::KernelRun(const OpParam& param, const Temp
 
 HcclResult InsTempScatterNHRDPUInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(channels, tempAlgParams));
+    CHK_RET(RunNHR(channels, tempAlgParams, taskexpShmem));
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
@@ -263,7 +263,7 @@ HcclResult InsTempScatterNHRDPUInter::PostLocalCopy(const TemplateDataParams& te
 }
  
 HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<ChannelInfo>> &channels,
-    const TemplateDataParams &tempAlgParam)
+    const TemplateDataParams &tempAlgParam, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     // nhr主体部分
@@ -276,15 +276,15 @@ HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<Cha
             GetStepInfo(step, nSteps, stepInfo);
             // 只有Tx,使用send指令
             if (stepInfo.txSliceIdxs.size() > 0 && stepInfo.rxSliceIdxs.size() == 0) {
-                CHK_RET(BatchSend(stepInfo, channels, tempAlgParam, r));
+                CHK_RET(BatchSend(stepInfo, channels, tempAlgParam, r, taskexpShmem));
             }
             // 只有Rx，使用recv指令
             else if (stepInfo.txSliceIdxs.size() == 0 && stepInfo.rxSliceIdxs.size() > 0) {
-                CHK_RET(BatchRecv(stepInfo, channels, tempAlgParam, r));
+                CHK_RET(BatchRecv(stepInfo, channels, tempAlgParam, r, taskexpShmem));
             }
             // 既有Tx又有Rx，使用SendRecv指令
             else if (stepInfo.txSliceIdxs.size() > 0 && stepInfo.rxSliceIdxs.size() > 0) {
-                CHK_RET(BatchSR(stepInfo, channels, tempAlgParam, r));
+                CHK_RET(BatchSR(stepInfo, channels, tempAlgParam, r, taskexpShmem));
             }
         }
     }
@@ -293,7 +293,7 @@ HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<Cha
 }
  
 HcclResult InsTempScatterNHRDPUInter::BatchSend(AicpuNHRStepInfo &stepInfo, const std::map<u32, std::vector<ChannelInfo>> &channels,
-    const TemplateDataParams &tempAlgParam, u32 repeat) const
+    const TemplateDataParams &tempAlgParam, u32 repeat, void *taskexpShmem) const
 {
 #ifndef AICPU_COMPILE
     HCCL_INFO("[InsTempScatterNHRDPUInter][BatchSend] myRank[%d], toRank[%d]", myRank_, stepInfo.toRank);
@@ -327,7 +327,7 @@ HcclResult InsTempScatterNHRDPUInter::BatchSend(AicpuNHRStepInfo &stepInfo, cons
     SlicesList txSlicesList({srcSlices}, {dstSlices});
     DataInfo sendData(linkSend, txSlicesList);
     if (srcSlices.size() != 0) {
-        CHK_PRT_RET(static_cast<HcclResult>(SendWrite(sendData)),
+        CHK_PRT_RET(static_cast<HcclResult>(SendWrite(sendData, taskexpShmem)),
             HCCL_ERROR("[InsTempScatterNHRDPUInter] BatchSend failed"),
             HcclResult::HCCL_E_INTERNAL);
     }
@@ -336,7 +336,7 @@ HcclResult InsTempScatterNHRDPUInter::BatchSend(AicpuNHRStepInfo &stepInfo, cons
 }
  
 HcclResult InsTempScatterNHRDPUInter::BatchRecv(AicpuNHRStepInfo &stepInfo, const std::map<u32, std::vector<ChannelInfo>> &channels,
-    const TemplateDataParams &tempAlgParam, u32 repeat) const
+    const TemplateDataParams &tempAlgParam, u32 repeat, void *taskexpShmem) const
 {
 #ifndef AICPU_COMPILE
     const ChannelInfo &linkRecv = channels.at(stepInfo.fromRank)[0];
@@ -364,7 +364,7 @@ HcclResult InsTempScatterNHRDPUInter::BatchRecv(AicpuNHRStepInfo &stepInfo, cons
     SlicesList rxSlicesList(srcDstSlices, srcDstSlices); // RecvWrite函数下远端地址不起作用
     DataInfo recvData(linkRecv, rxSlicesList);
     if (srcDstSlices.size() != 0) {
-        CHK_PRT_RET(static_cast<HcclResult>(RecvWrite(recvData)),
+        CHK_PRT_RET(static_cast<HcclResult>(RecvWrite(recvData, taskexpShmem)),
             HCCL_ERROR("[InsTempScatterNHRDPUInter] BatchRecv failed"),
             HcclResult::HCCL_E_INTERNAL);
     }
@@ -373,7 +373,7 @@ HcclResult InsTempScatterNHRDPUInter::BatchRecv(AicpuNHRStepInfo &stepInfo, cons
 }
  
 HcclResult InsTempScatterNHRDPUInter::BatchSR(AicpuNHRStepInfo &stepInfo, const std::map<u32, std::vector<ChannelInfo>> &channels,
-    const TemplateDataParams &tempAlgParam, u32 repeat) const
+    const TemplateDataParams &tempAlgParam, u32 repeat, void *taskexpShmem) const
 {
 #ifndef AICPU_COMPILE
     const ChannelInfo &linkSend = channels.at(stepInfo.toRank)[0];
@@ -429,7 +429,7 @@ HcclResult InsTempScatterNHRDPUInter::BatchSR(AicpuNHRStepInfo &stepInfo, const 
         {linkSend, linkRecv}, {{txSrcSlices, txDstSlices}, {rxSrcDstSlices, rxSrcDstSlices}}};
 
     if (txSrcSlices.size() != 0) {
-        CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+        CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
             HCCL_ERROR("[InsTempScatterNHRDPUInter] RunNHR BatchSendRecv failed"),
             HcclResult::HCCL_E_INTERNAL);
     }
