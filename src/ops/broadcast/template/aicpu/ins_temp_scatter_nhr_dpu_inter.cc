@@ -188,13 +188,13 @@ HcclResult InsTempScatterNHRDPUInter::KernelRun(const OpParam& param, const Temp
 
 HcclResult InsTempScatterNHRDPUInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(channels, tempAlgParams));
+    CHK_RET(RunNHR(channels, tempAlgParams, taskexpShmem));
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
@@ -264,7 +264,7 @@ HcclResult InsTempScatterNHRDPUInter::PostLocalCopy(const TemplateDataParams& te
 }
  
 HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<ChannelInfo>> &channels,
-    const TemplateDataParams &tempAlgParam)
+    const TemplateDataParams &tempAlgParam, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     // nhr主体部分
@@ -276,7 +276,7 @@ HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<Cha
             AicpuNHRStepInfo stepInfo;
             GetStepInfo(step, nSteps, stepInfo);
             // 统一 BatchTransferNHR：内部自动处理 只发/只收/同对端/不同对端 四种场景
-            CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParam, r, myRank_, templateRankSize_));
+            CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParam, r, myRank_, templateRankSize_, taskexpShmem));
         }
     }
 #endif

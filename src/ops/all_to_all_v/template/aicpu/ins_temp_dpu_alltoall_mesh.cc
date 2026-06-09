@@ -397,7 +397,7 @@ void InsTempDpuAlltoAllMesh::GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSu
 
 HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAlgParams,
                                                 const std::map<u32, std::vector<ChannelInfo>> &channels,
-                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks)
+                                                const u32 myRank, const std::vector<std::vector<u32>> &subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     // 网卡通信流程
@@ -445,6 +445,7 @@ HcclResult InsTempDpuAlltoAllMesh::DPUKernelRun(const TemplateDataParams &tempAl
         DpuTransferCtx ctx;
         ctx.txCh = &link;
         ctx.rxCh = &link;  // mesh alltoall: samePeer
+        ctx.taskexpShmem = taskexpShmem;
         if (sendCount > 0) {
             ctx.txSrcSlices.push_back(DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
                 tempAlgParams.buffInfo.hcclBuffBaseOff + remoteRank * hcclbuffBlockMemSize,

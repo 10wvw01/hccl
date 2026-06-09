@@ -111,12 +111,12 @@ HcclResult InsTempGatherDpuInter::KernelRun(const OpParam& param, const Template
 
 HcclResult InsTempGatherDpuInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
-    CHK_RET(RunNHR(tempAlgParams, channels));
+    CHK_RET(RunNHR(tempAlgParams, channels, taskexpShmem));
 
     return HcclResult::HCCL_SUCCESS;
 }
@@ -194,7 +194,7 @@ HcclResult InsTempGatherDpuInter::LocalDataCopy(const TemplateDataParams& tempAl
 }
 
 HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams,
-    const std::map<u32, std::vector<ChannelInfo>>& channels)
+    const std::map<u32, std::vector<ChannelInfo>>& channels, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     const uint32_t nSteps = GetNHRStepNum(templateRankSize_);
@@ -242,7 +242,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                         TxRxChannels sendRecvChannels(txChannel[0], rxChannel[0]);
                         TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
                         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-                        CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
+                        CHK_PRT_RET(SendRecvWrite(sendRecvInfo, taskexpShmem),
                             HCCL_ERROR("[InsTempGatherDpuInter] SendRecvWrite failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         HCCL_INFO(
@@ -258,7 +258,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                     } else if (txChannel[0].remoteRank < rxChannel[0].remoteRank) {
                         SlicesList sendSliceList(txSrcSlices, txDstSlices);
                         DataInfo sendInfo(txChannel[0], sendSliceList);
-                        CHK_PRT_RET(SendWrite(sendInfo),
+                        CHK_PRT_RET(SendWrite(sendInfo, taskexpShmem),
                             HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Send failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         HCCL_INFO(
@@ -268,19 +268,19 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
 
                         SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
                         DataInfo recvInfo(rxChannel[0], recvSliceList);
-                        CHK_PRT_RET(RecvWrite(recvInfo),
+                        CHK_PRT_RET(RecvWrite(recvInfo, taskexpShmem),
                             HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Recv failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                     } else {
                         SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
                         DataInfo recvInfo(rxChannel[0], recvSliceList);
-                        CHK_PRT_RET(RecvWrite(recvInfo),
+                        CHK_PRT_RET(RecvWrite(recvInfo, taskexpShmem),
                             HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Recv failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         
                         SlicesList sendSliceList(txSrcSlices, txDstSlices);
                         DataInfo sendInfo(txChannel[0], sendSliceList);
-                        CHK_PRT_RET(SendWrite(sendInfo),
+                        CHK_PRT_RET(SendWrite(sendInfo, taskexpShmem),
                             HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Send failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         HCCL_INFO(
@@ -291,7 +291,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                 } else if (sendSize > 0) {
                     SlicesList sendSliceList(txSrcSlices, txDstSlices);
                     DataInfo sendInfo(txChannel[0], sendSliceList);
-                    CHK_PRT_RET(SendWrite(sendInfo),
+                    CHK_PRT_RET(SendWrite(sendInfo, taskexpShmem),
                         HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Send failed (step=%u, rpt=%u)", step, rpt),
                         HcclResult::HCCL_E_INTERNAL);
                     HCCL_INFO(
@@ -301,7 +301,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                 } else if (recvSize > 0) {
                     SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
                     DataInfo recvInfo(rxChannel[0], recvSliceList);
-                    CHK_PRT_RET(RecvWrite(recvInfo),
+                    CHK_PRT_RET(RecvWrite(recvInfo, taskexpShmem),
                         HCCL_ERROR("[InsTempGatherDpuInter][RunNHR] Recv failed (step=%u, rpt=%u)", step, rpt),
                         HcclResult::HCCL_E_INTERNAL);
                 }
