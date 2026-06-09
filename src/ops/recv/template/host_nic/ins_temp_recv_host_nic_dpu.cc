@@ -121,7 +121,7 @@ HcclResult InsTempRecvHostNicDpu::KernelRun(const OpParam &param, const Template
 
 HcclResult InsTempRecvHostNicDpu::DPUKernelRun(const TemplateDataParams &tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>> &subCommRanks)
+    const std::vector<std::vector<uint32_t>> &subCommRanks, void *taskexpShmem)
 {
 #ifndef AICPU_COMPILE
     std::vector<u32> rankIds = subCommRanks[0];
@@ -139,22 +139,22 @@ HcclResult InsTempRecvHostNicDpu::DPUKernelRun(const TemplateDataParams &tempAlg
 
         for (u64 sizeResidue = outputSize; sizeResidue > 0; sizeResidue -= sizePerRound) {
             // 前同步
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, 0)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, 0)), taskexpShmem, channels.at(rankIdx)[0]));
 
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 0,
-                CUSTOM_TIMEOUT)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 0,
+                CUSTOM_TIMEOUT)), taskexpShmem, channels.at(rankIdx)[0]));
 
             // 等待数据接收完成
             offset += sizePerRound;
             sizePerRound = (sizeResidue > cclOutputSize) ? cclOutputSize : sizeResidue;
             HCCL_DEBUG("rx async outputmem's offset[%llu], size[%llu]", offset, sizePerRound);
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 1,
-                CUSTOM_TIMEOUT)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 1,
+                CUSTOM_TIMEOUT)), taskexpShmem, channels.at(rankIdx)[0]));
 
             // 后同步，通知发送端数据接收完成
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, notifyNum)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, notifyNum)), taskexpShmem, channels.at(rankIdx)[0]));
 
-            CHK_RET(static_cast<HcclResult>(HcommChannelFenceOnThread(0, channels.at(rankIdx)[0].handle)));
+            CHK_RET(ChkRetAndTaskexception(static_cast<HcclResult>(HcommChannelFenceOnThread(0, channels.at(rankIdx)[0].handle)), taskexpShmem, channels.at(rankIdx)[0]));
         }
     }
 #endif

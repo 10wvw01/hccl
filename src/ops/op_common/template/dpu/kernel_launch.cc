@@ -14,7 +14,7 @@
 #include "alg_v2_template_register.h"
 
 namespace ops_hccl {
-int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
+int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size) // hcomm中加工，把taskexception共享内存指针带过来
 {
     if ((ptr == 0) || (size <= 0)) {
         HCCL_ERROR("%s get nullptr or error size", __func__);
@@ -22,9 +22,15 @@ int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
     }
     // 反序列化共享内存
     auto shmemPtr = reinterpret_cast<char *>(ptr);
-    std::vector<char> sequenceData(shmemPtr, shmemPtr + size);
     DPURunInfo dpuRunInfo;
+    void *taskexpShmem = nullptr;
+    size_t dataSize = 0;
+    memcpy_s(&dataSize, sizeof(size_t), shmemPtr + 1 + 256 + 4, sizeof(size_t)); // TODO:magicnum
+    std::vector<char> sequenceData(shmemPtr, shmemPtr + 1 + 256 + 4 + 8 + dataSize);
     dpuRunInfo.DeSerialize(sequenceData);
+    if (dataSize != (size - 1 - 256 - 4 - 8)) {
+        memcpy_s(&taskexpShmem, sizeof(uint8_t *), shmemPtr + size - sizeof(uint8_t *), sizeof(uint8_t *));
+    }
 
     // 根据名字获取template
     auto templateIns = InsAlgTemplateRegistry::Instance().GetAlgTemplate(dpuRunInfo.templateName);
@@ -32,9 +38,9 @@ int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
         HCCL_ERROR("Fail to find template of %s", dpuRunInfo.templateName.c_str());
         return static_cast<int32_t>(HCCL_E_INTERNAL);
     }
-
+    HCCL_INFO("HcclLaunchDPUKernel param: templateName[%s], taskexpShmem[0x%llx]", dpuRunInfo.templateName.c_str(), taskexpShmem); //test
     // dpu算法展开
-    if (templateIns->DPUKernelRun(dpuRunInfo.tempAlgParams, dpuRunInfo.channels, dpuRunInfo.myRank, dpuRunInfo.subCommRanks) != HCCL_SUCCESS) {
+    if (templateIns->DPUKernelRun(dpuRunInfo.tempAlgParams, dpuRunInfo.channels, dpuRunInfo.myRank, dpuRunInfo.subCommRanks, taskexpShmem) != HCCL_SUCCESS) {
         HCCL_ERROR("Template[%s] DPUKernelRun failed", dpuRunInfo.templateName.c_str());
         return static_cast<int32_t>(HCCL_E_INTERNAL);
     }
