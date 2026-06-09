@@ -40,7 +40,7 @@ public:
 
 private:
     HcclResult RunNHR(const TemplateDataParams& tempAlgParams,
-                      const std::map<u32, std::vector<ChannelInfo>>& channels) const override;
+                      const std::map<u32, std::vector<ChannelInfo>>& channels, void *taskexpShmem) const override;
 };
 }  // namespace ops_hccl
 
