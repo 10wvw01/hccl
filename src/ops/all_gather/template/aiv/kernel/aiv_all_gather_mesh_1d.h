@@ -210,7 +210,6 @@ public:
         }
     }
     
-
     uint64_t coreOffset;
     uint64_t curCount;
     uint64_t coreNumStage1;

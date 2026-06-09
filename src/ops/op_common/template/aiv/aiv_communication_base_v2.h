@@ -30,6 +30,7 @@ constexpr uint64_t LOCAL_FLAG_BUF_LEN = 2560;
 constexpr uint64_t AIV_TAG_MOVE_RIGHT_BITS = 16;
 constexpr uint64_t LOW_16_BITS = 0xFFFF;
 constexpr uint64_t DATA_LIMIT = 512 * 1024;
+constexpr uint32_t PING_PONG = 2;
 
 struct ExtraArgs {
     uint64_t sendCounts[MAX_RANK_SIZE] = {};
@@ -285,9 +286,9 @@ public:
             }
         } else {
             for(int i=0; i<rankSize_;i++){
-                GM_IN[i] = tag_ % 2 == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PING_OFFSET : 
+                GM_IN[i] = tag_ % PING_PONG == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PING_OFFSET : 
                                         (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PONG_OFFSET;
-                GM_OUT[i] = tag_ % 2 == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG1_OFFSET: 
+                GM_OUT[i] = tag_ % PING_PONG == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG1_OFFSET: 
                                         (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG2_OFFSET;
             }            
         }
