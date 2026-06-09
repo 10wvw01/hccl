@@ -158,7 +158,7 @@ namespace ops_hccl
 
     HcclResult InsTempSendDpu::DPUKernelRun(const TemplateDataParams &tempAlgParam,
                                             const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-                                            const std::vector<std::vector<uint32_t>> &subCommRanks)
+                                            const std::vector<std::vector<uint32_t>> &subCommRanks, void *taskexpShmem)
     {
 #ifndef AICPU_COMPILE
         if (subCommRanks.empty() || subCommRanks[0].size() < 2)

@@ -111,7 +111,7 @@ HcclResult InsTempGatherDpuInter::KernelRun(const OpParam& param, const Template
 
 HcclResult InsTempGatherDpuInter::DPUKernelRun(const TemplateDataParams& tempAlgParams,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
-    const std::vector<std::vector<uint32_t>>& subCommRanks)
+    const std::vector<std::vector<uint32_t>>& subCommRanks, void *taskexpShmem)
 {
     myRank_ = myRank;
     templateRankSize_ = subCommRanks[0].size();
