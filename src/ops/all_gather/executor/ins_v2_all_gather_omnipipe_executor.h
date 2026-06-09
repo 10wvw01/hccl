@@ -56,7 +56,7 @@ private:
 
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
-    OpMode opMode_{0};
+    OpMode opMode_;
 
     ThreadHandle controlThread_ = 0;
     std::vector<ThreadHandle> templateMainThreads_;
