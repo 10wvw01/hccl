@@ -177,11 +177,11 @@ HcclResult CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm()
     HCCL_DEBUG("[CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm] start");
     CHK_RET(InitResource());
     LoadArgs();
-    PreSync();
+    // PreSync();
 
-    DoRepeatGather();
+    // DoRepeatGather();
 
-    PostSync();
+    // PostSync();
     HCCL_DEBUG("[CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm] end");
     return HcclResult::HCCL_SUCCESS;
 }
