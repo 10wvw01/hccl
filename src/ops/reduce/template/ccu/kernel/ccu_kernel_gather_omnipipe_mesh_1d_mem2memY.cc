@@ -201,7 +201,7 @@ void CcuKernelGatherOmniPipeMesh1DMem2MemY::DoGather()
     }
 
     event_.SetMask((1 << rankSize_) - 1);
-    WaitEvent(event_);
+    // WaitEvent(event_);
 }
 
 void CcuKernelGatherOmniPipeMesh1DMem2MemY::DoRepeatGather()

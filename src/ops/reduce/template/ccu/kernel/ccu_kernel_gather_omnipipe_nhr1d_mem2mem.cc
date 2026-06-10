@@ -227,7 +227,7 @@ HcclResult CcuKernelGatherOmniPipeNHR1DMem2Mem::DoGatherOmniPipeNHRSingleStep(co
             }
         }
         event_.SetMask((1 << recvSliceIdxSize) - 1);
-        WaitEvent(event_);
+        // WaitEvent(event_);
     }
 
     HCCL_INFO("[DoGatherOmniPipeNHRSingleStep] step %u, toRank=%u, fromRank=%u, sendSliceNum=%lu",
