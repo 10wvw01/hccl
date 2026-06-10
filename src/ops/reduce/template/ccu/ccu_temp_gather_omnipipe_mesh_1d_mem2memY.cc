@@ -140,8 +140,11 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
     
     uint64_t inputAddr = inputAddrBase + inBuffBaseOff;
     uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
-    uint64_t token = CcuRep::GetTokenInfo(
-        reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
+
+    uint64_t token;
+    CHK_RET(GetToken(buffInfo_, token));
+    // uint64_t token = CcuRep::GetTokenInfo(
+    //     reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
         
     // uint64_t token;
     // CHK_RET(GetToken(buffInfo_, token));
