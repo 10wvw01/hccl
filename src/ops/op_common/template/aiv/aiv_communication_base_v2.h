@@ -449,7 +449,7 @@ __aicore__ inline void AivCommBase::ClearSyncBuf()
 __aicore__ inline void AivCommBase::Barrier(uint32_t step)
 {
     // 用10个flag
-    uint32_t flagOffset = BASE_FLAG_OFFSET - gmOutOffset - (step % 2 + 1) * FLAG_SIZE * rankSize_;
+    uint32_t flagOffset = AIV_FLAG_EMPTY_OFFSET - gmOutOffset - (step % 2 + 1) * FLAG_SIZE * rankSize_;
     __gm__ int32_t *ctrlFlagsGM;
     if (GetBlockIdx() == 0) {
         pipe_barrier(PIPE_ALL);
