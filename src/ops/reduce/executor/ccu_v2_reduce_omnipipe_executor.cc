@@ -13,7 +13,7 @@
 #ifndef AICPU_COMPILE
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
-// #include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
+#include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
 // #include "ccu_temp_gather_omnipipe_nhr_1d_mem2mem.h"
 #endif
@@ -898,6 +898,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 // #endif
 }
