@@ -494,8 +494,6 @@ HcclResult
         dataOffsetPerLoop_.at(1) = dataOffsetPerLoop_.at(0) + dataCountPerLoop_.at(0) * dataTypeSize_;
 
         u32 stageNum = 2;
-        u32 tempAlgNum_2 = 2;
-        u32 tempAlgNum_3 = 3;
         for (u32 stageIdx = 0; stageIdx < stageNum; stageIdx++) {
             // 计算算法模板所需资源
             CHK_RET(PrepareResForStage(stageIdx));
@@ -512,11 +510,11 @@ HcclResult
 						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
                         ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
                     } else if (stageIdx == 1 && stepIdx == 0) {
-						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(tempAlgNum_2).submitInfos.size();
-                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(tempAlgNum_3).submitInfos.size();
+						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(2).submitInfos.size();
+                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(3).submitInfos.size();
                     } else if (stageIdx == 1 && stepIdx == 1 && param_.opMode != OpMode::OFFLOAD) {
-						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(tempAlgNum_2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
-    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(tempAlgNum_3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
+						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
+    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
                         CHK_RET(FastLaunchSaveCtx());
                     }
                 }

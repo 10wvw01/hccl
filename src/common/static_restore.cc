@@ -47,15 +47,13 @@ static int crc32_table_initialized = 0;
  * @brief 初始化 CRC32 查找表
  */
 static void init_crc32_table(void) {
-    uint32_t crc32_size = 256;
-    uint32_t crc32_num = 8;
     if (crc32_table_initialized) {
         return;
     }
 
-    for (uint32_t i = 0; i < crc32_size; i++) {
+    for (uint32_t i = 0; i < 256; i++) {
         uint32_t crc = i;
-        for (int j = 0; j < crc32_num; j++) {
+        for (int j = 0; j < 8; j++) {
             crc = (crc >> 1) ^ ((crc & 1) ? 0xEDB88320 : 0);
         }
         crc32_table[i] = crc;
@@ -75,10 +73,9 @@ static uint32_t calc_crc32(const void* data, size_t length) {
 
     const uint8_t* bytes = (const uint8_t*)data;
     uint32_t crc = 0xFFFFFFFF;
-    uint32_t bitSize = 8;
 
     for (size_t i = 0; i < length; i++) {
-        crc = (crc >> bitSize) ^ crc32_table[(crc ^ bytes[i]) & 0xFF];
+        crc = (crc >> 8) ^ crc32_table[(crc ^ bytes[i]) & 0xFF];
     }
 
     return crc ^ 0xFFFFFFFF;

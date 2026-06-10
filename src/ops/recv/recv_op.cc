@@ -51,8 +51,7 @@ HcclResult HcclRecv(
     if (IsHostDpu(comm)) {
         return HcclRecvNext(recvBuf, count, dataType, srcRank, comm, stream);
     }
-    u32 versioncheck = 9;
-    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) {
+    if (GetHcommVersion() < CANN_VERSION(HCCL_CANN_VERSION_CHECK, 0, 0)) {
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 

@@ -24,8 +24,7 @@ HcclResult HcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataT
                          HcclReduceOp op, HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclAllReduce");
-    u32 versioncheck = 9;
-    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) { // compat handle
+    if (GetHcommVersion() < CANN_VERSION(HCCL_CANN_VERSION_CHECK, 0, 0)) { // compat handle
         return HcclAllReduceInner(sendBuf, recvBuf, count, dataType, op, comm, stream);
     }
 

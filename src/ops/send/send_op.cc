@@ -54,8 +54,7 @@ HcclResult HcclSend(
         return HcclSendNext(sendBuf, count, dataType, destRank, comm, stream);
     }
 
-    u32 versioncheck = 9;
-    if (GetHcommVersion() < CANN_VERSION(versioncheck, 0, 0)) {
+    if (GetHcommVersion() < CANN_VERSION(HCCL_CANN_VERSION_CHECK, 0, 0)) {
         return HcclSendInner(sendBuf, count, dataType, destRank, comm, stream);
     }
 
