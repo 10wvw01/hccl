@@ -93,14 +93,6 @@ struct CcuKernelCtxBase {
     std::map<std::string, CcuLoopEntity> loopMap;
     CcuLoopExecutors enginePool;
 
-    // Group操作持久化变量：确保Loop录制时绑定的句柄在整个kernel生命周期内稳定
-    GroupCopyVar           gcVar;
-    GroupBroadcastVar      gbVar;
-    GroupBroadcastVar      gbWmrVar;   // broadcast without my rank
-    GroupReduceVar         grVar;
-    GroupReduceVar         grWmrVar;   // reduce without my rank
-    GroupLocalReduceVar    glrVar;
-
     void CreateLoopEntity(std::string loopStr) {
         loopMap.emplace(loopStr, CcuLoopEntity());
     }
