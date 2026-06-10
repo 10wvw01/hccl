@@ -23,7 +23,6 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 
 constexpr uint32_t MAX_RANK_SIZE = 128; // server内最大卡数
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
-constexpr uint64_t FLAG_ADDR_OFFSET = 40 * 1024;
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
 constexpr uint64_t TOPO_LEN_Z_OFFSET = 16;
 constexpr uint64_t LOCAL_FLAG_BUF_LEN = 2560;
@@ -120,7 +119,6 @@ hiddenInput, input, output
 hiddenInput, input, output
 
 constexpr uint64_t AIV_FLAG_BUFFER_SIZE = 3 * 1024 * 1024; // aiv算子的flag区域大小
-constexpr uint64_t CLEAR_BUFFER_OFFSET = 1024 * 1024; // 用于清空的aiv buffer的偏移
 constexpr uint64_t SYNC_BUFFER_OFFSET = 2 * 1024 * 1024; // 用于sync的aiv buffer的偏移
 constexpr uint64_t BUFFER_AREA = 1024 * 1024; // aiv算子的单独功能flag区域大小
 
@@ -153,17 +151,17 @@ constexpr int32_t TAG_INIT_VALUE = 1;
 constexpr int32_t TAG_RESET_COUNT = 1000;
 constexpr uint32_t AIV_FLAG_CLEAR_OFFSET = 512 * 1024;
 // 相对于GM_OUT，前同步、尾同步使用的同步标记区的偏移，也是普通标记区的大小
-constexpr uint32_t BASE_FLAG_OFFSET = 1 * 1024 * 1024;
-constexpr uint32_t FLAG1_OFFSET = 2 * 1024 * 1024;
-constexpr uint32_t FLAG2_OFFSET = 6 * 1024 * 1024;
+constexpr uint32_t FLAG1_OFFSET = 1 * 1024 * 1024;
+constexpr uint32_t FLAG2_OFFSET = 5 * 1024 * 1024;
+constexpr uint32_t BASE_FLAG_OFFSET = 9 * 1024 * 1024;
 constexpr uint32_t AIV_FLAG_EMPTY_OFFSET = 10 * 1024 * 1024;
 constexpr uint32_t GM_OUT_PING_OFFSET = 18 * 1024 * 1024;
 constexpr uint32_t GM_OUT_PONG_OFFSET = 34 * 1024 * 1024;
 
 /**
- * ccl buffers        GM_OUT               Tag(大小4)              BarrierBase                   flag1           flag2              Clear              data1              data2
- *   0       |         16K          |         512K          |         1M                   |      2M       |      6M      |         10M           |   18M             |    34M
- *           BUFFER_OUT_ADDR_OFFSET | AIV_FLAG_CLEAR_OFFSET |    BASE_FLAG_OFFSET          |  FLAG1_OFFSET |  FLAG2_OFFSET| AIV_FLAG_EMPTY_OFFSET |GM_OUT_PING_OFFSET | GM_OUT_PONG_OFFSET
+ * ccl buffers        GM_OUT               Tag(大小4)             flag1         flag2             BarrierBase                 Clear              data1              data2
+ *   0       |         16K          |         512K          |      1M      |       5M      |       9M          |               10M           |   18M             |    34M
+ *           BUFFER_OUT_ADDR_OFFSET | AIV_FLAG_CLEAR_OFFSET |  FLAG1_OFFSET|  FLAG2_OFFSET |  BASE_FLAG_OFFSET |  AIV_FLAG_EMPTY_OFFSET |GM_OUT_PING_OFFSET | GM_OUT_PONG_OFFSET
  */ 
 
 
@@ -282,14 +280,16 @@ public:
         if(!pingpong){
             for(int i=0; i<rankSize_;i++){
                 GM_IN[i] = (GM_ADDR)ipcBufferGlobal.GetValue(i);
-                GM_OUT[i] = (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG_ADDR_OFFSET;
+                GM_OUT[i] = (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG1_OFFSET;
+                gmOutOffset = FLAG1_OFFSET;
             }
         } else {
             for(int i=0; i<rankSize_;i++){
-                GM_IN[i] = tag_ % PING_PONG == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PING_OFFSET : 
+                GM_IN[i] = tag_ % 2 == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PING_OFFSET : 
                                         (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + GM_OUT_PONG_OFFSET;
-                GM_OUT[i] = tag_ % PING_PONG == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG1_OFFSET: 
+                GM_OUT[i] = tag_ % 2 == 0 ? (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG1_OFFSET: 
                                         (GM_ADDR)ipcBufferGlobal.GetValue(BUFFER_OUT_ADDR_OFFSET / sizeof(uint64_t) + i) + FLAG2_OFFSET;
+                gmOutOffset = tag_ % 2 == 0 ? FLAG1_OFFSET : FLAG2_OFFSET;          
             }            
         }
         pipe_barrier(PIPE_ALL);
@@ -336,6 +336,26 @@ public:
     template<typename T>
     __aicore__ inline void Reduce64(__gm__ T *outputGM, __gm__ T *inputGM, uint64_t count, uint32_t reduceOp);
 
+    __aicore__ inline void BarrierForFirstOPInner(uint32_t barrierStage)
+    {
+        uint32_t perCoreRankNum = rankSize_ / numBlocks_;
+        uint32_t remainRankNum = rankSize_ % numBlocks_;
+        uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+        uint32_t startRank = block_idx < remainRankNum
+                            ? (perCoreRankNum + 1) * block_idx
+                            : perCoreRankNum * block_idx + remainRankNum;
+        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
+            uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank * FLAG_SIZE + barrierStage * rankSize_ * FLAG_SIZE;
+            Record(rank_, flag_offset / FLAG_SIZE, DOUBLE);
+        }
+        PipeBarrier<PIPE_ALL>();
+        uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE + barrierStage * rankSize_ * FLAG_SIZE;
+        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
+            WaitFlag(rank, flag_offset / FLAG_SIZE, DOUBLE);
+            Record(rank_, flag_offset / FLAG_SIZE, 0);
+        }
+    }
+
     __aicore__ inline void BarrierAll();
 
     __aicore__ inline void SendRecvBarrierAll(uint32_t myRank, uint32_t remoteRank);
@@ -344,21 +364,15 @@ public:
 
     __aicore__ inline void ClearGM();
 
-    __aicore__ inline void BarrierForFirstOP();
-
-    __aicore__ inline void SendRecvBarrierForFirstOP(uint32_t myRank, uint32_t remoteRank);
-
-    __aicore__ inline void WaitFlag(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);
-
-    __aicore__ inline void Record(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);
-
-    __aicore__ inline void Barrier(uint32_t step);
-
-    __aicore__ inline void ClearFlag();
-
-    __aicore__ inline void BlockSync();
-
-    __aicore__ inline void ClearSyncBuf();
+    __aicore__ inline void BarrierForFirstOP()
+    {
+        BarrierForFirstOPInner(0);
+        SyncAll<true>();
+        ClearGM();
+        SyncAll<true>();
+        BarrierForFirstOPInner(1);
+        SyncAll<true>();
+    }
 
     GM_ADDR GM_IN[MAX_RANK_SIZE];
     GM_ADDR GM_OUT[MAX_RANK_SIZE];
@@ -376,6 +390,7 @@ public:
     uint64_t input_;
     uint64_t output_;
     uint64_t cclBufferSize_;
+    uint64_t gmOutOffset;
 
     uint64_t len_;
     uint32_t tag_;
@@ -428,13 +443,13 @@ __aicore__ inline void AivCommBase::ClearSyncBuf()
     Barrier(1);
     ClearFlag();
     Barrier(DOUBLE);
-    BlockSync();
+    SyncAll<true>();
 }
 
 __aicore__ inline void AivCommBase::Barrier(uint32_t step)
 {
     // 用10个flag
-    uint32_t flagOffset = 2 * 1024 * 1024 - (step % 2 + 1) * FLAG_SIZE * rankSize_;
+    uint32_t flagOffset = BASE_FLAG_OFFSET - gmOutOffset - (step % 2 + 1) * FLAG_SIZE * rankSize_;
     __gm__ int32_t *ctrlFlagsGM;
     if (GetBlockIdx() == 0) {
         pipe_barrier(PIPE_ALL);
@@ -462,28 +477,9 @@ __aicore__ inline void AivCommBase::ClearFlag()
 {
     // 用10个flag
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_]);
-    __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + CLEAR_BUFFER_OFFSET);
+    __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + AIV_FLAG_EMPTY_OFFSET - gmOutOffset);
     if (GetBlockIdx() == 0) {
         CpGM2GM(ctrlFlagsGM, emtpyGM, BUFFER_AREA / sizeof(int32_t));
-    }
-}
-
-__aicore__ inline void AivCommBase::BlockSync()
-{
-    uint32_t flagOffset = SYNC_BUFFER_OFFSET + 2 * FLAG_SIZE * numBlocks_;
-    __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset);
-    if (GetBlockIdx() == 0) {
-        //通知其他核
-        pipe_barrier(PIPE_ALL);
-        for (int i = 1; i < numBlocks_; i++) {
-            SetSignalValue(ctrlFlagsGM + i * FLAG_SIZE, localSetTensor, 1);
-        }
-        pipe_barrier(PIPE_ALL);
-    } else {
-        //接收通知并清零
-        WaitSignalValue(ctrlFlagsGM + GetBlockIdx() * FLAG_SIZE, localCheckTensor, 1);
-        SetSignalValue(ctrlFlagsGM +  GetBlockIdx() * FLAG_SIZE, localSetTensor, 0);
-        pipe_barrier(PIPE_ALL);
     }
 }
 
@@ -506,36 +502,10 @@ __aicore__ inline bool AivCommBase::IsFirstOP(int32_t sliceId)
 
 __aicore__ inline void AivCommBase::ClearGM()
 {
-    uint32_t emptyOffset = AIV_FLAG_EMPTY_OFFSET - FLAG_ADDR_OFFSET;
-    uint32_t blockCount = BASE_FLAG_OFFSET / numBlocks_;
+    uint32_t emptyOffset = AIV_FLAG_EMPTY_OFFSET - gmOutOffset;
+    uint32_t blockCount = (BASE_FLAG_OFFSET - FLAG1_OFFSET) / numBlocks_;
     uint32_t blockOffset = blockCount * block_idx;
     CpGM2GM(GM_OUT[rank_] + blockOffset, GM_OUT[rank_] + blockOffset + emptyOffset, blockCount);
-}
-
-__aicore__ inline void AivCommBase::BarrierForFirstOP()
-{
-    // 清零标记区
-    ClearGM();
-    SyncAll<true>();
-
-    // 每个核分配多个rank
-    uint32_t perCoreRankNum = rankSize_ / numBlocks_;
-    uint32_t remainRankNum = rankSize_ % numBlocks_;
-    uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-    uint32_t startRank = block_idx < remainRankNum
-                        ? (perCoreRankNum + 1) * block_idx
-                        : perCoreRankNum * block_idx + remainRankNum;
-    for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
-        uint64_t flag_offset = BASE_FLAG_OFFSET + rank * FLAG_SIZE;
-        Record(rank_, flag_offset / FLAG_SIZE, DOUBLE);
-    }
-    PipeBarrier<PIPE_ALL>();
-    uint64_t flag_offset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
-    for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
-        WaitFlag(rank, flag_offset / FLAG_SIZE, DOUBLE);
-    }
-
-    SyncAll<true>();
 }
 
 // 为sendRecv单独设计
@@ -549,14 +519,14 @@ __aicore__ inline void AivCommBase::SendRecvBarrierForFirstOP(uint32_t myRank, u
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
-                uint64_t flag_offset = BASE_FLAG_OFFSET + i * FLAG_SIZE;
+                uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + i * FLAG_SIZE;
                 Record(rank_, flag_offset / FLAG_SIZE, DOUBLE);
             }
         }
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
-                uint64_t flag_offset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
+                uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE;
                 WaitFlag(i, flag_offset / FLAG_SIZE, DOUBLE);
             }
         }
@@ -576,13 +546,13 @@ __aicore__ inline void AivCommBase::BarrierAll()
     uint32_t startRank = block_idx < remainRankNum
                         ? (perCoreRankNum + 1) * block_idx
                         : perCoreRankNum * block_idx + remainRankNum;
-    uint64_t flag_offset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
+    uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE;
     for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
         Record(rank, flag_offset / FLAG_SIZE, 1);
     }
     PipeBarrier<PIPE_ALL>();
     for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
-        uint64_t flag_offset = BASE_FLAG_OFFSET + rank * FLAG_SIZE;
+        uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank * FLAG_SIZE;
         WaitFlag(rank_, flag_offset / FLAG_SIZE, 1);
         Record(rank_, flag_offset / FLAG_SIZE, 0);
     }
@@ -596,14 +566,14 @@ __aicore__ inline void AivCommBase::SendRecvBarrierAll(uint32_t myRank, uint32_t
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
-                uint64_t flag_offset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
+                uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE;
                 Record(i, flag_offset / FLAG_SIZE, 1);
             }
         }
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
-                uint64_t flag_offset = BASE_FLAG_OFFSET + i * FLAG_SIZE;
+                uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + i * FLAG_SIZE;
                 WaitFlag(rank_, flag_offset / FLAG_SIZE, 1);
                 Record(rank_, flag_offset / FLAG_SIZE, 0);
             }
