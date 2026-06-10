@@ -30,17 +30,10 @@ CcuTempGatherOmniPipeMesh1DMem2Mem::CcuTempGatherOmniPipeMesh1DMem2Mem(const OpP
     }
     rankId_ = rankId;
     // 子通信域的root卡号
-<<<<<<< HEAD
     // auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
     // if (rootIt != ranks.end()) {
     //     subCommRootId_ = std::distance(ranks.begin(), rootIt);
     // }
-=======
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
-    }
->>>>>>> a0135a4 (rs_nhr)
 
     ifRealRoot_ = (rankId == param.root);
     // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
@@ -66,10 +59,6 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::GetRes(AlgResourceRequest &resour
     return HCCL_SUCCESS;
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 3ca097f (reduce)
 uint32_t CcuTempGatherOmniPipeMesh1DMem2Mem::RemoteRankId2RankId(const uint32_t remoteRankId) const
 {
     uint32_t subCommRankId = 0;
@@ -81,11 +70,6 @@ uint32_t CcuTempGatherOmniPipeMesh1DMem2Mem::RemoteRankId2RankId(const uint32_t 
     return subCommRankId;
 }
 
-<<<<<<< HEAD
-=======
->>>>>>> a0135a4 (rs_nhr)
-=======
->>>>>>> 3ca097f (reduce)
 HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpParam& param,
                                                         const TopoInfoWithNetLayerDetails* topoInfo,
                                                         AlgResourceRequest& resourceRequest)
