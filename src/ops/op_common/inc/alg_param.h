@@ -350,6 +350,7 @@ struct ChannelInfo {
     EndpointLocType locationType = EndpointLocType::ENDPOINT_LOC_TYPE_RESERVED;
     u32 notifyNum = 0;
     u32 portGroupSize = 1; // A5用的, 端口组大小，用于数据分片比例计算
+    u32 dieId = INVALID_VALUE_RANKID; // 用于识别Server间双Die POD链路
     ChannelHandle handle = 0;
     HcclMem remoteCclMem; // A5用的
     HcclMem remoteInputGraphMode;   // A5用的, 图模式下远端sendBuf地址
@@ -466,6 +467,11 @@ struct AlgResourceCtxSerializable {
     }
 };
 
+enum class MultipleDimensionSplitRatioSource : uint8_t {
+    BUILTIN_FORMULA = 0,
+    ENV_CONFIG,
+    COMM_CONFIG
+};
 struct OpParam { // 不申请ctx，每个算子单独下发
     void* hcclComm;
     char tag[TAG_LENGTH] = ""; // 保存topoInfo的key值
@@ -491,7 +497,9 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
     u32 execTimeout = 0;
     AlgType algType;
-    double multipleDimensionSplitRatio = 0.8;
+    double multipleDimensionSplitRatio = 0.5;
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
     char algTypeStr[ALG_MAX_LENGTH] = "";
     union {
         struct {
