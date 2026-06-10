@@ -187,11 +187,9 @@ HcclResult AivTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
     resourceRequest.slaveThreadNum = xmlInfo.resInfo.slaveThreadNum;
     resourceRequest.notifyNumOnMainThread = xmlInfo.resInfo.notifyNumOnMainThread;
     resourceRequest.notifyNumPerThread.assign(xmlInfo.resInfo.notifyNumPerThread, 1);
-    numBlocks_ = std::max<u32>(1, xmlInfo.resInfo.blockNumAiv);
-    numBlocks_ = std::min<u32>(numBlocks_, MAX_NUM_BLOCKS);
     sliceNum_ = xmlInfo.vecSendRecvInfo.empty() ? 1 : std::max<u64>(1, xmlInfo.vecSendRecvInfo[0].sliceNum);
-    HCCL_INFO("[AivTempOmni][CalcRes] sliceNum_[%llu] numBlocks_[%u] infoNum[%zu].",
-        sliceNum_, numBlocks_, xmlInfo.vecSendRecvInfo.size());
+    HCCL_INFO("[AivTempOmni][CalcRes] sliceNum_[%llu] blockNumAiv[%u] infoNum[%zu].",
+        sliceNum_, xmlInfo.resInfo.blockNumAiv, xmlInfo.vecSendRecvInfo.size());
 
     std::vector<HcclChannelDesc> channelDescs;
     CHK_RET(CalcChannelRequestOmni(comm, param, topoInfo, subCommRanks_, xmlInfo.resInfo.mapchannelInfo, channelDescs));
@@ -203,9 +201,15 @@ HcclResult AivTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
 HcclResult AivTempOmni::CalNumBlocks(u32& numBlocks, u64 dataSize, u32 numBlocksLimit)
 {
     (void)dataSize;
-    (void)numBlocksLimit;
-    numBlocks_ = 1;
+    const u32 coreLimit = std::max<u32>(1, numBlocksLimit);
+    const u32 sliceLimit = static_cast<u32>(std::min<u64>(sliceNum_, MAX_NUM_BLOCKS));
+    const u32 rankLimit = std::max<u32>(1, tempRankSize_);
+    numBlocks_ = std::min(coreLimit, std::min(sliceLimit, rankLimit));
+    numBlocks_ = std::max<u32>(1, numBlocks_);
     numBlocks = numBlocks_;
+    HCCL_DEBUG("[AivTempOmni][CalNumBlocks] coreLimit[%u] sliceNum_[%llu] rankSize[%u] numBlocks[%u].",
+        coreLimit, sliceNum_, tempRankSize_, numBlocks_);
+    HCCL_INFO("[AivTempOmni] Actually use core num[%u]", numBlocks);
     return HCCL_SUCCESS;
 }
 
@@ -267,7 +271,7 @@ HcclResult AivTempOmni::KernelRun(const OpParam& param, const TemplateDataParams
         }
     }
 
-    CHK_RET(CalNumBlocks(omniArgs.numBlocks, tempAlgParams.sliceSize, MAX_NUM_BLOCKS));
+    CHK_RET(CalNumBlocks(omniArgs.numBlocks, tempAlgParams.sliceSize, param.numBlocksLimit));
     omniArgs.inputSliceStride = tempAlgParams.inputSliceStride;
     omniArgs.outputSliceStride = tempAlgParams.outputSliceStride;
     omniArgs.repeatNum = tempAlgParams.repeatNum;
