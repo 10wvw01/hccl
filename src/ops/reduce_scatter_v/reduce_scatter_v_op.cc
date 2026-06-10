@@ -44,6 +44,13 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     // A3是：export HCCL_OP_EXPANSION_MODE="AI_CPU"，A5的接口还没提供
     CHK_RET(InitEnvConfig());
 
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
+    }
+
     // 参数校验等工作;
     // 校验入参
     CHK_RET(CheckReduceScatterVInputParam(comm, sendBuf, recvBuf, recvCount, sendCounts, sendDispls, stream));
@@ -86,9 +93,10 @@ HcclResult HcclReduceScatterVGraphMode(void *sendBuf,  const void *sendCounts, c
     CHK_PRT_RET(scratchMemSize == 0, 
                 HCCL_ERROR("[HcclReduceScatterVGraphMode]scratchMemSize is 0"), HCCL_E_PARA);
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclReduceScatterVGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());

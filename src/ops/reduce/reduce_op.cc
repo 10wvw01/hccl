@@ -47,6 +47,13 @@ HcclResult HcclReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType
     std::string opTag;
     CHK_RET(ReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, op, stream, opTag));
 
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclReduceInner(sendBuf, recvBuf, count, dataType, op, root, comm, stream);
+    }
+
     CHK_RET(ReduceEntryLog(sendBuf, recvBuf, count, dataType, op, root, stream, opTag, "HcclReduce"));
 
     // 执行Reduce
@@ -69,9 +76,10 @@ HcclResult HcclReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t count, Hcc
     CHK_PRT_RET(scratchMemSize == 0, 
                 HCCL_ERROR("[HcclReduceGraphMode]scratchMemSize is 0"), HCCL_E_PARA);
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclReduceGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
 
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return reduce success"), HCCL_SUCCESS);

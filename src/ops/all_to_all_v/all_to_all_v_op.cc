@@ -43,6 +43,13 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());
 
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclAlltoAllInner(sendBuf, sendCount, sendType, recvBuf, recvCount, recvType, comm, stream);
+    }
+
     // 参数校验等工作
     CHK_RET(CheckAlltoAllInputPara(comm, sendBuf, sendCount, sendType, recvBuf, recvCount, recvType, stream));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -205,9 +212,10 @@ HcclResult HcclAlltoAllGraphMode(const void *sendBuf, uint64_t sendCount, HcclDa
 {
     HCCL_INFO("Start to run execute HcclAlltoAllGraphMode");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclAlltoAllGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     CHK_PRT_RET(sendCount == 0 && recvCount == 0,
         HCCL_WARNING("sendCount and recvCount are both 0, return AllToAll success"), HCCL_SUCCESS);
     HcclUs startut = TIME_NOW();
@@ -263,9 +271,10 @@ HcclResult HcclAlltoAllVGraphMode(const void *sendBuf, const void *sendCounts, c
     CHK_PRT_RET(scratchMemSize == 0, 
                 HCCL_ERROR("[HcclAlltoAllVGraphMode]scratchMemSize is 0"), HCCL_E_PARA);
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclAlltoAllVGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());
 
@@ -320,9 +329,10 @@ HcclResult HcclAlltoAllVCGraphMode(const void *sendBuf, const void *sendCountMat
     CHK_PRT_RET(scratchMemSize == 0, 
                 HCCL_ERROR("[HcclAlltoAllVCGraphMode]scratchMemSize is 0"), HCCL_E_PARA);
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclAlltoAllVCGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());
 

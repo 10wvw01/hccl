@@ -39,6 +39,12 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
+    }
     // 参数校验等工作
  	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -76,6 +82,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	CHK_PRT_RET(scratchMemSize == 0, 
  	            HCCL_ERROR("[HcclAllGatherVGraphMode]scratchMemSize is 0"), HCCL_E_PARA);
  	// 根据group获取通信域
+ 	CHK_PTR_NULL(group);
  	HcclComm comm = nullptr;
     HCCL_INFO("[HcclAllGatherVGraphMode] get group name: %s", group);
  	CHK_RET(HcomGetCommHandleByGroup(group, &comm));
