@@ -13,11 +13,9 @@
 namespace ops_hccl {
 using namespace hcomm;
 
-constexpr int INPUT_XN_ID   = 0;
-// constexpr int OUTPUT_XN_ID  = 1;
-// constexpr int SCRATCH_XN_ID = 2;
-constexpr int TOKEN_XN_ID   = 1;
-constexpr int POST_SYNC_ID   = 4;
+constexpr int INPUT_XN_ID   = 1;
+constexpr int TOKEN_XN_ID   = 2;
+constexpr int POST_SYNC_ID   = 3;
 constexpr int CKE_IDX_0     = 0;
 
 CcuKernelGatherOmniPipeMesh1DMem2Mem::CcuKernelGatherOmniPipeMesh1DMem2Mem(const hcomm::CcuKernelArg& arg)
@@ -176,12 +174,12 @@ HcclResult CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm()
 {
     HCCL_DEBUG("[CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm] start");
     CHK_RET(InitResource());
-    // LoadArgs();
-    // PreSync();
+    LoadArgs();
+    PreSync();
 
-    // DoRepeatGather();
+    DoRepeatGather();
 
-    // PostSync();
+    PostSync();
     HCCL_DEBUG("[CcuKernelGatherOmniPipeMesh1DMem2Mem::Algorithm] end");
     return HcclResult::HCCL_SUCCESS;
 }
