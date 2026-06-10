@@ -18,6 +18,8 @@ namespace ops_hccl {
 // 与 ins_temp_all_to_all_v_mesh_1D.h 中 ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE 保持同名同值
 constexpr u32 ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE = 16;
 
+u32 CalcOcsAdjustedConcurrent(u32 rankSize, u32 groupNum);
+
 u32 GetOcsGroupNum(const TopoInfoWithNetLayerDetails* topoInfo);
 
 // 是否选用 OCS 算法：HCCL_IS_USE_OCS 开关 + groupNum/并发准入（使用 topoInfo->userRankSize）。

@@ -11,6 +11,7 @@
 #include "ins_v2_all_to_all_v_sole_executor.h"
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_dpu_alltoall_mesh.h"
+#include "ins_temp_all_to_all_v_mesh_ocs.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_to_all_mesh_1D.h"
 #include "aiv_temp_all_to_all_v_mesh_1D.h"
@@ -83,6 +84,8 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate =
         std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierachyInfo);
+    // 适配Ocs group算法传递groupNum信息
+    algTemplate->GetOcsGroupNumInfoFromTopo(topoInfo);
     // 调用计算资源的函数
     CHK_RET(algTemplate->CalcRes(comm, param, topoInfo, resourceRequest));
     return HCCL_SUCCESS;
@@ -263,6 +266,7 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate =
         std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierachyInfo);
+    algTemplate->GetOcsGroupNumInfoFromTopo(&resCtx.topoInfo);
     u32 templateScratchMultiplier = algTemplate->CalcScratchMultiple(tempAlgParams.buffInfo.inBuffType,
                                                                      tempAlgParams.buffInfo.outBuffType);
 
@@ -438,6 +442,12 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DSingleChannel,
     InsTempAlltoAllVMesh1D);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
+    InsTempAlltoAllVMeshOcs);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
+    InsTempAlltoAllVMeshOcs);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLVC, InsAlltoAllVCMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
+    InsTempAlltoAllVMeshOcs);
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DUBX, InsV2AlltoAllVSoleExecutor, TopoMatchUBX1d,
     InsTempAlltoAllVMesh1D);
