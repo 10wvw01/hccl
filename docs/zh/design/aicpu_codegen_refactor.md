@@ -155,7 +155,10 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherSequ
   `#ifdef HCCL_AICPU_CODEGEN` 包住并改为显式实例化;CCU 变体不动。
   两次验证(单条 / 全 6 条)均 `build.sh --pkg` → 安装 → `build.sh --st` => **190/190 全过**。
 - **铺开(进行中)**：每个 op 一个 spec/PR,同一套生成器,逐个迁完其余约 13 条 AICPU 变体。
-- **Phase 1b**：selector 字面量换成 `algnames::*` 常量(需 `alg_names.h` 无条件生成),彻底消灭对齐 bug;并加 CI 校验「selector 出现的每个 `Ins*` 名都在 spec 里」。
+- **Phase 1b(all_gather 已完成)**:`alg_names.h` 改为**无条件生成**(与是否生成注册解耦),selector
+  的 6 个字面量换成 `algnames::*` 常量 —— selector 与注册自此**同一真值源**,名字写错直接编译期报错。
+  生成器加 `--check-selector` CI 校验:已迁入的 algName 若仍以裸字面量出现在 selector 中则构建失败
+  (回归保护);校验在 CMake 的 codegen 自定义命令里随构建执行。
 - **Phase 2(可选,LOC 大头)**：op 入口的逐参数 `RPT_INPUT_ERR/CHK_PTR_NULL`、entry-log、tag 拼装样板也从 op-spec 生成。
 
 ## 9. 风险与对策

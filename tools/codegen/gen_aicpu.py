@@ -97,9 +97,34 @@ def gen_reg_cc(spec):
     return "\n".join(out)
 
 
+def check_selector(specs, selector_files):
+    """CI 校验: 已迁入 codegen 的 algName 不应再以裸字符串字面量出现在 selector 中,
+    必须改用 algnames::<name> 常量(单一真值源)。捕获回归。"""
+    names = [v["name"] for s in specs for v in s.get("variants", [])]
+    bad = []
+    for f in selector_files:
+        with open(f, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        for n in names:
+            if '"{}"'.format(n) in text:
+                bad.append((f, n))
+    if bad:
+        for f, n in bad:
+            sys.stderr.write(
+                'gen_aicpu.py: CHECK FAILED: migrated algName "{n}" still a raw literal in '
+                '{f}\n  -> use algnames::{n} (include alg_names.h)\n'.format(n=n, f=f))
+        sys.exit(1)
+    print("gen_aicpu.py: selector check OK ({} migrated names x {} selector file(s))".format(
+        len(names), len(selector_files)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True, help="output directory")
+    ap.add_argument("--check-selector", action="append", default=[],
+                    metavar="SELECTOR_CC",
+                    help="selector .cc to verify carries no raw migrated-name literals "
+                         "(repeat the flag for multiple files)")
     ap.add_argument("specs", nargs="+", help="aicpu.spec.yaml file(s)")
     args = ap.parse_args()
 
@@ -116,6 +141,9 @@ def main():
 
     print("gen_aicpu.py: generated alg_names.h + {} reg file(s) into {}".format(
         len(specs), args.out))
+
+    if args.check_selector:
+        check_selector(specs, args.check_selector)
 
 
 if __name__ == "__main__":
