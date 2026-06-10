@@ -9,6 +9,8 @@
  */
 
 #include "template_utils.h"
+
+#include <limits>
 namespace ops_hccl {
 
 HcclResult GetAlgRank(const u32 virtRank, const std::vector<u32> &rankIds, u32 &algRank)
@@ -141,5 +143,169 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
               level0DataRatio, elemCountOut.size());
 
     return HcclResult::HCCL_SUCCESS;
+}
+
+bool GetPortGroupSize(
+    const std::map<u32, std::vector<ChannelInfo>> &channels,
+    uint64_t &portGroupSize)
+{
+    portGroupSize = 0;
+    for (const auto &entry : channels) {
+        const auto &channelGroup = entry.second;
+        if (!channelGroup.empty()) {
+            for (const auto &ch : channelGroup) {
+                portGroupSize += ch.portGroupSize;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+const char* ParallelDataSplitTypeToStr(ParallelDataSplitType splitType)
+{
+    switch (splitType) {
+        case ParallelDataSplitType::REDUCE_SCATTER_WITH_LOCAL_REDUCE:
+            return "REDUCE_SCATTER_WITH_LOCAL_REDUCE";
+        case ParallelDataSplitType::SCATTER:
+            return "SCATTER";
+        case ParallelDataSplitType::ALL_GATHER:
+            return "ALL_GATHER";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+double CalcParallelDataSplitRatio(
+    uint64_t intraRankSize,
+    uint64_t interRankSize,
+    const std::map<u32, std::vector<ChannelInfo>> &intraChannels,
+    const std::map<u32, std::vector<ChannelInfo>> &interChannels,
+    ParallelDataSplitType splitType,
+    double fallbackRatio)
+{
+    const double validFallback = std::isfinite(fallbackRatio)
+        ? std::max(0.0, std::min(fallbackRatio, 1.0))
+        : 0.5;
+    bool needFallback = false;
+    std::string fallbackReason;
+
+    if (intraRankSize == 0) {
+        needFallback = true;
+        fallbackReason = "intraRankSize is 0";
+    } else if (interRankSize == 0) {
+        needFallback = true;
+        fallbackReason = "interRankSize is 0";
+    } else if (intraChannels.empty()) {
+        needFallback = true;
+        fallbackReason = "intraChannels is empty";
+    } else if (interChannels.empty()) {
+        needFallback = true;
+        fallbackReason = "interChannels is empty";
+    }
+
+    uint64_t intraPortGroupSize = 0;
+    uint64_t interPortGroupSize = 0;
+    if (!needFallback) {
+        if (!GetPortGroupSize(intraChannels, intraPortGroupSize)) {
+            needFallback = true;
+            fallbackReason = "no non-empty channel group in intraChannels";
+        } else if (!GetPortGroupSize(interChannels, interPortGroupSize)) {
+            needFallback = true;
+            fallbackReason = "no non-empty channel group in interChannels";
+        } else if (intraPortGroupSize == 0) {
+            needFallback = true;
+            fallbackReason = "intraPortGroupSize is 0";
+        } else if (interPortGroupSize == 0) {
+            needFallback = true;
+            fallbackReason = "interPortGroupSize is 0";
+        } else if (intraRankSize - 1 > std::numeric_limits<uint64_t>::max() / intraPortGroupSize) {
+            needFallback = true;
+            fallbackReason = "intraPortGroupSize scaling overflow";
+        } else {
+            intraPortGroupSize *= intraRankSize - 1;
+            if (intraPortGroupSize == 0) {
+                needFallback = true;
+                fallbackReason = "scaled intraPortGroupSize is 0";
+            }
+        }
+    }
+
+    if (needFallback) {
+        HCCL_WARNING("[CalcParallelDataSplitRatio] fallback due to: %s, "
+                     "intraRankSize[%llu], interRankSize[%llu], "
+                     "intraPortGroupSize[%llu], interPortGroupSize[%llu], "
+                     "splitType[%s], fallbackRatio[%f]",
+                     fallbackReason.c_str(),
+                     intraRankSize, interRankSize,
+                     intraPortGroupSize, interPortGroupSize,
+                     ParallelDataSplitTypeToStr(splitType), validFallback);
+        return validFallback;
+    }
+
+    double meshTimeCoeff = 0.0;
+    double closTimeCoeff = 0.0;
+
+    switch (splitType) {
+        case ParallelDataSplitType::REDUCE_SCATTER_WITH_LOCAL_REDUCE:
+            meshTimeCoeff = 21.0 * static_cast<double>(intraRankSize - 1) /
+                (20.0 * static_cast<double>(intraRankSize) * intraPortGroupSize);
+            closTimeCoeff = static_cast<double>(interRankSize - 1) /
+                (static_cast<double>(interRankSize) * interPortGroupSize);
+            break;
+        case ParallelDataSplitType::SCATTER:
+            meshTimeCoeff = static_cast<double>(intraRankSize - 1) /
+                (static_cast<double>(intraRankSize) * intraPortGroupSize);
+            closTimeCoeff = static_cast<double>(interRankSize - 1) /
+                (static_cast<double>(interRankSize) * interPortGroupSize);
+            break;
+        case ParallelDataSplitType::ALL_GATHER:
+            meshTimeCoeff = static_cast<double>(intraRankSize - 1) / intraPortGroupSize;
+            closTimeCoeff = static_cast<double>(interRankSize - 1) / interPortGroupSize;
+            break;
+        default:
+            HCCL_WARNING("[CalcParallelDataSplitRatio] fallback due to: unknown splitType[%d], "
+                         "fallbackRatio[%f]", static_cast<int>(splitType), validFallback);
+            return validFallback;
+    }
+
+    double denominator = closTimeCoeff + meshTimeCoeff;
+    if (denominator == 0.0 || !std::isfinite(denominator)) {
+        HCCL_WARNING("[CalcParallelDataSplitRatio] fallback due to: denominator is 0 or not finite, "
+                     "intraRankSize[%llu], interRankSize[%llu], "
+                     "intraPortGroupSize[%llu], interPortGroupSize[%llu], "
+                     "splitType[%s], fallbackRatio[%f]",
+                     intraRankSize, interRankSize,
+                     intraPortGroupSize, interPortGroupSize,
+                     ParallelDataSplitTypeToStr(splitType), validFallback);
+        return validFallback;
+    }
+
+    double ratio = closTimeCoeff / denominator;
+    if (!std::isfinite(ratio) || ratio < 0.0 || ratio > 1.0) {
+        HCCL_WARNING("[CalcParallelDataSplitRatio] fallback due to: ratio[%f] is not finite or out of range[0,1], "
+                     "intraRankSize[%llu], interRankSize[%llu], "
+                     "intraPortGroupSize[%llu], interPortGroupSize[%llu], "
+                     "splitType[%s], fallbackRatio[%f]",
+                     ratio,
+                     intraRankSize, interRankSize,
+                     intraPortGroupSize, interPortGroupSize,
+                     ParallelDataSplitTypeToStr(splitType), validFallback);
+        return validFallback;
+    }
+
+    constexpr double ratioStep = 1.0 / 8.0;
+    constexpr double minRatioIndex = 1.0;
+    constexpr double maxRatioIndex = 7.0;
+    const double nearestRatioIndex = std::round(ratio / ratioStep);
+    const double clampedRatioIndex = std::max(minRatioIndex, std::min(nearestRatioIndex, maxRatioIndex));
+    const double quantizedRatio = clampedRatioIndex * ratioStep;
+    HCCL_INFO("[CalcParallelDataSplitRatio] intraRankSize[%llu], interRankSize[%llu], "
+              "intraPortGroupSize[%llu], interPortGroupSize[%llu], "
+              "splitType[%s], rawRatio[%f], quantizedRatio[%f]",
+              intraRankSize, interRankSize,
+              intraPortGroupSize, interPortGroupSize,
+              ParallelDataSplitTypeToStr(splitType), ratio, quantizedRatio);
+    return quantizedRatio;
 }
 }
