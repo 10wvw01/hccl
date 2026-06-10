@@ -30,6 +30,8 @@ public:
 
     HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
     u64 GetThreadNum() const override;
+    void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override;
+    void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 
     // Local copy: own data from input → output + scratch for all destination slots
     HcclResult LocalDataCopy(const std::vector<ThreadHandle> &threads) override;
