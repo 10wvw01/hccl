@@ -1,19 +1,43 @@
 # AICPU 后端算法变体声明(代码生成输入)
 # 由 tools/codegen/gen_aicpu.py 生成 alg_names.h 与 <op>_aicpu_reg.cc
-# 试点:仅迁移 all_gather 的 InsAllGatherSequenceNHRMesh1D 一条变体。
-# 其余 all_gather 的 Ins* 变体(Parallel/Concurrent/MeshNhrDPU)仍由手写宏注册,二者共存。
+# all_gather 的全部 6 个 AICPU(Ins*)变体已迁入 codegen;CCU(Ccu*)变体仍由手写宏注册,二者共存。
 op: all_gather
 cmd: HCCL_CMD_ALLGATHER
 # 生成的 reg.cc 需要 include 的头(executor / template / topomatch)
 includes:
   - topo_match_multilevel.h
+  - topo_match_ubx.h
+  - topo_match_pcie_mix.h
   - ins_v2_all_gather_sequence_executor_aicpu.h
+  - ins_v2_all_gather_sequence_executor.h
+  - ins_v2_all_gather_parallel_executor.h
+  - ins_v2_all_gather_concurrent_executor.h
   - ins_temp_all_gather_mesh_1D_Z_axis_detour.h
+  - ins_temp_all_gather_mesh_1D.h
   - ins_temp_all_gather_nhr.h
+  - ins_temp_all_gather_nhr_dpu.h
 variants:
   - name: InsAllGatherSequenceNHRMesh1D
     executor: InsV2AllGatherSequenceExecutorAicpu
     topo: TopoMatchMultilevel
-    templates:
-      - InsTempAllGatherMesh1D1DZAxisDetour
-      - InsTempAllGatherNHR
+    templates: [InsTempAllGatherMesh1D1DZAxisDetour, InsTempAllGatherNHR]
+  - name: InsAllGatherMeshNhrDPU
+    executor: InsV2AllGatherSequenceExecutor
+    topo: TopoMatchMultilevel
+    templates: [InsTempAllGatherMesh1D, InsTempAllGatherNHRDPU]
+  - name: InsAllGatherParallelMesh1DNHR
+    executor: InsV2AllGatherParallelExecutor
+    topo: TopoMatchMultilevel
+    templates: [InsTempAllGatherMesh1D, InsTempAllGatherNHR]
+  - name: InsAllGatherParallelMesh1DNHRMultiJetty
+    executor: InsV2AllGatherParallelExecutor
+    topo: TopoMatchUBX
+    templates: [InsTempAllGatherMesh1D, InsTempAllGatherNHR]
+  - name: InsAllGatherParallelMesh1DNHRPcie
+    executor: InsV2AllGatherParallelExecutor
+    topo: TopoMatchPcieMix
+    templates: [InsTempAllGatherMesh1D, InsTempAllGatherNHR]
+  - name: InsAllGatherConcurrentMesh1DNHR
+    executor: InsV2AllGatherConcurrentExecutor
+    topo: TopoMatchUBX
+    templates: [InsTempAllGatherMesh1D, InsTempAllGatherNHR]

@@ -599,6 +599,13 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 #endif
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#ifdef HCCL_AICPU_CODEGEN
+// AICPU(Ins*)注册由生成文件 generated/aicpu/all_gather_aicpu_reg.cc 负责(源自 aicpu.spec.yaml)。
+// 保留显式实例化, 使各 TopoMatch 特化的执行器符号留在本 TU(libhccl.so)。
+template class InsV2AllGatherParallelExecutor<TopoMatchMultilevel, InsTempAllGatherMesh1D, InsTempAllGatherNHR>;
+template class InsV2AllGatherParallelExecutor<TopoMatchUBX, InsTempAllGatherMesh1D, InsTempAllGatherNHR>;
+template class InsV2AllGatherParallelExecutor<TopoMatchPcieMix, InsTempAllGatherMesh1D, InsTempAllGatherNHR>;
+#else
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHR,
                                InsV2AllGatherParallelExecutor, TopoMatchMultilevel, InsTempAllGatherMesh1D,
                                InsTempAllGatherNHR);
@@ -608,6 +615,7 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherPara
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHRPcie,
                                InsV2AllGatherParallelExecutor, TopoMatchPcieMix, InsTempAllGatherMesh1D,
                                InsTempAllGatherNHR);
+#endif /* HCCL_AICPU_CODEGEN */
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)

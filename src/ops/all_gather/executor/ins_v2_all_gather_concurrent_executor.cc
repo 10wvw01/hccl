@@ -430,8 +430,13 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 #endif
 
 // 算法注册
+#ifdef HCCL_AICPU_CODEGEN
+// AICPU(Ins*)注册由生成文件 generated/aicpu/all_gather_aicpu_reg.cc 负责(源自 aicpu.spec.yaml)。
+template class InsV2AllGatherConcurrentExecutor<TopoMatchUBX, InsTempAllGatherMesh1D, InsTempAllGatherNHR>;
+#else
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherConcurrentMesh1DNHR, InsV2AllGatherConcurrentExecutor,
                               TopoMatchUBX, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
+#endif /* HCCL_AICPU_CODEGEN */
 
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)

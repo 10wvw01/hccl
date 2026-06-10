@@ -208,10 +208,15 @@ HcclResult InsV2AllGatherSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     return HCCL_SUCCESS;
 }
 
+#ifdef HCCL_AICPU_CODEGEN
+// AICPU(Ins*)注册由生成文件 generated/aicpu/all_gather_aicpu_reg.cc 负责(源自 aicpu.spec.yaml)。
+template class InsV2AllGatherSequenceExecutor<TopoMatchMultilevel, InsTempAllGatherMesh1D, InsTempAllGatherNHRDPU>;
+#else
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER,
                                InsAllGatherMeshNhrDPU,
                                InsV2AllGatherSequenceExecutor,
                                TopoMatchMultilevel,
                                InsTempAllGatherMesh1D,
                                InsTempAllGatherNHRDPU);
+#endif /* HCCL_AICPU_CODEGEN */
 }

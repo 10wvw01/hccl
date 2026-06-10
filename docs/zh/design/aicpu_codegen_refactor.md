@@ -1,6 +1,6 @@
 # AICPU 后端「注册层代码生成」重构设计
 
-> 状态：试点(Pilot)进行中 · 范围：AICPU 后端 · 首个落地：`all_gather`
+> 状态：`all_gather` 已整体迁入(6/6 AICPU 变体) · 范围：AICPU 后端 · 下一步：逐算子铺开
 > 关联分支：`feat/aicpu-codegen-allgather`
 
 ## 0. 背景与动机
@@ -148,11 +148,13 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherSequ
 
 ## 8. 迁移路径(增量 / 可回滚 / 每步 ST 验证)
 
-- **Pilot(本分支)**：只迁 `all_gather` 的 `InsAllGatherSequenceNHRMesh1D` 一条。
-  1. 写 `all_gather/aicpu.spec.yaml` + 生成器 + CMake 接入。
-  2. executor.cc 宏改为开关 + 显式实例化。
-  3. 验证：`build.sh --pkg` → 安装 → `build.sh --st`,期望仍 **190 全过**;`nm -DC libhccl.so` 比对执行器符号一致。
-- **铺开**：每个 op 一个 spec/PR,同一套生成器,逐个迁完 19 条。
+- **Pilot(已完成)**：`all_gather` 的全部 **6** 个 AICPU(`Ins*`)变体已迁入:
+  `InsAllGatherSequenceNHRMesh1D` / `InsAllGatherMeshNhrDPU` / `InsAllGatherParallelMesh1DNHR`
+  / `...MultiJetty` / `...Pcie` / `InsAllGatherConcurrentMesh1DNHR`。
+  涉及 4 个 executor `.cc`(sequence_aicpu / sequence / parallel×3 / concurrent),手写宏均用
+  `#ifdef HCCL_AICPU_CODEGEN` 包住并改为显式实例化;CCU 变体不动。
+  两次验证(单条 / 全 6 条)均 `build.sh --pkg` → 安装 → `build.sh --st` => **190/190 全过**。
+- **铺开(进行中)**：每个 op 一个 spec/PR,同一套生成器,逐个迁完其余约 13 条 AICPU 变体。
 - **Phase 1b**：selector 字面量换成 `algnames::*` 常量(需 `alg_names.h` 无条件生成),彻底消灭对齐 bug;并加 CI 校验「selector 出现的每个 `Ins*` 名都在 spec 里」。
 - **Phase 2(可选,LOC 大头)**：op 入口的逐参数 `RPT_INPUT_ERR/CHK_PTR_NULL`、entry-log、tag 拼装样板也从 op-spec 生成。
 
