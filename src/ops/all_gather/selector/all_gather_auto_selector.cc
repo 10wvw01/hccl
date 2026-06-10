@@ -11,7 +11,7 @@
 #include "all_gather_auto_selector.h"
 #include "selector_registry.h"
 #include "hccl_aiv_utils.h"
-#include "alg_names.h"  // 生成的 algName 常量(与注册同一真值源, 见 aicpu.spec.yaml)
+#include "alg_names.h" // 生成的 algName 常量(与注册同一真值源, 见 aicpu.spec.yaml)
 
 namespace ops_hccl {
 constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
@@ -244,8 +244,9 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             selectAlgName = "InsAllGatherNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
-                selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
-                    algnames::InsAllGatherSequenceNHRMesh1D : algnames::InsAllGatherParallelMesh1DNHR;
+                selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE)
+                                    ? algnames::InsAllGatherSequenceNHRMesh1D
+                                    : algnames::InsAllGatherParallelMesh1DNHR;
             } else {
                 selectAlgName = "InsAllGatherNHR";
             }
@@ -268,8 +269,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                 if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                     selectAlgName = "InsAllGatherMesh1D";
                 } else {
-                    selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? algnames::InsAllGatherParallelMesh1DNHRPcie :
-                                                                          "InsV2AllGatherOmniPipePcie";
+                    selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? algnames::InsAllGatherParallelMesh1DNHRPcie
+                                                                        : "InsV2AllGatherOmniPipePcie";
                 }
                 HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
                 return SelectorStatus::MATCH;
