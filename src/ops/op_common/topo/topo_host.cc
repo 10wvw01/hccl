@@ -71,7 +71,7 @@ HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
     const auto& physicalSizes = topoInfo->netLayerDetails.instSizeListOfLayer[kNetLayerL1];
     if (physicalSizes.size() <= 1) {
         topoInfo->ocsGroupNum = 1;
-        HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] L1 instNum[%zu], oxcGroupNum=1",
+        HCCL_INFO("[TopoHost][CalcOcsGroupNumFromL1] L1 instNum[%zu], ocsGroupNum=1",
             physicalSizes.size());
         return HCCL_SUCCESS;
     }
@@ -81,7 +81,7 @@ HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
     u32 gcd = CalGCD(sizes);
     if (gcd <= 1) {
         topoInfo->ocsGroupNum = 1;
-        HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] gcd[%u] <= 1, oxcGroupNum=1", gcd);
+        HCCL_INFO("[TopoHost][CalcOcsGroupNumFromL1] gcd[%u] <= 1, ocsGroupNum=1", gcd);
         return HCCL_SUCCESS;
     }
 
@@ -90,7 +90,7 @@ HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
         virtualGroupNum += sz / gcd;
     }
     topoInfo->ocsGroupNum = virtualGroupNum;
-    HCCL_INFO("[TopoHost][CalcOxcGroupNumFromL1] physicalGroupNum[%zu] gcd[%u] oxcGroupNum[%u]",
+    HCCL_INFO("[TopoHost][CalcOcsGroupNumFromL1] physicalGroupNum[%zu] gcd[%u] ocsGroupNum[%u]",    
         physicalSizes.size(), gcd, virtualGroupNum);
     return HCCL_SUCCESS;
 }
