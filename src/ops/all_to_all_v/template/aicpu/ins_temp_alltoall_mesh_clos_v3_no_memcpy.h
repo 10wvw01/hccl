@@ -62,7 +62,8 @@ private:
                                          u32 remoteRank, u32 channelIdx, ChannelInfo &channel) const;
     HcclResult RunClosNoMemcpySlot(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                    const ClosNoMemcpySlot &slotPlan,
-                                   const ThreadHandle &thread,
+                                   const ThreadHandle &sendThread,
+                                   const ThreadHandle &recvThread,
                                    u32 round,
                                    u64 actualChunkSize,
                                    u64 chunkCount,
