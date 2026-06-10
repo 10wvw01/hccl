@@ -763,7 +763,7 @@ CcuResult GroupCopy(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr sr
 CcuResult CreateReduceLoop(CcuKernelCtxBase &ctx, GroupLocalReduceVar &var, uint32_t size,
     HcclDataType dataType, HcclDataType outputDataType, HcclReduceOp opType)
 {
-    AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated);
+    AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated, CCU_M2M_LOCAL_COPY_LOOP_COUNT, LOCAL_COPY_MS_PER_LOOP);
 
     std::string loopType = "local_reduce";
     if (ctx.IsLoopEntityRegistered(loopType)) {
