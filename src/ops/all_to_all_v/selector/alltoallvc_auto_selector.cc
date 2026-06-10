@@ -48,8 +48,8 @@ SelectorStatus AlltoAllVCAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLaye
 {
     HCCL_DEBUG("[AlltoAllVCAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     if (IsUseOcsAlgorithm(topoInfo)) {
-        selectAlgName = "InsAlltoAllMesh1DOCS";
-        HCCL_INFO("[AlltoAllAutoSelector][SelectAicpuAlgo][OXC] groupNum=%u, Algo match[%s]",
+        selectAlgName = "InsAlltoAllMesh1DOcs";
+        HCCL_INFO("[AlltoAllAutoSelector][SelectAicpuAlgo][OCS] groupNum=%u, Algo match[%s]",
             GetOcsGroupNum(topoInfo), selectAlgName.c_str());
         return SelectorStatus::MATCH;
     }

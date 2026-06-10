@@ -17,7 +17,7 @@
 
 namespace ops_hccl {
 
-static u32 CalcOcsAdjustedConcurrent(u32 rankSize, u32 groupNum)
+u32 CalcOcsAdjustedConcurrent(u32 rankSize, u32 groupNum)
 {
     if (groupNum == 0) {
         return 0;
