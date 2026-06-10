@@ -75,13 +75,6 @@ static CcuResult InitResource(ReduceScatterMesh1D2DieMem2MemContext &ctx)
 
     ctx.remoteInput.resize(ctx.rankSize);
     ctx.scratchMem.resize(ctx.rankSize);
-    for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
-        if (ctx.subRankGroup[rankIdx] == ctx.rankId) {
-            // myInput 在 RmtReduce 中初始化
-        } else {
-            // remoteInput 在 RmtReduce 中初始化
-        }
-    }
 
     ctx.moConfig.loopCount = 16;
     ctx.moConfig.msInterleave = REDUCE_MS_CNT;
