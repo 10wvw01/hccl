@@ -656,7 +656,7 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType)
 {
-#if defined(AICPU_COMPILE) || CANN_VERSION_NUM <= CANN_VERSION(9, 1, 0)
+#if defined(AICPU_COMPILE) || CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
     // 9.1.0 之前不使用 HcclRankGraphGetEndpointNum / GetEndpointDesc / GetTopoType 等新 API，
     // 且 CommAddr.eid 字段也不存在；整函数在 8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用，
     // 入口版本号守护后 8.5.0 永远走不到这里）。
