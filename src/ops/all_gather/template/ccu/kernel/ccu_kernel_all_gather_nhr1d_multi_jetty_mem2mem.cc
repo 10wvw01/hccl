@@ -52,7 +52,6 @@ static CcuResult InitResource(AllGatherNHR1DMultiJettyMem2MemContext &ctx)
     ctx.outputSliceOffset.resize(arg->rankSize);
     ctx.constVar1 = 1;
     ctx.repeatTimeflag = 0;
-    ctx.resourceAllocated = false;
 
     return CCU_SUCCESS;
 }

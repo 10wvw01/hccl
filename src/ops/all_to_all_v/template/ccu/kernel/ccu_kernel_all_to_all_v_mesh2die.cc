@@ -95,16 +95,16 @@ static CcuResult ExchangeInfoSync(AllToAllVMesh2DieContext &ctx)
     for (u32 peerId = 0; peerId < arg->channelCount; peerId++) {
         tempDst = ctx.output[ctx.localId];
         tempDst += ctx.sendRecvInfo[peerId].recvOffset;
-        ccu::WriteVariableWithNotify(arg->channels[peerId], tempDst, OUTPUT_XN_ID, CKE_IDX_1, ctx.selfBit);
-        ccu::WriteVariableWithNotify(arg->channels[peerId], ctx.token[ctx.localId], TOKEN_XN_ID, CKE_IDX_2, ctx.selfBit);
+        CCU_CHK_RET(ccu::WriteVariableWithNotify(arg->channels[peerId], tempDst, OUTPUT_XN_ID, CKE_IDX_1, ctx.selfBit));
+        CCU_CHK_RET(ccu::WriteVariableWithNotify(arg->channels[peerId], ctx.token[ctx.localId], TOKEN_XN_ID, CKE_IDX_2, ctx.selfBit));
     }
     uint32_t channelIdx = 0;
     for (u32 peerId = 0; peerId < ctx.peerSize; peerId++) {
         if (arg->withMyRank && (peerId == ctx.logicId)) {
             continue;
         }
-        ccu::NotifyWait(arg->channels[channelIdx], CKE_IDX_1, 1 << peerId);
-        ccu::NotifyWait(arg->channels[channelIdx], CKE_IDX_2, 1 << peerId);
+        CCU_CHK_RET(ccu::NotifyWait(arg->channels[channelIdx], CKE_IDX_1, 1 << peerId));
+        CCU_CHK_RET(ccu::NotifyWait(arg->channels[channelIdx], CKE_IDX_2, 1 << peerId));
         channelIdx++;
     }
 

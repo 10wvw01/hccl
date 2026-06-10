@@ -29,6 +29,7 @@ constexpr uint64_t CCU_MS_SIZE               = 4096;
 constexpr uint64_t NUM_TWO                   = 2;
 constexpr uint32_t LOCAL_COPY_MS_PER_LOOP = 8;
 constexpr uint32_t CCU_MS_LOCAL_COPY_LOOP_COUNT = 8;
+constexpr uint32_t CCU_M2M_LOCAL_COPY_LOOP_COUNT = 16;
 
 struct LoopGroupConfig {
     uint32_t msInterleave;  // loop使用的ms步长，即与前一个loop间的间距
@@ -91,14 +92,6 @@ struct CcuKernelCtxBase {
 
     std::map<std::string, CcuLoopEntity> loopMap;
     CcuLoopExecutors enginePool;
-
-    // Group操作持久化变量：确保Loop录制时绑定的句柄在整个kernel生命周期内稳定
-    GroupCopyVar           gcVar;
-    GroupBroadcastVar      gbVar;
-    GroupBroadcastVar      gbWmrVar;   // broadcast without my rank
-    GroupReduceVar         grVar;
-    GroupReduceVar         grWmrVar;   // reduce without my rank
-    GroupLocalReduceVar    glrVar;
 
     void CreateLoopEntity(std::string loopStr) {
         loopMap.emplace(loopStr, CcuLoopEntity());

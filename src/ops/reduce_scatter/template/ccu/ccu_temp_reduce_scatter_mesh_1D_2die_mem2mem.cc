@@ -50,7 +50,7 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::CalcRes(HcclComm comm, const O
     std::vector<HcclChannelDesc> channelDescs;
     std::vector<std::vector<HcclChannelDesc>> channelDescsVec;
     std::vector<std::vector<u32>>             subRankGroup;
-    bool isReduceToOuput = false;
+    bool isReduceToOutput = false;
 
     channelDescsVec.resize(DIE_NUM);
     subRankGroup.resize(DIE_NUM);
@@ -76,20 +76,20 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::CalcRes(HcclComm comm, const O
         strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuReduceScatterMesh1D2DieMem2MemKernel");
         kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuReduceScatterMesh1D2DieMem2MemKernel);
 
-        isReduceToOuput = channelDescsVec[dieId].size() > channelDescsVec[1 - dieId].size() ? false : true;
+        isReduceToOutput = channelDescsVec[dieId].size() > channelDescsVec[1 - dieId].size() ? false : true;
 
         auto kernelArg = std::make_shared<CcuKernelArgReduceScatterMesh1D2DieMem2Mem>();
         kernelArg->gRankSize = templateRankSize_;
         kernelArg->rankSize = subRankGroup[dieId].size();
-        kernelArg->isReduceToOutput = isReduceToOuput;
+        kernelArg->isReduceToOutput = isReduceToOutput;
         kernelArg->rankId = myRank_;
         kernelArg->opParam = param;
         kernelArg->subRankGroup = subRankGroup[dieId];
         kernelArg->subCommRanks = subCommRanks_;
         kernelInfo.setKernelArg(kernelArg);
 
-        HCCL_INFO("[CcuTempReduceScatterMeshMem2Mem1D2Die]gRankSize[%d], rankSize[%d], myRank[%d], isReduceToOuput[%d]",
-            templateRankSize_, subRankGroup[dieId].size(), myRank_, isReduceToOuput);
+        HCCL_INFO("[CcuTempReduceScatterMeshMem2Mem1D2Die]gRankSize[%d], rankSize[%d], myRank[%d], isReduceToOutput[%d]",
+            templateRankSize_, subRankGroup[dieId].size(), myRank_, isReduceToOutput);
         kernelInfo.channels = channelDescsVec[dieId];
         resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     }
