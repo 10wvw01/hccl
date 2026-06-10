@@ -1,0 +1,19 @@
+# AICPU 后端算法变体声明(代码生成输入)
+# 由 tools/codegen/gen_aicpu.py 生成 alg_names.h 与 <op>_aicpu_reg.cc
+# 试点:仅迁移 all_gather 的 InsAllGatherSequenceNHRMesh1D 一条变体。
+# 其余 all_gather 的 Ins* 变体(Parallel/Concurrent/MeshNhrDPU)仍由手写宏注册,二者共存。
+op: all_gather
+cmd: HCCL_CMD_ALLGATHER
+# 生成的 reg.cc 需要 include 的头(executor / template / topomatch)
+includes:
+  - topo_match_multilevel.h
+  - ins_v2_all_gather_sequence_executor_aicpu.h
+  - ins_temp_all_gather_mesh_1D_Z_axis_detour.h
+  - ins_temp_all_gather_nhr.h
+variants:
+  - name: InsAllGatherSequenceNHRMesh1D
+    executor: InsV2AllGatherSequenceExecutorAicpu
+    topo: TopoMatchMultilevel
+    templates:
+      - InsTempAllGatherMesh1D1DZAxisDetour
+      - InsTempAllGatherNHR

@@ -19,3 +19,6 @@ set(src_list
 target_sources(hccl PRIVATE
     ${src_list}
 )
+# 注: AICPU 注册层代码生成(HCCL_AICPU_CODEGEN)的 CMake 接入放在 src/CMakeLists.txt,
+# 与 hccl 目标同目录, 以满足 generated 源文件 GENERATED 属性的作用域要求(CMake<3.20)。
+# spec 输入: ${CMAKE_CURRENT_SOURCE_DIR}/aicpu.spec.yaml

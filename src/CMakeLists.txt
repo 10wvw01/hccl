@@ -529,6 +529,29 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
 
 hccl_apply_cann_compat(hccl)
 
+# --- AICPU 注册层代码生成(试点, 见 docs/zh/design/aicpu_codegen_refactor.md) ---
+# 与 hccl 目标同目录定义, 保证 generated 源文件的 GENERATED 属性作用域正确(CMake<3.20)。
+option(HCCL_AICPU_CODEGEN "Generate AICPU executor registrations from aicpu.spec.yaml" ON)
+if(HCCL_AICPU_CODEGEN)
+    set(AICPU_GEN_DIR ${CMAKE_BINARY_DIR}/generated/aicpu)
+    set(AICPU_SPECS ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/aicpu.spec.yaml)
+    set(AICPU_GEN_OUT ${AICPU_GEN_DIR}/alg_names.h ${AICPU_GEN_DIR}/all_gather_aicpu_reg.cc)
+    add_custom_command(
+        OUTPUT ${AICPU_GEN_OUT}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${AICPU_GEN_DIR}
+        COMMAND ${HI_PYTHON} ${OPS_BASE_DIR}/tools/codegen/gen_aicpu.py
+                --out ${AICPU_GEN_DIR} ${AICPU_SPECS}
+        DEPENDS ${AICPU_SPECS} ${OPS_BASE_DIR}/tools/codegen/gen_aicpu.py
+        COMMENT "Generating AICPU registrations (codegen)"
+        VERBATIM
+    )
+    add_custom_target(gen_aicpu DEPENDS ${AICPU_GEN_OUT})
+    add_dependencies(hccl gen_aicpu)
+    target_sources(hccl PRIVATE ${AICPU_GEN_DIR}/all_gather_aicpu_reg.cc)
+    target_include_directories(hccl PRIVATE ${AICPU_GEN_DIR})
+    target_compile_definitions(hccl PRIVATE HCCL_AICPU_CODEGEN)
+endif()
+
 target_compile_options(hccl PRIVATE
     -Werror
     -fno-common

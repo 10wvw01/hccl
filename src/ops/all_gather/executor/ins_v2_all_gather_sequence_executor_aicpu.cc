@@ -401,12 +401,21 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
 #endif
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#ifdef HCCL_AICPU_CODEGEN
+// 注册由生成文件 generated/aicpu/all_gather_aicpu_reg.cc 负责(源自 all_gather/aicpu.spec.yaml)。
+// 这里保留显式实例化, 使该模板的符号(vtable/虚函数)落在本 TU(libhccl.so), 供生成的
+// Register() 中 new Executor<...>() 链接。
+template class InsV2AllGatherSequenceExecutorAicpu<TopoMatchMultilevel,
+                                                  InsTempAllGatherMesh1D1DZAxisDetour,
+                                                  InsTempAllGatherNHR>;
+#else
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER,
                                InsAllGatherSequenceNHRMesh1D,
                                InsV2AllGatherSequenceExecutorAicpu,
                                TopoMatchMultilevel,
                                InsTempAllGatherMesh1D1DZAxisDetour,
                                InsTempAllGatherNHR);
+#endif /* HCCL_AICPU_CODEGEN */
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
