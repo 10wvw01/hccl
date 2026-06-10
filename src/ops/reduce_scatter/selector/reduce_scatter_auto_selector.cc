@@ -290,7 +290,16 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
+    HCCL_INFO("[ReduceScatterAutoSelector][%s] topoLevelNums[%u], level0Topo[%d], Level1Nhr[%d], Level0Nhr[%d], "
+        "localNetInsSizeOfLayer.at(0)[%u], dataSize[%llu], userRankSize[%u], dataType[%d], reduceType[%d]",
+        __func__, topoInfo->topoLevelNums, static_cast<int>(topoInfo->level0Topo),
+        topoInfo->Level1Nhr, topoInfo->Level0Nhr,
+        topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0),
+        dataSize, topoInfo->userRankSize,
+        static_cast<int>(opParam.DataDes.dataType), static_cast<int>(opParam.reduceType));
+
     if (IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize)) {
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] enter OrderPreserved branch", __func__);
         CHK_PRT_RET(topoInfo->userRankSize > MAX_RANK_NUM_FOR_ORDER_PRESERVED,
             HCCL_ERROR("[ReduceScatterAutoSelector] OrderPreserved mode not supported for rankSize[%u] > %u, "
                 "too many ranks may cause resource exhaustion.", topoInfo->userRankSize, MAX_RANK_NUM_FOR_ORDER_PRESERVED),
@@ -302,10 +311,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     }
 
     if (topoInfo->topoLevelNums > 1) {
-        HCCL_INFO("[ReduceScatterAutoSelector]topoInfo->level0Topo[%d], topoInfo->.at(0)[%d], topoInfo->Level1Nhr[%s], topoInfo->Level0Nhr[%s]",
-            topoInfo->level0Topo, topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0), topoInfo->Level1Nhr, topoInfo->Level0Nhr);
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] enter topoLevelNums > 1 branch, level0Topo[%d], localNetInsSizeOfLayer[0][%u], "
+            "Level1Nhr[%d], Level0Nhr[%d]", __func__, static_cast<int>(topoInfo->level0Topo),
+            topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0), topoInfo->Level1Nhr, topoInfo->Level0Nhr);
         if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterAicpuReduceNHR";
+            HCCL_INFO("[ReduceScatterAutoSelector][%s] 64bit or PROD, select [%s]", __func__, selectAlgName.c_str());
         } else if (topoInfo->topoLevelNums == 3) {
             selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
             HCCL_INFO("[ReduceScatterAutoSelector] topoInfo->topoLevelNums == 3, select [%s]", selectAlgName.c_str());
@@ -314,27 +325,34 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
             HCCL_INFO("[ReduceScatterAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
         } else if (topoInfo->Level0Nhr) {
             selectAlgName = "InsReduceScatterNHR"; // InsReduceScatterParallelNHRNHR备用
+            HCCL_INFO("[ReduceScatterAutoSelector][%s] Level0Nhr=true, select [%s]", __func__, selectAlgName.c_str());
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            HCCL_INFO("[ReduceScatterAutoSelector][%s] enter MESH_1D branch, dataSize[%llu]", __func__, dataSize);
             // if (topoInfo->topoLevelNums == 3) {
             //     selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
             // } else 
             if (dataSize > RS_AICPU_1D_MIN_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > RS_AICPU_SEQUENCE_SIZE_THRESHOLD) ?
                     "InsReduceScatterSequenceMesh1DNhr" : "InsReduceScatterParallelMesh1DNHR";
+                HCCL_INFO("[ReduceScatterAutoSelector][%s] MESH_1D large data, select [%s]", __func__, selectAlgName.c_str());
             } else {
                 selectAlgName = "InsReduceScatterNHR";
+                HCCL_INFO("[ReduceScatterAutoSelector][%s] MESH_1D small data, select [%s]", __func__, selectAlgName.c_str());
             }
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1 || topoInfo->level0Topo == Level0Shape::CLOS) {
             selectAlgName = "InsReduceScatterNHR"; // InsReduceScatterParallelNHRNHR备用
+            HCCL_INFO("[ReduceScatterAutoSelector][%s] CLOS or localNetIns==1, select [%s]", __func__, selectAlgName.c_str());
         } else {
             HCCL_ERROR("[ReduceScatterAutoSelector] topo not match, level0Topo [%d], deviceNumPerModule [%d]",
                 topoInfo->level0Topo, topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0));
             return SelectorStatus::NOT_MATCH;
         }
     } else {
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] topoLevelNums <= 1, enter SelectMeshAlgoAicpu", __func__);
         return SelectMeshAlgoAicpu(topoInfo, opParam, selectAlgName);
     }
 
+    HCCL_INFO("[ReduceScatterAutoSelector][%s] final select [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }
 
