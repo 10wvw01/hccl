@@ -54,7 +54,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::GetRes(AlgResourceRequest &resou
 {
     resourceRequest.notifyNumOnMainThread = 0;
     resourceRequest.slaveThreadNum = 0;
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); //TODO:啥意思
+    // resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); //TODO:啥意思
 
     return HCCL_SUCCESS;
 }
