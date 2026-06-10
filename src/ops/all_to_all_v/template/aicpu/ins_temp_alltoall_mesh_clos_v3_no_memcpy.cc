@@ -36,7 +36,7 @@ std::string InsTempAlltoAllMeshClosV3NoMemcpy::Describe() const
 
 u64 InsTempAlltoAllMeshClosV3NoMemcpy::GetThreadNum() const
 {
-    return GetClosSlotNum() + COPY_THREAD_NUM + 1;
+    return 2 * GetClosSlotNum() + COPY_THREAD_NUM + 1;
 }
 
 u32 InsTempAlltoAllMeshClosV3NoMemcpy::GetClosSlotNum() const
@@ -63,7 +63,7 @@ u32 InsTempAlltoAllMeshClosV3NoMemcpy::GetMatrixColNum() const
 
 u32 InsTempAlltoAllMeshClosV3NoMemcpy::GetCopyNotifySlotCount() const
 {
-    u32 commThreadNum = GetClosSlotNum();
+    u32 commThreadNum = 2 * GetClosSlotNum();
     u32 rowNum = GetMatrixRowNum();
     u32 colNum = GetMatrixColNum();
     if (rowNum == 0 && channelsPerRank_ > 0) {
@@ -129,10 +129,11 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllMesh(
                 HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunAlltoAllMesh] myRank[%d] >= rankSize[%u].",
                            myRank_, rankSize_),
                 HcclResult::HCCL_E_INTERNAL);
-    CHK_PRT_RET(threads.size() < closSlotNum + COPY_THREAD_NUM + 1,
+    u32 commThreadNum = 2 * closSlotNum;
+    CHK_PRT_RET(threads.size() < commThreadNum + COPY_THREAD_NUM + 1,
                 HCCL_ERROR("[ALLTOALL_V2_DEBUG][MeshClos][RunAlltoAllMesh] threads[%zu] < required[%u]. "
                            "commThreads=%u copyThreads=%u myRank=%d",
-                           threads.size(), closSlotNum + COPY_THREAD_NUM + 1, closSlotNum, COPY_THREAD_NUM,
+                           threads.size(), commThreadNum + COPY_THREAD_NUM + 1, commThreadNum, COPY_THREAD_NUM,
                            myRank_),
                 HcclResult::HCCL_E_INTERNAL);
 
@@ -151,23 +152,27 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllMesh(
                  myRank_, rowNum, colNum, meshSize_, closSize_, rankSize_, closSlotNum,
                  actualChunkSize, chunkCount);
 
-    std::vector<ThreadHandle> commThreads(threads.begin() + 1, threads.begin() + 1 + closSlotNum);
+    std::vector<ThreadHandle> sendThreads(threads.begin() + 1, threads.begin() + 1 + closSlotNum);
+    std::vector<ThreadHandle> recvThreads(threads.begin() + 1 + closSlotNum,
+                                          threads.begin() + 1 + commThreadNum);
     for (u32 round = 1; round < colNum; round++) {
         std::vector<ClosNoMemcpySlot> slotPlans;
         CHK_RET(CalcClosNoMemcpyRoundPlan(round, slotPlans));
-        CHK_PRT_RET(slotPlans.size() > commThreads.size(),
-                    HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunAlltoAllMesh] slotNum[%zu] > commThreads[%zu]. "
+        CHK_PRT_RET(slotPlans.size() > sendThreads.size() || slotPlans.size() > recvThreads.size(),
+                    HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunAlltoAllMesh] slotNum[%zu] > "
+                               "sendThreads[%zu] or recvThreads[%zu]. "
                                "round=%u myRank=%d",
-                               slotPlans.size(), commThreads.size(), round, myRank_),
+                               slotPlans.size(), sendThreads.size(), recvThreads.size(), round, myRank_),
                     HcclResult::HCCL_E_INTERNAL);
         for (u32 slotIdx = 0; slotIdx < slotPlans.size(); slotIdx++) {
             u32 threadIdx = slotPlans[slotIdx].txChannelIdx;
-            CHK_PRT_RET(threadIdx >= commThreads.size(),
+            CHK_PRT_RET(threadIdx >= sendThreads.size() || threadIdx >= recvThreads.size(),
                         HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunAlltoAllMesh] threadIdx[%u] >= "
-                                   "commThreads[%zu]. round=%u slotIdx=%u myRank=%d",
-                                   threadIdx, commThreads.size(), round, slotIdx, myRank_),
+                                   "sendThreads[%zu] or recvThreads[%zu]. round=%u slotIdx=%u myRank=%d",
+                                   threadIdx, sendThreads.size(), recvThreads.size(), round, slotIdx, myRank_),
                         HcclResult::HCCL_E_INTERNAL);
-            CHK_RET(RunClosNoMemcpySlot(channels, slotPlans[slotIdx], commThreads[threadIdx], round,
+            CHK_RET(RunClosNoMemcpySlot(channels, slotPlans[slotIdx],
+                                        sendThreads[threadIdx], recvThreads[threadIdx], round,
                                         actualChunkSize, chunkCount, isPcie));
         }
     }
@@ -279,7 +284,8 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::SelectClosNoMemcpyChannel(
 HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunClosNoMemcpySlot(
     const std::map<u32, std::vector<ChannelInfo>> &channels,
     const ClosNoMemcpySlot &slotPlan,
-    const ThreadHandle &thread,
+    const ThreadHandle &sendThread,
+    const ThreadHandle &recvThread,
     u32 round,
     u64 actualChunkSize,
     u64 chunkCount,
@@ -336,18 +342,22 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunClosNoMemcpySlot(
     rxSrcSlices.emplace_back(rxChannel.remoteOutputGraphMode.addr, rxSrcOffset, actualChunkSize, chunkCount);
     rxDstSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, rxDstOffset, actualChunkSize, chunkCount);
 
-    TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
-    TxRxChannels sendRecvChannels(txChannel, rxChannel);
-    SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
+    SlicesList sendSlicesList(txSrcSlices, txDstSlices);
+    SlicesList recvSlicesList(rxSrcSlices, rxDstSlices);
+    DataInfo sendInfo(txChannel, sendSlicesList, dataType_);
+    DataInfo recvInfo(rxChannel, recvSlicesList, dataType_);
 
     HCCL_WARNING("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] myRank=%d round=%u txChannelIdx=%u rxChannelIdx=%u "
-                 "txRank=%u rxRank=%u txSrcOff=%llu txDstOff=%llu rxSrcOff=%llu rxDstOff=%llu chunk=%llu",
+                 "txRank=%u rxRank=%u txSrcOff=%llu txDstOff=%llu rxSrcOff=%llu rxDstOff=%llu chunk=%llu "
+                 "splitSendRecv=1",
                  myRank_, round, slotPlan.txChannelIdx, slotPlan.rxChannelIdx,
                  slotPlan.txRank, slotPlan.rxRank,
                  txSrcOffset, txDstOffset, rxSrcOffset, rxDstOffset, actualChunkSize);
 
-    HcclResult dmaResult = SendRecvBatchWrite(sendRecvInfo, thread);
-    if (dmaResult == HcclResult::HCCL_E_INTERNAL) {
+    HcclResult recvResult = RecvWrite(recvInfo, recvThread);
+    HcclResult sendResult = SendBatchWrite(sendInfo, sendThread);
+    HcclResult dmaResult = (recvResult != HCCL_SUCCESS) ? recvResult : sendResult;
+    if (recvResult == HcclResult::HCCL_E_INTERNAL || sendResult == HcclResult::HCCL_E_INTERNAL) {
         u32 failedAlgRank = 0;
         if (GetAlgRank(slotPlan.txRank, subCommRanks_[0], failedAlgRank) == HCCL_SUCCESS &&
             failedAlgRank < failedRanks_.size()) {
@@ -364,10 +374,11 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunClosNoMemcpySlot(
         return HCCL_SUCCESS;
     }
     CHK_PRT_RET(dmaResult != HCCL_SUCCESS,
-                HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] SendRecvWrite failed. "
-                           "myRank=%d txRank=%u rxRank=%u round=%u txChannelIdx=%u rxChannelIdx=%u err=0x%x",
+                HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] split SendBatchWrite/RecvWrite failed. "
+                           "myRank=%d txRank=%u rxRank=%u round=%u txChannelIdx=%u rxChannelIdx=%u "
+                           "recvErr=0x%x sendErr=0x%x err=0x%x",
                            myRank_, slotPlan.txRank, slotPlan.rxRank, round,
-                           slotPlan.txChannelIdx, slotPlan.rxChannelIdx, dmaResult),
+                           slotPlan.txChannelIdx, slotPlan.rxChannelIdx, recvResult, sendResult, dmaResult),
                 dmaResult);
     return HCCL_SUCCESS;
 }
