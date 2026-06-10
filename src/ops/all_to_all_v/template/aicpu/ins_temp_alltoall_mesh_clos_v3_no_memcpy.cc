@@ -76,6 +76,26 @@ u32 InsTempAlltoAllMeshClosV3NoMemcpy::GetCopyNotifySlotCount() const
     return (colNum - 1) * commThreadNum;
 }
 
+void InsTempAlltoAllMeshClosV3NoMemcpy::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
+{
+    notifyIdxMainToSub.clear();
+    u32 threadNum = threadNum_ > 0 ? static_cast<u32>(threadNum_) : static_cast<u32>(GetThreadNum());
+    u32 slaveThreadNum = threadNum > 0 ? threadNum - 1 : 0;
+    for (u32 slaveThreadIdx = 0; slaveThreadIdx < slaveThreadNum; slaveThreadIdx++) {
+        notifyIdxMainToSub.push_back(0);
+    }
+}
+
+void InsTempAlltoAllMeshClosV3NoMemcpy::GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain)
+{
+    notifyIdxSubToMain.clear();
+    u32 threadNum = threadNum_ > 0 ? static_cast<u32>(threadNum_) : static_cast<u32>(GetThreadNum());
+    u32 slaveThreadNum = threadNum > 0 ? threadNum - 1 : 0;
+    for (u32 notifyIdx = 0; notifyIdx < slaveThreadNum; notifyIdx++) {
+        notifyIdxSubToMain.push_back(notifyIdx);
+    }
+}
+
 HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::GetRes(AlgResourceRequest &resourceRequest) const
 {
     u32 threadNum = GetThreadNum();
