@@ -131,6 +131,7 @@ list(APPEND INCLUDE_LIST
     # hcomm头文件
     ${ASCEND_HOME_PATH}/include/hccl
     ${ASCEND_HOME_PATH}/include/hcomm
+    ${ASCEND_HOME_PATH}/include/hcomm/ccu
 
     # runtime头文件
     ${ASCEND_HOME_PATH}/include/

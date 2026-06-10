@@ -59,6 +59,7 @@ if (BUILD_OPEN_PROJECT)
         ${ASCEND_HOME_PATH}/hcomm/include/hccl
         ${ASCEND_HOME_PATH}/include/hccl
         ${ASCEND_HOME_PATH}/include/hcomm
+        ${ASCEND_HOME_PATH}/include/hcomm/ccu
         ${ASCEND_HOME_PATH}/pkg_inc/hccl
         ${ASCEND_HOME_PATH}/pkg_inc/hcomm/ccu
 
