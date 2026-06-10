@@ -54,6 +54,7 @@ private:
     HcclResult OrchestrateLoop(u32 loopTimes, u64 maxCountPerLoop);
     HcclResult OrchestrateStep(u32 stageIdx, u32 stepIdx);
     HcclResult RunTemplate(u32 dataSliceIdx, u32 stageIdx, u32 stepIdx, bool isInter);
+    double GetParallelDataSplit() const;
 
 #ifndef AICPU_COMPILE
     HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *ctx) override;
@@ -104,6 +105,9 @@ private:
     std::vector<std::vector<u32>> temp0HierarchyInfo_;
     std::vector<std::vector<u32>> temp1HierarchyInfo_;
     double multipleDimensionSplitRatio_{0.5};
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource_ =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
+    double parallelDataSplitRatio_{0.5};
 };
 }  // namespace ops_hccl
 
