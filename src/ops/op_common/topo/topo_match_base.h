@@ -33,11 +33,9 @@ constexpr int NET_INST_NUM_0 = 0;
 constexpr int NET_INST_NUM_1 = 1;
 constexpr int NET_INST_NUM_2 = 2;
 
-constexpr int THREAD_NUM_1 = 1;
 constexpr int THREAD_NUM_2 = 2;
 constexpr int THREAD_NUM_3 = 3;
 constexpr int THREAD_NUM_4 = 4;
-
 
 const std::vector<std::vector<u32>> SERVER_910A_4_RING_SEQUENCE
     = {{0, 1, 2, 6, 5, 4, 7, 3}, {0, 3, 7, 4, 5, 6, 2, 1}, {0, 2, 3, 1, 5, 7, 6, 4}, {0, 4, 6, 7, 5, 1, 3, 2}};

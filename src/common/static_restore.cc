@@ -102,12 +102,12 @@ static int has_valid_chars(const char* path) {
  * @brief 检查路径是否包含穿越序列
  */
 static int has_no_traversal(const char* path, size_t len) {
-    uint32_t lenSize = 3;
+    uint32_t trailingSeqLen = 3;
     if (strstr(path, "/../") != NULL) {
         HCCL_ERROR("Path contains traversal sequence '../': '%s'", path);
         return 0;
     }
-    if (len >= lenSize && strcmp(path + len - lenSize, "/..") == 0) {
+    if (len >= trailingSeqLen && strcmp(path + len - trailingSeqLen, "/..") == 0) {
         HCCL_ERROR("Path ends with traversal sequence '/..': '%s'", path);
         return 0;
     }
@@ -115,7 +115,7 @@ static int has_no_traversal(const char* path, size_t len) {
         HCCL_ERROR("Path contains current directory sequence './': '%s'", path);
         return 0;
     }
-    if (len >= lenSize && strcmp(path + len - lenSize, "/./") == 0) {
+    if (len >= trailingSeqLen && strcmp(path + len - trailingSeqLen, "/./") == 0) {
         HCCL_ERROR("Path ends with current directory sequence '/./': '%s'", path);
         return 0;
     }
@@ -297,7 +297,7 @@ static const char* get_safe_base_path(void) {
 static int build_safe_path(const char* base_path, const char* relative_path,
                           char* output, size_t output_size) {
     size_t base_len, rel_len;
-    int lenSize = 2;
+    int trailingSeqLen = 2;
     if (base_path == NULL || relative_path == NULL || output == NULL) {
         return -1;
     }
@@ -305,7 +305,7 @@ static int build_safe_path(const char* base_path, const char* relative_path,
     base_len = strlen(base_path);
     rel_len = strlen(relative_path);
     /* 检查总长度是否溢出 */
-    if (base_len + rel_len + lenSize > output_size) {
+    if (base_len + rel_len + trailingSeqLen > output_size) {
         HCCL_ERROR("Combined path too long");
         return -1;
     }

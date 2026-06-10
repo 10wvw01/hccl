@@ -559,13 +559,11 @@ template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, t
 HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::RunTemplate(
     u32 dataSliceIdx, u32 stageIdx, u32 stepIdx, bool isInter)
 {
-    u32 tempAlgNum_2 = 2;
-    u32 tempAlgNum_3 = 3;
     if (dataCountPerLoop_.at(dataSliceIdx) == 0) {
         return HCCL_SUCCESS;
     }
     const TemplateDataParams dataParams = GenDataParamsTempAlg(dataSliceIdx, stageIdx, stepIdx, isInter);
-    CHK_RET(algTemplatePtrArr_.at(stageIdx).at(isInter)->KernelRun(param_, dataParams, tempAlgResArr_.at(stageIdx == 0 ? (stepIdx == dataSliceIdx ? 0 : 1) : (stepIdx == dataSliceIdx ? tempAlgNum_3 : tempAlgNum_2))));
+    CHK_RET(algTemplatePtrArr_.at(stageIdx).at(isInter)->KernelRun(param_, dataParams, tempAlgResArr_.at(stageIdx == 0 ? (stepIdx == dataSliceIdx ? 0 : 1) : (stepIdx == dataSliceIdx ? 3 : 2))));
     return HCCL_SUCCESS;
 }
 
