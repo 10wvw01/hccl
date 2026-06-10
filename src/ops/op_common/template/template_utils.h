@@ -16,6 +16,8 @@
 #include <string>
 #include <sstream>
 #include <list>
+#include <cmath>
+#include <algorithm>
 #include "alg_param.h"
 #include "binary_stream.h"
 
@@ -471,5 +473,26 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const u32 level0ChannelNumPerRank,
                                                 const u32 level1ChannelNumPerRank,
                                                 const float level0DataRatio = 0.5f);
+
+enum class ParallelDataSplitType {
+    REDUCE_SCATTER_WITH_LOCAL_REDUCE = 0,
+    ALL_GATHER = 1,
+    SCATTER = 2
+};
+
+bool GetPortGroupSize(
+    const std::map<u32, std::vector<ChannelInfo>> &channels,
+    uint64_t &portGroupSize);
+
+double CalcParallelDataSplitRatio(
+    uint64_t intraRankSize,
+    uint64_t interRankSize,
+    const std::map<u32, std::vector<ChannelInfo>> &intraChannels,
+    const std::map<u32, std::vector<ChannelInfo>> &interChannels,
+    ParallelDataSplitType splitType,
+    double fallbackRatio);
+
+const char* ParallelDataSplitTypeToStr(ParallelDataSplitType splitType);
+
 }
 #endif
