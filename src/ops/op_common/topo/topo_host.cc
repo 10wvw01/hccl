@@ -919,6 +919,7 @@ HcclResult CalAllLevelEndpointAttrBwCoeff(
             CHK_RET(HcclRankGraphGetEndpointInfo(
                 comm, rankId, endPointDescs, ENDPOINT_ATTR_BW_COEFF, infoLen, &bwCoeff)); // 获取该维度的带宽
             endpointAttrBw.emplace_back(bwCoeff);
+            delete[] endPointDescs;
         }
     }
     return HCCL_SUCCESS;
