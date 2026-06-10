@@ -109,7 +109,7 @@ HcclResult CcuTempReduceScatterVMesh1DMem2Mem::KernelRun(const OpParam& param,
 
     LoopGroupConfig  config{};
     config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount    = 16;
+    config.loopCount    = 8;
     config.memSlice     = CCU_MS_SIZE;
     auto     goSize     = CalGoSize(sliceSize, config);
     // 代替GeneArgs

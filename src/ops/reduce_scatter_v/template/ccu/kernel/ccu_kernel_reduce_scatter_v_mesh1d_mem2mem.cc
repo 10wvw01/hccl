@@ -59,6 +59,9 @@ static CcuResult InitResource(ReduceScatterVMesh1DMem2MemContext &ctx)
             channelIdx++;
         }
     }
+    ctx.moConfig.loopCount = 8;
+    ctx.moConfig.msInterleave = CCU_MS_INTERLEAVE;
+    ctx.moConfig.memSlice = CCU_MS_SIZE;
     ctx.resourceAllocated = false;
     return CCU_SUCCESS;
 }
@@ -179,10 +182,6 @@ CcuResult CcuReduceScatterVMesh1DMem2MemKernel(CcuKernelArg arg)
     auto *kernelArg = static_cast<CcuKernelArgReduceScatterVMesh1DMem2Mem *>(arg);
     ReduceScatterVMesh1DMem2MemContext ctx;
     ctx.arg = kernelArg;
-    LoopGroupConfig  config{};
-    config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount    = 16;
-    config.memSlice     = CCU_MS_SIZE;
     HCCL_INFO("[CcuKernelReduceScatterVMesh1DMem2Mem] ReduceScatterVMesh1DMem2Mem run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
