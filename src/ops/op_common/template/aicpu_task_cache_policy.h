@@ -15,18 +15,14 @@
 
 namespace ops_hccl {
 
-class AicpuOpCachePolicy {
+class AicpuTaskCachePolicy {
 public:
-    static bool IsOpTaskCacheEnable(const OpParam& param);
+    static bool IsAicpuTaskCacheEnable(const OpParam& param, const TopoInfoWithNetLayerDetails& topoInfo);
 
 private:
-    AicpuOpCachePolicy() = default;
-    ~AicpuOpCachePolicy() = default;
-
-    AicpuOpCachePolicy(const AicpuOpCachePolicy &) = delete;
-    AicpuOpCachePolicy &operator=(const AicpuOpCachePolicy &) = delete;
-    AicpuOpCachePolicy(AicpuOpCachePolicy &&) = delete;
-    AicpuOpCachePolicy &operator=(AicpuOpCachePolicy &&) = delete;
+    static HcclResult IsInplace(const OpParam& param, bool& isInplace, const TopoInfoWithNetLayerDetails& topoInfo);
+    static HcclResult ParseOpParamForCache(const OpParam& param, HcclDataType& sendType, HcclDataType& recvType,
+        uint64_t& inputSize, uint64_t& outputSize, const TopoInfoWithNetLayerDetails& topoInfo);
 };
 
 } // namespace ops_hccl
