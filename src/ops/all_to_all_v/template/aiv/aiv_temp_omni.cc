@@ -189,7 +189,9 @@ HcclResult AivTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
     resourceRequest.notifyNumPerThread.assign(xmlInfo.resInfo.notifyNumPerThread, 1);
     sliceNum_ = 1;
     for (const auto &info : xmlInfo.vecSendRecvInfo) {
-        sliceNum_ = std::max<u64>(sliceNum_, info.sliceNum);
+        for (const auto &dstSlice : info.dstSliceInfo) {
+            sliceNum_ = std::max<u64>(sliceNum_, dstSlice.sliceIdx + 1);
+        }
     }
     HCCL_INFO("[AivTempOmni][CalcRes] sliceNum_[%llu] blockNumAiv[%u] infoNum[%zu].",
         sliceNum_, xmlInfo.resInfo.blockNumAiv, xmlInfo.vecSendRecvInfo.size());
@@ -274,6 +276,10 @@ HcclResult AivTempOmni::KernelRun(const OpParam& param, const TemplateDataParams
         }
     }
 
+    const u64 dataTypeSize = SIZE_TABLE[dataType_];
+    if (tempAlgParams.sliceSize != 0 && dataTypeSize != 0) {
+        sliceNum_ = std::max<u64>(1, tempAlgParams.count * dataTypeSize / tempAlgParams.sliceSize);
+    }
     CHK_RET(CalNumBlocks(omniArgs.numBlocks, tempAlgParams.sliceSize, param.numBlocksLimit));
     omniArgs.inputSliceStride = tempAlgParams.inputSliceStride;
     omniArgs.outputSliceStride = tempAlgParams.outputSliceStride;
