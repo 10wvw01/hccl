@@ -187,7 +187,10 @@ HcclResult AivTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
     resourceRequest.slaveThreadNum = xmlInfo.resInfo.slaveThreadNum;
     resourceRequest.notifyNumOnMainThread = xmlInfo.resInfo.notifyNumOnMainThread;
     resourceRequest.notifyNumPerThread.assign(xmlInfo.resInfo.notifyNumPerThread, 1);
-    sliceNum_ = xmlInfo.vecSendRecvInfo.empty() ? 1 : std::max<u64>(1, xmlInfo.vecSendRecvInfo[0].sliceNum);
+    sliceNum_ = 1;
+    for (const auto &info : xmlInfo.vecSendRecvInfo) {
+        sliceNum_ = std::max<u64>(sliceNum_, info.sliceNum);
+    }
     HCCL_INFO("[AivTempOmni][CalcRes] sliceNum_[%llu] blockNumAiv[%u] infoNum[%zu].",
         sliceNum_, xmlInfo.resInfo.blockNumAiv, xmlInfo.vecSendRecvInfo.size());
 
