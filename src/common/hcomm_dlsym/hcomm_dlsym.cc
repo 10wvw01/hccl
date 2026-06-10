@@ -19,7 +19,6 @@
 #include <pthread.h>
 #include <dlfcn.h>
 #include <cstdio>
-#include <cstdlib>
 #include <acl/acl.h>
 
 static void* gLibHandle = nullptr;

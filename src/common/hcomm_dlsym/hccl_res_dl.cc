@@ -10,7 +10,6 @@
 
 #include "hccl_res_dl.h"
 #include <dlfcn.h>
-#include <cstdio>
 #include <cstdlib>
 
 // ---------- 桩函数定义（签名与真实API完全一致）----------

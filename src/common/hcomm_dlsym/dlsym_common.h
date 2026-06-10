@@ -25,8 +25,6 @@
 #include <unistd.h>
 #include "dlog_pub.h"
 
-#include "hccl/hccl_types.h"
-
 /* beta.1 起 hccl_types.h 已提供 HcclCommStatus，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
 typedef enum {
