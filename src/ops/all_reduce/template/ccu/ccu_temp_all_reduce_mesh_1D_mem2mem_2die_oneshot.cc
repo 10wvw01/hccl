@@ -103,10 +103,64 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
         std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllReduceMesh1DMem2Mem2DieOneShot>(
             inputAddr, outputAddr, token, scratchAddr, normalSliceSize);
         void* taskArgPtr = static_cast<void*>(taskArg.get());
-        HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[i], templateResource.ccuKernels[i], taskArgPtr);
+        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[i],
+            taskArgPtr));
     }
     
+    CcuKernelSubmitInfo submitInfo;
+    CHK_RET(FillCachedArgs(submitInfo, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, token,
+        buffInfo_.hcclBuffBaseOff, normalSliceSize));
+    for (u32 i = 0; i < DIE_NUM; i++) {
+        submitInfo.kernelHandle = templateResource.ccuKernels[i];
+        templateResource.submitInfos.push_back(submitInfo);
+    }
+    HCCL_INFO("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot] Template Run for all steps Ends.");
+
     return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::FastLaunch(const OpParam& param,
+                                                         const TemplateFastLaunchCtx& tempFastLaunchCtx)
+{
+    if (tempFastLaunchCtx.ccuKernelSubmitInfos.size() == 0) {
+        HCCL_INFO("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot::FastLaunch] ccu kernel num is 0, just success.");
+        return HCCL_SUCCESS;
+    }
+    HCCL_DEBUG("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot::FastLaunch] start");
+    u32 kernelNum = tempFastLaunchCtx.ccuKernelSubmitInfos.size();
+    buffInfo_ = tempFastLaunchCtx.buffInfo;
+    // 前流同步
+    for (u32 kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
+        const uint64_t *args = tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].cachedArgs;
+        CcuTaskArgAllReduceMesh1DMem2Mem2DieOneShot taskArg(
+            PointerToAddr(buffInfo_.inputPtr) + args[0],
+            PointerToAddr(buffInfo_.outputPtr) + args[1],
+            args[2],
+            PointerToAddr(buffInfo_.hcclBuff.addr) + args[3],
+            args[4]);
+
+        void* taskArgPtr = static_cast<void*>(&taskArg);
+
+        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, tempFastLaunchCtx.threads[0],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle, taskArgPtr));
+    }
+    // 后流同步
+    HCCL_DEBUG("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot::FastLaunch] end");
+    return HcclResult::HCCL_SUCCESS;
+}
+
+u64 CcuTempAllReduceMesh1DMem2Mem2DieOneShot::GetThreadNum() const
+{
+    return 1;
+}
+
+HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::GetRes(AlgResourceRequest& resourceRequest) const
+{
+    resourceRequest.slaveThreadNum = 1;
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+    resourceRequest.notifyNumOnMainThread = 1;
+
+    return HCCL_SUCCESS;
 }
  
 u64 CcuTempAllReduceMesh1DMem2Mem2DieOneShot::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
