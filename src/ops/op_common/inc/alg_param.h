@@ -472,10 +472,17 @@ struct AlgResourceCtxSerializable {
     }
 };
 
+enum class MultipleDimensionSplitRatioSource : uint8_t {
+    BUILTIN_FORMULA = 0,
+    ENV_CONFIG,
+    COMM_CONFIG
+};
+
 struct DevAicpuOpConfig {
     u32 execTimeout = 0;
-    double multipleDimensionSplitRatio = 0.8;
-    // 如要新增配置类字段，在此处添加
+    double multipleDimensionSplitRatio = 0.5;
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
 };
 
 struct OpParam { // 不申请ctx，每个算子单独下发

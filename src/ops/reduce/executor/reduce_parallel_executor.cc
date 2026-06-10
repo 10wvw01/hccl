@@ -436,6 +436,25 @@ TemplateDataParams ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplat
 
 template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
     typename AlgTemplate3>
+double
+    ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::GetParallelDataSplit() const
+{
+    double ratio = multipleDimensionSplitRatio_;
+    if (multipleDimensionSplitRatioSource_ == MultipleDimensionSplitRatioSource::BUILTIN_FORMULA) {
+        ratio = CalcParallelDataSplitRatio(
+            intraLocalRankSize_,
+            interLocalRankSize_,
+            intraLinks_,
+            interLinks_,
+            ParallelDataSplitType::REDUCE_SCATTER_LIKE,
+            multipleDimensionSplitRatio_);
+    }
+    HCCL_INFO("[ReduceParallelExecutor] meshFirstRatio[%f], closFirstRatio[%f]", ratio, 1.0 - ratio);
+    return ratio;
+}
+
+template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
+    typename AlgTemplate3>
 HcclResult
     ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::OrchestrateImpl()
 {
@@ -449,8 +468,11 @@ HcclResult
     }
 
     multipleDimensionSplitRatio_ = param_.opConfig.multipleDimensionSplitRatio;
-    std::array<long double, dataSplitPart_> dataSplitSize{multipleDimensionSplitRatio_, 1.0 - multipleDimensionSplitRatio_};
-    HCCL_INFO("[ReduceParallelExecutor] dataSplitSize is %Lf, %Lf", dataSplitSize[0], dataSplitSize[1]);
+    multipleDimensionSplitRatioSource_ = param_.opConfig.multipleDimensionSplitRatioSource;
+    const double ratio = GetParallelDataSplit();
+    parallelDataSplitRatio_ = ratio;
+    std::array<long double, dataSplitPart_> dataSplitSize{ratio, 1.0 - ratio};
+    HCCL_INFO("[ReduceParallelExecutor] meshFirstRatio[%Lf], closFirstRatio[%Lf]", dataSplitSize[0], dataSplitSize[1]);
 
     // inter模板不再需要额外的scratch，因为当input/output都在CCL BUFFER上是，NHR算法可以直接在原地进行
     const long double scratchMultipleIntra = std::max(dataSplitSize.at(0), dataSplitSize.at(1) / interLocalRankSize_);
@@ -488,7 +510,7 @@ HcclResult
     u64 processedCount = 0;
     for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
         u64 currCount = (loopIndex + 1 == loopTimes) ? (dataCount_ - loopIndex * maxCountPerLoop) : maxCountPerLoop;
-        dataCountPerLoop_.at(0) = static_cast<u64>(currCount * multipleDimensionSplitRatio_);
+        dataCountPerLoop_.at(0) = static_cast<u64>(currCount * parallelDataSplitRatio_);
         dataCountPerLoop_.at(1) = currCount - dataCountPerLoop_.at(0);
         dataOffsetPerLoop_.at(0) = loopIndex * maxCountPerLoop * dataTypeSize_;
         dataOffsetPerLoop_.at(1) = dataOffsetPerLoop_.at(0) + dataCountPerLoop_.at(0) * dataTypeSize_;
