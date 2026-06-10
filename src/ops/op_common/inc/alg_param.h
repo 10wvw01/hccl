@@ -466,6 +466,11 @@ struct AlgResourceCtxSerializable {
     }
 };
 
+enum class MultipleDimensionSplitRatioSource : uint8_t {
+    BUILTIN_FORMULA = 0,
+    ENV_CONFIG,
+    COMM_CONFIG
+};
 struct OpParam { // 不申请ctx，每个算子单独下发
     void* hcclComm;
     char tag[TAG_LENGTH] = ""; // 保存topoInfo的key值
@@ -491,7 +496,9 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
     u32 execTimeout = 0;
     AlgType algType;
-    double multipleDimensionSplitRatio = 0.8;
+    double multipleDimensionSplitRatio = 0.5;
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
     char algTypeStr[ALG_MAX_LENGTH] = "";
     union {
         struct {
