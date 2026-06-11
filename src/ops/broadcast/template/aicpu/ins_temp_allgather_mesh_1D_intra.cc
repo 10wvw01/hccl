@@ -229,24 +229,36 @@ HcclResult InsTempAllGatherMesh1DIntra::PostLocalCopy(const std::vector<ThreadHa
         const u64 scratchRepeatStride = tempAlgParams_.sliceSize * templateRankSize_;
         const u64 scratchBase = tempAlgParams_.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
 
-        for (auto rank : subCommRanks_[0]) {
-            u32 algRank = 0;
-            CHK_RET(GetAlgRank(rank, subCommRanks_[0], algRank));
+        u64 sliceCount = tempAlgParams_.count;
+        u64 sliceSize = sliceCount * dataTypeSize_;
 
-            u64 sliceCount = tempAlgParams_.count;
-            u64 sliceSize = sliceCount * dataTypeSize_;
+        u64 scratchOffset = scratchBase;
+        u64 outOffset = outBaseOff;
+        DataSlice srcSlice(tempAlgParams_.buffInfo.hcclBuff.addr, scratchOffset, sliceSize,
+                            sliceCount);
+        DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOffset, sliceSize,
+                            sliceCount);
+        LocalCopy(threads[0], srcSlice, dstSlice);
 
-            u64 scratchOffset = scratchBase;
-            u64 outOffset = outBaseOff;
-            DataSlice srcSlice(tempAlgParams_.buffInfo.hcclBuff.addr, scratchOffset, sliceSize,
-                               sliceCount);
-            DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOffset, sliceSize,
-                               sliceCount);
-            HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] PostLocalCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
-                       "srcOff[%d] dstOff[%d]  sliceSize[%d].",
-                       myRank_, rank, algRank, scratchOffset, outOffset, sliceSize);
-            LocalCopy(threads[0], srcSlice, dstSlice);
-        }
+        // for (auto rank : subCommRanks_[0]) {
+        //     u32 algRank = 0;
+        //     CHK_RET(GetAlgRank(rank, subCommRanks_[0], algRank));
+
+        //     u64 sliceCount = tempAlgParams_.count;
+        //     u64 sliceSize = sliceCount * dataTypeSize_;
+
+        //     u64 scratchOffset = scratchBase;
+        //     u64 outOffset = outBaseOff;
+        //     DataSlice srcSlice(tempAlgParams_.buffInfo.hcclBuff.addr, scratchOffset, sliceSize,
+        //                        sliceCount);
+        //     DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOffset, sliceSize,
+        //                        sliceCount);
+        //     HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] PostLocalCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
+        //                "srcOff[%d] dstOff[%d]  sliceSize[%d].",
+        //                myRank_, rank, algRank, scratchOffset, outOffset, sliceSize);
+        //     LocalCopy(threads[0], srcSlice, dstSlice);
+        //     return HcclResult::HCCL_SUCCESS;
+        // }
     }
     return HcclResult::HCCL_SUCCESS;
 }
