@@ -110,7 +110,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     InsAlgTemplate2 Level2TempAlg(param, resCtx.topoInfo.userRank, levels_[2].hierarchyInfo);
 
     rankIdxLevel0_ = myRank_ % levels_[0].rankSize;                                    // level0 组内偏移
-    rankIdxLevel1_ = myRank_ / (levels_[0].rankSize * levels_[1].rankSize);            // level2 组编号
+    rankIdxLevel1_ = myRank_ % (levels_[0].rankSize * levels_[1].rankSize);            // level1 组编号
 
     Level0TempAlg.SetchannelsPerRank(levels_[0].channels);
     // 将计算资源分配个每个算法
@@ -153,16 +153,13 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     tempAlgLevel0.GetRes(Level0TempRequest);
     tempAlgLevel1.GetRes(Level1TempRequest);
     tempAlgLevel2.GetRes(Level2TempRequest);
-    auto Level0ThreadsNum = Level0TempRequest.slaveThreadNum;
-    auto Level1ThreadsNum = Level1TempRequest.slaveThreadNum;
-    auto Level2ThreadsNum = Level2TempRequest.slaveThreadNum;
     auto Level0NotifyOnMainThread = Level0TempRequest.notifyNumOnMainThread;
     auto Level1NotifyOnMainThread = Level1TempRequest.notifyNumOnMainThread;
     auto Level2NotifyOnMainThread = Level2TempRequest.notifyNumOnMainThread;
 
-    levels_[0].threads.assign(threads_.begin() + 1, threads_.begin() + Level0ThreadsNum + 1);
-    levels_[1].threads.assign(threads_.begin() + Level0ThreadsNum + 1, threads_.begin() + Level0ThreadsNum + Level1ThreadsNum + 1);
-    levels_[2].threads.assign(threads_.begin() + Level0ThreadsNum + Level1ThreadsNum + 1, threads_.end());
+    levels_[0].threads.assign(threads_.begin(), threads_.begin() + Level0TempRequest.slaveThreadNum + 1);
+    levels_[1].threads.assign(threads_.begin(), threads_.begin() + Level1TempRequest.slaveThreadNum + 1);
+    levels_[2].threads.assign(threads_.begin(), threads_.begin() + Level2TempRequest.slaveThreadNum + 1);
     return HCCL_SUCCESS;
 }
 
@@ -175,9 +172,9 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     HCCL_INFO("[InsV2AllGatherParallelExecutor] AlgTemplate Level1 server is [%s]", tempAlgLevel1.Describe().c_str());
     HCCL_INFO("[InsV2AllGatherParallelExecutor] AlgTemplate Level2 server is [%s]", tempAlgLevel2.Describe().c_str());
 
-    u32 templateScratchMultiplierLevel0 = tempAlgLevel0.CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
+    u32 templateScratchMultiplierLevel0 = tempAlgLevel0.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::OUTPUT);
  	u32 templateScratchMultiplierLevel1 = tempAlgLevel1.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
- 	u32 templateScratchMultiplierLevel2 = tempAlgLevel2.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::OUTPUT);
+ 	u32 templateScratchMultiplierLevel2 = tempAlgLevel2.CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
  	u32 totalScratchMultiple = templateScratchMultiplierLevel0 * templateScratchMultiplierLevel1 * templateScratchMultiplierLevel2;
 
     u64 scratchMemBlockSize = maxTmpMemSize_;
@@ -220,10 +217,10 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::GenTemplateAlgParamsLevel2(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel2) const
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel2) const
 {
     tempAlgParamsLevel2.buffInfo.inputPtr = param.inputPtr;
-    tempAlgParamsLevel2.buffInfo.outputPtr = param.outputPtr;
+    tempAlgParamsLevel2.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsLevel2.buffInfo.hcclBuff = resCtx.cclMem;
     tempAlgParamsLevel2.buffInfo.inBuffType = BufferType::INPUT;
     tempAlgParamsLevel2.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
@@ -232,14 +229,14 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel2.buffInfo.outputSize = param.outputSize;
 
     tempAlgParamsLevel2.buffInfo.inBuffBaseOff = dataOffset;
-    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = rankIdxLevel1_ * dataSize_ + dataOffset;
-    tempAlgParamsLevel2.buffInfo.hcclBuffBaseOff = scratchOffset;
+    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = 0;
+    tempAlgParamsLevel2.buffInfo.hcclBuffBaseOff = levels_[2].rankSize * levels_[1].rankSize * dataSize_;
     tempAlgParamsLevel2.sliceSize = dataCount_ * dataTypeSize_;
     tempAlgParamsLevel2.count = dataCount_;
     tempAlgParamsLevel2.tailSize = tempAlgParamsLevel2.sliceSize;
 
     tempAlgParamsLevel2.inputSliceStride = 0;
-    tempAlgParamsLevel2.outputSliceStride = dataSize_ * levels_[0].rankSize * levels_[1].rankSize;
+    tempAlgParamsLevel2.outputSliceStride = 0;
     tempAlgParamsLevel2.repeatNum = 1;
     tempAlgParamsLevel2.inputRepeatStride = 0;
     tempAlgParamsLevel2.outputRepeatStride = 0;
@@ -257,27 +254,27 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset,
     const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel1) const
 {
-    tempAlgParamsLevel1.buffInfo.inputPtr = param.outputPtr;
-    tempAlgParamsLevel1.buffInfo.outputPtr = param.outputPtr;
-    tempAlgParamsLevel1.buffInfo.hcclBuff = resCtx.cclMem;
+    tempAlgParamsLevel1.buffInfo.inputPtr = resCtx.cclMem.addr;
+    tempAlgParamsLevel1.buffInfo.outputPtr = resCtx.cclMem.addr;
+    tempAlgParamsLevel1.buffInfo.hcclBuff = resCtx.cclMem.addr;
     tempAlgParamsLevel1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsLevel1.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsLevel1.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsLevel1.buffInfo.inputSize = param.inputSize;
     tempAlgParamsLevel1.buffInfo.outputSize = param.outputSize;
 
-    tempAlgParamsLevel1.buffInfo.inBuffBaseOff = rankIdxLevel0_ * dataSize_ + dataOffset;
-    tempAlgParamsLevel1.buffInfo.outBuffBaseOff = rankIdxLevel0_ * dataSize_ + dataOffset;
-    tempAlgParamsLevel1.buffInfo.hcclBuffBaseOff = scratchOffset;
+    tempAlgParamsLevel1.buffInfo.inBuffBaseOff = levels_[2].rankSize * levels_[1].rankSize * dataSize_;
+    tempAlgParamsLevel1.buffInfo.outBuffBaseOff = 0;
+    tempAlgParamsLevel1.buffInfo.hcclBuffBaseOff = 0;
     tempAlgParamsLevel1.sliceSize = dataCount_ * dataTypeSize_;
     tempAlgParamsLevel1.count = dataCount_;
     tempAlgParamsLevel1.tailSize = tempAlgParamsLevel1.sliceSize;
 
-    tempAlgParamsLevel1.inputSliceStride = dataSize_ * levels_[0].rankSize;
-    tempAlgParamsLevel1.outputSliceStride = dataSize_ * levels_[0].rankSize;
+    tempAlgParamsLevel1.inputSliceStride = 0;
+    tempAlgParamsLevel1.outputSliceStride = 0;
     tempAlgParamsLevel1.repeatNum = levels_[2].rankSize;
-    tempAlgParamsLevel1.inputRepeatStride = dataSize_ * levels_[0].rankSize * levels_[1].rankSize;
-    tempAlgParamsLevel1.outputRepeatStride = dataSize_ * levels_[0].rankSize * levels_[1].rankSize;
+    tempAlgParamsLevel1.inputRepeatStride = dataSize_;
+    tempAlgParamsLevel1.outputRepeatStride = 0;
     tempAlgParamsLevel1.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
     HCCL_DEBUG("[InsV2AllGatherParallelExecutor][GenTemplateAlgParamsLevel10] rank[%u] inBuffBaseOff[%llu] "
                "outBuffBaseOff[%llu] scratchBuffBaseOff[%llu] sliceSize[%llu] outputSliceStride[%llu] "
@@ -293,7 +290,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset,
     const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel0) const
 {
-    tempAlgParamsLevel0.buffInfo.inputPtr = param.inputPtr;
+    tempAlgParamsLevel0.buffInfo.inputPtr = resCtx.cclMem.addr;
     tempAlgParamsLevel0.buffInfo.outputPtr = param.outputPtr;
     tempAlgParamsLevel0.buffInfo.hcclBuff = resCtx.cclMem;
     tempAlgParamsLevel0.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
@@ -302,17 +299,17 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel0.buffInfo.inputSize = param.inputSize;
     tempAlgParamsLevel0.buffInfo.outputSize = param.outputSize;
 
-    tempAlgParamsLevel0.buffInfo.inBuffBaseOff = dataOffset;
+    tempAlgParamsLevel0.buffInfo.inBuffBaseOff = 0;
     tempAlgParamsLevel0.buffInfo.outBuffBaseOff = dataOffset;
-    tempAlgParamsLevel0.buffInfo.hcclBuffBaseOff = scratchOffset;
+    tempAlgParamsLevel0.buffInfo.hcclBuffBaseOff = 0;
     tempAlgParamsLevel0.sliceSize = dataCount_ * dataTypeSize_;
     tempAlgParamsLevel0.count = dataCount_;
     tempAlgParamsLevel0.tailSize = tempAlgParamsLevel0.sliceSize;
 
-    tempAlgParamsLevel0.inputSliceStride = dataSize_;
+    tempAlgParamsLevel0.inputSliceStride = 0;
     tempAlgParamsLevel0.outputSliceStride = dataSize_;
     tempAlgParamsLevel0.repeatNum = levels_[1].rankSize * levels_[2].rankSize;
-    tempAlgParamsLevel0.inputRepeatStride = levels_[0].rankSize * dataSize_;
+    tempAlgParamsLevel0.inputRepeatStride = dataSize_;
     tempAlgParamsLevel0.outputRepeatStride = levels_[0].rankSize * dataSize_;
     tempAlgParamsLevel0.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
 
@@ -329,9 +326,9 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER, 
     InsAllGatherSequenceNHRNHRMesh1D,
     InsV2AllGatherSequenceExecutor3Level, 
-    TopoMatchMultilevel, 
+    TopoMatchMultilevel,
+    InsTempAllGatherMesh1D1DZAxisDetour 
     InsTempAllGatherNHR, 
-    InsTempAllGatherNHR, 
-    InsTempAllGatherMesh1D1DZAxisDetour);
+    InsTempAllGatherNHR);
 }
 // 算法注册
