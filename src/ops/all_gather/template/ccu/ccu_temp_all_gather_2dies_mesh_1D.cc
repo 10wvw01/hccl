@@ -68,11 +68,15 @@ HcclResult CcuTempAllGather2DiesMesh1D::CalcRes(HcclComm comm, const OpParam& pa
     resourceRequest.slaveThreadNum = 1;
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     resourceRequest.ccuKernelNum.push_back(ALL_GATHER_2DIES_THREAD_NUM);
 =======
 >>>>>>> 1f68efa (AG2DIEMESH1DKUAISUXIAFA)
 =======
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
+=======
+    resourceRequest.ccuKernelNum.push_back(ALL_GATHER_2DIES_THREAD_NUM);
+>>>>>>> origin/master
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
 
     HCCL_DEBUG("[CcuTempAllGather2DiesMesh1D::CalcRes] notifyNumOnMainThread[%u] slaveThreadNum[%u]",
@@ -159,6 +163,27 @@ HcclResult CcuTempAllGather2DiesMesh1D::KernelRun(const OpParam& param, const Te
     HCCL_INFO("[CcuTempAllGather2DiesMesh1D::KernelRun] TaskArgs: inputAddr[%llu], outputAddr[%llu], sliceSize[%llu], offSet[%llu]",
                inputAddr, outputAddr, sliceSize, offSet);
 
+    HcclDataType dataType       = param.DataDes.dataType;
+    uint64_t dataTypeSize       = DataTypeSizeGet(dataType);
+    uint64_t dataCount          = sliceSize / dataTypeSize;
+    if (dataCount == 0) {
+        HCCL_INFO("[CcuTempAllGather2DiesMesh1D] DataCount == 0, Template Run Ends.");
+        return HcclResult::HCCL_SUCCESS;
+    }
+
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount = CCU_MS_DEFAULT_LOOP_COUNT;
+    config.memSlice = CCU_MS_SIZE;
+    auto goSize = CalGoSize(sliceSize, config);
+
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, sliceSize, offSet, token,
+                                       goSize[0], goSize[1], goSize[2], goSize[3]};
+    uint64_t argSize = 9;
+
+    HCCL_INFO("[CcuTempAllGather2DiesMesh1D::KernelRun] TaskArgs: inputAddr[%llu], outputAddr[%llu], sliceSize[%llu], offSet[%llu]",
+               inputAddr, outputAddr, sliceSize, offSet);
+
     //前流同步
     if (kernelNum > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
@@ -167,11 +192,22 @@ HcclResult CcuTempAllGather2DiesMesh1D::KernelRun(const OpParam& param, const Te
     }
 
     //双die模式，下发两个kernel
+<<<<<<< HEAD
     for (u32 i = 0; i < kernelNum; i++) {
         std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllGather2DiesMesh1D>(inputAddr, outputAddr,
                                                                                                          sliceSize, offSet, token);
         void* taskArgPtr = static_cast<void*>(taskArg.get());
         CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[i], templateResource.ccuKernels[i], taskArgPtr));
+=======
+    for (uint64_t i = 0; i < ALL_GATHER_2DIES_THREAD_NUM; i++) {
+        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
+                                                    taskArgs.data(), argSize);
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAllGather2DiesMesh1D::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
+        HCCL_DEBUG("[CcuTempAllGather2DiesMesh1D::KernelRun] end");
+>>>>>>> origin/master
     }
 
     //后流同步

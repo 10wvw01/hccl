@@ -220,6 +220,7 @@ HcclResult InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     for (int i = 0; i < ccuKernelNum; i++) {
 =======
     for (u32 i = 0; i < ccuKernelNum; i++) {
@@ -227,6 +228,9 @@ HcclResult InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
 =======
     for (u32 i = 0; i < ccuKernelNum; i++) {
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
+=======
+    for (int i = 0; i < ccuKernelNum; i++) {
+>>>>>>> origin/master
         kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
     }
     return HCCL_SUCCESS;

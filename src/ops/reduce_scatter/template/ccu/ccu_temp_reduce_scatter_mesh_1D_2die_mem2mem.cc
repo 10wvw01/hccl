@@ -226,7 +226,7 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::FastLaunch(const OpParam& para
     HCCL_DEBUG("[CcuTempReduceScatterMeshMem2Mem1D2Die::FastLaunch] end");
     return HcclResult::HCCL_SUCCESS;
 }
- 
+
 u64 CcuTempReduceScatterMeshMem2Mem1D2Die::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void)inBuffType;

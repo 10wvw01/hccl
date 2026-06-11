@@ -138,12 +138,16 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
     for (uint64_t i = 0; i < DIE_NUM; i++) {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/master
         CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
             taskArgs.data(), argSize);
         if (launchRet != CCU_SUCCESS) {
             HCCL_ERROR("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);
         }
+<<<<<<< HEAD
 =======
 =======
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
@@ -156,6 +160,8 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
 >>>>>>> f99b904 (fast launch)
 =======
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
+=======
+>>>>>>> origin/master
     }
     
     CcuKernelSubmitInfo submitInfo;
