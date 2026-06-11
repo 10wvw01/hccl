@@ -146,13 +146,8 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::KernelRun(const OpParam& param
     std::vector<u32> notifyIdxMainToSub(1, 0);
     CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub));
 
-    for(uint64_t dieIdx = 0; dieIdx < DIE_NUM; dieIdx++) {
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[dieIdx], templateResource.ccuKernels[dieIdx],
-                                                    taskArgs.data(), taskArgs.size());
-        if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempReduceScatterMeshMem2Mem1D2Die::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
-            return ConvertCcuToHccl(launchRet);
-        }
+        void* taskArgPtr = static_cast<void*>(taskArg.get());
+        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[dieIdx], templateResource.ccuKernels[dieIdx], taskArgPtr));
     }
 
     // 后流同步
@@ -165,7 +160,6 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::KernelRun(const OpParam& param
     DataSlice srcSlice(buffInfo_.hcclBuff.addr, hcclBuffOffset, normalSliceSize, normalSliceSize / DATATYPE_SIZE_TABLE[param.DataDes.dataType]);
     DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, normalSliceSize, normalSliceSize / DATATYPE_SIZE_TABLE[param.DataDes.dataType]);
     CHK_RET(LocalReduce(templateResource.threads[0], srcSlice, dstSlice, param.DataDes.dataType, param.reduceType));
-
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -176,10 +170,18 @@ u64 CcuTempReduceScatterMeshMem2Mem1D2Die::CalcScratchMultiple(BufferType inBuff
     return templateRankSize_;
 }
 
-u64 CcuTempReduceScatterMeshMem2Mem1D2Die::GetThreadNum() const
-{
-    return DIE_NUM;
-}
+ u64 CcuTempReduceScatterMeshMem2Mem1D2Die::GetThreadNum() const 
+ { 
+     return DIE_NUM; 
+ } 
+ 
+ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::GetRes(AlgResourceRequest& resourceRequest) const 
+ { 
+     resourceRequest.slaveThreadNum = 1; 
+     resourceRequest.notifyNumOnMainThread = 1; 
+     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); 
+     return HCCL_SUCCESS; 
+ } 
 
 HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::GetRes(AlgResourceRequest& resourceRequest) const
 {
