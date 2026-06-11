@@ -13,6 +13,7 @@
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
+#include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
 
@@ -27,16 +28,16 @@ public:
 
     std::string Describe() const override
     {
-        return StringFormat("Template of All to All ccu mesh 1D with tempRankSize [%u].",
+        return StringFormat("Template of All to All V ccu mesh 1D with tempRankSize [%u].",
                             tempRankSize_);
     }
-
-    HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                       AlgResourceRequest& resourceRequest) override;
 
     HcclResult KernelRun(const OpParam& param,
                          const TemplateDataParams& templateDataParams,
                          TemplateResource& templateResource) override;
+
+    HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+                       AlgResourceRequest& resourceRequest) override;
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
@@ -61,7 +62,7 @@ private:
     std::vector<u64> recvCounts_;
     std::vector<u64> sdispls_;
     std::vector<u64> rdispls_;
-    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
+    bool loadFromMem_;
 };
 
 }// namespace ops_hccl
