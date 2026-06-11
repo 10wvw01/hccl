@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <unordered_set>
+#include <memory>
 #include <functional>
 #include <functional>
 #include <memory>
@@ -28,15 +29,14 @@
 #include "hccl_rank_graph_dl.h"
 #include "hccl_host_comm_dl.h"
 #include "binary_stream.h"
-#if CANN_VERSION_NUM >= 90000000
-#include "hccl_ccu_res.h"
-#else
-typedef void *CcuKernelHandle; // 8.5.0 下无 hccl_ccu_res.h，用 opaque 占位
-#endif
+#include "hccl_ccu_res_dl.h"
+#include "ccu_types_dl.h"
 
 namespace ops_hccl {
 
 constexpr uint64_t UB_MAX_DATA_SIZE = 256*1024*1024; // Byte, UB协议一次传输的最大size
+
+constexpr u32 MAX_NUM_BLOCKS = 56; // 56-72
 
 constexpr uint32_t DATATYPE_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
     2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
@@ -58,7 +58,7 @@ constexpr u32 LOCAL_NOTIFY_IDX_ZERO = 0;
 constexpr u32 NOTIFY_IDX_ACK = 0;
 constexpr u32 NOTIFY_IDX_DATA_SIGNAL = 1;
 constexpr u32 NOTIFY_IDX_FIN_ACK = 2;
-constexpr u32 CUSTOM_TIMEOUT = 1800;
+constexpr u32 CUSTOM_TIMEOUT = 1836;
 constexpr u32 TIME_S_TO_US = 1000000;
 constexpr u32 MAX_LENGTH = 128;
 constexpr u32 ALG_MAX_LENGTH = 128;
@@ -73,6 +73,8 @@ constexpr uint64_t GE_PARALLEL = 36;
 constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 // Z axis detour 需要
 constexpr u32 MESH_CHANNELS_NUM = 1;
+
+constexpr uint64_t CCU_MAX_RANK_SIZE = 16;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
@@ -163,6 +165,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     Level0Shape level0Topo;
     bool Level0Nhr{false};
     bool Level1Nhr{false};
+    bool Level1Hd{false};
     bool is2DieFullMesh{false};
     bool level0PcieMix{false};
     bool level0BigClosRange{false};
@@ -195,6 +198,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream << level0Topo;
         binaryStream << Level0Nhr;
         binaryStream << Level1Nhr;
+        binaryStream << Level1Hd;
         binaryStream << is2DieFullMesh;
         binaryStream << level0PcieMix;
         binaryStream << level0BigClosRange;
@@ -241,6 +245,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> level0Topo;
         binaryStream >> Level0Nhr;
         binaryStream >> Level1Nhr;
+        binaryStream >> Level1Hd;
         binaryStream >> is2DieFullMesh;
         binaryStream >> level0PcieMix;
         binaryStream >> level0BigClosRange;
@@ -262,18 +267,34 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     }
 };
 
+struct CcuKernelArgBase {
+    // std::vector<ChannelHandle> channels;
+    ChannelHandle channels[CCU_MAX_RANK_SIZE];
+    uint32_t      channelCount;
+};
+
 // ccu kernel register所需信息
 struct CcuKernelInfo {
     // kernel资源组序号，group号不同时，资源复用
     u32 resGroup = 0;
-#if CANN_VERSION_NUM >= 90000000
-    // kernel构造函数
-    hcomm::KernelCreator creator;
-    // KernelArg实例
-    std::shared_ptr<hcomm::CcuKernelArg> kernelArg;
-#endif
+    // kernel名 string？
+    char kernelFuncName[64];
+    // kernel函数
+    void* kernelFunc;
+    // KernelArg实例指针
+    void *kernelArg;
     // kernel所需channel
     std::vector<HcclChannelDesc> channels;
+
+private:
+    std::shared_ptr<CcuKernelArgBase> kernelArgSmartPtr;
+
+public:
+    template<typename T>
+    void setKernelArg(std::shared_ptr<T> arg) {
+        kernelArgSmartPtr = std::static_pointer_cast<CcuKernelArgBase>(arg);
+        kernelArg = static_cast<void*>(arg.get());
+    }
 };
 
 // 算法taskArg入参最大个数，用于快速下发缓存
@@ -387,6 +408,8 @@ struct AlgResourceCtxSerializable {
     HcclMem cclMem; // 跨Rank缓存Buffer
     u32 notifyNumOnMainThread; // 主流上的notify数量
     u32 slaveThreadNum; // 需要的thread数量
+    u32 waitTimeout = 0; // Device侧notify wait默认超时时间
+    u32 fullTimeout = 0; // Device侧队列满/资源申请超时时间
     std::vector<u32> notifyNumPerThread; // 每个thread需要的notify数量
     void* aivCommInfoPtr = nullptr;
     std::vector<ThreadHandle> threads;
@@ -412,6 +435,8 @@ struct AlgResourceCtxSerializable {
         binaryStream << cclMem;
         binaryStream << notifyNumOnMainThread;
         binaryStream << slaveThreadNum;
+        binaryStream << waitTimeout;
+        binaryStream << fullTimeout;
         binaryStream << notifyNumPerThread;
         binaryStream << commInfoPtr;
         binaryStream << threads;
@@ -443,6 +468,8 @@ struct AlgResourceCtxSerializable {
         binaryStream >> cclMem;
         binaryStream >> notifyNumOnMainThread;
         binaryStream >> slaveThreadNum;
+        binaryStream >> waitTimeout;
+        binaryStream >> fullTimeout;
         binaryStream >> notifyNumPerThread;
         binaryStream >> commInfoPtr;
         binaryStream >> threads;
@@ -462,6 +489,12 @@ struct AlgResourceCtxSerializable {
         topoTemp.DeSerialize(tailData);
         topoInfo = std::move(topoTemp);
     }
+};
+
+struct DevAicpuOpConfig {
+    u32 execTimeout = 0;
+    double multipleDimensionSplitRatio = 0.8;
+    // 如要新增配置类字段，在此处添加
 };
 
 struct OpParam { // 不申请ctx，每个算子单独下发
@@ -487,9 +520,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     bool   isMc2{false};
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
-    u32 execTimeout = 0;
     AlgType algType;
-    double multipleDimensionSplitRatio = 0.8;
     char algTypeStr[ALG_MAX_LENGTH] = "";
     union {
         struct {
@@ -539,6 +570,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     ThreadHandle opThread = 0;
     u32 aicpuRecordCpuIdx = 0; // aicpu record host的notifyIdx
     u32 dataCount = 0; // 算子上报dfx的数据量
+    DevAicpuOpConfig opConfig; // 收编算子配置类变量
     u64 varMemSize{0};
     u8 varData[0];
 };
@@ -624,6 +656,20 @@ struct MemRegInfo {
 struct AivParamStorage {
     u32 aivCoreLimit = 0;
     bool aivClearEnable = false;
+};
+
+// 算子参数一致性校验信息
+struct OpExchangeInfo {
+    uint64_t cclBufferSize{0};
+    u32 root = INVALID_VALUE_RANKID;
+    HcclCMDType opType = HcclCMDType::HCCL_CMD_INVALID;
+    OpExecuteConfig opExecuteConfig = OpExecuteConfig::DEFAULT;
+    HcclReduceOp reduceType = HcclReduceOp::HCCL_REDUCE_RESERVED;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_RESERVED;
+    u64 count{0};
+    u32 aivCoreLimit = MAX_NUM_BLOCKS;
+    char group[MAX_LENGTH] = {0};
+    char tag[TAG_LENGTH] = {0};
 };
 
 } 

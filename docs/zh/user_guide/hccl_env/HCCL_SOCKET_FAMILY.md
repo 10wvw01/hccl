@@ -21,6 +21,11 @@
 
   例如，该环境变量指定为IPv6协议，但Device侧只存在IPv4协议的网卡，则实际会使用IPv4协议的网卡。
 
+**针对Ascend 950PR/Ascend 950DT** ：该环境变量不支持配置Device侧通信网卡IP协议版本，该机型Device侧网卡IP协议的使用情况如下：
+
+- Device侧网卡使用UB协议通信，只支持使用IPv6协议进行Socket建链。
+- Device侧网卡使用UBoE协议通信，只支持使用IPv4协议进行Socket建链。
+
 ## 配置示例
 
 ```bash
@@ -38,8 +43,12 @@ Ascend 950PR/Ascend 950DT
 
 Atlas A3 训练系列产品/Atlas A3 推理系列产品
 
-Atlas A2 训练系列产品/Atlas A2 推理系列产品（针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800T A2 训练服务器、Atlas 900 A2 PoD 集群基础单元、Atlas 200T A2 Box16 异构子框。）
+Atlas A2 训练系列产品/Atlas A2 推理系列产品
 
-<cann-filter npu-type="910">Atlas 训练系列产品</cann-filter>
+<!-- npu="910" id1 -->
+Atlas 训练系列产品
+<!-- end id1 -->
 
-<cann-filter npu-type="310p">Atlas 推理系列产品（针对Atlas 推理系列产品，仅支持Atlas 300I Duo 推理卡。）</cann-filter>
+<!-- npu="310p" id2 -->
+Atlas 推理系列产品
+<!-- end id2 -->

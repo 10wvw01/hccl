@@ -5,16 +5,28 @@
         <path value="$(TARGET_ENV)/include" install_type="devel"/>
         <path value="$(TARGET_ENV)/include/hccl" install_type="devel"/>
         <path value="$(TARGET_ENV)/include/version" install_type="devel"/>
+        <path value="$(TARGET_ENV)/include/es" install_type="devel"/>
         <path value="opp"/>
         <path value="opp/built-in"/>
         <path value="opp/built-in/op_impl"/>
         <path value="opp/built-in/op_impl/aicpu"/>
         <path value="opp/built-in/op_impl/aicpu/kernel"/>
         <path value="opp/built-in/op_impl/aicpu/config"/>
+        <path value="opp/built-in/op_graph"/>
+        <path value="opp/built-in/op_graph/inc"/>
+        <path value="opp/built-in/op_graph/lib"/>
+        <path value="opp/built-in/op_graph/lib/linux"/>
+        <path value="opp/built-in/op_graph/lib/linux/$(ARCH)"/>
     </dir_info>
     <file_info value="include" copy_type="source" src_path="hccl/include" dst_path="$(TARGET_ENV)/include/hccl" install_path="$(TARGET_ENV)/include/hccl" install_type="devel" install_mod="440">
         <file value="hccl.h"/>
         <file value="hccl_mc2.h"/>
+    </file_info>
+    <file_info value="include" copy_type="source" dst_path="opp/built-in/op_graph/inc" install_path="opp/built-in/op_graph/inc" install_type="all" install_mod="440">
+        <file value="ops_proto_hccl.h"/>
+    </file_info>
+    <file_info value="include" copy_type="delivery" dst_path="$(TARGET_ENV)/include/es" install_path="$(TARGET_ENV)/include/es" install_type="all" install_mod="440">
+        <file value="es_hccl"/>
     </file_info>
     <file_info value="lib64" copy_type="delivery" src_path="build" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="440">
         <!-- hccl -->
@@ -30,11 +42,57 @@
         <file value="hccl_aiv_all_to_all_op_910_95.o" optional="true"/>
         <file value="hccl_aiv_send_op_910_95.o" optional="true"/>
         <file value="hccl_aiv_recv_op_910_95.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_int8_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_int16_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_int32_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_float16_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_float32_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_oneshot_bfloat16_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_int8_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_int16_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_int32_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_float16_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_float32_v2.o" optional="true"/>
+        <file value="hccl_ar_superkernel_mesh_1d_twoshot_bfloat16_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_int8_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_int16_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_int32_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_float16_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_float32_v2.o" optional="true"/>
+        <file value="hccl_rs_superkernel_mesh_1d_bfloat16_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_int8_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_int16_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_int32_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_float16_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_float32_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_bfloat16_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_uint8_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_uint16_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_uint32_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_int64_v2.o" optional="true"/>
+        <file value="hccl_ag_superkernel_mesh_1d_uint64_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_int8_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_int16_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_int32_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_float16_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_float32_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_bfloat16_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_uint8_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_uint16_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_uint32_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_int64_v2.o" optional="true"/>
+        <file value="hccl_a2a_superkernel_mesh_1d_uint64_v2.o" optional="true"/>
     </file_info>
     <file_info value="device" copy_type="delivery" src_path="build" dst_path="opp/built-in/op_impl/aicpu/kernel" install_path="opp/built-in/op_impl/aicpu/kernel" install_type="all" install_mod="440" optional="true">
         <file value="aicpu_hccl.tar.gz"/>
     </file_info>
     <file_info value="json" copy_type="delivery" src_path="build" dst_path="opp/built-in/op_impl/aicpu/config" install_path="opp/built-in/op_impl/aicpu/config" install_type="all" install_mod="440">
         <file value="libscatter_aicpu_kernel.json"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" dst_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_type="all" install_mod="550">
+        <file value="libopgraph_hccl.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="550">
+        <file value="libes_hccl.so" file_type="shared"/>
     </file_info>
 </block>

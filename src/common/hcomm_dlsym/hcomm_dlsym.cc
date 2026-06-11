@@ -10,15 +10,20 @@
 
 #include "hcomm_dlsym.h"
 #include "hccl_res_dl.h"
+#include "ccu_res_dl.h"
+#include "hccl_ccu_res_dl.h"
+#include "ccu_launch_dl.h"
+#include "ccu_primitives_impl_dl.h"
 #include "hccl_rank_graph_dl.h"
 #include "hcomm_primitives_dl.h"
 #include "hccl_inner_dl.h"
 #include "hcomm_host_profiling_dl.h"
 #include "hccl_host_comm_dl.h"
+#include "hccl_res_expt_dl.h"
 #include <pthread.h>
 #include <dlfcn.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <acl/acl.h>
 
 static void* gLibHandle = nullptr;
@@ -37,7 +42,7 @@ int GetHcommVersion(void) {
 
 bool HcommIsProfilingSupported()
 {
-    if (GetHcommVersion() >= 90000000) {
+    if (GetHcommVersion() >= CANN_VERSION(9, 0, 0)) {
         return true;
     } else {
         return false;
@@ -46,7 +51,7 @@ bool HcommIsProfilingSupported()
 
 bool HcommIsExportThreadSupported()
 {
-    if (GetHcommVersion() >= 90000000 && HcommIsSupportHcclThreadExportToCommEngine()) {
+    if (GetHcommVersion() >= CANN_VERSION(9, 0, 0) && HcommIsSupportHcclThreadExportToCommEngine()) {
         return true;
     } else {
         return false;
@@ -71,4 +76,9 @@ void HcommDlInit(void) {
     HcclInnerDlInit(gLibHandle);
     HcommProfilingDlInit(gLibHandle);
     HcclCommDlInit(gLibHandle);
+    HcclResExptDlInit(gLibHandle);
+    CcuResDlInit(gLibHandle);
+    HcclCcuResDlInit(gLibHandle);
+    CcuLaunchDlInit(gLibHandle);
+    CcuPrimitivesImplDlInit(gLibHandle);
 }

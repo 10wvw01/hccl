@@ -35,7 +35,7 @@ public:
             sendCurCount = dataPerCore;
         }
         sendInputOffset = input_ + (extraArgsPerLoop.sendDispls[targetRank] + innerDispls)  * sizeof(T);
-        sendOutputOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank * cclBufferCountPerRank + innerDispls) * sizeof(T);
+        sendOutputOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank * cclBufferCountPerRank + innerDisplsForCcl) * sizeof(T);
  
         //接收数据的编排
         dataPerCore = extraArgsPerLoop.recvCounts[targetRank] / coreNumPerRank;
@@ -47,7 +47,7 @@ public:
             innerDispls = coreIndex * dataPerCore + remainder;
             recvCurCount = dataPerCore;
         }
-        recvInputOffset = reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (rank_ * cclBufferCountPerRank + innerDispls) * sizeof(T);
+        recvInputOffset = reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (rank_ * cclBufferCountPerRank + innerDisplsForCcl) * sizeof(T);
         recvOutputOffset = output_ + (extraArgsPerLoop.recvDispls[targetRank] + innerDispls) * sizeof(T);
     }
  
@@ -103,6 +103,14 @@ public:
 
         targetRank = block_idx / coreNumPerRank; // 每个核负责哪个rank的数据
         coreIndex = (block_idx - (targetRank * coreNumPerRank)) % coreNumPerRank;  // 每个核在当前coreNumPerRank里面的排序
+
+        uint64_t dataPerCore = cclBufferCountPerRank / coreNumPerRank;
+        uint64_t remainder = cclBufferCountPerRank % coreNumPerRank;
+        if (coreIndex < remainder) { // 这部分核需要多处理一个数据
+            innerDisplsForCcl = coreIndex * dataPerCore + coreIndex;
+        } else {
+            innerDisplsForCcl = coreIndex * dataPerCore + remainder;
+        }
  
         // 前面 coreCount 个位置给 Producer，后面 coreCount 个位置给 Consumer
         // 初始化的时候，先给对端一个flag
@@ -151,7 +159,7 @@ public:
             InitCoreInfo(extraArgsPerLoop);
             Producer(loop); // 写数据
             Consumer(loop); // 读数据
-            SyncAll<true>(); // 卡内核的同步
+            SyncAll<true>();
             processedDataCount += currDataCount;
         }
     }
@@ -167,6 +175,7 @@ public:
     uint64_t recvOutputOffset;
     uint64_t recvCurCount;
     uint64_t cclBufferCountPerRank;
+    uint64_t innerDisplsForCcl;
 };
  
 template<typename T>
