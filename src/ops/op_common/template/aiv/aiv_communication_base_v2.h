@@ -364,6 +364,20 @@ public:
 
     __aicore__ inline void ClearGM();
 
+    __aicore__ inline void SendRecvBarrierForFirstOP(uint32_t myRank, uint32_t remoteRank);	 
+
+    __aicore__ inline void WaitFlag(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);	 
+
+    __aicore__ inline void Record(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);	 
+
+    __aicore__ inline void Barrier(uint32_t step);	 
+
+    __aicore__ inline void ClearFlag(); 
+
+    __aicore__ inline void BlockSync(); 
+
+    __aicore__ inline void ClearSyncBuf();
+
     __aicore__ inline void BarrierForFirstOP()
     {
         BarrierForFirstOPInner(0);
