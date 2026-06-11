@@ -15,7 +15,7 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_reduce_scatter_mesh_1D.h"
 #include "ins_temp_reduce_scatter_nhr.h"
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#if !defined(HCCL_CANN_COMPAT_850)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
@@ -448,7 +448,7 @@ HcclResult
         }
     }
 
-    multipleDimensionSplitRatio_ = param_.opConfig.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatio_ = param_.multipleDimensionSplitRatio;
     std::array<long double, dataSplitPart_> dataSplitSize{multipleDimensionSplitRatio_, 1.0 - multipleDimensionSplitRatio_};
     HCCL_INFO("[ReduceParallelExecutor] dataSplitSize is %Lf, %Lf", dataSplitSize[0], dataSplitSize[1]);
 
@@ -751,7 +751,7 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
 #endif
 
 // 算法注册
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#if !defined(HCCL_CANN_COMPAT_850)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh1DNHR, ReduceParallelExecutor,
     TopoMatchMultilevel, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D,
     InsTempAllGatherNHR);
@@ -763,7 +763,7 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 #ifndef AICPU_COMPILE
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#if !defined(HCCL_CANN_COMPAT_850)
     REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, CcuReduceParallelMesh1DNHR, ReduceParallelExecutor,
         TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
     REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, CcuReduceParallelMesh1DNHRUBX, ReduceParallelExecutor,
