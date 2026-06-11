@@ -21,30 +21,22 @@
 using namespace std;
 using namespace ops_hccl;
 
-// 旧 hcomm 未导出 HcclBarrierInner（该符号在本次改名时才新增）。
-// 用弱引用，使其在旧 hcomm 上缺失时解析为空指针，而不是链接/加载期未定义符号报错，
-// 从而支持「旧 hcomm + 新 hccl」组合。
-#pragma weak HcclBarrierInner
-
 namespace {
-// 回退到老 barrier 流程，兼容「旧 hcomm + 新 hccl」：
-//   1) 新/配套 hcomm：HcclBarrierInner 存在，直接调用；
-//   2) 旧 hcomm：HcclBarrierInner 弱引用为空，用 dlsym(RTLD_NEXT) 委派到旧 hcomm
-//      导出的老 HcclBarrier（oldBarrier != &HcclBarrier 防止自递归）；
-//   3) 两者都拿不到：返回明确错误，提示升级 hcomm。
+// 回退到旧 barrier 流程（hcomm 的老 HcclBarrier）。
+// 旧流程 HcclBarrier 由 hcomm 导出，与本仓分发器同名，无法按名直接调用（会递归到
+// 自身），故用 dlsym(RTLD_NEXT) 跳过本 .so 自身定义，定位到加载顺序中下一个
+// HcclBarrier（即 hcomm 的旧 HcclBarrier）。结果用 static 缓存，仅查找一次。
+// 该机制统一覆盖：配套部署、旧 hcomm + 新 hccl、以及版本/芯片不满足新流程的回退。
+// 前提：libhccl 依赖并先于 libhcomm 加载（DT_NEEDED 天然成立）。
 HcclResult BarrierFallbackToOldFlow(HcclComm comm, aclrtStream stream)
 {
     using BarrierFn = HcclResult (*)(HcclComm, aclrtStream);
-    BarrierFn innerFn = HcclBarrierInner;  // 弱引用：旧 hcomm 上为空
-    if (innerFn != nullptr) {
-        return innerFn(comm, stream);
-    }
-    HCCL_WARNING("[Barrier] HcclBarrierInner not found (old hcomm?), delegate to legacy HcclBarrier via dlsym");
-    BarrierFn oldBarrier = reinterpret_cast<BarrierFn>(dlsym(RTLD_NEXT, "HcclBarrier"));
-    if (oldBarrier != nullptr && oldBarrier != &HcclBarrier) {
+    static BarrierFn oldBarrier = reinterpret_cast<BarrierFn>(dlsym(RTLD_NEXT, "HcclBarrier"));
+    if (oldBarrier != nullptr && oldBarrier != &HcclBarrier) {  // 防自递归
         return oldBarrier(comm, stream);
     }
-    HCCL_ERROR("[Barrier] cannot fallback: hcomm too old (missing HcclBarrierInner), please upgrade hcomm");
+    HCCL_ERROR("[Barrier] cannot locate legacy HcclBarrier via RTLD_NEXT; "
+               "ensure libhcomm is loaded after libhccl");
     return HCCL_E_NOT_SUPPORT;
 }
 }  // namespace
@@ -150,9 +142,9 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
     }
 
     // 新流程（框内 AICPU + 框间 DPU）仅在「框间 host-DPU」场景启用，
-    // 其余场景（普通 AICPU、单框、框间 device 链路等）回退到老的 HcclBarrierInner。
+    // 其余场景（普通 AICPU、单框、框间 device 链路等）回退到 hcomm 的旧 HcclBarrier。
     if (!IsBarrierHostDpu(comm)) {
-        HCCL_INFO("[BarrierOutPlace] not host-dpu scene, fallback to HcclBarrierInner");
+        HCCL_INFO("[BarrierOutPlace] not host-dpu scene, fallback to legacy HcclBarrier");
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
