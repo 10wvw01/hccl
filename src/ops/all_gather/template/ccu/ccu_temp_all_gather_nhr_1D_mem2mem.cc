@@ -139,7 +139,6 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
         kernelArg->subCommRanks = subCommRanks_;
         kernelArg->axisSize = dieNum;
         kernelInfo.setKernelArg(kernelArg);
-
         kernelInfo.channels = channelsPerDie[kernelIdx];
         resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     }
