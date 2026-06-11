@@ -336,30 +336,6 @@ public:
     template<typename T>
     __aicore__ inline void Reduce64(__gm__ T *outputGM, __gm__ T *inputGM, uint64_t count, uint32_t reduceOp);
 
-    __aicore__ inline void BarrierAll();
-
-    __aicore__ inline void SendRecvBarrierAll(uint32_t myRank, uint32_t remoteRank);
-
-    __aicore__ inline bool IsFirstOP(int32_t sliceId);
-
-    __aicore__ inline void ClearGM();
-
-    __aicore__ inline void BarrierForFirstOP();
-
-    __aicore__ inline void SendRecvBarrierForFirstOP(uint32_t myRank, uint32_t remoteRank);
-
-    __aicore__ inline void WaitFlag(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);
-
-    __aicore__ inline void Record(uint32_t targetRank, uint64_t flag_offset, int32_t curTag);
-
-    __aicore__ inline void Barrier(uint32_t step);
-
-    __aicore__ inline void ClearFlag();
-
-    __aicore__ inline void BlockSync();
-
-    __aicore__ inline void ClearSyncBuf();
-
     __aicore__ inline void BarrierForFirstOPInner(uint32_t barrierStage)
     {
         uint32_t perCoreRankNum = rankSize_ / numBlocks_;
@@ -379,6 +355,14 @@ public:
             Record(rank_, flag_offset / FLAG_SIZE, 0);
         }
     }
+
+    __aicore__ inline void BarrierAll();
+
+    __aicore__ inline void SendRecvBarrierAll(uint32_t myRank, uint32_t remoteRank);
+
+    __aicore__ inline bool IsFirstOP(int32_t sliceId);
+
+    __aicore__ inline void ClearGM();
 
     __aicore__ inline void BarrierForFirstOP()
     {
