@@ -137,10 +137,17 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
     
     for (uint64_t i = 0; i < DIE_NUM; i++) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 <<<<<<< HEAD
 <<<<<<< HEAD
 >>>>>>> e124e56 (fast launch)
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/master
+>>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
         CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
             taskArgs.data(), argSize);
         if (launchRet != CCU_SUCCESS) {
@@ -150,7 +157,10 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
 <<<<<<< HEAD
 =======
 =======
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
         std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllReduceMesh1DMem2Mem2DieOneShot>(
             inputAddr, outputAddr, token, scratchAddr, normalSliceSize);
@@ -161,7 +171,12 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
 >>>>>>> f99b904 (fast launch)
 =======
 >>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
+<<<<<<< HEAD
 >>>>>>> e124e56 (fast launch)
+=======
+=======
+>>>>>>> origin/master
+>>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
     }
     
     CcuKernelSubmitInfo submitInfo;
