@@ -413,7 +413,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         // 设置BatchTransfer是否可行
         CHK_RET(InitHcommBatchTransferOnThreadSupported(resCtxPtr->isHcommBatchTransferOnThreadSupported));
 
-        // TODO: AR4 检查aicpu task cache使能约束
+        // TODO: AR5 检查aicpu task cache使能约束
         bool enableCache = param->aicpuCacheEnable;
         
         std::string cacheTag = "";

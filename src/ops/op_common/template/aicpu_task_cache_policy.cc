@@ -30,6 +30,8 @@ bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const To
         return false;
     }
 
+    // TODO: AR5 aclgraph 不支持
+
     // 屏蔽inplace场景
     bool isInplace = false;
     if (IsInplace(param, isInplace, topoInfo) != HCCL_SUCCESS) {
@@ -46,11 +48,12 @@ bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const To
     }
 
     // 目前V类算子、batch类型算子、以及send/recv不考虑动态缓存 (使用白名单而非黑名单管理, 避免非预期算子进入cache机制)
+    // 注意: 当前hccl不支持HcclGather
     const HcclCMDType opType = param.opType;
     if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_REDUCE
         || opType == HcclCMDType::HCCL_CMD_ALLGATHER || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER
         || opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_SCATTER
-        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE || opType == HcclCMDType::HCCL_CMD_GATHER) { // 非V类算子
+        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE) { // 非V类算子
         HCCL_INFO(
             "[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is supported for operator unfolding cache", opType);
         return true;
@@ -149,9 +152,14 @@ bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable& res
             if (!channel.isValid) {
                 continue;
             }
-            // 不支持基于外置网卡的跨超RDMA, 不支持基于PCIe的跨卡P2P
-            if (channel.protocol == CommProtocol::COMM_PROTOCOL_ROCE || channel.protocol == CommProtocol::COMM_PROTOCOL_PCIE) {
-                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%] not supported", channel.protocol);
+
+            // 只支持基于UB的跨卡通信 (当前aicpu仅支持UBC_CTP/UBC_TP/UBOE)
+            // 不支持其他通信方式, 例如基于外置网卡的跨超RDMA, 基于PCIe的跨卡P2P等
+            if (channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_CTP &&
+                channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_TP &&
+                channel.protocol != CommProtocol::COMM_PROTOCOL_UBOE) {
+                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%] not supported",
+                    channel.protocol);
                 return false;
             }
         }

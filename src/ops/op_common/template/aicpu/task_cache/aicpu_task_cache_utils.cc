@@ -13,10 +13,11 @@ namespace ops_hccl {
 
 bool AicpuTaskCacheUtils::IsNonVariableOpType(HcclCMDType opType)
 {
+    // 注意: 当前hccl不支持HcclGather
     if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_ALLREDUCE ||
         opType == HcclCMDType::HCCL_CMD_REDUCE || opType == HcclCMDType::HCCL_CMD_ALLGATHER ||
         opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER || opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
-        opType == HcclCMDType::HCCL_CMD_GATHER || opType == HcclCMDType::HCCL_CMD_SCATTER) {
+        opType == HcclCMDType::HCCL_CMD_SCATTER) {
         return true;
     }
     return false;
