@@ -51,6 +51,9 @@
 #include "hcomm_diag_dl.h"
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
+#include "ccu_launch_dl.h"
+#include "hccl_ccu_res_dl.h"
+#include <hccl/hccl_launch.h>
 
 namespace ops_hccl {
 // 用于维护增量建链算子的host ctx信息
@@ -584,8 +587,12 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
 
     // 算法执行
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
+        ThreadHandle unfoldThread1;
         ThreadHandle unfoldThread;
-        CHK_RET(GetUnfoldThreadInfo(comm, param, unfoldThread));
+        CHK_RET(GetUnfoldThreadInfo(comm, param, unfoldThread1));
+        CHK_RET(HcclDedicatedThreadAcquire(comm, 1, 0, &unfoldThread));
+        HCCL_INFO("GetUnfoldThreadInfo[%x], HcclDedicatedThreadAcquire[%x]", unfoldThread1, unfoldThread);
+
         // 根据主流的捕获状态决定展开流的状态
         CHK_RET(CaptureSlaveStreams(comm, param.stream, {mainThread, unfoldThread}));
         CHK_RET(HcclAicpuKernelEntranceLaunch(comm, param, cpuTsThread, exportedCpuTsThread, notifyNumOnMainThread,
@@ -658,6 +665,30 @@ HcclResult GeReuseResource(HcclComm comm, OpParam &param, std::unique_ptr<InsCol
     return HCCL_SUCCESS;
 }
 
+static HcclResult GetUnfoldStream(HcclComm comm, OpParam &param, ThreadHandle unfoldThread, aclrtStream &resolvedStream)
+{
+    void *unfoldStream = nullptr;
+    auto &HcclThreadResGetInfoFunc = ops_hccl::DlHcommFunction::GetInstance();
+    HcclResult ret;
+    if (!HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo || param.opMode == OpMode::OFFLOAD) { // 不走提前展开
+        resolvedStream = param.stream;
+    } else {
+        ret = HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo(comm, unfoldThread, 0, sizeof(void *), &unfoldStream);
+        if (ret == HCCL_E_NOT_SUPPORT) {
+            resolvedStream = param.stream;
+        } else if (ret != HCCL_SUCCESS) {
+            return ret;
+        } else {
+            resolvedStream = unfoldStream;
+        }
+    }
+    CHK_PRT_RET(ret != ACL_SUCCESS,
+        HCCL_ERROR("[LoadCustomKernel][aclrtLaunchKernelWithConfig]"
+                   "errNo[0x%016llx] launch kernel failed",
+            ret),
+        HCCL_E_OPEN_FILE_FAILURE);
+}
+
 HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHandle cpuTsThread,
     ThreadHandle exportedCpuTsThread, u32 notifyNumOnMainThread, void *resCtxSequence, std::string &algName, ThreadHandle unfoldThread)
 {
@@ -666,9 +697,80 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     param.resCtx = resCtxSequence;
     param.aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
 
+    int result = sprintf_s(param.algName, sizeof(param.algName), "%s", algName.c_str());
+    if (result <= 0) {
+        HCCL_ERROR("failed to fill param.algName");
+        return HCCL_E_INTERNAL;
+    }
+
     if (param.engine == COMM_ENGINE_CPU) {
         // 注册dpu回调函数
         CHK_RET(static_cast<HcclResult>(HcclTaskRegister(comm, param.algTag, HcclLaunchDPUKernel)));
+    }
+    HCCL_INFO(
+        "[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch", static_cast<int>(param.opType));
+ 
+    if (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE) {
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch",
+            static_cast<int>(param.opType));
+ 
+        // 构造 HcclOpDesc
+        HcclOpDesc opInfo;
+        memset(&opInfo, 0, sizeof(HcclOpDesc));
+        opInfo.opDescType = 1;  // 1: P2P
+        
+        const char* opNameStr = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? "Send" : "Recv";
+        result = sprintf_s(opInfo.opName, sizeof(opInfo.opName), "Hccl%s", opNameStr);
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill opInfo.opName");
+            return HCCL_E_INTERNAL;
+        }
+        
+        opInfo.p2p.buffer = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? 
+                            param.inputPtr : param.outputPtr;
+        opInfo.p2p.cmdType = param.opType;
+        opInfo.p2p.dataType = param.DataDes.dataType;
+        opInfo.p2p.count = param.DataDes.count;
+        opInfo.p2p.remoteRank = param.sendRecvRemoteRank;
+        aclrtStream resolvedStream;
+        GetUnfoldStream(comm, param, unfoldThread, resolvedStream);
+        opInfo.p2p.stream = resolvedStream;
+        opInfo.p2p.hostNotifyWaitTime = param.opConfig.execTimeout + HOST_NOTIFY_TIMEOUT_OFFSET;
+        opInfo.p2p.aicpuRecordCpuIdx = 0;
+        opInfo.p2p.notifyNum = notifyNumOnMainThread;
+ 
+        // 构造 HcclKernelFuncInfo
+        HcclKernelFuncInfo funcInfo;
+        memset(&funcInfo, 0, sizeof(HcclKernelFuncInfo));
+        
+        result = sprintf_s(funcInfo.kernelSo, sizeof(funcInfo.kernelSo), 
+                          "libscatter_aicpu_kernel.so");
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill funcInfo.kernelSo");
+            return HCCL_E_INTERNAL;
+        }
+        
+        result = sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName), 
+                          "HcclLaunchP2pAicpuKernel");
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill funcInfo.funcName");
+            return HCCL_E_INTERNAL;
+        }
+        
+        // 获取 aicpuThreadHandle
+        ThreadHandle aicpuThreadHandle;
+        u32 mainNotifyNum;
+        CHK_RET(GetMainThreadInfo(comm, param, aicpuThreadHandle, mainNotifyNum));
+        
+        // 调用 HcclAicpuKernelLaunch
+        void* args = &param;
+        uint32_t argSize = sizeof(OpParam) + param.varMemSize;
+ 
+        CHK_RET(HcclAicpuKernelLaunch(comm, opInfo, funcInfo, args, argSize, 
+                                      aicpuThreadHandle, param.stream));
+        
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P launch success, algTag[%s]", param.algTag);
+        return HCCL_SUCCESS;
     }
 
     // Host stream通知Device主thread，使用主流上idx最大的notify
@@ -1559,7 +1661,15 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
                 CHK_RET(ret);
             }
         }
-        kernelInfo.kernelArg->channels = kernelChannels;
+        auto* kernelArgBase = static_cast<CcuKernelArgBase*>(kernelInfo.kernelArg);
+        if (!kernelArgBase) {
+            HCCL_ERROR("[HcclGetChannelForCcu] kernelArg ptr is err.");
+            return HCCL_E_INTERNAL;
+        }
+        for (u32 i = 0; i < channelNum; ++i) {
+            kernelArgBase->channels[i] = kernelChannels[i];
+        }
+        kernelArgBase->channelCount = channelNum;
         HCCL_INFO("[HcclGetChannelForCcu] Get [%lu] channels", channelNum);
     }
     return HCCL_SUCCESS;
@@ -1568,19 +1678,30 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
 HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
                           std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
 {
+    CcuInsHandle insHandle{0};
+    uint32_t insNum = 0;
+    CHK_RET(HcclCommQueryCcuIns(comm, &insHandle, &insNum));
+    CHK_PRT_RET(insNum != 1, HCCL_ERROR("[HcclGetCcuKernel] HcclCommQueryCcuIns fail! insNum is [%u]", insNum),
+                HCCL_E_INTERNAL);
+
     u32 totalKernelNum = 0;
     for (auto t: resRequest.ccuKernelNum) {
         totalKernelNum += t;
     }
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
-        HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"),
-        HCCL_E_INTERNAL);
+                HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"), HCCL_E_INTERNAL);
 
     // 按照resgroup进行注册
     u32 currentResGroup = 0;
     u32 maxResGroup = 0;
     resCtxHost->ccuKernels.resize(totalKernelNum);
+
     while (currentResGroup <= maxResGroup) {
+        CcuResult regStartRet = HcommCcuKernelRegisterStart(insHandle);
+        if (regStartRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet);
+            return ConvertCcuToHccl(regStartRet);
+        }
         for (u32 i = 0; i < totalKernelNum; i++) {
             CcuKernelInfo& kernelInfo = resRequest.ccuKernelInfos[i];
             if (kernelInfo.resGroup > maxResGroup) {
@@ -1589,16 +1710,27 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
             if (kernelInfo.resGroup != currentResGroup) {
                 continue;
             }
-            void* kernelArgPtr = static_cast<void*>(kernelInfo.kernelArg.get()); // 保证没有释放
-            void* creatorPtr = static_cast<void*>(&kernelInfo.creator);
 
-            HCCL_DEBUG("[AllocAlgResource] kernelArgPtr[%p], creator[%p]", kernelArgPtr, &(kernelInfo.creator));
-            CcuKernelHandle handle;
-            CHK_RET(HcclCcuKernelRegister(comm, &handle, creatorPtr, kernelArgPtr));
-            
-            resCtxHost->ccuKernels[i] = handle;
+            HCCL_DEBUG("[HcclGetCcuKernel] kernelFuncName[%s]", kernelInfo.kernelFuncName);
+            CcuKernelHandle kernelHandle;
+            const void *kernelArgs[] = {kernelInfo.kernelArg};
+
+            constexpr uint32_t dieId = 0; // 预留接口，暂无含义
+            constexpr uint32_t kernelArgNum = 1;
+            CcuResult regRet = HcommCcuKernelRegister(insHandle, dieId, kernelInfo.kernelFuncName,
+                                                      reinterpret_cast<void*>(kernelInfo.kernelFunc),
+                                                      kernelArgs, kernelArgNum, &kernelHandle);
+            if (regRet != CCU_SUCCESS) {
+                HCCL_ERROR("ccu kernel register failed: ccuRet -> %d", regRet);
+                return ConvertCcuToHccl(regRet);
+            }
+            resCtxHost->ccuKernels[i] = kernelHandle;
         }
-        CHK_RET(HcclCcuKernelRegisterFinish(comm));
+        CcuResult regEndRet = HcommCcuKernelRegisterEnd(insHandle);
+        if (regEndRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet);
+            return ConvertCcuToHccl(regEndRet);
+        }
         currentResGroup++;
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
