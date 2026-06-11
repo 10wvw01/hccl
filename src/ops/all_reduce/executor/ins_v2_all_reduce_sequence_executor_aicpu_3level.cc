@@ -576,7 +576,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 // 三级AllReduce: RSL0(Mesh1D) → RSL1(NHR) → RSL2(NHR)
 //               → AGL2(NHR) → AGL1(NHR) → AGL0(Mesh1D)
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE,
-    InsV2AllReduceSequenceExecutorAicpu3Level,
+    InsV2AllReduceSequenceMesh1DNhrNhr,
     InsV2AllReduceSequenceExecutorAicpu3Level,
     TopoMatchMultilevel,
     InsTempReduceScatterMesh1DZAxisDetour,
