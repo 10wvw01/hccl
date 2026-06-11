@@ -86,7 +86,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::ProcessLinkForProtocol(const HcclComm comm
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllToAllMesh1D2Die::ProcessLinkForProtocolNhr(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
+HcclResult CcuTempAllToAllMesh1D2Die::ProcessLinkForProtocolNhr(const HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
     const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
     std::vector<HcclChannelDesc>& channels, bool& protocolFound) const
 {
@@ -114,7 +114,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcNHRChannelConnect(u32 rank, u32 rankSi
 }
 
 HcclResult CcuTempAllToAllMesh1D2Die::CalcChannelRequest(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels)
+    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels) const
 {
 #ifndef AICPU_COMPILE
     (void) param;
@@ -210,7 +210,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
         HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
             dieId, channels_[dieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
     }
-
     return HcclResult::HCCL_SUCCESS;
 }
 

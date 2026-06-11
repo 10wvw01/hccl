@@ -11,8 +11,6 @@
 #include "log.h"
 #include "hcomm_host_profiling_dl.h"
 #include <dlfcn.h>
-#include <cstdio>
-#include <cstdlib>
 
 DEFINE_WEAK_FUNC(HcclResult, HcommProfilingRegThread, HcomProInfoTmp profInfo, ThreadHandle* threads);
 DEFINE_WEAK_FUNC(HcclResult, HcommProfilingUnRegThread, HcomProInfoTmp profInfo, ThreadHandle* threads);

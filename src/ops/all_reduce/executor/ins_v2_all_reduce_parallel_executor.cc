@@ -116,8 +116,8 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         interTempRequestFinal.notifyNumPerThread = interTempRequest1.notifyNumPerThread;
     }
 
-    resourceRequest.notifyNumOnMainThread = 2;  // allreduce用于两个template间同步
-    resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + 4;
+    resourceRequest.notifyNumOnMainThread = THREAD_NUM_2;  // allreduce用于两个template间同步
+    resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + THREAD_NUM_4;
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest1.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
@@ -449,16 +449,16 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
     intraThreads_.clear();
     intraThreads_.emplace_back(threads_[1]);
-    if (intraThreadsNum + 2 >= 3) {
-        for (u32 i = 3 ; i < intraThreadsNum + 2; i++) {
+    if (intraThreadsNum + THREAD_NUM_2 >= THREAD_NUM_3) {
+        for (u32 i = THREAD_NUM_3 ; i < intraThreadsNum + THREAD_NUM_2; i++) {
             intraThreads_.emplace_back(threads_[i]);
         }
     }
 
     interThreads_.clear();
-    interThreads_.emplace_back(threads_[intraThreadsNumFinal + 2]);
-    if (threads_.size() >= intraThreadsNumFinal + 4) {
-        for (u32 i = intraThreadsNumFinal + 4 ; i < threads_.size(); i++) {
+    interThreads_.emplace_back(threads_[intraThreadsNumFinal + THREAD_NUM_2]);
+    if (threads_.size() >= intraThreadsNumFinal + THREAD_NUM_4) {
+        for (u32 i = intraThreadsNumFinal + THREAD_NUM_4 ; i < threads_.size(); i++) {
             interThreads_.emplace_back(threads_[i]);
         }
     }
@@ -490,8 +490,8 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     auto intraThreadsNum1 = intraTempRequest1.slaveThreadNum + 1;
     auto intraThreadsNumFinal = std::max(intraThreadsNum, intraThreadsNum1);
 
-    intraThreads_.assign(threads_.begin() + 2, threads_.begin() + intraThreadsNum1 + 2);
-    interThreads_.assign(threads_.begin() + intraThreadsNumFinal + 3, threads_.end());
+    intraThreads_.assign(threads_.begin() + THREAD_NUM_2, threads_.begin() + intraThreadsNum1 + THREAD_NUM_2);
+    interThreads_.assign(threads_.begin() + intraThreadsNumFinal + THREAD_NUM_3, threads_.end());
     // 用于两个算法同步
     mainThread_ = threads_.at(0);
 

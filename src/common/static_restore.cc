@@ -102,11 +102,12 @@ static int has_valid_chars(const char* path) {
  * @brief 检查路径是否包含穿越序列
  */
 static int has_no_traversal(const char* path, size_t len) {
+    uint32_t trailingSeqLen = 3;
     if (strstr(path, "/../") != NULL) {
         HCCL_ERROR("Path contains traversal sequence '../': '%s'", path);
         return 0;
     }
-    if (len >= 3 && strcmp(path + len - 3, "/..") == 0) {
+    if (len >= trailingSeqLen && strcmp(path + len - trailingSeqLen, "/..") == 0) {
         HCCL_ERROR("Path ends with traversal sequence '/..': '%s'", path);
         return 0;
     }
@@ -114,7 +115,7 @@ static int has_no_traversal(const char* path, size_t len) {
         HCCL_ERROR("Path contains current directory sequence './': '%s'", path);
         return 0;
     }
-    if (len >= 3 && strcmp(path + len - 3, "/./") == 0) {
+    if (len >= trailingSeqLen && strcmp(path + len - trailingSeqLen, "/./") == 0) {
         HCCL_ERROR("Path ends with current directory sequence '/./': '%s'", path);
         return 0;
     }
@@ -296,6 +297,7 @@ static int build_safe_path(const char* base_path, const char* relative_path,
                           char* output, size_t output_size) {
     size_t base_len, rel_len;
 
+    uint32_t trailingSeqLen = 2;
     if (base_path == NULL || relative_path == NULL || output == NULL) {
         return -1;
     }
@@ -303,7 +305,7 @@ static int build_safe_path(const char* base_path, const char* relative_path,
     base_len = strlen(base_path);
     rel_len = strlen(relative_path);
     /* 检查总长度是否溢出 */
-    if (base_len + rel_len + 2 > output_size) {
+    if (base_len + rel_len + trailingSeqLen > output_size) {
         HCCL_ERROR("Combined path too long");
         return -1;
     }
@@ -336,6 +338,7 @@ static FILE* lock_file(FILE* fp, const char* target_path) {
 
     /* 5 秒超时，每 50ms 重试一次 */
     const int timeout_ms = 5000;
+    const int timeout_mult = 1000;
     const int retry_interval_ms = 50;
     const int max_retries = timeout_ms / retry_interval_ms;
 
@@ -349,7 +352,7 @@ static FILE* lock_file(FILE* fp, const char* target_path) {
             fclose(fp);
             return NULL;
         }
-        usleep(retry_interval_ms * 1000);
+        usleep(retry_interval_ms * timeout_mult);
     }
 
     HCCL_ERROR("Timeout acquiring lock on '%s' after %dms",

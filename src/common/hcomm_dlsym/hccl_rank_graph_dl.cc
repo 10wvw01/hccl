@@ -10,8 +10,6 @@
 
 #include "hccl_rank_graph_dl.h"
 #include <dlfcn.h>
-#include <cstdio>
-#include <cstdlib>
 
 DEFINE_WEAK_FUNC(HcclResult, HcclRankGraphGetTopoInstsByLayer, HcclComm comm, uint32_t netLayer, uint32_t** topoInsts, uint32_t* topoInstNum);
 DEFINE_WEAK_FUNC(HcclResult, HcclRankGraphGetTopoType, HcclComm comm, uint32_t netLayer, uint32_t topoInstId, CommTopo* topoType);
