@@ -153,11 +153,14 @@ HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::KernelRun(const OpParam& param, c
         std::vector<u32> notifyIdxMainToSub(1, 0);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub));
     }
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, sliceSize, offSet, token};
     for (u32 i = 0; i < kernelNum; i++) {
-        std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllGather2DiesMeshMem2Mem1D>(inputAddr, outputAddr,
-                                                                                                         sliceSize, offSet, token);
-        void* taskArgPtr = static_cast<void*>(taskArg.get());
-        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[i], templateResource.ccuKernels[i], taskArgPtr));
+        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
+            taskArgs.data(), taskArgs.size());
+        CHK_PRT_RET(launchRet != CCU_SUCCESS,
+            HCCL_ERROR("[CcuTempAllGather2DiesMeshMem2Mem1D::KernelRun] kernel launch failed, ccuRet -> %d",
+                launchRet),
+            ConvertCcuToHccl(launchRet));
         HCCL_DEBUG("[CcuTempAllGather2DiesMeshMem2Mem1D::KernelRun] end");
     }
     if (kernelNum > 1) {
@@ -181,6 +184,7 @@ HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::KernelRun(const OpParam& param, c
 
 HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx)
 {
+    (void)param;
     if (tempFastLaunchCtx.ccuKernelSubmitInfos.size() == 0) {
         HCCL_INFO("[CcuTempAllGather2DiesMeshMem2Mem1D::FastLaunch] ccu kernel num is 0, just success.");
         return HCCL_SUCCESS;
@@ -200,11 +204,13 @@ HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::FastLaunch(const OpParam& param, 
     }
 
     for (u32 kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
-        CcuTaskArgAllGather2DiesMeshMem2Mem1D taskArg(
-            inputAddr, outputAddr, args[4], args[3], args[2]);
-        void* taskArgPointer = static_cast<void*>(&taskArg);
-        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, tempFastLaunchCtx.threads[kernelIdx],
-            tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle, taskArgPointer));
+        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, args[4], args[3], args[2]};
+        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[kernelIdx],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle, taskArgs.data(), taskArgs.size());
+        CHK_PRT_RET(launchRet != CCU_SUCCESS,
+            HCCL_ERROR("[CcuTempAllGather2DiesMeshMem2Mem1D::FastLaunch] kernel launch failed, ccuRet -> %d",
+                launchRet),
+            ConvertCcuToHccl(launchRet));
     }
 
     if (kernelNum > 1) {
