@@ -16,6 +16,7 @@
 #include <cstdlib>  // 包含getenv函数
 #include <cstring>  // 包含strcmp函数
 #include <stdexcept>
+
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_comm.h>
 #include "hccl/base.h"
@@ -37,6 +38,7 @@
 #include "alg_param.h"
 #include "alg_type.h"
 #include "op_common.h"
+#include "aicpu_timeout.h"
 #include "hccl_aiv_utils.h"
 #include "dpu/kernel_launch.h"
 #include "hcomm_host_profiling_dl.h"
@@ -49,15 +51,25 @@
 #include "hcomm_diag_dl.h"
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
+#include "ccu_launch_dl.h"
+#include "hccl_ccu_res_dl.h"
 
 namespace ops_hccl {
 // 用于维护增量建链算子的host ctx信息
-thread_local std::map<std::string, std::unique_ptr<AlgResourceCtxSerializable>> g_hostCtx;
-thread_local std::map<AivOpCacheArgs, std::shared_ptr<InsQueue>> g_hcclCacheMap;
-thread_local std::set<std::string> g_inconsistentCheckedList;
 constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify idx
 constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超时时间偏移量
 constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
+
+void UpdateAicpuTimeoutCtx(const OpParam &param, AlgResourceCtxSerializable &resCtx)
+{
+    AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+    resCtx.waitTimeout = timeout.waitTimeout;
+    resCtx.fullTimeout = timeout.fullTimeout;
+    HCCL_INFO("[AicpuTimeout] execTimeout[%u], waitTimeout[%u], fullTimeout[%u], "
+        "hostNotifyTimeout[%u], kernelLaunchTimeout[%u], hcommDefaultTimeoutSupported[%u].",
+        param.opConfig.execTimeout, timeout.waitTimeout, timeout.fullTimeout, timeout.hostNotifyTimeout,
+        timeout.kernelLaunchTimeout, static_cast<u32>(IsHcommDefaultTimeoutSupported()));
+}
 
 // 检查非对称拓扑支持情况
 // 仅 AllGather, AllReduce, ReduceScatter 支持跨框非对称拓扑，其他算子拦截
@@ -202,7 +214,6 @@ HcclResult AppendFastLaunchTag(OpParam &param, const char* dataTypeStr,
         remain -= len;
         return true;
     };
-
     if (!append_str(param.tag) || !append_str("_") || !append_str(dataTypeStr)) {
         goto fail;
     }
@@ -270,7 +281,7 @@ static constexpr uint32_t opExpansionModeCcuMs = 4;
 
 bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccuFastLaunchCtx)
 {
-#if CANN_VERSION_NUM >= 90000000
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     param.hcclComm = comm;
     if (param.opMode == OpMode::OFFLOAD) {
         return false;
@@ -333,7 +344,7 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
 
 HcclResult HcclExecOpCcuFastLaunch(HcclComm comm, OpParam &param, const CcuFastLaunchCtx *ccuFastLaunchCtx)
 {
-#if CANN_VERSION_NUM >= 90000000
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     HCCL_INFO("[HcclExecOpCcuFastLaunch] HcclExecOpCcuFastLaunch start");
     std::string algName = ccuFastLaunchCtx->algName;
     HCCL_DEBUG("[HcclExecOpCcuFastLaunch] algName: [%s]", algName.c_str());
@@ -372,7 +383,7 @@ HcclResult HcclExecOpCcuFastLaunch(HcclComm comm, OpParam &param, const CcuFastL
 #endif
 }
 
-HcclResult ExecuteAivCacheLogic(OpParam &param, const std::string &algName,
+HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string &algName,
                                 std::unique_ptr<InsCollAlgBase> &executor,
                                 AlgResourceCtxSerializable &resCtxHost)
 {
@@ -399,35 +410,35 @@ HcclResult ExecuteAivCacheLogic(OpParam &param, const std::string &algName,
         }
     }
 
-    if (useCache && g_hcclCacheMap.find(cacheKey) != g_hcclCacheMap.end()) {
-        // Hit
-        auto queue = g_hcclCacheMap[cacheKey];
-        for (auto& ins : *queue) {
-            AivOpArgs newArgs = ins.opArgs;
-            newArgs.stream = param.stream;
+    std::string ctxTag;
+    u64 keyHash = 0;
+    if (useCache) {
+        keyHash = CalcAivCacheKeyHash(cacheKey);
+        CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
+        bool cacheHit = false;
+        CHK_RET(ReplayAivCacheCtx(comm, ctxTag, keyHash, param, cacheHit));
 
-            // Update addresses
-            newArgs.input = (u64)param.inputPtr + ins.inputOffset;
-            newArgs.output = (u64)param.outputPtr + ins.outputOffset;
-
-            CHK_RET(ExecuteKernelLaunch(newArgs));
+        // Hit, return
+        if (cacheHit) {
+            return HCCL_SUCCESS;
         }
-    } else {
-        // Miss
-        if (useCache) {
-            g_recordingQueue = std::make_shared<InsQueue>();
-            g_baseInputAddr = (u64)param.inputPtr;
-            g_baseOutputAddr = (u64)param.outputPtr;
-        }
+        // Miss, continue start recording
+        g_recordingQueue = std::make_shared<InsQueue>();
+        g_baseInputAddr = reinterpret_cast<u64>(param.inputPtr);
+        g_baseOutputAddr = reinterpret_cast<u64>(param.outputPtr);
+    }
 
-        CHK_RET(executor->Orchestrate(param, resCtxHost));
+    CHK_RET(executor->Orchestrate(param, resCtxHost));
 
-        if (useCache && g_recordingQueue) {
-            g_hcclCacheMap[cacheKey] = g_recordingQueue;
-            g_recordingQueue = nullptr;
-            g_baseInputAddr = 0;
-            g_baseOutputAddr = 0;
-        }
+    // 插入cache
+    if (useCache && g_recordingQueue) {
+        AivCacheIndexCtx *indexCtx = nullptr;
+        CHK_RET(GetOrCreateAivCacheIndexCtx(comm, &indexCtx));
+        CHK_RET(EvictAivCacheIfNeeded(comm, indexCtx));
+        CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, indexCtx));
+        g_recordingQueue = nullptr;
+        g_baseInputAddr = 0;
+        g_baseOutputAddr = 0;
     }
     return HCCL_SUCCESS;
 }
@@ -435,7 +446,7 @@ HcclResult ExecuteAivCacheLogic(OpParam &param, const std::string &algName,
 HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, 
     std::string &algName, const ResPackGraphMode &resPack)
 {   
-    void * fallbackCtx = nullptr;
+    void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = ALG_MAX_LENGTH;
     CHK_RET(HcclEngineCtxCreate(comm, param.fallbackTag, CommEngine::COMM_ENGINE_CCU, fallbackCtxSize, &fallbackCtx));
     char* newAlgName = static_cast<char*>(fallbackCtx);
@@ -452,6 +463,7 @@ HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
 HcclResult ReSelector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     std::string &algName)
 {
+    (void) comm;
     HCCL_INFO("Start to execute ReSelector.");
     // 回退AICPU
     param.opExecuteConfig = OpExecuteConfig::AICPU_TS;
@@ -497,7 +509,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     uint64_t beginTime = HcommGetProfilingSysCycleTime();
     HCCL_INFO("[HcclExecOp]Start to execute HcclExecOp. HcommGetProfilingSysCycleTime[%llu]", beginTime);
     // 当前通信域的某个算法回退过，则下次直接回退
-    void * fallbackCtx = nullptr;
+    void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = 0;
     CHK_RET(SetOpParamFallbackTag(param, algName));
     if (HcclEngineCtxGet(comm, param.fallbackTag, param.engine, &fallbackCtx, &fallbackCtxSize) == HCCL_SUCCESS) {
@@ -585,7 +597,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         param.resCtx = resCtxSequence;
         AlgResourceCtxSerializable &aivResCtxHost = *static_cast<AlgResourceCtxSerializable *>(resCtxSequence);
         CHK_RET(HcclAivKernelEntranceLaunch(comm, param, topoInfo, aivResCtxHost));
-        CHK_RET(ExecuteAivCacheLogic(param, algName, executor, aivResCtxHost));
+        CHK_RET(ExecuteAivCacheLogic(comm, param, algName, executor, aivResCtxHost));
         CHK_RET(HcclReportAivKernel(comm, aivBeginTime));
     } else if (param.engine == COMM_ENGINE_CCU) {
         if (isResourceReused) {
@@ -676,8 +688,13 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         return ret;
     }
     // Host stream等待Device的通知
-    u32 hostNotifyWaitTime = param.opConfig.execTimeout + HOST_NOTIFY_TIMEOUT_OFFSET;
-    CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(cpuTsThread, param.aicpuRecordCpuIdx, hostNotifyWaitTime)));
+    AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+    u32 hostNotifyWaitTime = IsHcommDefaultTimeoutSupported() ? timeout.hostNotifyTimeout :
+        AddAicpuTimeoutOffset(param.opConfig.execTimeout, HOST_NOTIFY_TIMEOUT_OFFSET);
+    if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
+        CHK_RET(HcclSetNotifyWaitTimeOut(hostNotifyWaitTime));
+    }
+    CHK_RET(HcclThreadNotifyWaitOnThreadDefault(cpuTsThread, param.aicpuRecordCpuIdx, hostNotifyWaitTime));
 
     return HCCL_SUCCESS;
 }
@@ -704,8 +721,9 @@ HcclResult AicpuKernelLaunch(HcclComm comm, OpParam &param, ThreadHandle unfoldT
     CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsFinalize]errNo[0x%016llx] args finalize failed, "
         "kernelName:%s", ret, kernelName.c_str()), HCCL_E_RUNTIME);
 
-    u32 kernelTimeoutTmp = param.opConfig.execTimeout + KERNEL_TIMEOUT_OFFSET;
-    u16 kernelLaunchTimeout = (kernelTimeoutTmp > UINT16_MAX) ? UINT16_MAX : static_cast<u16>(kernelTimeoutTmp);
+    AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+    u16 kernelLaunchTimeout = IsHcommDefaultTimeoutSupported() ? timeout.kernelLaunchTimeout :
+        ToKernelLaunchTimeout(AddAicpuTimeoutOffset(param.opConfig.execTimeout, KERNEL_TIMEOUT_OFFSET));
     aclrtLaunchKernelCfg cfg;
     aclrtLaunchKernelAttr attr;
     attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
@@ -734,9 +752,10 @@ HcclResult AicpuKernelLaunch(HcclComm comm, OpParam &param, ThreadHandle unfoldT
     return HCCL_SUCCESS;
 }
 
-HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     AlgResourceCtxSerializable &resCtxHost)
 {
+    (void) topoInfo;
     HCCL_INFO("[%s] algTag[%s] commModeTag[%s] resCtx(Host)[%p] aivCommInfoPtr(Device)[%p]", __func__,
         param.algTag, param.commModeTag, param.resCtx, resCtxHost.aivCommInfoPtr);
     u32 numBlocksLimit = MAX_NUM_BLOCKS;
@@ -885,24 +904,13 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
     AlgResourceRequest resRequest;
     CHK_RET(executor->CalcRes(comm, param, topoInfo, algHierarchyInfo, resRequest));
 
-    // 参数一致性校验准备工作：HCCL_DFS_CONFIG 为 off 以及 HCCL_DFS_CONFIG 为 first 或空但非首算子时不校验，其他场景均校验
-    OpExchangeInfo exchangeInfo{};
-    std::string tagStr = param.algTag;
-    bool isChecked = GetInconsistentCheckSwitch() == 0 &&
-        (g_inconsistentCheckedList.find(tagStr) != g_inconsistentCheckedList.end());
-    if (HcommIsSupportHcclCommAddExchangeInfo()) {
-        if (GetInconsistentCheckSwitch() == -1 || (isChecked && !increCreateChannelFlag)) {
-            isChecked = true; // isChecked 为 false 时做参数比较
-        } else {
-            CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
-            CHK_RET(HcclCommAddExchangeInfo(comm, &exchangeInfo, sizeof(exchangeInfo)));
-            g_inconsistentCheckedList.insert(tagStr);
-            isChecked = false;
-        }
+    auto ret = GetAlgResWithEngine(comm, param, resRequest, resCtxHost, topoInfo, algHierarchyInfo, resCtxSequence,
+        size, increCreateChannelFlag, resPack);
+    if (ret == HCCL_E_UNAVAIL) {
+        return HCCL_E_UNAVAIL;
     }
+    CHK_RET(ret);
 
-    CHK_RET(GetAlgResWithEngine(comm, param, resRequest, resCtxHost, topoInfo, algHierarchyInfo, resCtxSequence, size,
-        increCreateChannelFlag, resPack));
     if (resCtxHost != nullptr) {
         // 拼接各level的channel数量信息
         std::string channelNumInfo;
@@ -915,19 +923,11 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
             resCtxHost->threads.size(), channelNumInfo.c_str(), resCtxHost->ccuKernels.size());
     }
 
-    if (HcommIsSupportHcclCommGetExchangeInfo()) {
-        // 参数一致性校验
-        if (!isChecked) {
-            if (param.engine != COMM_ENGINE_CCU) {
-                for (u32 level = 0; level < resRequest.channels.size(); level++) {
-                    CHK_RET(CompareOpExchangeInfos(comm, exchangeInfo, resRequest.channels[level]));
-                }
-            } else {
-                for (CcuKernelInfo& kernelInfo: resRequest.ccuKernelInfos) {
-                    CHK_RET(CompareOpExchangeInfos(comm, exchangeInfo, kernelInfo.channels));
-                }
-            }
-        }
+    // 参数一致性校验
+    if (NeedInconsistentCheck(param)) {
+        OpExchangeInfo exchangeInfo{};
+        CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
+        CHK_RET(CompareOpExchangeInfos(comm, param, resRequest, exchangeInfo));
     }
 
     return HCCL_SUCCESS;
@@ -940,7 +940,6 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &exchangeInfo.cclBufferSize));
     exchangeInfo.root = param.root;
     exchangeInfo.opType = param.opType;
-    exchangeInfo.engine = param.engine;
     exchangeInfo.opExecuteConfig = param.opExecuteConfig;
     exchangeInfo.reduceType = param.reduceType;
     CHK_RET(FillOpExchangeInfoWithDataDes(param, exchangeInfo));
@@ -957,12 +956,10 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s],  return[%d].",
         __func__, param.tag, sRet), HCCL_E_MEMORY);
 
-    HCCL_INFO("[%s] success. exchangeInfo dump: cclBufferSize[%llu], root[%u], opType[%u], engine[%u], "
-        "opExecuteConfig[%u], reduceType[%u], dataType[%u], count[%llu], aivCoreLimit[%u], "
-        "group[%s], tag[%s]",
-        __func__, exchangeInfo.cclBufferSize, exchangeInfo.root, exchangeInfo.opType,
-        exchangeInfo.engine, exchangeInfo.opExecuteConfig, exchangeInfo.reduceType,
-        exchangeInfo.dataType, exchangeInfo.count, exchangeInfo.aivCoreLimit,
+    HCCL_INFO("[%s] success. exchangeInfo dump: cclBufferSize[%llu], root[%u], opType[%u], opExecuteConfig[%u], "
+        "reduceType[%u], dataType[%u], count[%llu], aivCoreLimit[%u], group[%s], tag[%s]",
+        __func__, exchangeInfo.cclBufferSize, exchangeInfo.root, exchangeInfo.opType, exchangeInfo.opExecuteConfig,
+        exchangeInfo.reduceType, exchangeInfo.dataType, exchangeInfo.count, exchangeInfo.aivCoreLimit,
         exchangeInfo.group, exchangeInfo.tag);
     return HCCL_SUCCESS;
 }
@@ -989,6 +986,18 @@ HcclResult FillOpExchangeInfoWithDataDes(const OpParam &param, OpExchangeInfo &e
             exchangeInfo.dataType = param.DataDes.dataType;
             exchangeInfo.count = param.DataDes.count;
             break;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult AddExchangeInfo(HcclComm comm, const OpParam &param)
+{
+    CHK_PTR_NULL(comm);
+    if (NeedInconsistentCheck(param)) {
+        OpExchangeInfo exchangeInfo{};
+        CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
+        CHK_RET(HcclCommAddExchangeInfo(comm, &exchangeInfo, sizeof(exchangeInfo)));
+        HCCL_INFO("[%s] success.", __func__);
     }
     return HCCL_SUCCESS;
 }
@@ -1028,56 +1037,123 @@ HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest
     return HCCL_SUCCESS;
 }
 
+HcclResult CacheHostCtxToEngine(HcclComm comm, const char *algTag, const std::string &hostCacheTag,
+    const std::vector<char> &hostCtxSeq)
+{
+    void *hostCtxPtr = nullptr;
+    HcclResult createRet = HcclEngineCtxCreate(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS,
+        hostCtxSeq.size(), &hostCtxPtr);
+    if (createRet != HCCL_SUCCESS) {
+        HCCL_ERROR("failed to create host EngineCtx for caching, ret[%d].", createRet);
+        HcclResult destroyRet = HcclEngineCtxDestroy(comm, algTag, COMM_ENGINE_AICPU_TS);
+        if (destroyRet != HCCL_SUCCESS) {
+            HCCL_ERROR("failed to destroy device ctx on host ctx create failure rollback, ret[%d].", destroyRet);
+        }
+        return createRet;
+    }
+    errno_t memcpyRet = memcpy_s(hostCtxPtr, hostCtxSeq.size(), hostCtxSeq.data(), hostCtxSeq.size());
+    if (memcpyRet != EOK) {
+        HCCL_ERROR("memcpy_s failed writing to host EngineCtx cache, ret=%d.", memcpyRet);
+        HcclEngineCtxDestroy(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+        HcclEngineCtxDestroy(comm, algTag, COMM_ENGINE_AICPU_TS);
+        return HCCL_E_INTERNAL;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult ReuseCachedDeviceCtx(HcclComm comm, const OpParam &param, void **resCtxSequence, uint64_t &ctxSize)
+{
+    void *ctx = nullptr;
+    uint64_t size = 0;
+    HcclResult ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
+    if (ret == HCCL_SUCCESS) {
+        *resCtxSequence = ctx;
+        ctxSize = size;
+        return HCCL_SUCCESS;
+    }
+    HCCL_ERROR("failed to get device ctx.");
+    return ret;
+}
+
+HcclResult IncrementalCreateChannel(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
+    AlgResourceCtxSerializable &hostCtxObj, const std::string &hostCacheTag, void **resCtxSequence,
+    uint64_t &ctxSize)
+{
+    HcclResult ret = HcclGetChannel(comm, param, resRequest, &hostCtxObj);
+    CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to incrementally create channel."), ret);
+    ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("failed to destroy device Ctx, ret[%d].", ret);
+    }
+    std::vector<char> newSeq = hostCtxObj.Serialize();
+    ret = HcclMemcpyCtxHostToDevice(comm, param, newSeq, resCtxSequence, ctxSize);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("failed to memcpy hostCtx to device after incremental channel creation, ret[%d].", ret);
+        HcclResult destroyRet = HcclEngineCtxDestroy(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+        if (destroyRet != HCCL_SUCCESS) {
+            HCCL_ERROR("failed to destroy host ctx on incremental path failure rollback, ret[%d].", destroyRet);
+        }
+        return ret;
+    }
+    HcclResult destroyRet = HcclEngineCtxDestroy(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+    if (destroyRet != HCCL_SUCCESS) {
+        HCCL_ERROR("failed to destroy old host EngineCtx for cache update, ret[%d].", destroyRet);
+    }
+    void *newHostCtxPtr = nullptr;
+    HcclResult cacheRet = HcclEngineCtxCreate(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS,
+        newSeq.size(), &newHostCtxPtr);
+    if (cacheRet != HCCL_SUCCESS) {
+        HCCL_ERROR("failed to create host EngineCtx for cache update, ret[%d].", cacheRet);
+        HcclResult devDestroyRet = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+        if (devDestroyRet != HCCL_SUCCESS) {
+            HCCL_ERROR("failed to destroy device ctx on host cache update failure rollback, ret[%d].", devDestroyRet);
+        }
+        return cacheRet;
+    }
+    errno_t memcpyRet = memcpy_s(newHostCtxPtr, newSeq.size(), newSeq.data(), newSeq.size());
+    if (memcpyRet != EOK) {
+        HCCL_ERROR("memcpy_s failed writing to updated host EngineCtx cache, ret=%d.", memcpyRet);
+        HcclEngineCtxDestroy(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+        HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+        return HCCL_E_INTERNAL;
+    }
+    HCCL_INFO("Incrementally add channel success");
+    return HCCL_SUCCESS;
+}
+
 HcclResult GetAlgResAICPU(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence, uint64_t& ctxSize,
     bool increCreateChannelFlag, const ResPackGraphMode &resPack)
 {
-    std::string tagStr = param.algTag;
-    if (!increCreateChannelFlag || g_hostCtx.find(tagStr) == g_hostCtx.end()) {
-        // 非增量建链流程，直接创建host侧Ctx
-        resCtxHost->commInfoPtr = static_cast<void *>(comm);
+    std::string hostCacheTag = std::string(param.algTag) + "_hostCache";
+    void *hostCtxPtr = nullptr;
+    uint64_t hostCtxSize = 0;
+    HcclResult hostCtxRet = HcclEngineCtxGet(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS,
+        &hostCtxPtr, &hostCtxSize);
+
+    if (!increCreateChannelFlag || hostCtxRet != HCCL_SUCCESS) {
+        resCtxHost->commInfoPtr = static_cast<void*>(comm);
         resCtxHost->topoInfo = *topoInfo;
         resCtxHost->algHierarchyInfo = algHierarchyInfo;
-        // 创建资源，并填充到Host内存上
         HcclResult ret = HcclAllocAlgResourceAICPU(comm, param, resRequest, resCtxHost, resPack);
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to alloc alg resource."), ret);
-        // 在device侧创建Ctx，并将host资源拷贝到device侧
-        ret = HcclMemcpyCtxHostToDevice(comm, param, resCtxHost, resCtxSequence, ctxSize);
+        std::vector<char> hostCtxSeq = resCtxHost->Serialize();
+        ret = HcclMemcpyCtxHostToDevice(comm, param, hostCtxSeq, resCtxSequence, ctxSize);
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to memcpy hostCtx to device."), ret);
-        // 如果是增量建链模式，转移hostCtx的所有权
         if (increCreateChannelFlag) {
-            g_hostCtx[tagStr] = std::move(resCtxHost);
+            CHK_RET(CacheHostCtxToEngine(comm, param.algTag, hostCacheTag, hostCtxSeq));
         }
     } else {
-        // 先比对需要的channel和已建链的channel
-        CompReqChannelWithExistChannel(g_hostCtx.at(tagStr)->channels, resRequest);
+        std::vector<char> cachedData(static_cast<char*>(hostCtxPtr), static_cast<char*>(hostCtxPtr) + hostCtxSize);
+        AlgResourceCtxSerializable hostCtxObj;
+        hostCtxObj.DeSerialize(cachedData);
+        CompReqChannelWithExistChannel(hostCtxObj.channels, resRequest);
         if (resRequest.channels[0].size() == 0) {
-            // 资源可以直接复用，直接获取到device的ctx资源
-            void *ctx = nullptr;
-            uint64_t size = 0;
-            HcclResult ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
-            if (ret == HCCL_SUCCESS) {
-                *resCtxSequence = ctx;
-                ctxSize = size;
-                if (HcommIsSupportHcclCommResetExchangeInfo()) {
-                    // 算子参数信息已注册，但BatchSendRecv在此处判断资源可复用，不会进行数据交换即不会被读清，需要手动reset
-                    CHK_RET(HcclCommResetExchangeInfo(comm));
-                }
-            } else {
-                HCCL_ERROR("failed to get device ctx.");
-            }
-            return ret;
+            return ReuseCachedDeviceCtx(comm, param, resCtxSequence, ctxSize);
         }
-        // 资源不能直接复用，需要增量建链(会直接在已有的hostCtx中填充)
-        HcclResult ret = HcclGetChannel(comm, param, resRequest, g_hostCtx.at(tagStr));
-        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to incrementally create channel."), ret);
-        // 把device侧此tag的ctx销毁
-        ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
-        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to destroy device Ctx."), ret);
-        ret = HcclMemcpyCtxHostToDevice(comm, param, g_hostCtx.at(tagStr), resCtxSequence, ctxSize);
-        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to memcpy hostCtx to device."), ret);
-        HCCL_INFO("Incrementally add channel success");
+        CHK_RET(IncrementalCreateChannel(comm, param, resRequest, hostCtxObj, hostCacheTag,
+            resCtxSequence, ctxSize));
     }
 
     HCCL_INFO("Execute GetAlgResAICPU success.");
@@ -1085,10 +1161,8 @@ HcclResult GetAlgResAICPU(HcclComm comm, const OpParam &param, AlgResourceReques
 }
 
 HcclResult HcclMemcpyCtxHostToDevice(HcclComm comm, const OpParam &param,
-    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, void **resCtxSequence, uint64_t& ctxSize)
+    const std::vector<char>& seq, void **resCtxSequence, uint64_t& ctxSize)
 {
-    // 序列化
-    std::vector<char> seq = resCtxHost->Serialize();
     uint64_t size = seq.size();
     void *ctx = nullptr;
     // 创建Context, aicpu和host dpu申请device内存
@@ -1115,9 +1189,10 @@ HcclResult HcclAllocAlgResourceAICPU(
     resCtxHost->cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
     resCtxHost->notifyNumOnMainThread = resRequest.notifyNumOnMainThread;
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
+    UpdateAicpuTimeoutCtx(param, *resCtxHost);
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
-    CHK_RET(HcclGetChannel(comm, param, resRequest, resCtxHost));
+    CHK_RET(HcclGetChannel(comm, param, resRequest, resCtxHost.get()));
     return HCCL_SUCCESS;
 }
 
@@ -1272,7 +1347,7 @@ HcclResult GetMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle &
 }
 
 HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
-                          std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
+                          AlgResourceCtxSerializable* resCtxHost)
 {
     MemRegInfo memRegInfo;
     if (param.opMode == OpMode::OFFLOAD) {
@@ -1302,7 +1377,7 @@ HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceReques
 }
 
 HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &param, std::vector<HcclChannelDesc>& channelRequest,
-                              const CommEngine commEngine, std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, MemRegInfo &memRegInfo) {
+                              const CommEngine commEngine, AlgResourceCtxSerializable* resCtxHost, MemRegInfo &memRegInfo) {
     // 获取子通信域的建链数量
     if (channelRequest.empty()) {
         HCCL_INFO("[HcclGetChannelImpl] channelRequest is empty");
@@ -1318,6 +1393,8 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
         }
     }
     if (channelNum > 0) {
+        // 参数一致性校验信息注册到通信域，HcclChannelAcquire内部存在读清动作，每次调用前均需注册
+        CHK_RET(AddExchangeInfo(comm, param));
         CHK_RET(HcclChannelAcquire(comm, commEngine, channelRequest.data(),
             channelNum, levelNChannels.data()));
     }
@@ -1445,7 +1522,7 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
-#if CANN_VERSION_NUM >= 90000000
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     // 资源回退
     auto ret = HcclGetChannelForCcu(comm, param, resRequest);
     if (ret == HCCL_E_UNAVAIL) {
@@ -1461,7 +1538,7 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     return HCCL_SUCCESS;
 }
 
-#if CANN_VERSION_NUM >= 90000000
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest)
 {
     // 以kernel为粒度申请channel
@@ -1473,9 +1550,11 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
         kernelChannels.resize(channelNum);
 
         if (channelNum > 0) {
-            // 需要资源回退。返回资源不够
+            // 参数一致性校验信息注册到通信域，HcclChannelAcquire内部存在读清动作，每次调用前均需注册
+            CHK_RET(AddExchangeInfo(comm, param));
             auto ret = HcclChannelAcquire(comm, param.engine, kernelChannelRequest.data(),
                 channelNum, kernelChannels.data());
+            // 需要资源回退。返回资源不够
             if (ret == HCCL_E_UNAVAIL) {
                 HCCL_WARNING("[HcclChannelAcquire] channel unavailable, channel num[%u].", channelNum);
                 return HCCL_E_UNAVAIL;
@@ -1483,7 +1562,15 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
                 CHK_RET(ret);
             }
         }
-        kernelInfo.kernelArg->channels = kernelChannels;
+        auto* kernelArgBase = static_cast<CcuKernelArgBase*>(kernelInfo.kernelArg);
+        if (!kernelArgBase) {
+            HCCL_ERROR("[HcclGetChannelForCcu] kernelArg ptr is err.");
+            return HCCL_E_INTERNAL;
+        }
+        for (u32 i = 0; i < channelNum; ++i) {
+            kernelArgBase->channels[i] = kernelChannels[i];
+        }
+        kernelArgBase->channelCount = channelNum;
         HCCL_INFO("[HcclGetChannelForCcu] Get [%lu] channels", channelNum);
     }
     return HCCL_SUCCESS;
@@ -1492,19 +1579,30 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
 HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
                           std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
 {
+    CcuInsHandle insHandle{0};
+    uint32_t insNum = 0;
+    CHK_RET(HcclCommQueryCcuIns(comm, &insHandle, &insNum));
+    CHK_PRT_RET(insNum != 1, HCCL_ERROR("[HcclGetCcuKernel] HcclCommQueryCcuIns fail! insNum is [%u]", insNum),
+                HCCL_E_INTERNAL);
+
     u32 totalKernelNum = 0;
     for (auto t: resRequest.ccuKernelNum) {
         totalKernelNum += t;
     }
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
-        HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"),
-        HCCL_E_INTERNAL);
+                HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"), HCCL_E_INTERNAL);
 
     // 按照resgroup进行注册
     u32 currentResGroup = 0;
     u32 maxResGroup = 0;
     resCtxHost->ccuKernels.resize(totalKernelNum);
+
     while (currentResGroup <= maxResGroup) {
+        CcuResult regStartRet = HcommCcuKernelRegisterStart(insHandle);
+        if (regStartRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet);
+            return ConvertCcuToHccl(regStartRet);
+        }
         for (u32 i = 0; i < totalKernelNum; i++) {
             CcuKernelInfo& kernelInfo = resRequest.ccuKernelInfos[i];
             if (kernelInfo.resGroup > maxResGroup) {
@@ -1513,22 +1611,33 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
             if (kernelInfo.resGroup != currentResGroup) {
                 continue;
             }
-            void* kernelArgPtr = static_cast<void*>(kernelInfo.kernelArg.get()); // 保证没有释放
-            void* creatorPtr = static_cast<void*>(&kernelInfo.creator);
 
-            HCCL_DEBUG("[AllocAlgResource] kernelArgPtr[%p], creator[%p]", kernelArgPtr, &(kernelInfo.creator));
-            CcuKernelHandle handle;
-            CHK_RET(HcclCcuKernelRegister(comm, &handle, creatorPtr, kernelArgPtr));
-            
-            resCtxHost->ccuKernels[i] = handle;
+            HCCL_DEBUG("[HcclGetCcuKernel] kernelFuncName[%s]", kernelInfo.kernelFuncName);
+            CcuKernelHandle kernelHandle;
+            const void *kernelArgs[] = {kernelInfo.kernelArg};
+
+            constexpr uint32_t dieId = 0; // 预留接口，暂无含义
+            constexpr uint32_t kernelArgNum = 1;
+            CcuResult regRet = HcommCcuKernelRegister(insHandle, dieId, kernelInfo.kernelFuncName,
+                                                      reinterpret_cast<void*>(kernelInfo.kernelFunc),
+                                                      kernelArgs, kernelArgNum, &kernelHandle);
+            if (regRet != CCU_SUCCESS) {
+                HCCL_ERROR("ccu kernel register failed: ccuRet -> %d", regRet);
+                return ConvertCcuToHccl(regRet);
+            }
+            resCtxHost->ccuKernels[i] = kernelHandle;
         }
-        CHK_RET(HcclCcuKernelRegisterFinish(comm));
+        CcuResult regEndRet = HcommCcuKernelRegisterEnd(insHandle);
+        if (regEndRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet);
+            return ConvertCcuToHccl(regEndRet);
+        }
         currentResGroup++;
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     return HCCL_SUCCESS;
 }
-#endif /* CANN_VERSION_NUM >= 90000000 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
 
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence)
@@ -1602,6 +1711,8 @@ HcclResult HcclAllocAlgResourceAiv(
         HCCL_INFO("[%s]level[%u] validChannelNum[%u]", __func__, level, validChannelNum);
 
         if (validChannelNum > 0) {
+            // 参数一致性校验信息注册到通信域，HcclChannelAcquire内部存在读清动作，每次调用前均需注册
+            CHK_RET(AddExchangeInfo(comm, param));
             CHK_RET(HcclChannelAcquire(comm, param.engine, levelNChannelRequest.data(),
                 validChannelNum, levelNChannels.data()));
         }
@@ -1913,7 +2024,6 @@ HcclResult SetOpParamAlgTag(OpParam &param, const std::string &algName)
 
 HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param)
 {
-#if CANN_VERSION_NUM >= 90000000
     HcclOpExpansionMode finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
     // 第一步：决定使用哪种模式
     HcclResult ret = DecideHcclOpExpansionMode(comm, finalMode);
@@ -1930,15 +2040,10 @@ HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param)
         return ret;
     }
     return HCCL_SUCCESS;
-#else
-    (void)comm; (void)param;
-    return HCCL_E_NOT_SUPPORT;
-#endif
 }
 
 HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMode)
 {
-#if CANN_VERSION_NUM >= 90000000
     HcclOpExpansionMode configOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
     bool useConfigOpExpansionMode = false;
     auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
@@ -1980,15 +2085,10 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
     HCCL_INFO("[DecideHcclOpExpansionMode] finalMode: %d.", finalMode);
 
     return HCCL_SUCCESS;
-#else
-    (void)comm; (void)finalMode;
-    return HCCL_E_NOT_SUPPORT;
-#endif
 }
 
 HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode)
 {
-#if CANN_VERSION_NUM >= 90000000
     switch (finalMode) {
         case HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU:
             param.opExecuteConfig = OpExecuteConfig::AICPU_TS;
@@ -2027,10 +2127,6 @@ HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode)
             break;
     }
     return HcclResult::HCCL_SUCCESS;
-#else
-    (void)param; (void)finalMode;
-    return HCCL_E_NOT_SUPPORT;
-#endif
 }
 
 bool HcclCheckAicpuEnableOpen()
@@ -2281,7 +2377,11 @@ HcclResult SetExecTimeout(OpParam &param) {
             param.opConfig.execTimeout = CUSTOM_TIMEOUT;
         } else {
             param.opConfig.execTimeout = static_cast<uint32_t>(execTimeoutValue);
-            HCCL_INFO("[OpCommon] Set exec timeout to: %u seconds", param.opConfig.execTimeout);
+            if (param.opConfig.execTimeout == 0) {
+                HCCL_INFO("[OpCommon] Exec timeout is disabled (never timeout).");
+            } else {
+                HCCL_INFO("[OpCommon] Set exec timeout to: %u seconds", param.opConfig.execTimeout);
+            }
         }
     }
     return HCCL_SUCCESS;

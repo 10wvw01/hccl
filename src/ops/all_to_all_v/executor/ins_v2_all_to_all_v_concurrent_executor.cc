@@ -11,10 +11,10 @@
 #include "channel.h"
 #include "ins_v2_all_to_all_v_concurrent_executor.h"
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_to_all_v_mesh_1D_multi_jetty.h"
 #include "ccu_kernel_all_to_all_v_mesh1d_multi_jetty.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #include "alg_data_trans_wrapper.h"
 
@@ -222,11 +222,13 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     std::vector<uint32_t> jettyNums;
     CHK_RET(SetJettyNums(jettyNums, true));
 #if !defined(HCCL_CANN_COMPAT_850)
-    resReq0.ccuKernelInfos[0].kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>(subCommRanks0[0].size(),
-                                                                                    topoInfo->userRank,
-                                                                                    param,
-                                                                                    subCommRanks0,
-                                                                                    jettyNums);
+    auto kernelArg0 = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>();
+    kernelArg0->rankSize = subCommRanks0[0].size();
+    kernelArg0->rankId = topoInfo->userRank;
+    kernelArg0->opParam = param;
+    kernelArg0->subCommRanks = subCommRanks0;
+    kernelArg0->jettyNums = jettyNums;
+    resReq0.ccuKernelInfos[0].setKernelArg(kernelArg0);
 #endif
 
     std::vector<HcclChannelDesc> channelDescs1;
@@ -235,11 +237,13 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     CHK_RET(SetJettyNums(jettyNums, false));
 #if !defined(HCCL_CANN_COMPAT_850)
-    resReq1.ccuKernelInfos[0].kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>(subCommRanks1[0].size(),
-                                                                                    topoInfo->userRank,
-                                                                                    param,
-                                                                                    subCommRanks1,
-                                                                                    jettyNums);
+    auto kernelArg1 = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>();
+    kernelArg1->rankSize = subCommRanks1[0].size();
+    kernelArg1->rankId = topoInfo->userRank;
+    kernelArg1->opParam = param;
+    kernelArg1->subCommRanks = subCommRanks1;
+    kernelArg1->jettyNums = jettyNums;
+    resReq1.ccuKernelInfos[0].setKernelArg(kernelArg1);
 #endif
 
     resourceRequest.ccuKernelNum.emplace_back(resReq0.ccuKernelNum[0]);
@@ -454,14 +458,14 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 #endif
 
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALLV,
                                 CcuAllToAllVMesh1DConcurrent,
                                 InsV2AllToAllVConcurrentExecutor,
                                 TopoMatchUBX,
                                 CcuTempAllToAllVMesh1DMultiJetty,
                                 CcuTempAllToAllVMesh1DMultiJetty);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 }

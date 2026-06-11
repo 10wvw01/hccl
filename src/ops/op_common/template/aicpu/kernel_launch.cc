@@ -17,6 +17,7 @@
 #include "coll_alg_exec_registry.h"
 #include "coll_alg_v2_exec_registry.h"
 #include "hcomm_primitives.h"
+#include "hcomm_primitives_dl.h"
 #include "dfx/task_exception_fun.h"
 #include "kernel_launch.h"
 #include "hcomm_diag_dl.h"
@@ -24,9 +25,6 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
-#if CANN_VERSION_NUM >= 90000000
-#include "hccl_diag.h"
-#endif
 #include "hccl_device_comm_dl.h"
 #include "exec_timeout_manager.h"
 #include "alg_data_trans_wrapper.h"
@@ -221,7 +219,7 @@ namespace {
 
     std::unique_ptr<AlgResourceCtxSerializable> DeserializeResCtx(const OpParam *param)
     {
-        std::unique_ptr<AlgResourceCtxSerializable> resCtx(new AlgResourceCtxSerializable());
+        std::unique_ptr<AlgResourceCtxSerializable> resCtx = std::make_unique<AlgResourceCtxSerializable>();
         char *ctx = static_cast<char *>(param->resCtx);
         std::vector<char> seq(ctx, ctx + param->ctxSize);
         resCtx->DeSerialize(seq);
@@ -309,6 +307,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         std::shared_ptr<const AlgResourceCtxSerializable> cachedResCtxHolder;
         std::unique_ptr<AlgResourceCtxSerializable> resCtx;
         const AlgResourceCtxSerializable* resCtxPtr{nullptr};
+        u32 hitRateNum = 100;
         if (param->opType != HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
             //通过缓存实现反序列化优化
             cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
@@ -321,7 +320,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 size_t cacheSize;
                 if (g_cacheManager.GetCommStats(commName, stats, cacheSize)) {
                     HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
-                    __func__, commName.c_str(), stats.hitRate() * 100, cacheSize);
+                    __func__, commName.c_str(), stats.hitRate() * hitRateNum, cacheSize);
                 }
                 resCtxPtr = cachedResCtxHolder.get();
             } else {
@@ -390,9 +389,15 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
             }
         }
+        if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
+            CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
+        }
+        if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
+            CHK_RET(HcclSetNotifyWaitTimeOut(resCtxPtr->waitTimeout));
+        }
         HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]", __func__, thread,
-            maxNotifyNum, CUSTOM_TIMEOUT);
-        CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, maxNotifyNum, CUSTOM_TIMEOUT)));
+            maxNotifyNum, resCtxPtr->waitTimeout);
+        CHK_RET(HcclThreadNotifyWaitOnThreadDefault(thread, maxNotifyNum, resCtxPtr->waitTimeout));
 
         std::shared_ptr<InsCollAlgBase> executor = CollAlgExecRegistryV2::Instance().GetAlgExec(param->opType, algName);
         if (executor.get() == nullptr) {

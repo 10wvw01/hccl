@@ -21,7 +21,7 @@ using namespace ops_hccl;
 extern "C" unsigned int LaunchAicpuKernel(OpParam *param);
 
 HcclResult HcclRecvNext(
-    void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, HcclComm comm, aclrtStream stream)
+    void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, const HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("[HcclRecv] Start.");
     HcclUs startut = TIME_NOW(); // 走老流程的判断时间不统计在内
@@ -52,7 +52,7 @@ HcclResult HcclRecv(
         return HcclRecvNext(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
-    if (GetHcommVersion() < 90000000) {
+    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) {
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
@@ -75,9 +75,10 @@ HcclResult HcclRecvGraphMode(
 {
     HCCL_INFO("[HcclRecvGraphMode] Start.");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclRecvGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
 
@@ -90,6 +91,7 @@ HcclResult HcclRecvGraphMode(
     CHK_RET(GetAndCheckRecvPara(comm, recvBuf, count, dataType, srcRank, rankSize, userRank, opTag));
 
     // 拼装ResPackGraphMode
+    CHK_PTR_NULL(tag);
     ResPackGraphMode resPack;
     // 设置tag
     auto fillTagRet = strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);

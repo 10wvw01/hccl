@@ -24,7 +24,7 @@ HcclResult HcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataT
                          HcclReduceOp op, HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclAllReduce");
-    if (GetHcommVersion() < 90000000) { // compat handle
+    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
         return HcclAllReduceInner(sendBuf, recvBuf, count, dataType, op, comm, stream);
     }
 
@@ -43,6 +43,13 @@ HcclResult HcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataT
     OpParam param;
     CHK_RET(AllReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, op, stream, param));
 
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclAllReduceInner(sendBuf, recvBuf, count, dataType, op, comm, stream);
+    }
+
     /* 接口交互信息日志 */
     CHK_RET(AllReduceEntryLog(sendBuf, recvBuf, count, dataType, op, stream, param.tag, "HcclAllReduce"));
 
@@ -60,6 +67,7 @@ HcclResult HcclAllReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
 {
     HCCL_INFO("Start to run execute HcclAllReduceGraphMode");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclAllReduceGraphMode] get group name: %s", group);
     CHK_RET(HcomGetCommHandleByGroup(group, &comm));
@@ -102,7 +110,7 @@ HcclResult HcclAllReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
 }
 
 namespace ops_hccl {
-HcclResult AllReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, aclrtStream stream, OpParam &param)
+HcclResult AllReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, const aclrtStream stream, OpParam &param)
 {
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
@@ -148,8 +156,9 @@ HcclResult CheckAllReduceInputPara(const HcclComm comm, const void* sendBuf, con
 }
 
 HcclResult FillAllReduceOpParam(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType,
-                                HcclReduceOp op, HcclComm comm, aclrtStream stream, OpMode opMode, OpParam &param)
+                                HcclReduceOp op, const HcclComm comm, aclrtStream stream, OpMode opMode, OpParam &param)
 {
+    (void) comm;
     u32 perDataSize = DATATYPE_SIZE_TABLE[dataType];
     u64 outputSize = count * perDataSize;
     u64 inputSize = outputSize;
@@ -236,7 +245,6 @@ HcclResult AllReduceOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t cou
     HCCL_INFO("Execute AllReduceOutPlaceGraphMode success.");
     return HCCL_SUCCESS;
 }
-
 
 HcclResult AllReduceOutPlace(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, HcclComm comm,
                                       aclrtStream stream, OpParam &param)

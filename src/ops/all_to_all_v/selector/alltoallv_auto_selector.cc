@@ -27,12 +27,13 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)opParam;
     (void)configAlgMap;
+    uint32_t userRankSizeMax = 128;
     if (topoInfo->topoLevelNums > 1) {
         if (opParam.all2AllDataDes.sendType == HcclDataType::HCCL_DATA_TYPE_INT8) {
             HCCL_WARNING("[Algo][AlltoAllVAutoSelector] int8 is not supported yet for ccu_schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
-        if (topoInfo->userRankSize > 128) {
+        if (topoInfo->userRankSize > userRankSizeMax) {
             HCCL_WARNING("[Algo][AlltoAllVAutoSelector] rankSize > 128 is not supported yet for ccu_schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
@@ -107,7 +108,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         }
         bool isMeshNumEqualToClosNum = false;
         CHK_PRT_RET(CheckMeshNumEqualToClosNum(topoInfo, isMeshNumEqualToClosNum) != HCCL_SUCCESS,
-            HCCL_ERROR("[Algo][AlltoAllAutoSelector] CheckMeshNumEqualToClosNum failed."),
+            HCCL_ERROR("[Algo][AlltoAllVAutoSelector] CheckMeshNumEqualToClosNum failed."),
             SelectorStatus::NOT_MATCH);
         if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= 4)) { // 同一组4P，走并发算法
             selectAlgName = "InsAlltoAllVMesh1DUBX";
