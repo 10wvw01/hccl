@@ -105,7 +105,7 @@ HcclResult CcuTempReduceScatterMesh2Die::PartitionChannels(HcclComm comm, const 
     uint32_t maxChannels = std::max(channels_[0].size(), channels_[1].size());
     CHK_PRT_RET(minChannels + 1 != maxChannels,
         HCCL_ERROR("[CcuTempReduceScatterMesh2Die][CalcRes] Rank[%d], Unexpected channels size, "
-            "die0 channels[%u], die1 channels[%u].", mySubCommRank_, channels_[0].size(), channels_[1].size()),
+            "die0 channels[%u], die1 channels[%u].", myRank_, channels_[0].size(), channels_[1].size()),
         HcclResult::HCCL_E_PARA);
     return HcclResult::HCCL_SUCCESS;
 }

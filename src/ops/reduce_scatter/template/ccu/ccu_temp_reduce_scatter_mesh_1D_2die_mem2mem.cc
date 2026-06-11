@@ -226,12 +226,6 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::FastLaunch(const OpParam& para
     HCCL_DEBUG("[CcuTempReduceScatterMeshMem2Mem1D2Die::FastLaunch] end");
     return HcclResult::HCCL_SUCCESS;
 }
-
-u64 CcuTempReduceScatterMeshMem2Mem1D2Die::GetThreadNum() const
-{
-    constexpr uint32_t KERNEL_NUM_2 = 2;
-    return KERNEL_NUM_2;
-}
  
 u64 CcuTempReduceScatterMeshMem2Mem1D2Die::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
@@ -239,4 +233,18 @@ u64 CcuTempReduceScatterMeshMem2Mem1D2Die::CalcScratchMultiple(BufferType inBuff
     (void)outBuffType;
     return templateRankSize_;
 }
+
+ u64 CcuTempReduceScatterMeshMem2Mem1D2Die::GetThreadNum() const 
+ { 
+     return DIE_NUM; 
+ } 
+ 
+ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::GetRes(AlgResourceRequest& resourceRequest) const 
+ { 
+     resourceRequest.slaveThreadNum = 1; 
+     resourceRequest.notifyNumOnMainThread = 1; 
+     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); 
+     return HCCL_SUCCESS; 
+ } 
+
 } // namespace ops_hccl

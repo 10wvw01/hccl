@@ -137,6 +137,7 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
     
     for (uint64_t i = 0; i < DIE_NUM; i++) {
 <<<<<<< HEAD
+<<<<<<< HEAD
         CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
             taskArgs.data(), argSize);
         if (launchRet != CCU_SUCCESS) {
@@ -144,12 +145,17 @@ HcclResult CcuTempAllReduceMesh1DMem2Mem2DieOneShot::KernelRun(const OpParam& pa
             return ConvertCcuToHccl(launchRet);
         }
 =======
+=======
+>>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
         std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllReduceMesh1DMem2Mem2DieOneShot>(
             inputAddr, outputAddr, token, scratchAddr, normalSliceSize);
         void* taskArgPtr = static_cast<void*>(taskArg.get());
         CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[i],
             taskArgPtr));
+<<<<<<< HEAD
 >>>>>>> f99b904 (fast launch)
+=======
+>>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
     }
     
     CcuKernelSubmitInfo submitInfo;
