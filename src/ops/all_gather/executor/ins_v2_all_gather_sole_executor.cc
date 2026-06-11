@@ -132,7 +132,7 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         algTemplate.CalcScratchMultiple(tempAlgParams.buffInfo.inBuffType, tempAlgParams.buffInfo.outBuffType);
     maxTmpMemSize_ = tempAlgParams.buffInfo.hcclBuff.size;
     if (param.engine == COMM_ENGINE_AICPU_TS && std::string(param.algName) != "InsAllGatherNHR") {
-        algTemplate.SetchannelsPerRank(templateAlgRes.channels);
+        CHK_RET(algTemplate.SetchannelsPerRank(templateAlgRes.channels));
     }
     // 中转内存单次最多能够接受的output count，注意是count不是size
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
@@ -219,7 +219,9 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
+    for (int i = 0; i < ccuKernelNum; i++) {
+        kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 
@@ -281,17 +283,15 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2Mem, InsV
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, AivAllGatherMesh1D, InsV2AllGatherSoleExecutor, TopoMatch1D,
     AivTempAllGatherMesh1D);
 
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#if !defined(HCCL_CANN_COMPAT_850)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh2Die, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGather2DiesMesh1D);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
-
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#endif /* !HCCL_CANN_COMPAT_850 */
+#if !defined(HCCL_CANN_COMPAT_850)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh2DieMem2Mem, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGather2DiesMeshMem2Mem1D);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
-
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#endif /* !HCCL_CANN_COMPAT_850 */
+#if !defined(HCCL_CANN_COMPAT_850)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2MemMultiJetty, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGatherNHR1DMultiJettyMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */

@@ -21,7 +21,7 @@ constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
-constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 1 * 1024 * 1024 * 1024;
+constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
@@ -54,6 +54,9 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
             selectAlgName = "CcuAllGatherMesh2Die";
             return SelectorStatus::MATCH;
+         } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
+            HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
+            return SelectorStatus::NOT_MATCH;
         } else {
             selectAlgName = "CcuAllGatherMesh1D";
             return SelectorStatus::MATCH;
@@ -176,7 +179,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
     (void)configAlgMap;
-    u32 ccuSize = 64;
+    u32 ccuSize = 32;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
