@@ -14,7 +14,7 @@
 
 namespace ops_hccl {
 
-bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const TopoInfoWithNetLayerDetails& topoInfo)
+bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const TopoInfoWithNetLayerDetails& topoInfo, const AlgResourceCtxSerializable& resCtxHost)
 {
     if (!GetExternalInputHcclAicpuCacheEnable()) {
         return false;
@@ -41,14 +41,18 @@ bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const To
         return false;
     }
 
+    if(!IsTopoSupported(resCtxHost)) {
+        return false;
+    }
+
     // 目前V类算子、batch类型算子、以及send/recv不考虑动态缓存 (使用白名单而非黑名单管理, 避免非预期算子进入cache机制)
     const HcclCMDType opType = param.opType;
     if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_REDUCE
         || opType == HcclCMDType::HCCL_CMD_ALLGATHER || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER
         || opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_SCATTER
-        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE) { // 非V类算子
+        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE || opType == HcclCMDType::HCCL_CMD_GATHER) { // 非V类算子
         HCCL_INFO(
-            "[AicpuOpCachePolicy][IsOpTaskCacheEnable] opType[%d] is supported for operator unfolding cache", opType);
+            "[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is supported for operator unfolding cache", opType);
         return true;
     }
 
@@ -136,6 +140,23 @@ HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, Hccl
         opType, rankSize, sendType, recvType, inputSize, outputSize);
 
     return HCCL_SUCCESS;
+}
+
+bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable& resCtxHost)
+{
+    for (const auto& levelChannels : resCtxHost.channels) {
+        for (const auto& channel : levelChannels) {
+            if (!channel.isValid) {
+                continue;
+            }
+            // 不支持基于外置网卡的跨超RDMA, 不支持基于PCIe的跨卡P2P
+            if (channel.protocol == CommProtocol::COMM_PROTOCOL_ROCE || channel.protocol == CommProtocol::COMM_PROTOCOL_PCIE) {
+                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%] not supported", channel.protocol);
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 } // namespace ops_hccl
