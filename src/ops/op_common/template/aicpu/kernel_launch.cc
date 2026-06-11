@@ -28,6 +28,8 @@
 #include "hccl_device_comm_dl.h"
 #include "exec_timeout_manager.h"
 #include "alg_data_trans_wrapper.h"
+#include "aicpu_task_cache_key.h"
+#include "aicpu_task_cache_comm_manager.h"
 
 using namespace ops_hccl;
 namespace {
@@ -407,12 +409,48 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         // 设置执行超时时间
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
+
         // 设置BatchTransfer是否可行
         CHK_RET(InitHcommBatchTransferOnThreadSupported(resCtxPtr->isHcommBatchTransferOnThreadSupported));
-        // 执行算法编排
-        if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
-            HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
-            return 1;
+
+        // TODO: AR5 检查aicpu task cache使能约束
+        bool enableCache = param->aicpuCacheEnable;
+        
+        std::string cacheTag = "";
+        bool isCacheMiss = true;
+        if (enableCache) { // 如果使能aicpu task cache
+            // 组装aicpu task cache tag
+            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, cacheTag);
+
+            // 查询aicpu task cache
+            if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
+            }
+        }
+
+        if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
+            // 执行算法编排
+            if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
+                HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
+                return 1;
+            }
+        }
+
+        if (enableCache) { // 如果使能aicpu task cache
+            // 准备地址信息 (当前rank的userIn和userOut)
+            constexpr uint32_t ADDRS_COUNT = 2;
+            void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
+            uint64_t sizes[ADDRS_COUNT] = {param->inputSize, param->outputSize};
+
+            // 提交aicpu task cache
+            // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
+            if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT, param->opConfig.debugConfig)));
+                // 首次缓存记录通信域与tag关系
+                if (isCacheMiss) {
+                    AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
+                }
+            }
         }
 
         // 上报mainstream数据,最后一个任务

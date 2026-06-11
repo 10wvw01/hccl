@@ -791,6 +791,11 @@ HcclResult ParseOpExpansion()
             HCCL_WARNING("910 do not support AICPU unfold.");
         } else {
             g_algEnvConfig.aicpuUnfold = true;
+            
+        }
+        // A5默认开启aicpu task cache
+        if (deviceType == DevType::DEV_TYPE_950) {
+            g_algEnvConfig.aicpuCacheEnable = 1;
         }
     } else if (opExpansionModeEnv == "AIV") {
         if (g_algEnvConfig.hcclDeterministic == true) {
@@ -1062,6 +1067,11 @@ const bool &GetExternalInputHcclAicpuUnfold()
 {
     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
     return g_algEnvConfig.aicpuUnfold;
+}
+
+const bool GetExternalInputHcclAicpuCacheEnable()
+{
+    return g_algEnvConfig.aicpuCacheEnable > 0;
 }
 
 const bool &GetExternalInputHcclAivMode()

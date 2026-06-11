@@ -494,6 +494,7 @@ struct AlgResourceCtxSerializable {
 struct DevAicpuOpConfig {
     u32 execTimeout = 0;
     double multipleDimensionSplitRatio = 0.8;
+    u64 debugConfig = 0;
     // 如要新增配置类字段，在此处添加
 };
 
@@ -571,6 +572,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u32 aicpuRecordCpuIdx = 0; // aicpu record host的notifyIdx
     u32 dataCount = 0; // 算子上报dfx的数据量
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
+    bool aicpuCacheEnable = false;
     u64 varMemSize{0};
     u8 varData[0];
 };

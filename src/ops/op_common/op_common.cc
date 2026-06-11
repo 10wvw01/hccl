@@ -51,6 +51,7 @@
 #include "hcomm_diag_dl.h"
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
+#include "aicpu_task_cache_policy.h"
 #include "ccu_launch_dl.h"
 #include "hccl_ccu_res_dl.h"
 
@@ -138,6 +139,8 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     CHK_RET(SetExecTimeout(param));
     // 获取多维度切分比例
     CHK_RET(SetMultipleDimensionSplitRatio(param));
+    // 设置task或alg编排的运行日志
+    param.opConfig.debugConfig = GetDebugConfig();
     HCCL_INFO("Success to execute Selector.");
     return HCCL_SUCCESS;
 }
@@ -590,6 +593,8 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         CHK_RET(GetUnfoldThreadInfo(comm, param, unfoldThread));
         // 根据主流的捕获状态决定展开流的状态
         CHK_RET(CaptureSlaveStreams(comm, param.stream, {mainThread, unfoldThread}));
+        // aicpu task cache使能
+        param.aicpuCacheEnable = AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(param, *topoInfo.get(), *resCtxHost.get());
         CHK_RET(HcclAicpuKernelEntranceLaunch(comm, param, cpuTsThread, exportedCpuTsThread, notifyNumOnMainThread,
             resCtxSequence, algName, unfoldThread));
     } else if (param.engine == COMM_ENGINE_AIV) {

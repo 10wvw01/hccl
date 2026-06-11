@@ -152,6 +152,8 @@ const int32_t& GetInconsistentCheckSwitch();
 
 const bool& GetExternalInputHcclAicpuUnfold();
 
+const bool GetExternalInputHcclAicpuCacheEnable();
+
 const bool& GetExternalInputHcclAivMode();
 
 const bool& GetExternalInputHcclAivOnlyMode();
