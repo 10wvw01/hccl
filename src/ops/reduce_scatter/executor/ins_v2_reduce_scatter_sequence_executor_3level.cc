@@ -156,9 +156,9 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
             myRank_);
     }
     CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level] [Orchestrate] myRank_[%lu] rankIdxLevel0_[%lu] "
-        "rankIdxLevel1_[%lu] rankIdxLevel2_[%lu] rankSizeLevel0_[%lu] rankSizeLevel1_[%lu] "
-        "rankSizeLevel2_[%lu]",
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level] [Orchestrate] myRank_[%u] rankIdxLevel0_[%u] "
+        "rankIdxLevel1_[%u] rankIdxLevel2_[%u] rankSizeLevel0_[%u] rankSizeLevel1_[%u] "
+        "rankSizeLevel2_[%u]",
         myRank_, rankIdxLevel0_, rankIdxLevel1_,rankIdxLevel2_, rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_);
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
