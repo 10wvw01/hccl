@@ -200,8 +200,8 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
     u8 die1PortGroupSize = 2;
 
     die0Size = (dataCount * die0PortGroupSize / (die0PortGroupSize + die1PortGroupSize)) * typeSize;
-    HCCL_DEBUG("[CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     die1Size = templateDataParams.sliceSize - die0Size;
+    HCCL_DEBUG("[CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -232,11 +232,11 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::KernelRun(const OpParam& param,
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
     uint64_t offset = 0;
-    uint64_t repeatNum = templateDataParams.repeatNum;
     uint64_t inputSliceStride = templateDataParams.inputSliceStride;
     uint64_t outputSliceStride = templateDataParams.outputSliceStride;
     uint64_t inputRepeatStride = templateDataParams.inputRepeatStride;
     uint64_t outputRepeatStride = templateDataParams.outputRepeatStride;
+    uint64_t repeatNum = templateDataParams.repeatNum;
     uint64_t repeatNumVar = UINT64_MAX - repeatNum;
     uint64_t die0LastSize = templateDataParams.tailSize / kernelNum;
     uint64_t die1LastSize = templateDataParams.tailSize - die0LastSize;

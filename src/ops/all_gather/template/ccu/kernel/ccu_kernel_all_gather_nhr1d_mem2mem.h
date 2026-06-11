@@ -41,8 +41,8 @@ public:
                                             const std::map<u32, u32> rank2ChannelIdx, const OpParam& opParam,
                                             const std::vector<std::vector<uint32_t>>& subCommRanks, uint32_t axisSize)
         : dimSize_(dimSize), mySubCommRankId_(mySubCommRankId), axisId_(axisId),
-          stepInfoVector_(stepInfoVector), rank2ChannelIdx_(rank2ChannelIdx),
-          opParam_(opParam), subCommRanks_(subCommRanks), axisSize_(axisSize)
+          stepInfoVector_(stepInfoVector), rank2ChannelIdx_(rank2ChannelIdx), opParam_(opParam),
+          subCommRanks_(subCommRanks), axisSize_(axisSize)
     {
     }
     hcomm::CcuKernelSignature GetKernelSignature() const override
