@@ -233,11 +233,13 @@ HcclResult InsTempAllGatherMesh1DIntra::PostLocalCopy(const std::vector<ThreadHa
             u32 algRank = 0;
             CHK_RET(GetAlgRank(rank, subCommRanks_[0], algRank));
 
-            u64 sliceCount = tempAlgParams_.count;
+            // u64 sliceCount = tempAlgParams_.count;
+            // u64 sliceSize = sliceCount * dataTypeSize_;
+            u64 sliceCount = tempAlgParams_.allRankProcessedDataCount.at(algRank);
             u64 sliceSize = sliceCount * dataTypeSize_;
 
-            u64 scratchOffset = scratchBase;
-            u64 outOffset = outBaseOff;
+            u64 scratchOffset = scratchBase + algRank * sliceSize;
+            u64 outOffset = outBaseOff + algRank * sliceSize;
             DataSlice srcSlice(tempAlgParams_.buffInfo.hcclBuff.addr, scratchOffset, sliceSize,
                                sliceCount);
             DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOffset, sliceSize,
