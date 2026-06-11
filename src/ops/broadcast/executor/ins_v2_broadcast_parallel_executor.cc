@@ -126,9 +126,9 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         interTempRequestFinal.notifyNumPerThread = interTempRequest0.notifyNumPerThread;
     }
 
-    u32 threadNum = 2;
+    u32 threadNum = THREAD_NUM_2;
     resourceRequest.notifyNumOnMainThread = threadNum;  // 用于broadcast两个template间同步
-    resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + 4;
+    resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + THREAD_NUM_4;
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest0.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
@@ -302,16 +302,16 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
     intraThreads_.clear();
     intraThreads_.emplace_back(threads_[1]);
-    if (intraThreadsNum + 2 >= 3){
-        for(u32 i = 3 ; i < intraThreadsNum + 2; i++) {
+    if (intraThreadsNum + THREAD_NUM_2 >= THREAD_NUM_3){
+        for(u32 i = THREAD_NUM_3; i < intraThreadsNum + THREAD_NUM_2; i++) {
             intraThreads_.emplace_back(threads_[i]);
         }
     }
 
     interThreads_.clear();
-    interThreads_.emplace_back(threads_[intraThreadsNumFinal + 2]);
-    if (threads_.size() >= intraThreadsNumFinal + 4){
-        for(u32 i = intraThreadsNumFinal + 4 ; i < threads_.size(); i++) {
+    interThreads_.emplace_back(threads_[intraThreadsNumFinal + THREAD_NUM_2]);
+    if (threads_.size() >= intraThreadsNumFinal + THREAD_NUM_4){
+        for(u32 i = intraThreadsNumFinal + THREAD_NUM_4; i < threads_.size(); i++) {
             interThreads_.emplace_back(threads_[i]);
         }
     }
@@ -331,7 +331,6 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::PrepareResForTemplate23(
     InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate2 &tempAlgIntra1, InsAlgTemplate3 &tempAlgInter1)
 {
-
     AlgResourceRequest intraTempRequest;
     AlgResourceRequest interTempRequest1;
     AlgResourceRequest intraTempRequest1;
@@ -344,8 +343,8 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     auto intraNotifyOnMainThread = intraTempRequest1.notifyNumOnMainThread;
     auto interNotifyOnMainThread = interTempRequest1.notifyNumOnMainThread;
 
-    intraThreads_.assign(threads_.begin() + 2, threads_.begin() + intraThreadsNum1 + 2);
-    interThreads_.assign(threads_.begin() + intraThreadsNumFinal + 3, threads_.end());
+    intraThreads_.assign(threads_.begin() + THREAD_NUM_2, threads_.begin() + intraThreadsNum1 + THREAD_NUM_2);
+    interThreads_.assign(threads_.begin() + intraThreadsNumFinal + THREAD_NUM_3, threads_.end());
     // 用于两个算法同步
     mainThread_ = threads_.at(0);
 
@@ -531,7 +530,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     // 数据切分
     u64 sliceCountUB = std::min(static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_, dataCount_);
     float onceSliceCountPercent = std::max(dataSplitSize.at(0) * float(1.0 / intraLocalRankSize_), dataSplitSize.at(1) * float(1.0 / interLocalRankSize_));
-    u64 sliceCountUB0 = onceSliceCountPercent > 0 ? std::floor(sliceCountUB / onceSliceCountPercent) : sliceCountUB;
+    u64 sliceCountUB0 = onceSliceCountPercent > 0 ? static_cast<u64>(std::floor(sliceCountUB / onceSliceCountPercent)) : sliceCountUB;
     u64 sliceCount = sliceCountUB;
     if (multiple > 0 && maxTmpMemSize_ > 0) {
         u64 scratchCount = maxTmpMemSize_ / dataTypeSize_;  // 按照count来切分

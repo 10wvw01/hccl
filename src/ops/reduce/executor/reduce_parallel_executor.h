@@ -23,6 +23,7 @@ public:
     static constexpr u32 dataSplitPart_{2};
     static constexpr u32 stageSize_{2};
     static constexpr u32 stepSize_{2};
+    static constexpr u32 TemplateCount = 4;
 
     explicit ReduceParallelExecutor();
     ~ReduceParallelExecutor() override = default;
@@ -96,9 +97,9 @@ private:
 
     std::array<std::array<std::shared_ptr<CommonAlgTemplateBase>, dataSplitPart_>, stageSize_> algTemplatePtrArr_{{}};
 
-    OpParam param_;
-    AlgResourceCtxSerializable resCtx_;
-    std::array<TemplateResource, 4> tempAlgResArr_{};
+    OpParam param_{};
+ 	AlgResourceCtxSerializable resCtx_{};
+ 	std::array<TemplateResource, TemplateCount> tempAlgResArr_{};
     std::array<u64, dataSplitPart_> dataOffsetPerLoop_{0, 0};
     std::array<u64, dataSplitPart_> dataCountPerLoop_{0, 0};
     std::vector<std::vector<u32>> temp0HierarchyInfo_;

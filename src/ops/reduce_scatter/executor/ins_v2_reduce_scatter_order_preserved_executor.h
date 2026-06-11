@@ -74,7 +74,7 @@ protected:
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;
 
-    OrderPreservedReduceScatterMemInfo memInfo_;
+    OrderPreservedReduceScatterMemInfo memInfo_{};
     bool deterministicStrict_{false};
     bool aicpuUnfoldMode_{false};
 };

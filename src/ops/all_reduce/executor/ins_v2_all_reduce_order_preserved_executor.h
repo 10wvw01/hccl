@@ -38,7 +38,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTempl
 class InsV2AllReduceOrderPreservedExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllReduceOrderPreservedExecutor();
-    ~InsV2AllReduceOrderPreservedExecutor() = default;
+    ~InsV2AllReduceOrderPreservedExecutor() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
@@ -70,12 +70,10 @@ protected:
         u64 currDataCount, u64 processedDataCount,
         std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes);
 
-    
-
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;
 
-    OrderPreservedAllReduceMemInfo memInfo_;
+    OrderPreservedAllReduceMemInfo memInfo_{};
     bool deterministicStrict_{false};
     
     u64 outCclBuffSize_{0};

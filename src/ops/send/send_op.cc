@@ -21,7 +21,7 @@ using namespace ops_hccl;
 extern "C" unsigned int LaunchAicpuKernel(OpParam *param);
 
 HcclResult HcclSendNext(
-    void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank, HcclComm comm, aclrtStream stream)
+    void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank, const HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("[HcclSend] Start.");
     HcclUs startut = TIME_NOW(); // 走老流程的判断时间不统计在内
@@ -54,7 +54,7 @@ HcclResult HcclSend(
         return HcclSendNext(sendBuf, count, dataType, destRank, comm, stream);
     }
 
-    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) {
+    if (GetHcommVersion() < CANN_VERSION(HCCL_CANN_VERSION_CHECK, 0, 0)) {
         return HcclSendInner(sendBuf, count, dataType, destRank, comm, stream);
     }
 
