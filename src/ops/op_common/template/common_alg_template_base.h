@@ -50,6 +50,10 @@ public:
         channelsPerRank_ = CalcChannelsPerRank(channels);
         return HCCL_SUCCESS;
     }
+
+    virtual void GetOcsGroupNumInfoFromTopo(const TopoInfoWithNetLayerDetails* topoInfo){
+        return;
+    }
    
 protected:
     u32             channelsPerRank_    = 1;

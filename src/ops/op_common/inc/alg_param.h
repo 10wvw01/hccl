@@ -157,6 +157,7 @@ struct TopoInfo {
     bool isHCCSSWNumEqualToTwiceSIONum = false; // A3 Server内链路属性
     ThreadHandle mainThread;    // 主流对应threadHandle
     u32 notifyNumOnMainThread = 0;  // mainThread上创建的notify数量
+    u32 ocsGroupNum = 1; // Ocs 分组数，默认 1 表示非 OCS；TODO:00913534:后续由 ranktable/topo 解析填充
 };
 
 // 这个应该是公共的
@@ -194,6 +195,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream << isHCCSSWNumEqualToTwiceSIONum;
         binaryStream << mainThread;
         binaryStream << notifyNumOnMainThread;
+        binaryStream << ocsGroupNum;
         binaryStream << topoLevelNums;
         binaryStream << level0Topo;
         binaryStream << Level0Nhr;
@@ -241,6 +243,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> isHCCSSWNumEqualToTwiceSIONum;
         binaryStream >> mainThread;
         binaryStream >> notifyNumOnMainThread;
+        binaryStream >> ocsGroupNum;
         binaryStream >> topoLevelNums;
         binaryStream >> level0Topo;
         binaryStream >> Level0Nhr;
