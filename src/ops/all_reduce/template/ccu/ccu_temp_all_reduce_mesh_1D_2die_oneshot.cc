@@ -148,41 +148,10 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::KernelRun(const OpParam& param,
     uint64_t argSize = taskArgs.size();
 
     for (auto dieId = 0; dieId < dieNum; dieId++) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
->>>>>>> e124e56 (fast launch)
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> origin/master
->>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[dieId], templateResource.ccuKernels[dieId],
-            taskArgs.data(), argSize);
-        if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] die[%d] kernel launch failed, ccuRet -> %d", dieId, launchRet);
-            return ConvertCcuToHccl(launchRet);
-        }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
-=======
->>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
+        std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllreduceMesh1D2DieOneShot>(
+            inputAddr, outputAddr, token, scratchAddr, sliceSize);
+        void* taskArgPtr = static_cast<void*>(taskArg.get());
         CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[dieId], taskArgPtr));
->>>>>>> f99b904 (fast launch)
-=======
-        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[dieId], taskArgPtr));
->>>>>>> 1f65385fd4a1226125ba3c02733d702486485af2
-<<<<<<< HEAD
->>>>>>> e124e56 (fast launch)
-=======
-=======
->>>>>>> origin/master
->>>>>>> aeea21cafdbee55c4c9607c377f2eac0c2804176
         HCCL_INFO("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] die[%d] end", dieId);
     }
 
