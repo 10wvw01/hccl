@@ -61,6 +61,8 @@ HcclResult InsV2BroadcastSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 {
     rankSizeLevel0_ = algHierarchyInfo.infos[0].size();
     rankSizeLevel1_ = algHierarchyInfo.infos[1].size();
+    HCCL_INFO("[InsV2BroadcastSequenceExecutor][CalcRes] rankSizeLevel0 [%u], rankSizeLevel1 [%u]", rankSizeLevel0_,
+        rankSizeLevel1_);
 
     std::shared_ptr<InsAlgTemplate0> intraScatterTempAlg =
         std::make_shared<InsAlgTemplate0>(param, myRank_, algHierarchyInfo.infos[0]);
@@ -344,10 +346,15 @@ HcclResult InsV2BroadcastSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
         // ----------- 框内AllGather数据搬运 -----------
         // 框内的数据偏移和搬运计算
-        tempAlgParamsAllGatherIntra.count = currDataCount;
+        tempAlgParamsAllGatherIntra.count = tempAlgParamsScatterIntra.allRankProcessedDataCount.at(rankIdxLevel0_);;
         tempAlgParamsAllGatherIntra.buffInfo.inBuffBaseOff = 0;
         tempAlgParamsAllGatherIntra.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
-        tempAlgParamsAllGatherIntra.buffInfo.hcclBuffBaseOff = 0;
+        tempAlgParamsAllGatherIntra.buffInfo.hcclBuffBaseOff = tempAlgParamsScatterIntra.allRankProcessedDataCount.at(rankIdxLevel0_);;
+
+        // tempAlgParamsAllGatherIntra.count = currDataCount;
+        // tempAlgParamsAllGatherIntra.buffInfo.inBuffBaseOff = 0;
+        // tempAlgParamsAllGatherIntra.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
+        // tempAlgParamsAllGatherIntra.buffInfo.hcclBuffBaseOff = 0;
 
         tempAlgParamsAllGatherIntra.allRankDispls = tempAlgParamsScatterIntra.allRankDispls;  // 沿用框内Scatter的切片结果
         tempAlgParamsAllGatherIntra.allRankSliceSize = tempAlgParamsScatterIntra.allRankSliceSize;

@@ -9,6 +9,7 @@
  */
  
 #include "ins_temp_scatter_nhr_dpu_inter.h"
+#include "dpu_alg_nhr_opt_wrapper.h"
 
 
 namespace ops_hccl {
@@ -274,18 +275,8 @@ HcclResult InsTempScatterNHRDPUInter::RunNHR(const std::map<u32, std::vector<Cha
         for (u32 step = 0; step < nSteps; step++) {
             AicpuNHRStepInfo stepInfo;
             GetStepInfo(step, nSteps, stepInfo);
-            // 只有Tx,使用send指令
-            if (stepInfo.txSliceIdxs.size() > 0 && stepInfo.rxSliceIdxs.size() == 0) {
-                CHK_RET(BatchSend(stepInfo, channels, tempAlgParam, r));
-            }
-            // 只有Rx，使用recv指令
-            else if (stepInfo.txSliceIdxs.size() == 0 && stepInfo.rxSliceIdxs.size() > 0) {
-                CHK_RET(BatchRecv(stepInfo, channels, tempAlgParam, r));
-            }
-            // 既有Tx又有Rx，使用SendRecv指令
-            else if (stepInfo.txSliceIdxs.size() > 0 && stepInfo.rxSliceIdxs.size() > 0) {
-                CHK_RET(BatchSR(stepInfo, channels, tempAlgParam, r));
-            }
+            // 统一 BatchSR：内部自动处理 只发/只收/同对端/不同对端 四种场景
+            CHK_RET(BatchSRUnified(stepInfo, channels, tempAlgParam, r, myRank_, templateRankSize_));
         }
     }
 #endif
