@@ -207,7 +207,6 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     s32 deviceLogicId = 0;
     CHK_PRT_RET(aclrtGetDevice(&deviceLogicId) != ACL_SUCCESS,
         HCCL_WARNING("[HcclSelectAlgGraphMode] device is not set."), HCCL_SUCCESS);
-    
     HcclComm hcclComm = nullptr;
     CHK_RET(HcomGetCommHandleByGroup(group, &hcclComm));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -489,13 +488,6 @@ HcclResult HcclCalcAivResOffline(ResResponseGraphMode *resResponse, OpParamGraph
     if (resResponse == nullptr || paramPtr == nullptr || paramPtr->aivCoreLimit == 0) {
         return HCCL_E_PARA;
     }
-    constexpr u64 AIV_WORKSPACE_MEM_SIZE = 512;
-    constexpr u32 AIV_STREAM_NUM = 0;
-    constexpr u32 AIV_TASK_NUM = 3;
-
-    resResponse->opMemSize = std::max(resResponse->opMemSize, AIV_WORKSPACE_MEM_SIZE);
-    resResponse->streamNum = std::max(resResponse->streamNum, AIV_STREAM_NUM);
-    resResponse->taskNum = std::max(resResponse->taskNum, AIV_TASK_NUM);
     resResponse->aivCoreNum = paramPtr->aivCoreLimit;
     return HCCL_SUCCESS;
 }

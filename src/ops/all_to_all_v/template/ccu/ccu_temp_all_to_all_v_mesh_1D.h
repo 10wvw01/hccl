@@ -13,7 +13,6 @@
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
 
@@ -62,7 +61,7 @@ private:
     std::vector<u64> recvCounts_;
     std::vector<u64> sdispls_;
     std::vector<u64> rdispls_;
-    bool loadFromMem_;
+    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
 };
 
 }// namespace ops_hccl

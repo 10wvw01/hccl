@@ -44,13 +44,6 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     // A3是：export HCCL_OP_EXPANSION_MODE="AI_CPU"，A5的接口还没提供
     CHK_RET(InitEnvConfig());
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
-    }
-
     // 参数校验等工作;
     // 校验入参
     CHK_RET(CheckReduceScatterVInputParam(comm, sendBuf, recvBuf, recvCount, sendCounts, sendDispls, stream));
@@ -72,7 +65,7 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     CHK_RET(CheckDataType(dataType, true));
 
     /* 接口交互信息日志 */
-    CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, tag, rankSize, "HcclReduceScatterV"));
+    CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, tag, "HcclReduceScatterV"));
 
     // 初始化参数
     CHK_RET_AND_PRINT_IDE(ReduceScatterVOutPlace(sendBuf, sendDispls, sendCounts, recvBuf, recvCount, dataType, op, comm, stream, tag),
@@ -131,7 +124,7 @@ HcclResult HcclReduceScatterVGraphMode(void *sendBuf,  const void *sendCounts, c
     resPack.scratchMemSize = scratchMemSize;
 
     /* 接口交互信息日志 */
-    CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, opTag, rankSize, "HcclReduceScatterVGraphMode"));
+    CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, opTag, "HcclReduceScatterVGraphMode"));
 
     // 执行
     CHK_RET_AND_PRINT_IDE(ReduceScatterVOutPlaceGraphMode(sendBuf, sendDispls, sendCounts, recvBuf, recvCount, dataType, op, comm, stream, tag, resPack), opTag);
@@ -296,7 +289,7 @@ HcclResult ReduceScatterVOutPlaceCommon(void *sendBuf, const void *sendDispls, c
 }
 
 HcclResult ReduceScatterVEntryLog(void *sendBuf, const void *sendCounts, const void *sendDispls, void *recvBuf,
-    uint64_t recvCount, HcclDataType dataType, HcclReduceOp op, aclrtStream stream, const std::string &tag, const u32 totalRanks, const std::string &opName)
+    uint64_t recvCount, HcclDataType dataType, HcclReduceOp op, aclrtStream stream, const std::string &tag, const std::string &opName)
 {
     if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
@@ -305,8 +298,8 @@ HcclResult ReduceScatterVEntryLog(void *sendBuf, const void *sendCounts, const v
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];
         s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-            "tag[%s], sendBuf[%p], recvBuf[%p], sendCounts[%p], recvCount[%llu], sendDispls[%p], dataType[%s], reduceOp[%s], streamId[%d], deviceLogicId[%d]",
-            tag.c_str(), sendBuf, recvBuf, GetDataStr(sendCounts,totalRanks).c_str(), recvCount, GetDataStr(sendDispls,totalRanks).c_str(), GetDataTypeEnumStr(dataType).c_str(), GetReduceOpEnumStr(op).c_str(), streamId, deviceLogicId);
+            "tag[%s], sendBuf[%p], sendCounts[%p], sendDispls[%p], recvBuf[%p], recvCount[%llu], dataType[%s], reduceOp[%s], streamId[%d], deviceLogicId[%d]",
+            tag.c_str(), sendBuf, sendCounts, sendDispls, recvBuf, recvCount, GetDataTypeEnumStr(dataType).c_str(), GetReduceOpEnumStr(op).c_str(), streamId, deviceLogicId);
         CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
         std::string logInfo = "Entry-" + opName + ":" + std::string(stackLogBuffer);
         HCCL_RUN_INFO("%s", logInfo.c_str());

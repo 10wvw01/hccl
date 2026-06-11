@@ -13,7 +13,6 @@
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
 
@@ -48,4 +47,4 @@ private:
 
 }// namespace ops_hccl
 
-#endif// HCCL_CCU_TEMP_ALL_GATHER_MESH_1D_H
+#endif// HCCL_CCU_TEMP_ALL_GATHER_MESH_1D_MEM2MEM_H

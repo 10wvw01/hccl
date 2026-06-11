@@ -75,7 +75,6 @@ set(INCLUDE_LIST
     ${OPS_BASE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/common/hcomm_dlsym
-    ${CMAKE_CURRENT_SOURCE_DIR}/common/hcomm_dlsym/ccu
     ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ops
@@ -205,10 +204,8 @@ if(BUILD_OPEN_PROJECT)
         ${ASCEND_CANN_PACKAGE_PATH}/include/acl
 
         # hcomm头文件
-        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
         ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
         ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
 
         # runtime头文件
         ${ASCEND_CANN_PACKAGE_PATH}/include/
@@ -276,7 +273,6 @@ else()
         ${TOP_DIR}/hcomm/pkg_inc/hcomm/ccu
         ${TOP_DIR}/hcomm/include
         ${TOP_DIR}/hcomm/include/hccl
-        ${TOP_DIR}/hcomm/include/ccu
     )
 endif()
 
@@ -336,6 +332,7 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sole_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_reduce_scatter_parallel_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_aicpu.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sequence_executor_3level.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_v2_reduce_scatter_order_preserved_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_mesh_1D.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/template/aicpu/ins_temp_reduce_scatter_nhr.cc

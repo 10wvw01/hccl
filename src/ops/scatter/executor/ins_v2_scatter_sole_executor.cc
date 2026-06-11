@@ -203,9 +203,7 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
         // 3 ccu kernel handle, taskArg入参
         ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
         CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-        for (int i = 0; i < ccuKernelNum; i++) {
-            kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
-        }
+        kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
         return HCCL_SUCCESS;
     }
 
