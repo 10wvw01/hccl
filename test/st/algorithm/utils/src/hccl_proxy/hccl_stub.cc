@@ -787,6 +787,12 @@ HcclResult HcclCommGetStatus(const char * commId, HcclCommStatus *status)
     return HCCL_SUCCESS;
 }
 
+HcclResult HcclCommRegCommStateCallBack(const char *regName, HcclCommStateCallback cb, void *args)
+{
+    HCCL_WARNING("[%s] not support.", __func__);
+    return HCCL_SUCCESS;
+}
+
 int32_t HcommReleaseComm(const char* commId)
 {
     return 0;

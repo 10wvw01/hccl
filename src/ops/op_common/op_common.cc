@@ -1620,6 +1620,19 @@ HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest 
     return HCCL_SUCCESS;
 }
 
+HcclResult AivFlagClear(HcclComm comm, HcclCommStateOp state, void* userPtr)
+{
+    CHK_PTR_NULL(userPtr);
+    if (state != HcclCommStateOp::HCCL_COMM_STATE_RESUME_POST) {
+        HCCL_INFO("[%s] CommStateOp is not STATE_RESUME_POST, skip aiv tag clear.", __func__);
+        return HCCL_SUCCESS;
+    }
+    ACLCHECK(haclrtMemset(static_cast<u8 *>(userPtr) + AIV_FLAG_ADDR_OFFSET, AIV_TAG_BUFF_LEN - AIV_FLAG_ADDR_OFFSET,
+        0, AIV_TAG_BUFF_LEN - AIV_FLAG_ADDR_OFFSET));
+    HCCL_INFO("[%s] Aiv commInfoBuffer[%p] tag buffer clear success.", __func__, userPtr);
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclAllocAlgResourceAiv(
     HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, AlgResourceCtxSerializable* resCtxHost)
 {
@@ -1632,6 +1645,9 @@ HcclResult HcclAllocAlgResourceAiv(
         CHK_RET(HcclEngineCtxCreate(comm, param.commModeTag, param.engine, AIV_TAG_BUFF_LEN, &(resCtxHost->aivCommInfoPtr)));
         // 清零
         ACLCHECK(haclrtMemset(resCtxHost->aivCommInfoPtr, AIV_TAG_BUFF_LEN, 0, AIV_TAG_BUFF_LEN));
+        if (HcommIsSupportHcclCommRegCommStateCallBack()) {
+            CHK_RET(HcclCommRegCommStateCallBack(param.commModeTag, AivFlagClear, resCtxHost->aivCommInfoPtr));
+        }
         // 注册到通信域，支持建链时交换
         CommMem regMem{COMM_MEM_TYPE_DEVICE, resCtxHost->aivCommInfoPtr, AIV_TAG_BUFF_LEN};
         CHK_RET(HcclCommMemReg(comm, param.commModeTag, &regMem, &memHandle));

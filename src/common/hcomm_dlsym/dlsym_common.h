@@ -35,6 +35,14 @@ typedef enum {
     HCCL_COMM_STATUS_INVALID = 254,
     HCCL_COMM_STATUS_RESERVED = 255
 } HcclCommStatus;
+
+typedef enum {
+    HCCL_COMM_STATE_DESTROY_PRE = 0,   /* 调用通信域销毁HcclCommDestroy前 */
+    HCCL_COMM_STATE_DESTROY_POST = 1,  /* 调用通信域销毁HcclCommDestroy后 */
+    HCCL_COMM_STATE_RESUME_PRE = 2,    /* 调用step快恢恢复通信域资源HcclCommResume前 */
+    HCCL_COMM_STATE_RESUME_POST = 3    /* 调用step快恢恢复通信域资源HcclCommResume后 */
+} HcclCommStateOp;
+
 #endif
 
 #ifdef __cplusplus
