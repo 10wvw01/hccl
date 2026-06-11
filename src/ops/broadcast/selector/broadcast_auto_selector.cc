@@ -64,6 +64,10 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
+    selectAlgName = "CcuV2BroadCastOmniPipe";
+    HCCL_INFO("[BroadcastAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
+    return SelectorStatus::MATCH;
+
     (void)opParam;
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
