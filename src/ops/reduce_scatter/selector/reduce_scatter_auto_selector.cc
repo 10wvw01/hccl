@@ -306,7 +306,6 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
             selectAlgName = "InsReduceScatterAicpuReduceNHR";
         } else if (topoInfo->topoLevelNums == 3) {
             selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
-            HCCL_INFO("[ReduceScatterAutoSelector] topoInfo->topoLevelNums == 3, select [%s]", selectAlgName.c_str());
         } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsReduceScatterNHR";
             HCCL_INFO("[ReduceScatterAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
