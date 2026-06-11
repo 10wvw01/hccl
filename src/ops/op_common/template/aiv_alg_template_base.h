@@ -51,6 +51,10 @@ public:
 
     virtual HcclResult SetchannelsPerRank(const std::map<u32, std::vector<ChannelInfo>> &channels);
 
+    virtual void GetOcsGroupNumInfoFromTopo(const TopoInfoWithNetLayerDetails* topoInfo){
+        return;
+    }
+
 protected:
     void IncSliceId();
 
