@@ -12,6 +12,7 @@
 #include "ins_temp_reduce_scatter_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_reduce_scatter_nhr.h"
 #include "alg_data_trans_wrapper.h"
+#include "topo_match_3_level.h"
 
 namespace ops_hccl {
 
@@ -350,7 +351,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
     InsReduceScatterSequenceMesh1DNHRNHR,
     InsV2ReduceScatterSequenceExecutor3Level,
-    TopoMatchMultilevel,
+    TopoMatch3Level,
     InsTempReduceScatterMesh1DZAxisDetour,
     InsTempReduceScatterNHR,
     InsTempReduceScatterNHR);
