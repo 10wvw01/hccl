@@ -35,7 +35,7 @@ static HcclResult ThreadSyncBefore(const std::vector<ThreadHandle> &threads)
 static HcclResult ThreadSyncAfter(const std::vector<ThreadHandle> &threads)
 {
     for (uint32_t i = 1; i < threads.size(); i++) {
-        CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(threads[i], i, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(threads[0], i - 1, CUSTOM_TIMEOUT)));
     }
     for (uint32_t i = 1; i < threads.size(); i++) {
         CHK_RET(static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(threads[i], threads[0], i - 1)));
