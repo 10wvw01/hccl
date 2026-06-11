@@ -1063,11 +1063,11 @@ uint16_t Fp32DenormToFp16(uint32_t sign, uint32_t mantissa, int32_t fp16Exp)
         return static_cast<uint16_t>(sign << 15);
     }
     mantissa |= 0x800000;
-    int32_t shift = 1 - fp16Exp;
-    uint32_t roundBit = (mantissa >> (shift + 10)) & 0x1;
-    uint32_t truncated = mantissa & ((1U << (shift + 10)) - 1);
+    int32_t totalShift = 14 - fp16Exp;
+    uint32_t roundBit = (mantissa >> (totalShift - 1)) & 0x1;
+    uint32_t truncated = mantissa & ((1U << (totalShift - 1)) - 1);
     uint32_t sticky = (truncated != 0) ? 1 : 0;
-    uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> (shift + 10));
+    uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> totalShift);
     fp16Mant = RoundToFp16Mantissa(fp16Mant, roundBit, sticky);
     if (fp16Mant & 0x400) {
         return static_cast<uint16_t>((sign << 15) | (1 << 10));
