@@ -14,6 +14,7 @@
 #include <vector>
 #include <queue>
 #include "alg_param.h"
+#include "ccu_kernel.h"
 
 
 namespace ops_hccl {
@@ -37,5 +38,7 @@ std::string GetReduceTypeStr(HcclDataType dataType, HcclReduceOp opType);
 
 uint64_t DataTypeSizeGet(HcclDataType type);
 
+HcclResult GenerateCcuKernelSignature(hcomm::CcuKernelSignature& sig, const std::string &name, const OpParam& opParam,
+                                      const std::vector<std::vector<uint32_t>>& subCommRanks);
 }
 #endif // HCCL_CCU_KERNEL_UTILS_H_

@@ -40,13 +40,6 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
     // 入口的地方先解析环境变量
     CHK_RET(InitEnvConfig());
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
-    }
-
     OpParam param;
     // 参数校验等工作
     CHK_PRT_RET(recvCount == 0, HCCL_WARNING("input recvCount is 0, return reduce scatter success"), HCCL_SUCCESS);
@@ -81,9 +74,8 @@ HcclResult HcclReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t rec
  	     size_t streamCount, void* scratchMemAddr, uint64_t scratchMemSize)
 {
     HCCL_INFO("Start to run execute HcclReduceScatterGraphMode");
-    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
-    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
+    HcomGetCommHandleByGroup(group, &comm);
     HCCL_INFO("[HcclReduceScatterGraphMode] get group name: %s", group);
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());

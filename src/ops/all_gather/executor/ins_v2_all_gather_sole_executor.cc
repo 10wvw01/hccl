@@ -12,6 +12,7 @@
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_all_gather_nhr.h"
+#include "ins_temp_all_gather_nhr_dpu.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_gather_mesh_1D.h"
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
@@ -131,7 +132,7 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         algTemplate.CalcScratchMultiple(tempAlgParams.buffInfo.inBuffType, tempAlgParams.buffInfo.outBuffType);
     maxTmpMemSize_ = tempAlgParams.buffInfo.hcclBuff.size;
     if (param.engine == COMM_ENGINE_AICPU_TS && std::string(param.algName) != "InsAllGatherNHR") {
-        CHK_RET(algTemplate.SetchannelsPerRank(templateAlgRes.channels));
+        algTemplate.SetchannelsPerRank(templateAlgRes.channels);
     }
     // 中转内存单次最多能够接受的output count，注意是count不是size
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
@@ -218,9 +219,7 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    for (int i = 0; i < ccuKernelNum; i++) {
-        kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
-    }
+    kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
     return HCCL_SUCCESS;
 }
 
@@ -260,6 +259,8 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherMesh1D1DZAxisDetou
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherNHR, InsV2AllGatherSoleExecutor, TopoMatch1D,
                  InsTempAllGatherNHR);
 
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherNHRDPU, InsV2AllGatherSoleExecutor, TopoMatch1D,
+InsTempAllGatherNHRDPU);
 
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
@@ -280,15 +281,17 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2Mem, InsV
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, AivAllGatherMesh1D, InsV2AllGatherSoleExecutor, TopoMatch1D,
     AivTempAllGatherMesh1D);
 
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh2Die, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGather2DiesMesh1D);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh2DieMem2Mem, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGather2DiesMeshMem2Mem1D);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2MemMultiJetty, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGatherNHR1DMultiJettyMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */

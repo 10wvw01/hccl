@@ -105,8 +105,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     HCCL_DEBUG("[InsTempAllGatherNHR] Read last step to output[%d]", readLastStepToOutput_);
 
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
-                                             templateResource.threads.begin() + threadNum_);
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
@@ -120,8 +119,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
         }
     }
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
-                                             templateResource.threads.begin() + threadNum_);
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }

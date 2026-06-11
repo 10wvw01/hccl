@@ -43,13 +43,6 @@ HcclResult HcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataT
     OpParam param;
     CHK_RET(AllReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, op, stream, param));
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclAllReduceInner(sendBuf, recvBuf, count, dataType, op, comm, stream);
-    }
-
     /* 接口交互信息日志 */
     CHK_RET(AllReduceEntryLog(sendBuf, recvBuf, count, dataType, op, stream, param.tag, "HcclAllReduce"));
 
@@ -67,7 +60,6 @@ HcclResult HcclAllReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
 {
     HCCL_INFO("Start to run execute HcclAllReduceGraphMode");
     // 根据group获取通信域
-    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclAllReduceGraphMode] get group name: %s", group);
     CHK_RET(HcomGetCommHandleByGroup(group, &comm));

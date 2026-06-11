@@ -35,9 +35,6 @@ typedef enum {
     HCCL_COMM_STATUS_INVALID = 254,
     HCCL_COMM_STATUS_RESERVED = 255
 } HcclCommStatus;
-
-typedef uint64_t ThreadHandle;
-
 #endif
 
 #ifdef __cplusplus
