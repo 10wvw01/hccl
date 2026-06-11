@@ -757,6 +757,13 @@ int32_t HcommWriteWithNotifyOnThread(ThreadHandle thread, ChannelHandle channel,
     return HCCL_E_NOT_SUPPORT;
 }
 
+int32_t HcommWriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+    uint64_t len)
+{
+    HCCL_ERROR("[%s] not support.", __func__);
+    return HCCL_E_NOT_SUPPORT;
+}
+
 HcclResult CommFence(ThreadHandle thread, ChannelHandle channel)
 {
     HCCL_ERROR("[%s] not support.", __func__);
