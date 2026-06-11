@@ -41,6 +41,14 @@ HcclResult HcclBroadcast(void *buf, uint64_t count, HcclDataType dataType, uint3
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return broadcast success"), HCCL_SUCCESS);
     OpParam param;
     CHK_RET(BroadcastInitAndCheck(comm, buf, count, dataType, root, stream, param));
+
+    // 9.0.0 ccu模式走老流程
+    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
+        (GetExternalInputHcclCcuMSMode() ||
+        GetExternalInputHcclCcuSchedMode())) {
+        return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
+    }
+
     CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcast"));
 
     // 执行Broadcast
@@ -55,10 +63,11 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
 {
     HCCL_INFO("Start to run execute HcclBroadcastGraphMode");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     OpParam param;
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclBroadcastGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return broadcast success"), HCCL_SUCCESS);
     CHK_RET(BroadcastInitAndCheck(comm, buf, count, dataType, root, stream, param));
@@ -103,7 +112,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
     CHK_RET(InitEnvConfig());
 
     // 参数校验等工作
-    CHK_RET(CheckBroadcastInputPara(comm, buf));
+    CHK_RET(CheckBroadcastInputPara(comm, buf, stream));
     CHK_RET(HcclGetCommName(comm, param.commName));
     int ret = sprintf_s(param.tag, sizeof(param.tag), "Broadcast_%s", param.commName);
     CHK_PRT_RET((ret <= 0), "failed to fill param.tag", HCCL_E_INTERNAL);
@@ -119,7 +128,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
     return HCCL_SUCCESS;
 }
 
-HcclResult CheckBroadcastInputPara(const HcclComm comm, const void *buf)
+HcclResult CheckBroadcastInputPara(const HcclComm comm, const void *buf, const aclrtStream stream)
 {
     // 入参合法性校验
     RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
@@ -128,6 +137,9 @@ HcclResult CheckBroadcastInputPara(const HcclComm comm, const void *buf)
     RPT_INPUT_ERR(buf == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclBroadcast", "nullptr", "buf", "non-null pointer"}));
     CHK_PTR_NULL(buf);
+    RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
+        std::vector<std::string>({"HcclBroadcast", "nullptr", "stream", "non-null pointer"}));
+    CHK_PTR_NULL(stream);
 
     return HCCL_SUCCESS;
 }
