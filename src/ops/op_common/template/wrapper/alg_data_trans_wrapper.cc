@@ -1046,6 +1046,35 @@ float Fp16ToFp32(uint16_t fp16Bits)
     return f;
 }
 
+uint16_t RoundToFp16Mantissa(uint16_t fp16Mant, uint32_t roundBit, uint32_t sticky)
+{
+    if (roundBit && sticky) {
+        return fp16Mant + 1;
+    }
+    if (roundBit && !sticky && (fp16Mant & 0x1)) {
+        return fp16Mant + 1;
+    }
+    return fp16Mant;
+}
+
+uint16_t Fp32DenormToFp16(uint32_t sign, uint32_t mantissa, int32_t fp16Exp)
+{
+    if (fp16Exp < -10) {
+        return static_cast<uint16_t>(sign << 15);
+    }
+    mantissa |= 0x800000;
+    int32_t shift = 1 - fp16Exp;
+    uint32_t roundBit = (mantissa >> (shift + 10)) & 0x1;
+    uint32_t truncated = mantissa & ((1U << (shift + 10)) - 1);
+    uint32_t sticky = (truncated != 0) ? 1 : 0;
+    uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> (shift + 10));
+    fp16Mant = RoundToFp16Mantissa(fp16Mant, roundBit, sticky);
+    if (fp16Mant & 0x400) {
+        return static_cast<uint16_t>((sign << 15) | (1 << 10));
+    }
+    return static_cast<uint16_t>((sign << 15) | fp16Mant);
+}
+
 uint16_t Fp32ToFp16(float value)
 {
     uint32_t fp32Bits;
@@ -1054,12 +1083,11 @@ uint16_t Fp32ToFp16(float value)
     uint32_t exponent = (fp32Bits >> 23) & 0xFF;
     uint32_t mantissa = fp32Bits & 0x7FFFFF;
 
+    // exponent==0: FP32零或非规格化数，均下溢为FP16零
     if (exponent == 0) {
-        if (mantissa == 0) {
-            return static_cast<uint16_t>(sign << 15);
-        }
         return static_cast<uint16_t>(sign << 15);
     }
+    // exponent==0xFF: FP32无穷或NaN
     if (exponent == 0xFF) {
         if (mantissa == 0) {
             return static_cast<uint16_t>((sign << 15) | 0x7C00);
@@ -1071,42 +1099,26 @@ uint16_t Fp32ToFp16(float value)
         return static_cast<uint16_t>((sign << 15) | 0x7C00 | fp16Mant);
     }
 
+    // 计算FP16目标指数: fp16Exp = fp32Exp - 127 + 15
     int32_t fp16Exp = static_cast<int32_t>(exponent) - 127 + 15;
 
+    // fp16Exp >= 31: 超出FP16范围，饱和到无穷
     if (fp16Exp >= 31) {
         return static_cast<uint16_t>((sign << 15) | 0x7C00);
     }
 
+    // fp16Exp <= 0: 下溢到FP16非规格化数或零
     if (fp16Exp <= 0) {
-        if (fp16Exp < -10) {
-            return static_cast<uint16_t>(sign << 15);
-        }
-        mantissa |= 0x800000;
-        int32_t shift = 1 - fp16Exp;
-        uint32_t roundBit = (mantissa >> (shift + 10)) & 0x1;
-        uint32_t truncated = mantissa & ((1U << (shift + 10)) - 1);
-        uint32_t sticky = (truncated != 0) ? 1 : 0;
-        uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> (shift + 10));
-        if (roundBit && sticky) {
-            fp16Mant++;
-        } else if (roundBit && !sticky && (fp16Mant & 0x1)) {
-            fp16Mant++;
-        }
-        if (fp16Mant & 0x400) {
-            return static_cast<uint16_t>((sign << 15) | (1 << 10));
-        }
-        return static_cast<uint16_t>((sign << 15) | fp16Mant);
+        return Fp32DenormToFp16(sign, mantissa, fp16Exp);
     }
 
+    // 正常规格化数: 截断尾数并做round-to-nearest-even舍入
     uint32_t discarded = mantissa & 0x1FFF;
     uint16_t fp16Mant = static_cast<uint16_t>(mantissa >> 13);
     uint32_t roundBit = (discarded >> 12) & 0x1;
     uint32_t sticky = (discarded & 0xFFF) ? 1 : 0;
-    if (roundBit && sticky) {
-        fp16Mant++;
-    } else if (roundBit && !sticky && (fp16Mant & 0x1)) {
-        fp16Mant++;
-    }
+    fp16Mant = RoundToFp16Mantissa(fp16Mant, roundBit, sticky);
+    // 舍入进位导致尾数溢出时，指数+1，尾数归零
     if (fp16Mant == 0x400) {
         fp16Mant = 0;
         fp16Exp++;
@@ -1214,73 +1226,47 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
     const HcclDataType dataType, const HcclReduceOp reduceOp)
 {
     (void) thread;
-    CHK_PRT_RET(srcSlice.size_ != dstSlice.size_,
-        HCCL_ERROR(
-            "[AlgDataTransWrapper] [AicpuReduce] AicpuReduce: src slice size [%u] is not equal to dst slice size [%u].",
-            srcSlice.size_,
-            dstSlice.size_),
-        HcclResult::HCCL_E_INTERNAL);
+    CHK_PRT_RET(srcSlice.size_ != dstSlice.size_, HCCL_ERROR("[AlgDataTransWrapper] [AicpuReduce] AicpuReduce: src slice size [%u] "\
+        "is not equal to dst slice size [%u].", srcSlice.size_, dstSlice.size_), HcclResult::HCCL_E_INTERNAL);
 
     auto ret = HcclResult::HCCL_SUCCESS;
     u8 *src = static_cast<u8 *>(GetSliceAddr(srcSlice));
     u8 *dst = static_cast<u8 *>(GetSliceAddr(dstSlice));
-    TraceDataSlice("AicpuReduce", "AICPU_REDUCE", 0, 1, srcSlice, dstSlice, src, dst,
-        srcSlice.size_, dataType, reduceOp);
+    TraceDataSlice("AicpuReduce", "AICPU_REDUCE", 0, 1, srcSlice, dstSlice, src, dst, srcSlice.size_, dataType, reduceOp);
     switch (dataType) {
         case HcclDataType::HCCL_DATA_TYPE_INT8:
-            ret = AicpuReduceTemplate<int8_t>(reinterpret_cast<int8_t *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<int8_t *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<int8_t>(reinterpret_cast<int8_t *>(dst), dstSlice.size_,
+                reinterpret_cast<int8_t *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_INT16:
-            ret = AicpuReduceTemplate<int16_t>(reinterpret_cast<int16_t *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<int16_t *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<int16_t>(reinterpret_cast<int16_t *>(dst), dstSlice.size_,
+                reinterpret_cast<int16_t *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_INT32:
-            ret = AicpuReduceTemplate<int32_t>(reinterpret_cast<int32_t *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<int32_t *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<int32_t>(reinterpret_cast<int32_t *>(dst), dstSlice.size_,
+                reinterpret_cast<int32_t *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_FP16:
             ret = AicpuReduceFp16(dst, src, srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_FP32:
-            ret = AicpuReduceTemplate<float>(reinterpret_cast<float *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<float *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<float>(reinterpret_cast<float *>(dst), dstSlice.size_,
+                reinterpret_cast<float *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_BFP16:
             ret = AicpuReduceBfp16(dst, src, srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_INT64:
-            ret = AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<int64_t *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst), dstSlice.size_,
+                reinterpret_cast<int64_t *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_UINT64:
-            ret = AicpuReduceTemplate<uint64_t>(reinterpret_cast<uint64_t *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<uint64_t *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<uint64_t>(reinterpret_cast<uint64_t *>(dst), dstSlice.size_,
+                reinterpret_cast<uint64_t *>(src), srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_FP64:
-            ret = AicpuReduceTemplate<double>(reinterpret_cast<double *>(dst),
-                dstSlice.size_,
-                reinterpret_cast<double *>(src),
-                srcSlice.size_,
-                reduceOp);
+            ret = AicpuReduceTemplate<double>(reinterpret_cast<double *>(dst), dstSlice.size_,
+                reinterpret_cast<double *>(src), srcSlice.size_, reduceOp);
             break;
         default:
             HCCL_ERROR("DataType[%d] not support", int(dataType));
@@ -1288,6 +1274,13 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
             break;
     }
     return ret;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<typename WiderType<T>::Type, T>::value, T>::type
+SaturatedAdd(T a, T b)
+{
+    return a + b;
 }
 
 template <typename T>
@@ -1307,9 +1300,9 @@ SaturatedAdd(T a, T b)
 
 template <typename T>
 typename std::enable_if<std::is_same<typename WiderType<T>::Type, T>::value, T>::type
-SaturatedAdd(T a, T b)
+SaturatedMul(T a, T b)
 {
-    return a + b;
+    return a * b;
 }
 
 template <typename T>
@@ -1325,13 +1318,6 @@ SaturatedMul(T a, T b)
         return std::numeric_limits<T>::min();
     }
     return static_cast<T>(result);
-}
-
-template <typename T>
-typename std::enable_if<std::is_same<typename WiderType<T>::Type, T>::value, T>::type
-SaturatedMul(T a, T b)
-{
-    return a * b;
 }
 
 template <typename T>
