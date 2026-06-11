@@ -164,10 +164,6 @@ elseif(BUILD_OPEN_PROJECT)
         )
     endif()
 
-    if(STATIC_MODE)
-        include(cmake/static_postprocess.cmake)
-    endif()
-
     set(HCCL_HEAD
         include/hccl.h
         include/hccl_mc2.h
