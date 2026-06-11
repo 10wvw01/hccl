@@ -286,7 +286,10 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     tempAlgParamsLevel0.buffInfo.hcclBuff = resCtx.cclMem;
 
     std::shared_ptr<InsAlgTemplate0> algTemplateLevel0 = std::make_shared<InsAlgTemplate0>(param, myRank_, algHierarchyInfo_.infos[0]);
-    algTemplateLevel0->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
+    if (rankSizeLevel0_ > 1) {
+        CHK_RET(algTemplateLevel0->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
+    }
+
 
     TemplateDataParams tempAlgParamsLevel1;
     tempAlgParamsLevel1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
@@ -298,7 +301,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
 
     std::shared_ptr<InsAlgTemplate1> algTemplateLevel1 = std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo_.infos[1]);
     if (!skipLevel1_) {
-        algTemplateLevel1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+        CHK_RET(algTemplateLevel1->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
     }
 
     TemplateDataParams tempAlgParamsLevel2;
@@ -310,7 +313,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     tempAlgParamsLevel2.buffInfo.hcclBuff = resCtx.cclMem;
 
     std::shared_ptr<InsAlgTemplate2> algTemplateLevel2 = std::make_shared<InsAlgTemplate2>(param, myRank_, algHierarchyInfo_.infos[2]);
-    algTemplateLevel2->SetchannelsPerRank(remoteRankToChannelInfo_[2]);
+    CHK_RET(algTemplateLevel2->SetchannelsPerRank(remoteRankToChannelInfo_[2]));
 
     u32 templateScratchMultiplier0 = algTemplateLevel0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
     u32 templateScratchMultiplier1 = skipLevel1_ ? 1 : algTemplateLevel1->CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
