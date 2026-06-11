@@ -20,7 +20,7 @@ constexpr u64 AR_ONESHOT_1D_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 AR_M2M_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_MAX_DATA_SIZE = 32 * 1024 * 1024;
-constexpr u64 AR_AICPU_1D_64P_SMALL_DATA_SIZE = 32 * 1024 * 1024;
+constexpr u64 AR_AICPU_1D_CROSS_SMALL_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_64DATATYPE_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
@@ -237,16 +237,21 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0Algo(const TopoInfo
                                  std::string &selectAlgName, const u64 dataSize) const
 {
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-        // 性能优化改用MS做reduce后不支持int8
-        CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
-            HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode "
-                            "with ms reduce.", opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
-        double ratio;
-        if (topoInfo->userRankSize == 0) {
-            HCCL_DEBUG("[AllReduceAutoSelector] the selector userRankSize not set");
-            ratio = 1;
+        return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, opParam, selectAlgName, dataSize);
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        if (topoInfo->level0PcieMix) {
+            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+                return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, opParam, selectAlgName, dataSize);
+            } else {
+                // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+                HCCL_WARNING("[AllReduceAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+                return SelectorStatus::NOT_MATCH;
+            }
         } else {
-            ratio = DEFAULT_RANK_SIZE / topoInfo->userRankSize / topoInfo->userRankSize;
+            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
+            HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode. "
+                    "with ms reduce.", opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
+        return SelectCcuScheduleLevel0UBXAlgo(topoInfo, selectAlgName, dataSize);
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         if (topoInfo->level0PcieMix) {
@@ -304,7 +309,7 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllReduceNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (dataSize > AR_AICPU_1D_64P_SMALL_DATA_SIZE) {
+            if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize > AR_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllReduceSequenceMesh1DNhr" : "InsAllReduceParallelRSAG";
             } else {
