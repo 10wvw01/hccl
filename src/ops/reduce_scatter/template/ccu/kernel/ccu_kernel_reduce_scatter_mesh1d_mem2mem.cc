@@ -147,7 +147,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::PostSync()
     }
 }
 
-void CcuKernelReduceScatterMesh1DMem2Mem::DoReduceScatter()
+void CcuKernelReduceScatterMesh1DMem2Mem::DoReduceScatter(CcuRep::Variable &sliceSize)
 {
     uint32_t channelId = 0;
 
@@ -156,9 +156,6 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoReduceScatter()
     myOutput.addr   = output_;
     myOutput.addr  += currentRankSliceOutputOffset_;
     myOutput.token  = token_[rankId_];
-
-    CcuRep::Variable sliceSize = CreateVariable();
-    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
     
     CCU_IF(sliceSize != 0)
     {
@@ -232,6 +229,8 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoRepeatReduceScatter()
 {
     CcuRep::Variable scratchOffset = CreateVariable();
     scratchOffset                  = 0;
+    CcuRep::Variable sliceSize = CreateVariable();
+    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
 
     for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
         if (rankIdx == rankId_) {
@@ -246,7 +245,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoRepeatReduceScatter()
 
         scratchMem_[rankIdx].addr = scratch_[rankId_];
         scratchMem_[rankIdx].addr += scratchOffset;
-        scratchOffset += normalSliceSize_;
+        scratchOffset += sliceSize;
         scratchMem_[rankIdx].token = token_[rankId_];
     }
 
@@ -266,7 +265,7 @@ void CcuKernelReduceScatterMesh1DMem2Mem::DoRepeatReduceScatter()
             }
             output_ += outputRepeatStride_;
         }
-        DoReduceScatter();
+        DoReduceScatter(sliceSize);
         flag_ = 1;
     }
 }

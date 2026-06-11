@@ -92,7 +92,7 @@ private:
     void PreSync();
     void PostSync();
     void DoRepeatReduceScatter();
-    void DoReduceScatter();
+    void DoReduceScatter(CcuRep::Variable &sliceSize);
     
     std::string GetLoopBlockTag(std::string loopType, int32_t index);
     void CreateReduceLoop(uint32_t size, HcclDataType dataType, HcclDataType outputDataType, HcclReduceOp opType);
