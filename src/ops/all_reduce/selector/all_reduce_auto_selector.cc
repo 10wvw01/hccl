@@ -342,7 +342,7 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                 selectAlgName = "InsAllReduceParallelRSAGUboe";
             }
         } else if (isDataTypeOrReduceTypeSpecial) {
-            selectAlgName = "InsAllReduceNHR";
+            selectAlgName = "InsAllReduceAicpuReduceNHR";
         } else if (topoInfo->Level1Nhr) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             selectAlgName = "InsAllReduceNHR";
