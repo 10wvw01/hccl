@@ -17,12 +17,12 @@
 #include "topo_match_pcie_mix.h"
 #include <cmath>
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 namespace ops_hccl {
@@ -116,7 +116,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         interTempRequestFinal.notifyNumPerThread = interTempRequest1.notifyNumPerThread;
     }
 
-    resourceRequest.notifyNumOnMainThread = 2;  // 用于allreduce两个template间同步
+    resourceRequest.notifyNumOnMainThread = 2;  // allreduce用于两个template间同步
     resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + 4;
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest1.notifyNumOnMainThread + 1);
@@ -484,23 +484,22 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     tempAlgIntra.GetRes(intraTempRequest);
     tempAlgInter1.GetRes(interTempRequest1);
     tempAlgIntra1.GetRes(intraTempRequest1);
-
+    auto intraNotifyOnMainThread = intraTempRequest1.notifyNumOnMainThread;
+    auto interNotifyOnMainThread = interTempRequest1.notifyNumOnMainThread;
     auto intraThreadsNum = intraTempRequest.slaveThreadNum + 1;
     auto intraThreadsNum1 = intraTempRequest1.slaveThreadNum + 1;
     auto intraThreadsNumFinal = std::max(intraThreadsNum, intraThreadsNum1);
-    auto intraNotifyOnMainThread = intraTempRequest1.notifyNumOnMainThread;
-    auto interNotifyOnMainThread = interTempRequest1.notifyNumOnMainThread;
 
     intraThreads_.assign(threads_.begin() + 2, threads_.begin() + intraThreadsNum1 + 2);
     interThreads_.assign(threads_.begin() + intraThreadsNumFinal + 3, threads_.end());
     // 用于两个算法同步
     mainThread_ = threads_.at(0);
+
     templateMainThreads_.clear();
     templateMainThreads_.emplace_back(intraThreads_.at(0));
     templateMainThreads_.emplace_back(interThreads_.at(0));
-
-    syncNotifyOnTemplates_ = {intraNotifyOnMainThread, interNotifyOnMainThread};
     syncNotifyOnMain_ = {0, 1};
+    syncNotifyOnTemplates_ = {intraNotifyOnMainThread, interNotifyOnMainThread};
 
     return HcclResult::HCCL_SUCCESS;
 }
@@ -743,7 +742,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     HCCL_INFO("[InsAllReduceParallelExecutor] AlgTemplate intra server is [%s]", tempAlgIntra.Describe().c_str());
     HCCL_INFO("[InsAllReduceParallelExecutor] AlgTemplate inter server is [%s]", tempAlgInter.Describe().c_str());
 
-    multipleDimensionSplitRatio_ = param.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatio_ = param.opConfig.multipleDimensionSplitRatio;
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
 
@@ -772,13 +771,10 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] dataCount_[%lu], myRank_[%d], sliceCountUB[%d], sliceCountUB0[%d], sliceCount[%d]",
               dataCount_, myRank_, sliceCountUB, sliceCountUB0, sliceCount);
 
-    u64 alignSize = AICPU_ALIGN_SIZE; // 用于4k对齐
+    u64 alignSize = AICPU_ALIGN_SIZE;
     u64 sliceCountPart0 = static_cast<u64>(std::floor(double(sliceCount) * dataSplitSize.at(0)));
-    u64 sliceCountPart1 = sliceCount - sliceCountPart0;
     if (sliceCountPart0 * dataTypeSize_ >= alignSize) {
-        // 进行4K对齐（向下取整）
         sliceCountPart0 = sliceCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
-        sliceCountPart1 = sliceCount - sliceCountPart0;
     }
 
     if (sliceCount == 0) {
@@ -787,10 +783,6 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
     // 计算循环次数
     u32 loopTimes = dataCount_ / sliceCount + ((dataCount_ % sliceCount == 0) ? 0 : 1);
-    // 计算尾块
-    u64 finalSliceCount = dataCount_ - (loopTimes - 1) * sliceCount;
-    u64 finalSliceCountPart0 = static_cast<u64>(std::floor(double(finalSliceCount) * dataSplitSize.at(0)));
-    u64 finalSliceCountPart1 = finalSliceCount - finalSliceCountPart0;
     // 计算Scratch偏移，数据尾块必然小于常规块，不用额外计算尾块时的Scratch偏移
     u64 scratchOffsetCountIntraStage0 = 0;
     u64 scratchOffsetCountInterStage0 = sliceCountPart0 * multipleIntra;
@@ -809,10 +801,29 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     TemplateDataParams tempAlgParamsInter11;
     TemplateDataParams tempAlgParamsIntra11;
 
-    for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
-        u64 currCountPart0 = (loopIndex == loopTimes - 1) ? finalSliceCountPart0 : sliceCountPart0;
-        u64 currCountPart1 = (loopIndex == loopTimes - 1) ? finalSliceCountPart1 : sliceCountPart1;
-        u64 dataOffset0 = loopIndex * sliceCount * dataTypeSize_;
+    u64 processedCount = 0;
+    u32 loopIndex = 0;
+    while (processedCount < dataCount_) {
+        u64 remainingCount = dataCount_ - processedCount;
+        u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
+        u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
+        currCount = std::min(currCount, sliceCount);
+        u64 currCountPart0 = static_cast<u64>(std::floor(double(currCount) * dataSplitSize.at(0)));
+        u64 currCountPart1 = currCount - currCountPart0;
+        if (remainingLoopTimes > 1) {
+            u64 alignedCountPart0 = currCountPart0;
+            u64 alignedCountPart1 = currCountPart1;
+            alignedCountPart0 = alignedCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            alignedCountPart1 = alignedCountPart1 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            if (alignedCountPart0 + alignedCountPart1 > 0) {
+                currCountPart0 = alignedCountPart0;
+                currCountPart1 = alignedCountPart1;
+            }
+        }
+        CHK_PRT_RET(currCountPart0 + currCountPart1 == 0,
+                    HCCL_ERROR("[InsAllReduceParallelExecutor][GenInsQues] currCount is 0"),
+                    HcclResult::HCCL_E_INTERNAL);
+        u64 dataOffset0 = processedCount * dataTypeSize_;
         u64 dataOffset1 = dataOffset0 + currCountPart0 * dataTypeSize_;
         // 计算算法模板所需资源
         TemplateResource intraTempAlgRes;
@@ -891,6 +902,9 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
             CHK_RET(FastLaunchSaveCtx(param, intraTempAlgRes, interTempAlgRes, intraTempAlgRes1, interTempAlgRes1, resCtx.notifyNumOnMainThread));
         }
         #endif
+
+        processedCount += currCountPart0 + currCountPart1;
+        loopIndex++;
     }
 
     HCCL_INFO("[InsAllReduceParallelExecutor][GenInsQues] End.myRank[%d]", myRank_);
@@ -1050,7 +1064,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 }
 
 // 算法注册
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceParallelRSAG, InsAllReduceParallelExecutor,
     TopoMatchMultilevel, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceParallelMesh1DNHRPcie,
@@ -1058,9 +1072,9 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReducePar
     InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceParallelRSAGUBX, InsAllReduceParallelExecutor,
     TopoMatchUBX, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceParallelMesh1DNHR, InsAllReduceParallelExecutor,
     TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, 
     CcuTempAllGatherNHR1DMem2Mem);
@@ -1068,6 +1082,6 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReducePar
     TopoMatchUBX, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, 
     CcuTempAllGatherNHR1DMem2Mem);
 
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif /* AICPU_COMPILE */
 }  // namespace Hccl
