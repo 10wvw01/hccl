@@ -90,6 +90,11 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::KernelRun(const OpParam& param, const
     return HcclResult::HCCL_SUCCESS;
 }
 
+u32 InsTempAllGatherOmniPipeNHRDPU::GetRankFromMap(const uint32_t rankIdx) const
+{
+    return subCommRanks_[0].at(rankIdx);
+}
+
 HcclResult InsTempAllGatherOmniPipeNHRDPU::RunNHR(
     const TemplateDataParams &tempAlgParams, const std::map<u32, std::vector<ChannelInfo>> &channels) const
 {

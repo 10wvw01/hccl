@@ -41,6 +41,7 @@ public:
 private:
     HcclResult RunNHR(const TemplateDataParams& tempAlgParams,
                       const std::map<u32, std::vector<ChannelInfo>>& channels) const override;
+    u32 GetRankFromMap(const uint32_t rankIdx) const;
 };
 }  // namespace ops_hccl
 
