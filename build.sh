@@ -168,11 +168,13 @@ function build_device(){
     cd ${BUILD_DEVICE_DIR}
     log "Info: build_device in ${BUILD_DEVICE_DIR}"
 
+    # 设置交叉编译工具链路径，cmake toolchain文件通过环境变量读取
+    export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
+
     # 使用新版 cmake/device/CMakeLists.txt 作为独立入口，与 ExternalProject_Add 传参一致
     cmake -S ${CURRENT_DIR}/cmake/device -B . \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Release} \
         -DCMAKE_INSTALL_PREFIX=${BUILD_DEVICE_DIR}/_install \
-        -DTOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc" \
         -DCMAKE_TOOLCHAIN_FILE=${CURRENT_DIR}/cmake/aarch64-hcc-toolchain.cmake \
         -DASCEND_INSTALL_PATH=${ASCEND_CANN_PACKAGE_PATH} \
         -DBUILD_OPEN_PROJECT=ON \
@@ -184,7 +186,7 @@ function build_device(){
         log "Error: cmake config failed for device build"
         exit 1
     fi
-    
+
     log "Info: build_device" 
     TARGET_LIST="scatter_aicpu_kernel" 
     echo "TARGET_LIST=${TARGET_LIST}" 
