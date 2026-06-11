@@ -33,6 +33,7 @@ enum class HcclNetLayer {
 
 HcclResult InitRankInfo(HcclComm comm, TopoInfo* topoInfo);
 HcclResult InitRankInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo);
+HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo);
 
 HcclResult CalcMyRankInfo(HcclComm comm, TopoInfo* topoInfo);
 HcclResult SetServerModuleInfo(HcclComm comm, TopoInfo* topoInfo, const std::unordered_map<u32, u32> &pairLinkCounter);
