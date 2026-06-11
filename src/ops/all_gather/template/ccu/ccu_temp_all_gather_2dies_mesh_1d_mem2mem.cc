@@ -9,11 +9,11 @@
  */
 
 #include "channel.h"
-#include "hccl_ccu_res.h"
-#include "ccu_assist_pub.h"
 #include "ccu_kernel_all_gather_2dies_mesh1d_mem2mem.h"
 #include "ccu_temp_all_gather_2dies_mesh_1d_mem2mem.h"
 #include "alg_data_trans_wrapper.h"
+#include "ccu_launch_dl.h"
+
 namespace ops_hccl {
 #define ALL_GATHER_2DIES_M2M_THREAD_NUM 2
 CcuTempAllGather2DiesMeshMem2Mem1D::CcuTempAllGather2DiesMeshMem2Mem1D(const OpParam& param, const u32 rankId,
@@ -31,58 +31,90 @@ CcuTempAllGather2DiesMeshMem2Mem1D::~CcuTempAllGather2DiesMeshMem2Mem1D()
 {
 }
  
-HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                                                      AlgResourceRequest& resourceRequest)
-{   
-    resourceRequest.notifyNumOnMainThread = 1;
-    resourceRequest.slaveThreadNum = 1;
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::ClassifyChannelByDieId(HcclComm comm, const OpParam& param,
+    const TopoInfoWithNetLayerDetails* topoInfo, std::vector<HcclChannelDesc>& channelDescs,
+    std::vector<uint32_t>& rankIdGroup0, std::vector<uint32_t>& rankIdGroup1, bool& if0HandleSelfRank)
+{
     uint32_t rankId = mySubCommRank_;
     EndpointAttrDieId tmpDieId {};
-    HCCL_DEBUG("[CcuTempAllGather2DiesMeshMem2Mem1D::CalcRes] notifyNumOnMainThread[%u] slaveThreadNum[%u]",
-               resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
-    std::vector<HcclChannelDesc> channelDescs;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
-    std::vector<uint32_t> rankIdGroup0, rankIdGroup1;
-    bool if0HandleSelfRank = true;
-    CcuKernelInfo kernelInfo0, kernelInfo1;
-    kernelInfo0.creator = [](const hcomm::CcuKernelArg &arg) {
-            return std::make_unique<CcuKernelAllGather2DiesMeshMem2Mem1D>(arg);
-    };
-    kernelInfo1.creator = [](const hcomm::CcuKernelArg &arg) {
-            return std::make_unique<CcuKernelAllGather2DiesMeshMem2Mem1D>(arg);
-    };
+    if0HandleSelfRank = true;
+
     for (u32 j = 0; j < channelDescs.size(); j++) {
         CHK_RET(GetChannelDieId(comm, rankId, channelDescs[j], tmpDieId));
         if (tmpDieId == 0) {//dieId == 0
-            kernelInfo0.channels.push_back(channelDescs[j]);
             rankIdGroup0.push_back(channelDescs[j].remoteRank);
         } else {
-            kernelInfo1.channels.push_back(channelDescs[j]);
             rankIdGroup1.push_back(channelDescs[j].remoteRank);
         }
     }
     if ((rankIdGroup0.size() > rankIdGroup1.size() && rankIdGroup1.size() != 0) || rankIdGroup0.size() == 0) {
         if0HandleSelfRank = false;
     }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+                                                      AlgResourceRequest& resourceRequest)
+{   
+    resourceRequest.notifyNumOnMainThread = 1;
+    resourceRequest.slaveThreadNum = 1;
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+    HCCL_DEBUG("[CcuTempAllGather2DiesMeshMem2Mem1D::CalcRes] notifyNumOnMainThread[%u] slaveThreadNum[%u]",
+               resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
+
+    std::vector<HcclChannelDesc> channelDescs;
+    std::vector<uint32_t> rankIdGroup0, rankIdGroup1;
+    bool if0HandleSelfRank = true;
+    CHK_RET(ClassifyChannelByDieId(comm, param, topoInfo, channelDescs, rankIdGroup0, rankIdGroup1, if0HandleSelfRank));
+
+    uint32_t rankId = mySubCommRank_;
+    CcuKernelInfo kernelInfo0, kernelInfo1;
+    strcpy_s(kernelInfo0.kernelFuncName, sizeof(kernelInfo0.kernelFuncName), "CcuAllGather2DiesMeshMem2Mem1DKernel");
+    kernelInfo0.kernelFunc = reinterpret_cast<void *>(CcuAllGather2DiesMeshMem2Mem1DKernel);
+    strcpy_s(kernelInfo1.kernelFuncName, sizeof(kernelInfo1.kernelFuncName), "CcuAllGather2DiesMeshMem2Mem1DKernel");
+    kernelInfo1.kernelFunc = reinterpret_cast<void *>(CcuAllGather2DiesMeshMem2Mem1DKernel);
+
     if (rankIdGroup0.size() != 0) {
-        kernelInfo0.kernelArg = std::make_shared<CcuKernelArgAllGather2DiesMeshMem2Mem1D>(subCommRanks_[0].size(),
-                                                                                         rankId, rankIdGroup0,
-                                                                                         if0HandleSelfRank,
-                                                                                         subCommRanks_,
-                                                                                         param);
-    }
-    if (rankIdGroup1.size() != 0) {
-        kernelInfo1.kernelArg = std::make_shared<CcuKernelArgAllGather2DiesMeshMem2Mem1D>(subCommRanks_[0].size(),
-                                                                                         rankId, rankIdGroup1,
-                                                                                         !if0HandleSelfRank,
-                                                                                         subCommRanks_,
-                                                                                         param);
-    }
-    if (rankIdGroup0.size() != 0) {
+        auto kernelArg0 = std::make_shared<CcuKernelArgAllGather2DiesMeshMem2Mem1D>();
+        kernelArg0->dimSize = subCommRanks_[0].size();
+        kernelArg0->rankId = rankId;
+        kernelArg0->rankIdGroup = rankIdGroup0;
+        kernelArg0->ifHandleSelfRank = if0HandleSelfRank;
+        kernelArg0->subCommRanks = subCommRanks_;
+        kernelArg0->opParam = param;
+        kernelInfo0.setKernelArg(kernelArg0);
+
+        std::vector<HcclChannelDesc> channels0;
+        for (u32 j = 0; j < channelDescs.size(); j++) {
+            EndpointAttrDieId dieId {};
+            CHK_RET(GetChannelDieId(comm, rankId, channelDescs[j], dieId));
+            if (dieId == 0) {
+                channels0.push_back(channelDescs[j]);
+            }
+        }
+        kernelInfo0.channels = channels0;
         resourceRequest.ccuKernelInfos.push_back(kernelInfo0);
     }
     if (rankIdGroup1.size() != 0) {
+        auto kernelArg1 = std::make_shared<CcuKernelArgAllGather2DiesMeshMem2Mem1D>();
+        kernelArg1->dimSize = subCommRanks_[0].size();
+        kernelArg1->rankId = rankId;
+        kernelArg1->rankIdGroup = rankIdGroup1;
+        kernelArg1->ifHandleSelfRank = !if0HandleSelfRank;
+        kernelArg1->subCommRanks = subCommRanks_;
+        kernelArg1->opParam = param;
+        kernelInfo1.setKernelArg(kernelArg1);
+
+        std::vector<HcclChannelDesc> channels1;
+        for (u32 j = 0; j < channelDescs.size(); j++) {
+            EndpointAttrDieId dieId {};
+            CHK_RET(GetChannelDieId(comm, rankId, channelDescs[j], dieId));
+            if (dieId != 0) {
+                channels1.push_back(channelDescs[j]);
+            }
+        }
+        kernelInfo1.channels = channels1;
         resourceRequest.ccuKernelInfos.push_back(kernelInfo1);  
     }
     resourceRequest.ccuKernelNum.push_back(resourceRequest.ccuKernelInfos.size());
@@ -177,7 +209,7 @@ u64 CcuTempAllGather2DiesMeshMem2Mem1D::CalcScratchMultiple(BufferType inBuffTyp
 {
     (void)inBuffType;
     (void)outBuffType;
-    return 1;
+    return 0;
 }
 
 u64 CcuTempAllGather2DiesMeshMem2Mem1D::GetThreadNum() const
