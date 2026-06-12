@@ -123,11 +123,14 @@ HcclResult InsV2ReduceScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchest
     // 计算最小传输大小
     u64 maxDataSizePerLoop = 0;
     maxTmpMemSize_ = tempAlgParams.buffInfo.hcclBuff.size;
-    u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
+    if (param.engine != COMM_ENGINE_AIV) {
+        maxTmpMemSize_ = maxTmpMemSize_ - 1 * 1024 * 1024;
+    }
+    u64 transportBoundDataSize = (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) ?
+        maxTmpMemSize_ : UB_MAX_DATA_SIZE;
     HCCL_INFO("[InsV2ReduceScatterSoleExecutor]maxTmpMemSize_ [%u]", maxTmpMemSize_);
     if (templateScratchMultiplier != 0) {
-        u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier / HCCL_MIN_SLICE_ALIGN
-        * HCCL_MIN_SLICE_ALIGN;
+        u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
         maxDataSizePerLoop = std::min(transportBoundDataSize, scratchBoundDataSize);
     } else {
         maxDataSizePerLoop = transportBoundDataSize;
@@ -216,7 +219,9 @@ HcclResult InsV2ReduceScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLau
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
+    for (int i = 0; i < ccuKernelNum; i++) {
+        kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 

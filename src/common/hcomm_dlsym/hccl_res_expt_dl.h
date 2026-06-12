@@ -16,6 +16,7 @@
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_res_expt.h"
 #endif
+#include "hccl_res.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,10 +25,8 @@ extern "C" {
 DECL_WEAK_FUNC(HcclResult, HcclCommAddExchangeInfo, HcclComm comm, const void *data, uint32_t length);
 DECL_WEAK_FUNC(HcclResult, HcclCommGetExchangeInfo, HcclComm comm, uint32_t remoteRank, uint32_t length, void *data,
     uint32_t *actualLength);
-DECL_WEAK_FUNC(HcclResult, HcclCommResetExchangeInfo, HcclComm comm);
 DECL_SUPPORT_FLAG(HcclCommAddExchangeInfo);
 DECL_SUPPORT_FLAG(HcclCommGetExchangeInfo);
-DECL_SUPPORT_FLAG(HcclCommResetExchangeInfo);
 
 void HcclResExptDlInit(void *libHcommHandle);
 
