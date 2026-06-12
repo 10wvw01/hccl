@@ -265,7 +265,7 @@ HcclResult TopoMatchMultilevel::MatchTopo(const HcclComm comm, TopoInfoWithNetLa
     }
 
     // 3. 计算layer0的topo
-    uint32_t commLayerSize = (topoInfo->topoLevelNums >= COMM_LAYER_SIZE_3) ? COMM_LAYER_SIZE_3 : COMM_LAYER_SIZE_2;
+    uint32_t commLayerSize = (topoInfo->topoLevelNums == COMM_LAYER_SIZE_3) ? COMM_LAYER_SIZE_3 : COMM_LAYER_SIZE_2;
     algHierarchyInfo.infos.resize(commLayerSize);
     uint32_t layer0Size = 0;
     if (!isSymmetric) {
