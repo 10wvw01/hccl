@@ -281,7 +281,7 @@ else()
 endif()
 
 if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
-    add_library(scatter_aicpu_kernel SHARED
+    add_library(hccl_aicpu_kernel SHARED
         ${CMAKE_CURRENT_SOURCE_DIR}/common/utils.cc
         # ${CMAKE_CURRENT_SOURCE_DIR}/common/adapter_acl.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/common/config_log.cc
@@ -407,7 +407,7 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
     )
 
     if(NOT HCCL_CANN_COMPAT_850)
-        target_sources(scatter_aicpu_kernel PRIVATE
+        target_sources(hccl_aicpu_kernel PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/send/executor/ins_send_dpu_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/recv/executor/ins_recv_dpu_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/send/template/host_nic/ins_temp_send_host_nic_dpu.cc
@@ -442,41 +442,41 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
         )
     endif()
 
-    target_include_directories(scatter_aicpu_kernel PRIVATE
+    target_include_directories(hccl_aicpu_kernel PRIVATE
         ${INCLUDE_LIST}
     )
 
-    target_compile_options(scatter_aicpu_kernel PRIVATE
+    target_compile_options(hccl_aicpu_kernel PRIVATE
         $<$<CONFIG:Debug>:-g>
         $<$<CONFIG:Release>:-O3>
         -fstack-protector-all
         -Werror
     )
 
-    target_link_options(scatter_aicpu_kernel PRIVATE
+    target_link_options(hccl_aicpu_kernel PRIVATE
         -Wl,-z,relro
         -Wl,-z,now
         -Wl,-z,noexecstack
         $<$<CONFIG:Release>:-s>
     )
 
-    target_compile_definitions(scatter_aicpu_kernel PRIVATE
+    target_compile_definitions(hccl_aicpu_kernel PRIVATE
         -DAICPU_COMPILE
     )
 
-    hccl_apply_cann_compat(scatter_aicpu_kernel)
+    hccl_apply_cann_compat(hccl_aicpu_kernel)
 
-    target_link_directories(scatter_aicpu_kernel PRIVATE
+    target_link_directories(hccl_aicpu_kernel PRIVATE
       ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
   )
 
-    target_link_libraries(scatter_aicpu_kernel PRIVATE
+    target_link_libraries(hccl_aicpu_kernel PRIVATE
         -Wl,--no-as-needed
         ccl_kernel
         hccl_kernel_compat
         -Wl,--no-as-needed
     )
-    add_dependencies(scatter_aicpu_kernel hccl_kernel_compat)
+    add_dependencies(hccl_aicpu_kernel hccl_kernel_compat)
 endif()
 
 add_definitions(-DORION_MODE)
@@ -495,12 +495,12 @@ if(NOT KERNEL_MODE)
     # 基于ini生成json文件
     SET(HCCL_CMAKE_DIR ${OPS_BASE_DIR}/cmake/)
     message(STATUS "HCCL_CMAKE_DIR = ${HCCL_CMAKE_DIR}")
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
-        COMMAND ${HI_PYTHON} ${HCCL_CMAKE_DIR}/scripts/parser_ini.py ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/scatter_aicpu_kernel.ini ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
+        COMMAND ${HI_PYTHON} ${HCCL_CMAKE_DIR}/scripts/parser_ini.py ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/hccl_aicpu_kernel.ini ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
+    add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
         DESTINATION ${INSTALL_AICPU_KERNEL_JSON_DIR}/config
         ${INSTALL_OPTIONAL}
         COMPONENT hccl
@@ -643,13 +643,13 @@ endif()
 
 if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
     if(STATIC_MODE)
-        install(TARGETS scatter_aicpu_kernel
+        install(TARGETS hccl_aicpu_kernel
             LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
             ${INSTALL_OPTIONAL}
             COMPONENT hccl
         )
     else()
-        install(TARGETS scatter_aicpu_kernel
+        install(TARGETS hccl_aicpu_kernel
             LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
             ${INSTALL_OPTIONAL}
             COMPONENT hccl
@@ -784,21 +784,21 @@ endforeach()
 if(DEVICE_MODE AND KERNEL_MODE)
     set(CCL_KERNEL_TAR_DIR ${OPS_BASE_DIR}/build_device/ccl_kernel_tar_pkg/aicpu_kernels_device)
     add_custom_command(
-        TARGET scatter_aicpu_kernel
+        TARGET hccl_aicpu_kernel
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CCL_KERNEL_TAR_DIR}
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:scatter_aicpu_kernel> ${CCL_KERNEL_TAR_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hccl_aicpu_kernel> ${CCL_KERNEL_TAR_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hccl_kernel_compat> ${CCL_KERNEL_TAR_DIR}
-        COMMENT "Copying libscatter_aicpu_kernel.so&libhccl_kernel_compat.so to ${CCL_KERNEL_TAR_DIR}"
+        COMMENT "Copying libhccl_aicpu_kernel.so&libhccl_kernel_compat.so to ${CCL_KERNEL_TAR_DIR}"
     )
 
     set(AICPU_CUSTOM_DIR ${OPS_BASE_DIR}/build_device/aicpu_custom/)
     add_custom_command(
-        TARGET scatter_aicpu_kernel
+        TARGET hccl_aicpu_kernel
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${AICPU_CUSTOM_DIR}
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:scatter_aicpu_kernel> ${AICPU_CUSTOM_DIR}/libscatter_aicpu_kernel.so
-        COMMENT "Copying libscatter_aicpu_kernel.so to ${AICPU_CUSTOM_DIR}/libscatter_aicpu_kernel.so"
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hccl_aicpu_kernel> ${AICPU_CUSTOM_DIR}/libhccl_aicpu_kernel.so
+        COMMENT "Copying libhccl_aicpu_kernel.so to ${AICPU_CUSTOM_DIR}/libhccl_aicpu_kernel.so"
     )
 endif()
 

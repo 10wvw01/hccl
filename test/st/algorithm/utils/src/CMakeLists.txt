@@ -33,7 +33,7 @@ target_link_libraries(hccl-model-proxy PUBLIC
     hcomm
     unified_dlog
     acl_rt
-    scatter_aicpu_kernel
+    hccl_aicpu_kernel
 )
 
 if (BUILD_OPEN_PROJECT)

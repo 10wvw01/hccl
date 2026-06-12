@@ -113,7 +113,7 @@ elseif(BUILD_OPEN_PROJECT)
         set(CCL_KERNEL_TAR_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build_device/ccl_kernel_tar_pkg/)
         if(KERNEL_MODE)
             set(CCL_KERNEL_TAR_LIBS
-                ${CCL_KERNEL_TAR_DIR}/aicpu_kernels_device/libscatter_aicpu_kernel.so
+                ${CCL_KERNEL_TAR_DIR}/aicpu_kernels_device/libhccl_aicpu_kernel.so
                 ${CCL_KERNEL_TAR_DIR}/aicpu_kernels_device/libhccl_kernel_compat.so
             )
             pack_targets_and_files(
@@ -123,7 +123,7 @@ elseif(BUILD_OPEN_PROJECT)
                 MANIFEST "bin_hash.cfg"
                 TAR_ROOT_DIR "aicpu_kernels_device"
             )
-            add_dependencies(generate_device_aicpu_package scatter_aicpu_kernel)
+            add_dependencies(generate_device_aicpu_package hccl_aicpu_kernel)
             sign_file(
                 INPUT "aicpu_hccl.tar.gz"
                 CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/scripts/sign/hccl_check_cfg.xml"
@@ -140,7 +140,7 @@ elseif(BUILD_OPEN_PROJECT)
         set(BUILD_DEVICE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build_device/)
         add_custom_target(install_tar DEPENDS
             ${BUILD_DEVICE_DIR}/signatures/aicpu_hccl.tar.gz
-            ${BUILD_DEVICE_DIR}/aicpu_custom/libscatter_aicpu_kernel.so
+            ${BUILD_DEVICE_DIR}/aicpu_custom/libhccl_aicpu_kernel.so
         )
         install(FILES ${BUILD_DEVICE_DIR}/signatures/aicpu_hccl.tar.gz
             DESTINATION ${INSTALL_AICPU_KERNEL_JSON_DIR}/kernel
