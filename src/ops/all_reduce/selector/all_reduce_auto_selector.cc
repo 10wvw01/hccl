@@ -164,7 +164,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
                 return SelectorStatus::MATCH;
-            } else if(IsSmallDataCCU(dataSize, topoInfo->userRankSize)){//64M以下跑ccu
+            } else if(IsSmallDataCCU(dataSize, topoInfo->userRankSize && (!IsInputOutputOverlap(opParam)))){//64M以下跑ccu
                  // 性能优化改用MS做reduce后不支持int8
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                     HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode with ms "
