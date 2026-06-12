@@ -12,8 +12,8 @@
 #include "sim_world.h"
 #include "hccl.h"
 #include "hccl/hccl_types.h"
-#include "acl/acl_rt.h"
 #include "hccl_verifier.h"
+#include "acl/acl_rt.h"
 #include "check_utils.h"
 #include <thread>
 #include "alg_env_config.h"
@@ -33,8 +33,8 @@ protected:
     }
     void TearDown() override
     {
-        unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
+        unsetenv("HCCL_OP_EXPANSION_MODE");
     }
     static void SetUpTestCase()
     {}
@@ -47,8 +47,8 @@ void RunReduceScatter3LevelA5(const TopoMeta &topoMeta, const u64 &recvCount, co
 {
     SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
 
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
 
     auto rankSize = CalRankSize(topoMeta);
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE_REDUCE_SCATTER[dataType];
@@ -63,12 +63,12 @@ void RunReduceScatter3LevelA5(const TopoMeta &topoMeta, const u64 &recvCount, co
             HcclComm comm = nullptr;
             CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankId, &comm));
 
-            void *sendBuf = nullptr;
             void *recvBuf = nullptr;
+            void *sendBuf = nullptr;
             u64 sendBufSize = recvCount * dataTypeSize * rankSize;
             u64 recvBufSize = recvCount * dataTypeSize;
-            aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
             aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+            aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
 
             CHK_RET(HcclReduceScatter(sendBuf, recvBuf, recvCount, dataType, reduceOp, comm, stream));
 
@@ -132,17 +132,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_int32_max_d
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P1: #6 - asymmetric middle layer (Level1)
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_8x4x2_int16_min_asymmetric_mid)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 8);
-//     auto recvCount = 1000;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
-
 // P1: #10 - small-scale large-data loop segmentation
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_fp32_sum_multi_loop)
 {
@@ -176,17 +165,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x4_int32_sum_r
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P2: #7 - FP16 data type on 32-card topology
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_fp16_sum_dtype)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 4);
-//     auto recvCount = 500 * 1024;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
-
 // P2: #8 - BFP16 data type on 16-card topology
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_bfp16_max_dtype)
 {
@@ -198,16 +176,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_bfp16_max_d
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P2: #12 - extremely small topology
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_int8_sum_corner)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 2, 4);
-//     auto recvCount = 100;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
 
 // P2: #14 - Level2 has 3 clusters (repeatNum=3)
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_8x2x3_fp32_sum_level2_3cluster)
