@@ -238,9 +238,31 @@ flowchart TB
 - `intraLocalRoot_ = Rank 0`（intraLocalRankIdx=0 且 interLocalRankIdx=0）
 - `interLocalRoot_ = Rank 0`（interLocalRankIdx=0 且 intraLocalRankIdx=0）
 
-**数据切分**（假设 ratio=0.5）:
-- Part0 = 前半数据，按 intraLocalRankSize_=3 切分为 `s0_p0, s1_p0, s2_p0`
-- Part1 = 后半数据，按 interLocalRankSize_=2 切分为 `s0_p1, s1_p1`
+**为什么 `interLocalRankSize_ = 2` 而不是 3？**
+
+`interLocalRankSize_` 不是"每个 server 有几个 rank"，而是"跨 server 的同位置 rank 有几个"（即 server 数量）。
+
+每个 server 的第 i 个 rank 组成一个 **机间 NHR 环**，环的大小 = server 数量 = 2：
+
+```
+机间 NHR 环（共 3 个独立的环，每个环 2 个节点）:
+  环0: Rank 0 ←→ Rank 3    (intraLocalRankIdx=0 的所有 rank)
+  环1: Rank 1 ←→ Rank 4    (intraLocalRankIdx=1 的所有 rank)
+  环2: Rank 2 ←→ Rank 5    (intraLocalRankIdx=2 的所有 rank)
+```
+
+源码中 `rankSize_ = intraLocalRankSize_ × interLocalRankSize_ = 3 × 2 = 6`，验证了这个关系。
+
+**数据二分**（`multipleDimensionSplitRatio_` 默认 0.5，来自 `param.opConfig.multipleDimensionSplitRatio`）:
+- `dataSplitSize = [ratio, 1-ratio] = [0.5, 0.5]`
+- `sliceCountPart0 = sliceCount × 0.5`，`sliceCountPart1 = sliceCount - sliceCountPart0`
+- 0.5 的目的：让 Part0 和 Part1 数据量相等，使每步流水线中 intra/inter 两个并行模板的通信量近似相等，最大化并行效率
+
+**每个 Part 的切分粒度由其第一步 scatter 的拓扑维度决定**:
+- **Part0** 在 Step 1 通过 **ScatterMesh1D（机内）** 散开 → 按 `intraLocalRankSize_=3` 切分为 `s0_p0, s1_p0, s2_p0`
+- **Part1** 在 Step 1 通过 **ScatterNHR（机间）** 散开 → 按 `interLocalRankSize_=2` 切分为 `s0_p1, s1_p1`
+
+> 代码中 `GenDataParamstempAlg(..., intraLocalRankSize_)` 用于 Part0 的机内 scatter，`GenDataParamstempAlg(..., interLocalRankSize_)` 用于 Part1 的机间 scatter。`GenDataParamsAllRank` 内部通过 `RoundDown(sliceSize, LocalRankSize × dtSize) × dtSize` 计算每个 rank 分到的数据量。
 
 **Scratch 布局**:
 - Part0 区域: 3 个 slot（对应 intraLocalRankSize_=3），每个 slot = 1 个 Part0 切片
