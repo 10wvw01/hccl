@@ -245,8 +245,6 @@ void CcuKernelReduceScatterMesh1DMem2Mem::InitReduceScatterAddr()
 {
     CcuRep::Variable scratchOffset = CreateVariable();
     scratchOffset                  = 0;
-    CcuRep::Variable sliceSize = CreateVariable();
-    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_: normalSliceSize_;
 
     for (uint32_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
         if (rankIdx == rankId_) {
