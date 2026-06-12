@@ -39,9 +39,9 @@ protected:
     void GenTemplateAlgParamsLevel2(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, 
                                     const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel2) const;
     void GenTemplateAlgParamsLevel1(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, 
-                                    const u64 dataOffset, const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel1) const;
+                                    const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel1) const;
     void GenTemplateAlgParamsLevel0(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, 
-                                    const u64 dataOffset, const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel0) const;
+                                    const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel0) const;
     HcclResult PrepareResForTemplate(InsAlgTemplate0 &tempAlgLevel0, InsAlgTemplate1 &tempAlgLevel1, InsAlgTemplate2 &tempAlgLevel2);
     static uint64_t GetRankSize(const std::vector<std::vector<u32>> &vTopo);
 

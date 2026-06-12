@@ -72,7 +72,6 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     resourceRequest.channels.emplace_back(Level0TempRequest.channels[0]);
     resourceRequest.channels.emplace_back(Level1TempRequest.channels[0]);
     resourceRequest.channels.emplace_back(Level2TempRequest.channels[0]);
-    
     HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
                "channels[%u]",
                myRank_, resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
@@ -112,9 +111,9 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     rankIdxLevel0_ = myRank_ % levels_[0].rankSize;                                    // level0 组内偏移
     rankIdxLevel1_ = myRank_ % (levels_[0].rankSize * levels_[1].rankSize);            // level1 组编号
 
-    Level0TempAlg.SetchannelsPerRank(levels_[0].channels);
+    CHK_PRT_RET(Level0TempAlg.SetchannelsPerRank(levels_[0].channels));
     // 将计算资源分配个每个算法
-    PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg);
+    CHK_PRT_RET(PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg));
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, Level0TempAlg, Level1TempAlg, Level2TempAlg);
     CHK_PRT_RET(
@@ -275,7 +274,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel1.inputRepeatStride = curCount * dataTypeSize_;
     tempAlgParamsLevel1.outputRepeatStride = 0;
     tempAlgParamsLevel1.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
-    HCCL_DEBUG("[InsV2AllGatherParallelExecutor][GenTemplateAlgParamsLevel10] rank[%u] inBuffBaseOff[%llu] "
+    HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][GenTemplateAlgParamsLevel10] rank[%u] inBuffBaseOff[%llu] "
                "outBuffBaseOff[%llu] scratchBuffBaseOff[%llu] sliceSize[%llu] outputSliceStride[%llu] "
                "outputRepeatStride[%llu]",
                myRank_, tempAlgParamsLevel1.buffInfo.inBuffBaseOff, tempAlgParamsLevel1.buffInfo.outBuffBaseOff,
@@ -312,7 +311,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel0.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
 
     HCCL_DEBUG(
-        "[InsV2AllGatherParallelExecutor][GenTemplateAlgParamsLevel00] rank[%d] inBuffBaseOff[%llu] "
+        "[InsV2AllGatherSequenceExecutor3Level][GenTemplateAlgParamsLevel0] rank[%d] inBuffBaseOff[%llu] "
         "outBuffBaseOff[%llu] scratchBuffBaseOff[%llu] sliceSize[%llu] outputSliceStride[%llu] levels_[0].rankSize[%u] "
         "levels_[1].rankSize[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
         myRank_, tempAlgParamsLevel0.buffInfo.inBuffBaseOff, tempAlgParamsLevel0.buffInfo.outBuffBaseOff,
@@ -325,7 +324,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER,
     InsAllGatherSequenceNHRNHRMesh1D,
     InsV2AllGatherSequenceExecutor3Level, 
     TopoMatchMultilevel,
-    InsTempAllGatherMesh1D1DZAxisDetour 
+    InsTempAllGatherMesh1D1DZAxisDetour,
     InsTempAllGatherNHR, 
     InsTempAllGatherNHR);
 }
