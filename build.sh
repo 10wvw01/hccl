@@ -28,7 +28,6 @@ CANN_3RD_LIB_PATH="${CURRENT_DIR}/third_party"
 CUSTOM_SIGN_SCRIPT="${CURRENT_DIR}/scripts/sign/community_sign_build.py"
 ENABLE_SIGN="false"
 VERSION_INFO="8.5.0"
-BUILD_AARCH="false"
 
 ENABLE_UT="off"
 ENABLE_ST="off"
@@ -63,7 +62,7 @@ function set_env()
 # 调用此函数后，可使用 ${AR}, ${CC}, ${CXX}, ${LD}, ${NM}, ${STRIP} 等变量
 function init_toolchain()
 {
-    if [ "${BUILD_AARCH}" == "true" ]; then
+    if [ "${ENABLE_BUILD_AARCH}" == "ON" ]; then
         TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc/"
         log "Info: Using cross-compile toolchain: ${TOOLCHAIN_DIR}"
         export AR="${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-ar"
@@ -362,7 +361,7 @@ function package_static_tar() {
  
      # 确定架构：交叉编译时优先使用 BUILD_AARCH，否则取 uname -m 
      local TAR_ARCH="" 
-     if [ "${BUILD_AARCH}" == "true" ]; then 
+     if [ "${ENABLE_BUILD_AARCH}" == "ON" ]; then 
          TAR_ARCH="aarch64" 
      else 
          local ARCH=$(uname -m) 
@@ -764,7 +763,6 @@ CUSTOM_OPTION="${CUSTOM_OPTION} -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_SIGN=${ENABLE_SIGN}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DVERSION_INFO=${VERSION_INFO}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DPRODUCT=ascend"
-CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
 set_env
 
