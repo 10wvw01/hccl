@@ -156,6 +156,16 @@ remove_last_license() {
     fi
 }
 
+uninstall_es_whl() {
+    local _whl_dir="${WHL_INSTALL_DIR_PATH}"
+    chmod u+w "${_whl_dir}" 2> /dev/null
+    chmod -R u+w "${_whl_dir}"/es_hccl 2> /dev/null
+    chmod -R u+w "${_whl_dir}"/es_hccl-*.dist-info 2> /dev/null
+    whl_uninstall_package "es_hccl" "${_whl_dir}"
+}
+
+WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
+
 custom_uninstall() {
     if [ -z "$common_parse_dir/share/info/hccl" ]; then
         log "ERROR" "ERR_NO:0x0001;ERR_DES:hccl directory is empty"
@@ -167,6 +177,8 @@ custom_uninstall() {
     else
         local arch_name="$(get_arch_name $common_parse_dir/share/info/hccl)"
     fi
+
+    uninstall_es_whl
 
     return 0
 }
