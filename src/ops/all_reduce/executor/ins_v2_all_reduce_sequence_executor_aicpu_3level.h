@@ -75,6 +75,9 @@ protected:
     uint64_t rankIdxLevel1_{0};
     uint64_t rankIdxLevel2_{0};
 
+    bool skipLevel0_{false};
+    bool skipLevel1_{false};
+
     uint64_t cclBuffSliceSize_{0};        // CCL buffer每份slice大小（切分为scratchMultiplier+1份）
     uint64_t rsResultBuffSize_{0};       // ReduceScatter归约结果存储区大小（第1份）
     uint64_t meshCommBuffSize_{0};       // Mesh1D通信交换区大小（后scratchMultiplier份）
