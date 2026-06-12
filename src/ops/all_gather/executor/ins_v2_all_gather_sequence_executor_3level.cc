@@ -66,7 +66,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               Level2TempRequest.notifyNumPerThread.begin(),
                                               Level2TempRequest.notifyNumPerThread.end());
-    CHK_PRT_RET(Level0TempRequest.channels.empty() || Level1TempRequest.channels.empty() || Level2TempRequest.channels.empty(),
+    CHK_RET(Level0TempRequest.channels.empty() || Level1TempRequest.channels.empty() || Level2TempRequest.channels.empty(),
                      HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level][CalcRes] Level0Template, Level1Template or Level2TempRequest has empty channels."),
                      HcclResult::HCCL_E_INTERNAL);
     resourceRequest.channels.emplace_back(Level0TempRequest.channels[0]);
@@ -111,9 +111,9 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     rankIdxLevel0_ = myRank_ % levels_[0].rankSize;                                    // level0 组内偏移
     rankIdxLevel1_ = myRank_ % (levels_[0].rankSize * levels_[1].rankSize);            // level1 组编号
 
-    CHK_PRT_RET(Level0TempAlg.SetchannelsPerRank(levels_[0].channels));
+    CHK_RET(Level0TempAlg.SetchannelsPerRank(levels_[0].channels));
     // 将计算资源分配个每个算法
-    CHK_PRT_RET(PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg));
+    CHK_RET(PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg));
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, Level0TempAlg, Level1TempAlg, Level2TempAlg);
     CHK_PRT_RET(
