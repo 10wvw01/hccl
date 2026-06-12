@@ -124,10 +124,17 @@ HcclResult InsTempScatterNHR::PreprareDataSplitForMultiChannel(const TemplateRes
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u64 totalDataCount = tempAlgParams.sliceSize / dataTypeSize;
     std::vector<u64> elemCountOut;
-    CHK_RET(CalcDataSplitByPortGroup(totalDataCount, dataTypeSize, templateResource.channels.begin()->second, elemCountOut, dataSplit_, dataOffset_));
+    const std::vector<ChannelInfo> *refChannels = &(templateResource.channels.begin()->second);
+    for (const auto &entry : templateResource.channels) {
+        if (entry.second.size() >= channelsPerRank_) {
+            refChannels = &(entry.second);
+            break;
+        }
+    }
+    CHK_RET(CalcDataSplitByPortGroup(totalDataCount, dataTypeSize, *refChannels, elemCountOut, dataSplit_, dataOffset_));
     if (tempAlgParams.tailSize > 0) {
         u64 totalDataCountTail = tempAlgParams.tailSize / dataTypeSize;
-        CHK_RET(CalcDataSplitByPortGroup(totalDataCountTail, dataTypeSize, templateResource.channels.begin()->second, elemCountOut, dataSplitTail_, dataOffsetTail_));
+        CHK_RET(CalcDataSplitByPortGroup(totalDataCountTail, dataTypeSize, *refChannels, elemCountOut, dataSplitTail_, dataOffsetTail_));
     }
     
     return HCCL_SUCCESS;
