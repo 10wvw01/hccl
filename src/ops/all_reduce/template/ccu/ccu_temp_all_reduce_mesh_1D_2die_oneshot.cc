@@ -208,7 +208,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::FastLaunch(const OpParam& param,
     return HcclResult::HCCL_SUCCESS;
 }
 
-u64 CcuTempAllReduceMesh1D::GetThreadNum() const
+u64 CcuTempAllreduceMesh1D2DieOneShot::GetThreadNum() const
 {
     return 1;
 }
