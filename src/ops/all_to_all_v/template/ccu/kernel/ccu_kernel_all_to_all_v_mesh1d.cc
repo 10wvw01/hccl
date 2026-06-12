@@ -265,7 +265,7 @@ static CcuResult DoAll2AllVMultiLoop(AlltoAllVMesh1DContext &ctx)
                         ccu::LocalCopy(ctx.myDst, ctx.src[arg->rankId], ctx.xnMaxTransportSize, ctx.event, 1 <<arg->rankId);
                     } else {
                         // GroupCopy(ctx, ctx.myDst, ctx.src[arg->rankId], ctx.xnMaxTransportGoSize);
-                        ccu::LocalCopy(ctx.myDst, ctx.src[arg->rankId], ctx.sendRecvInfo[arg->rankId].tailSize, ctx.event, 1 << arg->rankId);
+                        ccu::LocalCopy(ctx.myDst, ctx.src[arg->rankId], ctx.xnMaxTransportSize, ctx.event, 1 <<arg->rankId);
                         ccu::EventRecord(ctx.event, 1 <<arg->rankId);
                     }
                     // 更新偏移
