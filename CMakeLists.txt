@@ -150,6 +150,7 @@ elseif(BUILD_OPEN_PROJECT)
         add_dependencies(install_tar hccl)
     endif()
 
+    
     set(HCCL_HEAD
         include/hccl.h
         include/hccl_mc2.h
