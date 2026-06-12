@@ -1211,29 +1211,16 @@ HcclResult HcclGetThread(
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
         u32 threadNum = resRequest.slaveThreadNum + 1;
         std::vector<ThreadHandle> threads(threadNum);
-        if (param.engine == COMM_ENGINE_CPU) {
-            // hostdpu用旧版接口申请thread，每个thread上申请相同的notify个数
-            u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
-            for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
-                if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
-                    maxNotifyNum = resRequest.notifyNumPerThread[i];
-                }
-            }
-            // maxNotifyNum需要再增加一个用于host-device同步
-            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
-            CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
-        } else {
-            // aicpu用新版接口，支持每个thread上notify数量不同
-            std::vector<ThreadConfig> threadConfigs(threadNum);
-            CHK_RET(ThreadConfigInit(threadConfigs.data(), threadNum));
-            threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
-            for (u32 i = 1; i < threadNum; i++) {
-                threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
-            }
-            CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
-                threadConfigs.data(), threads.data()));
-            CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
+        std::vector<ThreadConfig> threadConfigs(threadNum);
+        CHK_RET(ThreadConfigInit(threadConfigs.data(), threadNum));
+        threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
+        for (u32 i = 1; i < threadNum; i++) {
+            threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
         }
+        CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
+            threadConfigs.data(), threads.data()));
+        CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
+
         // 申请展开流对应的Thread
         ThreadConfig unfoldThreadConfig;
         CHK_RET(ThreadConfigInit(&unfoldThreadConfig, 1));
