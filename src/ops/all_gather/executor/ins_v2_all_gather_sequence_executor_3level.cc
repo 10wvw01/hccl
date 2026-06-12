@@ -111,9 +111,9 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     rankIdxLevel0_ = myRank_ % levels_[0].rankSize;                                    // level0 组内偏移
     rankIdxLevel1_ = myRank_ % (levels_[0].rankSize * levels_[1].rankSize);            // level1 组编号
 
-    CHK_PRT_RET(Level0TempAlg.SetchannelsPerRank(levels_[0].channels));
+    CHK_RET(Level0TempAlg.SetchannelsPerRank(levels_[0].channels));
     // 将计算资源分配个每个算法
-    CHK_PRT_RET(PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg));
+    CHK_RET(PrepareResForTemplate(Level0TempAlg, Level1TempAlg, Level2TempAlg));
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, Level0TempAlg, Level1TempAlg, Level2TempAlg);
     CHK_PRT_RET(
