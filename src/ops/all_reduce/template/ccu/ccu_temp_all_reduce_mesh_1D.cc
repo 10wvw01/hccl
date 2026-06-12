@@ -46,6 +46,8 @@ uint64_t CcuTempAllReduceMesh1D::RoundUp(uint64_t dividend, uint64_t divisor) co
 
 HcclResult CcuTempAllReduceMesh1D::CalcSliceInfo(const u64 dataSize, RankSliceInfo &sliceInfoVec)
 {
+    CHK_PRT_RET(templateRankSize_ == 0, HCCL_ERROR("[CcuTempAllReduceMesh1D] templateRankSize_ is 0"),
+        HcclResult::HCCL_E_INTERNAL);
     std::vector<SliceInfo> tmp(subCommRanks_.size());
     sliceInfoVec.resize(templateRankSize_, tmp);
 
@@ -61,8 +63,8 @@ HcclResult CcuTempAllReduceMesh1D::CalcSliceInfo(const u64 dataSize, RankSliceIn
         accumOff += currChunkSize;
     }
 
-    CHK_PRT_RET((templateRankSize_ != 0 &&
-        sliceInfoVec[templateRankSize_ - 1][0].offset + sliceInfoVec[templateRankSize_ - 1][0].size != dataSize),
+    CHK_PRT_RET(
+        (sliceInfoVec[templateRankSize_ - 1][0].offset + sliceInfoVec[templateRankSize_ - 1][0].size != dataSize),
         HCCL_ERROR(
             "[CcuTempAllReduceMesh1D] chunkSize:[%llu], Rank:[%d], SliceInfo calculation error!",
             chunkSize, myRank_),
