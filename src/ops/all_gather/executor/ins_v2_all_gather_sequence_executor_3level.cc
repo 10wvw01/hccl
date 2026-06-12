@@ -199,14 +199,14 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
         u64 currCount = (loopIndex == loopTimes - 1) ? (dataCount_ - loopIndex * maxCountPerLoop) : maxCountPerLoop;
         u64 dataOffset = loopIndex * maxCountPerLoop * dataTypeSize_;
         // 数据0的server内的mesh算法
-        GenTemplateAlgParamsLevel2(param, resCtx, dataOffset, currCount, tempAlgParamsLevel2);
+        GenTemplateAlgParamsLevel2(param, resCtx, currCount, dataOffset, tempAlgParamsLevel2);
         CHK_RET(tempAlgLevel2.KernelRun(param, tempAlgParamsLevel2, Level2TempAlgRes));
 
         // 数据1的server间的nhr算法
-        GenTemplateAlgParamsLevel1(param, resCtx, dataOffset, currCount, tempAlgParamsLevel1);
+        GenTemplateAlgParamsLevel1(param, resCtx, currCount, dataOffset, tempAlgParamsLevel1);
         CHK_RET(tempAlgLevel1.KernelRun(param, tempAlgParamsLevel1, Level1TempAlgRes));
 
-        GenTemplateAlgParamsLevel0(param, resCtx, dataOffset, currCount, tempAlgParamsLevel0);
+        GenTemplateAlgParamsLevel0(param, resCtx, currCount, dataOffset, tempAlgParamsLevel0);
         CHK_RET(tempAlgLevel0.KernelRun(param, tempAlgParamsLevel0, Level0TempAlgRes));
         // 尾同步
     }
@@ -217,7 +217,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::GenTemplateAlgParamsLevel2(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel2) const
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel2) const
 {
     tempAlgParamsLevel2.buffInfo.inputPtr = param.inputPtr;
     tempAlgParamsLevel2.buffInfo.outputPtr = resCtx.cclMem.addr;
@@ -251,8 +251,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::GenTemplateAlgParamsLevel1(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset,
-    const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel1) const
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel1) const
 {
     tempAlgParamsLevel1.buffInfo.inputPtr = resCtx.cclMem.addr;
     tempAlgParamsLevel1.buffInfo.outputPtr = resCtx.cclMem.addr;
@@ -287,8 +286,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::GenTemplateAlgParamsLevel0(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset,
-    const u64 scratchOffset, TemplateDataParams &tempAlgParamsLevel0) const
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, const u64 dataOffset, TemplateDataParams &tempAlgParamsLevel0) const
 {
     tempAlgParamsLevel0.buffInfo.inputPtr = resCtx.cclMem.addr;
     tempAlgParamsLevel0.buffInfo.outputPtr = param.outputPtr;
