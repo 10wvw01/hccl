@@ -92,6 +92,7 @@ struct CcuKernelCtxBase {
 
     std::map<std::string, CcuLoopEntity> loopMap;
     CcuLoopExecutors enginePool;
+    GroupCopyVar gcVar;
 
     void CreateLoopEntity(std::string loopStr) {
         loopMap.emplace(loopStr, CcuLoopEntity());
