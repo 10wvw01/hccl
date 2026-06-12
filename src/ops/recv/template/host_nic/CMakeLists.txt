@@ -12,6 +12,10 @@ if(NOT HCCL_CANN_COMPAT_850)
     set(src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_recv_host_nic_dpu.cc
     )
+<<<<<<< HEAD
+=======
+endif()
+>>>>>>> dc8cd6d (合并Device_Refactor_new的修改)
 
 if(TARGET hccl)
     target_sources(hccl PRIVATE

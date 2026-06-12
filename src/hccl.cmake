@@ -1,6 +1,6 @@
 # ----------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
@@ -56,6 +56,13 @@ target_compile_definitions(hccl PRIVATE
 )
 
 hccl_apply_cann_compat(hccl)
+<<<<<<< HEAD
+=======
+
+if(HCCL_CANN_COMPAT_850)
+    target_compile_definitions(hccl PRIVATE HCCL_CANN_COMPAT_850)
+endif()
+>>>>>>> dc8cd6d (合并Device_Refactor_new的修改)
 
 target_compile_options(hccl PRIVATE
     -Werror
@@ -152,10 +159,10 @@ else()
 endif()
 
 if(STATIC_MODE)
-    install(TARGETS hccl 
-        ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR}  
-        ${INSTALL_OPTIONAL} 
-        COMPONENT hccl 
+    install(TARGETS hccl
+        ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR}
+        ${INSTALL_OPTIONAL}
+        COMPONENT hccl
     )
 else()
     install(TARGETS hccl
