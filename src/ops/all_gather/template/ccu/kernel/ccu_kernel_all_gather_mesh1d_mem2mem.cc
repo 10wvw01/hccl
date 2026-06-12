@@ -242,6 +242,7 @@ void CcuKernelAllGatherMesh1DMem2Mem::DoAllGatherGroupCopy()
                 CCU_IF(repeatTimeflag_ != 0)
                 {
                     localCopyDst_.addr += outputRepeatStride_;
+                    src_loccopy.addr += inputRepeatStride_;
                 }
                 GroupCopy(localCopyDst_, src_loccopy, localGoSize_);
                 repeatTimeflag_ = 1;
@@ -302,7 +303,12 @@ HcclResult CcuKernelAllGatherMesh1DMem2Mem::Algorithm()
     InitResource();
     LoadArgs();
     PreSync();
-    DoRepeatAllGather();
+
+    CcuRep::Variable sliceSize = CreateVariable();
+    sliceSize = (rankId_ == (rankSize_ - 1)) ? lastSliceSize_ : normalSliceSize_;
+    CCU_IF(sliceSize != 0) {
+        DoRepeatAllGather();
+    }
     PostSync();
     HCCL_INFO("[CcuKernelAllGatherMesh1DMem2Mem] AllgatherMesh1D end.");
     return HcclResult::HCCL_SUCCESS;
@@ -325,7 +331,8 @@ std::vector<uint64_t> CcuKernelAllGatherMesh1DMem2Mem::GeneArgs(const CcuTaskArg
     uint64_t lastSliceSize                = taskArg->lastSliceSize_;
     uint64_t isInputOutputEqual           = taskArg->isInputOutputEqual_;
 
-    auto goSize                           = CalGoSize(normalSliceSize);
+    auto goSize                           = (rankId_ == (rankSize_ - 1)) ?
+                                            CalGoSize(lastSliceSize) : CalGoSize(normalSliceSize);
 
     std::vector<uint64_t> taskArgs = {inputAddr,
                                       outputAddr,
