@@ -73,17 +73,22 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     rankSizeLevel0_ = algHierarchyInfo.infos[0].size();
     rankSizeLevel1_ = algHierarchyInfo.infos[1].size();
     rankSizeLevel2_ = algHierarchyInfo.infos[2].size();
+    skipLevel1_ = (rankSizeLevel1_ == 1);
 
     std::shared_ptr<InsAlgTemplate0> rsL0TempAlg =
         std::make_shared<InsAlgTemplate0>(param, myRank_, algHierarchyInfo.infos[0]);
-    std::shared_ptr<InsAlgTemplate1> rsL1TempAlg =
-        std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo.infos[1]);
+    std::shared_ptr<InsAlgTemplate1> rsL1TempAlg;
+    if (!skipLevel1_) {
+        rsL1TempAlg = std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo.infos[1]);
+    }
     std::shared_ptr<InsAlgTemplate2> rsL2TempAlg =
         std::make_shared<InsAlgTemplate2>(param, myRank_, algHierarchyInfo.infos[2]);
     std::shared_ptr<InsAlgTemplate3> agL2TempAlg =
         std::make_shared<InsAlgTemplate3>(param, myRank_, algHierarchyInfo.infos[2]);
-    std::shared_ptr<InsAlgTemplate4> agL1TempAlg =
-        std::make_shared<InsAlgTemplate4>(param, myRank_, algHierarchyInfo.infos[1]);
+    std::shared_ptr<InsAlgTemplate4> agL1TempAlg;
+    if (!skipLevel1_) {
+        agL1TempAlg = std::make_shared<InsAlgTemplate4>(param, myRank_, algHierarchyInfo.infos[1]);
+    }
     std::shared_ptr<InsAlgTemplate5> agL0TempAlg =
         std::make_shared<InsAlgTemplate5>(param, myRank_, algHierarchyInfo.infos[0]);
 
@@ -94,51 +99,57 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     AlgResourceRequest resReqAGL1;
     AlgResourceRequest resReqAGL0;
     CHK_RET(rsL0TempAlg->CalcRes(comm, param, topoInfo, resReqRSL0));
-    CHK_RET(rsL1TempAlg->CalcRes(comm, param, topoInfo, resReqRSL1));
+    if (!skipLevel1_) {
+        CHK_RET(rsL1TempAlg->CalcRes(comm, param, topoInfo, resReqRSL1));
+        CHK_RET(agL1TempAlg->CalcRes(comm, param, topoInfo, resReqAGL1));
+    }
     CHK_RET(rsL2TempAlg->CalcRes(comm, param, topoInfo, resReqRSL2));
     CHK_RET(agL2TempAlg->CalcRes(comm, param, topoInfo, resReqAGL2));
-    CHK_RET(agL1TempAlg->CalcRes(comm, param, topoInfo, resReqAGL1));
     CHK_RET(agL0TempAlg->CalcRes(comm, param, topoInfo, resReqAGL0));
 
-    // 六步为串行，因此slaveThread和对应notify可以复用
-    resourceRequest.slaveThreadNum = std::max({resReqRSL0.slaveThreadNum,
-        resReqRSL1.slaveThreadNum, resReqRSL2.slaveThreadNum,
-        resReqAGL2.slaveThreadNum, resReqAGL1.slaveThreadNum,
-        resReqAGL0.slaveThreadNum});
+    std::vector<AlgResourceRequest> activeReqs = {resReqRSL0, resReqRSL2, resReqAGL2, resReqAGL0};
+    if (!skipLevel1_) {
+        activeReqs.push_back(resReqRSL1);
+        activeReqs.push_back(resReqAGL1);
+    }
+    resourceRequest.slaveThreadNum = 0;
+    for (auto &req : activeReqs) {
+        resourceRequest.slaveThreadNum = std::max(resourceRequest.slaveThreadNum, req.slaveThreadNum);
+    }
     resourceRequest.notifyNumPerThread.clear();
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
     for (u32 i = 0; i < resourceRequest.slaveThreadNum; ++i) {
-        if (i < resReqRSL0.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqRSL0.notifyNumPerThread[i]);
-        }
-        if (i < resReqRSL1.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqRSL1.notifyNumPerThread[i]);
-        }
-        if (i < resReqRSL2.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqRSL2.notifyNumPerThread[i]);
-        }
-        if (i < resReqAGL2.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqAGL2.notifyNumPerThread[i]);
-        }
-        if (i < resReqAGL1.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqAGL1.notifyNumPerThread[i]);
-        }
-        if (i < resReqAGL0.notifyNumPerThread.size()) {
-            resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
-                resReqAGL0.notifyNumPerThread[i]);
+        for (auto &req : activeReqs) {
+            if (i < req.notifyNumPerThread.size()) {
+                resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
+                    req.notifyNumPerThread[i]);
+            }
         }
     }
-    resourceRequest.notifyNumOnMainThread = std::max({resReqRSL0.notifyNumOnMainThread,
-        resReqRSL1.notifyNumOnMainThread, resReqRSL2.notifyNumOnMainThread,
-        resReqAGL2.notifyNumOnMainThread, resReqAGL1.notifyNumOnMainThread,
-        resReqAGL0.notifyNumOnMainThread});
+    u32 mainNotifyNum = 0;
+    for (auto &req : activeReqs) {
+        mainNotifyNum = std::max(mainNotifyNum, req.notifyNumOnMainThread);
+    }
+    resourceRequest.notifyNumOnMainThread = mainNotifyNum;
 
-    resourceRequest.channels = {resReqRSL0.channels[0], resReqRSL1.channels[0], resReqRSL2.channels[0]};
+    resourceRequest.channels.resize(SEQUENCE_EXECUTOR_LEVEL_NUM);
+    if (resReqRSL0.channels.empty()) {
+        HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu3Level] level0 channels empty");
+        return HCCL_E_INTERNAL;
+    }
+    resourceRequest.channels[0] = resReqRSL0.channels[0];
+    if (!skipLevel1_) {
+        if (resReqRSL1.channels.empty()) {
+            HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu3Level] level1 channels empty");
+            return HCCL_E_INTERNAL;
+        }
+        resourceRequest.channels[1] = resReqRSL1.channels[0];
+    }
+    if (resReqRSL2.channels.empty()) {
+        HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu3Level] level2 channels empty");
+        return HCCL_E_INTERNAL;
+    }
+    resourceRequest.channels[2] = resReqRSL2.channels[0];
     return HCCL_SUCCESS;
 }
 
@@ -163,7 +174,10 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     rankSizeLevel0_ = algHierarchyInfo_.infos[0][0].size();
     rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
     rankSizeLevel2_ = algHierarchyInfo_.infos[2][0].size();
-    // TODO: rankIdx计算需根据实际拓扑层级关系确定
+    skipLevel1_ = (rankSizeLevel1_ == 1);
+    if (skipLevel1_) {
+        HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][Orchestrate] level1 rankSize is 1, skip level1");
+    }
     rankIdxLevel0_ = myRank_ % algHierarchyInfo_.infos[0][0].size();
     rankIdxLevel1_ = (myRank_ / algHierarchyInfo_.infos[0][0].size()) % algHierarchyInfo_.infos[1][0].size();
     rankIdxLevel2_ = myRank_ / (algHierarchyInfo_.infos[0][0].size() * algHierarchyInfo_.infos[1][0].size());
@@ -186,7 +200,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     TemplateDataParams &tempAlgParamsAGL2, TemplateDataParams &tempAlgParamsAGL1,
     TemplateDataParams &tempAlgParamsAGL0) const
 {
-    // RSL0: INPUT → HCCL_BUFFER (level0 ReduceScatter)
     tempAlgParamsRSL0.buffInfo.inBuffType = BufferType::INPUT;
     tempAlgParamsRSL0.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsRSL0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -194,7 +207,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL0.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsRSL0.buffInfo.hcclBuff = resCtx.cclMem;
 
-    // RSL1: HCCL_BUFFER → HCCL_BUFFER (level1 ReduceScatter)
     tempAlgParamsRSL1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsRSL1.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsRSL1.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -202,7 +214,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL1.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsRSL1.buffInfo.hcclBuff = resCtx.cclMem;
 
-    // RSL2: HCCL_BUFFER → HCCL_BUFFER (level2 ReduceScatter)
     tempAlgParamsRSL2.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsRSL2.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsRSL2.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -210,7 +221,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL2.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsRSL2.buffInfo.hcclBuff = resCtx.cclMem;
 
-    // AGL2: HCCL_BUFFER → HCCL_BUFFER (level2 AllGather)
     tempAlgParamsAGL2.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsAGL2.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsAGL2.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -218,7 +228,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL2.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsAGL2.buffInfo.hcclBuff = resCtx.cclMem;
 
-    // AGL1: HCCL_BUFFER → HCCL_BUFFER (level1 AllGather)
     tempAlgParamsAGL1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsAGL1.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsAGL1.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -226,7 +235,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL1.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsAGL1.buffInfo.hcclBuff = resCtx.cclMem;
 
-    // AGL0: HCCL_BUFFER → OUTPUT (level0 AllGather)
     tempAlgParamsAGL0.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsAGL0.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParamsAGL0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -243,7 +251,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     const u64 currDataCount, const u64 processedDataCount,
     TemplateDataParams &tempAlgParamsRSL0) const
 {
-    // TODO: 填充level0 ReduceScatter参数
     tempAlgParamsRSL0.count = currDataCount;
     tempAlgParamsRSL0.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
     tempAlgParamsRSL0.buffInfo.outBuffBaseOff = rsResultBuffOffset_;
@@ -275,7 +282,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     const u64 currDataCount, const u64 sliceSizeRSL0, const u64 tailSizeRSL0,
     TemplateDataParams &tempAlgParamsRSL1) const
 {
-    // TODO: 填充level1 ReduceScatter参数
     tempAlgParamsRSL1.count = currDataCount;
     if (rankIdxLevel0_ == rankSizeLevel0_ - 1) {
         u64 tailCountRSL0 = tailSizeRSL0 / dataTypeSize_;
@@ -313,7 +319,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     const u64 currDataCount, const u64 sliceSizeRSL1, const u64 tailSizeRSL1,
     TemplateDataParams &tempAlgParamsRSL2) const
 {
-    // TODO: 填充level2 ReduceScatter参数
     tempAlgParamsRSL2.count = currDataCount;
     if (rankIdxLevel1_ == rankSizeLevel1_ - 1) {
         u64 tailCountRSL1 = tailSizeRSL1 / dataTypeSize_;
@@ -326,7 +331,6 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
         tempAlgParamsRSL2.tailSize = tempAlgParamsRSL2.sliceSize +
             sliceCountRSL1 % rankSizeLevel2_ * dataTypeSize_;
     }
-    // RSL1完成后，当前rank的数据位于rsResultBuff中rankIdxLevel1_对应的偏移位置
     tempAlgParamsRSL2.buffInfo.inBuffBaseOff = rankIdxLevel1_ * sliceSizeRSL1;
     tempAlgParamsRSL2.buffInfo.outBuffBaseOff = rankIdxLevel1_ * sliceSizeRSL1;
     tempAlgParamsRSL2.buffInfo.hcclBuffBaseOff = rankIdxLevel1_ * sliceSizeRSL1;
@@ -468,66 +472,65 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 {
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] Start");
 
-    TemplateDataParams tempAlgParamsRSL0;   // level0 ReduceScatter
-    TemplateDataParams tempAlgParamsRSL1;   // level1 ReduceScatter
-    TemplateDataParams tempAlgParamsRSL2;   // level2 ReduceScatter
-    TemplateDataParams tempAlgParamsAGL2;   // level2 AllGather
-    TemplateDataParams tempAlgParamsAGL1;   // level1 AllGather
-    TemplateDataParams tempAlgParamsAGL0;   // level0 AllGather
+    TemplateDataParams tempAlgParamsRSL0;
+    TemplateDataParams tempAlgParamsRSL1;
+    TemplateDataParams tempAlgParamsRSL2;
+    TemplateDataParams tempAlgParamsAGL2;
+    TemplateDataParams tempAlgParamsAGL1;
+    TemplateDataParams tempAlgParamsAGL0;
     GenBaseTempAlgParams(param, resCtx, tempAlgParamsRSL0, tempAlgParamsRSL1,
         tempAlgParamsRSL2, tempAlgParamsAGL2, tempAlgParamsAGL1, tempAlgParamsAGL0);
 
-    // 构建level0 ReduceScatter template
     std::shared_ptr<InsAlgTemplate0> algTemplateRSL0 =
         std::make_shared<InsAlgTemplate0>(param, myRank_, algHierarchyInfo_.infos[0]);
     algTemplateRSL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
 
-    // 构建level1 ReduceScatter template
-    std::shared_ptr<InsAlgTemplate1> algTemplateRSL1 =
-        std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo_.infos[1]);
-    algTemplateRSL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+    std::shared_ptr<InsAlgTemplate1> algTemplateRSL1;
+    if (!skipLevel1_) {
+        algTemplateRSL1 = std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo_.infos[1]);
+        algTemplateRSL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+    }
 
-    // 构建level2 ReduceScatter template
     std::shared_ptr<InsAlgTemplate2> algTemplateRSL2 =
         std::make_shared<InsAlgTemplate2>(param, myRank_, algHierarchyInfo_.infos[2]);
     algTemplateRSL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]);
 
-    // 构建level2 AllGather template
     std::shared_ptr<InsAlgTemplate3> algTemplateAGL2 =
         std::make_shared<InsAlgTemplate3>(param, myRank_, algHierarchyInfo_.infos[2]);
     algTemplateAGL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]);
 
-    // 构建level1 AllGather template
-    std::shared_ptr<InsAlgTemplate4> algTemplateAGL1 =
-        std::make_shared<InsAlgTemplate4>(param, myRank_, algHierarchyInfo_.infos[1]);
-    algTemplateAGL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+    std::shared_ptr<InsAlgTemplate4> algTemplateAGL1;
+    if (!skipLevel1_) {
+        algTemplateAGL1 = std::make_shared<InsAlgTemplate4>(param, myRank_, algHierarchyInfo_.infos[1]);
+        algTemplateAGL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+    }
 
-    // 构建level0 AllGather template
     std::shared_ptr<InsAlgTemplate5> algTemplateAGL0 =
         std::make_shared<InsAlgTemplate5>(param, myRank_, algHierarchyInfo_.infos[0]);
     algTemplateAGL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
 
-    // 构造各步骤template资源
     TemplateResource templateResourceRSL0;
     CHK_RET(GenTempResource(resCtx, 0, algTemplateRSL0, templateResourceRSL0));
     TemplateResource templateResourceRSL1;
-    CHK_RET(GenTempResource(resCtx, 1, algTemplateRSL1, templateResourceRSL1));
+    if (!skipLevel1_) {
+        CHK_RET(GenTempResource(resCtx, 1, algTemplateRSL1, templateResourceRSL1));
+    }
     TemplateResource templateResourceRSL2;
     CHK_RET(GenTempResource(resCtx, 2, algTemplateRSL2, templateResourceRSL2));
     TemplateResource templateResourceAGL2;
     CHK_RET(GenTempResource(resCtx, 2, algTemplateAGL2, templateResourceAGL2));
     TemplateResource templateResourceAGL1;
-    CHK_RET(GenTempResource(resCtx, 1, algTemplateAGL1, templateResourceAGL1));
+    if (!skipLevel1_) {
+        CHK_RET(GenTempResource(resCtx, 1, algTemplateAGL1, templateResourceAGL1));
+    }
     TemplateResource templateResourceAGL0;
     CHK_RET(GenTempResource(resCtx, 0, algTemplateAGL0, templateResourceAGL0));
 
-    // CCL buffer切分：通过CalcScratchMultiple获取RSL0模板的scratch倍数
-    // scratchMultiplier份用于Mesh1D通信交换，1份用于存放ReduceScatter归约结果
     u64 scratchMultiplier = algTemplateRSL0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
     u32 cclBuffSliceNum = scratchMultiplier + 1;
     cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum;
-    rsResultBuffSize_ = cclBuffSliceSize_;                // 第1份：RS归约结果存储区
-    meshCommBuffSize_ = scratchMultiplier * cclBuffSliceSize_; // 后scratchMultiplier份：Mesh1D通信交换区
+    rsResultBuffSize_ = cclBuffSliceSize_;
+    meshCommBuffSize_ = scratchMultiplier * cclBuffSliceSize_;
     rsResultBuffOffset_ = 0;
     meshCommBuffOffset_ = rsResultBuffSize_;
     u32 totalRankAlign = rankSizeLevel0_ * rankSizeLevel1_ * rankSizeLevel2_;
@@ -543,24 +546,34 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         CHK_RET(algTemplateRSL0->KernelRun(param, tempAlgParamsRSL0, templateResourceRSL0));
 
         // ----------- RSL1: level1 ReduceScatter -----------
-        GenTempAlgParamsRSL1(loop, currDataCount, tempAlgParamsRSL0.sliceSize,
-            tempAlgParamsRSL0.tailSize, tempAlgParamsRSL1);
-        CHK_RET(algTemplateRSL1->KernelRun(param, tempAlgParamsRSL1, templateResourceRSL1));
+        u64 sliceSizeRSL1 = tempAlgParamsRSL0.sliceSize;
+        u64 tailSizeRSL1 = tempAlgParamsRSL0.tailSize;
+        if (!skipLevel1_) {
+            GenTempAlgParamsRSL1(loop, currDataCount, tempAlgParamsRSL0.sliceSize,
+                tempAlgParamsRSL0.tailSize, tempAlgParamsRSL1);
+            CHK_RET(algTemplateRSL1->KernelRun(param, tempAlgParamsRSL1, templateResourceRSL1));
+            sliceSizeRSL1 = tempAlgParamsRSL1.sliceSize;
+            tailSizeRSL1 = tempAlgParamsRSL1.tailSize;
+        } else {
+            sliceSizeRSL1 = tempAlgParamsRSL0.sliceSize;
+            tailSizeRSL1 = (rankIdxLevel0_ == rankSizeLevel0_ - 1) ?
+                tempAlgParamsRSL0.tailSize : tempAlgParamsRSL0.sliceSize;
+        }
 
         // ----------- RSL2: level2 ReduceScatter -----------
-        GenTempAlgParamsRSL2(loop, currDataCount, tempAlgParamsRSL1.sliceSize,
-            tempAlgParamsRSL1.tailSize, tempAlgParamsRSL2);
+        GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
         CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
 
         // ----------- AGL2: level2 AllGather -----------
         GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
-            tempAlgParamsRSL2.tailSize, tempAlgParamsRSL1.sliceSize, tempAlgParamsAGL2);
+            tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
         CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
 
         // ----------- AGL1: level1 AllGather -----------
-        GenTempAlgParamsAGL1(loop, currDataCount, tempAlgParamsRSL1.sliceSize,
-            tempAlgParamsRSL1.tailSize, tempAlgParamsAGL1);
-        CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
+        if (!skipLevel1_) {
+            GenTempAlgParamsAGL1(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsAGL1);
+            CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
+        }
 
         // ----------- AGL0: level0 AllGather -----------
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
@@ -573,8 +586,6 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     return HCCL_SUCCESS;
 }
 
-// 三级AllReduce: RSL0(Mesh1D) → RSL1(NHR) → RSL2(NHR)
-//               → AGL2(NHR) → AGL1(NHR) → AGL0(Mesh1D)
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE,
     InsV2AllReduceSequenceMesh1DNhrNhr,
     InsV2AllReduceSequenceExecutorAicpu3Level,
