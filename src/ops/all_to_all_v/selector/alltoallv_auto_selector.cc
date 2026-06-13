@@ -92,7 +92,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             selectAlgName = "InsAlltoAllVMesh1D";
         } else {
-            HCCL_ERROR("[AlltoAllVAutoSelector][%s] hccl algo no match");
+            HCCL_ERROR("[AlltoAllVAutoSelector][%s] hccl algo no match", __func__);
             return SelectorStatus::NOT_MATCH;
         }
     }
@@ -116,7 +116,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             selectAlgName = "InsAlltoAllVMesh1DUBX";
         }
     } else {
-        HCCL_ERROR("[AlltoAllVAutoSelector][%s] hccl algo no match");
+        HCCL_ERROR("[AlltoAllVAutoSelector][%s] hccl algo no match", __func__);
         return SelectorStatus::NOT_MATCH;
     }
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());

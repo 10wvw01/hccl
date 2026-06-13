@@ -106,7 +106,7 @@ SelectorStatus AlltoAllAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerD
             topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             selectAlgName = "InsAlltoAllMesh1D";
         } else {
-            HCCL_ERROR("[AlltoAllAutoSelector][%s] hccl algo no match");
+            HCCL_ERROR("[AlltoAllAutoSelector][%s] hccl algo no match", __func__);
             return SelectorStatus::NOT_MATCH;
         }
     }
@@ -141,7 +141,7 @@ SelectorStatus AlltoAllAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerD
             selectAlgName = "InsAlltoAllMesh1DUBX";
         }
     } else {
-        HCCL_ERROR("[AlltoAllAutoSelector][%s] hccl algo no match");
+        HCCL_ERROR("[AlltoAllAutoSelector][%s] hccl algo no match", __func__);
         return SelectorStatus::NOT_MATCH;
     }
     HCCL_INFO("[AlltoAllAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
