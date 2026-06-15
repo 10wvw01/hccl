@@ -152,6 +152,7 @@ HcclResult ReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint6
     CHK_RET(CheckCount(count));
     // 检查数据类型是否支持
     CHK_RET(CheckDataType(dataType, true));
+    CHK_RET(CheckReduceOp(dataType, op));
     // 检查rank有效性，是否超出rankSize
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     CHK_RET(HcclGetRankSize(comm, &rankSize));
