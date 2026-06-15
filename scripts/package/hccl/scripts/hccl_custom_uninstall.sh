@@ -168,6 +168,8 @@ custom_uninstall() {
         local arch_name="$(get_arch_name $common_parse_dir/share/info/hccl)"
     fi
 
+    whl_uninstall_package "es_hccl" "$common_parse_dir/python/site-packages"
+
     return 0
 }
 

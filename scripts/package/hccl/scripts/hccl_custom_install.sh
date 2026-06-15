@@ -316,6 +316,21 @@ clear_kernel_cache_dir() {
     fi
 }
 
+hccl_install_whl() {
+    local _whl_dir="$1"
+    local _whl_file=""
+    _whl_file=$(find "$common_parse_dir/ops_hccl/es_packages/whl" -maxdepth 1 -name "es_hccl-*.whl" -type f 2>/dev/null | head -n 1)
+    if [ -z "$_whl_file" ]; then
+        log "WARNING" "no hccl whl package found in $_whl_dir, skip whl install."
+        return 0
+    fi
+    hccl_install_package "$_whl_file" "$_whl_dir"
+
+    if [ -d "$common_parse_dir/ops_hccl" ]; then
+        rm -rf "$common_parse_dir/ops_hccl"
+    fi
+}
+
 custom_install() {
     if [ -z "$common_parse_dir/share/info/hccl" ]; then
         log "ERROR" "ERR_NO:0x0001;ERR_DES:hccl directory is empty"
@@ -332,13 +347,17 @@ custom_install() {
         if [ "x$stage" = "xinstall" ]; then
             log "INFO" "hccl do migrate user assets."
             migrate_user_assets atc
-            migrate_user_assets fwkacllib
+            migrate_user_assets fwkaclib
             if [ $? -ne 0 ]; then
                 log "WARNING" "failed to copy custom directories."
                 return 1
             fi
         fi
     fi
+
+    local whl_dir="$common_parse_dir/python/site-packages"
+    hccl_install_whl "$whl_dir"
+
     return 0
 }
 
