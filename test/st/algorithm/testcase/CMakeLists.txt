@@ -13,6 +13,7 @@ set(src_list
     scatter_testcase.cc
     all_reduce_testcase.cc
     all_reduce_parallel_testcase.cc
+    all_reduce_multilevel_testcase.cc
     all_gather_aicpu_testcase.cc
     all_gather_dpu_testcase.cc
     all_gather_v_testcase.cc
