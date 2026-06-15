@@ -194,9 +194,12 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->topoLevelNums >= 1 && topoInfo->topoLevelNums <= 3) {
+    if (topoInfo->topoLevelNums >= 1 && topoInfo->topoLevelNums <= 3 &&
+        topoInfo->level0Topo == Level0Shape::MESH_1D) {
         selectAlgName = "InsReduceScatterVMesh1D";
     } else {
+        HCCL_WARNING("[ReduceScatterVAutoSelector] topo not match, topoLevelNums[%u], level0Topo[%u]",
+            topoInfo->topoLevelNums, static_cast<u32>(topoInfo->level0Topo));
         return SelectorStatus::NOT_MATCH;
     }
     return SelectorStatus::MATCH;
