@@ -162,13 +162,13 @@ HcclResult InsTempScatterNHR::KernelRun(const OpParam& param, const TemplateData
     CHK_PTR_NULL(tempAlgParams.buffInfo.outputPtr);
     CHK_RET(PreCopy(tempAlgParams, templateResource.threads));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     CHK_RET(RunNHR(templateResource.channels, templateResource.threads, tempAlgParams));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
@@ -210,10 +210,10 @@ HcclResult InsTempScatterNHR::PostCopy(
     const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const
 {
     u32 myAlgRank;
+    GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u32 curSliceSize = tempAlgParams.tailSize !=0 && myAlgRank == templateRankSize_ - 1? tempAlgParams.tailSize : processSize_;
     u32 curCount = curSliceSize / dataTypeSize;
-    GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
     for (u32 r = 0; r < tempAlgParams.repeatNum; r++) {
         u64 srcOffset = r * templateRankSize_ * tempAlgParams.sliceSize + tempAlgParams.buffInfo.hcclBuffBaseOff +
                         myAlgRank * tempAlgParams.sliceSize;

@@ -75,6 +75,7 @@ set(INCLUDE_LIST
     ${OPS_BASE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/common/hcomm_dlsym
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/hcomm_dlsym/ccu
     ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ops
@@ -146,6 +147,12 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/template/ccu
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/template/ccu/kernel
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/executor
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/selector
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/template
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/template/aicpu
+
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather_v
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather_v/executor
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather_v/selector
@@ -204,8 +211,10 @@ if(BUILD_OPEN_PROJECT)
         ${ASCEND_CANN_PACKAGE_PATH}/include/acl
 
         # hcomm头文件
+        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
         ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
         ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
+        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
 
         # runtime头文件
         ${ASCEND_CANN_PACKAGE_PATH}/include/
@@ -273,6 +282,7 @@ else()
         ${TOP_DIR}/hcomm/pkg_inc/hcomm/ccu
         ${TOP_DIR}/hcomm/include
         ${TOP_DIR}/hcomm/include/hccl
+        ${TOP_DIR}/hcomm/include/ccu
     )
 endif()
 
@@ -360,6 +370,8 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/template/aicpu/ins_temp_all_gather_omnipipe_nhr_dpu.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/template/aicpu/ins_temp_all_gather_omnipipe_nhr.cc
 
+        ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/template/aicpu/ins_temp_barrier_mesh_1D.cc
+
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/executor/reduce_sole_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/executor/reduce_parallel_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/template/aicpu/reduce_mesh_1D.cc
@@ -413,6 +425,8 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_ubx.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_ubx_1d.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_pcie_mix.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_3_level.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_squeeze_2d.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_reduce_scatter_concurrent_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/executor/ins_v2_all_gather_concurrent_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_to_all_v/executor/ins_v2_all_to_all_concurrent_executor.cc
@@ -427,6 +441,8 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/broadcast/template/aicpu/ins_temp_scatter_nhr_dpu_inter.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/executor/ins_v2_all_gather_sequence_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr_dpu.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/executor/ins_v2_barrier_sequence_executor.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/template/aicpu/ins_temp_barrier_nhr_dpu.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/executor/ins_v2_reduce_sequence_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/template/aicpu/ins_temp_gather_dpu_inter.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_to_all_v/template/aicpu/ins_temp_dpu_alltoall_mesh.cc
