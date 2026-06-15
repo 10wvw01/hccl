@@ -400,8 +400,9 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
     InsAlgTemplate3>::OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
+    u64 tempNum = 2;
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu][OrchestrateLoop] Start");
-    scratchBlockSize_ = resCtx.cclMem.size / 2;
+    scratchBlockSize_ = resCtx.cclMem.size / tempNum;
 
     TemplateDataParams tempAlgParamsStepOne; // 框内ReduceScatter的模板参数
     TemplateDataParams tempAlgParamsStepTwo; // 框间ReduceScatter的模板参数

@@ -116,8 +116,8 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         slaveThreadNumInter = interTempRequest1.slaveThreadNum;
         interTempRequestFinal.notifyNumPerThread = interTempRequest1.notifyNumPerThread;
     }
-
-    resourceRequest.notifyNumOnMainThread = 2;  // 用于allreduce两个template间同步
+    u32 tempNum = 2;
+    resourceRequest.notifyNumOnMainThread = tempNum;  // 用于allreduce两个template间同步
     resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + 4;
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest1.notifyNumOnMainThread + 1);

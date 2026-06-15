@@ -12,6 +12,7 @@
 #include "op_common.h"
 
 namespace ops_hccl {
+constexpr uint32_t RANK_2 = 2;
 TopoMatchSqueeze2D::TopoMatchSqueeze2D()
     : TopoMatchBase()
 {
@@ -69,7 +70,7 @@ HcclResult TopoMatchSqueeze2D::TopoForLayer1(
 #ifndef AICPU_COMPILE
     uint32_t *topoInsts;
     uint32_t topoInstNum = 0;
-    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 2, &topoInsts, &topoInstNum));
+    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, RANK_2, &topoInsts, &topoInstNum));
 
     CHK_PRT_RET(topoInstNum != NET_INST_NUM_1,
         HCCL_ERROR("[TopoMatchSqueeze2D][TopoForLayer1] layer2 topoInstNum [%u] != 1.", topoInstNum),
@@ -77,7 +78,7 @@ HcclResult TopoMatchSqueeze2D::TopoForLayer1(
 
     uint32_t* ranks;
     uint32_t rankNum;
-    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 2, topoInsts[0], &ranks, &rankNum));
+    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, RANK_2, topoInsts[0], &ranks, &rankNum));
     HCCL_DEBUG("[TopoMatchSqueeze2D][TopoForLayer1] Rank [%u], all [%u] ranks in layer2: [%s]",
         myRank, rankNum, PrintCArray<uint32_t>(ranks, rankNum).c_str());
 
@@ -93,7 +94,7 @@ HcclResult TopoMatchSqueeze2D::TopoForLayer1(
         }
         CommLink *links;
         uint32_t linkNum = 0;
-        HcclRankGraphGetLinks(comm, 2, myRank, rankId, &links, &linkNum);
+        HcclRankGraphGetLinks(comm, RANK_2, myRank, rankId, &links, &linkNum);
         if (linkNum == 0) {
             continue;
         }

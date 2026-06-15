@@ -21,6 +21,8 @@
 
 namespace ops_hccl {
 
+constexpr u32 ALG_HIERARCHY_NUM3 = 3;
+
 template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTemplateY, typename InsRsAlgTemplateZ,
           typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
 InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX,
@@ -102,7 +104,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
 
     InitCommInfo(comm, param, topoinfo_local, algHierarchyInfo_local);
 
-    if (algHierarchyInfo_.infos.size() == 3 &&
+    if (algHierarchyInfo_.infos.size() == ALG_HIERARCHY_NUM3 &&
         !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
         topoType_ = TopoType::THREE_LEVEL;
     } else {
@@ -175,7 +177,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     reduceOp_ = param.reduceType;
     threads_ = resCtx.threads;
 
-    if (algHierarchyInfo_.infos.size() == 3 &&
+    if (algHierarchyInfo_.infos.size() == ALG_HIERARCHY_NUM3 &&
         !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
         topoType_ = TopoType::THREE_LEVEL;
     } else {
@@ -511,6 +513,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
     const TopoInfoWithNetLayerDetails* topoInfo)
 {
+    (void)topoInfo;
     subCommRanks0.clear();
     subCommRanks1.clear();
     subCommRanks2.clear();
@@ -547,7 +550,6 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
         }
         InitSubCommRanks(subCommRanks0, subCommRanks1, subCommRanks2);
     }
-
 
     uint32_t intraSuperpodDeviceNum = rankSizeLevel0_ * rankSizeLevel1_;
     rankIdxLevel0_ = (myRank_ % intraSuperpodDeviceNum) % rankSizeLevel0_;

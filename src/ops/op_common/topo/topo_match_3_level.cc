@@ -12,6 +12,10 @@
 #include "op_common.h"
 
 namespace ops_hccl {
+
+constexpr uint32_t lAYER_NUM_2 = 2;
+constexpr uint32_t lAYER_NUM_3 = 3;
+
 TopoMatch3Level::TopoMatch3Level()
     : TopoMatchBase()
 {
@@ -159,11 +163,11 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     uint32_t layer1Size = listSize;
     uint32_t baseModSizeL1 = layer0Size;
     
-    if (layerNum >= 2) {
+    if (layerNum >= lAYER_NUM_2) {
         uint32_t netLayerL1 = 1;
         CHK_RET(TopoForLayerGeneric(comm, netLayerL1, baseModSizeL1, myRank, algHierarchyInfo, netLayerL1));
     }
-    if (layerNum >= 3) {
+    if (layerNum >= lAYER_NUM_3) {
         uint32_t netLayerL2 = 2;
         // 应该除以超节点数量
         uint32_t superPodNum = topoInfo->netLayerDetails.localNetInsSizeOfLayer[2] / topoInfo->netLayerDetails.localNetInsSizeOfLayer[1];

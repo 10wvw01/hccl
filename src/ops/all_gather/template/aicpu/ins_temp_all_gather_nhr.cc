@@ -13,6 +13,9 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
+
+constexpr u32 TWO_TIMES_STREAM = 2;
+
 InsTempAllGatherNHR::InsTempAllGatherNHR(const OpParam &param, const u32 rankId,
                                          const std::vector<std::vector<u32>> &subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -36,14 +39,14 @@ HcclResult InsTempAllGatherNHR::GetRes(AlgResourceRequest &resourceRequest) cons
     u32 threadNum = GetThreadNum();
     resourceRequest.slaveThreadNum = threadNum - 1;
     // 一个notify用于主从流之间的同步，另一个用于PostLocalCopy和NHR最后一个step并行执行时的前同步
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 2);
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, TWO_TIMES_STREAM);
     resourceRequest.notifyNumOnMainThread = threadNum - 1;
     return HCCL_SUCCESS;
 }
 u64 InsTempAllGatherNHR::GetThreadNum() const
 {
     // 多申请一倍的流用来最后做PostLocalCopy和NHR最后一个step并行执行
-    return channelsPerRank_ * 2;
+    return channelsPerRank_ * TWO_TIMES_STREAM;
 }
 
 u64 InsTempAllGatherNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)

@@ -158,7 +158,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
-            } else if (dataSize <= 16 * 1024 * 1024 && topoInfo->userRankSize >= ccuSize) {
+            } else if (dataSize <= RS_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
                 return SelectorStatus::MATCH;
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
@@ -307,9 +307,11 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_FP64 ||
         opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD;
 
+    u32 deviceNumPerModule8 = 8;
+    u32 topoLevelNums3 = 3;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == 3) {
-            if (topoInfo->deviceNumPerModule == 8) {	 
+        if (topoInfo->topoLevelNums == topoLevelNums3) {
+            if (topoInfo->deviceNumPerModule == deviceNumPerModule8) {	 
                 selectAlgName = "InsV2AllReduceOmniPipeUboe"; 
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) { 
                 selectAlgName = "InsAllReduceNHR"; 
