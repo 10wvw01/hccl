@@ -1,20 +1,25 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #include "gtest/gtest.h"
+#include "sim_world.h"
+#include "hccl.h"
+#include "hccl/hccl_types.h"
+#include "acl/acl_rt.h"
+#include "hccl_verifier.h"
+#include "check_utils.h"
+#include <thread>
 #include "alg_env_config.h"
-#include "v_testcase_common.h"
 
-constexpr u32 DATATYPE_SIZE_TABLE_RSV[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
-    2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
-    8, 2, 16, 2, 1, 1, 1, 1};
+using namespace HcclSim;
+using namespace ops_hccl;
 
 class ST_REDUCESCATTERV_TEST : public ::testing::Test {
 protected:
@@ -25,7 +30,6 @@ protected:
     void TearDown() override
     {
         unsetenv("HCCL_OP_EXPANSION_MODE");
-        unsetenv("HCCL_INDEPENDENT_OP");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
     }
     static void SetUpTestCase()
@@ -34,73 +38,70 @@ protected:
     {}
 };
 
-static HcclResult ReduceScatterVDispatch(u32 rankId, u64 totalCount, VDataDesTag vDataDes,
-    HcclComm comm, aclrtStream stream)
+TEST_F(ST_REDUCESCATTERV_TEST, st_reducescatterV)
 {
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE_RSV[vDataDes.dataType];
-    void *sendBuf = nullptr;
-    void *recvBuf = nullptr;
-    u64 recvDataCount = vDataDes.counts[rankId];
-    u64 sendBufSize = totalCount * dataTypeSize;
-    u64 recvBufSize = recvDataCount * dataTypeSize;
-    aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
-    aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
-    return HcclReduceScatterV(sendBuf, vDataDes.counts.data(), vDataDes.displs.data(),
-        recvBuf, recvDataCount, vDataDes.dataType, HcclReduceOp::HCCL_REDUCE_SUM, comm, stream);
-}
+    TopoMeta topoMeta {{{0, 1}}};  // 三维数组指定超节点-Server-Device信息
+    SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
 
-static HcclResult ReduceScatterVVerify(AllRankTaskQueues &taskQueues, u32 rankSize, VDataDesTag vDataDes)
-{
-    return CheckReduceScatterV(taskQueues, rankSize, HcclReduceOp::HCCL_REDUCE_SUM, vDataDes);
-}
+    // 设置展开模式为HOST_TS
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_INDEPENDENT_OP", "1", 1);
+    
 
-static void SetIndependentOpEnv() { setenv("HCCL_INDEPENDENT_OP", "1", 1); }
-
-static void RunReduceScatterVMultilevel(const TopoMeta &topoInfo, VDataDesTag vDataDes)
-{
-    RunVMultilevelTest(topoInfo, vDataDes, SetIndependentOpEnv, ReduceScatterVDispatch, ReduceScatterVVerify);
-}
-
-TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_aicpu_test)
-{
-    TopoMeta topoMeta{{{0, 1}}};
+    uint32_t rankSize = 2;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
     VDataDesTag vDataDes;
     vDataDes.counts = {155, 155};
     vDataDes.displs = {0, 155};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
+    vDataDes.dataType = dataType;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
 
-    RunReduceScatterVMultilevel(topoMeta, vDataDes);
-}
+    u64 sendDataCount = 0;  // 数据量转化为字节数
+    for (auto& temp: vDataDes.counts) {
+        sendDataCount += temp;
+    }
 
-TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_multilevel_2pod_4rank_int32_equal_test)
-{
-    TopoMeta topoMeta{{{0, 1}, {2, 3}}};
-    VDataDesTag vDataDes;
-    vDataDes.counts = {100, 100, 100, 100};
-    vDataDes.displs = {0, 100, 200, 300};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    std::vector<std::thread> threads;
+    for (auto rankId = 0; rankId < rankSize; ++rankId) {
+        threads.emplace_back([=]() {
+            // 1.SetDevice
+            aclrtSetDevice(rankId);
 
-    RunReduceScatterVMultilevel(topoMeta, vDataDes);
-}
+            // 2.创建流
+            aclrtStream stream = nullptr;
+            aclrtCreateStream(&stream);
 
-TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_3layer_2pod_2server_4rank_fp16_equal_test)
-{
-    TopoMeta topoMeta{{{0}, {1}}, {{0}, {1}}};
-    VDataDesTag vDataDes;
-    vDataDes.counts = {200, 200, 200, 200};
-    vDataDes.displs = {0, 200, 400, 600};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
+            // 3.初始化通信域
+            HcclComm comm = nullptr;
+            CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankId, &comm));
 
-    RunReduceScatterVMultilevel(topoMeta, vDataDes);
-}
+            void *sendBuf = nullptr;
+            void *recvBuf = nullptr;
+            
+            u64 recvDataCount = vDataDes.counts[rankId];
+            // 打桩实现，仿真运行需标记内存是INPUT和OUTPUT
+            aclrtMalloc(&sendBuf, sendDataCount * sizeof(float), static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+            aclrtMalloc(&recvBuf, recvDataCount * sizeof(float), static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
 
-TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_3layer_2pod_1server_4rank_int32_equal_test)
-{
-    TopoMeta topoMeta{{{0, 1}}, {{0, 1}}};
-    VDataDesTag vDataDes;
-    vDataDes.counts = {100, 100, 100, 100};
-    vDataDes.displs = {0, 100, 200, 300};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+            // 4.算子下发
+            CHK_RET(HcclReduceScatterV(sendBuf, vDataDes.counts.data(), vDataDes.displs.data(),
+                recvBuf, recvDataCount, dataType, reduceOp, comm, stream));
+            // 5.销毁通信域
+            CHK_RET(HcclCommDestroy(comm));
+            return HCCL_SUCCESS;
+        });
+    }
 
-    RunReduceScatterVMultilevel(topoMeta, vDataDes);
+    // 等待多线程执行完成
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // 结果成图校验
+    auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
+    HcclResult res = CheckReduceScatterV(taskQueues, rankSize, reduceOp, vDataDes);
+    EXPECT_TRUE(res == HCCL_SUCCESS);
+
+    // 资源清理
+    SimWorld::Global()->Deinit();
 }
