@@ -142,9 +142,9 @@ HcclResult BatchSendRecvOutPlace(HcclSendRecvItem *sendRecvInfo, uint32_t itemNu
     return HCCL_SUCCESS;
 }
 
-HcclResult BatchSendRecvEntryLog(uint32_t itemNum, aclrtStream stream, const std::string &tag, const std::string &opName)
+HcclResult BatchSendRecvEntryLog(uint32_t itemNum, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

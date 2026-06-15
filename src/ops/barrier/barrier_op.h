@@ -33,7 +33,7 @@ namespace ops_hccl {
 HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string &tag);
 HcclResult CheckBarrierInputPara(const HcclComm comm, const aclrtStream stream);
 HcclResult BarrierInitAndCheck(HcclComm comm, aclrtStream stream, std::string &opTag);
-HcclResult BarrierEntryLog(aclrtStream stream, const std::string &tag, const std::string &opName);
+HcclResult BarrierEntryLog(aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog = false);
 }  // namespace ops_hccl
 
 #endif

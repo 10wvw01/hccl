@@ -159,9 +159,9 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
     return HCCL_SUCCESS;
 }
 
-HcclResult BarrierEntryLog(aclrtStream stream, const std::string &tag, const std::string &opName)
+HcclResult BarrierEntryLog(aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
