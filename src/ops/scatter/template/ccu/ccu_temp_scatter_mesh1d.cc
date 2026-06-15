@@ -107,7 +107,7 @@ HcclResult CcuTempScatterMesh1D::FastLaunch(const OpParam& param, const Template
     args[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + args[inputIdx];
     args[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + args[outputIdx];
     void *taskArgs = reinterpret_cast<void*>(args);
-    uint64_t argSize = 11;
+    uint64_t argSize = 15;
     CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[0],
                                                tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle,
                                                taskArgs, argSize);
@@ -140,14 +140,23 @@ HcclResult CcuTempScatterMesh1D::KernelRun(const OpParam &param, const TemplateD
     uint64_t outputRepeatStride = templateDataParams.outputRepeatStride;
     uint64_t normalSliceSize = templateDataParams.sliceSize;
     uint64_t lastSliceSize = templateDataParams.tailSize;
+    // root自身slice的大小：若root是最后一个rank则用lastSliceSize，否则用normalSliceSize
+    uint64_t rootSliceSize = (lastSliceSize != 0 && subCommRootId_ == templateRankSize_ - 1) ? lastSliceSize : normalSliceSize;
     uint64_t isInputOutputEqual = inputAddr == outputAddr ? 1 : 0;
     uint64_t repeatNum = UINT64_MAX - repeatNumTmp;
 
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount    = CCU_MS_LOCAL_COPY_LOOP_COUNT;
+    config.memSlice     = CCU_MS_SIZE * LOCAL_COPY_MS_PER_LOOP;
+    auto goSize = CalGoSize(rootSliceSize, config);
+
     std::vector<uint64_t> taskArgs = {
         inputAddr, outputAddr, token, inputSliceStride, outputSliceStride, inputRepeatStride, outputRepeatStride,
-        normalSliceSize, lastSliceSize, repeatNum, isInputOutputEqual
+        normalSliceSize, lastSliceSize, repeatNum, isInputOutputEqual,
+        goSize[0], goSize[1], goSize[2], goSize[3]
     };
-    uint64_t argSize = 11;
+    uint64_t argSize = 15;
     CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0],
                                                taskArgs.data(), argSize);
     if (launchRet != CCU_SUCCESS) {
@@ -170,6 +179,10 @@ HcclResult CcuTempScatterMesh1D::KernelRun(const OpParam &param, const TemplateD
     submitInfo.cachedArgs[8]=lastSliceSize;
     submitInfo.cachedArgs[9]=repeatNum;
     submitInfo.cachedArgs[10]=isInputOutputEqual;
+    submitInfo.cachedArgs[11]=goSize[0];
+    submitInfo.cachedArgs[12]=goSize[1];
+    submitInfo.cachedArgs[13]=goSize[2];
+    submitInfo.cachedArgs[14]=goSize[3];
     templateResource.submitInfos.push_back(submitInfo);
 
     return HcclResult::HCCL_SUCCESS;
