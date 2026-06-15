@@ -1136,21 +1136,6 @@ uint16_t Fp32ToFp16(float value)
     return static_cast<uint16_t>((sign << 15) | (fp16Exp << 10) | fp16Mant);
 }
 
-float Bfp16ToFp32(uint16_t bfp16Bits)
-{
-    uint32_t result = static_cast<uint32_t>(bfp16Bits) << 16;
-    float f;
-    memcpy_s(&f, sizeof(f), &result, sizeof(f));
-    return f;
-}
-
-uint16_t Fp32ToBfp16(float value)
-{
-    uint32_t fp32Bits;
-    memcpy_s(&fp32Bits, sizeof(fp32Bits), &value, sizeof(fp32Bits));
-    return static_cast<uint16_t>(fp32Bits >> 16);
-}
-
 HcclResult AicpuReduceFp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp)
 {
     u64 count = size / sizeof(uint16_t);
@@ -1176,31 +1161,6 @@ HcclResult AicpuReduceFp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduce
     return ret;
 }
 
-HcclResult AicpuReduceBfp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp)
-{
-    u64 count = size / sizeof(uint16_t);
-    std::vector<float> srcFp32(count);
-    std::vector<float> dstFp32(count);
-    uint16_t *srcBfp16 = reinterpret_cast<uint16_t *>(src);
-    uint16_t *dstBfp16 = reinterpret_cast<uint16_t *>(dst);
-    for (u64 i = 0; i < count; ++i) {
-        srcFp32[i] = Bfp16ToFp32(srcBfp16[i]);
-        dstFp32[i] = Bfp16ToFp32(dstBfp16[i]);
-    }
-    HcclResult ret = AicpuReduceTemplate<float>(dstFp32.data(),
-        dstFp32.size() * sizeof(float),
-        srcFp32.data(),
-        srcFp32.size() * sizeof(float),
-        reduceOp);
-    CHK_PRT_RET(ret != HcclResult::HCCL_SUCCESS,
-        HCCL_ERROR("[AicpuReduceBfp16] AicpuReduceTemplate failed, ret[%d].", static_cast<int>(ret)),
-        ret);
-    for (u64 i = 0; i < count; ++i) {
-        dstBfp16[i] = Fp32ToBfp16(dstFp32[i]);
-    }
-    return ret;
-}
-
 HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice,
     const HcclDataType dataType, const HcclReduceOp reduceOp)
 {
@@ -1217,10 +1177,6 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
             ret = AicpuReduceTemplate<int8_t>(reinterpret_cast<int8_t *>(dst), dstSlice.size_,
                 reinterpret_cast<int8_t *>(src), srcSlice.size_, reduceOp);
             break;
-        case HcclDataType::HCCL_DATA_TYPE_INT16:
-            ret = AicpuReduceTemplate<int16_t>(reinterpret_cast<int16_t *>(dst), dstSlice.size_,
-                reinterpret_cast<int16_t *>(src), srcSlice.size_, reduceOp);
-            break;
         case HcclDataType::HCCL_DATA_TYPE_INT32:
             ret = AicpuReduceTemplate<int32_t>(reinterpret_cast<int32_t *>(dst), dstSlice.size_,
                 reinterpret_cast<int32_t *>(src), srcSlice.size_, reduceOp);
@@ -1231,9 +1187,6 @@ HcclResult AicpuReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
         case HcclDataType::HCCL_DATA_TYPE_FP32:
             ret = AicpuReduceTemplate<float>(reinterpret_cast<float *>(dst), dstSlice.size_,
                 reinterpret_cast<float *>(src), srcSlice.size_, reduceOp);
-            break;
-        case HcclDataType::HCCL_DATA_TYPE_BFP16:
-            ret = AicpuReduceBfp16(dst, src, srcSlice.size_, reduceOp);
             break;
         case HcclDataType::HCCL_DATA_TYPE_INT64:
             ret = AicpuReduceTemplate<int64_t>(reinterpret_cast<int64_t *>(dst), dstSlice.size_,

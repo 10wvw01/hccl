@@ -27,11 +27,6 @@ struct WiderType<int8_t> {
 };
 
 template <>
-struct WiderType<int16_t> {
-    using Type = int32_t;
-};
-
-template <>
 struct WiderType<int32_t> {
     using Type = int64_t;
 };
@@ -103,13 +98,7 @@ float Fp16ToFp32(uint16_t fp16Bits);
 
 uint16_t Fp32ToFp16(float value);
 
-float Bfp16ToFp32(uint16_t bfp16Bits);
-
-uint16_t Fp32ToBfp16(float value);
-
 HcclResult AicpuReduceFp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp);
-
-HcclResult AicpuReduceBfp16(u8 *dst, u8 *src, u64 size, const HcclReduceOp reduceOp);
 
 template <typename T>
 typename std::enable_if<!std::is_same<typename WiderType<T>::Type, T>::value, T>::type
