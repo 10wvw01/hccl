@@ -22,6 +22,7 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 = {{F_TYPE_KTYPE, sizeof(unsigned int), K_TYPE_AIV}}
 
 constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE_V = 64;
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
 constexpr uint64_t TOPO_ADDR_OFFSET = 32 * 1024;
 constexpr uint64_t FLAG_ADDR_OFFSET = 40 * 1024;
@@ -34,10 +35,10 @@ constexpr uint64_t LOW_16_BITS = 0xFFFF;
 constexpr uint64_t DATA_LIMIT = 512 * 1024;
 
 struct ExtraArgs {
-    uint64_t sendCounts[MAX_RANK_SIZE] = {};
-    uint64_t sendDispls[MAX_RANK_SIZE] = {};
-    uint64_t recvCounts[MAX_RANK_SIZE] = {};
-    uint64_t recvDispls[MAX_RANK_SIZE] = {};
+    uint64_t sendCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t sendDispls[MAX_RANK_SIZE_V] = {};
+    uint64_t recvCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t recvDispls[MAX_RANK_SIZE_V] = {};
 };
 
 using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
@@ -327,7 +328,7 @@ public:
 
     __aicore__ inline void BarrierAll();
 
-    __aicore__ inline void SubBarrierAllForAlltoAllV(uint32_t (&sendRecvRank)[MAX_RANK_SIZE], uint64_t loop);
+    __aicore__ inline void SubBarrierAllForAlltoAllV(uint32_t (&sendRecvRank)[MAX_RANK_SIZE_V], uint64_t loop);
 
     __aicore__ inline void PreBarrierAllForAlltoAllV(uint32_t tag, uint64_t loopTimes);
 
@@ -584,7 +585,7 @@ __aicore__ inline void AivCommBase::BarrierAll()
     }
 }
 
-__aicore__ inline void AivCommBase::SubBarrierAllForAlltoAllV(uint32_t (&sendRecvRank)[MAX_RANK_SIZE], uint64_t loop)
+__aicore__ inline void AivCommBase::SubBarrierAllForAlltoAllV(uint32_t (&sendRecvRank)[MAX_RANK_SIZE_V], uint64_t loop)
 {
     SyncAll<true>();
     // 每个核分配多个rank

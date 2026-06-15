@@ -20,7 +20,7 @@
 
 namespace ops_hccl {
 constexpr u32 MAX_RANK_SIZE = 512; // 注意要和device侧的一致
- 
+constexpr u32 MAX_RANK_SIZE_V = 64; // 注意要和device侧的一致
 constexpr s32 TOPO_LEN = 512;
 
 constexpr u32 AIV_TAG_ADDR_OFFSET = 16 * 1024;
@@ -61,10 +61,10 @@ using AivKernelInfo = struct AivKernelInfoDef {
 
 // 非均匀算子AlltoAllV/AlltoAllVC/AllGatherV/ReduceScatterV需要的额外参数信息，A3场景
 struct ExtraArgs {
-    u64 sendCounts[MAX_RANK_SIZE] = {};
-    u64 sendDispls[MAX_RANK_SIZE] = {};
-    u64 recvCounts[MAX_RANK_SIZE] = {};
-    u64 recvDispls[MAX_RANK_SIZE] = {};
+    u64 sendCounts[MAX_RANK_SIZE_V] = {};
+    u64 sendDispls[MAX_RANK_SIZE_V] = {};
+    u64 recvCounts[MAX_RANK_SIZE_V] = {};
+    u64 recvDispls[MAX_RANK_SIZE_V] = {};
 };
 
 // 算子计数信息
