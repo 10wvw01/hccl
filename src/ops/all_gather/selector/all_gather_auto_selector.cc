@@ -242,7 +242,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
                 selectAlgName = "InsAllGatherNHR";
             } else {
-                selectAlgName = "InsAllGatherParallelMesh1DNHRTest";
+                selectAlgName = "InsAllGatherParallelMesh1DNHRUboe";
             }
         } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsAllGatherNHR";
