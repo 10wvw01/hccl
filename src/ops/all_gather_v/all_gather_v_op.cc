@@ -114,10 +114,10 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	resPack.scratchMemAddr = scratchMemAddr;
  	resPack.scratchMemSize = scratchMemSize;
 
- 	CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, "HcclAllGatherVGraphMode"));  	 
+    CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, "HcclAllGatherVGraphMode", true));
  	// 执行AllGatherV
  	CHK_RET_AND_PRINT_IDE(AllGatherVOutPlaceGraphMode(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, comm, stream, tag, resPack), opTag);
- 	CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut, true));
 
  	return HCCL_SUCCESS;
 }
@@ -242,9 +242,9 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
 }
 
 HcclResult AllGatherVEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls,
-    HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName)
+    HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

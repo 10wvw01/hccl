@@ -49,7 +49,7 @@ HcclResult AllReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, ui
                                  HcclReduceOp op, const aclrtStream stream, OpParam &param);
 
 HcclResult AllReduceEntryLog(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
-    aclrtStream stream, const char *tag, const std::string &opName);
+    aclrtStream stream, const char *tag, const std::string &opName, bool forceLog = false);
 }
 
 #endif
