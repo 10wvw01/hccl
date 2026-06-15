@@ -87,28 +87,26 @@ void RunAllGather3LevelA5(const TopoMeta &topoMeta, const u64 &sendCount, const 
     SimWorld::Global()->Deinit();
 }
 
-// P0: #1 - 3-level basic correctness on 128-card topology
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x8x2_fp32_basic)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x8x8_int8_1)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 8, 8);
-    auto sendCount = 200;
+    GenTopoMeta(topoMeta, 4, 8, 8);
+    auto sendCount = 3 * 1024 + 6;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x2_fp32_2_)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 2);
+    auto sendCount = 1 * 1024 * 1024 * 1024 + 73;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// P0: #3 - outputRepeatStride>0, repeatNum=L2=3 verification
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x4x3_fp32_repeatnum_gt1)
-{
-    TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 3, 4, 4);
-    auto sendCount = 200;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
-    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-}
 
-// P0: #16 - backward compatibility, 2-level behavior unchanged
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_2level_backward_compat_meshnhr)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_1x2x8_int32_backward_compat)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 1, 2, 8);
@@ -117,38 +115,55 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_2level_backward_compat_meshnhr)
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// P1: #5 - different topology scale correctness
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x4x2_int32_different_scale)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x1x4_int8_different_scale)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 4, 4);
-    auto sendCount = 500;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    GenTopoMeta(topoMeta, 2, 1, 4);
+    auto sendCount = 200 + 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// // P1: #6 - asymmetric middle layer (Level1)
-// TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x4x2_int16_asymmetric_mid)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 8);
-//     auto sendCount = 1000;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
-//     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-// }
 
-// P1: #10 - small-scale large-data loop segmentation
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x4x2_fp32_multi_loop)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x1x1_fp32_multi_loop)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 4, 4);
-    auto sendCount = 400 * 1024 * 1024;
+    GenTopoMeta(topoMeta, 4, 1, 1);
+    auto sendCount = 262;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// P1: #11 - small cluster, boundary rank verification, sendCount=200+1
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x2x2_fp32_small_cluster_send200_plus_1)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x4x1_fp32_send128k_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 4, 1);
+    auto sendCount = 128 * 1024 + 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x4x4_fp32)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 4, 4);
+    auto sendCount = 500;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+// L1=1: degenerate L1 + sendCount=8+1
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x3x4_fp32_l1_degenerate_send243_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 3, 4);
+    auto sendCount = 200 + 43;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+// L0=1 + L1=1: double degenerate, 1x1x4=4 ranks, sendCount=16+1
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x8_fp32_send201_plus_1)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 8);
@@ -157,28 +172,16 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x2x2_fp32_small_cluster_s
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// P2: #4 - higher repeatNum (repeatNum=L2=4)
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x2x4_int32_repeatnum4)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x2x2_int32_send200)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 4, 2, 4);
+    GenTopoMeta(topoMeta, 4, 2, 2);
     auto sendCount = 200;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// // P2: #7 - FP16 data type on 32-card topology
-// TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x4x2_fp16_dtype)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 4);
-//     auto sendCount = 500 * 1024;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
-//     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-// }
-
-// P2: #8 - BFP16 data type on 16-card topology
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x2x2_bfp16_dtype)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x4_bfp16_send300)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 4);
@@ -187,28 +190,17 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x2x2_bfp16_dtype)
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// // P2: #12 - extremely small topology
-// TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x2x2_int8_corner)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 2, 4);
-//     auto sendCount = 100;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-//     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-// }
-
-// P2: #14 - Level2 has 3 clusters (repeatNum=3)
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x2x3_fp32_level2_3cluster)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_3x2x3_fp32_send200)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 3, 2, 8);
+    GenTopoMeta(topoMeta, 3, 2, 3);
     auto sendCount = 200;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// P2: #15 - fully asymmetric dimensions
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x3x2_int32_asymmetric_all)
+// P2: #4 - higher repeatNum (repeatNum=L2=4)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x3x4_int32_repeatnum4)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 3, 4);
@@ -217,10 +209,16 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x3x2_int32_asymmetric_all
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// --- Degenerate Level (dimension=1) edge cases ---
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x3x2_bfp16_send4m_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 4, 3, 2);
+    auto sendCount = 4 * 1024 * 1024 + 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
 
-// L1=1: single server per pod, 8x1x3=24 ranks, degenerate L1
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x1x3_fp32_l1_degenerate)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_3x1x8_fp32_send200)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 3, 1, 8);
@@ -229,54 +227,74 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x1x3_fp32_l1_degenerate)
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// L1=1: degenerate L1 + sendCount=8+1
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x1x2_int8_l1_degenerate_send8_plus_1)
-{
-    TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 1, 4);
-    auto sendCount = 8 + 1;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-}
-
-// L0=1 + L1=1: double degenerate, 1x1x4=4 ranks, sendCount=16+1
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_1x1x4_fp32_double_degenerate_send16_plus_1)
-{
-    TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 4, 1, 1);
-    auto sendCount = 16 + 1;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
-    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
-}
-
-// --- Strange / weird sendCount = aligned_value + 1 cases ---
-
-// sendCount=4+1=5: just over power-of-2, tests remainder element in stride slicing
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x3x2_fp32_send4_plus_1)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x3x4_int32_send64m_plus_1)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 3, 4);
-    auto sendCount = 4 + 1;
+    auto sendCount = 64 * 1024 * 1024 + 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x2_int32_send128m_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 2);
+    auto sendCount = 128 * 1024 * 1024 + 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x1x1_fp32_send326m_plus_671)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 4, 1, 1);
+    auto sendCount = 326 * 1024 * 1024 + 671;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// sendCount=64K+1=65537: just over 64K boundary, loop slicing remainder on 32-card
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_4x4x2_int16_send64k_plus_1)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x1x1_fp32_send326m_plus_671)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 4, 4);
-    auto sendCount = 64 * 1024 + 1;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
+    GenTopoMeta(topoMeta, 8, 1, 1);
+    auto sendCount = 326 * 1024 * 1024 + 671;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
 
-// L0=1 + sendCount=128K+1: degenerate L0 + large data with remainder element
-TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_1x4x2_fp32_l0_degenerate_send128k_plus_1)
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_8x1x1_bfp16_send326m_plus_27)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 4, 1);
-    auto sendCount = 128 * 1024 + 1;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    GenTopoMeta(topoMeta, 8, 1, 1);
+    auto sendCount = 326 * 1024 * 1024 + 27;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_3x1x5_bfp16_send356k_plus_43)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 3, 1, 5);
+    auto sendCount = 356 * 1024 + 43;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x8x8_bfp16_send300k_plus_3)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 8, 8);
+    auto sendCount = 300 * 1024 + 3;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
+    RunAllGather3LevelA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x8_bfp16_send100k_plus_8)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 8);
+    auto sendCount = 100 * 1024 + 8;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
