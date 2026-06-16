@@ -73,6 +73,7 @@ elseif(ENABLE_CUSTOM)
         message(FATAL_ERROR "CMakeLists.txt not found. Please ensure it's a CMake project: ${CUSTOM_OPS_PATH}")
     endif()
 
+    
     message(STATUS "Custom ops name: ${CUSTOM_OPS_NAME}")
     message(STATUS "Custom ops vendor: ${CUSTOM_OPS_VENDOR}")
     message(STATUS "Custom ops path: ${CUSTOM_OPS_PATH}")
