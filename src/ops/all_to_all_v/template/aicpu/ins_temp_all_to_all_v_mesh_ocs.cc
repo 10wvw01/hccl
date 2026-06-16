@@ -97,7 +97,7 @@ HcclResult InsTempAlltoAllVMeshOcs::CalcRes(HcclComm comm, const OpParam& param,
      * 每个从线程需要 1 个 notify（用于 PreSync/PostSync）
      * 主线程需要 slaveThreadNum 个 notify（用于接收各从线程的完成通知） */
     for (u32 index = 0; index < resourceRequest.slaveThreadNum; index++) {
-        resourceRequest.notifyNumPerThread.push_back(1);
+        resourceRequest.notifyNumPerThread.push_back(channelsPerRank);
     }
     resourceRequest.notifyNumOnMainThread = resourceRequest.slaveThreadNum;
     return HCCL_SUCCESS;
