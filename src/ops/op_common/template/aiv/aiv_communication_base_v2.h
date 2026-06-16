@@ -340,10 +340,10 @@ public:
     {
         uint32_t perCoreRankNum = rankSize_ / numBlocks_;
         uint32_t remainRankNum = rankSize_ % numBlocks_;
-        uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-        uint32_t startRank = block_idx < remainRankNum
-                            ? (perCoreRankNum + 1) * block_idx
-                            : perCoreRankNum * block_idx + remainRankNum;
+        uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+        uint32_t startRank = blockIdx_ < remainRankNum
+                            ? (perCoreRankNum + 1) * blockIdx_
+                            : perCoreRankNum * blockIdx_ + remainRankNum;
         for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
             uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank * FLAG_SIZE + barrierStage * rankSize_ * FLAG_SIZE;
             Record(rank_, flag_offset / FLAG_SIZE, DOUBLE);
@@ -517,7 +517,7 @@ __aicore__ inline void AivCommBase::ClearGM()
 {
     uint32_t emptyOffset = AIV_FLAG_EMPTY_OFFSET - gmOutOffset;
     uint32_t blockCount = (BASE_FLAG_OFFSET - FLAG1_OFFSET) / numBlocks_;
-    uint32_t blockOffset = blockCount * block_idx;
+    uint32_t blockOffset = blockCount * blockIdx_;
     CpGM2GM(GM_OUT[rank_] + blockOffset, GM_OUT[rank_] + blockOffset + emptyOffset, blockCount);
 }
 
@@ -555,10 +555,10 @@ __aicore__ inline void AivCommBase::BarrierAll()
     // 每个核分配多个rank
     uint32_t perCoreRankNum = rankSize_ / numBlocks_;
     uint32_t remainRankNum = rankSize_ % numBlocks_;
-    uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-    uint32_t startRank = block_idx < remainRankNum
-                        ? (perCoreRankNum + 1) * block_idx
-                        : perCoreRankNum * block_idx + remainRankNum;
+    uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+    uint32_t startRank = blockIdx_ < remainRankNum
+                        ? (perCoreRankNum + 1) * blockIdx_
+                        : perCoreRankNum * blockIdx_ + remainRankNum;
     uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE;
     for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
         Record(rank, flag_offset / FLAG_SIZE, 1);
