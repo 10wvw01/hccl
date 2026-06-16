@@ -1236,10 +1236,17 @@ HcclResult HcclGetThread(
     } else {
         // host模式下，将主流封装为thread，并创建主流上的notify
         ThreadHandle thread;
-        CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream, resRequest.notifyNumOnMainThread, &thread));
+        CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream,
+            resRequest.notifyNumOnMainThread, &thread));
         resCtxHost->threads.push_back(thread);
+        u32 maxNotifyNum = 0;
+        for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
+            if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
+                maxNotifyNum = resRequest.notifyNumPerThread[i];
+            }
+        }
 
-        CHK_RET(GeGetThread(comm, param, resRequest, resCtxHost, resPack));
+        CHK_RET(GeGetThread(comm, param, resRequest, resCtxHost, resPack, maxNotifyNum));
     }
 
     if (UNLIKELY(HcclCheckLogLevel(DLOG_DEBUG))) {
@@ -1252,19 +1259,13 @@ HcclResult HcclGetThread(
 }
 
 HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
-    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
+    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack, u32 maxNotifyNum)
 {
     if (param.opMode == OpMode::OPBASE) {
         u32 threadNum = resRequest.slaveThreadNum;
         if (threadNum > 0) {
             std::vector<ThreadHandle> threads(threadNum);
-            std::vector<ThreadConfig> threadConfigs(threadNum);
-            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
-            for (u32 i = 0; i < threadNum; i++) {
-                threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
-            }
-            CHK_RET(HcclThreadAcquireWithConfig(comm, param.engine, threadNum, THREAD_TYPE_TS,
-                threadConfigs.data(), threads.data()));
+            CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, maxNotifyNum, threads.data()));
             for (u32 i = 0; i < threadNum; i++) {
                 resCtxHost->threads.push_back(threads[i]);
             }
@@ -1279,8 +1280,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
 
         for (u32 i = 0; i < threadNum; i++) {
             ThreadHandle slaveThread;
-            CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, resPack.streams[i],
-                resRequest.notifyNumPerThread[i], &slaveThread));
+            CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, resPack.streams[i], maxNotifyNum, &slaveThread));
             resCtxHost->threads.push_back(slaveThread);
         }
     }
