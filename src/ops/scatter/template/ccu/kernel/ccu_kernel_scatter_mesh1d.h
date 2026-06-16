@@ -70,7 +70,7 @@ public:
     explicit CcuTaskArgScatterMesh1D(uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
                                             uint64_t inputSliceStride, uint64_t outputSliceStride ,uint64_t inputRepeatStride,
                                             uint64_t outputRepeatStride, uint64_t normalSliceSize,
-                                            uint64_t lastSliceSize, uint64_t repeatNum)
+                                            uint64_t lastSliceSize, uint64_t repeatNum, uint64_t isInputOutputEqual)
         : inputAddr_(inputAddr),
           outputAddr_(outputAddr),
           token_(token),
@@ -80,13 +80,14 @@ public:
           outputRepeatStride_(outputRepeatStride),
           normalSliceSize_(normalSliceSize),
           lastSliceSize_(lastSliceSize),
-          repeatNum_(repeatNum)
+          repeatNum_(repeatNum),
+          isInputOutputEqual_(isInputOutputEqual)
     {
         HCCL_DEBUG("[CcuTaskArgScatterMesh1D] inputAddr: %lu, outputAddr: %lu, token: %lu, "
                    "inputSliceStride: %lu, outputSliceStride: %lu,inputRepeatStride: %lu, outputRepeatStride: %lu, normalSliceSize: %lu, "
-                   "lastSliceSize: %lu, repeatNum: %lu",
+                   "lastSliceSize: %lu, repeatNum: %lu, isInputOutputEqual: %lu",
                    inputAddr_, outputAddr_, token_, inputSliceStride_, outputSliceStride_, inputRepeatStride_, outputRepeatStride_,
-                   normalSliceSize_, lastSliceSize_, repeatNum_);
+                   normalSliceSize_, lastSliceSize_, repeatNum_, isInputOutputEqual_);
     }
 
     uint64_t inputAddr_;           // 输入缓冲区地址
@@ -99,6 +100,7 @@ public:
     uint64_t normalSliceSize_;     // 正常切片大小
     uint64_t lastSliceSize_;       // 最后一个切片大小
     uint64_t repeatNum_;           // 重复次数
+    uint64_t isInputOutputEqual_;  // 输入输出地址是否相等
 };
 
 class CcuKernelScatterMesh1D : public CcuKernelAlgBase {
@@ -133,6 +135,8 @@ private:
     hcomm::CcuRep::Variable outputRepeatStride_;
     hcomm::CcuRep::Variable normalSliceSize_;
     hcomm::CcuRep::Variable lastSliceSize_;
+    hcomm::CcuRep::Variable isInputOutputEqual_;
+    GroupOpSize GoSize_;
     uint16_t selfBit_{0};
     uint16_t allBit_{0};
     hcomm::CcuRep::LocalAddr myInput_;

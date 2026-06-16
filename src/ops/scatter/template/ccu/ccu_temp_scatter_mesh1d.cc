@@ -100,10 +100,15 @@ HcclResult CcuTempScatterMesh1D::FastLaunch(const OpParam& param, const Template
     HCCL_DEBUG("[CcuTempScatterMesh1D::FastLaunch] start");
     const uint64_t *args = tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs;
     buffInfo_ = tempFastLaunchCtx.buffInfo;
+    uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + args[0];
+    uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + args[1];
+    uint64_t inputSliceStride = args[3];
+    uint64_t outputSliceStride = args[4];
+    bool inputOutputEqual = (inputAddr + mySubCommRank_ * inputSliceStride == outputAddr + mySubCommRank_ * outputSliceStride);
+    uint64_t isInputOutputEqual = static_cast<uint64_t>(inputOutputEqual);
     CcuTaskArgScatterMesh1D taskArg(
-            PointerToAddr(buffInfo_.inputPtr) + args[0],
-            PointerToAddr(buffInfo_.outputPtr) + args[1],
-            args[2],args[3], args[4], args[5], args[6], args[7], args[8], args[9]);
+            inputAddr, outputAddr,
+            args[2], inputSliceStride, outputSliceStride, args[5], args[6], args[7], args[8], args[9], isInputOutputEqual);
 
     void* taskArgPtr = static_cast<void*>(&taskArg);
 
@@ -135,11 +140,13 @@ HcclResult CcuTempScatterMesh1D::KernelRun(const OpParam &param, const TemplateD
     uint64_t normalSliceSize = templateDataParams.sliceSize;
     uint64_t lastSliceSize = templateDataParams.tailSize;
     uint64_t repeatNum = UINT64_MAX - repeatNumTmp;
+    bool inputOutputEqual = (inputAddr + mySubCommRank_ * inputSliceStride == outputAddr + mySubCommRank_ * outputSliceStride);
+    uint64_t isInputOutputEqual = static_cast<uint64_t>(inputOutputEqual);
 
     HCCL_INFO("[CcuTempScatterMesh1D] create CcuTaskArgScatterMesh1D, normalSliceSize [%u]", normalSliceSize);
     std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgScatterMesh1D>(
         inputAddr, outputAddr, token, inputSliceStride, outputSliceStride, inputRepeatStride, outputRepeatStride, normalSliceSize,
-        lastSliceSize, repeatNum);
+        lastSliceSize, repeatNum, isInputOutputEqual);
 
     void *taskArgPtr = static_cast<void *>(taskArg.get());
 
@@ -159,6 +166,7 @@ HcclResult CcuTempScatterMesh1D::KernelRun(const OpParam &param, const TemplateD
     submitInfo.cachedArgs[7]=normalSliceSize;
     submitInfo.cachedArgs[8]=lastSliceSize;
     submitInfo.cachedArgs[9]=repeatNum;
+    submitInfo.cachedArgs[10]=isInputOutputEqual;
     templateResource.submitInfos.push_back(submitInfo);
 
     return HcclResult::HCCL_SUCCESS;
