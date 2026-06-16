@@ -62,7 +62,7 @@ void RunAllGatherAicpuA5(const TopoMeta &topoInfo, const u64 &sendCount, const H
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE_ALL_GATHER_ST[dataType];
     auto rankSize = AnalyseRankSize(topoInfo);
     // 算子执行参数设置,多线程运行SCATTER算子
-    std::vector<std::thread> threads;
+    std::vector <std::thread> threads;
     for (auto rankId = 0; rankId < rankSize; ++rankId) {
         threads.emplace_back([=]() {
             // 1.SetDevice
