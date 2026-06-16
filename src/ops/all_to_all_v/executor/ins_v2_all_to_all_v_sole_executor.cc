@@ -11,6 +11,7 @@
 #include "ins_v2_all_to_all_v_sole_executor.h"
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_dpu_alltoall_mesh.h"
+#include "ins_temp_all_to_all_v_mesh_ocs.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_to_all_mesh_1D.h"
 #include "aiv_temp_all_to_all_v_mesh_1D.h"
@@ -19,7 +20,6 @@
 #include "ccu_temp_all_to_all_mesh2die.h"
 #include "ccu_temp_all_to_all_mesh1d_multi_jetty.h"
 #include "ccu_temp_all_to_all_mesh1d_2Die.h"
-#include "ins_temp_all_to_all_v_mesh_ocs.h"
 #endif /* !HCCL_CANN_COMPAT_850 */
 #endif
 
@@ -443,16 +443,12 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DSingleChannel,
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
 
-#ifndef AICPU_COMPILE
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMeshOcs);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMeshOcs);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLVC, InsAlltoAllVCMesh1DOcs, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMeshOcs);
-#endif
-#endif
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DUBX, InsV2AlltoAllVSoleExecutor, TopoMatchUBX1d,
