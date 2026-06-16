@@ -12,6 +12,7 @@
 #include "alg_data_trans_wrapper.h"
 #ifndef AICPU_COMPILE
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
+#include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
@@ -274,14 +275,15 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
+
+    rootXAixs = param.root % rankSizeLevel0_;
+    rootYAixs = param.root / rankSizeLevel0_;
+    isRoot = (myRank_ == root_);
+    isSameXAxis = (rankIdxLevel0_ == rootXAixs && !isRoot);
+    isSameYAxis = (rankIdxLevel1_ == rootYAixs && !isRoot);
     
     HCCL_DEBUG("[%s] myRank[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
         __func__, myRank_, rankSizeLevel0_, rankSizeLevel1_, rankIdxLevel0_, rankIdxLevel1_);
-
-
-
-
-
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
@@ -850,8 +852,9 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 // #endif
 }
