@@ -219,8 +219,6 @@ u64 InsV2ReduceScatterOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplate>::Roun
     return ((value + (divisor - 1)) / divisor) * divisor;
 }
 
-
-
 // 注册保序ReduceScatter执行器
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, ReduceScatterOrderPreserved,
     InsV2ReduceScatterOrderPreservedExecutor, TopoMatch1D, InsTempReduceScatterOrderPreservedLevel1);

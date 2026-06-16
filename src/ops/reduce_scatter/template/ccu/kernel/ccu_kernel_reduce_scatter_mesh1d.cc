@@ -150,12 +150,8 @@ CcuResult CcuReduceScatterMesh1DKernel(CcuKernelArg arg)
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
-
     PreSync(ctx);
-
     CCU_CHK_RET(DoReduceScatter(ctx));
-
-
     PostSync(ctx);
     HCCL_INFO("[CcuKernelReduceScatterMesh1D] ReduceScatterMesh1D end");
 
