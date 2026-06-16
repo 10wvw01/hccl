@@ -49,7 +49,6 @@ struct ChannelInfo {
 };
 
 struct AlgResourceCtx {
-    ThreadHandle aicpuThread;
     ThreadHandle cpuThreadOnAicpu;
     CommBuffer cclMem;
     uint32_t notifyNumOnMainThread;
@@ -62,7 +61,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream;
 
-        binaryStream << aicpuThread;
         binaryStream << cpuThreadOnAicpu;
         binaryStream << cclMem;
         binaryStream << notifyNumOnMainThread;
@@ -79,7 +77,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream(data);
 
-        binaryStream >> aicpuThread;
         binaryStream >> cpuThreadOnAicpu;
         binaryStream >> cclMem;
         binaryStream >> notifyNumOnMainThread;

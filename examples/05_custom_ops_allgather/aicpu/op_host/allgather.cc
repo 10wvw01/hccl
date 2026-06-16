@@ -86,7 +86,6 @@ HcclResult HcclAllGatherCustom(
         // STEP 2.3: 设置host/device同步所需thread,将hostcpu thread放到aicpu，aicpu thread放到hostcpu.
         // 使用threads[0]作为主AICPU thread，同时负责算法执行和host/device同步
         // ==============================================
-        resCtxHost.aicpuThread = resCtxHost.threads[0];
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &resCtxHost.threads[0], COMM_ENGINE_CPU_TS, &param.aicpuThreadOnCpu));
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &param.cpuThread, COMM_ENGINE_AICPU_TS, &resCtxHost.cpuThreadOnAicpu));
         param.aicpuRecordCpuIdx = resCtxHost.notifyNumOnMainThread;
