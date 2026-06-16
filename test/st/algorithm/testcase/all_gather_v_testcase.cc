@@ -17,11 +17,13 @@ protected:
     {
         ResetAlgEnvConfigInitState();
     }
+
     void TearDown() override
     {
         unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
     }
+    
     static void SetUpTestCase()
     {}
     static void TearDownTestCase()
