@@ -742,8 +742,7 @@ HcclResult ExtractTopoDetails(HcclComm comm, TopoInfoWithNetLayerDetails* topoIn
             // 获取拓扑实例的类型
             ret = HcclRankGraphGetTopoType(comm, netLayerIdx, topoInstId, &topoType);
             CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetTopoType failed, netLayerIdx[%u], topoInstId[%u]",
-                    netLayerIdx, topoInstId), ret);
+                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetTopoType failed, netLayerIdx[%u], topoInstId[%u]", netLayerIdx, topoInstId), ret);
 
             // 获取拓扑实例中包含的rank
             uint32_t *ranksTemp;
@@ -753,8 +752,7 @@ HcclResult ExtractTopoDetails(HcclComm comm, TopoInfoWithNetLayerDetails* topoIn
                 ranks.push_back(ranksTemp[rankIdx]);
             }
             CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetRanksByTopoInst failed, netLayerIdx[%u], topoInstId[%u]",
-                    netLayerIdx, topoInstId), ret);
+                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetRanksByTopoInst failed, netLayerIdx[%u], topoInstId[%u]", netLayerIdx, topoInstId), ret);
 
             // 将topoInstId按照topoType进行归类
             currentLayerTopo2SizeMap[topoType].push_back(rankNum);
