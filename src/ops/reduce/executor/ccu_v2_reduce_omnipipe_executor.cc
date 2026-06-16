@@ -853,7 +853,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 // #endif
 }
