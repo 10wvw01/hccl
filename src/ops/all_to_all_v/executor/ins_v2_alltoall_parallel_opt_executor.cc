@@ -34,6 +34,40 @@ bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodUbxV2") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodDirect") == 0;
 }
+
+bool IsSingleLayerUbx4x2AlltoAllVNoMemcpy(const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo)
+{
+    return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV && IsAlltoAllNoMemcpyAlg(param) &&
+           topoInfo != nullptr && topoInfo->topoLevelNums == 1 && topoInfo->userRankSize == 8 &&
+           !topoInfo->level0PcieMix &&
+           (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS ||
+            topoInfo->level0Topo == Level0Shape::CLOS);
+}
+
+void BuildSingleLayerUbx4x2Hierarchy(u32 userRank, std::vector<std::vector<u32>> &intraHierarchyInfo,
+                                     std::vector<std::vector<u32>> &interHierarchyInfo)
+{
+    constexpr u32 UBX_4X2_MESH_SIZE = 4;
+    constexpr u32 UBX_4X2_RANK_SIZE = 8;
+    intraHierarchyInfo.clear();
+    interHierarchyInfo.clear();
+
+    std::vector<u32> meshRanks;
+    u32 meshBaseRank = userRank / UBX_4X2_MESH_SIZE * UBX_4X2_MESH_SIZE;
+    for (u32 rank = meshBaseRank; rank < meshBaseRank + UBX_4X2_MESH_SIZE; ++rank) {
+        meshRanks.push_back(rank);
+    }
+    intraHierarchyInfo = {meshRanks};
+
+    std::vector<u32> closRanks;
+    closRanks.push_back(userRank);
+    for (u32 rank = 0; rank < UBX_4X2_RANK_SIZE; ++rank) {
+        if (rank / UBX_4X2_MESH_SIZE != userRank / UBX_4X2_MESH_SIZE) {
+            closRanks.push_back(rank);
+        }
+    }
+    interHierarchyInfo = {closRanks};
+}
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -75,7 +109,15 @@ HcclResult InsV2AlltoAllParallelOptExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         }
     }
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+    if (IsSingleLayerUbx4x2AlltoAllVNoMemcpy(param, topoInfo)) {
+        BuildSingleLayerUbx4x2Hierarchy(topoInfo->userRank, intraHierarchyInfo, interHierarchyInfo);
+        HCCL_WARNING("[ALLTOALL_V3_DEBUG][CalcRes] Single-layer UBX 4x2 normalized: "
+                     "userRank=%u intra=%zu inter=%zu level0Topo=%d infos0=%zu infos1=%zu",
+                     topoInfo->userRank, intraHierarchyInfo[0].size(), interHierarchyInfo[0].size(),
+                     static_cast<int>(topoInfo->level0Topo),
+                     algHierarchyInfo.infos.empty() ? 0 : algHierarchyInfo.infos[0].size(),
+                     algHierarchyInfo.infos.size() > 1 ? algHierarchyInfo.infos[1].size() : 0);
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         HCCL_WARNING("[ALLTOALL_V3_DEBUG][CalcRes] ClosMesh2D branch: level0Topo=MESH_1D_CLOS level0PcieMix=0 "
                   "infos.size=%zu infos[0].size=%zu",
                   algHierarchyInfo.infos.size(), algHierarchyInfo.infos[0].size());
@@ -342,8 +384,17 @@ HcclResult InsV2AlltoAllParallelOptExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         return HcclResult::HCCL_E_INTERNAL;
     }
 
-    // ClosMesh2D: infos[0] has 2+ groups (one per pod). UBX: 1 group.
-    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+    // Single-layer 4x2 UBX rootinfo can expose different topoInst views per rank.
+    // Normalize to deterministic mesh/clos groups so all ranks use the same schedule.
+    if (IsSingleLayerUbx4x2AlltoAllVNoMemcpy(param, &resCtx.topoInfo)) {
+        BuildSingleLayerUbx4x2Hierarchy(resCtx.topoInfo.userRank, intraHierarchyInfo_, interHierarchyInfo_);
+        HCCL_WARNING("[ALLTOALL_V3_DEBUG][Orchestrate] Single-layer UBX 4x2 normalized: "
+                     "intra[%zu] inter[%zu] level0Topo=%d infos0=%zu infos1=%zu",
+                     intraHierarchyInfo_[0].size(), interHierarchyInfo_[0].size(),
+                     static_cast<int>(resCtx.topoInfo.level0Topo),
+                     resCtx.algHierarchyInfo.infos.empty() ? 0 : resCtx.algHierarchyInfo.infos[0].size(),
+                     resCtx.algHierarchyInfo.infos.size() > 1 ? resCtx.algHierarchyInfo.infos[1].size() : 0);
+    } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
         if (resCtx.algHierarchyInfo.infos[0].size() < 2) {
             HCCL_ERROR("[Orchestrate] FATAL: ClosMesh2D path but infos[0].size=%zu < 2",
                 resCtx.algHierarchyInfo.infos[0].size());

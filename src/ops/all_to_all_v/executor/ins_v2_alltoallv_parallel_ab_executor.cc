@@ -32,6 +32,39 @@ bool IsA2AVABAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
 }
+
+bool IsSingleLayerUbx4x2(const TopoInfoWithNetLayerDetails *topoInfo)
+{
+    return topoInfo != nullptr && topoInfo->topoLevelNums == 1 && topoInfo->userRankSize == 8 &&
+           !topoInfo->level0PcieMix &&
+           (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS ||
+            topoInfo->level0Topo == Level0Shape::CLOS);
+}
+
+void BuildSingleLayerUbx4x2Hierarchy(u32 userRank, std::vector<std::vector<u32>> &intraHierarchyInfo,
+                                     std::vector<std::vector<u32>> &interHierarchyInfo)
+{
+    constexpr u32 UBX_4X2_MESH_SIZE = 4;
+    constexpr u32 UBX_4X2_RANK_SIZE = 8;
+    intraHierarchyInfo.clear();
+    interHierarchyInfo.clear();
+
+    std::vector<u32> meshRanks;
+    u32 meshBaseRank = userRank / UBX_4X2_MESH_SIZE * UBX_4X2_MESH_SIZE;
+    for (u32 rank = meshBaseRank; rank < meshBaseRank + UBX_4X2_MESH_SIZE; ++rank) {
+        meshRanks.push_back(rank);
+    }
+    intraHierarchyInfo = {meshRanks};
+
+    std::vector<u32> closRanks;
+    closRanks.push_back(userRank);
+    for (u32 rank = 0; rank < UBX_4X2_RANK_SIZE; ++rank) {
+        if (rank / UBX_4X2_MESH_SIZE != userRank / UBX_4X2_MESH_SIZE) {
+            closRanks.push_back(rank);
+        }
+    }
+    interHierarchyInfo = {closRanks};
+}
 }
 
 template <typename AlgTopoMatch>
@@ -84,7 +117,15 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildHierarchyInfo(
                 HCCL_ERROR("[A2AV_AB][BuildHierarchyInfo] invalid algHierarchyInfo."),
                 HcclResult::HCCL_E_INTERNAL);
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+    if (IsSingleLayerUbx4x2(topoInfo)) {
+        BuildSingleLayerUbx4x2Hierarchy(topoInfo->userRank, intraHierarchyInfo_, interHierarchyInfo_);
+        HCCL_WARNING("[A2AV_AB][BuildHierarchyInfo] Single-layer UBX 4x2 normalized. "
+                     "rank=%u level0Topo=%d intra=%zu inter=%zu infos0=%zu infos1=%zu",
+                     topoInfo->userRank, static_cast<int>(topoInfo->level0Topo),
+                     intraHierarchyInfo_[0].size(), interHierarchyInfo_[0].size(),
+                     algHierarchyInfo.infos.empty() ? 0 : algHierarchyInfo.infos[0].size(),
+                     algHierarchyInfo.infos.size() > 1 ? algHierarchyInfo.infos[1].size() : 0);
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         CHK_PRT_RET(algHierarchyInfo.infos.size() < 1 || algHierarchyInfo.infos[0].size() < 2 ||
                         algHierarchyInfo.infos[0][0].empty() || algHierarchyInfo.infos[0][1].empty(),
                     HCCL_ERROR("[A2AV_AB][BuildHierarchyInfo] invalid MESH_1D_CLOS hierarchy. "
@@ -123,7 +164,9 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildHierarchyInfo(
         fullRanks.push_back(rank);
     }
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+    if (IsSingleLayerUbx4x2(topoInfo)) {
+        bCalcHierarchyInfo_ = {fullRanks};
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         CHK_PRT_RET(algHierarchyInfo.infos[0].size() != 2,
                     HCCL_ERROR("[A2AV_AB][BuildHierarchyInfo] MESH_1D_CLOS B calc hierarchy requires 2 level0 groups."),
                     HcclResult::HCCL_E_INTERNAL);

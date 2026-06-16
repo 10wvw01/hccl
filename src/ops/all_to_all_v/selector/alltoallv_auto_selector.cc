@@ -38,6 +38,22 @@ const char *GetAlltoAllVOptTopoMode()
 {
     return std::getenv("HCCL_A2A_OPT_TOPO");
 }
+
+bool IsAlltoAllVClosMesh2DTopoSupported(const ops_hccl::TopoInfoWithNetLayerDetails* topoInfo)
+{
+    const char *topoMode = GetAlltoAllVOptTopoMode();
+    if (topoMode != nullptr && (std::strcmp(topoMode, "pod_ubx_v2") == 0 ||
+        std::strcmp(topoMode, "pod_direct") == 0)) {
+        return topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D ||
+               topoInfo->level0Topo == ops_hccl::Level0Shape::CLOS ||
+               (topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix);
+    }
+    if (topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        return true;
+    }
+    return topoInfo->topoLevelNums == 1 && topoInfo->userRankSize == 8 &&
+           topoInfo->level0Topo == ops_hccl::Level0Shape::CLOS;
+}
 }
 
 namespace ops_hccl {
@@ -117,8 +133,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     (void)configAlgMap;
     if (IsAlltoAllVABOptEnabled()) {
         const char *topoMode = GetAlltoAllVOptTopoMode();
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS ||
-            (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix)) {
+        if (IsAlltoAllVClosMesh2DTopoSupported(topoInfo)) {
             if (topoMode != nullptr && std::strcmp(topoMode, "pod_ubx_v2") == 0) {
                 selectAlgName = "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2";
             } else if (topoMode != nullptr && std::strcmp(topoMode, "pod_direct") == 0) {
@@ -130,12 +145,15 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                          __func__, selectAlgName.c_str(), topoMode == nullptr ? "(unset)" : topoMode);
             return SelectorStatus::MATCH;
         }
+        HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2AV AB no-memcpy opt skipped. unsupported topo=%d "
+                     "pcieMix=%d topoMode[%s]",
+                     __func__, static_cast<int>(topoInfo->level0Topo), static_cast<int>(topoInfo->level0PcieMix),
+                     topoMode == nullptr ? "(unset)" : topoMode);
     }
 
     if (IsAlltoAllVClosMesh2DEnabled() && IsAlltoAllVNoMemcpyEnabled()) {
         const char *topoMode = GetAlltoAllVOptTopoMode();
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS ||
-            (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix)) {
+        if (IsAlltoAllVClosMesh2DTopoSupported(topoInfo)) {
             if (topoMode != nullptr && std::strcmp(topoMode, "pod_ubx_v2") == 0) {
                 selectAlgName = "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodUbxV2";
             } else if (topoMode != nullptr && std::strcmp(topoMode, "pod_direct") == 0) {
@@ -147,6 +165,10 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                          __func__, selectAlgName.c_str(), topoMode == nullptr ? "(unset)" : topoMode);
             return SelectorStatus::MATCH;
         }
+        HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2A no-memcpy opt skipped. unsupported topo=%d "
+                     "pcieMix=%d topoMode[%s]",
+                     __func__, static_cast<int>(topoInfo->level0Topo), static_cast<int>(topoInfo->level0PcieMix),
+                     topoMode == nullptr ? "(unset)" : topoMode);
     }
 
     if (topoInfo->topoLevelNums > 1) {
