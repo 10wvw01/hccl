@@ -42,7 +42,7 @@ public:
     void SetA2ASendRecvInfo(const A2ASendRecvInfo &sendRecvInfo);
 
 private:
-    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs, uint32_t &meshDieId,
+    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
     void FillRankGroupTaskArgs(uint32_t dieId, const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs);
     // void FillRankGroupInfo();
