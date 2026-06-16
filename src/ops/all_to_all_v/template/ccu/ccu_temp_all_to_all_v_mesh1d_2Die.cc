@@ -57,8 +57,7 @@ HcclResult CcuTempAllToAllVMesh1D2Die::CalcRes(HcclComm comm, const OpParam& par
     CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
     HCCL_INFO("channelDescs size[%u]", channelDescs.size());
 
-    uint32_t meshDieId = 0;
-    CHK_RET(PartitionChannels(comm, channelDescs, meshDieId, rankIdToChannelDesc_));
+    CHK_RET(PartitionChannels(comm, channelDescs, rankIdToChannelDesc_));
     resourceRequest.channels.emplace_back(channelDescs);
     HCCL_INFO("resourceRequest.channels[%d]", resourceRequest.channels.size());
 
@@ -87,50 +86,32 @@ HcclResult CcuTempAllToAllVMesh1D2Die::CalcRes(HcclComm comm, const OpParam& par
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllToAllVMesh1D2Die::PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs, uint32_t &meshDieId,
+HcclResult CcuTempAllToAllVMesh1D2Die::PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
                                                         std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc)
 {
     (void) channelDescs;
-    std::map<uint32_t, std::vector<HcclChannelDesc>> clos_channels;
     for (auto& rankToChannels: rankIdToChannelDesc){
         u32 remoteRank = rankToChannels.first;
         std::vector<HcclChannelDesc>& channel_list = rankToChannels.second;
 
         using DieIdType = uint32_t;
         const uint32_t dieIdTypeSize = sizeof(DieIdType);
-        uint32_t channelSize = 2;
-        if (channel_list.size() == channelSize) {
-            for (const auto &channel : channel_list) {
-                DieIdType dieId = 0;
-                EndpointDesc localEndpoint = channel.localEndpoint;
-                HcclResult ret = HcclRankGraphGetEndpointInfo(comm, myRank_, &localEndpoint, ENDPOINT_ATTR_DIE_ID,
-                    dieIdTypeSize, static_cast<void*>(&dieId));
-                clos_channels[dieId].emplace_back(channel);
-            }
-        } else {
+        bool isClos = channel_list.size() > 1;
+
+        for (const auto &channel : channel_list) {
             DieIdType dieId = 0;
-            EndpointDesc localEndpoint = channel_list[0].localEndpoint;
-            HcclResult ret = HcclRankGraphGetEndpointInfo(comm, myRank_, &localEndpoint, ENDPOINT_ATTR_DIE_ID,
-                dieIdTypeSize, static_cast<void*>(&dieId));
-            channels_[dieId].emplace_back(channel_list[0]);
-            rankGroup_[dieId].push_back(channel_list[0].remoteRank);
-            meshDieId = dieId;
-        }
-    }
-
-    for(auto& channels: clos_channels){
-        u32 dieId = channels.first;
-        std::vector<HcclChannelDesc>& channel_list = channels.second;
-        HCCL_INFO("DIEID[%u], meshDieId[%u]", dieId, meshDieId);
-
-        for(auto& channel: channel_list){
+            EndpointDesc localEndpoint = channel.localEndpoint;
+            CHK_RET(HcclRankGraphGetEndpointInfo(comm, myRank_, &localEndpoint, ENDPOINT_ATTR_DIE_ID,
+                dieIdTypeSize, static_cast<void*>(&dieId)));
             channels_[dieId].emplace_back(channel);
             rankGroup_[dieId].push_back(channel.remoteRank);
-            closPeers_.insert(channel.remoteRank);
-        }
 
-        if (!channel_list.empty()) {
-            CHK_RET(GetChannelBwCoeff(comm, myRank_, channel_list[0], closBwCoeff_[dieId]));
+            if (isClos) {
+                closPeers_.insert(channel.remoteRank);
+                if (closBwCoeff_[dieId] == 0) {
+                    CHK_RET(GetChannelBwCoeff(comm, myRank_, channel, closBwCoeff_[dieId]));
+                }
+            }
         }
     }
 
@@ -143,8 +124,6 @@ HcclResult CcuTempAllToAllVMesh1D2Die::PartitionChannels(HcclComm comm, const st
     }
     totalBwCoeff_ = closBwCoeff_[0] + closBwCoeff_[1];
 
-    // rankGroup_[0].push_back(myRank_);
-    // rankGroup_[1].push_back(myRank_);
     if (channels_[0].size() < channels_[1].size()) {
         rankGroup_[0].push_back(myRank_);
     } else {
