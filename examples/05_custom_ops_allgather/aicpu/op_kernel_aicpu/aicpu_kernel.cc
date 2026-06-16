@@ -32,16 +32,8 @@ extern "C" unsigned int HcclLaunchCustomAllGatherAicpuKernel(OpParam *param)
         return 1;
     }
 
-    // 计算maxNotifyNum，即threads[0]上用于host/device同步的notify索引
-    uint32_t maxNotifyNum = resCtxDevice.notifyNumOnMainThread;
-    for (uint32_t i = 0; i < resCtxDevice.notifyNumPerThread.size(); i++) {
-        if (resCtxDevice.notifyNumPerThread[i] > maxNotifyNum) {
-            maxNotifyNum = resCtxDevice.notifyNumPerThread[i];
-        }
-    }
-
-    // 主thread等待Host stream的通知，使用maxNotifyNum索引（专为host/device同步预留）
-    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], maxNotifyNum, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
+    // 主thread等待Host stream的通知
+    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], param->notifyNumOnMainThread, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to wait notify from host main stream");
         return 1;
     }
