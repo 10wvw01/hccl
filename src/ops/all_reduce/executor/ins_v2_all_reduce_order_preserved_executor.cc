@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-// 包含本类的头文件声明
 #include "ins_v2_all_reduce_order_preserved_executor.h"
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
 #include "ins_temp_all_gather_mesh_1D.h"
@@ -52,35 +51,26 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     dataCount_ = param.DataDes.count;
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
-    // 初始化执行器信息（检查是否启用严格模式）
     InitExecutorInfo(param);
-    // 计算每个数据块的大小
     CalcSizePerBlock(param);
-    // 计算每个rank的数据切片大小
     CalcGroupSlices(param);
 
-    // 创建ReduceScatter算法模板实例
     std::shared_ptr<InsAlgTemplateRS> rsTempAlg =
         std::make_shared<InsAlgTemplateRS>(param, myRank_, algHierarchyInfo.infos[0]);
 
-    // 创建AllGather算法模板实例
     std::shared_ptr<InsAlgTemplateAG> agTempAlg =
         std::make_shared<InsAlgTemplateAG>(param, myRank_, algHierarchyInfo.infos[0]);
 
     AlgResourceRequest resReqRS;
     AlgResourceRequest resReqAG;
 
-    // 调用ReduceScatter模板的CalcRes函数计算所需资源
     CHK_RET(rsTempAlg->CalcRes(comm, param, topoInfo, resReqRS));
-    // 调用AllGather模板的CalcRes函数计算所需资源
     CHK_RET(agTempAlg->CalcRes(comm, param, topoInfo, resReqAG));
 
-    // 设置从线程数为两个模板的最大值
     resourceRequest.slaveThreadNum = std::max(resReqRS.slaveThreadNum, resReqAG.slaveThreadNum);
 
     resourceRequest.notifyNumPerThread.clear();
     resourceRequest.notifyNumPerThread.resize(resourceRequest.slaveThreadNum);
-    // 遍历每个从线程，设置通知数为两个模板的最大值
     for (u32 i = 0; i < resourceRequest.slaveThreadNum; ++i) {
         if (i < resReqRS.notifyNumPerThread.size()) {
             resourceRequest.notifyNumPerThread[i] = std::max(resourceRequest.notifyNumPerThread[i],
@@ -92,7 +82,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         }
     }
 
-    // 设置主线程通知数为两个模板的最大值
     resourceRequest.notifyNumOnMainThread = std::max(resReqRS.notifyNumOnMainThread,
         resReqAG.notifyNumOnMainThread);
 
@@ -124,7 +113,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     }
 
     InitExecutorInfo(param);
-    // 根据rank，把总数据切分
     CalcSizePerBlock(param);
     CalcGroupSlices(param);
 
@@ -150,7 +138,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         return HCCL_E_INTERNAL;
     }
     
-    // 设置通道信息，只要level0
     tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];
     tempResource.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
     tempResource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
@@ -181,16 +168,12 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][OrchestrateLoop] Start, deterministicStrict[%d] (flat level1)",
         deterministicStrict_);
 
-    // 创建ReduceScatter算法模板实例
     std::shared_ptr<InsAlgTemplateRS> rsTempAlg =
         std::make_shared<InsAlgTemplateRS>(param, myRank_, resCtx.algHierarchyInfo.infos[0]);
-    // 设置ReduceScatter模板的通道映射
     rsTempAlg->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
 
-    // 创建AllGather算法模板实例
     std::shared_ptr<InsAlgTemplateAG> agTempAlg =
         std::make_shared<InsAlgTemplateAG>(param, myRank_, resCtx.algHierarchyInfo.infos[0]);
-    // 设置AllGather模板的通道映射
     agTempAlg->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
 
     TemplateResource rsTemplateAlgRes;
@@ -202,7 +185,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     TemplateDataParams tempAlgParams;
     InitTemplateDataParams(param, resCtx, tempAlgParams);
 
-    // CCL buffer切分为2块：前1块作为ReduceScatter输出，后1块作为AllGather输入
     outCclBuffSize_ = tempAlgParams.buffInfo.hcclBuff.size / 2;
     inCclBuffSize_ = tempAlgParams.buffInfo.hcclBuff.size - outCclBuffSize_;
     outCclBuffOffset_ = 0;
@@ -211,10 +193,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         "outCclBuffOffset_[%llu], inCclBuffOffset_[%llu]",
         outCclBuffSize_, inCclBuffSize_, outCclBuffOffset_, inCclBuffOffset_);
 
-    // 计算单次循环最大数据元素个数
-    // outCclBuff存储ReduceScatter输出（每个rank的归约结果大小 = currDataCount/rankSize）
-    // 所以最大总数据量 = outCclBuffSize_ * rankSize_ / dataTypeSize_
-    // 向下对齐到rankSize的倍数，方便数据切分
     u64 maxCountPerLoop = outCclBuffSize_ / HCCL_MIN_SLICE_ALIGN *
                         HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / rankSize_ * rankSize_;
     HCCL_INFO(
@@ -223,20 +201,33 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     CHK_PRT_RET(maxCountPerLoop == 0,
         HCCL_ERROR("[OrchestrateLoop] maxCountPerLoop is 0"), HCCL_E_INTERNAL);
 
-    // 计算循环次数：总数据量 / 单次最大数据量，向上取整
     u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
-    // 初始化已处理的数据元素个数
     u64 processedDataCount = 0;
 
     for (u64 loop = 0; loop < loopTimes; loop++) {
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
 
-        CHK_RET(RunReduceScatter(param, resCtx, currDataCount, 
-            processedDataCount, rsTempAlg, rsTemplateAlgRes));
-        CHK_RET(RunAllGather(param, resCtx, currDataCount,
-            processedDataCount, agTempAlg, agTemplateAlgRes));
+        u64 alignedCount = (currDataCount / rankSize_) * rankSize_;
+        u64 tailCount = currDataCount - alignedCount;
 
-        processedDataCount += currDataCount;
+        if (alignedCount > 0) {
+            CHK_RET(RunReduceScatter(param, resCtx, alignedCount, 
+                processedDataCount, rsTempAlg, rsTemplateAlgRes));
+            CHK_RET(RunAllGather(param, resCtx, alignedCount,
+                processedDataCount, agTempAlg, agTemplateAlgRes));
+            processedDataCount += alignedCount;
+        }
+
+        if (tailCount > 0) {
+            for (u64 tailIdx = 0; tailIdx < tailCount; tailIdx++) {
+                u64 singleCount = 1;
+                CHK_RET(RunReduceScatterSingle(param, resCtx, singleCount,
+                    processedDataCount, rsTempAlg, rsTemplateAlgRes, tailIdx));
+                CHK_RET(RunAllGatherSingle(param, resCtx, singleCount,
+                    processedDataCount, agTempAlg, agTemplateAlgRes, tailIdx));
+                processedDataCount += singleCount;
+            }
+        }
     }
 
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][OrchestrateLoop] Success");
@@ -246,7 +237,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
 HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::InitExecutorInfo(const OpParam &param)
 {
-    // 规约保序判断已在 selector 中完成，executor 直接启用保序模式
     deterministicStrict_ = true;
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][InitExecutorInfo] deterministicStrict[%d]",
         deterministicStrict_);
@@ -256,7 +246,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
 HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::CalcSizePerBlock(const OpParam &param)
 {
-    // 计算单卡数据量：总数据量 / rank数，向上取整
     u64 sizePerBlock = (dataCount_ + rankSize_ - 1) / rankSize_ * dataTypeSize_;
     memInfo_.sizePerBlock = RoundUpWithDivisor(sizePerBlock, HCCL_MIN_SLICE_ALIGN_ORDER_PRESERVED);
     memInfo_.scratchMemFlag = false;
@@ -270,7 +259,6 @@ template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTempl
 HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::CalcGroupSlices(const OpParam &param)
 {
     memInfo_.groupSize.clear();
-    // 初始化剩余数据大小为总数据大小
     u64 sizeRemain = dataSize_;
     for (u32 rankId = 0; rankId < rankSize_; rankId++) {
         u64 size = (sizeRemain > memInfo_.sizePerBlock) ? memInfo_.sizePerBlock : sizeRemain;
@@ -289,8 +277,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     u64 currDataCount, u64 processedDataCount,
     std::shared_ptr<InsAlgTemplateRS> rsTempAlg, TemplateResource &rsTemplateAlgRes)
 {
-    // 准备ReduceScatter模板数据参数结构体
-    // ReduceScatter: INPUT -> HCCL_BUFFER (outCclBuff部分)
     TemplateDataParams rsTempAlgParams;
     rsTempAlgParams.buffInfo.inBuffType = BufferType::INPUT;
     rsTempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
@@ -303,9 +289,7 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     rsTempAlgParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
 
     rsTempAlgParams.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
-    // 输出缓冲区基址偏移：归约结果输出到outCclBuff的起始位置
     rsTempAlgParams.buffInfo.outBuffBaseOff = outCclBuffOffset_;
-    // 临时缓冲区基址偏移：使用inCclBuff部分作为临时缓冲区
     rsTempAlgParams.buffInfo.hcclBuffBaseOff = inCclBuffOffset_;
 
     // ReduceScatter: INPUT -> HCCL_BUFFER(outCclBuff)
@@ -317,43 +301,85 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     memBlockInfo.outputOffsets.clear();
     
     u64 unitSize = dataTypeSize_;
-    // 计算sliceSize和tailSize（尾块处理）
-    u64 rsSliceSize = currDataCount / rankSize_ * unitSize;
-    u64 rsTailSize = (currDataCount / rankSize_ + currDataCount % rankSize_) * unitSize;
-    
-    memBlockInfo.outputOffsets.resize(rankSize_, 0);
-    
-    for (u32 outputIndex = 0; outputIndex < rankSize_; outputIndex++) {
-        memBlockInfo.outputOffsets[outputIndex] = inCclBuffOffset_ + outputIndex * rsTailSize;
-    }
-    
-    // 设置输入偏移和大小：每个rank对应一个数据切片，最后一个rank处理剩余的尾块
+    u64 sliceCount = currDataCount / rankSize_;
+    u64 rsSliceSize = sliceCount * unitSize;
+
     for (u32 dataId = 0; dataId < rankSize_; dataId++) {
-        // 实际数据大小：最后一个rank包含余数
-        u64 actualSize = (dataId == rankSize_ - 1) ? rsTailSize : rsSliceSize;
-        // 用户输入偏移：已处理数据偏移 + 当前数据块在输入数据中的偏移
         u64 userMemInOffset = processedDataCount * unitSize + dataId * rsSliceSize;
         
-        memBlockInfo.size.push_back(actualSize);
+        memBlockInfo.size.push_back(rsSliceSize);
         memBlockInfo.userInputOffsets.push_back(userMemInOffset);
-        memBlockInfo.inputOffsets.push_back(inCclBuffOffset_ + dataId * rsTailSize);
+        memBlockInfo.inputOffsets.push_back(inCclBuffOffset_ + dataId * rsSliceSize);
+        memBlockInfo.outputOffsets.push_back(inCclBuffOffset_ + dataId * rsSliceSize);
     }
     
-    // 设置所有rank的数据切片大小向量（考虑尾块）
-    std::vector<u64> rsSliceSizes;
-    for (u32 rankId = 0; rankId < rankSize_; rankId++) {
-        u64 size = (rankId == rankSize_ - 1) ? rsTailSize : rsSliceSize;
-        rsSliceSizes.push_back(size);
-    }
+    std::vector<u64> rsSliceSizes(rankSize_, rsSliceSize);
     rsTempAlgParams.allRankSliceSize = rsSliceSizes;
     rsTempAlgParams.sliceSize = rsSliceSize;
-    rsTempAlgParams.tailSize = rsTailSize;
+    rsTempAlgParams.tailSize = rsSliceSize;
     rsTempAlgParams.inputSliceStride = rsSliceSize;
     rsTempAlgParams.outputSliceStride = 0;
     rsTempAlgParams.repeatNum = 1;
     rsTempAlgParams.inputRepeatStride = 0;
     rsTempAlgParams.outputRepeatStride = 0;
-    rsTempAlgParams.count = currDataCount / rankSize_;
+    rsTempAlgParams.count = sliceCount;
+    
+    rsTempAlg->SetMemBlockInfo(memBlockInfo);
+    CHK_RET(rsTempAlg->KernelRun(param, rsTempAlgParams, rsTemplateAlgRes));
+    
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
+HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::RunReduceScatterSingle(
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx,
+    u64 currDataCount, u64 processedDataCount,
+    std::shared_ptr<InsAlgTemplateRS> rsTempAlg, TemplateResource &rsTemplateAlgRes,
+    u64 tailIdx)
+{
+    TemplateDataParams rsTempAlgParams;
+    rsTempAlgParams.buffInfo.inBuffType = BufferType::INPUT;
+    rsTempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
+    rsTempAlgParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
+    rsTempAlgParams.buffInfo.inputPtr = param.inputPtr;
+    rsTempAlgParams.buffInfo.outputPtr = resCtx.cclMem.addr;
+    rsTempAlgParams.buffInfo.hcclBuff = resCtx.cclMem;
+    rsTempAlgParams.buffInfo.inputSize = param.inputSize;
+    rsTempAlgParams.buffInfo.outputSize = outCclBuffSize_;
+    rsTempAlgParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
+
+    rsTempAlgParams.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
+    rsTempAlgParams.buffInfo.outBuffBaseOff = outCclBuffOffset_;
+    rsTempAlgParams.buffInfo.hcclBuffBaseOff = inCclBuffOffset_;
+
+    MemBlockInfo memBlockInfo;
+    memBlockInfo.size.clear();
+    memBlockInfo.userInputOffsets.clear();
+    memBlockInfo.inputOffsets.clear();
+    memBlockInfo.outputOffsets.clear();
+    
+    u64 unitSize = dataTypeSize_;
+    u64 sliceSize = currDataCount * unitSize;
+
+    for (u32 dataId = 0; dataId < rankSize_; dataId++) {
+        u64 userMemInOffset = processedDataCount * unitSize;
+        
+        memBlockInfo.size.push_back(sliceSize);
+        memBlockInfo.userInputOffsets.push_back(userMemInOffset);
+        memBlockInfo.inputOffsets.push_back(inCclBuffOffset_ + dataId * sliceSize);
+        memBlockInfo.outputOffsets.push_back(inCclBuffOffset_ + dataId * sliceSize);
+    }
+    
+    std::vector<u64> rsSliceSizes(rankSize_, sliceSize);
+    rsTempAlgParams.allRankSliceSize = rsSliceSizes;
+    rsTempAlgParams.sliceSize = sliceSize;
+    rsTempAlgParams.tailSize = sliceSize;
+    rsTempAlgParams.inputSliceStride = 0;
+    rsTempAlgParams.outputSliceStride = 0;
+    rsTempAlgParams.repeatNum = 1;
+    rsTempAlgParams.inputRepeatStride = 0;
+    rsTempAlgParams.outputRepeatStride = 0;
+    rsTempAlgParams.count = currDataCount;
     
     rsTempAlg->SetMemBlockInfo(memBlockInfo);
     CHK_RET(rsTempAlg->KernelRun(param, rsTempAlgParams, rsTemplateAlgRes));
@@ -378,30 +404,63 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     agTempAlgParams.buffInfo.outputSize = param.outputSize;
     agTempAlgParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
 
-    // 输入缓冲区基址偏移：从outCclBuff位置读取ReduceScatter的归约结果
     agTempAlgParams.buffInfo.inBuffBaseOff = outCclBuffOffset_;
-    // 输出缓冲区基址偏移：输出到用户输出缓冲区的已处理数据位置
     agTempAlgParams.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
-    // 临时缓冲区基址偏移：使用inCclBuff部分，避免与outCclBuff冲突
     agTempAlgParams.buffInfo.hcclBuffBaseOff = inCclBuffOffset_;
 
     u64 agSliceSize = currDataCount / rankSize_ * dataTypeSize_;
     u64 agTailSize = (currDataCount / rankSize_ + currDataCount % rankSize_) * dataTypeSize_;
     
-    std::vector<u64> agSliceSizes;
-    for (u32 rankId = 0; rankId < rankSize_; rankId++) {
-        u64 size = (rankId == rankSize_ - 1) ? agTailSize : agSliceSize;
-        agSliceSizes.push_back(size);
-    }
+    std::vector<u64> agSliceSizes(rankSize_, agSliceSize);
     agTempAlgParams.allRankSliceSize = agSliceSizes;
     agTempAlgParams.sliceSize = agSliceSize;
-    agTempAlgParams.tailSize = agTailSize;
+    agTempAlgParams.tailSize = agSliceSize;
     agTempAlgParams.inputSliceStride = 0;
     agTempAlgParams.outputSliceStride = agSliceSize;
     agTempAlgParams.repeatNum = 1;
     agTempAlgParams.inputRepeatStride = 0;
     agTempAlgParams.outputRepeatStride = 0;
-    agTempAlgParams.count = currDataCount / rankSize_;
+    agTempAlgParams.count = sliceCount;
+    
+    CHK_RET(agTempAlg->KernelRun(param, agTempAlgParams, agTemplateAlgRes));
+    
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
+HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::RunAllGatherSingle(
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx,
+    u64 currDataCount, u64 processedDataCount,
+    std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes,
+    u64 tailIdx)
+{
+    TemplateDataParams agTempAlgParams;
+    agTempAlgParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+    agTempAlgParams.buffInfo.outBuffType = BufferType::OUTPUT;
+    agTempAlgParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
+    agTempAlgParams.buffInfo.inputPtr = resCtx.cclMem.addr;
+    agTempAlgParams.buffInfo.outputPtr = param.outputPtr;
+    agTempAlgParams.buffInfo.hcclBuff = resCtx.cclMem;
+    agTempAlgParams.buffInfo.inputSize = outCclBuffSize_;
+    agTempAlgParams.buffInfo.outputSize = param.outputSize;
+    agTempAlgParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
+
+    agTempAlgParams.buffInfo.inBuffBaseOff = outCclBuffOffset_;
+    agTempAlgParams.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
+    agTempAlgParams.buffInfo.hcclBuffBaseOff = inCclBuffOffset_;
+
+    u64 agSliceSize = currDataCount * dataTypeSize_;
+    
+    std::vector<u64> agSliceSizes(rankSize_, agSliceSize);
+    agTempAlgParams.allRankSliceSize = agSliceSizes;
+    agTempAlgParams.sliceSize = agSliceSize;
+    agTempAlgParams.tailSize = agSliceSize;
+    agTempAlgParams.inputSliceStride = 0;
+    agTempAlgParams.outputSliceStride = 0;
+    agTempAlgParams.repeatNum = 1;
+    agTempAlgParams.inputRepeatStride = 0;
+    agTempAlgParams.outputRepeatStride = 0;
+    agTempAlgParams.count = currDataCount;
     
     CHK_RET(agTempAlg->KernelRun(param, agTempAlgParams, agTemplateAlgRes));
     
