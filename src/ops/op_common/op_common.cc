@@ -1438,7 +1438,14 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
         CHK_RET(ret);
     }
 
-    CHK_RET(HcclGetCcuKernel(comm, resRequest, resCtxHost));
+    ret = HcclGetCcuKernel(comm, resRequest, resCtxHost);
+    if (ret == HCCL_E_UNAVAIL) {
+        // 进行资源回退
+        HCCL_WARNING("[HcclGetCcuKernel] ccu kernel unavailable, try to fallback.");
+        return HCCL_E_UNAVAIL;
+    } else {
+        CHK_RET(ret);
+    }
 #endif
     return HCCL_SUCCESS;
 }
@@ -1502,7 +1509,14 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
 
             HCCL_DEBUG("[AllocAlgResource] kernelArgPtr[%p], creator[%p]", kernelArgPtr, &(kernelInfo.creator));
             CcuKernelHandle handle;
-            CHK_RET(HcclCcuKernelRegister(comm, &handle, creatorPtr, kernelArgPtr));
+
+            auto ret = HcclCcuKernelRegister(comm, &handle, creatorPtr, kernelArgPtr);
+            if (ret == HCCL_E_UNAVAIL) {
+                HCCL_WARNING("[HcclCcuKernelRegister] kernel unavailable");
+                return HCCL_E_UNAVAIL;
+            } else {
+                CHK_RET(ret);
+            }
             
             resCtxHost->ccuKernels[i] = handle;
         }
