@@ -189,10 +189,10 @@ public:
         auto input = reinterpret_cast<__gm__ T *>(input_);
         uint32_t perCoreRankNum = rankSize_ / curNumBlocks;
         uint32_t remainRankNum = rankSize_ % curNumBlocks;
-        uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-        uint32_t startRank = block_idx < remainRankNum
-                           ? (perCoreRankNum + 1) * block_idx
-                           : perCoreRankNum * block_idx + remainRankNum;
+        uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+        uint32_t startRank = blockIdx_ < remainRankNum
+                           ? (perCoreRankNum + 1) * blockIdx_
+                           : perCoreRankNum * blockIdx_ + remainRankNum;
 
         for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
             auto gmOthers = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank_]) +  rank * (count * sizeof(T) + 64 - 1) / 64 * 64);
