@@ -89,7 +89,7 @@ HcclResult HcclAllGatherCustom(
         resCtxHost.aicpuThread = resCtxHost.threads[0];
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &resCtxHost.threads[0], COMM_ENGINE_CPU_TS, &param.aicpuThreadOnCpu));
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &param.cpuThread, COMM_ENGINE_AICPU_TS, &resCtxHost.cpuThreadOnAicpu));
-        param.notifyNumOnMainThread = resCtxHost.notifyNumOnMainThread;
+        param.aicpuRecordCpuIdx = resCtxHost.notifyNumOnMainThread;
 
         CHK_RET(HcclMemcpyCtxHostToDevice(comm, param, resCtxHost, &param.resCtxDevice, &param.ctxSize));
     }

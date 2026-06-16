@@ -33,7 +33,7 @@ extern "C" unsigned int HcclLaunchCustomAllGatherAicpuKernel(OpParam *param)
     }
 
     // 主thread等待Host stream的通知
-    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], param->notifyNumOnMainThread, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
+    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], param->aicpuRecordCpuIdx, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to wait notify from host main stream");
         return 1;
     }
