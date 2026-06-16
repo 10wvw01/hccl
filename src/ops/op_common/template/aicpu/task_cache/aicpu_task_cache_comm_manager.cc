@@ -10,6 +10,7 @@
 
 #include "aicpu_task_cache_comm_manager.h"
 #include "log.h"
+#include <mutex>
 
 namespace ops_hccl {
 

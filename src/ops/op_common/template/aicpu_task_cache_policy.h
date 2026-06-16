@@ -17,13 +17,15 @@ namespace ops_hccl {
 
 class AicpuTaskCachePolicy {
 public:
-    static bool IsAicpuTaskCacheEnable(const OpParam& param, const TopoInfoWithNetLayerDetails& topoInfo, const AlgResourceCtxSerializable& resCtxHost);
+    static HcclResult IsAicpuTaskCacheEnable(const OpParam &param, const TopoInfoWithNetLayerDetails &topoInfo, 
+        const AlgResourceCtxSerializable& resCtxHost, bool isCapture, bool &isCacheEnable);
 
 private:
-    static bool IsTopoSupported(const AlgResourceCtxSerializable& resCtxHost);
-    static HcclResult IsInplace(const OpParam& param, bool& isInplace, const TopoInfoWithNetLayerDetails& topoInfo);
-    static HcclResult ParseOpParamForCache(const OpParam& param, HcclDataType& sendType, HcclDataType& recvType,
-        uint64_t& inputSize, uint64_t& outputSize, const TopoInfoWithNetLayerDetails& topoInfo);
+    static bool IsTopoSupported(const AlgResourceCtxSerializable &resCtxHost);
+    static HcclResult IsInplace(const OpParam &param, bool &isInplace, const TopoInfoWithNetLayerDetails &topoInfo);
+    static HcclResult ParseOpParamForCache(const OpParam &param, HcclDataType &sendType, HcclDataType &recvType,
+        uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails &topoInfo);
+    static bool IsOpTypeSupported(HcclCMDType opType);
 };
 
 } // namespace ops_hccl

@@ -14,55 +14,58 @@
 
 namespace ops_hccl {
 
-bool AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam& param, const TopoInfoWithNetLayerDetails& topoInfo, const AlgResourceCtxSerializable& resCtxHost)
+HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, const TopoInfoWithNetLayerDetails &topoInfo, 
+    const AlgResourceCtxSerializable &resCtxHost, bool isCapture, bool &isCacheEnable)
 {
+    isCacheEnable = false;
     if (!GetExternalInputHcclAicpuCacheEnable()) {
-        return false;
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] AICPU_CacheDisable is not supported");
+        return HCCL_SUCCESS;
     }
 
     // MC2算子不支持
     if (param.isMc2) {
-        return false;
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] mc2 is not supported");
+        return HCCL_SUCCESS;
     }
 
     // 图模式不支持
     if (param.opMode == OpMode::OFFLOAD) {
-        return false;
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] OpMode::OFFLOAD is not supported");
+        return HCCL_SUCCESS;
     }
 
-    // TODO: AR5 aclgraph 不支持
+    // aclgraph 不支持
+    if (isCapture) {
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] aclgraph is not supported");
+        return HCCL_SUCCESS;
+    }
 
     // 屏蔽inplace场景
     bool isInplace = false;
-    if (IsInplace(param, isInplace, topoInfo) != HCCL_SUCCESS) {
-        return false;
-    }
+    CHK_RET(IsInplace(param, isInplace, topoInfo));
     if (isInplace) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] inplace case is not supported for operator unfolding "
                   "cache");
-        return false;
+        return HCCL_SUCCESS;
     }
 
     if(!IsTopoSupported(resCtxHost)) {
-        return false;
+        return HCCL_SUCCESS;
     }
 
-    // 目前V类算子、batch类型算子、以及send/recv不考虑动态缓存 (使用白名单而非黑名单管理, 避免非预期算子进入cache机制)
-    // 注意: 当前hccl不支持HcclGather
-    const HcclCMDType opType = param.opType;
-    if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_REDUCE
-        || opType == HcclCMDType::HCCL_CMD_ALLGATHER || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER
-        || opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_SCATTER
-        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE) { // 非V类算子
-        HCCL_INFO(
-            "[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is supported for operator unfolding cache", opType);
-        return true;
+    if (!IsOpTypeSupported(param.opType)) {
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is not supported", param.opType);
+        return HCCL_SUCCESS;
     }
 
-    return false;
+    // 所有使能判断都通过是返回true
+    isCacheEnable = true;
+    return HCCL_SUCCESS;
 }
 
-HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace, const TopoInfoWithNetLayerDetails &topoInfo)
+HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace,
+    const TopoInfoWithNetLayerDetails &topoInfo)
 {
     // 准备input/output size
     HcclDataType sendType = HcclDataType::HCCL_DATA_TYPE_RESERVED;
@@ -111,7 +114,7 @@ HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace
 }
 
 HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, HcclDataType &sendType, HcclDataType &recvType,
-    uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails& topoInfo)
+    uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails &topoInfo)
 {
     // 注意: 由于ParseOpParamForCache前已经做过IsAicpuTaskCacheEnable检查, 这里不再做重复检验
 
@@ -145,7 +148,7 @@ HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, Hccl
     return HCCL_SUCCESS;
 }
 
-bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable& resCtxHost)
+bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtxHost)
 {
     for (const auto& levelChannels : resCtxHost.channels) {
         for (const auto& channel : levelChannels) {
@@ -165,6 +168,21 @@ bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable& res
         }
     }
     return true;
+}
+
+bool AicpuTaskCachePolicy::IsOpTypeSupported(HcclCMDType opType)
+{
+    // 目前V类算子、batch类型算子、以及send/recv不考虑动态缓存 (使用白名单而非黑名单管理, 避免非预期算子进入cache机制)
+    // 注意: 当前hccl不支持HcclGather
+    if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_REDUCE
+        || opType == HcclCMDType::HCCL_CMD_ALLGATHER || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER
+        || opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_SCATTER
+        || opType == HcclCMDType::HCCL_CMD_ALLREDUCE) { // 非V类算子
+        HCCL_INFO("[AicpuTaskCachePolicy][IsOpTypeSupported] opType[%d] is supported for operator unfolding cache",
+            opType);
+        return true;
+    }
+    return false;
 }
 
 } // namespace ops_hccl
