@@ -77,7 +77,7 @@ GM_ADDR buffIn, \
 uint64_t input, uint64_t output, uint32_t rank, uint32_t sendRecvRemoteRank, uint32_t rankSize, uint64_t xRankSize,  uint64_t yRankSize, uint64_t zRankSize, uint64_t len, \
 uint32_t dataType, uint32_t reduceOp, uint32_t root, uint32_t sliceId, \
 uint64_t inputSliceStride, uint64_t outputSliceStride, uint64_t repeatNum, uint64_t inputRepeatStride, uint64_t outputRepeatStride, \
-bool isOpBase, \
+uint32_t numBlocks, bool isOpBase, \
 GM_ADDR headCountMem, \
 GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter
 
@@ -88,7 +88,7 @@ KERNEL_ARGS_DEF, ExtraArgs extraArgs
 buffIn, \
 input, output, rank, sendRecvRemoteRank, rankSize, xRankSize, yRankSize, zRankSize, len, dataType, reduceOp, root, sliceId, \
 inputSliceStride, outputSliceStride, repeatNum, inputRepeatStride, outputRepeatStride, \
-isOpBase, \
+numBlocks, isOpBase, \
 headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter
 
 #define EXTERN_KERNEL_ARGS_CALL \
@@ -98,7 +98,7 @@ KERNEL_ARGS_CALL, extraArgs
 buffIn, input, output,\
 rank, sendRecvRemoteRank, rankSize, xRankSize, yRankSize, zRankSize, len, dataType, reduceOp, root, \
 inputSliceStride, outputSliceStride, repeatNum, inputRepeatStride, outputRepeatStride, \
-headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter
+headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter, numBlocks
 
 #define SUPERKERNEL_LITE_ARGS_DEF \
 uint64_t args_offset
@@ -175,7 +175,7 @@ public:
                                 uint32_t dataType, uint32_t reduceOp, uint32_t root,
                                 uint64_t inputSliceStride, uint64_t outputSliceStride, uint64_t repeatNum, uint64_t inputRepeatStride, uint64_t outputRepeatStride,
                                 GM_ADDR headCountMem,
-                                GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter,
+                                GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter, uint32_t numBlocks,
                                 bool useDoubleBuffer, bool pingpong = false)
     {
         rank_ = rank;
@@ -191,7 +191,7 @@ public:
         output_ = output;
         dataType_ = dataType;
         useDoubleBuffer_ = useDoubleBuffer;
-        numBlocks_ = block_num;
+        numBlocks_ = numBlocks;
 
         inputSliceStride_ = inputSliceStride;
         outputSliceStride_ = outputSliceStride;
@@ -297,7 +297,7 @@ public:
 
     __aicore__ inline void GetTag(GM_ADDR buffIn)
     {
-        uint64_t blockIdx = GetBlockIdx();
+        uint64_t blockIdx = blockIdx_;
         LocalTensor<uint32_t> localIn = inOutQue.AllocTensor<uint32_t>();
         GlobalTensor<uint32_t> ipcBufferGlobal;
         ipcBufferGlobal.SetGlobalBuffer((__gm__ uint32_t*)(buffIn));
@@ -374,8 +374,6 @@ public:
 
     __aicore__ inline void ClearFlag(); 
 
-    __aicore__ inline void BlockSync(); 
-
     __aicore__ inline void ClearSyncBuf();
 
     __aicore__ inline void BarrierForFirstOP()
@@ -410,6 +408,7 @@ public:
     uint32_t tag_;
     uint32_t curTag_{0};
     int32_t numBlocks_;
+    uint32_t blockIdx_ = GetBlockIdx(); // 在构造函数中初始化，以免漏初始化
 
     uint64_t inputSliceStride_;
     uint64_t outputSliceStride_;
@@ -465,7 +464,7 @@ __aicore__ inline void AivCommBase::Barrier(uint32_t step)
     // 用10个flag
     uint32_t flagOffset = AIV_FLAG_EMPTY_OFFSET - gmOutOffset - (step % 2 + 1) * FLAG_SIZE * rankSize_;
     __gm__ int32_t *ctrlFlagsGM;
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 1; i < rankSize_; i++) {
             uint32_t targetRank = (rank_ + i) % rankSize_; 
@@ -492,7 +491,7 @@ __aicore__ inline void AivCommBase::ClearFlag()
     // 用10个flag
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_]);
     __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + AIV_FLAG_EMPTY_OFFSET - gmOutOffset);
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         CpGM2GM(ctrlFlagsGM, emtpyGM, BUFFER_AREA / sizeof(int32_t));
     }
 }
@@ -529,7 +528,7 @@ __aicore__ inline void AivCommBase::SendRecvBarrierForFirstOP(uint32_t myRank, u
     ClearGM();
     SyncAll<true>();
 
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
@@ -576,7 +575,7 @@ __aicore__ inline void AivCommBase::BarrierAll()
 __aicore__ inline void AivCommBase::SendRecvBarrierAll(uint32_t myRank, uint32_t remoteRank)
 {
     SyncAll<true>();
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {

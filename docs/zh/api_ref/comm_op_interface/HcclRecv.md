@@ -43,7 +43,7 @@ HcclResult HcclRecv(void* recvBuf, uint64_t count, HcclDataType dataType, uint32
 
 - 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float8-e5m2、float8-e4m3、float8-e8m0、hifloat8、float16、float32、float64、bfp16。
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
-- 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64，bfp16。
+- 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
 - 针对Atlas 训练系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。
 
 ## 返回值
@@ -73,19 +73,19 @@ HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
 aclrtStream stream;
 aclrtCreateStream(&stream);
 
-// 执行 Send/Recv 操作，0/2/4/6卡发送数据，1/3/5/7接收数据
-// HcclSend 与 HcclRecv 接口采用同步调用方式，且必须配对使用
+// 执行Send/Recv操作，0/2/4/6卡发送数据，1/3/5/7接收数据
+// HcclSend与HcclRecv接口采用同步调用方式，且必须配对使用
 if (deviceId % 2 == 0) {
-    // 申请 Device 内存用于存放输入数据
+    // 申请Device内存用于存放输入数据
     aclrtMalloc(&sendBuf, mallocSize, ACL_MEM_MALLOC_HUGE_ONLY);
     // 初始化输入数据
     aclrtMemcpy(sendBuf, mallocSize, hostBuf, mallocSize, ACL_MEMCPY_HOST_TO_DEVICE);
-    // 执行 Send 操作
+    // 执行Send操作
     HcclSend(sendBuf, count, HCCL_DATA_TYPE_FP32, deviceId + 1, hcclComm, stream);
 } else {
-    // 申请 Device 内存用于接收数据
+    // 申请Device内存用于接收数据
     aclrtMalloc(&recvBuf, mallocSize, ACL_MEM_MALLOC_HUGE_ONLY);
-    // 执行 Recv 操作
+    // 执行Recv操作
     HcclRecv(recvBuf, count, HCCL_DATA_TYPE_FP32, deviceId - 1, hcclComm, stream);
 }
 
@@ -93,8 +93,8 @@ if (deviceId % 2 == 0) {
 aclrtSynchronizeStream(stream);
 
 // 释放资源
-aclrtFree(sendBuf);          // 释放 Device 侧内存
-aclrtFree(recvBuf);          // 释放 Device 侧内存
+aclrtFree(sendBuf);          // 释放Device侧内存
+aclrtFree(recvBuf);          // 释放Device侧内存
 aclrtDestroyStream(stream);  // 销毁任务流
 HcclCommDestroy(hcclComm);   // 销毁通信域
 ```

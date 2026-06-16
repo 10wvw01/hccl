@@ -282,27 +282,27 @@ void ProcessAivExceptionCallBack(aclrtExceptionInfo *exceptionInfo)
         return;
     }
 
-    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u] streamId[%u], "
-        "TaskId[%u], cmdType[%u], tag[%u],rank[%u],rankSize[%u], dataCount[%llu], blockDim[%u],"
+    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u], streamId[%u], "
+        "TaskId[%u], cmdType[%u], tag[%u], rank[%u], rankSize[%u], dataCount[%llu], blockDim[%u], "
         "dataType:[%u], beginTime:[%llu], flagMem[%p]",
         deviceId, streamId, taskId, taskInfo.cmdType, taskInfo.tag,
         taskInfo.rank, taskInfo.rankSize, taskInfo.size, taskInfo.blockDim, taskInfo.dataType, taskInfo.beginTime,
         taskInfo.flagMem);
 
-    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u] streamId[%u], "
-        "TaskId[%u], flag: %s", deviceId, streamId, taskId,
+    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u], streamId[%u], "
+        "TaskId[%u]. flag: %s", deviceId, streamId, taskId,
         SerializeAivFlag(taskInfo).c_str());
 
-    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u] streamId[%u], "
-        "TaskId[%u], task info before failed task is:", deviceId, streamId, taskId);
+    HCCL_ERROR("[TaskExceptionHandler][AIV]Task run failed, para information is deviceId[%u], streamId[%u], "
+        "TaskId[%u]. task info before failed task is:", deviceId, streamId, taskId);
 
     u32 printed = 0;
     for (auto it = taskQueue.rbegin(); it != taskQueue.rend() && printed < AIV_TASK_CONTEXT_SIZE; ++it) {
         if (it->taskId == taskInfo.taskId) {
             continue;
         }
-        HCCL_ERROR("[TaskExceptionHandler][AIV] previous TaskId[%llu],streamId[%llu], cmdType[%u], "
-            "tag[%u],rank[%u],rankSize[%u], dataCount[%llu], blockDim[%u],dataType:[%u], beginTime:[%llu], "
+        HCCL_ERROR("[TaskExceptionHandler][AIV] previous TaskId[%llu], streamId[%llu], cmdType[%u], "
+            "tag[%u], rank[%u], rankSize[%u], dataCount[%llu], blockDim[%u], dataType:[%u], beginTime:[%llu], "
             "flagMem[%p]", it->taskId, it->streamId, it->cmdType, it->tag, it->rank, it->rankSize, it->size,
             it->blockDim, it->dataType, it->beginTime, it->flagMem);
         ++printed;
@@ -358,37 +358,34 @@ static HcclResult GetMinAndMaxNpuSchedTimeOut(u64 &minNpuSchedTimeout, u64 &maxN
 
 static u32 GetAivTimeout()
 {
-    double execTimeOut = 0;
-    if (!GetExternalInputExecTimeout(execTimeOut)) {
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
-    }
-    
-    u32 timeout = CUSTOM_TIMEOUT * TIME_S_TO_US;
-    double timeoutUs = execTimeOut * TIME_S_TO_US;
-    if (timeoutUs > static_cast<double>(std::numeric_limits<s32>::max())) {
-        HCCL_WARNING("[GetAivTimeout]Get input timeout[%.2f] is out of valid range.", timeoutUs);
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
-    }
+    constexpr u32 AIV_TIMEOUT_DEFAULT = 1091;
+    constexpr u32 AIV_TIMEOUT_DEFAULT_US = AIV_TIMEOUT_DEFAULT * TIME_S_TO_US;
 
-    u32 timeoutUsInt = static_cast<u32>(timeoutUs);
-    if (timeoutUsInt == 0) {
-        timeoutUsInt = CUSTOM_TIMEOUT * TIME_S_TO_US;
+    u32 timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+    double execTimeOut = AIV_TIMEOUT_DEFAULT;
+    if (GetExternalInputExecTimeout(execTimeOut)) {
+        timeoutUs = execTimeOut * TIME_S_TO_US;
+        if (timeoutUs > static_cast<double>(std::numeric_limits<u32>::max())) {
+            HCCL_WARNING("[GetAivTimeout]Get input timeout[%.2f] is out of valid range.", timeoutUs);
+            timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+        } else if (static_cast<u32>(timeoutUs) == 0) {
+            timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+        }
     }
 
     u64 minNpuSchedTimeout = 0;
     u64 maxNpuSchedTimeout = 0;
     if (GetMinAndMaxNpuSchedTimeOut(minNpuSchedTimeout, maxNpuSchedTimeout) != HCCL_SUCCESS) {
-        HCCL_WARNING("[GetAivTimeout] get npu sched timeout range failed, use default[%u]us.", CUSTOM_TIMEOUT * TIME_S_TO_US);
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
+        HCCL_WARNING("[GetAivTimeout] get npu sched timeout range failed, use default[%u]us.", AIV_TIMEOUT_DEFAULT_US);
+        return AIV_TIMEOUT_DEFAULT_US;
     }
-
-    timeout = (timeoutUsInt < minNpuSchedTimeout) ? minNpuSchedTimeout
-                : (timeoutUsInt > maxNpuSchedTimeout) ? maxNpuSchedTimeout
-                : timeoutUsInt;
+    u32 finalTimeout = (timeoutUs < minNpuSchedTimeout) ? minNpuSchedTimeout
+            : (timeoutUs > maxNpuSchedTimeout) ? maxNpuSchedTimeout
+            : timeoutUs;
     HCCL_INFO("[GetAivTimeout]timeout[%u]us, execTimeOut[%.2f]s, minNpuSchedTimeout[%u]us, maxNpuSchedTimeout[%u]us.",
-        timeout, execTimeOut, minNpuSchedTimeout, maxNpuSchedTimeout);
+        finalTimeout, execTimeOut, minNpuSchedTimeout, maxNpuSchedTimeout);
 
-    return timeout;
+    return finalTimeout;
 }
 
 using AivKernelArgs = struct AivKernelArgsDef {
@@ -411,6 +408,7 @@ using AivKernelArgs = struct AivKernelArgsDef {
     u64 repeatNum;
     u64 inputRepeatStride;
     u64 outputRepeatStride;
+    u32 numBlocks;
     bool isOpBase;
     const void* headCountMem;
     const void* tailCountMem;
@@ -421,7 +419,7 @@ using AivKernelArgs = struct AivKernelArgsDef {
     AivKernelArgsDef(const void* buffIn, u64 input, u64 output, u32 rank, u32 sendRecvRemoteRank,
         u32 rankSize, u64 xRankSize, u64 yRankSize, u64 zRankSize,
         u64 len, u32 dataType, u32 reduceOp, u32 root, u32 tag,
-        u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride,
+        u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride, u32 numBlocks,
         bool isOpBase = true,
         const void* headCountMem = nullptr, const void* tailCountMem = nullptr, const void* addOneMem = nullptr,
         u32 counterMemSize = 0, bool isEnableCounter = false)
@@ -429,7 +427,7 @@ using AivKernelArgs = struct AivKernelArgsDef {
         len(len) ,dataType(dataType),
         reduceOp(reduceOp), root(root), tag(tag),
         inputSliceStride(inputSliceStride), outputSliceStride(outputSliceStride), repeatNum(repeatNum), inputRepeatStride(inputRepeatStride), outputRepeatStride(outputRepeatStride),
-        isOpBase(isOpBase),
+        numBlocks(numBlocks), isOpBase(isOpBase),
         headCountMem(headCountMem), tailCountMem(tailCountMem), addOneMem(addOneMem),
         counterMemSize(counterMemSize), isEnableCounter(isEnableCounter)
     {
@@ -456,6 +454,7 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
     u64 repeatNum;
     u64 inputRepeatStride;
     u64 outputRepeatStride;
+    u32 numBlocks;
     bool isOpBase;
     const void* headCountMem;
     const void* tailCountMem;
@@ -467,7 +466,7 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
     AivExtraKernelArgsDef(const void* buffIn, u64 input, u64 output, u32 rank, u32 sendRecvRemoteRank,
         u32 rankSize, u64 xRankSize, u64 yRankSize, u64 zRankSize,
         u64 len, u32 dataType, u32 reduceOp, u32 root, u32 tag,
-        u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride,
+        u64 inputSliceStride, u64 outputSliceStride, u64 repeatNum, u64 inputRepeatStride, u64 outputRepeatStride, u32 numBlocks,
         bool isOpBase = true,
         const void* headCountMem = nullptr, const void* tailCountMem = nullptr, const void* addOneMem = nullptr,
         u32 counterMemSize = 0, const ExtraArgs* extraArgsPtr = nullptr)
@@ -475,7 +474,7 @@ using AivExtraKernelArgs = struct AivExtraKernelArgsDef {
         len(len) ,dataType(dataType),
         reduceOp(reduceOp), root(root), tag(tag),
         inputSliceStride(inputSliceStride), outputSliceStride(outputSliceStride), repeatNum(repeatNum), inputRepeatStride(inputRepeatStride), outputRepeatStride(outputRepeatStride),
-        isOpBase(isOpBase),
+        numBlocks(numBlocks), isOpBase(isOpBase),
         headCountMem(headCountMem), tailCountMem(tailCountMem), addOneMem(addOneMem),
         counterMemSize(counterMemSize)
     {
@@ -958,7 +957,7 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs)
             opArgs.buffersIn, opArgs.input, opArgs.output,
             opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.xRankSize, opArgs.yRankSize, opArgs.zRankSize, opArgs.count, opArgs.dataType, opArgs.op, opArgs.root, opArgs.sliceId,
             opArgs.inputSliceStride, opArgs.outputSliceStride, opArgs.repeatNum, opArgs.inputRepeatStride, opArgs.outputRepeatStride,
-            opArgs.isOpBase,
+            opArgs.numBlocks, opArgs.isOpBase,
             reinterpret_cast<void*>(opArgs.counter.headCountMem),
             reinterpret_cast<void*>(opArgs.counter.tailCountMem), reinterpret_cast<void*>(opArgs.counter.addOneMem),
             opArgs.counter.memSize, &opArgs.extraArgs
@@ -969,7 +968,7 @@ HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs)
             opArgs.buffersIn, opArgs.input, opArgs.output,
             opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.xRankSize, opArgs.yRankSize, opArgs.zRankSize, opArgs.count, opArgs.dataType, opArgs.op, opArgs.root, opArgs.sliceId,
             opArgs.inputSliceStride, opArgs.outputSliceStride, opArgs.repeatNum, opArgs.inputRepeatStride, opArgs.outputRepeatStride,
-            opArgs.isOpBase,
+            opArgs.numBlocks, opArgs.isOpBase,
             reinterpret_cast<void*>(opArgs.counter.headCountMem),
             reinterpret_cast<void*>(opArgs.counter.tailCountMem), reinterpret_cast<void*>(opArgs.counter.addOneMem),
             opArgs.counter.memSize

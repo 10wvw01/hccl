@@ -64,7 +64,7 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcums(
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         if (IsInputOutputOverlap(opParam) == true) { // 不支持 inplace 场景
-            HCCL_WARNING("[ReduceScatterAutoSelector] ccu_ms mode not support inplace.");
+            HCCL_WARNING("[ReduceAutoSelector] ccu_ms mode not support inplace.");
             return SelectorStatus::NOT_MATCH;
         }
         if (topoInfo->is2DieFullMesh) {
@@ -131,7 +131,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
                 return SelectorStatus::NOT_MATCH;
             } else {
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
-                HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet"
+                HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet"
                 " for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
                 selectAlgName = "CcuReduceParallelMesh1DNHR";
             }
@@ -200,7 +200,13 @@ SelectorStatus ReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDet
         SelectorStatus::NOT_MATCH);
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
-        if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
+        if (topoInfo->topoLevelNums == 3) {
+            if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
+                selectAlgName = "ReduceAicpuReduceNHR";
+            } else {
+                selectAlgName = "ReduceParallelNHRNHRUboe";
+            }
+        } else if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "ReduceAicpuReduceNHR";
         } else if (topoInfo->deviceNumPerModule > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "ReduceParallelMesh1DNHR";
@@ -233,7 +239,11 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetLaye
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (topoInfo->level0PcieMix) {
             if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
-                selectAlgName = "ReduceMesh1D";
+                if (dataSize >= REDUCE_AICPU_1D_MAX_DATA_SIZE) {
+                    selectAlgName = "ReduceMesh1DTwoShot";
+                } else {
+                    selectAlgName = "ReduceMesh1D";
+                }
             } else if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
                 selectAlgName = "ReduceAicpuReduceNHR";
             } else {
