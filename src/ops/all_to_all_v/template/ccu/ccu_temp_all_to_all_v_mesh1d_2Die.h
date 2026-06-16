@@ -11,6 +11,7 @@
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 
+#include <set>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
 #include "ccu_kernel_alg_base.h"
@@ -50,7 +51,12 @@ private:
 
     std::map<uint32_t, std::vector<HcclChannelDesc>> channels_;
     std::map<uint32_t, RankGroup> rankGroup_;
-    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
+    std::map<uint32_t, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
+    std::set<RankId> closPeers_;
+    uint32_t closMinorDieId_ = 0;
+    uint32_t closMajorDieId_ = 1;
+    uint32_t closBwCoeff_[2] = {0, 0};
+    uint32_t totalBwCoeff_ = 0;
 
     A2ASendRecvInfo localSendRecvInfo_;
 };
