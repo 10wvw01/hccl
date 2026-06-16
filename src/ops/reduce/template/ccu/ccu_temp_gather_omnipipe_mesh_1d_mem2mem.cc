@@ -30,10 +30,10 @@ CcuTempGatherOmniPipeMesh1DMem2Mem::CcuTempGatherOmniPipeMesh1DMem2Mem(const OpP
     }
     rankId_ = rankId;
     // 子通信域的root卡号
-    // auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    // if (rootIt != ranks.end()) {
-    //     subCommRootId_ = std::distance(ranks.begin(), rootIt);
-    // }
+    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
+    if (rootIt != ranks.end()) {
+        subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    }
 
     ifRealRoot_ = (rankId == param.root);
     // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
@@ -108,7 +108,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     subRankIdx2RankIdx[mySubCommRank_] = myRank_;
 
     kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2Mem>(subCommRanks_[0].size(),
-        mySubCommRank_, subRoot, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
+        mySubCommRank_, subCommRootId_, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
@@ -190,7 +190,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                     isLastStep_, 
                     ifNewRoot);
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
-               mySubCommRank_, subRoot, rankId_);
+               mySubCommRank_, subCommRootId_, rankId_);
                 void* taskArgPtr = static_cast<void*>(taskArg.get());
                 // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] 209");
                 // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum[%d] [%d] [%d]",repeatNum, templateResource.threads.size(),templateResource.ccuKernels.size());
