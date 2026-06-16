@@ -77,11 +77,11 @@ public:
 
 class CcuTaskArgGatherOmniPipeNHR1DMem2Mem : public hcomm::CcuTaskArg {
 public:
-    explicit CcuTaskArgGatherOmniPipeNHR1DMem2Mem(uint64_t inputAddr, uint64_t outputAddr, uint64_t scratchAddr, uint64_t token, uint64_t localCopyFlag, // uint64_t scratchAddr,
+    explicit CcuTaskArgGatherOmniPipeNHR1DMem2Mem(uint64_t inputAddr, uint64_t outputAddr, uint64_t scratchAddr, uint64_t token, // uint64_t scratchAddr,
                                                     uint64_t sliceSize,
                                                     uint64_t inputOmniPipeSliceStride, uint64_t outputOmniPipeSliceStride,
         bool isStepOne, bool isLastStep, bool ifNewRoot, std::vector<uint64_t> inputOmniSliceStrideVec)
-        : inputAddr_(inputAddr), outputAddr_(outputAddr), scratchAddr_(scratchAddr), token_(token), localCopyFlag_(localCopyFlag), // scratchAddr_(scratchAddr), 
+        : inputAddr_(inputAddr), outputAddr_(outputAddr), scratchAddr_(scratchAddr), token_(token), // scratchAddr_(scratchAddr), 
           sliceSize_(sliceSize), inputOmniPipeSliceStride_(inputOmniPipeSliceStride), outputOmniPipeSliceStride_(outputOmniPipeSliceStride),
           isStepOne_(isStepOne),
           isLastStep_(isLastStep),
@@ -89,15 +89,14 @@ public:
           inputOmniSliceStrideVec_(inputOmniSliceStrideVec)
     {
         HCCL_DEBUG("[CcuTaskArgGatherOmniPipeNHR1DMem2Mem] inputAddr=%llu, outputAddr=%llu, scratchAddr=%llu, token=%llu, "
-                   "sliceSize=%llu, localCopyFlag=%llu, inputOmniPipeSliceStride=%llu",
-                   inputAddr_, outputAddr_, scratchAddr, token_, sliceSize_, localCopyFlag_, inputOmniPipeSliceStride_);
+                   "sliceSize=%llu, inputOmniPipeSliceStride=%llu",
+                   inputAddr_, outputAddr_, scratchAddr, token_, sliceSize_, inputOmniPipeSliceStride_);
     }
 
     uint64_t inputAddr_;
     uint64_t outputAddr_;
     uint64_t scratchAddr_;
     uint64_t token_;
-    uint64_t localCopyFlag_;
     uint64_t sliceSize_;
     uint64_t inputOmniPipeSliceStride_;
     uint64_t outputOmniPipeSliceStride_;
@@ -131,7 +130,6 @@ private:
     std::vector<std::vector<uint32_t>> subCommRanks_;
     HcclDataType dataType_;
     HcclDataType outputDataType_;
-    hcomm::CcuRep::Variable localCopyFlag_;
     std::vector<ChannelHandle> channels_;
     std::vector<CcuRep::Variable> input_;
     CcuRep::Variable output_;

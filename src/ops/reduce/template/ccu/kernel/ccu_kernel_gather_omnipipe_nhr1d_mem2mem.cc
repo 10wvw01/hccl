@@ -75,7 +75,7 @@ HcclResult CcuKernelGatherOmniPipeNHR1DMem2Mem::InitResource()
     sliceSize_ = CreateVariable();
     inputOmniPipeSliceStride_ = CreateVariable();
     outputOmniPipeSliceStride_ = CreateVariable();
-    localCopyFlag_ = CreateVariable();
+    // localCopyFlag_ = CreateVariable();
     isStepOne_ = CreateVariable();
     isLastStep_ = CreateVariable();
     ifNewRoot_ = CreateVariable();
@@ -93,7 +93,7 @@ void CcuKernelGatherOmniPipeNHR1DMem2Mem::LoadArgs()
     Load(output_);
     Load(scratch_[myRankIdx_]);
     Load(token_[myRankIdx_]);
-    Load(localCopyFlag_);
+    // Load(localCopyFlag_);
     Load(sliceSize_);
     Load(inputOmniPipeSliceStride_);
     Load(outputOmniPipeSliceStride_);
@@ -138,7 +138,7 @@ std::vector<uint64_t> CcuKernelGatherOmniPipeNHR1DMem2Mem::GeneArgs(const hcomm:
     uint64_t outputAddr                = taskArg->outputAddr_;
     uint64_t scratchAddr               = taskArg->scratchAddr_;
     uint64_t token                     = taskArg->token_;
-    uint64_t localCopyFlag             = taskArg->localCopyFlag_;
+    // uint64_t localCopyFlag             = taskArg->localCopyFlag_;
     uint64_t sliceSize                 = taskArg->sliceSize_;
     uint64_t inputOmniPipeSliceStride  = taskArg->inputOmniPipeSliceStride_;
     uint64_t outputOmniPipeSliceStride = taskArg->outputOmniPipeSliceStride_;
@@ -147,17 +147,17 @@ std::vector<uint64_t> CcuKernelGatherOmniPipeNHR1DMem2Mem::GeneArgs(const hcomm:
     uint64_t ifNewRoot                 = taskArg->ifNewRoot_;
     std::vector<uint64_t> inputOmniSliceStrideVec = taskArg->inputOmniSliceStrideVec_;
 
-    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, scratchAddr, token, localCopyFlag, sliceSize, 
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, scratchAddr, token, sliceSize, 
                                     inputOmniPipeSliceStride, outputOmniPipeSliceStride, isStepOne, isLastStep, ifNewRoot};
     taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
 
     HCCL_INFO("[CcuTaskArgGatherOmniPipeNHR1DMem2Mem] TaskArgs: inputAddr[%llu], outputAddr[%llu], "
             "scratchAddr[%llu], sliceSize[%llu],"
             "inputOmniPipeSliceStride_[%llu], outputOmniPipeSliceStride_[%llu],"
-            "localCopyFlag[%llu], isStepOne[%d], isLastStep[%d], ifNewRoot[%d]",
+            "isStepOne[%d], isLastStep[%d], ifNewRoot[%d]",
         inputAddr, outputAddr, scratchAddr, sliceSize,
         inputOmniPipeSliceStride, outputOmniPipeSliceStride,
-        localCopyFlag, isStepOne, isLastStep, ifNewRoot);
+        isStepOne, isLastStep, ifNewRoot);
     return taskArgs;
 }
 
