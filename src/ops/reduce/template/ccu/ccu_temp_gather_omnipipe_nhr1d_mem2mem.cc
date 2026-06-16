@@ -31,11 +31,11 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     }
 
     // 子通信域的root卡号
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    subCommRootId_ = param.root / templateRankSize_;
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
-    }
+    // auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
+    // subCommRootId_ = param.root / templateRankSize_;
+    // if (rootIt != ranks.end()) {
+    //     subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    // }
     rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
 }
@@ -107,7 +107,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     kernelInfo.channels = channelDescs;
 
     kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>(
-        subCommRanks_[0].size(), mySubCommRank_, subCommRootId_, param, subCommRanks_, ifRealRoot_, myRank_,stepInfoVector, rank2ChannelIdx, subRankIdx2RankIdx);
+        subCommRanks_[0].size(), mySubCommRank_, subRoot, param, subCommRanks_, ifRealRoot_, myRank_,stepInfoVector, rank2ChannelIdx, subRankIdx2RankIdx);
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__,
@@ -181,7 +181,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                 inputOmniSliceStrideVec);
 
             void* taskArgPtr = static_cast<void*>(taskArg.get());
-            HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subCommRootId_, rankId_);
+            HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subRoot, rankId_);
             CHK_RET(HcclCcuKernelLaunch(
                 param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[0], taskArgPtr));
             if (ifNewRoot) {
@@ -259,7 +259,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
     stepInfo.fromRank = templateRankSize_;
     stepInfo.step = step;
     stepInfo.myRank = virtRankIdx;
-    uint32_t rootId = subCommRootId_;
+    uint32_t rootId = subRoot;
     u32 deltaRoot = (rootId + templateRankSize_ - virtRankIdx) % templateRankSize_;
     // Gather: 用 nSteps-1-step
     u32 deltaRankPair = 1 << (nSteps - 1 - step);
