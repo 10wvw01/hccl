@@ -7,10 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include "v_testcase_common.h"
 #include "gtest/gtest.h"
 #include "alg_env_config.h"
-#include "v_testcase_common.h"
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 protected:
@@ -80,10 +79,6 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_6rank_fp16_equal
     RunAllGatherVMultilevel(topoMeta, vDataDes);
 }
 
-<<<<<<< HEAD
-// 3-pod topologies unsupported: simulator has only 2 net layers (no inter-superpod links at layer 2).
-// Unequal AllGatherV unsupported: mesh1D slave streams end with WAIT not LOCAL_POST_TO (pre-existing bug).
-=======
 TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_3layer_2pod_2server_4rank_fp16_equal_test)
 {
     TopoMeta topoMeta{{{0, 1}, {2, 3}}, {{0, 1}, {2, 3}}};
@@ -105,4 +100,3 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_3layer_2pod_1server_4rank_int32_
 
     RunAllGatherVMultilevel(topoMeta, vDataDes);
 }
->>>>>>> 0cc4d9ce71da0355b32dd88330f904010e647614
