@@ -7,10 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include "v_testcase_common.h"
 #include "gtest/gtest.h"
 #include "alg_env_config.h"
-#include "v_testcase_common.h"
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 protected:
