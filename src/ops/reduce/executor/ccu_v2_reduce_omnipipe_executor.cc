@@ -95,6 +95,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     return HCCL_SUCCESS;
 }
 
+
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::InitCommInfo(
             const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo, const AlgHierarchyInfoForAllLevel& algHierarchyInfo)
@@ -684,8 +685,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
                 if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = rootXAixs; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rootYAixs; //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = GetYRoot(); //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = GetXRoot(); //0 纵向逻辑假root是0
 
                 }
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -736,6 +737,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    gAlgTempX.subRoot = rootXAixs;
                     gAlgTempX.subRoot = rootXAixs;
                     gAlgTempY.subRoot = 999;
                 }
