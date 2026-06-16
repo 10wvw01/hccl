@@ -75,9 +75,10 @@ HcclResult HcclRecvGraphMode(
 {
     HCCL_INFO("[HcclRecvGraphMode] Start.");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclRecvGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
 
@@ -90,6 +91,7 @@ HcclResult HcclRecvGraphMode(
     CHK_RET(GetAndCheckRecvPara(comm, recvBuf, count, dataType, srcRank, rankSize, userRank, opTag));
 
     // 拼装ResPackGraphMode
+    CHK_PTR_NULL(tag);
     ResPackGraphMode resPack;
     // 设置tag
     auto fillTagRet = strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
@@ -230,7 +232,7 @@ namespace ops_hccl {
             ACLCHECK(aclrtStreamGetId(stream, &streamId));
             char stackLogBuffer[LOG_TMPBUF_SIZE];
             s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-                "opTag[%s], recvBuf[%p], count[%llu], dataType[%s], srcRank[%u], streamId[%d], deviceLogicId[%d]",
+                "tag[%s], recvBuf[%p], count[%llu], dataType[%s], srcRank[%u], streamId[%d], deviceLogicId[%d]",
                 tag.c_str(), recvBuf, count, GetDataTypeEnumStr(dataType).c_str(), srcRank, streamId, deviceLogicId);
 
             CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
