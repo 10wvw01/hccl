@@ -7,12 +7,11 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include "hccl/hccl_types.h"
+#include "acl/acl_rt.h"
 #include "gtest/gtest.h"
 #include "sim_world.h"
 #include "hccl.h"
-#include "hccl/hccl_types.h"
-#include "acl/acl_rt.h"
 #include "hccl_verifier.h"
 #include "check_utils.h"
 #include <thread>
