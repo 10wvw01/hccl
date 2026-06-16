@@ -15,6 +15,7 @@
 #include "ccu_temp_all_to_all_v_mesh_1D.h"
 #include "ccu_temp_all_to_all_v_mesh2die.h"
 #include "ccu_temp_all_to_all_v_mesh_1D_multi_jetty.h"
+#include "ccu_temp_all_to_all_v_mesh1d_2Die.h"
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
@@ -299,6 +300,8 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh2Die, InsAllto
 #endif /* !HCCL_CANN_COMPAT_850 */
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAlltoAllVMesh1D2Die, InsAlltoAllVSoleExecutor, TopoMatch1D,
+    CcuTempAlltoAllVMesh1D2Die);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV,
                 CcuAllToAllVMesh1DMultiJetty,
                 InsAlltoAllVSoleExecutor,
