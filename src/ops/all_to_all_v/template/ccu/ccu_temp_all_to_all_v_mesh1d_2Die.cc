@@ -122,15 +122,26 @@ HcclResult CcuTempAllToAllVMesh1D2Die::PartitionChannels(HcclComm comm, const st
         u32 dieId = channels.first;
         std::vector<HcclChannelDesc>& channel_list = channels.second;
         HCCL_INFO("DIEID[%u], meshDieId[%u]", dieId, meshDieId);
-        if (dieId == meshDieId) {
-            continue;
-        }
 
         for(auto& channel: channel_list){
             channels_[dieId].emplace_back(channel);
             rankGroup_[dieId].push_back(channel.remoteRank);
+            closPeers_.insert(channel.remoteRank);
+        }
+
+        if (!channel_list.empty()) {
+            CHK_RET(GetChannelBwCoeff(comm, myRank_, channel_list[0], closBwCoeff_[dieId]));
         }
     }
+
+    if (closBwCoeff_[0] <= closBwCoeff_[1]) {
+        closMinorDieId_ = 0;
+        closMajorDieId_ = 1;
+    } else {
+        closMinorDieId_ = 1;
+        closMajorDieId_ = 0;
+    }
+    totalBwCoeff_ = closBwCoeff_[0] + closBwCoeff_[1];
 
     // rankGroup_[0].push_back(myRank_);
     // rankGroup_[1].push_back(myRank_);
@@ -187,13 +198,24 @@ void CcuTempAllToAllVMesh1D2Die::SetA2ASendRecvInfo(const A2ASendRecvInfo &sendR
 void CcuTempAllToAllVMesh1D2Die::FillRankGroupTaskArgs(uint32_t dieId, const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs)
 {
     for (auto peerId : rankGroup_[dieId]) {
-        const uint64_t sendSize = localSendRecvInfo_.sendLength[peerId];
+        uint64_t sendSize = localSendRecvInfo_.sendLength[peerId];
+        uint64_t sendOffset = localSendRecvInfo_.sendOffset[peerId];
+        uint64_t recvOffset = localSendRecvInfo_.recvOffset[peerId];
+
+        if (closPeers_.count(peerId) > 0 && totalBwCoeff_ > 0) {
+            uint64_t recvLength = localSendRecvInfo_.recvLength[peerId];
+            uint32_t myBwCoeff = closBwCoeff_[dieId];
+            if (dieId == closMajorDieId_) {
+                sendOffset += sendSize * closBwCoeff_[closMinorDieId_] / totalBwCoeff_;
+                recvOffset += recvLength * closBwCoeff_[closMinorDieId_] / totalBwCoeff_;
+            }
+            sendSize = sendSize * myBwCoeff / totalBwCoeff_;
+        }
+
         const uint64_t floorLoopNum = sendSize / UB_MAX_TRANS_SIZE;
         uint64_t sendLoopNum = UINT64_MAX - 1 - floorLoopNum;
         uint64_t sendTailSize = sendSize - floorLoopNum * UB_MAX_TRANS_SIZE;
         auto sendTailGoSize = CalGoSize(sendTailSize, config);
-        uint64_t sendOffset = localSendRecvInfo_.sendOffset[peerId];
-        uint64_t recvOffset = localSendRecvInfo_.recvOffset[peerId];
         taskArgs.push_back(sendOffset);
         taskArgs.push_back(recvOffset);
         taskArgs.push_back(sendTailSize);
