@@ -112,7 +112,7 @@ static CcuResult PostSync(AllToAllVMesh2DieContext &ctx)
     for (uint32_t peerId = 0; peerId < arg->channelCount; peerId++) {
         CCU_CHK_RET(ccu::NotifyRecord(arg->channels[peerId], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
-    for (u32 peerId = 0; peerId < ctx.peerSize; peerId++) {
+    for (u32 peerId = 0; peerId < arg->channelCount; peerId++) {
         CCU_CHK_RET(ccu::NotifyWait(arg->channels[peerId], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
     return CCU_SUCCESS;
