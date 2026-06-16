@@ -94,54 +94,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     return HCCL_SUCCESS;
 }
 
-// 获取同跟root同X轴的节点（获取当前子通信域里的root）
-template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
-u64 CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::GetXRoot()
-{
-    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2Mem][GetRoot] myRank_ [%u] ", myRank_);
-    u64 res = myRank_;
-    std::vector<u32> ranks = subCommRanks0[0];
-    std::string ranksStr = "";
-    for (auto r : ranks) { ranksStr += std::to_string(r) + " "; }
-    for (auto r : ranks) { 
-        u64 subX = r % rankSizeLevel0_;
-        if (subX == rootXAixs) {
-            res = r;
-        }
-    }
-    // return myRank_;
 
-    auto itRoot = std::find(ranks.begin(), ranks.end(), res);
-    if (itRoot != ranks.end()) {
-        return  std::distance(ranks.begin(), itRoot);
-    }
-    return myRank_;
-}
-
-// 获取同跟root同Y轴的节点（获取当前子通信域里的root）
-template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
-u64 CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::GetYRoot()
-{
-    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2Mem][GetRoot] myRank_ [%u] ", myRank_);
-    u64 res = myRank_;
-    std::vector<u32> ranks = subCommRanks1[0];
-    std::string ranksStr = "";
-    for (auto r : ranks) { ranksStr += std::to_string(r) + " "; }
-    for (auto r : ranks) { 
-        u64 subY = r / rankSizeLevel0_;
-        if (subY == rootYAixs) {
-            res = r;
-        }
-    }
-    // return res;
-
-
-    auto itRoot = std::find(ranks.begin(), ranks.end(), res);
-    if (itRoot != ranks.end()) {
-        return  std::distance(ranks.begin(), itRoot);
-    }
-    return myRank_;
-}
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::InitCommInfo(
             const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo, const AlgHierarchyInfoForAllLevel& algHierarchyInfo)
@@ -729,8 +682,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
                 if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = GetYRoot(); //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = GetXRoot(); //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = rootYAixs; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = rootXAixs; //0 纵向逻辑假root是0
 
                 }
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -781,7 +734,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = GetYRoot();
+                    gAlgTempX.subRoot = rootXAixs;
                     gAlgTempY.subRoot = 999;
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
