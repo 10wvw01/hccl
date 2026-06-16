@@ -75,7 +75,7 @@ HcclResult CcuKernelGatherOmniPipeNHR1DMem2Mem::InitResource()
     sliceSize_ = CreateVariable();
     inputOmniPipeSliceStride_ = CreateVariable();
     outputOmniPipeSliceStride_ = CreateVariable();
-    localCopyFlag_ = CreateVariable();
+    // localCopyFlag_ = CreateVariable();
     isStepOne_ = CreateVariable();
     isLastStep_ = CreateVariable();
     ifNewRoot_ = CreateVariable();
@@ -166,7 +166,7 @@ HcclResult CcuKernelGatherOmniPipeNHR1DMem2Mem::Algorithm()
     CHK_RET(InitResource());
     LoadArgs();
     PreSync();
-    DoGatherOmniPipeNHR();
+    // DoGatherOmniPipeNHR();
     PostSync();
     return HcclResult::HCCL_SUCCESS;
 }
