@@ -199,8 +199,6 @@ public:
         inputRepeatStride_ = inputRepeatStride;
         outputRepeatStride_ = outputRepeatStride;
 
-        InitBuffArray(buffIn, pingpong);
-
         localOffset = (rankSize_ * NUM_BLOCKS_FOUR_PER_RANK_A3 * FLAG_BUF_NUM) * FLAG_SIZE;
         multiOffset = MAX_NUM_BLOCKS * DOUBLE * FLAG_SIZE+ localOffset;
         pingpongOffset = multiOffset + DOUBLE * DOUBLE * NUM_BLOCKS_FOUR_PER_RANK_A3 * ATOMIC_FLAG_SIZE * DOUBLE;
@@ -221,6 +219,7 @@ public:
         pipe.InitBuffer(outQueueZ, 1, chunkSize);
 
         GetTag(buffIn);
+        InitBuffArray(buffIn, pingpong);
     }
 
     __aicore__ inline void Init(GM_ADDR hiddenInput, GM_ADDR input, GM_ADDR output, bool pingpong = false)
