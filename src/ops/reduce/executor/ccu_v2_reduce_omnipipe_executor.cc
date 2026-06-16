@@ -275,14 +275,15 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
+
+    rootXAixs = param.root % rankSizeLevel0_;
+    rootYAixs = param.root / rankSizeLevel0_;
+    isRoot = (myRank_ == root_);
+    isSameXAxis = (rankIdxLevel0_ == rootXAixs && !isRoot);
+    isSameYAxis = (rankIdxLevel1_ == rootYAixs && !isRoot);
     
     HCCL_DEBUG("[%s] myRank[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
         __func__, myRank_, rankSizeLevel0_, rankSizeLevel1_, rankIdxLevel0_, rankIdxLevel1_);
-
-
-
-
-
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
@@ -853,7 +854,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                CcuTempGatherOmniPipeNHR1DMem2Mem);
 // #endif
 }
