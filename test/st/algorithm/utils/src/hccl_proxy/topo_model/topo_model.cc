@@ -352,16 +352,6 @@ void TopoModel::GetEndpointNum(uint32_t curRank, uint32_t layer, uint32_t topoIn
 
 void TopoModel::GetEndpointDesc(uint32_t curRank, uint32_t layer, uint32_t topoInstId, uint32_t *descNum, EndpointDesc *endpointDesc)
 {
-    // // 仅支持hostdpu使用，暂时仅支持layer1的出框的通信对端查询
-    // if (layer != NetLayerL1) {
-    //     printf("[ERROR][GetEndpointDesc] not support for layer[%u]\n", layer);
-    //     return;
-    // }
-
-    // *descNum = dpuDesc_.size();
-    // for (auto i = 0; i < dpuDesc_.size(); i++) {
-    //     endpointDesc[i] = dpuDesc_[i];
-    // }
     char *dpnEnv = getenv("ENABLE_HOSTDPU_FOR_LLT");
     if (dpnEnv != nullptr && std::string(dpnEnv) == "1") {
         *descNum = dpuDesc_.size();

@@ -7,12 +7,11 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include "hccl/hccl_types.h"
+#include "acl/acl_rt.h"
 #include "gtest/gtest.h"
 #include "sim_world.h"
 #include "hccl.h"
-#include "hccl/hccl_types.h"
-#include "acl/acl_rt.h"
 #include "hccl_verifier.h"
 #include "check_utils.h"
 #include <thread>
@@ -62,18 +61,15 @@ void RunAllGatherAicpuA5(const TopoMeta &topoInfo, const u64 &sendCount, const H
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE_ALL_GATHER_ST[dataType];
     auto rankSize = AnalyseRankSize(topoInfo);
-    // 算子执行参数设置
-    // 多线程运行SCATTER算子
-    std::vector<std::thread> threads;
+    // 算子执行参数设置,多线程运行SCATTER算子
+    std::vector <std::thread> threads;
     for (auto rankId = 0; rankId < rankSize; ++rankId) {
         threads.emplace_back([=]() {
             // 1.SetDevice
             aclrtSetDevice(rankId);
-
             // 2.创建流
             aclrtStream stream = nullptr;
             aclrtCreateStream(&stream);
-
             // 3.初始化通信域
             HcclComm comm = nullptr;
             CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankId, &comm));
