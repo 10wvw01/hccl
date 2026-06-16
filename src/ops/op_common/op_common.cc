@@ -1267,7 +1267,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
             for (u32 i = 0; i < threadNum; i++) {
                 threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
             }
-            CHK_RET(HcclThreadAcquireWithConfig(comm, param.engine, threadNum, THREAD_TYPE_TS,
+            CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, threadNum, THREAD_TYPE_TS,
                 threadConfigs.data(), threads.data()));
             for (u32 i = 0; i < threadNum; i++) {
                 resCtxHost->threads.push_back(threads[i]);
