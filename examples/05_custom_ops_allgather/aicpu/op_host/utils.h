@@ -17,7 +17,7 @@
 
 namespace ops_hccl_allgather {
 HcclResult GetDeviceType(DeviceType *deviceType);
-HcclResult AcquireChannel(HcclComm comm, CommEngine engine, uint32_t srcRank, uint32_t dstRank, ChannelHandle *channel);
+HcclResult FillChannelDesc(HcclComm comm, uint32_t srcRank, uint32_t dstRank, HcclChannelDesc &desc);
 
 HcclResult HcclGetThreadAICPU(HcclComm comm, const OpParam &param, AlgResourceCtx &resCtxHost);
 HcclResult HcclGetChannelAICPU(HcclComm comm, const OpParam &param, AlgResourceCtx &resCtxHost);

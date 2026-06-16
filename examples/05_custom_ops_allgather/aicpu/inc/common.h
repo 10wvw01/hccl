@@ -49,7 +49,6 @@ struct ChannelInfo {
 };
 
 struct AlgResourceCtx {
-    ThreadHandle aicpuThread;
     ThreadHandle cpuThreadOnAicpu;
     CommBuffer cclMem;
     uint32_t notifyNumOnMainThread;
@@ -62,7 +61,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream;
 
-        binaryStream << aicpuThread;
         binaryStream << cpuThreadOnAicpu;
         binaryStream << cclMem;
         binaryStream << notifyNumOnMainThread;
@@ -79,7 +77,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream(data);
 
-        binaryStream >> aicpuThread;
         binaryStream >> cpuThreadOnAicpu;
         binaryStream >> cclMem;
         binaryStream >> notifyNumOnMainThread;
@@ -103,6 +100,7 @@ struct OpParam {
     HcclCMDType opType = HcclCMDType::HCCL_CMD_INVALID;
     ThreadHandle cpuThread;
     ThreadHandle aicpuThreadOnCpu;
+    uint32_t aicpuRecordCpuIdx = 0;
     void* resCtxDevice = nullptr;
     uint64_t ctxSize = 0;
 };

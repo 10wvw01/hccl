@@ -18,8 +18,8 @@ namespace ops_hccl_allgather {
 
 HcclResult LaunchKernelWithAsc(OpParam &param, aclrtStream stream)
 {
-    // Host stream通知Device主thread
-    CHK_RET(HcommThreadNotifyRecordOnThread(param.cpuThread, param.aicpuThreadOnCpu, 0));
+    // Host stream通知Device主thread，使用maxNotifyNum作为host/device同步的notify索引
+    CHK_RET(HcommThreadNotifyRecordOnThread(param.cpuThread, param.aicpuThreadOnCpu, param.aicpuRecordCpuIdx));
 
     // 调用使用 ASC 编译的函数，支持 <<<>>> 语法
     HcclResult ret = LaunchKernelAsc(param, stream);
@@ -38,8 +38,8 @@ HcclResult LaunchKernelWithAclrt(OpParam &param, aclrtStream stream)
     // 加载 AICPU Kernel，获取 AICPU 侧链接库的句柄
     CHK_RET(LoadAICPUKernel());
 
-    // Host stream通知Device主thread
-    CHK_RET(HcommThreadNotifyRecordOnThread(param.cpuThread, param.aicpuThreadOnCpu, 0));
+    // Host stream通知Device主thread，使用maxNotifyNum作为host/device同步的notify索引
+    CHK_RET(HcommThreadNotifyRecordOnThread(param.cpuThread, param.aicpuThreadOnCpu, param.aicpuRecordCpuIdx));
 
     // 获取 Kernel 函数句柄
     std::string kernelName = "HcclLaunchCustomAllGatherAicpuKernel";

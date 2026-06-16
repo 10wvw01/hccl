@@ -73,20 +73,23 @@ HcclResult HcclAllGatherCustom(
         AlgResourceCtx resCtxHost;
 
         // ==============================================
-        // STEP 2.1: 申请host/device同步thread
+        // STEP 2.1: 申请host同步thread (从stream转换)
         // ==============================================
-        // 将传入的stream转换为thread，并申请1个notify；同时导出为AICPU上可用的thread
         CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, stream, 1, &param.cpuThread));
-        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &param.cpuThread, COMM_ENGINE_AICPU_TS, &resCtxHost.cpuThreadOnAicpu));
-        
-        // 创建一个AICPU_TS类型的thread，并申请1个notify；同时导出为CPU上可用的thread
-        CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, 1, 1, &resCtxHost.aicpuThread));
-        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &resCtxHost.aicpuThread, COMM_ENGINE_CPU_TS, &param.aicpuThreadOnCpu));
 
         // ==============================================
         // STEP 2.2: 申请资源Thread和Channel
         // ==============================================
         CHK_RET(HcclAllocAlgResourceAICPU(comm, param, resCtxHost));
+
+        // ==============================================
+        // STEP 2.3: 设置host/device同步所需thread,将hostcpu thread放到aicpu，aicpu thread放到hostcpu.
+        // 使用threads[0]作为主AICPU thread，同时负责算法执行和host/device同步
+        // ==============================================
+        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &resCtxHost.threads[0], COMM_ENGINE_CPU_TS, &param.aicpuThreadOnCpu));
+        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &param.cpuThread, COMM_ENGINE_AICPU_TS, &resCtxHost.cpuThreadOnAicpu));
+        param.aicpuRecordCpuIdx = resCtxHost.notifyNumOnMainThread;
+
         CHK_RET(HcclMemcpyCtxHostToDevice(comm, param, resCtxHost, &param.resCtxDevice, &param.ctxSize));
     }
     // ==============================================
