@@ -103,6 +103,7 @@ struct OpParam {
     HcclCMDType opType = HcclCMDType::HCCL_CMD_INVALID;
     ThreadHandle cpuThread;
     ThreadHandle aicpuThreadOnCpu;
+    uint32_t notifyNumOnMainThread = 0;
     void* resCtxDevice = nullptr;
     uint64_t ctxSize = 0;
 };

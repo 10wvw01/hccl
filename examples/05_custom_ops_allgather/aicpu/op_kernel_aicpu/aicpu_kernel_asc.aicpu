@@ -110,7 +110,14 @@ __global__ __aicpu__ uint32_t HcclLaunchCustomAllGatherAicpuKernelAsc(void *args
         return 1;
     }
 
-    if (HcommThreadNotifyWaitOnThread(resCtxDevice.aicpuThread, 0, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
+    uint32_t maxNotifyNum = resCtxDevice.notifyNumOnMainThread;
+    for (uint32_t i = 0; i < resCtxDevice.notifyNumPerThread.size(); i++) {
+        if (resCtxDevice.notifyNumPerThread[i] > maxNotifyNum) {
+            maxNotifyNum = resCtxDevice.notifyNumPerThread[i];
+        }
+    }
+
+    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], maxNotifyNum, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to wait notify from host main stream");
         return 1;
     }
@@ -120,7 +127,7 @@ __global__ __aicpu__ uint32_t HcclLaunchCustomAllGatherAicpuKernelAsc(void *args
         return 1;
     }
 
-    if (HcommThreadNotifyRecordOnThread(resCtxDevice.aicpuThread, resCtxDevice.cpuThreadOnAicpu, 0) != HCCL_SUCCESS) {
+    if (HcommThreadNotifyRecordOnThread(resCtxDevice.threads[0], resCtxDevice.cpuThreadOnAicpu, 0) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to record host main stream");
         return 1;
     }
