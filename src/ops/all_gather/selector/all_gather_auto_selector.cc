@@ -109,14 +109,18 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
     if (dataSize > SMALL_COUNT_512KB) {
         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
+            // selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
+            selectAlgName = "CcuAllGatherOmniPipe2D";
         } else if (isClosNumMultipleOfMeshNum) {
-            selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
+            // selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
+            selectAlgName = "CcuAllGatherOmniPipe2D";
         } else {
-            selectAlgName = "CcuAllGatherNHR1DMem2MemMultiJetty";
+            // selectAlgName = "CcuAllGatherNHR1DMem2MemMultiJetty";
+            selectAlgName = "CcuAllGatherOmniPipe2D";
         }
     } else {
-        selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+        // selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+        selectAlgName = "CcuAllGatherOmniPipe2D";
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;

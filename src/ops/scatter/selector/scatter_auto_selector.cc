@@ -30,53 +30,54 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
-    (void)opParam;
-    (void)configAlgMap; 
-    HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    // (void)opParam;
+    // (void)configAlgMap; 
+    // HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
-    if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
-                selectAlgName = "CcuScatterNHRMem2Mem1D";
-            } else if (topoInfo->is2DieFullMesh) {
-                HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
-                return SelectorStatus::NOT_MATCH;
-            } else {
-                selectAlgName = "CcuScatterParallelMesh1DNHR";
-            }
-        } else {
-            HCCL_WARNING("[Algo][SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
-                topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        }
-    } else {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-        CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
-            HCCL_WARNING("[Algo][ScatterAutoSelector] ccu schedule does not support inplace allreduce."),
-            SelectorStatus::NOT_MATCH);
-            if (topoInfo->is2DieFullMesh) {
-                HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
-                return SelectorStatus::NOT_MATCH;
-            } else {
-                selectAlgName = "CcuScatterMesh1D";
-            }
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
-                selectAlgName = "CcuScatterMesh1D";
-            } else if (topoInfo->level0PcieMix) {
-                HCCL_WARNING("[ScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
-                return SelectorStatus::NOT_MATCH;
-            } else {
-                selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
-            }
-        } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
-            HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        } else {
-            HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        }
-    }
+    // if (topoInfo->topoLevelNums > 1) {
+    //     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+    //         if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+    //             selectAlgName = "CcuScatterNHRMem2Mem1D";
+    //         } else if (topoInfo->is2DieFullMesh) {
+    //             HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
+    //             return SelectorStatus::NOT_MATCH;
+    //         } else {
+    //             selectAlgName = "CcuScatterParallelMesh1DNHR";
+    //         }
+    //     } else {
+    //         HCCL_WARNING("[Algo][SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
+    //             topoInfo->level0Topo);
+    //         return SelectorStatus::NOT_MATCH;
+    //     }
+    // } else {
+    //     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+    //     CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+    //         HCCL_WARNING("[Algo][ScatterAutoSelector] ccu schedule does not support inplace allreduce."),
+    //         SelectorStatus::NOT_MATCH);
+    //         if (topoInfo->is2DieFullMesh) {
+    //             HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
+    //             return SelectorStatus::NOT_MATCH;
+    //         } else {
+    //             selectAlgName = "CcuScatterMesh1D";
+    //         }
+    //     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+    //         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+    //             selectAlgName = "CcuScatterMesh1D";
+    //         } else if (topoInfo->level0PcieMix) {
+    //             HCCL_WARNING("[ScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+    //             return SelectorStatus::NOT_MATCH;
+    //         } else {
+    //             selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
+    //         }
+    //     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+    //         HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
+    //         return SelectorStatus::NOT_MATCH;
+    //     } else {
+    //         HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
+    //         return SelectorStatus::NOT_MATCH;
+    //     }
+    // }
+    selectAlgName = "CcuV2ScatterOmniPipe";
     HCCL_INFO("[ScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }
