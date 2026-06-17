@@ -343,6 +343,10 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+            if (!topoInfo->level2Uboe) {
+                HCCL_DEBUG("[AllReduceAutoSelector] level2 protocol is not UBOE, skip Uboe algos.");
+                return SelectorStatus::NOT_MATCH;
+            }
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllReduceOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
@@ -368,9 +372,11 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                 } else {
                     selectAlgName = "InsAllReduceNHR";
                 }
+            } else if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
+                selectAlgName = (dataSize > AR_AICPU_SEQUENCE_DATA_SIZE) ?
+                            "InsAllReduceSequenceMesh1DNhr" : "InsAllReduceParallelRSAG";
             } else {
-                HCCL_ERROR("[all reduce do not support topoInfo->topoLevelNums > 3, but got [%u]", topoInfo->topoLevelNums);
-                return SelectorStatus::NOT_MATCH;
+                selectAlgName = "InsAllReduceNHR";
             }
 
         } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
