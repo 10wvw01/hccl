@@ -376,6 +376,7 @@ struct ChannelInfo {
     bool hasRemoteAlltoAllVInfo = false;
     u64 remoteAlltoAllVRdisplForLocalRank = 0;
     u64 remoteAlltoAllVRecvCountForLocalRank = 0;
+    u64 remoteAlltoAllVTotalSendCountWithoutSelf = 0;
     HcclMem remoteInput;  // A3用的，cclIn
     HcclMem remoteOutput; // A3用的, cclOut
 };
@@ -677,7 +678,7 @@ struct OpExchangeInfo {
 };
 
 constexpr u32 A2AV_EXCHANGE_MAGIC = 0x41325658; // "A2VX"
-constexpr u32 A2AV_EXCHANGE_VERSION = 1;
+constexpr u32 A2AV_EXCHANGE_VERSION = 2;
 constexpr u32 A2AV_EXCHANGE_MAX_RANK_SIZE = 64;
 
 struct A2AVNoMemcpyExchangeInfo {
@@ -686,6 +687,7 @@ struct A2AVNoMemcpyExchangeInfo {
     u32 version = A2AV_EXCHANGE_VERSION;
     u32 rankSize = 0;
     u32 userRank = INVALID_VALUE_RANKID;
+    u64 totalSendCountWithoutSelf = 0;
     u64 sendCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
     u64 recvCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
     u64 sdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};

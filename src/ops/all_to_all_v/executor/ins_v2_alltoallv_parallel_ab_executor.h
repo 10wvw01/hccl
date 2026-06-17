@@ -43,7 +43,7 @@ private:
                                   const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
     HcclResult RestoreChannelMaps(const AlgResourceCtxSerializable &resCtx);
     HcclResult BuildBaseParams(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                               TemplateDataParams &params) const;
+                               TemplateDataParams &params);
     HcclResult SplitABParams(const TemplateDataParams &baseParams, double ratio,
                              TemplateDataParams &aParams, TemplateDataParams &bParams) const;
     HcclResult SetLoopParams(const TemplateDataParams &srcParams, u64 processedCount, u64 currCount,
@@ -80,6 +80,8 @@ private:
     std::map<u32, std::vector<ChannelInfo>> interLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> fullLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> bRunLinkMap_;
+    std::vector<u64> remoteTotalSendCountsWithoutSelf_;
+    std::vector<bool> remoteTotalSendCountsValid_;
 
     std::vector<ThreadHandle> threads_;
     ThreadHandle mainThread_{0};

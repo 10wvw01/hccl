@@ -276,6 +276,8 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     interLinkMap_.clear();
     fullLinkMap_.clear();
     bRunLinkMap_.clear();
+    remoteTotalSendCountsWithoutSelf_.assign(resCtx.topoInfo.userRankSize, 0);
+    remoteTotalSendCountsValid_.assign(resCtx.topoInfo.userRankSize, false);
 
     HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] raw channelLevels=%zu hierarchyLevels=%zu.",
                  resCtx.channels.size(), resCtx.algHierarchyInfo.infos.size());
@@ -430,7 +432,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::PrepareTemplateResour
 
 template <typename AlgTopoMatch>
 HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, TemplateDataParams &params) const
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, TemplateDataParams &params)
 {
     const u64 *sendCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
     const u64 *recvCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
@@ -475,7 +477,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
                       myRank_, i, sendCounts[i], recvCounts[i], sdispls[i], rdispls[i]);
         }
     }
-    auto fillRemoteInfo = [&params](const std::map<u32, std::vector<ChannelInfo>> &linkMap) {
+    auto fillRemoteInfo = [this, &params](const std::map<u32, std::vector<ChannelInfo>> &linkMap) {
         for (const auto &item : linkMap) {
             if (item.second.empty()) {
                 continue;
@@ -485,6 +487,11 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
             if (remoteRank < params.remoteRdispls.size() && channel.hasRemoteAlltoAllVInfo) {
                 params.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
                 params.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+                if (remoteRank < remoteTotalSendCountsWithoutSelf_.size()) {
+                    remoteTotalSendCountsWithoutSelf_[remoteRank] =
+                        channel.remoteAlltoAllVTotalSendCountWithoutSelf;
+                    remoteTotalSendCountsValid_[remoteRank] = true;
+                }
             }
         }
     };
@@ -493,6 +500,16 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     fillRemoteInfo(bRunLinkMap_);
     HCCL_WARNING("[A2AV_AB][BaseParam] remote exchange table filled. rank=%u rankSize=%llu",
                  myRank_, rankSize_);
+    for (u64 i = 0; i < rankSize_; ++i) {
+        if (i == myRank_) {
+            continue;
+        }
+        CHK_PRT_RET(i >= remoteTotalSendCountsValid_.size() || !remoteTotalSendCountsValid_[i],
+                    HCCL_ERROR("[A2AV_AB][BaseParam] missing remote total send count. "
+                               "rank=%u peer=%llu remoteRecvForLocal=%llu",
+                               myRank_, i, params.remoteRecvCounts[i]),
+                    HcclResult::HCCL_E_INTERNAL);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -504,19 +521,24 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
     bParams = baseParams;
     u64 aTotalCount = 0;
     u64 bTotalCount = 0;
+    u64 localTotalSendWithoutSelf = 0;
     for (u64 i = 0; i < rankSize_; ++i) {
-        u64 aSend = static_cast<u64>(static_cast<double>(baseParams.sendCounts[i]) * ratio);
-        u64 aRecv = static_cast<u64>(static_cast<double>(baseParams.recvCounts[i]) * ratio);
-        aParams.sendCounts[i] = std::min(aSend, baseParams.sendCounts[i]);
-        aParams.recvCounts[i] = std::min(aRecv, baseParams.recvCounts[i]);
-        if (i != myRank_ && (aParams.sendCounts[i] == 0 || aParams.recvCounts[i] == 0)) {
-            HCCL_WARNING("[A2AV_AB][Split] rank=%u peer=%llu fallback to B because A is asymmetric. "
-                         "send=%llu recv=%llu aSend=%llu aRecv=%llu",
-                         myRank_, i, baseParams.sendCounts[i], baseParams.recvCounts[i],
-                         aParams.sendCounts[i], aParams.recvCounts[i]);
-            aParams.sendCounts[i] = 0;
-            aParams.recvCounts[i] = 0;
+        if (i != myRank_) {
+            localTotalSendWithoutSelf += baseParams.sendCounts[i];
         }
+    }
+    u64 globalTotalSendWithoutSelf = localTotalSendWithoutSelf;
+    for (u64 i = 0; i < remoteTotalSendCountsWithoutSelf_.size(); ++i) {
+        if (i != myRank_) {
+            globalTotalSendWithoutSelf += remoteTotalSendCountsWithoutSelf_[i];
+        }
+    }
+    u64 globalPairNum = rankSize_ > 1 ? rankSize_ * (rankSize_ - 1) : 1;
+    u64 globalAvgSendCount = globalTotalSendWithoutSelf / globalPairNum;
+    u64 aSendThreshold = static_cast<u64>(static_cast<double>(globalAvgSendCount) * ratio);
+    for (u64 i = 0; i < rankSize_; ++i) {
+        aParams.sendCounts[i] = std::min(aSendThreshold, baseParams.sendCounts[i]);
+        aParams.recvCounts[i] = std::min(aSendThreshold, baseParams.recvCounts[i]);
         bParams.sendCounts[i] = baseParams.sendCounts[i] - aParams.sendCounts[i];
         bParams.recvCounts[i] = baseParams.recvCounts[i] - aParams.recvCounts[i];
         bParams.sdispls[i] = baseParams.sdispls[i] + aParams.sendCounts[i];
@@ -531,9 +553,10 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
         aTotalCount += aParams.sendCounts[i];
         bTotalCount += bParams.sendCounts[i];
         if (baseParams.sendCounts[i] != 0 || baseParams.recvCounts[i] != 0 || i == myRank_) {
-            HCCL_INFO("[A2AV_AB][SplitPeer] rank=%u peer=%llu aSend=%llu aRecv=%llu bSend=%llu bRecv=%llu "
+            HCCL_INFO("[A2AV_AB][SplitPeer] rank=%u peer=%llu threshold=%llu "
+                      "aSend=%llu aRecv=%llu bSend=%llu bRecv=%llu "
                       "aSdispl=%llu aRdispl=%llu bSdispl=%llu bRdispl=%llu",
-                      myRank_, i, aParams.sendCounts[i], aParams.recvCounts[i],
+                      myRank_, i, aSendThreshold, aParams.sendCounts[i], aParams.recvCounts[i],
                       bParams.sendCounts[i], bParams.recvCounts[i],
                       aParams.sdispls[i], aParams.rdispls[i], bParams.sdispls[i], bParams.rdispls[i]);
         }
@@ -542,9 +565,10 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
     bParams.count = bTotalCount;
     aParams.sliceSize = aTotalCount * dataTypeSize_;
     bParams.sliceSize = bTotalCount * dataTypeSize_;
-    HCCL_WARNING("[A2AV_AB][Split] rank=%u ratio=%f aCount=%llu bCount=%llu selfA=%llu selfB=%llu",
-                 myRank_, ratio, aTotalCount, bTotalCount, aParams.sendCounts[myRank_],
-                 bParams.sendCounts[myRank_]);
+    HCCL_WARNING("[A2AV_AB][Split] rank=%u ratio=%f globalTotalSend=%llu globalAvgSend=%llu threshold=%llu "
+                 "aCount=%llu bCount=%llu selfA=%llu selfB=%llu",
+                 myRank_, ratio, globalTotalSendWithoutSelf, globalAvgSendCount, aSendThreshold,
+                 aTotalCount, bTotalCount, aParams.sendCounts[myRank_], bParams.sendCounts[myRank_]);
     return HCCL_SUCCESS;
 }
 
