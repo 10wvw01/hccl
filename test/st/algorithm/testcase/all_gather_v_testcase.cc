@@ -15,20 +15,18 @@
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 
 protected:
-    void SetUp() override
-    {
-        ResetAlgEnvConfigInitState();
-    }
-
     void TearDown() override
     {
         unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
     }
-
-    static void SetUpTestCase()
-    {}
+    void SetUp() override
+    {
+        ResetAlgEnvConfigInitState();
+    }
     static void TearDownTestCase()
+    {}
+    static void SetUpTestCase()
     {}
 };
 

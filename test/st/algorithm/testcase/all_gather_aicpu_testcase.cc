@@ -63,16 +63,16 @@ void RunAllGatherAicpuA5(const TopoMeta &topoInfo, const u64 &sendCount, const H
     auto rankSize = AnalyseRankSize(topoInfo);
     // 算子执行参数设置,多线程运行SCATTER算子
     std::vector <std::thread> threads;
-    for (auto rankId = 0; rankId < rankSize; ++rankId) {
+    for (auto rankIdx = 0; rankIdx < rankSize; ++rankIdx) {
         threads.emplace_back([=]() {
             // 1.SetDevice
-            aclrtSetDevice(rankId);
+            aclrtSetDevice(rankIdx);
             // 2.创建流
             aclrtStream stream = nullptr;
             aclrtCreateStream(&stream);
             // 3.初始化通信域
             HcclComm comm = nullptr;
-            CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankId, &comm));
+            CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankIdx, &comm));
 
             void *sendBuf = nullptr;
             void *recvBuf = nullptr;
