@@ -132,6 +132,7 @@ HcclResult CcuTempScatterNHR1DMem2Mem::ProcessNHRStepInfo(HcclComm comm,
 HcclResult CcuTempScatterNHR1DMem2Mem::CalcChannelDescs(HcclComm comm, const OpParam &param,
     const TopoInfoWithNetLayerDetails *topoInfo, std::vector<HcclChannelDesc> &channelDescs)
 {
+    std::vector<HcclChannelDesc> channelDescs;
     std::vector<HcclChannelDesc> myChannelDescs;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS));
@@ -142,6 +143,16 @@ HcclResult CcuTempScatterNHR1DMem2Mem::CalcChannelDescs(HcclComm comm, const OpP
         }
     } else {
         CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, channelDescs));
+    }
+    CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
+
+    // 1.从获得的channelDesc，判断kernel发送到几个die上
+    uint32_t enableDieNum = 0;
+    CHK_RET(GetDieNumFromChannelDescs(comm, enableDieNum));
+
+    if (enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2) { // 目前只支持1个或2个die
+        HCCL_ERROR("[CcuTempScatterNHR1DMem2Mem::CalcRes] get channelDescs fail");
+        return HcclResult::HCCL_E_INTERNAL;
     }
     return HcclResult::HCCL_SUCCESS;
 }
