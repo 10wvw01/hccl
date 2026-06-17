@@ -78,26 +78,26 @@ HcclResult InsTempAlltoAllVMeshOcs::CalcRes(HcclComm comm, const OpParam& param,
     resourceRequest.channels.push_back(level0Channels);
     /* ---- 步骤 2：计算 OCS 并发度和从线程数 ---- */
     /* 计算每 rank 的 channel 数（可能因链路过滤而少于申请数） */
-    u32 channelsPerRank = CalcChannelsPerRank(level0Channels);
+    channelsPerRank_ = CalcChannelsPerRank(level0Channels);
 
     /*  确保并发度是 numGroups_ 的整数倍，避免组间负载不均 */
     u32 adjustedConcurrent = CalcOcsAdjustedConcurrent(templateRankSize_, numGroups_);
 
     /* 从线程数 = 并发度 × 每 rank 的 channel 数
      * 每路通信的每个 channel 由独立从线程执行，实现多通道并行 */
-    resourceRequest.slaveThreadNum = adjustedConcurrent * channelsPerRank;
+    resourceRequest.slaveThreadNum = adjustedConcurrent * channelsPerRank_;
 
     HCCL_INFO("[InsTempAlltoAllVMeshOcs][CalcRes] level0Topo[%u] level0PcieMix[%u] templateRankSize_[%u] "
               "numGroups_[%u] adjustedConcurrent[%u] level0ChannelNum[%zu] channelsPerRank[%u] slaveThreadNum[%u]",
               static_cast<u32>(topoInfo->level0Topo), static_cast<u32>(topoInfo->level0PcieMix),
               templateRankSize_, numGroups_, adjustedConcurrent,
-              level0Channels.size(), channelsPerRank, resourceRequest.slaveThreadNum);
+              level0Channels.size(), channelsPerRank_, resourceRequest.slaveThreadNum);
 
     /* ---- 步骤 4：notify 配置 ----
      * 每个从线程需要 1 个 notify（用于 PreSync/PostSync）
      * 主线程需要 slaveThreadNum 个 notify（用于接收各从线程的完成通知） */
     for (u32 index = 0; index < resourceRequest.slaveThreadNum; index++) {
-        resourceRequest.notifyNumPerThread.push_back(channelsPerRank);
+        resourceRequest.notifyNumPerThread.push_back(channelsPerRank_);
     }
     resourceRequest.notifyNumOnMainThread = resourceRequest.slaveThreadNum;
     return HCCL_SUCCESS;
@@ -144,6 +144,7 @@ HcclResult InsTempAlltoAllVMeshOcs::KernelRun(const OpParam& param, const Templa
         HCCL_ERROR("[InsTempAlltoAllVMeshOcs][KernelRun] myRank=%u not found in subCommRanks_", myRank_);
         return HCCL_E_INTERNAL;
     }
+    channelsPerRank_ = CalcChannelsPerRank(templateResource.channels);
 
     /* 调用 OCS 有限并发算法主入口 */
     CHK_RET(RunLimitedConcurrencyOcs(templateResource.channels, templateResource.threads, tempAlgParams, myAlgRank));
