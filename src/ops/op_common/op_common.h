@@ -20,6 +20,8 @@
 #include "alg_type.h"
 #include "execute_selector.h"
 #include "acl/acl_rt.h"
+#include "ccu_primitives_dl.hpp"
+#include "ccu_log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -188,6 +190,8 @@ HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetai
 
 HcclResult SetExecTimeout(OpParam &param);
 bool IsHostDpu(HcclComm comm);
+
+bool IsBarrierHostDpu(HcclComm comm);
 }  // namespace ops_hccl
 
 #endif
