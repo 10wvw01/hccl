@@ -96,6 +96,92 @@ bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
 }
 
+bool NeedAlltoAllVNoMemcpyExchange(const OpParam &param)
+{
+    return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV && IsAlltoAllNoMemcpyAlg(param);
+}
+
+HcclResult FillA2AVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param, u32 rankSize,
+                                        A2AVNoMemcpyExchangeInfo &exchangeInfo)
+{
+    CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo.base));
+    exchangeInfo.rankSize = rankSize;
+    exchangeInfo.userRank = param.userRank;
+    CHK_PRT_RET(exchangeInfo.rankSize > MAX_RANK_SIZE,
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] rankSize[%u] exceeds MAX_RANK_SIZE[%u].",
+                           exchangeInfo.rankSize, MAX_RANK_SIZE),
+                HcclResult::HCCL_E_PARA);
+    const u64 *sendCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
+    const u64 *recvCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
+    const u64 *sdispls = reinterpret_cast<const u64 *>(param.all2AllVDataDes.sdispls);
+    const u64 *rdispls = reinterpret_cast<const u64 *>(param.all2AllVDataDes.rdispls);
+    CHK_PTR_NULL(sendCounts);
+    CHK_PTR_NULL(recvCounts);
+    CHK_PTR_NULL(sdispls);
+    CHK_PTR_NULL(rdispls);
+    for (u32 idx = 0; idx < exchangeInfo.rankSize; ++idx) {
+        exchangeInfo.sendCounts[idx] = sendCounts[idx];
+        exchangeInfo.recvCounts[idx] = recvCounts[idx];
+        exchangeInfo.sdispls[idx] = sdispls[idx];
+        exchangeInfo.rdispls[idx] = rdispls[idx];
+    }
+    HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] local rank=%u rankSize=%u tag=%s",
+                 exchangeInfo.userRank, exchangeInfo.rankSize, exchangeInfo.base.tag);
+    return HCCL_SUCCESS;
+}
+
+HcclResult AddAlltoAllVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param, u32 rankSize)
+{
+    if (!NeedAlltoAllVNoMemcpyExchange(param)) {
+        return HCCL_SUCCESS;
+    }
+    CHK_PRT_RET(!HcommIsSupportHcclCommAddExchangeInfo(),
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] HcclCommAddExchangeInfo is not supported."),
+                HcclResult::HCCL_E_NOT_SUPPORT);
+    A2AVNoMemcpyExchangeInfo exchangeInfo{};
+    CHK_RET(FillA2AVNoMemcpyExchangeInfo(comm, param, rankSize, exchangeInfo));
+    CHK_RET(HcclCommAddExchangeInfo(comm, &exchangeInfo, sizeof(exchangeInfo)));
+    HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] add success. rank=%u bytes=%zu",
+                 exchangeInfo.userRank, sizeof(exchangeInfo));
+    return HCCL_SUCCESS;
+}
+
+HcclResult GetRemoteAlltoAllVInfo(HcclComm comm, const OpParam &param, u32 remoteRank,
+                                  u64 &remoteRdisplForLocalRank, u64 &remoteRecvCountForLocalRank)
+{
+    remoteRdisplForLocalRank = 0;
+    remoteRecvCountForLocalRank = 0;
+    if (!NeedAlltoAllVNoMemcpyExchange(param)) {
+        return HCCL_SUCCESS;
+    }
+    CHK_PRT_RET(!HcommIsSupportHcclCommGetExchangeInfo(),
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] HcclCommGetExchangeInfo is not supported."),
+                HcclResult::HCCL_E_NOT_SUPPORT);
+    A2AVNoMemcpyExchangeInfo remoteInfo{};
+    u32 remoteLen = 0;
+    CHK_RET(HcclCommGetExchangeInfo(comm, remoteRank, sizeof(remoteInfo),
+                                    reinterpret_cast<void *>(&remoteInfo), &remoteLen));
+    CHK_PRT_RET(remoteLen != sizeof(remoteInfo) || remoteInfo.magic != A2AV_EXCHANGE_MAGIC ||
+                    remoteInfo.version != A2AV_EXCHANGE_VERSION,
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] invalid remote info. localRank=%u remoteRank=%u "
+                           "len=%u expect=%zu magic=0x%x version=%u",
+                           param.userRank, remoteRank, remoteLen, sizeof(remoteInfo),
+                           remoteInfo.magic, remoteInfo.version),
+                HcclResult::HCCL_E_INTERNAL);
+    CHK_PRT_RET(remoteInfo.rankSize <= param.userRank,
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] invalid remote rankSize. localRank=%u remoteRank=%u "
+                           "remoteRankSize=%u",
+                           param.userRank, remoteRank, remoteInfo.rankSize),
+                HcclResult::HCCL_E_INTERNAL);
+    remoteRdisplForLocalRank = remoteInfo.rdispls[param.userRank];
+    remoteRecvCountForLocalRank = remoteInfo.recvCounts[param.userRank];
+    HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] get success. localRank=%u remoteRank=%u "
+                 "remoteUserRank=%u remoteRdisplForLocal=%llu remoteRecvCountForLocal=%llu",
+                 param.userRank, remoteRank, remoteInfo.userRank,
+                 remoteRdisplForLocalRank, remoteRecvCountForLocalRank);
+    return HCCL_SUCCESS;
+}
+
 u64 GetGraphModeInputRegisterSize(const OpParam &param)
 {
     if (IsAlltoAllNoMemcpyAlg(param)) {
@@ -999,6 +1085,7 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
     if (NeedInconsistentCheck(param)) {
         OpExchangeInfo exchangeInfo{};
         CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
+        CHK_RET(AddExchangeInfo(comm, param));
         CHK_RET(CompareOpExchangeInfos(comm, param, resRequest, exchangeInfo));
     }
 
@@ -1468,11 +1555,30 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
             channelDesc.memHandleNum = memRegInfo.memHandles.size();
         }
     }
+    std::map<u32, std::pair<u64, u64>> remoteA2AVInfo;
     if (channelNum > 0) {
         // 参数一致性校验信息注册到通信域，HcclChannelAcquire内部存在读清动作，每次调用前均需注册
-        CHK_RET(AddExchangeInfo(comm, param));
+        if (NeedAlltoAllVNoMemcpyExchange(param)) {
+            CHK_RET(AddAlltoAllVNoMemcpyExchangeInfo(comm, param, resCtxHost->topoInfo.userRankSize));
+        } else {
+            CHK_RET(AddExchangeInfo(comm, param));
+        }
         CHK_RET(HcclChannelAcquire(comm, commEngine, channelRequest.data(),
             channelNum, levelNChannels.data()));
+        if (NeedAlltoAllVNoMemcpyExchange(param)) {
+            CHK_RET(AddAlltoAllVNoMemcpyExchangeInfo(comm, param, resCtxHost->topoInfo.userRankSize));
+            for (const auto &channelDesc : channelRequest) {
+                if (remoteA2AVInfo.count(channelDesc.remoteRank) != 0) {
+                    continue;
+                }
+                u64 remoteRdisplForLocalRank = 0;
+                u64 remoteRecvCountForLocalRank = 0;
+                CHK_RET(GetRemoteAlltoAllVInfo(comm, param, channelDesc.remoteRank,
+                                               remoteRdisplForLocalRank, remoteRecvCountForLocalRank));
+                remoteA2AVInfo[channelDesc.remoteRank] =
+                    std::make_pair(remoteRdisplForLocalRank, remoteRecvCountForLocalRank);
+            }
+        }
     }
 
     for (u32 idx = 0; idx < channelNum; idx++) {
@@ -1506,6 +1612,17 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
 
         if (needRemoteUserMemAccess) {
             CHK_RET(GetGraphModeBuffers(comm, levelNChannels[idx], memRegInfo.inputBuffTag, memRegInfo.outputBuffTag, channel));
+            if (NeedAlltoAllVNoMemcpyExchange(param)) {
+                auto remoteInfoIt = remoteA2AVInfo.find(channel.remoteRank);
+                CHK_PRT_RET(remoteInfoIt == remoteA2AVInfo.end(),
+                            HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] cached remote info missing. "
+                                       "localRank=%u remoteRank=%u",
+                                       param.userRank, channel.remoteRank),
+                            HcclResult::HCCL_E_INTERNAL);
+                channel.hasRemoteAlltoAllVInfo = true;
+                channel.remoteAlltoAllVRdisplForLocalRank = remoteInfoIt->second.first;
+                channel.remoteAlltoAllVRecvCountForLocalRank = remoteInfoIt->second.second;
+            }
             HCCL_WARNING("[HcclGetChannelImpl] remote graph buffers. algName[%s] remoteRank[%u] "
                          "remoteInput[0x%llx,%llu] remoteOutput[0x%llx,%llu]",
                          param.algName, channelDescNew.remoteRank, channel.remoteInputGraphMode.addr,

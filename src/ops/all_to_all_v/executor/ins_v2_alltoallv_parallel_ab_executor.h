@@ -53,6 +53,7 @@ private:
     HcclResult RunBTemplate(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
                             const TemplateDataParams &bParams);
     HcclResult BuildBRunLinkMap();
+    HcclResult BuildRuntimeTemplateMetas();
     HcclResult PrepareTemplateResources(const AlgResourceCtxSerializable &resCtx);
     HcclResult CalcMaxDataCountPerLoop(const OpParam &param, u64 scratchMultiple,
                                        u64 &maxDataCountPerLoop) const;

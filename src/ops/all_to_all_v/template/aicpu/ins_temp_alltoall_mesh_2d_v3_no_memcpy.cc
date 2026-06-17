@@ -239,7 +239,22 @@ HcclResult InsTempAlltoAllMesh2DV3NoMemcpy::RunAlltoAllMesh(
                                         tempAlgParams_.buffInfo.inBuffBaseOff + connectedRank * actualChunkSize;
         u64 txByteSize = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] * dataTypeSize : actualChunkSize;
         u64 txCount = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] : chunkCount;
-        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.rdispls[myRank_] * dataTypeSize :
+        if (isAlltoAllV && txByteSize > 0) {
+            CHK_PRT_RET(connectedRank >= tempAlgParams_.remoteRdispls.size() ||
+                            connectedRank >= tempAlgParams_.remoteRecvCounts.size(),
+                        HCCL_ERROR("[ALLTOALL_NO_MEMCPY][Mesh2D] missing remote exchange table. "
+                                   "myRank=%u peer=%u remoteRdispls=%zu remoteRecvCounts=%zu",
+                                   myRank_, connectedRank, tempAlgParams_.remoteRdispls.size(),
+                                   tempAlgParams_.remoteRecvCounts.size()),
+                        HcclResult::HCCL_E_INTERNAL);
+            CHK_PRT_RET(tempAlgParams_.remoteRecvCounts[connectedRank] != txCount,
+                        HCCL_ERROR("[ALLTOALL_NO_MEMCPY][Mesh2D] remote recv count mismatch. "
+                                   "myRank=%u peer=%u localSend=%llu remoteRecvForLocal=%llu",
+                                   myRank_, connectedRank, txCount,
+                                   tempAlgParams_.remoteRecvCounts[connectedRank]),
+                        HcclResult::HCCL_E_INTERNAL);
+        }
+        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.remoteRdispls[connectedRank] * dataTypeSize :
                                         tempAlgParams_.buffInfo.outBuffBaseOff + myRank_ * actualChunkSize;
         u64 rxByteSize = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] * dataTypeSize : actualChunkSize;
         u64 rxCount = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] : chunkCount;
@@ -299,7 +314,7 @@ HcclResult InsTempAlltoAllMesh2DV3NoMemcpy::RunAlltoAllMesh(
                     HCCL_ERROR("[ALLTOALL_NO_MEMCPY][Mesh2D] pcie/read protocol is not supported."),
                     HcclResult::HCCL_E_NOT_SUPPORT);
         HcclResult dmaResult = HCCL_SUCCESS;
-        if (txByteSize > 0 && rxByteSize > 0) {
+        if (isAlltoAllV || (txByteSize > 0 && rxByteSize > 0)) {
             dmaResult = SendRecvWrite(sendRecvInfo, threads[neighborIdx]);
         } else if (txByteSize > 0) {
             dmaResult = SendWrite(sendInfo, threads[neighborIdx]);

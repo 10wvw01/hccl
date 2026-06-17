@@ -634,12 +634,31 @@ HcclResult InsV2AlltoAllParallelOptExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
             tempAlgParams.recvCounts.resize(rankSize, 0);
             tempAlgParams.sdispls.resize(rankSize, 0);
             tempAlgParams.rdispls.resize(rankSize, 0);
+            tempAlgParams.remoteRdispls.resize(rankSize, 0);
+            tempAlgParams.remoteRecvCounts.resize(rankSize, 0);
             for (u64 i = 0; i < rankSize; ++i) {
                 tempAlgParams.sendCounts[i] = sendCounts[i];
                 tempAlgParams.recvCounts[i] = recvCounts[i];
                 tempAlgParams.sdispls[i] = sdispls[i];
                 tempAlgParams.rdispls[i] = rdispls[i];
             }
+            auto fillRemoteInfo = [&tempAlgParams](const std::map<u32, std::vector<ChannelInfo>> &linkMap) {
+                for (const auto &item : linkMap) {
+                    if (item.second.empty()) {
+                        continue;
+                    }
+                    const u32 remoteRank = item.first;
+                    const ChannelInfo &channel = item.second[0];
+                    if (remoteRank < tempAlgParams.remoteRdispls.size() && channel.hasRemoteAlltoAllVInfo) {
+                        tempAlgParams.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
+                        tempAlgParams.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+                    }
+                }
+            };
+            fillRemoteInfo(intraLinkMap_);
+            fillRemoteInfo(interLinkMap_);
+            HCCL_WARNING("[ALLTOALL_V3_DEBUG][OrchestrateLoop] AllToAllV remote exchange table filled. rankSize=%llu",
+                         rankSize);
         }
     }
 

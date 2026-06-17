@@ -389,7 +389,22 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllOnLink(
                                         tempAlgParams_.buffInfo.inBuffBaseOff + connectedRank * actualChunkSize;
         u64 txByteSize = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] * dataTypeSize : actualChunkSize;
         u64 txCount = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] : chunkCount;
-        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.rdispls[myRank_] * dataTypeSize :
+        if (isAlltoAllV && txByteSize > 0) {
+            CHK_PRT_RET(connectedRank >= tempAlgParams_.remoteRdispls.size() ||
+                            connectedRank >= tempAlgParams_.remoteRecvCounts.size(),
+                        HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] missing remote exchange table. "
+                                   "myRank=%u peer=%u linkIdx=%u remoteRdispls=%zu remoteRecvCounts=%zu",
+                                   myRank_, connectedRank, linkIdx, tempAlgParams_.remoteRdispls.size(),
+                                   tempAlgParams_.remoteRecvCounts.size()),
+                        HcclResult::HCCL_E_INTERNAL);
+            CHK_PRT_RET(tempAlgParams_.remoteRecvCounts[connectedRank] != txCount,
+                        HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] remote recv count mismatch. "
+                                   "myRank=%u peer=%u linkIdx=%u localSend=%llu remoteRecvForLocal=%llu",
+                                   myRank_, connectedRank, linkIdx, txCount,
+                                   tempAlgParams_.remoteRecvCounts[connectedRank]),
+                        HcclResult::HCCL_E_INTERNAL);
+        }
+        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.remoteRdispls[connectedRank] * dataTypeSize :
                                         tempAlgParams_.buffInfo.outBuffBaseOff + myRank_ * actualChunkSize;
         u64 rxByteSize = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] * dataTypeSize : actualChunkSize;
         u64 rxCount = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] : chunkCount;
@@ -444,7 +459,7 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllOnLink(
                     HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] pcie/read protocol is not supported."),
                     HcclResult::HCCL_E_NOT_SUPPORT);
         HcclResult dmaResult = HCCL_SUCCESS;
-        if (txByteSize > 0 && rxByteSize > 0) {
+        if (isAlltoAllV || (txByteSize > 0 && rxByteSize > 0)) {
             dmaResult = SendRecvWrite(sendRecvInfo, commThreads[linkIdx]);
         } else if (txByteSize > 0) {
             dmaResult = SendWrite(sendInfo, commThreads[linkIdx]);

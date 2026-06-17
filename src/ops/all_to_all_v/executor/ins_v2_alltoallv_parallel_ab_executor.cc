@@ -12,10 +12,10 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
-#include <set>
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_alltoall_mesh_2d_v3_no_memcpy.h"
 #include "ins_temp_alltoall_mesh_clos_v3_no_memcpy.h"
+#include "template_utils.h"
 #include "topo_match_ubx_v2.h"
 #include "topo_match_alltoall_pod_direct.h"
 
@@ -26,6 +26,15 @@ constexpr double MIN_AB_RATIO = 0.0;
 constexpr double MAX_AB_RATIO = 1.0;
 constexpr u32 A_TEMPLATE_NUM = 2;
 constexpr u32 B_TEMPLATE_NUM = 1;
+constexpr u32 MIN_TEMPLATE_THREAD_NUM = 1;
+
+u32 GetA2AVABPairwiseRoundNum(u32 groupNum)
+{
+    if (groupNum <= 1) {
+        return 0;
+    }
+    return (groupNum % 2 == 0) ? groupNum - 1 : groupNum;
+}
 
 bool IsA2AVABAlg(const OpParam &param)
 {
@@ -228,10 +237,15 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
 
     aIntraMeta_ = {aIntraReq.slaveThreadNum, aIntraReq.notifyNumOnMainThread, aIntraReq.notifyNumPerThread};
     aInterMeta_ = {aInterReq.slaveThreadNum, aInterReq.notifyNumOnMainThread, aInterReq.notifyNumPerThread};
-    bMeta_ = {bReq.slaveThreadNum, bReq.notifyNumOnMainThread, bReq.notifyNumPerThread};
+    u32 bChannelsPerRank = std::max(1u, CalcChannelsPerRank(aInterReq.channels[0]));
+    u32 bConcurrent = std::min(ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE,
+                               static_cast<u32>(topoInfo->userRankSize - 1));
+    bMeta_.slaveThreadNum = bConcurrent * bChannelsPerRank;
+    bMeta_.notifyNumOnMainThread = bMeta_.slaveThreadNum;
+    bMeta_.notifyNumPerThread.assign(bMeta_.slaveThreadNum, bChannelsPerRank);
 
     resourceRequest.notifyNumOnMainThread = A_TEMPLATE_NUM + B_TEMPLATE_NUM;
-    resourceRequest.slaveThreadNum = aIntraReq.slaveThreadNum + aInterReq.slaveThreadNum + bReq.slaveThreadNum +
+    resourceRequest.slaveThreadNum = aIntraReq.slaveThreadNum + aInterReq.slaveThreadNum + bMeta_.slaveThreadNum +
                                      A_TEMPLATE_NUM + B_TEMPLATE_NUM;
     resourceRequest.notifyNumPerThread.emplace_back(aIntraReq.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
@@ -241,10 +255,10 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               aInterReq.notifyNumPerThread.begin(),
                                               aInterReq.notifyNumPerThread.end());
-    resourceRequest.notifyNumPerThread.emplace_back(bReq.notifyNumOnMainThread + 1);
+    resourceRequest.notifyNumPerThread.emplace_back(bMeta_.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-                                              bReq.notifyNumPerThread.begin(),
-                                              bReq.notifyNumPerThread.end());
+                                              bMeta_.notifyNumPerThread.begin(),
+                                              bMeta_.notifyNumPerThread.end());
 
     resourceRequest.channels.emplace_back(aIntraReq.channels[0]);
     resourceRequest.channels.emplace_back(aInterReq.channels[0]);
@@ -253,8 +267,8 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
                  "aIntraNotifyMain=%u aInterNotifyMain=%u bNotifyMain=%u totalSlave=%u "
                  "notifyMain=%u channelGroups=%zu",
                  topoInfo->userRank, aIntraReq.slaveThreadNum, aInterReq.slaveThreadNum,
-                 bReq.slaveThreadNum, aIntraReq.notifyNumOnMainThread,
-                 aInterReq.notifyNumOnMainThread, bReq.notifyNumOnMainThread,
+                 bMeta_.slaveThreadNum, aIntraReq.notifyNumOnMainThread,
+                 aInterReq.notifyNumOnMainThread, bMeta_.notifyNumOnMainThread,
                  resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread,
                  resourceRequest.channels.size());
     return HCCL_SUCCESS;
@@ -320,25 +334,74 @@ template <typename AlgTopoMatch>
 HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBRunLinkMap()
 {
     bRunLinkMap_.clear();
-    std::set<u32> intraRanks;
     if (!intraHierarchyInfo_.empty()) {
-        intraRanks.insert(intraHierarchyInfo_[0].begin(), intraHierarchyInfo_[0].end());
+        for (u32 peer : intraHierarchyInfo_[0]) {
+            if (peer == myRank_) {
+                continue;
+            }
+            auto it = intraLinkMap_.find(peer);
+            CHK_PRT_RET(it == intraLinkMap_.end() || it->second.empty(),
+                        HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] missing intra link. rank=%u peer=%u",
+                                   myRank_, peer),
+                        HcclResult::HCCL_E_INTERNAL);
+            bRunLinkMap_[peer].push_back(it->second[0]);
+            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=1 inputLinks=%zu runLinks=1",
+                         myRank_, peer, it->second.size());
+        }
     }
 
-    for (const auto &item : fullLinkMap_) {
+    for (const auto &item : interLinkMap_) {
         const u32 peer = item.first;
-        const auto &peerChannels = item.second;
-        if (peerChannels.empty()) {
+        if (peer == myRank_ || bRunLinkMap_.count(peer) != 0) {
             continue;
         }
-        if (intraRanks.count(peer) != 0) {
-            bRunLinkMap_[peer].push_back(peerChannels[0]);
-        } else {
-            bRunLinkMap_[peer] = peerChannels;
-        }
-        HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=%d inputLinks=%zu runLinks=%zu",
-                     myRank_, peer, intraRanks.count(peer) != 0, peerChannels.size(), bRunLinkMap_[peer].size());
+        CHK_PRT_RET(item.second.empty(),
+                    HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] empty inter link. rank=%u peer=%u",
+                               myRank_, peer),
+                    HcclResult::HCCL_E_INTERNAL);
+        bRunLinkMap_[peer] = item.second;
+        HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=0 inputLinks=%zu runLinks=%zu",
+                     myRank_, peer, item.second.size(), bRunLinkMap_[peer].size());
     }
+    CHK_PRT_RET(bRunLinkMap_.size() + 1 < rankSize_,
+                HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] incomplete B channel map. rank=%u mapSize=%zu rankSize=%llu",
+                           myRank_, bRunLinkMap_.size(), rankSize_),
+                HcclResult::HCCL_E_INTERNAL);
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch>
+HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildRuntimeTemplateMetas()
+{
+    u32 aIntraRankSize = intraHierarchyInfo_.empty() ? 1 : static_cast<u32>(intraHierarchyInfo_[0].size());
+    u32 aIntraThreadNum = aIntraRankSize > 1 ? aIntraRankSize - 1 : MIN_TEMPLATE_THREAD_NUM;
+    aIntraMeta_.slaveThreadNum = aIntraThreadNum > 0 ? aIntraThreadNum - 1 : 0;
+    aIntraMeta_.notifyNumOnMainThread = aIntraMeta_.slaveThreadNum;
+    aIntraMeta_.notifyNumPerThread.assign(aIntraMeta_.slaveThreadNum, 1);
+
+    u32 aInterCommThreadNum = std::max(1u, static_cast<u32>(CalcChannelsPerRank(interLinkMap_)));
+    u32 aInterThreadNum = aInterCommThreadNum;
+    if (rankSize_ > 0 && rankSizeLevel0_ > 0 && rankSize_ % rankSizeLevel0_ == 0) {
+        u32 groupNum = static_cast<u32>(rankSize_ / rankSizeLevel0_);
+        u32 colorRoundNum = GetA2AVABPairwiseRoundNum(groupNum);
+        u32 microRoundNum = static_cast<u32>(rankSizeLevel0_) * colorRoundNum;
+        u32 stepNum = (microRoundNum + aInterCommThreadNum - 1) / aInterCommThreadNum;
+        aInterThreadNum = std::max(1u, stepNum * aInterCommThreadNum);
+    }
+    aInterMeta_.slaveThreadNum = aInterThreadNum > 0 ? aInterThreadNum - 1 : 0;
+    aInterMeta_.notifyNumOnMainThread = aInterMeta_.slaveThreadNum;
+    aInterMeta_.notifyNumPerThread.assign(aInterMeta_.slaveThreadNum, 1);
+
+    u32 bChannelsPerRank = std::max(1u, static_cast<u32>(CalcChannelsPerRank(bRunLinkMap_)));
+    u32 bConcurrent = std::min(ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE, static_cast<u32>(rankSize_ - 1));
+    bMeta_.slaveThreadNum = bConcurrent * bChannelsPerRank;
+    bMeta_.notifyNumOnMainThread = bMeta_.slaveThreadNum;
+    bMeta_.notifyNumPerThread.assign(bMeta_.slaveThreadNum, bChannelsPerRank);
+
+    HCCL_WARNING("[A2AV_AB][BuildRuntimeTemplateMetas] rank=%u aIntraSlave=%u aInterSlave=%u bSlave=%u "
+                 "aInterLinks=%u bLinks=%u bConcurrent=%u",
+                 myRank_, aIntraMeta_.slaveThreadNum, aInterMeta_.slaveThreadNum, bMeta_.slaveThreadNum,
+                 aInterCommThreadNum, bChannelsPerRank, bConcurrent);
     return HCCL_SUCCESS;
 }
 
@@ -421,6 +484,8 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     params.recvCounts.resize(rankSize_, 0);
     params.sdispls.resize(rankSize_, 0);
     params.rdispls.resize(rankSize_, 0);
+    params.remoteRdispls.resize(rankSize_, 0);
+    params.remoteRecvCounts.resize(rankSize_, 0);
     for (u64 i = 0; i < rankSize_; ++i) {
         params.sendCounts[i] = sendCounts[i];
         params.recvCounts[i] = recvCounts[i];
@@ -431,6 +496,23 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
                       myRank_, i, sendCounts[i], recvCounts[i], sdispls[i], rdispls[i]);
         }
     }
+    auto fillRemoteInfo = [&params](const std::map<u32, std::vector<ChannelInfo>> &linkMap) {
+        for (const auto &item : linkMap) {
+            if (item.second.empty()) {
+                continue;
+            }
+            const u32 remoteRank = item.first;
+            const ChannelInfo &channel = item.second[0];
+            if (remoteRank < params.remoteRdispls.size() && channel.hasRemoteAlltoAllVInfo) {
+                params.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
+                params.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+            }
+        }
+    };
+    fillRemoteInfo(intraLinkMap_);
+    fillRemoteInfo(interLinkMap_);
+    HCCL_WARNING("[A2AV_AB][BaseParam] remote exchange table filled. rank=%u rankSize=%llu",
+                 myRank_, rankSize_);
     return HCCL_SUCCESS;
 }
 
@@ -459,6 +541,9 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
         bParams.recvCounts[i] = baseParams.recvCounts[i] - aParams.recvCounts[i];
         bParams.sdispls[i] = baseParams.sdispls[i] + aParams.sendCounts[i];
         bParams.rdispls[i] = baseParams.rdispls[i] + aParams.recvCounts[i];
+        if (i < aParams.remoteRecvCounts.size()) {
+            aParams.remoteRecvCounts[i] = aParams.sendCounts[i];
+        }
         aTotalCount += aParams.sendCounts[i];
         bTotalCount += bParams.sendCounts[i];
         if (baseParams.sendCounts[i] != 0 || baseParams.recvCounts[i] != 0 || i == myRank_) {
@@ -648,6 +733,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::Orchestrate(
     CHK_RET(BuildHierarchyInfo(&resCtx.topoInfo, resCtx.algHierarchyInfo));
     CHK_RET(RestoreChannelMaps(resCtx));
     CHK_RET(BuildBRunLinkMap());
+    CHK_RET(BuildRuntimeTemplateMetas());
     CHK_RET(PrepareTemplateResources(resCtx));
 
     TemplateDataParams baseParams;
