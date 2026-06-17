@@ -50,7 +50,7 @@ HcclResult GetAlgResReduceScatter(HcclComm comm, OpParam &param, std::shared_ptr
     TopoInfoWithNetLayerDetails* topoInfo, AlgResourceCtx** resCtx, aclrtNotify* notifies);
     
 HcclResult ReduceScatterEntryLog(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, HcclReduceOp op,
-    aclrtStream stream, const char *tag, const std::string &opName);
+    aclrtStream stream, const char *tag, const std::string &opName, bool forceLog = false);
 
 }
 

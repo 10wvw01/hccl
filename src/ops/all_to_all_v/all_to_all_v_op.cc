@@ -248,14 +248,14 @@ HcclResult HcclAlltoAllGraphMode(const void *sendBuf, uint64_t sendCount, HcclDa
     CHK_RET(GenResPack(tag, streams, streamCount, scratchMemAddr, scratchMemSize, resPack));
 
     /* 接口交互信息日志 */
-    CHK_RET(AlltoAllEntryLog(sendBuf, recvBuf, sendCount, recvCount, sendType, recvType, stream, opTag, "HcclAlltoAllGraphMode"));
+    CHK_RET(AlltoAllEntryLog(sendBuf, recvBuf, sendCount, recvCount, sendType, recvType, stream, opTag, "HcclAlltoAllGraphMode", true));
 
     // 执行AlltoAllV
     CHK_RET_AND_PRINT_IDE(AlltoAllVOutPlaceGraphMode(sendBuf, sendCounts.data(), sdispls.data(),
         recvBuf, recvCounts.data(), rdispls.data(), recvType, comm, stream, tag,
         HcclCMDType::HCCL_CMD_ALLTOALL, rankSize, resPack), opTag);
 
-    CHK_RET(LogHcclExit("HcclAlltoAllGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAlltoAllGraphMode", opTag.c_str(), startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -301,14 +301,14 @@ HcclResult HcclAlltoAllVGraphMode(const void *sendBuf, const void *sendCounts, c
     CHK_RET(GenResPack(tag, streams, streamCount, scratchMemAddr, scratchMemSize, resPack));
 
     /* 接口交互信息日志 */
-    CHK_RET(AlltoAllVEntryLog(sendBuf, recvBuf, sendCounts, recvCounts, sdispls, rdispls, sendType, recvType, stream, opTag, rankSize, "HcclAlltoAllVGraphMode"));
+    CHK_RET(AlltoAllVEntryLog(sendBuf, recvBuf, sendCounts, recvCounts, sdispls, rdispls, sendType, recvType, stream, opTag, rankSize, "HcclAlltoAllVGraphMode", true));
 
     // 执行AlltoAllV
     CHK_RET_AND_PRINT_IDE(AlltoAllVOutPlaceGraphMode(sendBuf, sendCounts, sdispls,
         recvBuf, recvCounts, rdispls, recvType, comm, stream, tag,
         HcclCMDType::HCCL_CMD_ALLTOALLV, rankSize, resPack), opTag);
 
-    CHK_RET(LogHcclExit("HcclAlltoAllVGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAlltoAllVGraphMode", opTag.c_str(), startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -355,14 +355,14 @@ HcclResult HcclAlltoAllVCGraphMode(const void *sendBuf, const void *sendCountMat
     CHK_RET(GenResPack(tag, streams, streamCount, scratchMemAddr, scratchMemSize, resPack));
 
     /* 接口交互信息日志 */
-    CHK_RET(AlltoAllVCEntryLog(sendBuf, recvBuf, sendCountMatrix, sendType, recvType, stream, opTag, "HcclAlltoAllVCGraphMode"));
+    CHK_RET(AlltoAllVCEntryLog(sendBuf, recvBuf, sendCountMatrix, sendType, recvType, stream, opTag, "HcclAlltoAllVCGraphMode", true));
 
     // 执行AlltoAllV
     CHK_RET_AND_PRINT_IDE(AlltoAllVOutPlaceGraphMode(sendBuf, sendCounts.data(), sdispls.data(),
         recvBuf, recvCounts.data(), rdispls.data(), recvType, comm, stream, tag,
         HcclCMDType::HCCL_CMD_ALLTOALLVC, rankSize, resPack), opTag);
 
-    CHK_RET(LogHcclExit("HcclAlltoAllVCGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAlltoAllVCGraphMode", opTag.c_str(), startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -703,9 +703,9 @@ HcclResult AlltoAllVOutPlace(const void *sendBuf, const void *sendCounts, const 
 }
 
 HcclResult AlltoAllEntryLog(const void *sendBuf, const void *recvBuf, uint64_t sendCount, uint64_t recvCount,
-    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName)
+    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
@@ -725,9 +725,9 @@ HcclResult AlltoAllEntryLog(const void *sendBuf, const void *recvBuf, uint64_t s
 
 HcclResult AlltoAllVEntryLog(const void *sendBuf, const void *recvBuf, const void *sendCounts, const void *recvCounts,
     const void *sdispls, const void *rdispls, HcclDataType sendType, HcclDataType recvType, aclrtStream stream,
-    const std::string &tag, const u32 totalRanks, const std::string &opName)
+    const std::string &tag, const u32 totalRanks, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
@@ -746,9 +746,9 @@ HcclResult AlltoAllVEntryLog(const void *sendBuf, const void *recvBuf, const voi
 }
 
 HcclResult AlltoAllVCEntryLog(const void *sendBuf, const void *recvBuf, const void *sendCountMatrix,
-    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName)
+    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
