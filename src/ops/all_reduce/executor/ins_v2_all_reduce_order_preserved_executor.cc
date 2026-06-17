@@ -21,7 +21,7 @@
 
 namespace ops_hccl {
 
-static constexpr u64 MAX_PRINT_DATA_ELEMENTS = 16; // 每次最多打印16个元素
+static constexpr u64 MAX_PRINT_DATA_ELEMENTS = 256; // 小数据量时可以打印全部数据
 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
 void InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::PrintBufferData(
@@ -433,23 +433,37 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
             loop, currDataCount / rankSize_, currDataCount % rankSize_);
 
         HCCL_INFO("[OrchestrateLoop] LOOP[%llu]: >>> calling RunReduceScatter", loop);
-        // 打印ReduceScatter输入数据的前N个元素
-        PrintBufferData("Loop_RS_INPUT", param.inputPtr, processedDataCount * dataTypeSize_,
+        // 打印ReduceScatter输入数据：整体 + 每个rank的slice
+        PrintBufferData("Loop_RS_INPUT_FULL", param.inputPtr, processedDataCount * dataTypeSize_,
             currDataCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        u64 rsSliceCount = currDataCount / rankSize_;
+        u64 rsSliceSize = rsSliceCount * dataTypeSize_;
+        for (u32 r = 0; r < rankSize_; r++) {
+            PrintBufferData("Loop_RS_INPUT_slice", param.inputPtr,
+                processedDataCount * dataTypeSize_ + r * rsSliceSize,
+                rsSliceCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        }
         CHK_RET(RunReduceScatter(param, resCtx, currDataCount, 
             processedDataCount, rsTempAlg, rsTemplateAlgRes));
         HCCL_INFO("[OrchestrateLoop] LOOP[%llu]: RunReduceScatter done", loop);
-        // 打印ReduceScatter输出数据（outCclBuff中的归约结果）的前N个元素
-        PrintBufferData("Loop_RS_OUTPUT_CCLBUFF", resCtx.cclMem.addr, outCclBuffOffset_,
-            currDataCount / rankSize_, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        // 打印ReduceScatter输出数据：本rank的归约结果 + CCL buffer中各rank区域
+        PrintBufferData("Loop_RS_OUTPUT_myRank", resCtx.cclMem.addr, outCclBuffOffset_,
+            rsSliceCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        PrintBufferData("Loop_RS_OUTPUT_CCLBUFF_full", resCtx.cclMem.addr, inCclBuffOffset_,
+            currDataCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
 
         HCCL_INFO("[OrchestrateLoop] LOOP[%llu]: >>> calling RunAllGather", loop);
         CHK_RET(RunAllGather(param, resCtx, currDataCount,
             processedDataCount, agTempAlg, agTemplateAlgRes));
         HCCL_INFO("[OrchestrateLoop] LOOP[%llu]: RunAllGather done", loop);
-        // 打印AllGather输出数据的前N个元素
-        PrintBufferData("Loop_AG_OUTPUT", param.outputPtr, processedDataCount * dataTypeSize_,
+        // 打印AllGather输出数据：整体 + 每个rank的slice
+        PrintBufferData("Loop_AG_OUTPUT_FULL", param.outputPtr, processedDataCount * dataTypeSize_,
             currDataCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        for (u32 r = 0; r < rankSize_; r++) {
+            PrintBufferData("Loop_AG_OUTPUT_slice", param.outputPtr,
+                processedDataCount * dataTypeSize_ + r * rsSliceSize,
+                rsSliceCount, dataType_, MAX_PRINT_DATA_ELEMENTS);
+        }
 
         processedDataCount += currDataCount;
         HCCL_INFO("[OrchestrateLoop] LOOP[%llu]: processedDataCount updated to [%llu]", loop, processedDataCount);

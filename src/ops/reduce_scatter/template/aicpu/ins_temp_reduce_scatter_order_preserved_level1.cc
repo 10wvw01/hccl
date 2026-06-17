@@ -11,8 +11,65 @@
 // 包含本类的头文件声明
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
 #include "alg_env_config.h"
+#include <sstream>
 
 namespace ops_hccl {
+
+// 静态辅助函数：打印指定地址的数据（按元素类型解释）
+static void PrintSliceData(const char *tag, const void *baseAddr, u64 offset, u64 byteSize,
+    HcclDataType dataType)
+{
+    if (baseAddr == nullptr || byteSize == 0) {
+        HCCL_INFO("[%s] addr NULL or size 0, skip", tag);
+        return;
+    }
+    u32 typeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 elemCount = byteSize / typeSize;
+    if (elemCount == 0) {
+        HCCL_INFO("[%s] elemCount 0, skip", tag);
+        return;
+    }
+    // 最多打印256个元素，覆盖小数据量场景
+    u64 printCount = std::min(elemCount, static_cast<u64>(256));
+    const u8 *addr = static_cast<const u8 *>(baseAddr) + offset;
+
+    std::stringstream ss;
+    ss << "[" << tag << "] offset[" << offset << "] bytes[" << byteSize << "] elems[" << elemCount << "]";
+
+    if (dataType == HcclDataType::HCCL_DATA_TYPE_FP32) {
+        const float *ptr = reinterpret_cast<const float *>(addr);
+        ss << " fp32: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << ptr[i];
+        }
+        ss << "]";
+    } else if (dataType == HcclDataType::HCCL_DATA_TYPE_FP64) {
+        const double *ptr = reinterpret_cast<const double *>(addr);
+        ss << " fp64: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << ptr[i];
+        }
+        ss << "]";
+    } else if (dataType == HcclDataType::HCCL_DATA_TYPE_INT32) {
+        const int32_t *ptr = reinterpret_cast<const int32_t *>(addr);
+        ss << " int32: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << ptr[i];
+        }
+        ss << "]";
+    } else {
+        ss << " raw_hex: [";
+        for (u64 i = 0; i < std::min(byteSize, static_cast<u64>(64)); i++) {
+            if (i > 0) ss << " ";
+            ss << std::hex << static_cast<unsigned>(addr[i]) << std::dec;
+        }
+        ss << "]";
+    }
+    HCCL_INFO("%s", ss.str().c_str());
+}
 
 InsTempReduceScatterOrderPreservedLevel1::InsTempReduceScatterOrderPreservedLevel1(const OpParam &param,
     const u32 rankId, const std::vector<std::vector<u32>> &subCommRanks)
@@ -103,7 +160,29 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
         "dataType[%u], deterministicStrict[%d]", threadNum_, count_, dataType_, deterministicStrict_);
 
     // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
+    HCCL_INFO("[RS_OrderPreserved] >>> Step1: PreLocalCopy");
+    // 打印PreLocalCopy前的输入数据（本rank的slice）
+    {
+        u32 myAlgRankTmp = 0;
+        GetAlgRank(myRank_, subCommRanks_[0], myAlgRankTmp);
+        u64 mySliceSize = memBlockInfo_.size[myAlgRankTmp];
+        u64 myUserOffset = memBlockInfo_.userInputOffsets[myAlgRankTmp];
+        PrintSliceData("RS_PreLocalCopy_BEFORE_input_mySlice", tempAlgParams.buffInfo.inputPtr,
+            myUserOffset, mySliceSize, dataType_);
+        // 打印输入数据的完整内容（所有slice）
+        PrintSliceData("RS_PreLocalCopy_BEFORE_input_full", tempAlgParams.buffInfo.inputPtr,
+            tempAlgParams.buffInfo.inBuffBaseOff,
+            tempAlgParams.buffInfo.inputSize, dataType_);
+    }
     CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
+    HCCL_INFO("[RS_OrderPreserved] PreLocalCopy done");
+    // 打印PreLocalCopy后的CCL buffer临时数据（所有rank区域）
+    {
+        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
+            PrintSliceData("RS_PreLocalCopy_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
+        }
+    }
 
     // 多线程同步：如果线程数大于1，等待子线程就绪，为all2all做准备
     if (threadNum_ > 1) {
@@ -113,7 +192,23 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     }
 
     // 步骤2: 执行AllToAll操作（每个rank将自己的数据发送给其他rank，并接收其他rank的数据）
+    HCCL_INFO("[RS_OrderPreserved] >>> Step2: RunAllToAll");
+    // 打印AllToAll前的CCL buffer数据
+    {
+        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
+            PrintSliceData("RS_AllToAll_BEFORE_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
+        }
+    }
     CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
+    HCCL_INFO("[RS_OrderPreserved] AllToAll done");
+    // 打印AllToAll后的CCL buffer数据（此时已经收到了所有rank的数据）
+    {
+        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
+            PrintSliceData("RS_AllToAll_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
+        }
+    }
     // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
@@ -130,10 +225,29 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     }
 
     // 步骤3: 执行本地归约操作（将收到的所有数据在本地进行归约）
+    HCCL_INFO("[RS_OrderPreserved] >>> Step3: RunLocalReduce");
     CHK_RET(RunLocalReduce(templateResource.threads, tempAlgParams));
+    HCCL_INFO("[RS_OrderPreserved] LocalReduce done");
+    // 打印LocalReduce后的CCL buffer数据（归约结果）
+    {
+        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
+            PrintSliceData("RS_LocalReduce_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
+        }
+    }
 
     // 步骤4: 执行后处理拷贝（将归约结果从临时缓冲区拷贝到用户输出缓冲区）
+    HCCL_INFO("[RS_OrderPreserved] >>> Step4: PostCopy");
     CHK_RET(PostCopy(tempAlgParams, templateResource.threads));
+    HCCL_INFO("[RS_OrderPreserved] PostCopy done");
+    // 打印PostCopy后的输出数据（归约最终结果）
+    {
+        u32 myAlgRankTmp = 0;
+        GetAlgRank(myRank_, subCommRanks_[0], myAlgRankTmp);
+        u64 mySliceSize = memBlockInfo_.size[myAlgRankTmp];
+        PrintSliceData("RS_PostCopy_AFTER_output_myRank", tempAlgParams.buffInfo.outputPtr,
+            tempAlgParams.buffInfo.outBuffBaseOff, mySliceSize, dataType_);
+    }
 
     HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] End");
     return HCCL_SUCCESS;
