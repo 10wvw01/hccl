@@ -419,6 +419,19 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         std::string cacheTag = "";
         bool isCacheMiss = true;
         if (enableCache) { // 如果使能aicpu task cache
+            // 如果cache miss, 使用aicpu task cache前确保AicpuTsThread中无SQE
+            if (isCacheMiss) {
+                // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
+                if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
+                    HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
+                    return 1;
+                }
+                if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
+                    HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
+                    return 1;
+                }
+            }
+
             // 组装aicpu task cache tag
             AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, cacheTag);
 
@@ -437,6 +450,19 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         }
 
         if (enableCache) { // 如果使能aicpu task cache
+            // 如果cache miss, 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存
+            if (isCacheMiss) {
+                // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
+                if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
+                    HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
+                    return 1;
+                }
+                if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
+                    HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
+                    return 1;
+                }
+            }
+
             // 准备地址信息 (当前rank的userIn和userOut)
             constexpr uint32_t ADDRS_COUNT = 2;
             void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
