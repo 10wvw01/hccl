@@ -33,7 +33,7 @@ extern "C" unsigned int HcclLaunchCustomAllGatherAicpuKernel(OpParam *param)
     }
 
     // 主thread等待Host stream的通知
-    if (HcommThreadNotifyWaitOnThread(resCtxDevice.aicpuThread, 0, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
+    if (HcommThreadNotifyWaitOnThread(resCtxDevice.threads[0], param->aicpuRecordCpuIdx, CUSTOM_TIMEOUT) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to wait notify from host main stream");
         return 1;
     }
@@ -45,7 +45,7 @@ extern "C" unsigned int HcclLaunchCustomAllGatherAicpuKernel(OpParam *param)
     }
 
     // 主thread通知Host stream
-    if (HcommThreadNotifyRecordOnThread(resCtxDevice.aicpuThread, resCtxDevice.cpuThreadOnAicpu, 0) != HCCL_SUCCESS) {
+    if (HcommThreadNotifyRecordOnThread(resCtxDevice.threads[0], resCtxDevice.cpuThreadOnAicpu, 0) != HCCL_SUCCESS) {
         HCCL_ERROR("failed to record host main stream");
         return 1;
     }

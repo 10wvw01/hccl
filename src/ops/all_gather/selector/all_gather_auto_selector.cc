@@ -49,11 +49,14 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
-            HCCL_WARNING("[Algo][AllGatherAutoSelector] ccu_ms does not support inplace allreduce."),
+            HCCL_WARNING("[Algo][AllGatherAutoSelector] ccu_ms does not support inplace allgather."),
             SelectorStatus::NOT_MATCH);
         if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
             selectAlgName = "CcuAllGatherMesh2Die";
             return SelectorStatus::MATCH;
+         } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
+            HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
+            return SelectorStatus::NOT_MATCH;
         } else {
             selectAlgName = "CcuAllGatherMesh1D";
             return SelectorStatus::MATCH;
@@ -233,8 +236,15 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
-        // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
-        if (topoInfo->Level1Nhr) {
+        if (topoInfo->topoLevelNums == 3) {
+            if (topoInfo->deviceNumPerModule == 8) {
+                selectAlgName = "InsV2AllGatherOmniPipeUboe";
+            } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
+                selectAlgName = "InsAllGatherNHR";
+            } else {
+                selectAlgName = "InsAllGatherParallelMesh1DNHRUboe";
+            }
+        } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsAllGatherNHR";
             HCCL_INFO("[AllGatherAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
         } else if (topoInfo->Level0Nhr) {
