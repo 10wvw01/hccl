@@ -130,7 +130,7 @@ private:
 
     __aicore__ inline void WaitAllFetchDone()
     {
-        for (uint32_t peerRank = blockIdx_; peerRank < rankSizeU32_; peerRank += blockNum_) {
+        for (uint32_t peerRank = blockIdx_; peerRank < rankSizeU32_; peerRank += numBlocks_) {
             WaitFlag(rank_, FetchDoneFlagOffset(peerRank), curTag_);
         }
     }
