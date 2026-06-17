@@ -534,12 +534,27 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     rsResultBuffOffset_ = 0;
     meshCommBuffOffset_ = rsResultBuffSize_;
     u32 totalRankAlign = rankSizeLevel0_ * rankSizeLevel1_ * rankSizeLevel2_;
-    u64 maxCountPerLoop = rsResultBuffSize_ / HCCL_MIN_SLICE_ALIGN *
+    u64 maxCountPerLoop = meshCommBuffSize_ / HCCL_MIN_SLICE_ALIGN *
                           HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / totalRankAlign * totalRankAlign;
-    u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
     u64 processedDataCount = 0;
-    for (u64 loop = 0; loop < loopTimes; loop++) {
-        u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
+    u64 loop = 0;
+    while (processedDataCount < dataCount_) {
+        u64 remaining = dataCount_ - processedDataCount;
+        u64 currDataCount;
+        if (remaining <= maxCountPerLoop) {
+            currDataCount = remaining;
+            u64 q = currDataCount / rankSizeLevel0_;
+            u64 r = currDataCount % rankSizeLevel0_;
+            u64 tailSize = (q + r) * dataTypeSize_;
+            if (tailSize > rsResultBuffSize_ && q > 0) {
+                u64 maxTailElements = rsResultBuffSize_ / dataTypeSize_;
+                u64 newQ = q - 1;
+                u64 newR = std::min(static_cast<u64>(rankSizeLevel0_ - 1), maxTailElements - newQ);
+                currDataCount = newQ * rankSizeLevel0_ + newR;
+            }
+        } else {
+            currDataCount = maxCountPerLoop;
+        }
 
         // ----------- RSL0: level0 ReduceScatter -----------
         GenTempAlgParamsRSL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0);
@@ -581,6 +596,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
 
         processedDataCount += currDataCount;
+        loop++;
     }
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] End.");
     return HCCL_SUCCESS;
