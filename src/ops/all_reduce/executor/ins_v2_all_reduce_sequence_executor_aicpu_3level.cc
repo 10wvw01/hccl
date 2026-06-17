@@ -70,9 +70,9 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
             SEQUENCE_EXECUTOR_LEVEL_NUM);
         return HCCL_E_INTERNAL;
     }
-    rankSizeLevel0_ = algHierarchyInfo.infos[0].size();
-    rankSizeLevel1_ = algHierarchyInfo.infos[1].size();
-    rankSizeLevel2_ = algHierarchyInfo.infos[2].size();
+    rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
+    rankSizeLevel1_ = algHierarchyInfo.infos[1][0].size();
+    rankSizeLevel2_ = algHierarchyInfo.infos[2][0].size();
     skipLevel1_ = (rankSizeLevel1_ == 1);
 
     std::shared_ptr<InsAlgTemplate0> rsL0TempAlg =
@@ -483,31 +483,31 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 
     std::shared_ptr<InsAlgTemplate0> algTemplateRSL0 =
         std::make_shared<InsAlgTemplate0>(param, myRank_, algHierarchyInfo_.infos[0]);
-    algTemplateRSL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
+    CHK_RET(algTemplateRSL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
 
     std::shared_ptr<InsAlgTemplate1> algTemplateRSL1;
     if (!skipLevel1_) {
         algTemplateRSL1 = std::make_shared<InsAlgTemplate1>(param, myRank_, algHierarchyInfo_.infos[1]);
-        algTemplateRSL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+        CHK_RET(algTemplateRSL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
     }
 
     std::shared_ptr<InsAlgTemplate2> algTemplateRSL2 =
         std::make_shared<InsAlgTemplate2>(param, myRank_, algHierarchyInfo_.infos[2]);
-    algTemplateRSL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]);
+    CHK_RET(algTemplateRSL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]));
 
     std::shared_ptr<InsAlgTemplate3> algTemplateAGL2 =
         std::make_shared<InsAlgTemplate3>(param, myRank_, algHierarchyInfo_.infos[2]);
-    algTemplateAGL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]);
+    CHK_RET(algTemplateAGL2->SetchannelsPerRank(remoteRankToChannelInfo_[2]));
 
     std::shared_ptr<InsAlgTemplate4> algTemplateAGL1;
     if (!skipLevel1_) {
         algTemplateAGL1 = std::make_shared<InsAlgTemplate4>(param, myRank_, algHierarchyInfo_.infos[1]);
-        algTemplateAGL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+        CHK_RET(algTemplateAGL1->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
     }
 
     std::shared_ptr<InsAlgTemplate5> algTemplateAGL0 =
         std::make_shared<InsAlgTemplate5>(param, myRank_, algHierarchyInfo_.infos[0]);
-    algTemplateAGL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
+    CHK_RET(algTemplateAGL0->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
 
     TemplateResource templateResourceRSL0;
     CHK_RET(GenTempResource(resCtx, 0, algTemplateRSL0, templateResourceRSL0));
