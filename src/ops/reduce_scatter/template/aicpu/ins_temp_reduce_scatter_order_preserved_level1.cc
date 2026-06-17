@@ -74,6 +74,31 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     processSize_ = tempAlgParams.sliceSize;
     count_ = tempAlgParams.sliceSize / DATATYPE_SIZE_TABLE[dataType_];
 
+    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] buffInfo: inputPtr[%p], outputPtr[%p], "
+        "hcclBuff.addr[%p], hcclBuff.size[%llu], inputSize[%llu], outputSize[%llu], "
+        "inBuffBaseOff[%llu], outBuffBaseOff[%llu], hcclBuffBaseOff[%llu]",
+        tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.outputPtr,
+        tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuff.size,
+        tempAlgParams.buffInfo.inputSize, tempAlgParams.buffInfo.outputSize,
+        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff,
+        tempAlgParams.buffInfo.hcclBuffBaseOff);
+    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] slice params: sliceSize[%llu], "
+        "tailSize[%llu], count[%llu], processSize[%llu], repeatNum[%u], "
+        "inputSliceStride[%llu], outputSliceStride[%llu]",
+        tempAlgParams.sliceSize, tempAlgParams.tailSize, tempAlgParams.count,
+        processSize_, tempAlgParams.repeatNum, tempAlgParams.inputSliceStride,
+        tempAlgParams.outputSliceStride);
+    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] memBlockInfo summary: "
+        "size.size[%zu], userInputOffsets.size[%zu], inputOffsets.size[%zu], outputOffsets.size[%zu]",
+        memBlockInfo_.size.size(), memBlockInfo_.userInputOffsets.size(),
+        memBlockInfo_.inputOffsets.size(), memBlockInfo_.outputOffsets.size());
+    for (u32 i = 0; i < memBlockInfo_.size.size(); i++) {
+        HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] memBlockInfo[%u]: "
+            "size[%llu], userInputOffset[%llu], inputOffset[%llu], outputOffset[%llu]",
+            i, memBlockInfo_.size[i], memBlockInfo_.userInputOffsets[i],
+            memBlockInfo_.inputOffsets[i], memBlockInfo_.outputOffsets[i]);
+    }
+
     HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] Start, threadNum[%u], count[%llu], "
         "dataType[%u], deterministicStrict[%d]", threadNum_, count_, dataType_, deterministicStrict_);
 
