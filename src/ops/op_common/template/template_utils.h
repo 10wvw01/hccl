@@ -253,7 +253,7 @@ struct TemplateDataParams {
     std::vector<u64> sdispls;
     std::vector<u64> rdispls;
     StepSliceInfo stepSliceInfo;
-    u64 localCopyFlag = 0;
+    BatchSendRecvOpType opType;
 
     std::vector<char> Serialize() const
     {
