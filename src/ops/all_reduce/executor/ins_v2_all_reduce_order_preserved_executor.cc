@@ -267,8 +267,8 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         "inputSize[%llu], outputSize[%llu], dataCount[%llu], dataType[%u], reduceOp[%u]",
         param.inputPtr, param.outputPtr, param.inputSize, param.outputSize,
         param.DataDes.count, static_cast<u32>(param.DataDes.dataType), static_cast<u32>(param.reduceType));
-    // 打印输入数据的整体前N个元素
-    PrintBufferData("Orchestrate_INPUT_FULL", param.inputPtr, 0, dataCount_, dataType_, MAX_PRINT_DATA_ELEMENTS);
+    // 打印输入数据的整体前N个元素（用param直接获取count和dataType，因为成员变量可能还没初始化）
+    PrintBufferData("Orchestrate_INPUT_FULL", param.inputPtr, 0, param.DataDes.count, param.DataDes.dataType, MAX_PRINT_DATA_ELEMENTS);
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][Orchestrate] resCtx: cclMem.addr[%p], cclMem.size[%llu], "
         "threads.size[%zu], aivCommInfoPtr[%p]",
         resCtx.cclMem.addr, resCtx.cclMem.size, resCtx.threads.size(), resCtx.aivCommInfoPtr);
@@ -298,8 +298,8 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         HCCL_ERROR("[InsV2AllReduceOrderPreservedExecutor][Orchestrate] kernel run failed, err[0x%016llx]",
             HCCL_ERROR_CODE(ret)), ret);
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][Orchestrate] === EXIT SUCCESS ===");
-    // 打印最终输出数据的整体前N个元素
-    PrintBufferData("Orchestrate_OUTPUT_FULL", param.outputPtr, 0, dataCount_, dataType_, MAX_PRINT_DATA_ELEMENTS);
+    // 打印最终输出数据的整体前N个元素（用param直接获取count和dataType）
+    PrintBufferData("Orchestrate_OUTPUT_FULL", param.outputPtr, 0, param.DataDes.count, param.DataDes.dataType, MAX_PRINT_DATA_ELEMENTS);
     return HCCL_SUCCESS;
 }
 
