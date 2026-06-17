@@ -28,6 +28,8 @@ public:
     HcclResult DlHcommFunctionInit();
     std::function<HcclResult(HcclComm, ThreadHandle, void*, uint32_t, void**)> dlHcclThreadResGetInfo{};
     std::function<HcclResult(HcclComm, HcclConfigType, uint32_t, void*)> dlHcclConfigGetInfo{};
+    std::function<HcclResult(HcclComm, CommEngine, uint32_t, ThreadType, const ThreadConfig*,
+        ThreadHandle*)> dlHcclThreadAcquireWithConfig{};
 
 private:
     void* handle_{nullptr};

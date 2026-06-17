@@ -1202,22 +1202,32 @@ HcclResult HcclGetThread(
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
         u32 threadNum = resRequest.slaveThreadNum + 1;
         std::vector<ThreadHandle> threads(threadNum);
-        std::vector<ThreadConfig> threadConfigs(threadNum);
-        CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
-        threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
-        for (u32 i = 1; i < threadNum; i++) {
-            threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
+        if (hcommFunction.dlHcclConfigGetInfo) {
+            std::vector<ThreadConfig> threadConfigs(threadNum);
+            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+            threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
+            for (u32 i = 1; i < threadNum; i++) {
+                threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
+            }
+            CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
+                threadConfigs.data(), threads.data()));
+            // 申请展开流对应的Thread
+            ThreadConfig unfoldThreadConfig;
+            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
+            unfoldThreadConfig.notifyNumPerThread = 0;
+            CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
+                &unfoldThreadConfig, &resCtxHost->unfoldThread));
+        } else {
+            u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
+            for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
+                if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
+                    maxNotifyNum = resRequest.notifyNumPerThread[i];
+                }
+            }
+            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
+            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
         }
-        CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
-            threadConfigs.data(), threads.data()));
         CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
-
-        // 申请展开流对应的Thread
-        ThreadConfig unfoldThreadConfig;
-        CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
-        unfoldThreadConfig.notifyNumPerThread = 0;
-        CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
-            &unfoldThreadConfig, &resCtxHost->unfoldThread));
         CHK_RET(SaveUnfoldThreadInfo(comm, param, resCtxHost->unfoldThread));
         HCCL_INFO("[HcclGetThread] unfoldThread [%lu]", resCtxHost->unfoldThread);
         HCCL_DEBUG("threads ptr is %p\n", threads.data());
@@ -1230,7 +1240,13 @@ HcclResult HcclGetThread(
         CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream, resRequest.notifyNumOnMainThread, &thread));
         resCtxHost->threads.push_back(thread);
 
-        CHK_RET(GeGetThread(comm, param, resRequest, resCtxHost, resPack));
+        u32 maxNotifyNum = 0;
+        for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
+            if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
+                maxNotifyNum = resRequest.notifyNumPerThread[i];
+            }
+        }
+        CHK_RET(GeGetThread(comm, param, resRequest, resCtxHost, resPack, maxNotifyNum));
     }
 
     if (UNLIKELY(HcclCheckLogLevel(DLOG_DEBUG))) {
@@ -1243,19 +1259,23 @@ HcclResult HcclGetThread(
 }
 
 HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
-    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
+    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack, u32 maxNotifyNum)
 {
     if (param.opMode == OpMode::OPBASE) {
         u32 threadNum = resRequest.slaveThreadNum;
         if (threadNum > 0) {
             std::vector<ThreadHandle> threads(threadNum);
-            std::vector<ThreadConfig> threadConfigs(threadNum);
-            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
-            for (u32 i = 0; i < threadNum; i++) {
-                threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
+            if (hcommFunction.dlHcclConfigGetInfo) {
+                std::vector<ThreadConfig> threadConfigs(threadNum);
+                CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+                for (u32 i = 0; i < threadNum; i++) {
+                    threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
+                }
+                CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, threadNum, THREAD_TYPE_TS,
+                    threadConfigs.data(), threads.data()));
+            } else {
+                CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, maxNotifyNum, threads.data()));
             }
-            CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, threadNum, THREAD_TYPE_TS,
-                threadConfigs.data(), threads.data()));
             for (u32 i = 0; i < threadNum; i++) {
                 resCtxHost->threads.push_back(threads[i]);
             }
@@ -1270,8 +1290,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
 
         for (u32 i = 0; i < threadNum; i++) {
             ThreadHandle slaveThread;
-            CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, resPack.streams[i],
-                resRequest.notifyNumPerThread[i], &slaveThread));
+            CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, resPack.streams[i], maxNotifyNum, &slaveThread));
             resCtxHost->threads.push_back(slaveThread);
         }
     }
