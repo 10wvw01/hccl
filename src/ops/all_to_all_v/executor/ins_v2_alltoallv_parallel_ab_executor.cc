@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <set>
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_alltoall_mesh_2d_v3_no_memcpy.h"
 #include "ins_temp_alltoall_mesh_clos_v3_no_memcpy.h"
@@ -267,6 +268,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     intraLinkMap_.clear();
     interLinkMap_.clear();
     fullLinkMap_.clear();
+    bRunLinkMap_.clear();
 
     HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] raw channelLevels=%zu hierarchyLevels=%zu.",
                  resCtx.channels.size(), resCtx.algHierarchyInfo.infos.size());
@@ -310,6 +312,32 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
                                "fullMapSize=%zu",
                                resCtx.topoInfo.userRank, rank, fullLinkMap_.size()),
                     HcclResult::HCCL_E_INTERNAL);
+    }
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch>
+HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBRunLinkMap()
+{
+    bRunLinkMap_.clear();
+    std::set<u32> intraRanks;
+    if (!intraHierarchyInfo_.empty()) {
+        intraRanks.insert(intraHierarchyInfo_[0].begin(), intraHierarchyInfo_[0].end());
+    }
+
+    for (const auto &item : fullLinkMap_) {
+        const u32 peer = item.first;
+        const auto &peerChannels = item.second;
+        if (peerChannels.empty()) {
+            continue;
+        }
+        if (intraRanks.count(peer) != 0) {
+            bRunLinkMap_[peer].push_back(peerChannels[0]);
+        } else {
+            bRunLinkMap_[peer] = peerChannels;
+        }
+        HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=%d inputLinks=%zu runLinks=%zu",
+                     myRank_, peer, intraRanks.count(peer) != 0, peerChannels.size(), bRunLinkMap_[peer].size());
     }
     return HCCL_SUCCESS;
 }
@@ -561,7 +589,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RunBTemplate(
     }
     InsTempAlltoAllVMesh1D bTemp(param, resCtx.topoInfo.userRank, bRunHierarchyInfo_);
     TemplateResource bRes;
-    bRes.channels = fullLinkMap_;
+    bRes.channels = bRunLinkMap_;
     bRes.threads = bThreads_;
     bRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     u64 maxCount = 0;
@@ -582,7 +610,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RunBTemplate(
         HCCL_WARNING("[A2AV_AB][RunB][LOOP_PRE] rank=%u loop=%llu/%llu processed=%llu curr=%llu "
                      "loopCount=%llu loopSize=%llu fullChannels=%zu",
                      myRank_, loop, loopTimes, processedCount, currCount, loopParams.count,
-                     loopParams.sliceSize, fullLinkMap_.size());
+                     loopParams.sliceSize, bRunLinkMap_.size());
         CHK_RET(bTemp.KernelRun(param, loopParams, bRes));
         HCCL_WARNING("[A2AV_AB][RunB][LOOP_POST] rank=%u loop=%llu/%llu", myRank_, loop, loopTimes);
         processedCount += currCount;
@@ -619,6 +647,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::Orchestrate(
 
     CHK_RET(BuildHierarchyInfo(&resCtx.topoInfo, resCtx.algHierarchyInfo));
     CHK_RET(RestoreChannelMaps(resCtx));
+    CHK_RET(BuildBRunLinkMap());
     CHK_RET(PrepareTemplateResources(resCtx));
 
     TemplateDataParams baseParams;

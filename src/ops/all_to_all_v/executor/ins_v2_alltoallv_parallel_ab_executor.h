@@ -52,6 +52,7 @@ private:
                              const TemplateDataParams &aParams);
     HcclResult RunBTemplate(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
                             const TemplateDataParams &bParams);
+    HcclResult BuildBRunLinkMap();
     HcclResult PrepareTemplateResources(const AlgResourceCtxSerializable &resCtx);
     HcclResult CalcMaxDataCountPerLoop(const OpParam &param, u64 scratchMultiple,
                                        u64 &maxDataCountPerLoop) const;
@@ -77,6 +78,7 @@ private:
     std::map<u32, std::vector<ChannelInfo>> intraLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> interLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> fullLinkMap_;
+    std::map<u32, std::vector<ChannelInfo>> bRunLinkMap_;
 
     std::vector<ThreadHandle> threads_;
     ThreadHandle mainThread_{0};
