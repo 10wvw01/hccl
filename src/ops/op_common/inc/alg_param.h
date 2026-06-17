@@ -678,6 +678,7 @@ struct OpExchangeInfo {
 
 constexpr u32 A2AV_EXCHANGE_MAGIC = 0x41325658; // "A2VX"
 constexpr u32 A2AV_EXCHANGE_VERSION = 1;
+constexpr u32 A2AV_EXCHANGE_MAX_RANK_SIZE = 64;
 
 struct A2AVNoMemcpyExchangeInfo {
     OpExchangeInfo base;
@@ -685,10 +686,10 @@ struct A2AVNoMemcpyExchangeInfo {
     u32 version = A2AV_EXCHANGE_VERSION;
     u32 rankSize = 0;
     u32 userRank = INVALID_VALUE_RANKID;
-    u64 sendCounts[MAX_RANK_SIZE] = {0};
-    u64 recvCounts[MAX_RANK_SIZE] = {0};
-    u64 sdispls[MAX_RANK_SIZE] = {0};
-    u64 rdispls[MAX_RANK_SIZE] = {0};
+    u64 sendCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 recvCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 sdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 rdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
 };
 
 } 

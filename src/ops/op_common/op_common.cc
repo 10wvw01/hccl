@@ -107,9 +107,9 @@ HcclResult FillA2AVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param, u32
     CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo.base));
     exchangeInfo.rankSize = rankSize;
     exchangeInfo.userRank = param.userRank;
-    CHK_PRT_RET(exchangeInfo.rankSize > MAX_RANK_SIZE,
-                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] rankSize[%u] exceeds MAX_RANK_SIZE[%u].",
-                           exchangeInfo.rankSize, MAX_RANK_SIZE),
+    CHK_PRT_RET(exchangeInfo.rankSize > A2AV_EXCHANGE_MAX_RANK_SIZE,
+                HCCL_ERROR("[A2AV_NO_MEMCPY_EXCHANGE] rankSize[%u] exceeds maxRankSize[%u].",
+                           exchangeInfo.rankSize, A2AV_EXCHANGE_MAX_RANK_SIZE),
                 HcclResult::HCCL_E_PARA);
     const u64 *sendCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
     const u64 *recvCounts = reinterpret_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
