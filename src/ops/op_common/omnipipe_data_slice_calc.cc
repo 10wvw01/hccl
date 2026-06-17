@@ -1392,7 +1392,11 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
     std::vector<u64> dataSize = omniPipeSliceParam.dataWholeSize;
     std::vector<u64> dataSizePerLoop = omniPipeSliceParam.dataSizePerLoop;
     u64 dataTypeSize = omniPipeSliceParam.dataTypeSize;
+<<<<<<< HEAD
     std::vector<double> endpointAttrBw = omniPipeSliceParam.endpointAttrBw;
+=======
+    std::vector<EndpointAttrBwCoeff> endpointAttrBw = omniPipeSliceParam.endpointAttrBw;
+>>>>>>> a0135a4 (rs_nhr)
     std::vector<u64> levelRankId = omniPipeSliceParam.levelRankId;
     u64 xRankSize = levelRankSize[OmniPipeLevel::OMNIPIPE_LEVEL0];  // x轴卡数，机内mesh
     u64 yRankSize = levelRankSize[OmniPipeLevel::OMNIPIPE_LEVEL1];  // y轴卡数，机内clos
