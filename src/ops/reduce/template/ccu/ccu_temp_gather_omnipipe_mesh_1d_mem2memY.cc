@@ -30,11 +30,11 @@ CcuTempGatherOmniPipeMesh1DMem2MemY::CcuTempGatherOmniPipeMesh1DMem2MemY(const O
     }
 
     // 子通信域的root卡号
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    subCommRootId_ = param.root / templateRankSize_;
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
-    }
+    // auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
+    // subCommRootId_ = param.root / templateRankSize_;
+    // if (rootIt != ranks.end()) {
+    //     subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    // }
     rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
     // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
@@ -108,7 +108,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::CalcRes(HcclComm comm, const OpP
     subRankIdx2RankIdx[mySubCommRank_] = myRank_;
 
     kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2MemY>(subCommRanks_[0].size(),
-        mySubCommRank_, subCommRootId_, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
+        mySubCommRank_, subRoot, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
@@ -197,7 +197,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                     ifNewRoot);
 
                 void* taskArgPtr = static_cast<void*>(taskArg.get());
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subCommRootId_, rankId_);
+                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subRoot, rankId_);
                 CHK_RET(HcclCcuKernelLaunch(
                     param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[0], taskArgPtr));
                 if (ifNewRoot) {
