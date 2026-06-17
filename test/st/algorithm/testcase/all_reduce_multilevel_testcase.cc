@@ -251,49 +251,49 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x3x2_int32_sum_asymm
 
 // --- Degenerate Level (dimension=1) edge cases ---
 //
-// // L1=1: single server per pod, 8x1x3=24 ranks, degenerate L1, MIN op
-// TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_8x1x3_fp32_min_l1_degenerate)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 3, 1, 8);
-//     u64 dataCount = 200;
-//     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
-//     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
-//     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
-// }
-//
-// // L1=1: degenerate L1 + dataCount=8+1, just over aligned boundary
-// TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x1x2_int8_sum_l1_degenerate_data8_plus_1)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 1, 4);
-//     u64 dataCount = 8 + 1;
-//     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-//     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
-// }
-//
-// // L0=1 + L1=1: double degenerate, 1x1x4=4 ranks, dataCount=16+1
-// TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_1x1x4_fp32_sum_double_degenerate_data16_plus_1)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 4, 1, 1);
-//     u64 dataCount = 16 + 1;
-//     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
-//     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
-// }
-//
-// // L0=1: degenerate L0, 2x4x1=8 ranks
-// TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_1x4x2_fp32_sum_l0_degenerate)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 1);
-//     u64 dataCount = 101;
-//     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
-//     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
-// }
+// L1=1: single server per pod, 8x1x3=24 ranks, degenerate L1, MIN op
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_8x1x3_fp32_min_l1_degenerate)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 3, 1, 8);
+    u64 dataCount = 200;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// L1=1: degenerate L1 + dataCount=8+1, just over aligned boundary
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x1x2_int8_sum_l1_degenerate_data8_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 1, 4);
+    u64 dataCount = 8 + 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// L0=1 + L1=1: double degenerate, 1x1x4=4 ranks, dataCount=16+1
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_1x1x4_fp32_sum_double_degenerate_data16_plus_1)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 4, 1, 1);
+    u64 dataCount = 16 + 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// L0=1: degenerate L0, 2x4x1=8 ranks
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_1x4x2_fp32_sum_l0_degenerate)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 4, 1);
+    u64 dataCount = 101;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
 
 // dataCount=4+1=5: just over power-of-2, tests remainder element in stride slicing
 TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x3x2_fp32_min_data4_plus_1)
@@ -335,6 +335,31 @@ TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x2_int32_sum_singl
     GenTopoMeta(topoMeta, 2, 2, 4);
     u64 dataCount = 1;
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// tailSize overflow: dataCount=40M-1, single loop, tailSize exceeds rsResultBuffSize_ by 8 bytes
+// maxCountPerLoop=40M (meshCommBuffSize_/dtSize/totalRankAlign*totalRankAlign)
+// q=10485759, r=3, tailSize=(q+r)*4=41943048 > rsResultBuffSize_=41943040
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x2_fp32_sum_tailsize_overflow_single_loop)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 4);
+    u64 dataCount = 40 * 1024 * 1024 - 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
+}
+
+// tailSize overflow: dataCount=80M-1, multi-loop, last loop tailSize exceeds rsResultBuffSize_
+// Loop1: currDataCount=40M (aligned), Loop2: currDataCount=40M-1 (overflow, trimmed to 40M-6)
+TEST_F(ST_ALL_REDUCE_MULTILEVEL_TEST, st_all_reduce_3level_4x2x2_fp32_sum_tailsize_overflow_multi_loop)
+{
+    TopoMeta topoMeta;
+    GenTopoMeta(topoMeta, 2, 2, 4);
+    u64 dataCount = 80 * 1024 * 1024 - 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
     RunAllReduceMultiLevelCase(topoMeta, dataCount, dataType, reduceOp);
 }
