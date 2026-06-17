@@ -62,6 +62,8 @@ protected:
         TemplateDataParams &tempAlgParams);
     void PrintTemplateResource(const TemplateResource &templateAlgRes);
     void PrintTemplateDataParams(const TemplateDataParams &tempAlgParams);
+    void PrintBufferData(const char *tag, const void *dataPtr, u64 offset, u64 elementCount,
+        HcclDataType dataType, u64 maxPrintElements);
     
     HcclResult RunReduceScatter(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         u64 currDataCount, u64 processedDataCount,
@@ -69,14 +71,6 @@ protected:
     HcclResult RunAllGather(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         u64 currDataCount, u64 processedDataCount,
         std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes);
-    HcclResult RunReduceScatterSingle(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-        u64 currDataCount, u64 processedDataCount,
-        std::shared_ptr<InsAlgTemplateRS> rsTempAlg, TemplateResource &rsTemplateAlgRes,
-        u64 tailIdx);
-    HcclResult RunAllGatherSingle(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-        u64 currDataCount, u64 processedDataCount,
-        std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes,
-        u64 tailIdx);
 
     
 

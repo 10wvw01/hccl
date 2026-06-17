@@ -61,8 +61,24 @@ HcclResult InsTempAllGatherMesh1dIntra::KernelRun(const OpParam &param, const Te
     HCCL_INFO("[InsTempAllGatherMesh1dIntra][KernelRun] threadNum:%u", threadNum_);
     tempAlgParams_ = tempAlgParams;
 
+    HCCL_INFO("[InsTempAllGatherMesh1dIntra][KernelRun] buffInfo: inputPtr[%p], outputPtr[%p], "
+        "hcclBuff.addr[%p], hcclBuff.size[%llu], inputSize[%llu], outputSize[%llu], "
+        "inBuffBaseOff[%llu], outBuffBaseOff[%llu], hcclBuffBaseOff[%llu]",
+        tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.outputPtr,
+        tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuff.size,
+        tempAlgParams.buffInfo.inputSize, tempAlgParams.buffInfo.outputSize,
+        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff,
+        tempAlgParams.buffInfo.hcclBuffBaseOff);
+    HCCL_INFO("[InsTempAllGatherMesh1dIntra][KernelRun] slice params: sliceSize[%llu], tailSize[%llu], "
+        "count[%llu], repeatNum[%u], inputSliceStride[%llu], outputSliceStride[%llu]",
+        tempAlgParams.sliceSize, tempAlgParams.tailSize, tempAlgParams.count,
+        tempAlgParams.repeatNum, tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride);
+
     count_ = tempAlgParams.count;
     dataType_ = param.DataDes.dataType;
+    HCCL_INFO("[InsTempAllGatherMesh1dIntra][KernelRun] count[%llu], dataType[%u], "
+        "templateRankSize[%u], myRank[%u]",
+        count_, static_cast<u32>(dataType_), templateRankSize_, myRank_);
 
     HCCL_DEBUG("[InsTempAllGatherMesh1dIntra] Rank [%d], get threadNum_[%d].", myRank_, threadNum_);
     CHK_RET(LocalDataCopy(templateResource.threads));
