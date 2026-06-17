@@ -588,12 +588,8 @@ HcclResult InsV2AlltoAllParallelOptExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     u64 totalRankCount = rankSizeLevel0_ + rankSizeLevel1_ - 1;
     u64 perPeerInputChunkSize = dataSize_ / totalRankCount;
     const bool enableRemoteUserMemAccess = param.opMode == OpMode::OFFLOAD || IsAlltoAllNoMemcpyAlg(param);
-    u64 inputSizeBytes = param.inputSize;
-    u64 outputSizeBytes = param.outputSize;
-    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
-        inputSizeBytes = param.inputSize * dataTypeSize_;
-        outputSizeBytes = param.outputSize * dataTypeSize_;
-    }
+    u64 inputSizeBytes = param.inputSize * dataTypeSize_;
+    u64 outputSizeBytes = param.outputSize * dataTypeSize_;
     HCCL_WARNING("[ALLTOALL_V3_DEBUG][OrchestrateLoop] totalRankCount=%llu perPeerChunk=%llu "
                  "inputSizeBytes=%llu outputSizeBytes=%llu enableRemoteUserMemAccess=%d",
                  totalRankCount, perPeerInputChunkSize, inputSizeBytes, outputSizeBytes,

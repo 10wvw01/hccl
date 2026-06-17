@@ -389,57 +389,68 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunAlltoAllOnLink(
                                         tempAlgParams_.buffInfo.inBuffBaseOff + connectedRank * actualChunkSize;
         u64 txByteSize = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] * dataTypeSize : actualChunkSize;
         u64 txCount = isAlltoAllV ? tempAlgParams_.sendCounts[connectedRank] : chunkCount;
-        if (txByteSize == 0) {
-            HCCL_INFO("[ALLTOALL_NO_MEMCPY][MeshClos] skip zero send. myRank=%u peer=%u linkIdx=%u",
+        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.rdispls[myRank_] * dataTypeSize :
+                                        tempAlgParams_.buffInfo.outBuffBaseOff + myRank_ * actualChunkSize;
+        u64 rxByteSize = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] * dataTypeSize : actualChunkSize;
+        u64 rxCount = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] : chunkCount;
+        if (txByteSize == 0 && rxByteSize == 0) {
+            HCCL_INFO("[ALLTOALL_NO_MEMCPY][MeshClos] skip zero send/recv. myRank=%u peer=%u linkIdx=%u",
                       myRank_, connectedRank, linkIdx);
             return HCCL_SUCCESS;
         }
-        txSrcSlicesAll.emplace_back(txSrcPtr, txSrcOffset, txByteSize, txCount);
-
-        CHK_PRT_RET(!enableRemoteMemAccess_ || linkRemote.remoteOutputGraphMode.addr == nullptr,
-                    HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] remote output is unavailable. "
-                               "myRank=%d connectedRank=%u linkIdx=%u enableRemoteMemAccess=%d",
-                               myRank_, connectedRank, linkIdx, enableRemoteMemAccess_),
-                    HcclResult::HCCL_E_INTERNAL);
 
         void *txDstPtr = linkRemote.remoteOutputGraphMode.addr;
-        u64 txDstOffset = isAlltoAllV ? tempAlgParams_.rdispls[myRank_] * dataTypeSize :
-                                        tempAlgParams_.buffInfo.outBuffBaseOff + myRank_ * actualChunkSize;
-        CHK_RET(CheckNoMemcpySliceRange("[ALLTOALL_NO_MEMCPY][MeshClos]", myRank_, connectedRank, txSrcOffset,
-                                        txDstOffset, txByteSize, tempAlgParams_.buffInfo.inputSize,
-                                        linkRemote.remoteOutputGraphMode.size));
-        txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, txByteSize, txCount);
+        if (txByteSize > 0) {
+            CHK_PRT_RET(!enableRemoteMemAccess_ || txDstPtr == nullptr,
+                        HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] remote output is unavailable. "
+                                   "myRank=%d connectedRank=%u linkIdx=%u enableRemoteMemAccess=%d "
+                                   "txSize=%llu rxSize=%llu",
+                                   myRank_, connectedRank, linkIdx, enableRemoteMemAccess_, txByteSize, rxByteSize),
+                        HcclResult::HCCL_E_INTERNAL);
+            CHK_RET(CheckNoMemcpySliceRange("[ALLTOALL_NO_MEMCPY][MeshClos]", myRank_, connectedRank, txSrcOffset,
+                                            txDstOffset, txByteSize, tempAlgParams_.buffInfo.inputSize,
+                                            linkRemote.remoteOutputGraphMode.size));
+            txSrcSlicesAll.emplace_back(txSrcPtr, txSrcOffset, txByteSize, txCount);
+            txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, txByteSize, txCount);
+        }
 
-        // no-memcpy mode只使用远端写；rx slice仅用于SendRecvInfo占位。
-        void *rxSrcPtr = linkRemote.remoteOutputGraphMode.addr;
+        // no-memcpy mode only posts remote write. Keep rx placeholder identical
+        // to tx so SendRecvWrite sees symmetric slice metadata in AllToAllV.
+        void *rxSrcPtr = txByteSize > 0 ? linkRemote.remoteOutputGraphMode.addr : tempAlgParams_.buffInfo.outputPtr;
         u64 rxSrcOffset = txDstOffset;
-        u64 rxByteSize = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] * dataTypeSize : actualChunkSize;
-        u64 rxCount = isAlltoAllV ? tempAlgParams_.recvCounts[connectedRank] : chunkCount;
         rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, rxByteSize, rxCount);
         
-        void *rxDstPtr = tempAlgParams_.buffInfo.outputPtr;
-        u64 rxOutOffset = isAlltoAllV ? tempAlgParams_.rdispls[connectedRank] * dataTypeSize :
-                                        tempAlgParams_.buffInfo.outBuffBaseOff + connectedRank * actualChunkSize;
+        void *rxDstPtr = txSrcPtr;
+        u64 rxOutOffset = txSrcOffset;
         rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, rxByteSize, rxCount);
 
         HCCL_WARNING(
-            "[ALLTOALL_V3_DEBUG][Mesh2D][RunAlltoAllMesh] rank[%d]->peer[%d] "
+            "[ALLTOALL_V3_DEBUG][MeshClos][RunAlltoAllOnLink] rank[%d] peer[%d] "
             "txSrcOff=%llu txDstOff=%llu rxSrcOff=%llu rxDstOff=%llu "
-            "actualSz=%llu",
+            "txSize=%llu rxSize=%llu",
             myRank_, connectedRank,
             txSrcOffset, txDstOffset, rxSrcOffset, rxOutOffset,
-            txByteSize
+            txByteSize, rxByteSize
         );
 
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll},
                                           {rxSrcSlicesAll, rxDstSlicesAll});
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
+        DataInfo sendInfo(linkRemote, {txSrcSlicesAll, txDstSlicesAll}, dataType_);
+        DataInfo recvInfo(linkRemote, {rxSrcSlicesAll, rxDstSlicesAll}, dataType_);
 
         CHK_PRT_RET(isPcie,
                     HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos] pcie/read protocol is not supported."),
                     HcclResult::HCCL_E_NOT_SUPPORT);
-        HcclResult dmaResult = SendRecvWrite(sendRecvInfo, commThreads[linkIdx]);
+        HcclResult dmaResult = HCCL_SUCCESS;
+        if (txByteSize > 0 && rxByteSize > 0) {
+            dmaResult = SendRecvWrite(sendRecvInfo, commThreads[linkIdx]);
+        } else if (txByteSize > 0) {
+            dmaResult = SendWrite(sendInfo, commThreads[linkIdx]);
+        } else {
+            dmaResult = RecvWrite(recvInfo, commThreads[linkIdx]);
+        }
 
         if (dmaResult == HcclResult::HCCL_E_INTERNAL) {
             failedRanks_[connectedAlgRank] = 1;

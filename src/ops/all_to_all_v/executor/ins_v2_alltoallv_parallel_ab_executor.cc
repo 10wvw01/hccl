@@ -364,7 +364,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     params.enableRemoteMemAccess = true;
     params.buffInfo.inputPtr = param.inputPtr;
     params.buffInfo.inBuffType = BufferType::INPUT;
-    params.buffInfo.inputSize = param.inputSize;
+    params.buffInfo.inputSize = param.inputSize * dataTypeSize_;
     params.buffInfo.inBuffBaseOff = 0;
     params.buffInfo.hcclBuff = resCtx.cclMem;
     params.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
@@ -372,7 +372,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     params.buffInfo.hcclBuffBaseOff = 0;
     params.buffInfo.outputPtr = param.outputPtr;
     params.buffInfo.outBuffType = BufferType::OUTPUT;
-    params.buffInfo.outputSize = param.outputSize;
+    params.buffInfo.outputSize = param.outputSize * dataTypeSize_;
     params.buffInfo.outBuffBaseOff = 0;
     params.inputSliceStride = 0;
     params.outputSliceStride = 0;

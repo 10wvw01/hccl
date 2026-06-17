@@ -99,9 +99,6 @@ bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
 u64 GetGraphModeInputRegisterSize(const OpParam &param)
 {
     if (IsAlltoAllNoMemcpyAlg(param)) {
-        if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV) {
-            return param.inputSize;
-        }
         return param.inputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
     }
     return param.inputSize;
@@ -110,9 +107,22 @@ u64 GetGraphModeInputRegisterSize(const OpParam &param)
 u64 GetGraphModeOutputRegisterSize(const OpParam &param)
 {
     if (IsAlltoAllNoMemcpyAlg(param)) {
-        if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV) {
-            return param.outputSize;
-        }
+        return param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
+    }
+    return param.outputSize;
+}
+
+u64 GetOpInfoInputMemSize(const OpParam &param)
+{
+    if (IsAlltoAllNoMemcpyAlg(param)) {
+        return param.inputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
+    }
+    return param.inputSize;
+}
+
+u64 GetOpInfoOutputMemSize(const OpParam &param)
+{
+    if (IsAlltoAllNoMemcpyAlg(param)) {
         return param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
     }
     return param.outputSize;
@@ -381,9 +391,9 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
     hcclDfxOpInfo.engine = param.engine;
 
     hcclDfxOpInfo.inputMemAddr = reinterpret_cast<uint64_t>(param.inputPtr);
-    hcclDfxOpInfo.inputMemSize = param.inputSize;
+    hcclDfxOpInfo.inputMemSize = GetOpInfoInputMemSize(param);
     hcclDfxOpInfo.outputMemAddr = reinterpret_cast<uint64_t>(param.outputPtr);
-    hcclDfxOpInfo.outputMemSize = param.outputSize;
+    hcclDfxOpInfo.outputMemSize = GetOpInfoOutputMemSize(param);
 
     hcclDfxOpInfo.cpuTsThread = cpuTsThread;
     hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;

@@ -10,6 +10,7 @@
 
 #include "dfx/task_exception_fun.h"
 
+#include <cstring>
 #include <string>
 #include <sstream>
 #include <memory>
@@ -18,6 +19,37 @@
 #include "dlsym_common.h"
 
 namespace ops_hccl {
+namespace {
+bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
+{
+    return std::strcmp(param.algName, "InsAlltoAllParallelMesh2DClosV3NoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllParallelMesh2DClosV3NoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllParallelMesh2DClosV3NoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
+}
+
+u64 GetOpInfoInputMemSize(const OpParam &param)
+{
+    if (IsAlltoAllNoMemcpyAlg(param)) {
+        return param.inputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
+    }
+    return param.inputSize;
+}
+
+u64 GetOpInfoOutputMemSize(const OpParam &param)
+{
+    if (IsAlltoAllNoMemcpyAlg(param)) {
+        return param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
+    }
+    return param.outputSize;
+}
+}
+
 HcclResult CreateScatter(OpParam *param, ScatterOpInfo *opInfo)
 {
     CHK_PTR_NULL(param);
@@ -93,9 +125,9 @@ HcclResult ConvertToHcclDfxOpInfo(OpParam *param, HcclDfxOpInfoCompat *hcclDfxOp
     CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.", __func__, param->algTag, sRet), HCCL_E_MEMORY);
     hcclDfxOpInfo->cpuWaitAicpuNotifyIdx = param->aicpuRecordCpuIdx;
     hcclDfxOpInfo->inputMemAddr = reinterpret_cast<uint64_t>(param->inputPtr);
-    hcclDfxOpInfo->inputMemSize = param->inputSize;
+    hcclDfxOpInfo->inputMemSize = GetOpInfoInputMemSize(*param);
     hcclDfxOpInfo->outputMemAddr = reinterpret_cast<uint64_t>(param->outputPtr);
-    hcclDfxOpInfo->outputMemSize = param->outputSize;
+    hcclDfxOpInfo->outputMemSize = GetOpInfoOutputMemSize(*param);
     HCCL_INFO("[%s]HcclDfxOpInfo param: algTag[%s], opMode[%u], opType[%u], reduceOp[%u], dataType[%u], dataCount[%llu],"
         "root[%u], engine[%u], cpuTsThread[%u], cpuWaitAicpuNotifyIdx[%u], "
         "inputMemAddr[0x%llx], inputMemSize[%llu], outputMemAddr[0x%llx], outputMemSize[%llu]",
