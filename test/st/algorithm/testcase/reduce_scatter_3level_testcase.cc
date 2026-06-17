@@ -132,17 +132,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_int32_max_d
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P1: #6 - asymmetric middle layer (Level1)
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_8x4x2_int16_min_asymmetric_mid)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 8);
-//     auto recvCount = 1000;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
-
 // P1: #10 - small-scale large-data loop segmentation
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_fp32_sum_multi_loop)
 {
@@ -176,17 +165,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x4_int32_sum_r
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P2: #7 - FP16 data type on 32-card topology
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_fp16_sum_dtype)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 4, 4);
-//     auto recvCount = 500 * 1024;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
-
 // P2: #8 - BFP16 data type on 16-card topology
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_bfp16_max_dtype)
 {
@@ -198,16 +176,6 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_bfp16_max_d
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-// // P2: #12 - extremely small topology
-// TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_int8_sum_corner)
-// {
-//     TopoMeta topoMeta;
-//     GenTopoMeta(topoMeta, 2, 2, 4);
-//     auto recvCount = 100;
-//     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-//     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-//     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
-// }
 
 // P2: #14 - Level2 has 3 clusters (repeatNum=3)
 TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_8x2x3_fp32_sum_level2_3cluster)
