@@ -1212,6 +1212,7 @@ HcclResult HcclGetThread(
             }
             CHK_RET(hcommFunction.dlHcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
                 threadConfigs.data(), threads.data()));
+            HCCL_DEBUG("[HcclGetThread] Get [%u]threads by HcclThreadAcquireWithConfig.", threadNum);
             // 申请展开流对应的Thread
             ThreadConfig unfoldThreadConfig;
             CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
@@ -1227,6 +1228,7 @@ HcclResult HcclGetThread(
                 }
             }
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
+            HCCL_DEBUG("[HcclGetThread] Get [%u]threads by HcclThreadAcquire.", threadNum);
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
             CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
         }
