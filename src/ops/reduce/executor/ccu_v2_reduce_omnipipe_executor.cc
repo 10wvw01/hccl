@@ -502,7 +502,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
 
     // 2.2 计算loop次数
-#if 0
+#if 1
     OmniPipeScratchParam scratchParam;
     CHK_RET(InitOmniPipeScratchParam(scratchParam, param, endpointAttrBwAvg));
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
