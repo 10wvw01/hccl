@@ -24,6 +24,7 @@ namespace ops_hccl {
 
 # define UINT32_MAX     (4294967295U)
 constexpr u32 INVALID_U32 = UINT32_MAX;
+constexpr u32 MAX_JETTY_NUM = 4;
 
 constexpr s32 INVALID_RANKID = INT32_MAX;
 
@@ -471,5 +472,8 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const u32 level0ChannelNumPerRank,
                                                 const u32 level1ChannelNumPerRank,
                                                 const float level0DataRatio = 0.5f);
+
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType) const;
+
 }
 #endif
