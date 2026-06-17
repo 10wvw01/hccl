@@ -128,9 +128,9 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     rankSize_ = topoInfo->userRankSize;
     devType_ = topoInfo->deviceType;
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][CalcAlgHierarchyInfo] topoInfo: userRank[%u], userRankSize[%u], "
-        "deviceType[%u], phyRank[%u], serverId[%u]",
+        "deviceType[%u], serverIdx[%u], moduleIdx[%u]",
         topoInfo->userRank, topoInfo->userRankSize, topoInfo->deviceType,
-        topoInfo->phyRank, topoInfo->serverId);
+        topoInfo->serverIdx, topoInfo->moduleIdx);
     AlgTopoMatch topoMatch;
     CHK_RET(topoMatch.MatchTopo(comm, topoInfo, algHierarchyInfo));
     HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][CalcAlgHierarchyInfo] topoMatch succeeded, "
