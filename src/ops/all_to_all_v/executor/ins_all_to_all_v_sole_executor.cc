@@ -15,6 +15,7 @@
 #include "ccu_temp_all_to_all_v_mesh_1D.h"
 #include "ccu_temp_all_to_all_v_mesh2die.h"
 #include "ccu_temp_all_to_all_v_mesh_1D_multi_jetty.h"
+#include "ccu_temp_all_to_all_v_mesh1d_2Die.h"
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
@@ -284,7 +285,7 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
 // 第二个参数是All to AllV的template文件
 #ifndef AICPU_COMPILE
 #if !defined(HCCL_CANN_COMPAT_850)
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAlltoAllVMesh1D, InsAlltoAllVSoleExecutor, TopoMatch1D,
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh1D, InsAlltoAllVSoleExecutor, TopoMatch1D,
     CcuTempAlltoAllVMesh1D);
 #endif /* !HCCL_CANN_COMPAT_850 */
 
@@ -296,6 +297,11 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLVC, CcuAlltoAllVCMesh1D, InsAllto
 #if !defined(HCCL_CANN_COMPAT_850)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh2Die, InsAlltoAllVSoleExecutor, TopoMatch1D,
     CcuTempAlltoAllVMesh2Die);
+#endif /* !HCCL_CANN_COMPAT_850 */
+
+#if !defined(HCCL_CANN_COMPAT_850)
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh1D2Die, InsAlltoAllVSoleExecutor, TopoMatch1D,
+    CcuTempAllToAllVMesh1D2Die);
 #endif /* !HCCL_CANN_COMPAT_850 */
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)

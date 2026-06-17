@@ -14,6 +14,7 @@
 #include "ccu_temp_all_to_all_v_mesh1d_2Die.h"
 #include "kernel/ccu_kernel_all_to_all_v_mesh2die.h"
 #include "ccu_launch_dl.h"
+#include "hccl_res_dl.h"
 
 namespace ops_hccl {
 CcuTempAllToAllVMesh1D2Die::CcuTempAllToAllVMesh1D2Die(const OpParam &param, RankId rankId,
@@ -83,6 +84,8 @@ HcclResult CcuTempAllToAllVMesh1D2Die::CalcRes(HcclComm comm, const OpParam& par
             dieId, channels_[dieId].size(), withMyRank, resourceRequest.ccuKernelInfos.size());
     }
 
+    CHK_RET(SaveCacheCtx(comm, param));
+
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -141,54 +144,78 @@ void CcuTempAllToAllVMesh1D2Die::SetA2ASendRecvInfo(const A2ASendRecvInfo &sendR
     localSendRecvInfo_ = sendRecvInfo;
 }
 
-// void CcuTempAllToAllVMesh1D2Die::FillRankGroupInfo()
-// {
-//     uint32_t rankSize = subCommRanks_[0].size();
-//     rankGroup_.insert({0, RankGroup()});
-//     rankGroup_.insert({1, RankGroup()});
-//     for (uint32_t i = 0; i < rankSize / 2; i++) {
-//         if(i == myRank_) {
-//             continue;
-//         }
-//         if (myRank_ < rankSize / 2) {
-//             rankGroup_[1].push_back(subCommRanks_[0][i]);
-//         } else {
-//             rankGroup_[0].push_back(subCommRanks_[0][i]);
-//         }
-//     }
-//     for (uint32_t i = rankSize / 2; i < rankSize; i++) {
-//          if(i == myRank_) {
-//             continue;
-//         }
-//         if (myRank_ < rankSize / 2) {
-//             rankGroup_[0].push_back(subCommRanks_[0][i]);
-//         } else {
-//             rankGroup_[1].push_back(subCommRanks_[0][i]);
-//         }
-//     }
-//     if (rankGroup_[0].size() > rankGroup_[1].size()) {
-//         rankGroup_[1].push_back(myRank_);
-//     } else {
-//         rankGroup_[0].push_back(myRank_);
-//     }
-//     return;
-// }
-
-void CcuTempAllToAllVMesh1D2Die::FillRankGroupTaskArgs(uint32_t dieId, const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs)
+HcclResult CcuTempAllToAllVMesh1D2Die::SaveCacheCtx(HcclComm comm, const OpParam &param)
 {
-    for (auto peerId : rankGroup_[dieId]) {
+    Mesh2DieCacheCtx cacheCtx;
+    cacheCtx.dieNum = DIE_NUM;
+    cacheCtx.rankGroup[0] = rankGroup_[0];
+    cacheCtx.rankGroup[1] = rankGroup_[1];
+    cacheCtx.closPeers = closPeers_;
+    cacheCtx.closBwCoeff[0] = closBwCoeff_[0];
+    cacheCtx.closBwCoeff[1] = closBwCoeff_[1];
+    cacheCtx.totalBwCoeff = totalBwCoeff_;
+    cacheCtx.closMinorDieId = closMinorDieId_;
+    cacheCtx.closMajorDieId = closMajorDieId_;
+
+    std::vector<char> buf = cacheCtx.Serialize();
+
+    char cacheTag[ALG_TAG_LENGTH] = {0};
+    int ret = snprintf_s(cacheTag, sizeof(cacheTag), sizeof(cacheTag) - 1, "%s_mesh2die", param.algTag);
+    CHK_PRT_RET(ret <= 0,
+        HCCL_ERROR("[CcuTempAllToAllVMesh1D2Die][SaveCacheCtx] failed to fill cacheTag"), HCCL_E_INTERNAL);
+
+    void *ctxPtr = nullptr;
+    CHK_RET(HcclEngineCtxCreate(comm, cacheTag, CommEngine::COMM_ENGINE_CPU_TS, buf.size(), &ctxPtr));
+
+    errno_t memcpyRet = memcpy_s(ctxPtr, buf.size(), buf.data(), buf.size());
+    CHK_PRT_RET(memcpyRet != EOK,
+        HCCL_ERROR("[CcuTempAllToAllVMesh1D2Die][SaveCacheCtx] memcpy_s failed, ret=%d", memcpyRet),
+        HcclResult::HCCL_E_INTERNAL);
+
+    HCCL_INFO("[CcuTempAllToAllVMesh1D2Die][SaveCacheCtx] saved cacheCtx, size[%zu]", buf.size());
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAllToAllVMesh1D2Die::LoadCacheCtx(const OpParam &param, Mesh2DieCacheCtx &cacheCtx)
+{
+    char cacheTag[ALG_TAG_LENGTH] = {0};
+    int ret = snprintf_s(cacheTag, sizeof(cacheTag), sizeof(cacheTag) - 1, "%s_mesh2die", param.algTag);
+    CHK_PRT_RET(ret <= 0,
+        HCCL_ERROR("[CcuTempAllToAllVMesh1D2Die][LoadCacheCtx] failed to fill cacheTag"), HCCL_E_INTERNAL);
+
+    void *ctxPtr = nullptr;
+    uint64_t ctxSize = 0;
+    HcclComm comm = static_cast<HcclComm>(param.hcclComm);
+    HcclResult getRet = HcclEngineCtxGet(comm, cacheTag, CommEngine::COMM_ENGINE_CPU_TS, &ctxPtr, &ctxSize);
+    CHK_PRT_RET(getRet != HCCL_SUCCESS,
+        HCCL_ERROR("[CcuTempAllToAllVMesh1D2Die][LoadCacheCtx] HcclEngineCtxGet failed, ret=%d", getRet),
+        getRet);
+    CHK_PRT_RET(ctxPtr == nullptr || ctxSize == 0,
+        HCCL_ERROR("[CcuTempAllToAllVMesh1D2Die][LoadCacheCtx] cache ctx is null or empty"),
+        HcclResult::HCCL_E_INTERNAL);
+
+    cacheCtx.Deserialize(static_cast<const char *>(ctxPtr), static_cast<size_t>(ctxSize));
+
+    HCCL_INFO("[CcuTempAllToAllVMesh1D2Die][LoadCacheCtx] loaded cacheCtx, size[%llu]", ctxSize);
+    return HcclResult::HCCL_SUCCESS;
+}
+
+void CcuTempAllToAllVMesh1D2Die::FillRankGroupTaskArgs(uint32_t dieId, const Mesh2DieCacheCtx &cacheCtx,
+    const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs)
+{
+    for (auto peerId : cacheCtx.rankGroup[dieId]) {
         uint64_t sendSize = localSendRecvInfo_.sendLength[peerId];
         uint64_t sendOffset = localSendRecvInfo_.sendOffset[peerId];
         uint64_t recvOffset = localSendRecvInfo_.recvOffset[peerId];
 
-        if (closPeers_.count(peerId) > 0 && totalBwCoeff_ > 0) {
+        if (cacheCtx.closPeers.count(peerId) > 0 && cacheCtx.totalBwCoeff > 0) {
             uint64_t recvLength = localSendRecvInfo_.recvLength[peerId];
-            uint32_t myBwCoeff = closBwCoeff_[dieId];
-            if (dieId == closMajorDieId_) {
-                sendOffset += sendSize * closBwCoeff_[closMinorDieId_] / totalBwCoeff_;
-                recvOffset += recvLength * closBwCoeff_[closMinorDieId_] / totalBwCoeff_;
+            uint32_t myBwCoeff = cacheCtx.closBwCoeff[dieId];
+            if (dieId == cacheCtx.closMajorDieId) {
+                sendOffset += sendSize * cacheCtx.closBwCoeff[cacheCtx.closMinorDieId] / cacheCtx.totalBwCoeff;
+                recvOffset += recvLength * cacheCtx.closBwCoeff[cacheCtx.closMinorDieId] / cacheCtx.totalBwCoeff;
             }
-            sendSize = sendSize * myBwCoeff / totalBwCoeff_;
+            sendSize = sendSize * myBwCoeff / cacheCtx.totalBwCoeff;
         }
 
         const uint64_t floorLoopNum = sendSize / UB_MAX_TRANS_SIZE;
@@ -227,10 +254,12 @@ HcclResult CcuTempAllToAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
 
+    Mesh2DieCacheCtx cacheCtx;
+    CHK_RET(LoadCacheCtx(param, cacheCtx));
+
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
     std::vector<u32> notifyIdxMainToSub(1, 0);
     CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub));
-    // FillRankGroupInfo();
     for (uint32_t dieId = 0; dieId < DIE_NUM; dieId++) {
         std::vector<uint64_t> taskArgs;
         taskArgs.push_back(inputAddr);
@@ -246,7 +275,7 @@ HcclResult CcuTempAllToAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
             taskArgs.push_back(val);
         }
 
-        FillRankGroupTaskArgs(dieId, config, taskArgs);
+        FillRankGroupTaskArgs(dieId, cacheCtx, config, taskArgs);
 
         uint64_t argSize = taskArgs.size();
         CcuResult launchRet = HcommCcuKernelLaunch(
