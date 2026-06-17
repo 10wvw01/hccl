@@ -32,8 +32,8 @@ protected:
     }
     void TearDown() override
     {
-        unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
+        unsetenv("HCCL_OP_EXPANSION_MODE");
     }
 
     static void SetUpTestCase() {}
