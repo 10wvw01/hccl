@@ -93,12 +93,12 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
     resPack.scratchMemSize = scratchMemSize;
     std::string tagStr = tag;
 
-    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode"));
+    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode", true));
 
     // 执行Broadcast
     CHK_RET_AND_PRINT_IDE(BroadcastOutPlaceGraphMode(buf, count, dataType, root, comm, stream, tagStr, resPack), tagStr.c_str());
 
-    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut));
+    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -263,9 +263,9 @@ HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclData
 }
 
 HcclResult BroadcastEntryLog(const void *buf, uint64_t count, HcclDataType dataType, uint32_t root,
-                             aclrtStream stream, const char *tag, const std::string &opName)
+                             aclrtStream stream, const char *tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

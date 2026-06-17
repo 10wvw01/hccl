@@ -2222,9 +2222,9 @@ bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig)
     return false;
 }
 
-HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut)
+HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         HcclUs endut = TIME_NOW();
         std::string endInfo = opName + ":success,take time: " +
             std::to_string(DURATION_US(endut - startut).count()) + " us, tag: " + tag;

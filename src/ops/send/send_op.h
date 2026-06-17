@@ -42,7 +42,7 @@ namespace ops_hccl {
         const HcclComm comm, const aclrtStream stream, const u32 &rankSize,
         const OpMode &opMode, const std::string &tag, const ResPackGraphMode &resPack = ResPackGraphMode());
     HcclResult SendEntryLog(void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,
-        aclrtStream stream, const std::string &tag, const std::string &opName);
+        aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog = false);
 } // namespace ops_hccl
 
 // ifndef OPS_HCCL_SRC_OPS_SEND_OP
