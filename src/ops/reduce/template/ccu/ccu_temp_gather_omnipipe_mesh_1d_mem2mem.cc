@@ -74,8 +74,6 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
                                                         const TopoInfoWithNetLayerDetails* topoInfo,
                                                         AlgResourceRequest& resourceRequest)
 {
-<<<<<<< HEAD
-<<<<<<< HEAD
     GetRes(resourceRequest);
     resourceRequest.ccuKernelNum.push_back(1);
 
@@ -118,10 +116,6 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     HCCL_DEBUG("[%s] myRank_[%u] mySubCommRank_[%u] remoteRank[%u] localAddr[%u] remoteAddr[%u]", __func__, myRank_,
         mySubCommRank_, channelDescs[0].remoteRank, channelDescs[0].localEndpoint.commAddr.addr,
         channelDescs[0].remoteEndpoint.commAddr.addr);
-=======
-    // 不需要从流
-=======
->>>>>>> 3ca097f (reduce)
     GetRes(resourceRequest);
     resourceRequest.ccuKernelNum.push_back(1);
 
@@ -146,11 +140,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
         }
     }
 
-<<<<<<< HEAD
+
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes] channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu",
                channelDescs.size(), subCommRanks_[0].size(), resourceRequest.ccuKernelInfos.size());
->>>>>>> a0135a4 (rs_nhr)
-=======
+
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem][%s] Get Mesh channels Success.", __func__);
     std::map<u32, u32> subRankIdx2RankIdx;
     for (u32 i=0; i< channelDescs.size(); i++) {
@@ -162,6 +155,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
 
     kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2Mem>(subCommRanks_[0].size(),
         mySubCommRank_, subCommRootId_, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
+
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
@@ -169,7 +163,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     HCCL_DEBUG("[%s] myRank_[%u] mySubCommRank_[%u] remoteRank[%u] localAddr[%u] remoteAddr[%u]", __func__, myRank_,
         mySubCommRank_, channelDescs[0].remoteRank, channelDescs[0].localEndpoint.commAddr.addr,
         channelDescs[0].remoteEndpoint.commAddr.addr);
->>>>>>> 3ca097f (reduce)
+
 
     return HcclResult::HCCL_SUCCESS;
 }
@@ -193,17 +187,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
     uint64_t inputAddr = inputAddrBase + inBuffBaseOff; //基址 + loop偏移
     uint64_t outputAddr = outputAddrBase + outBuffBaseOff; //基址 + loop偏移
     
-<<<<<<< HEAD
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
     // uint64_t token = CcuRep::GetTokenInfo(
     //     reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
-=======
-    // uint64_t token;
-    // CHK_RET(GetToken(buffInfo_, token));
-    uint64_t token = CcuRep::GetTokenInfo(
-        reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
->>>>>>> a0135a4 (rs_nhr)
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start2");
 
     if (localCopyFlag == 0) {
@@ -250,12 +237,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                     isStepOne_, 
                     isLastStep_, 
                     ifNewRoot);
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
-<<<<<<< HEAD
-               mySubCommRank_, subRoot, rankId_);
-=======
-               mySubCommRank_, subCommRootId_, rankId_);
->>>>>>> a0135a4 (rs_nhr)
+
                 void* taskArgPtr = static_cast<void*>(taskArg.get());
                 // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] 209");
                 // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum[%d] [%d] [%d]",repeatNum, templateResource.threads.size(),templateResource.ccuKernels.size());
