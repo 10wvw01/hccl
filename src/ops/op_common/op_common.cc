@@ -1202,6 +1202,7 @@ HcclResult HcclGetThread(
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
         u32 threadNum = resRequest.slaveThreadNum + 1;
         std::vector<ThreadHandle> threads(threadNum);
+        auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
         if (hcommFunction.dlHcclThreadAcquireWithConfig) {
             std::vector<ThreadConfig> threadConfigs(threadNum);
             CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
@@ -1266,6 +1267,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
         u32 threadNum = resRequest.slaveThreadNum;
         if (threadNum > 0) {
             std::vector<ThreadHandle> threads(threadNum);
+            auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
             if (hcommFunction.dlHcclThreadAcquireWithConfig) {
                 std::vector<ThreadConfig> threadConfigs(threadNum);
                 CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
