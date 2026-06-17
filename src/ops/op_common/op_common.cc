@@ -1217,6 +1217,7 @@ HcclResult HcclGetThread(
             unfoldThreadConfig.notifyNumPerThread = 0;
             CHK_RET(hcommFunction.dlHcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
                 &unfoldThreadConfig, &resCtxHost->unfoldThread));
+            CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
         } else {
             u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
             for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
@@ -1226,8 +1227,8 @@ HcclResult HcclGetThread(
             }
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
+            CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
         }
-        CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
         CHK_RET(SaveUnfoldThreadInfo(comm, param, resCtxHost->unfoldThread));
         HCCL_INFO("[HcclGetThread] unfoldThread [%lu]", resCtxHost->unfoldThread);
         HCCL_DEBUG("threads ptr is %p\n", threads.data());
