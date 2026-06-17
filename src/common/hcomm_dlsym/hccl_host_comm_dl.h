@@ -47,6 +47,10 @@ DECL_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgT
     uint32_t infoLen, void *info);
 DECL_SUPPORT_FLAG(HcclConfigGetInfo);
 
+DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
+    ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
+DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
+
 void HcclCommDlInit(void* libHcommHandle);
 
 #ifdef __cplusplus
