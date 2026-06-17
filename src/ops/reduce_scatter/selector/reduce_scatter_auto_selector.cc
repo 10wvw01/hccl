@@ -314,7 +314,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     }
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2ReduceScatterOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
@@ -324,7 +324,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
             }
         } else if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterAicpuReduceNHR";
-        } else if (topoInfo->topoLevelNums == 3) {
+        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
         } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsReduceScatterNHR";
