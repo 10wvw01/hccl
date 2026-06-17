@@ -11,8 +11,10 @@
 #include "ins_reduce_scatter_parallel_executor.h"
 #include <cmath>
 #include "ins_temp_reduce_scatter_mesh_1D.h"
+#include "ins_temp_reduce_scatter_mesh_1d_dpu.h"
 #include "ins_temp_reduce_scatter_nhr.h"
 #include "alg_data_trans_wrapper.h"
+#include "topo_match_squeeze_2d.h"
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
@@ -160,7 +162,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsInter0.buffInfo.inBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
     tempAlgParamsInter0.buffInfo.outBuffBaseOff = dataOffset;
-    tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[2];
+    } else {
+        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+    }
     tempAlgParamsInter0.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
     tempAlgParamsInter0.tailSize = tempAlgParamsInter0.sliceSize;
     tempAlgParamsInter0.count = dataCountPerLoopAixs0;
@@ -195,7 +201,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter1.count = dataCountPerLoopAixs1;
 
     tempAlgParamsInter1.inputSliceStride = dataSize_ * rankSizeLevel0_;
-    tempAlgParamsInter1.outputSliceStride = dataCountPerLoopAixs1 * dataTypeSize_;
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsInter1.outputSliceStride = 0;
+    } else {
+        tempAlgParamsInter1.outputSliceStride = dataCountPerLoopAixs1 * dataTypeSize_;
+    }
     tempAlgParamsInter1.repeatNum = rankSizeLevel0_;
     tempAlgParamsInter1.inputRepeatStride = dataSize_;
     tempAlgParamsInter1.outputRepeatStride = dataCountPerLoopAixs1 * dataTypeSize_ * rankSizeLevel1_;
@@ -216,7 +226,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsIntra1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsIntra1.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParamsIntra1.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
-    tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3] + rankIdxLevel1_ * dataCountPerLoopAixs1 * dataTypeSize_; 
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3]; 
+    } else {
+        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3] + rankIdxLevel1_ * dataCountPerLoopAixs1 * dataTypeSize_;
+    }
     tempAlgParamsIntra1.buffInfo.outBuffBaseOff = dataOffset;
     tempAlgParamsIntra1.buffInfo.hcclBuffBaseOff = scratchOffVec[1];
     tempAlgParamsIntra1.sliceSize = dataCountPerLoopAixs1 * dataTypeSize_;
@@ -289,6 +303,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
+    engine_ = param.engine;
 
     std::vector<std::vector<u32>> temp0HierarchyInfo;
     std::vector<std::vector<u32>> temp1HierarchyInfo;
@@ -385,6 +400,9 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     TemplateResource templateAlgResIntra;
     TemplateResource templateAlgResInter;
     if (param.engine == COMM_ENGINE_CCU) {
+        CHK_PRT_RET(resCtx.ccuKernelNum.size() <= 1,
+            HCCL_ERROR("[%s] ccuKernelNum size[%zu] is less than 2", __func__, resCtx.ccuKernelNum.size()),
+            HCCL_E_INTERNAL);
         templateAlgResIntra.ccuKernels.insert(templateAlgResIntra.ccuKernels.end(),
                                               resCtx.ccuKernels.begin(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0]);
@@ -565,11 +583,15 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceSc
     InsReduceScatterParallelExecutor, TopoMatchUBX, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelMesh1DNHRPcie,
     InsReduceScatterParallelExecutor, TopoMatchPcieMix, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
+
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelNHRNHRUboe,
+    InsReduceScatterParallelExecutor, TopoMatchSqueeze2D, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHR,
-    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem);
+    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterMesh1DMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHRMultiJetty,
