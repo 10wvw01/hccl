@@ -21,7 +21,8 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 ((used, section (".ascend.meta." #kernel_name))) \
 = {{F_TYPE_KTYPE, sizeof(unsigned int), K_TYPE_AIV}}
 
-constexpr uint32_t MAX_RANK_SIZE = 128; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE_V = 64;
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
 constexpr uint64_t TOPO_LEN_Z_OFFSET = 16;
@@ -32,10 +33,10 @@ constexpr uint64_t DATA_LIMIT = 512 * 1024;
 constexpr uint32_t PING_PONG = 2;
 
 struct ExtraArgs {
-    uint64_t sendCounts[MAX_RANK_SIZE] = {};
-    uint64_t sendDispls[MAX_RANK_SIZE] = {};
-    uint64_t recvCounts[MAX_RANK_SIZE] = {};
-    uint64_t recvDispls[MAX_RANK_SIZE] = {};
+    uint64_t sendCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t sendDispls[MAX_RANK_SIZE_V] = {};
+    uint64_t recvCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t recvDispls[MAX_RANK_SIZE_V] = {};
 };
 
 using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
