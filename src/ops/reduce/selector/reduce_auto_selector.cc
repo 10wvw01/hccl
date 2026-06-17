@@ -287,8 +287,8 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->userRankSize > MAX_RANK_SIZE) {
-        HCCL_DEBUG("[ReduceAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+    if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
+        HCCL_DEBUG("[ReduceAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
         return SelectorStatus::NOT_MATCH;
     }
 
