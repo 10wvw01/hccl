@@ -267,7 +267,17 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     intraLinkMap_.clear();
     interLinkMap_.clear();
     fullLinkMap_.clear();
-    CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+
+    HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] raw channelLevels=%zu hierarchyLevels=%zu.",
+                 resCtx.channels.size(), resCtx.algHierarchyInfo.infos.size());
+    remoteRankToChannelInfo_.resize(resCtx.channels.size());
+    for (u32 level = 0; level < resCtx.channels.size(); ++level) {
+        for (const auto &channel : resCtx.channels[level]) {
+            remoteRankToChannelInfo_[level][channel.remoteRank].push_back(channel);
+        }
+        HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] level=%u channelCount=%zu peerCount=%zu.",
+                     level, resCtx.channels[level].size(), remoteRankToChannelInfo_[level].size());
+    }
     CHK_PRT_RET(remoteRankToChannelInfo_.size() < 3,
                 HCCL_ERROR("[A2AV_AB][RestoreChannelMaps] expected 3 channel levels, got %zu.",
                            remoteRankToChannelInfo_.size()),
