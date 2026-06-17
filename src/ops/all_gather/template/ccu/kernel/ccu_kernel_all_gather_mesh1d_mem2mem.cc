@@ -129,7 +129,7 @@ static CcuResult DoAllGather(AllGatherMesh1DMem2MemContext &ctx, const ccu::Loca
     CCU_IF(ctx.isInputOutputEqual == 0)
     {
         // 处理本卡情况
-        CCU_CHK_RET(GroupCopy(ctx, ctx.localDst, src, ctx.goSize));
+        // CCU_CHK_RET(GroupCopy(ctx, ctx.localDst, src, ctx.goSize));
     }
 
     for (uint32_t i = 0; i < eventNum; i++) {
