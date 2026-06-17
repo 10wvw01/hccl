@@ -261,6 +261,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     dataCount_ = param.DataDes.count;
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    maxTmpMemSize_ = resCtx.cclMem.size;
     dataSize_ = dataCount_ * dataTypeSize_;
     rankSizeLevel0_ = resCtx.algHierarchyInfo.infos[0][0].size();
     if (rankSizeLevel0_ == 0) {
@@ -276,11 +277,11 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
 
-    rootXAixs = param.root % rankSizeLevel0_;
-    rootYAixs = param.root / rankSizeLevel0_;
-    isRoot = (myRank_ == root_);
-    isSameXAxis = (rankIdxLevel0_ == rootXAixs && !isRoot);
-    isSameYAxis = (rankIdxLevel1_ == rootYAixs && !isRoot);
+    // rootXAixs = param.root % rankSizeLevel0_;
+    // rootYAixs = param.root / rankSizeLevel0_;
+    // isRoot = (myRank_ == root_);
+    // isSameXAxis = (rankIdxLevel0_ == rootXAixs && !isRoot);
+    // isSameYAxis = (rankIdxLevel1_ == rootYAixs && !isRoot);
     
     HCCL_DEBUG("[%s] myRank[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
         __func__, myRank_, rankSizeLevel0_, rankSizeLevel1_, rankIdxLevel0_, rankIdxLevel1_);
@@ -303,14 +304,14 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     scratchParam.endpointAttrBw = endpointAttrBwAvg;
     scratchParam.levelAlgType = {1, 1, 1}; // [jjy][todo]rs说后面再修改？
 
-    // std::vector<u64> dataSizeVec;
-    // for (int i = 0; i < rankSize_; i++) {
-    //     dataSizeVec.push_back(dataSize_);
-    // }
+    std::vector<u64> dataSizeVec;
+    for (int i = 0; i < rankSize_; i++) {
+        dataSizeVec.push_back(dataSize_);
+    }
     
     // scratchParam.dataSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-    // scratchParam.dataSize = dataSizeVec;
-    scratchParam.dataSize = dataSize_;
+    scratchParam.dataSize = dataSizeVec;
+    // scratchParam.dataSize = dataSize_;
     scratchParam.dataTypeSize = dataTypeSize_;
     scratchParam.maxTmpMemSize = 200 * 1024 * 1024;
     scratchParam.opMode = param.opMode;
@@ -502,7 +503,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
 
     // 2.2 计算loop次数
-#if 0
+#if 1
     OmniPipeScratchParam scratchParam;
     CHK_RET(InitOmniPipeScratchParam(scratchParam, param, endpointAttrBwAvg));
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
