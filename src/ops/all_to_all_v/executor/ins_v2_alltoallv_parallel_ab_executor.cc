@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdlib>
+#include <unordered_set>
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_alltoall_mesh_2d_v3_no_memcpy.h"
 #include "ins_temp_alltoall_mesh_clos_v3_no_memcpy.h"
@@ -27,14 +28,6 @@ constexpr double MAX_AB_RATIO = 1.0;
 constexpr u32 A_TEMPLATE_NUM = 2;
 constexpr u32 B_TEMPLATE_NUM = 1;
 constexpr u32 MIN_TEMPLATE_THREAD_NUM = 1;
-
-u32 GetA2AVABPairwiseRoundNum(u32 groupNum)
-{
-    if (groupNum <= 1) {
-        return 0;
-    }
-    return (groupNum % 2 == 0) ? groupNum - 1 : groupNum;
-}
 
 bool IsA2AVABAlg(const OpParam &param)
 {
@@ -219,25 +212,24 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
 
     InsTempAlltoAllMesh2DV3NoMemcpy aIntraTemp(param, topoInfo->userRank, intraHierarchyInfo_);
     InsTempAlltoAllMeshClosV3NoMemcpy aInterTemp(param, topoInfo->userRank, interHierarchyInfo_);
-    InsTempAlltoAllVMesh1D bTemp(param, topoInfo->userRank, bCalcHierarchyInfo_);
     aIntraTemp.SetMeshDimensions(rankSize_, myRank_, rankSizeLevel0_, rankSizeLevel1_);
     aInterTemp.SetMeshDimensions(rankSize_, myRank_, rankSizeLevel0_, rankSizeLevel1_);
 
     AlgResourceRequest aIntraReq;
     AlgResourceRequest aInterReq;
-    AlgResourceRequest bReq;
     CHK_RET(aIntraTemp.CalcRes(comm, param, topoInfo, aIntraReq));
     CHK_RET(aInterTemp.CalcRes(comm, param, topoInfo, aInterReq));
-    CHK_RET(bTemp.CalcRes(comm, param, topoInfo, bReq));
 
-    CHK_PRT_RET(aIntraReq.channels.empty() || aInterReq.channels.empty() || bReq.channels.empty(),
-                HCCL_ERROR("[A2AV_AB][CalcRes] empty channel request. aIntra=%zu aInter=%zu b=%zu",
-                           aIntraReq.channels.size(), aInterReq.channels.size(), bReq.channels.size()),
+    CHK_PRT_RET(aIntraReq.channels.empty() || aInterReq.channels.empty(),
+                HCCL_ERROR("[A2AV_AB][CalcRes] empty channel request. aIntra=%zu aInter=%zu",
+                           aIntraReq.channels.size(), aInterReq.channels.size()),
                 HcclResult::HCCL_E_INTERNAL);
 
     aIntraMeta_ = {aIntraReq.slaveThreadNum, aIntraReq.notifyNumOnMainThread, aIntraReq.notifyNumPerThread};
     aInterMeta_ = {aInterReq.slaveThreadNum, aInterReq.notifyNumOnMainThread, aInterReq.notifyNumPerThread};
-    u32 bChannelsPerRank = std::max(1u, CalcChannelsPerRank(aInterReq.channels[0]));
+    u32 bChannelsPerRank = std::max(CalcChannelsPerRank(aIntraReq.channels[0]),
+                                    CalcChannelsPerRank(aInterReq.channels[0]));
+    bChannelsPerRank = std::max(1u, bChannelsPerRank);
     u32 bConcurrent = std::min(ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE,
                                static_cast<u32>(topoInfo->userRankSize - 1));
     bMeta_.slaveThreadNum = bConcurrent * bChannelsPerRank;
@@ -262,7 +254,8 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
 
     resourceRequest.channels.emplace_back(aIntraReq.channels[0]);
     resourceRequest.channels.emplace_back(aInterReq.channels[0]);
-    resourceRequest.channels.emplace_back(bReq.channels[0]);
+    // B segment reuses the acquired intra/inter channels at runtime:
+    // intra peer -> one mesh channel; inter peer -> all available clos channels.
     HCCL_WARNING("[A2AV_AB][CalcRes] rank=%u aIntraSlave=%u aInterSlave=%u bSlave=%u "
                  "aIntraNotifyMain=%u aInterNotifyMain=%u bNotifyMain=%u totalSlave=%u "
                  "notifyMain=%u channelGroups=%zu",
@@ -294,13 +287,15 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
         HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] level=%u channelCount=%zu peerCount=%zu.",
                      level, resCtx.channels[level].size(), remoteRankToChannelInfo_[level].size());
     }
-    CHK_PRT_RET(remoteRankToChannelInfo_.size() < 3,
-                HCCL_ERROR("[A2AV_AB][RestoreChannelMaps] expected 3 channel levels, got %zu.",
+    CHK_PRT_RET(remoteRankToChannelInfo_.size() < 2,
+                HCCL_ERROR("[A2AV_AB][RestoreChannelMaps] expected at least 2 channel levels, got %zu.",
                            remoteRankToChannelInfo_.size()),
                 HcclResult::HCCL_E_INTERNAL);
     intraLinkMap_ = remoteRankToChannelInfo_[0];
     interLinkMap_ = remoteRankToChannelInfo_[1];
-    fullLinkMap_ = remoteRankToChannelInfo_[2];
+    if (remoteRankToChannelInfo_.size() >= 3) {
+        fullLinkMap_ = remoteRankToChannelInfo_[2];
+    }
 
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix &&
         !interLinkMap_.empty()) {
@@ -317,16 +312,6 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] rank=%u channelLevels=%zu intra=%zu inter=%zu full=%zu",
                  resCtx.topoInfo.userRank, remoteRankToChannelInfo_.size(), intraLinkMap_.size(),
                  interLinkMap_.size(), fullLinkMap_.size());
-    for (u32 rank = 0; rank < resCtx.topoInfo.userRankSize; ++rank) {
-        if (rank == resCtx.topoInfo.userRank) {
-            continue;
-        }
-        CHK_PRT_RET(fullLinkMap_.count(rank) == 0 || fullLinkMap_[rank].empty(),
-                    HCCL_ERROR("[A2AV_AB][RestoreChannelMaps] B full channel missing. myRank=%u peer=%u "
-                               "fullMapSize=%zu",
-                               resCtx.topoInfo.userRank, rank, fullLinkMap_.size()),
-                    HcclResult::HCCL_E_INTERNAL);
-    }
     return HCCL_SUCCESS;
 }
 
@@ -334,34 +319,35 @@ template <typename AlgTopoMatch>
 HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBRunLinkMap()
 {
     bRunLinkMap_.clear();
-    if (!intraHierarchyInfo_.empty()) {
-        for (u32 peer : intraHierarchyInfo_[0]) {
-            if (peer == myRank_) {
-                continue;
-            }
+    CHK_PRT_RET(intraHierarchyInfo_.empty() || intraHierarchyInfo_[0].empty(),
+                HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] invalid intra hierarchy. rank=%u", myRank_),
+                HcclResult::HCCL_E_INTERNAL);
+    std::unordered_set<u32> intraPeers(intraHierarchyInfo_[0].begin(), intraHierarchyInfo_[0].end());
+    for (u32 peer = 0; peer < rankSize_; ++peer) {
+        if (peer == myRank_) {
+            continue;
+        }
+        if (intraPeers.count(peer) != 0) {
             auto it = intraLinkMap_.find(peer);
             CHK_PRT_RET(it == intraLinkMap_.end() || it->second.empty(),
-                        HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] missing intra link. rank=%u peer=%u",
-                                   myRank_, peer),
+                        HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] missing intra link. rank=%u peer=%u "
+                                   "intraMap=%zu interMap=%zu",
+                                   myRank_, peer, intraLinkMap_.size(), interLinkMap_.size()),
                         HcclResult::HCCL_E_INTERNAL);
             bRunLinkMap_[peer].push_back(it->second[0]);
             HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=1 inputLinks=%zu runLinks=1",
                          myRank_, peer, it->second.size());
+        } else {
+            auto it = interLinkMap_.find(peer);
+            CHK_PRT_RET(it == interLinkMap_.end() || it->second.empty(),
+                        HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] missing inter link. rank=%u peer=%u "
+                                   "intraMap=%zu interMap=%zu",
+                                   myRank_, peer, intraLinkMap_.size(), interLinkMap_.size()),
+                        HcclResult::HCCL_E_INTERNAL);
+            bRunLinkMap_[peer] = it->second;
+            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=0 inputLinks=%zu runLinks=%zu",
+                         myRank_, peer, it->second.size(), bRunLinkMap_[peer].size());
         }
-    }
-
-    for (const auto &item : interLinkMap_) {
-        const u32 peer = item.first;
-        if (peer == myRank_ || bRunLinkMap_.count(peer) != 0) {
-            continue;
-        }
-        CHK_PRT_RET(item.second.empty(),
-                    HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] empty inter link. rank=%u peer=%u",
-                               myRank_, peer),
-                    HcclResult::HCCL_E_INTERNAL);
-        bRunLinkMap_[peer] = item.second;
-        HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=0 inputLinks=%zu runLinks=%zu",
-                     myRank_, peer, item.second.size(), bRunLinkMap_[peer].size());
     }
     CHK_PRT_RET(bRunLinkMap_.size() + 1 < rankSize_,
                 HCCL_ERROR("[A2AV_AB][BuildBRunLinkMap] incomplete B channel map. rank=%u mapSize=%zu rankSize=%llu",
@@ -381,13 +367,6 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildRuntimeTemplateM
 
     u32 aInterCommThreadNum = std::max(1u, static_cast<u32>(CalcChannelsPerRank(interLinkMap_)));
     u32 aInterThreadNum = aInterCommThreadNum;
-    if (rankSize_ > 0 && rankSizeLevel0_ > 0 && rankSize_ % rankSizeLevel0_ == 0) {
-        u32 groupNum = static_cast<u32>(rankSize_ / rankSizeLevel0_);
-        u32 colorRoundNum = GetA2AVABPairwiseRoundNum(groupNum);
-        u32 microRoundNum = static_cast<u32>(rankSizeLevel0_) * colorRoundNum;
-        u32 stepNum = (microRoundNum + aInterCommThreadNum - 1) / aInterCommThreadNum;
-        aInterThreadNum = std::max(1u, stepNum * aInterCommThreadNum);
-    }
     aInterMeta_.slaveThreadNum = aInterThreadNum > 0 ? aInterThreadNum - 1 : 0;
     aInterMeta_.notifyNumOnMainThread = aInterMeta_.slaveThreadNum;
     aInterMeta_.notifyNumPerThread.assign(aInterMeta_.slaveThreadNum, 1);
@@ -511,6 +490,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     };
     fillRemoteInfo(intraLinkMap_);
     fillRemoteInfo(interLinkMap_);
+    fillRemoteInfo(bRunLinkMap_);
     HCCL_WARNING("[A2AV_AB][BaseParam] remote exchange table filled. rank=%u rankSize=%llu",
                  myRank_, rankSize_);
     return HCCL_SUCCESS;
@@ -543,6 +523,10 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
         bParams.rdispls[i] = baseParams.rdispls[i] + aParams.recvCounts[i];
         if (i < aParams.remoteRecvCounts.size()) {
             aParams.remoteRecvCounts[i] = aParams.sendCounts[i];
+            bParams.remoteRecvCounts[i] = bParams.sendCounts[i];
+        }
+        if (i < bParams.remoteRdispls.size()) {
+            bParams.remoteRdispls[i] = baseParams.remoteRdispls[i] + aParams.sendCounts[i];
         }
         aTotalCount += aParams.sendCounts[i];
         bTotalCount += bParams.sendCounts[i];
@@ -621,6 +605,12 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SetLoopParams(
         } else {
             dstParams.recvCounts[i] = 0;
             dstParams.rdispls[i] = srcParams.rdispls[i] + srcParams.recvCounts[i];
+        }
+        if (i < dstParams.remoteRdispls.size()) {
+            dstParams.remoteRdispls[i] = srcParams.remoteRdispls[i] + processedCount;
+        }
+        if (i < dstParams.remoteRecvCounts.size()) {
+            dstParams.remoteRecvCounts[i] = dstParams.sendCounts[i];
         }
         loopTotalCount += dstParams.sendCounts[i];
     }
