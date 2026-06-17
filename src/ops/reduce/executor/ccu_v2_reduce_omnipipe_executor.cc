@@ -261,6 +261,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     dataCount_ = param.DataDes.count;
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    maxTmpMemSize_ = resCtx.cclMem.size;
     dataSize_ = dataCount_ * dataTypeSize_;
     rankSizeLevel0_ = resCtx.algHierarchyInfo.infos[0][0].size();
     if (rankSizeLevel0_ == 0) {
@@ -301,16 +302,16 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     //scratchParam.dataSizePerLoop\ scratchParam.dataWholeSize 在外部赋值
     scratchParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
     scratchParam.endpointAttrBw = endpointAttrBwAvg;
-    scratchParam.levelAlgType = {1, 1, 1}; // [jjy][todo]rs说后面再修改？
+    scratchParam.levelAlgType = {1, 0, 1}; // [jjy][todo]rs说后面再修改？
 
-    // std::vector<u64> dataSizeVec;
-    // for (int i = 0; i < rankSize_; i++) {
-    //     dataSizeVec.push_back(dataSize_);
-    // }
+    std::vector<u64> dataSizeVec;
+    for (int i = 0; i < rankSize_; i++) {
+        dataSizeVec.push_back(dataSize_);
+    }
     
     // scratchParam.dataSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-    // scratchParam.dataSize = dataSizeVec;
-    scratchParam.dataSize = dataSize_;
+    scratchParam.dataSize = dataSizeVec;
+    // scratchParam.dataSize = dataSize_;
     scratchParam.dataTypeSize = dataTypeSize_;
     scratchParam.maxTmpMemSize = 200 * 1024 * 1024;
     scratchParam.opMode = param.opMode;
@@ -327,7 +328,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     sliceParam.endpointAttrBw = endpointAttrBwAvg;
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
-    sliceParam.levelAlgType = {1, 1, 1}; // [jjy][todo]rs说后面再修改？
+    sliceParam.levelAlgType = {1, 0, 1}; // [jjy][todo]rs说后面再修改？
     sliceParam.dataTypeSize = dataTypeSize_;
     sliceParam.opMode = param.opMode;
     sliceParam.engine = param.engine;
@@ -502,7 +503,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
 
     // 2.2 计算loop次数
-#if 0
+#if 1
     OmniPipeScratchParam scratchParam;
     CHK_RET(InitOmniPipeScratchParam(scratchParam, param, endpointAttrBwAvg));
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
@@ -546,7 +547,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     sliceParam.endpointAttrBw =  {3, 4, 1};
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
-    std::vector<u64> levelAlgType{1, 1, 1};
+    std::vector<u64> levelAlgType{1, 0, 1};
     sliceParam.levelAlgType = levelAlgType;
     sliceParam.dataTypeSize = dataTypeSize_;
     sliceParam.opMode = param.opMode;
@@ -684,8 +685,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
                 if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = rootYAixs; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rootXAixs; //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = rootXAixs; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = rootYAixs; //0 纵向逻辑假root是0
 
                 }
             }else if (i == level0StepCountAG - 1) {  // 最后一步
