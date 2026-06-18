@@ -121,7 +121,18 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
         return SelectorStatus::NOT_MATCH;
     }
     
+    constexpr u64 CCU_SCHEDULE_2D_MAX_DATA_SIZE = 64ULL * 1024 * 1024;
+    constexpr u32 CCU_SCHEDULE_2D_MAX_RANK_SIZE = 64;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
+
     if (topoInfo->topoLevelNums > 1) {
+        if (topoInfo->userRankSize > CCU_SCHEDULE_2D_MAX_RANK_SIZE ||
+            dataSize > CCU_SCHEDULE_2D_MAX_DATA_SIZE) {
+            HCCL_INFO("[ReduceAutoSelector] 2D topo rankSize[%u] or dataSize[%llu] exceeds limit, "
+                      "fallback to aicpu.", topoInfo->userRankSize, dataSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1) {
                 // 每框出 1 卡
