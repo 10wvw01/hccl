@@ -275,7 +275,6 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunAllToAll(
     return HCCL_SUCCESS;
 }
 
-
 // 计算小于给定值的最大2次幂，用于树形Reduce算法中确定每一步的数据分割点
 static u32 GetLargestPowerOf2LessThan(u32 value)
 {
@@ -316,8 +315,6 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunLocalReduce(
 
     u64 sliceSize = memBlockInfo.size[myAlgRank];
     u64 count = sliceSize / DATATYPE_SIZE_TABLE[dataType_];
-
-
 
     // ========== 树形Reduce主循环 ==========
     // remainingBlocks: 当前待处理的数据块数量

@@ -38,7 +38,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTempl
 class InsV2AllReduceOrderPreservedExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllReduceOrderPreservedExecutor();
-    ~InsV2AllReduceOrderPreservedExecutor() = default;
+    ~InsV2AllReduceOrderPreservedExecutor() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 

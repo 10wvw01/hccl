@@ -244,7 +244,6 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         // 这里的stride当成传统意义上的stride间隔
         tempAlgParamsStepOne.inputSliceStride = 0; // 没用到
         tempAlgParamsStepOne.outputSliceStride = 0; // 没用到
-
         
         HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepOne.inputSliceStride [%u],"
             "tempAlgParamsStepOne.outputSliceStride [%u] tempAlgParamsStepOne.sliceSize [%u]",

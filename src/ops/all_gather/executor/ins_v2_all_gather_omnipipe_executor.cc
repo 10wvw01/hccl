@@ -20,6 +20,10 @@
 #include "ins_temp_all_gather_omnipipe_nhr_dpu.h"
 #include "ins_temp_all_gather_omnipipe_nhr.h"
 namespace ops_hccl {
+
+constexpr u32 RANK_LEVEL_2 = 2;
+constexpr u32 RANK_LEVEL_4 = 4;
+
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
                                InsAlgTemplate2>::InsV2AllGatherOmniPipeExecutor()
@@ -87,7 +91,6 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         subCommRanks2.emplace_back(std::vector<u32>{myRank_});
     }
     
-
     rankSizeLevel_.resize(OMNIPIPE_LEVEL_NUM);
     rankIdxLevel_.resize(OMNIPIPE_LEVEL_NUM);
     
@@ -214,7 +217,6 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         subCommRanks2.emplace_back(std::vector<u32>{myRank_});
     }
     
-
     rankSizeLevel_.resize(OMNIPIPE_LEVEL_NUM);
     rankIdxLevel_.resize(OMNIPIPE_LEVEL_NUM);
     
@@ -298,10 +300,10 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     double bw_rs_l2=BW_OMNI_DEFAULT;
 
     if (resCtx.topoInfo.level0PcieMix) {
-        if (rankSizeLevel_[OMNIPIPE_LEVEL1]==2) {
+        if (rankSizeLevel_[OMNIPIPE_LEVEL1]==RANK_LEVEL_2) {
             bw_ag_l1=BW_OMNI_PCIE_EIGHT_AG_CLOS;
             bw_rs_l1=BW_OMNI_PCIE_EIGHT_RS_CLOS;
-        } else if (rankSizeLevel_[OMNIPIPE_LEVEL1]==4) {
+        } else if (rankSizeLevel_[OMNIPIPE_LEVEL1]==RANK_LEVEL_4) {
             bw_ag_l1=BW_OMNI_PCIE_SIXTEEN_AG_CLOS;
             bw_rs_l1=BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
         }

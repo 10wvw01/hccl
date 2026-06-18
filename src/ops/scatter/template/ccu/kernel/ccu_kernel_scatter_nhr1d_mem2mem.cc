@@ -132,8 +132,8 @@ static CcuResult DoSendRecvSlice(ScatterNHR1DContext &ctx, const u32 &toRank, cc
     ChannelHandle sendChannel = ctx.arg->channels[toRankIdx];
 
     ccu::Variable repeatNumAdd;
-    repeatNumAdd = 1;
     ctx.repeatTimeFlag = 0;
+    repeatNumAdd = 1;
     ctx.repeatNumVarTemp = ctx.repeatNumVar;
 
     CCU_WHILE(ctx.repeatNumVarTemp != UINT64_MAX)
@@ -263,8 +263,8 @@ static CcuResult DoScatterNHR(ScatterNHR1DContext &ctx)
     ctx.dstMem.token = ctx.token[ctx.myRankIdx];
 
     ccu::Variable repeatNumAdd;
-    repeatNumAdd = 1;
     ctx.repeatTimeFlag = 0;
+    repeatNumAdd = 1;
 
     CCU_WHILE(ctx.repeatNumVar != UINT64_MAX)
     {
