@@ -83,8 +83,6 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_6rank_fp16_equal
 
 // 3-pod topologies unsupported: simulator has only 2 net layers (no inter-superpod links at layer 2).
 // Unequal AllGatherV unsupported: mesh1D slave streams end with WAIT not LOCAL_POST_TO (pre-existing bug).
-<<<<<<< HEAD
-
 
 TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_3layer_2pod_2server_8rank_fp16_equal_test)
 {
