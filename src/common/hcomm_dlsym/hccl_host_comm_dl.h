@@ -15,7 +15,7 @@
 #include "hccl_comm.h"   // 原始头文件，包含所有类型和声明
 
 /* beta.1 起 hccl_comm.h 已提供 HcclOpExpansionMode/HcclConfigType，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
-#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
 typedef enum {
     HCCL_OP_EXPANSION_MODE_INVALID = -1,
     HCCL_OP_EXPANSION_MODE_AI_CPU = 0,
