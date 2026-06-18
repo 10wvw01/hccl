@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH_2DIE_H
-#define HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH_2DIE_H
+#ifndef HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH1D_2DIE_H
+#define HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH1D_2DIE_H
 
 #include <vector>
 #include <ios>
@@ -22,7 +22,7 @@ namespace ops_hccl {
 
 using RankId = u32;
 
-struct CcuKernelArgAllToAllVMesh2Die : CcuKernelArgBase {
+struct CcuKernelArgAllToAllVMesh1D2Die : CcuKernelArgBase {
     uint32_t rankId;
     OpParam opParam;
     std::vector<std::vector<RankId>> subCommRanks;
@@ -30,7 +30,7 @@ struct CcuKernelArgAllToAllVMesh2Die : CcuKernelArgBase {
     std::vector<RankId> rankGroup;
 };
 
-struct A2AVSingleSendRecvInfoCtx {
+struct A2AVSingleSendRecvInfoCtx1D2Die {
     ccu::Variable sendOffset;
     ccu::Variable recvOffset;
     ccu::Variable sendTailSize;
@@ -38,22 +38,13 @@ struct A2AVSingleSendRecvInfoCtx {
     ccu::Variable sendLoopNum;
 };
 
-struct AllToAllVMesh2DieContext : CcuKernelCtxBase {
-    const CcuKernelArgAllToAllVMesh2Die *arg;
-
-    const uint32_t RANK_EVEN = 2;
-
-    const uint32_t GO_ADDR_OFFSET_IDX = 0;
-    const uint32_t GO_LOOP_PARAM_IDX = 1;
-    const uint32_t GO_PARALLEL_PARAM_IDX = 2;
-    const uint32_t GO_RESIDUAL_IDX = 3;
+struct AllToAllVMesh1D2DieContext : CcuKernelCtxBase {
+    const CcuKernelArgAllToAllVMesh1D2Die *arg;
 
     const uint64_t MAX_TRANSPORT_SIZE = UB_MAX_TRANS_SIZE;
 
-    uint32_t localSize{0};
     uint32_t localId{0};
     uint32_t peerSize{0};
-    uint32_t logicId{0};
 
     ccu::Variable input;
     std::vector<ccu::Variable> output;
@@ -71,15 +62,12 @@ struct AllToAllVMesh2DieContext : CcuKernelCtxBase {
     GroupOpSizeVars xnMaxTransportGoSize;
     ccu::Variable curSendTailSize;
     GroupOpSizeVars curSendTailGoSize;
-    std::vector<A2AVSingleSendRecvInfoCtx> sendRecvInfo;
+    std::vector<A2AVSingleSendRecvInfoCtx1D2Die> sendRecvInfo;
 
-    uint16_t selfBit{0};
-    uint16_t allBit{0};
-
-    ccu::Event event;
+    std::vector<ccu::Event> events;
 };
 
-CcuResult CcuAllToAllVMesh2DieKernel(CcuKernelArg arg);
+CcuResult CcuAlltoAllVMesh1D2DieKernel(CcuKernelArg arg);
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH_2DIE_H
+#endif // HCCL_CCU_KERNEL_ALL_TO_ALL_V_MESH1D_2DIE_H

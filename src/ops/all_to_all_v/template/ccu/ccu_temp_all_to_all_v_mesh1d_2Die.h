@@ -1,16 +1,17 @@
 /**
- * Copyright (c) 2026 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 
+#include <array>
 #include <set>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
@@ -21,14 +22,20 @@ namespace ops_hccl {
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
+constexpr uint32_t MAX_KERNEL_NUM_2DIE = 3;
+constexpr uint32_t KERNEL_FULLMESH = 0;
+constexpr uint32_t KERNEL_CLOS_MAJOR = 1;
+constexpr uint32_t KERNEL_CLOS_MINOR = 2;
+constexpr uint32_t CLOS_RATIO_MINOR = 2;
+constexpr uint32_t CLOS_RATIO_MAJOR = 6;
+constexpr uint32_t CLOS_RATIO_TOTAL = 8;
+
 struct Mesh2DieCacheCtx {
     uint32_t dieNum;
-    std::vector<RankId> rankGroup[2];
+    bool is2Plus6;
+    uint32_t kernelCount;
+    std::vector<RankId> rankGroup[MAX_KERNEL_NUM_2DIE];
     std::set<RankId> closPeers;
-    uint32_t closBwCoeff[2];
-    uint32_t totalBwCoeff;
-    uint32_t closMinorDieId;
-    uint32_t closMajorDieId;
 
     std::vector<char> Serialize() const
     {
@@ -50,13 +57,12 @@ struct Mesh2DieCacheCtx {
             }
         };
         append(&dieNum, sizeof(uint32_t));
-        appendVec(rankGroup[0]);
-        appendVec(rankGroup[1]);
+        append(&is2Plus6, sizeof(bool));
+        append(&kernelCount, sizeof(uint32_t));
+        for (uint32_t i = 0; i < MAX_KERNEL_NUM_2DIE; i++) {
+            appendVec(rankGroup[i]);
+        }
         appendSet(closPeers);
-        append(closBwCoeff, sizeof(uint32_t) * 2);
-        append(&totalBwCoeff, sizeof(uint32_t));
-        append(&closMinorDieId, sizeof(uint32_t));
-        append(&closMajorDieId, sizeof(uint32_t));
         return buf;
     }
 
@@ -88,22 +94,21 @@ struct Mesh2DieCacheCtx {
             }
         };
         read(&dieNum, sizeof(uint32_t));
-        readVec(rankGroup[0]);
-        readVec(rankGroup[1]);
+        read(&is2Plus6, sizeof(bool));
+        read(&kernelCount, sizeof(uint32_t));
+        for (uint32_t i = 0; i < MAX_KERNEL_NUM_2DIE; i++) {
+            readVec(rankGroup[i]);
+        }
         readSet(closPeers);
-        read(closBwCoeff, sizeof(uint32_t) * 2);
-        read(&totalBwCoeff, sizeof(uint32_t));
-        read(&closMinorDieId, sizeof(uint32_t));
-        read(&closMajorDieId, sizeof(uint32_t));
     }
 };
 
-class CcuTempAllToAllVMesh1D2Die : public CcuAlgTemplateBase {
+class CcuTempAlltoAllVMesh1D2Die : public CcuAlgTemplateBase {
 public:
-    CcuTempAllToAllVMesh1D2Die() = default;
-    explicit CcuTempAllToAllVMesh1D2Die(const OpParam &param, RankId rankId,
+    CcuTempAlltoAllVMesh1D2Die() = default;
+    explicit CcuTempAlltoAllVMesh1D2Die(const OpParam &param, RankId rankId,
         const std::vector<std::vector<u32>> &subCommRanks);
-    ~CcuTempAllToAllVMesh1D2Die() override;
+    ~CcuTempAlltoAllVMesh1D2Die() override;
 
     std::string Describe() const override
     {
@@ -121,21 +126,22 @@ public:
 private:
     HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
-    void FillRankGroupTaskArgs(uint32_t dieId, const Mesh2DieCacheCtx &cacheCtx,
+    void FillRankGroupTaskArgs(uint32_t kernelIdx, const Mesh2DieCacheCtx &cacheCtx,
         const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs);
     HcclResult SaveCacheCtx(HcclComm comm, const OpParam &param);
     HcclResult LoadCacheCtx(const OpParam &param, Mesh2DieCacheCtx &cacheCtx);
 
     const uint32_t DIE_NUM = 2;
 
-    std::map<uint32_t, std::vector<HcclChannelDesc>> channels_;
-    std::map<uint32_t, RankGroup> rankGroup_;
+    bool is2Plus6_ = false;
+    uint32_t kernelCount_ = 2;
+    uint32_t fullmeshDieId_ = 0;
+
+    std::vector<std::vector<HcclChannelDesc>> kernelChannels_{MAX_KERNEL_NUM_2DIE};
+    std::array<RankGroup, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;
+    std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
     std::map<uint32_t, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     std::set<RankId> closPeers_;
-    uint32_t closMinorDieId_ = 0;
-    uint32_t closMajorDieId_ = 1;
-    uint32_t closBwCoeff_[2] = {0, 0};
-    uint32_t totalBwCoeff_ = 0;
 
     A2ASendRecvInfo localSendRecvInfo_;
 };
