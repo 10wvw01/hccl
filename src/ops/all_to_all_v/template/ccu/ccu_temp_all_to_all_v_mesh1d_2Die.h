@@ -1,16 +1,17 @@
 /**
- * Copyright (c) 2026 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 
+#include <array>
 #include <set>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
@@ -98,12 +99,12 @@ struct Mesh2DieCacheCtx {
     }
 };
 
-class CcuTempAllToAllVMesh1D2Die : public CcuAlgTemplateBase {
+class CcuTempAlltoAllVMesh1D2Die : public CcuAlgTemplateBase {
 public:
-    CcuTempAllToAllVMesh1D2Die() = default;
-    explicit CcuTempAllToAllVMesh1D2Die(const OpParam &param, RankId rankId,
+    CcuTempAlltoAllVMesh1D2Die() = default;
+    explicit CcuTempAlltoAllVMesh1D2Die(const OpParam &param, RankId rankId,
         const std::vector<std::vector<u32>> &subCommRanks);
-    ~CcuTempAllToAllVMesh1D2Die() override;
+    ~CcuTempAlltoAllVMesh1D2Die() override;
 
     std::string Describe() const override
     {
@@ -128,8 +129,8 @@ private:
 
     const uint32_t DIE_NUM = 2;
 
-    std::map<uint32_t, std::vector<HcclChannelDesc>> channels_;
-    std::map<uint32_t, RankGroup> rankGroup_;
+    std::vector<std::vector<HcclChannelDesc>> channels_{2};
+    std::array<RankGroup, 2> rankGroup_;
     std::map<uint32_t, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     std::set<RankId> closPeers_;
     uint32_t closMinorDieId_ = 0;
