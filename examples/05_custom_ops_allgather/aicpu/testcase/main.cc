@@ -107,19 +107,6 @@ int Sample(void *arg)
     HCCLCHECK(HcclAllGatherCustom(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, hcclComm, stream));
     ACLCHECK(aclrtSynchronizeStream(stream));
 
-    // 打印第二次结果，验证复用路径正确性
-    std::this_thread::sleep_for(std::chrono::seconds(device));
-    void *resultHostBuf2;
-    ACLCHECK(aclrtMallocHost(&resultHostBuf2, outputSize));
-    ACLCHECK(aclrtMemcpy(resultHostBuf2, outputSize, recvBuf, outputSize, ACL_MEMCPY_DEVICE_TO_HOST));
-    float *tmpResultBuf2 = static_cast<float *>(resultHostBuf2);
-    std::cout << "rankId: " << device << ", output(2nd, reuse): [";
-    for (uint64_t i = 0; i < count * rankSize; ++i) {
-        std::cout << " " << tmpResultBuf2[i];
-    }
-    std::cout << " ]" << std::endl;
-    ACLCHECK(aclrtFreeHost(resultHostBuf2));
-
     // 释放资源
     HCCLCHECK(HcclCommDestroy(hcclComm));  // 销毁通信域
     if (sendBuf) {
