@@ -59,7 +59,7 @@ private:
                                        u64 &maxDataCountPerLoop) const;
     HcclResult GetMaxSendRecvDataCount(const TemplateDataParams &params, u64 &maxCount) const;
     uint64_t GetRankSize(const std::vector<std::vector<u32>> &vTopo) const;
-    double GetABRatio() const;
+    double GetABRatio(const OpParam &param) const;
 
     u32 myRank_{0};
     u64 rankSize_{0};
@@ -81,6 +81,7 @@ private:
     std::map<u32, std::vector<ChannelInfo>> fullLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> bRunLinkMap_;
     std::vector<u64> remoteTotalSendCountsWithoutSelf_;
+    std::vector<u64> remoteMaxSendCountsWithoutSelf_;
     std::vector<bool> remoteTotalSendCountsValid_;
 
     std::vector<ThreadHandle> threads_;

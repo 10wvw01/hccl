@@ -101,10 +101,18 @@ bool NeedAlltoAllVNoMemcpyExchange(const OpParam &param)
     return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV && IsAlltoAllNoMemcpyAlg(param);
 }
 
+bool IsAlltoAllVABNoMemcpyAlg(const OpParam &param)
+{
+    return std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
+}
+
 struct RemoteA2AVInfo {
     u64 rdisplForLocalRank = 0;
     u64 recvCountForLocalRank = 0;
     u64 totalSendCountWithoutSelf = 0;
+    u64 maxSendCountWithoutSelf = 0;
 };
 
 HcclResult FillA2AVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param, u32 localRank, u32 rankSize,
@@ -126,21 +134,26 @@ HcclResult FillA2AVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param, u32
     CHK_PTR_NULL(sdispls);
     CHK_PTR_NULL(rdispls);
     u64 totalSendCount = 0;
+    u64 maxSendCount = 0;
     for (u32 idx = 0; idx < exchangeInfo.rankSize; ++idx) {
+        maxSendCount = std::max(maxSendCount, sendCounts[idx]);
         if (idx != localRank) {
             totalSendCount += sendCounts[idx];
         }
     }
     exchangeInfo.totalSendCountWithoutSelf = totalSendCount;
+    exchangeInfo.maxSendCountWithoutSelf = maxSendCount;
     for (u32 idx = 0; idx < exchangeInfo.rankSize; ++idx) {
         exchangeInfo.sendCounts[idx] = sendCounts[idx];
         exchangeInfo.recvCounts[idx] = recvCounts[idx];
         exchangeInfo.sdispls[idx] = sdispls[idx];
         exchangeInfo.rdispls[idx] = rdispls[idx];
     }
-    HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] local rank=%u rankSize=%u totalSendWithoutSelf=%llu tag=%s",
+    HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] local rank=%u rankSize=%u "
+                 "totalSendWithoutSelf=%llu maxSendWithoutSelf=%llu tag=%s",
                  exchangeInfo.userRank, exchangeInfo.rankSize,
-                 exchangeInfo.totalSendCountWithoutSelf, exchangeInfo.base.tag);
+                 exchangeInfo.totalSendCountWithoutSelf, exchangeInfo.maxSendCountWithoutSelf,
+                 exchangeInfo.base.tag);
     return HCCL_SUCCESS;
 }
 
@@ -162,11 +175,12 @@ HcclResult AddAlltoAllVNoMemcpyExchangeInfo(HcclComm comm, const OpParam &param,
 
 HcclResult GetRemoteAlltoAllVInfo(HcclComm comm, const OpParam &param, u32 localRank, u32 remoteRank,
                                   u64 &remoteRdisplForLocalRank, u64 &remoteRecvCountForLocalRank,
-                                  u64 &remoteTotalSendCountWithoutSelf)
+                                  u64 &remoteTotalSendCountWithoutSelf, u64 &remoteMaxSendCountWithoutSelf)
 {
     remoteRdisplForLocalRank = 0;
     remoteRecvCountForLocalRank = 0;
     remoteTotalSendCountWithoutSelf = 0;
+    remoteMaxSendCountWithoutSelf = 0;
     if (!NeedAlltoAllVNoMemcpyExchange(param)) {
         return HCCL_SUCCESS;
     }
@@ -192,11 +206,13 @@ HcclResult GetRemoteAlltoAllVInfo(HcclComm comm, const OpParam &param, u32 local
     remoteRdisplForLocalRank = remoteInfo.rdispls[localRank];
     remoteRecvCountForLocalRank = remoteInfo.recvCounts[localRank];
     remoteTotalSendCountWithoutSelf = remoteInfo.totalSendCountWithoutSelf;
+    remoteMaxSendCountWithoutSelf = remoteInfo.maxSendCountWithoutSelf;
     HCCL_WARNING("[A2AV_NO_MEMCPY_EXCHANGE] get success. localRank=%u remoteRank=%u "
                  "remoteUserRank=%u remoteRdisplForLocal=%llu remoteRecvCountForLocal=%llu "
-                 "remoteTotalSendWithoutSelf=%llu",
+                 "remoteTotalSendWithoutSelf=%llu remoteMaxSendWithoutSelf=%llu",
                  localRank, remoteRank, remoteInfo.userRank,
-                 remoteRdisplForLocalRank, remoteRecvCountForLocalRank, remoteTotalSendCountWithoutSelf);
+                 remoteRdisplForLocalRank, remoteRecvCountForLocalRank, remoteTotalSendCountWithoutSelf,
+                 remoteMaxSendCountWithoutSelf);
     return HCCL_SUCCESS;
 }
 
@@ -1606,11 +1622,13 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
                 u64 remoteRdisplForLocalRank = 0;
                 u64 remoteRecvCountForLocalRank = 0;
                 u64 remoteTotalSendCountWithoutSelf = 0;
+                u64 remoteMaxSendCountWithoutSelf = 0;
                 CHK_RET(GetRemoteAlltoAllVInfo(comm, param, resCtxHost->topoInfo.userRank, channelDesc.remoteRank,
                                                remoteRdisplForLocalRank, remoteRecvCountForLocalRank,
-                                               remoteTotalSendCountWithoutSelf));
+                                               remoteTotalSendCountWithoutSelf, remoteMaxSendCountWithoutSelf));
                 remoteA2AVInfo[channelDesc.remoteRank] = {
-                    remoteRdisplForLocalRank, remoteRecvCountForLocalRank, remoteTotalSendCountWithoutSelf};
+                    remoteRdisplForLocalRank, remoteRecvCountForLocalRank, remoteTotalSendCountWithoutSelf,
+                    remoteMaxSendCountWithoutSelf};
             }
         }
     }
@@ -1655,6 +1673,7 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
                 channel.remoteAlltoAllVRdisplForLocalRank = remoteInfoIt->second.rdisplForLocalRank;
                 channel.remoteAlltoAllVRecvCountForLocalRank = remoteInfoIt->second.recvCountForLocalRank;
                 channel.remoteAlltoAllVTotalSendCountWithoutSelf = remoteInfoIt->second.totalSendCountWithoutSelf;
+                channel.remoteAlltoAllVMaxSendCountWithoutSelf = remoteInfoIt->second.maxSendCountWithoutSelf;
             }
             HCCL_WARNING("[HcclGetChannelImpl] remote graph buffers. algName[%s] remoteRank[%u] "
                          "remoteInput[0x%llx,%llu] remoteOutput[0x%llx,%llu]",
@@ -2513,6 +2532,27 @@ HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam)
 HcclResult SetMultipleDimensionSplitRatio(OpParam &param) {
     double ratioValue = 0;
     const double DEFAULT_MULT_RATIO = 0.5;
+    const double DEFAULT_A2AV_AB_RATIO = 0.8;
+    const char *a2avABRatioEnv = std::getenv("HCCL_A2AV_AB_RATIO");
+    if (IsAlltoAllVABNoMemcpyAlg(param)) {
+        if (a2avABRatioEnv == nullptr) {
+            param.opConfig.multipleDimensionSplitRatio = DEFAULT_A2AV_AB_RATIO;
+            HCCL_WARNING("[OpCommon] HCCL_A2AV_AB_RATIO is not set, use default value: %f",
+                         DEFAULT_A2AV_AB_RATIO);
+            return HCCL_SUCCESS;
+        }
+        char *end = nullptr;
+        double a2avABRatio = std::strtod(a2avABRatioEnv, &end);
+        if (end == a2avABRatioEnv || a2avABRatio < 0 || a2avABRatio > 1) {
+            HCCL_WARNING("[OpCommon] HCCL_A2AV_AB_RATIO[%s] invalid, use default value: %f",
+                         a2avABRatioEnv, DEFAULT_A2AV_AB_RATIO);
+            param.opConfig.multipleDimensionSplitRatio = DEFAULT_A2AV_AB_RATIO;
+        } else {
+            param.opConfig.multipleDimensionSplitRatio = a2avABRatio;
+            HCCL_WARNING("[OpCommon] Set A2AV AB ratio to: %f", param.opConfig.multipleDimensionSplitRatio);
+        }
+        return HCCL_SUCCESS;
+    }
     if (!GetExternalInputMultipleDimensionSplitRatio(ratioValue)) {
         param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
         HCCL_INFO("[OpCommon] Ratio is not set, use default value: %f", DEFAULT_MULT_RATIO);

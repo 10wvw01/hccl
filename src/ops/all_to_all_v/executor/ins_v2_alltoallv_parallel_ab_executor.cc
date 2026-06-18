@@ -91,19 +91,15 @@ uint64_t InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::GetRankSize(
 }
 
 template <typename AlgTopoMatch>
-double InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::GetABRatio() const
+double InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::GetABRatio(const OpParam &param) const
 {
-    const char *env = std::getenv("HCCL_A2AV_AB_RATIO");
-    if (env == nullptr) {
+    double ratio = param.opConfig.multipleDimensionSplitRatio;
+    if (ratio < MIN_AB_RATIO || ratio > MAX_AB_RATIO) {
+        HCCL_WARNING("[A2AV_AB][Ratio] invalid param ratio[%f], use default[%f].",
+                     ratio, DEFAULT_AB_RATIO);
         return DEFAULT_AB_RATIO;
     }
-    char *end = nullptr;
-    double ratio = std::strtod(env, &end);
-    if (end == env || ratio < MIN_AB_RATIO || ratio > MAX_AB_RATIO) {
-        HCCL_WARNING("[A2AV_AB][Ratio] invalid HCCL_A2AV_AB_RATIO[%s], use default[%f].",
-                     env, DEFAULT_AB_RATIO);
-        return DEFAULT_AB_RATIO;
-    }
+    HCCL_WARNING("[A2AV_AB][Ratio] use ratio[%f] from opConfig.", ratio);
     return ratio;
 }
 
@@ -277,6 +273,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     fullLinkMap_.clear();
     bRunLinkMap_.clear();
     remoteTotalSendCountsWithoutSelf_.assign(resCtx.topoInfo.userRankSize, 0);
+    remoteMaxSendCountsWithoutSelf_.assign(resCtx.topoInfo.userRankSize, 0);
     remoteTotalSendCountsValid_.assign(resCtx.topoInfo.userRankSize, false);
 
     HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] raw channelLevels=%zu hierarchyLevels=%zu.",
@@ -490,6 +487,8 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
                 if (remoteRank < remoteTotalSendCountsWithoutSelf_.size()) {
                     remoteTotalSendCountsWithoutSelf_[remoteRank] =
                         channel.remoteAlltoAllVTotalSendCountWithoutSelf;
+                    remoteMaxSendCountsWithoutSelf_[remoteRank] =
+                        channel.remoteAlltoAllVMaxSendCountWithoutSelf;
                     remoteTotalSendCountsValid_[remoteRank] = true;
                 }
             }
@@ -522,20 +521,26 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
     u64 aTotalCount = 0;
     u64 bTotalCount = 0;
     u64 localTotalSendWithoutSelf = 0;
+    u64 localMaxSend = 0;
     for (u64 i = 0; i < rankSize_; ++i) {
+        localMaxSend = std::max(localMaxSend, baseParams.sendCounts[i]);
         if (i != myRank_) {
             localTotalSendWithoutSelf += baseParams.sendCounts[i];
         }
     }
     u64 globalTotalSendWithoutSelf = localTotalSendWithoutSelf;
+    u64 globalMaxSend = localMaxSend;
     for (u64 i = 0; i < remoteTotalSendCountsWithoutSelf_.size(); ++i) {
         if (i != myRank_) {
             globalTotalSendWithoutSelf += remoteTotalSendCountsWithoutSelf_[i];
+            if (i < remoteMaxSendCountsWithoutSelf_.size()) {
+                globalMaxSend = std::max(globalMaxSend, remoteMaxSendCountsWithoutSelf_[i]);
+            }
         }
     }
     u64 globalPairNum = rankSize_ > 1 ? rankSize_ * (rankSize_ - 1) : 1;
     u64 globalAvgSendCount = globalTotalSendWithoutSelf / globalPairNum;
-    u64 aSendThreshold = static_cast<u64>(static_cast<double>(globalAvgSendCount) * ratio);
+    u64 aSendThreshold = static_cast<u64>(static_cast<double>(globalMaxSend) * ratio);
     for (u64 i = 0; i < rankSize_; ++i) {
         aParams.sendCounts[i] = std::min(aSendThreshold, baseParams.sendCounts[i]);
         aParams.recvCounts[i] = std::min(aSendThreshold, baseParams.recvCounts[i]);
@@ -565,9 +570,11 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::SplitABParams(
     bParams.count = bTotalCount;
     aParams.sliceSize = aTotalCount * dataTypeSize_;
     bParams.sliceSize = bTotalCount * dataTypeSize_;
-    HCCL_WARNING("[A2AV_AB][Split] rank=%u ratio=%f globalTotalSend=%llu globalAvgSend=%llu threshold=%llu "
+    HCCL_WARNING("[A2AV_AB][Split] rank=%u ratio=%f globalTotalSend=%llu globalAvgSend=%llu "
+                 "globalMaxSend=%llu threshold=%llu "
                  "aCount=%llu bCount=%llu selfA=%llu selfB=%llu",
-                 myRank_, ratio, globalTotalSendWithoutSelf, globalAvgSendCount, aSendThreshold,
+                 myRank_, ratio, globalTotalSendWithoutSelf, globalAvgSendCount,
+                 globalMaxSend, aSendThreshold,
                  aTotalCount, bTotalCount, aParams.sendCounts[myRank_], bParams.sendCounts[myRank_]);
     return HCCL_SUCCESS;
 }
@@ -754,7 +761,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::Orchestrate(
     CHK_RET(BuildBaseParams(param, resCtx, baseParams));
     TemplateDataParams aParams;
     TemplateDataParams bParams;
-    CHK_RET(SplitABParams(baseParams, GetABRatio(), aParams, bParams));
+    CHK_RET(SplitABParams(baseParams, GetABRatio(param), aParams, bParams));
     CHK_RET(RunATemplates(param, resCtx, aParams));
     CHK_RET(RunBTemplate(param, resCtx, bParams));
     HCCL_WARNING("[A2AV_AB][Orchestrate] end.");
