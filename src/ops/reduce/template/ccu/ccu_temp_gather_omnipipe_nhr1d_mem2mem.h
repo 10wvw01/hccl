@@ -13,7 +13,7 @@
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem_new.h"
+#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem.h"
 
 namespace ops_hccl {
 
