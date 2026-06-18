@@ -65,7 +65,10 @@ struct ReduceScatterOmniPipeNHR1DMem2MemContext : public CcuKernelCtxBase {
     ccu::Variable sliceSize;
     ccu::Variable inputOmniPipeSliceStride;
     std::vector<ccu::Variable> inputOmniSliceStrideVec;
+<<<<<<< HEAD
     std::vector<ccu::Variable> inputOmniSliceSizeVec;
+=======
+>>>>>>> 58f399c7 (reduce)
     ccu::Variable inputSliceStride;
     ccu::Event event;
 };

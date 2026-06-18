@@ -19,7 +19,10 @@ namespace ops_hccl {
 
 class CcuTempReduceScatterOmniPipeMesh1DMem2Mem : public CcuAlgTemplateBase {
 public:
+<<<<<<< HEAD
     CcuTempReduceScatterOmniPipeMesh1DMem2Mem() = default;
+=======
+>>>>>>> 58f399c7 (reduce)
     explicit CcuTempReduceScatterOmniPipeMesh1DMem2Mem(const OpParam& param,
                                         const u32 rankId, // 传通信域的rankId，userRank
                                         const std::vector<std::vector<u32>> &subCommRanks);
@@ -31,10 +34,17 @@ public:
     }
 
     u64 GetThreadNum() const override;
+<<<<<<< HEAD
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
     HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;
+=======
+    HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;
+
+    HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+                       AlgResourceRequest& resourceRequest) override;
+>>>>>>> 58f399c7 (reduce)
 
     HcclResult KernelRun(const OpParam& param,
                          const TemplateDataParams& templateDataParams,
