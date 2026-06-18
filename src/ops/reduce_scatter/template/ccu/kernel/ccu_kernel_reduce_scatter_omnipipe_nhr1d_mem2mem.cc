@@ -62,8 +62,16 @@ static CcuResult InitResource(ReduceScatterOmniPipeNHR1DMem2MemContext &ctx)
     }
 
     ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
+<<<<<<< HEAD
     ctx.inputOmniSliceSizeVec.resize(ctx.rankSize);
+<<<<<<< HEAD
 
+=======
+    
+=======
+>>>>>>> 58f399c7 (reduce)
+    
+>>>>>>> 6c746244 (reduce)
     HCCL_INFO("[CcuKernelReduceScatterOmniPipeNHR1DMem2Mem] InitResource success!");
     return CCU_SUCCESS;
 }
@@ -82,9 +90,12 @@ static CcuResult LoadArgs(ReduceScatterOmniPipeNHR1DMem2MemContext &ctx)
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
     }
     CCU_CHK_RET(ccu::LoadArg(ctx.inputSliceStride, argId++));
+<<<<<<< HEAD
     for (uint32_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceSizeVec[i], argId++));
     }
+=======
+>>>>>>> 58f399c7 (reduce)
 
     HCCL_INFO("[CcuKernelReduceScatterOmniPipeNHR1DMem2Mem] LoadArgs success!");
     return CCU_SUCCESS;
@@ -112,17 +123,26 @@ static CcuResult PreSync(ReduceScatterOmniPipeNHR1DMem2MemContext &ctx)
     const uint32_t signalIndexToken = GetSignalIndex(CKE_IDX_TOKEN);
     
     for (uint32_t i = 0; i < arg->channelCount; i++) {
+<<<<<<< HEAD
         CCU_CHK_RET(ccu::WriteVariableWithNotify(arg->channels[i], ctx.input[ctx.myRankIdx],
                         CKE_IDX_INPUT, signalIndexInput, signalBitInput));
         CCU_CHK_RET(ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[ctx.myRankIdx],
                         CKE_IDX_TOKEN, signalIndexToken, signalBitToken));
+=======
+        ccu::WriteVariableWithNotify(arg->channels[i], ctx.input[ctx.myRankIdx], CKE_IDX_INPUT, signalIndexInput, signalBitInput);
+        ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[ctx.myRankIdx], CKE_IDX_TOKEN, signalIndexToken, signalBitToken);
+>>>>>>> 58f399c7 (reduce)
     }
     
     const uint16_t waitMask = signalBitInput | signalBitToken; // 组合一下mask
     std::set<uint32_t> signalIdxes{signalIndexInput, signalIndexToken};
     for (uint32_t i = 0; i < arg->channelCount; i++) {
         for (uint32_t signalIdx : signalIdxes) {
+<<<<<<< HEAD
             CCU_CHK_RET(ccu::NotifyWait(arg->channels[i], signalIdx, waitMask));
+=======
+            ccu::NotifyWait(arg->channels[i], signalIdx, waitMask);
+>>>>>>> 58f399c7 (reduce)
         }
     }
     HCCL_INFO("[CcuKernelReduceScatterNhrMutilJettyMem2Mem1D] PreSync end");
@@ -138,12 +158,20 @@ static CcuResult PostSync(ReduceScatterOmniPipeNHR1DMem2MemContext &ctx)
 
     // 通知所有对端
     for (uint32_t i = 0; i < arg->channelCount; i++) {
+<<<<<<< HEAD
         CCU_CHK_RET(ccu::NotifyRecord(arg->channels[i], signalIndexInput, selfBitInput));
+=======
+        ccu::NotifyRecord(arg->channels[i], signalIndexInput, selfBitInput);
+>>>>>>> 58f399c7 (reduce)
     }
 
     // 等待所有需要的对端
     for (uint32_t i = 0; i < arg->channelCount; i++) {
+<<<<<<< HEAD
         CCU_CHK_RET(ccu::NotifyWait(arg->channels[i], signalIndexInput, selfBitInput));
+=======
+        ccu::NotifyWait(arg->channels[i], signalIndexInput, selfBitInput);
+>>>>>>> 58f399c7 (reduce)
     }
     HCCL_INFO("[CcuKernelReduceScatterOmniPipeNHR1DMem2Mem] PostSync end");
     return CCU_SUCCESS;
@@ -173,6 +201,7 @@ static CcuResult DoRepeatReduceScatterNHRSingleStep(ReduceScatterOmniPipeNHR1DMe
     const uint16_t signalBitDone = GetSignalMask(CKE_IDX_DONE);    // 写完的信号
 
     // 通知对端rank自己准备好了-前同步
+<<<<<<< HEAD
     if (nhrStepInfo.step != 0) {
         CCU_CHK_RET(ccu::NotifyRecord(recvChannel, signalIdxReady, signalBitReady)); // 通知fromrank可以写入
         CCU_CHK_RET(ccu::NotifyWait(sendChannel, signalIdxReady, signalBitReady)); // 等待torank准备好
@@ -180,6 +209,17 @@ static CcuResult DoRepeatReduceScatterNHRSingleStep(ReduceScatterOmniPipeNHR1DMe
 
     for (const uint32_t &recvSliceIdx : recvSliceIdxList) {
         HCCL_DEBUG("[DoRepeatReduceScatterNHRSingleStep] sliceIdx[%u]", recvSliceIdx);
+=======
+    // 第一步时可跳过
+    if (nhrStepInfo.step != 0) {
+        ccu::NotifyRecord(recvChannel, signalIdxReady, signalBitReady); // 通知fromrank可以写入
+        ccu::NotifyWait(sendChannel, signalIdxReady, signalBitReady); // 等待torank准备好
+    }
+
+    for (const uint32_t &recvSliceIdx : recvSliceIdxList) {
+        HCCL_DEBUG("[DoRepeatReduceScatterNHRSingleStep] sliceIdx[%u]", __func__, recvSliceIdx);
+        // 基址都一样
+>>>>>>> 58f399c7 (reduce)
         src.addr = ctx.input[fromRankIdx];
         dst.addr = ctx.input[ctx.myRankIdx];
         if (recvSliceIdx == ctx.rankId) {
@@ -188,6 +228,7 @@ static CcuResult DoRepeatReduceScatterNHRSingleStep(ReduceScatterOmniPipeNHR1DMe
 
             dst.addr += ctx.sliceStride;
             dst.addr += ctx.inputOmniPipeSliceStride;
+<<<<<<< HEAD
             ctx.sliceSize = ctx.inputOmniSliceSizeVec[recvSliceIdx];
         } else {
             src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
@@ -202,13 +243,34 @@ static CcuResult DoRepeatReduceScatterNHRSingleStep(ReduceScatterOmniPipeNHR1DMe
             CCU_CHK_RET(ccu::EventRecord(ctx.event, 1));
         }
         CCU_CHK_RET(ccu::EventWait(ctx.event, 1));
+=======
+        } else {
+            src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+            dst.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+        }
+
+        CCU_IF(ctx.sliceSize != 0) {
+            ccu::ReadReduce(recvChannel, dst, src, ctx.sliceSize, ctx.dataType, ctx.reduceOp, ctx.event, 1);
+        }
+        CCU_IF(ctx.sliceSize == 0) {
+            ccu::EventRecord(ctx.event, 1);
+        }
+        ccu::EventWait(ctx.event, 1);
+>>>>>>> 58f399c7 (reduce)
     }
     
     // 写之后告诉对端写完了-后同步
     // 告诉toRank数据写完了
+<<<<<<< HEAD
     CCU_CHK_RET(ccu::NotifyRecord(sendChannel, signalIdxDone, signalBitDone));
     // 等待fromRank写完数据
     CCU_CHK_RET(ccu::NotifyWait(recvChannel, signalIdxDone, signalBitDone));
+=======
+    ccu::NotifyRecord(sendChannel, signalIdxDone, signalBitDone);
+    // 等待fromRank写完数据
+    ccu::NotifyWait(recvChannel, signalIdxDone, signalBitDone);
+    HCCL_INFO("[DoRepeatReduceScatterNHRSingleStep] DoRepeatReduceScatterNHRSingleStep success");
+>>>>>>> 58f399c7 (reduce)
     return CCU_SUCCESS;
 }
 
@@ -228,12 +290,15 @@ CcuResult CcuReduceScatterOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
 {
     auto *kernelArg = static_cast<CcuKernelArgReduceScatterOmniPipeNHR1DMem2Mem *>(arg);
     ReduceScatterOmniPipeNHR1DMem2MemContext ctx;
+<<<<<<< HEAD
     ctx.resourceAllocated = false;
     ctx.moConfig.msInterleave = 0;
     ctx.moConfig.loopCount = 0;
     ctx.moConfig.memSlice = 0;
     ctx.moRes.eventCount = 0;
     ctx.moRes.bufCount = 0;
+=======
+>>>>>>> 58f399c7 (reduce)
     HCCL_INFO("[CcuKernelReduceScatterOmniPipeNHR1DMem2Mem] ReduceScatterOmniPipeNHR1DMem2Mem run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));

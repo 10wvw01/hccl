@@ -19,7 +19,10 @@ namespace ops_hccl {
 
 class CcuTempReduceScatterOmniPipeMesh1D : public CcuAlgTemplateBase {
 public:
+<<<<<<< HEAD
     CcuTempReduceScatterOmniPipeMesh1D() = default;
+=======
+>>>>>>> 58f399c7 (reduce)
     explicit CcuTempReduceScatterOmniPipeMesh1D(const OpParam& param,
                                         const u32 rankId, // 传通信域的rankId，userRank
                                         const std::vector<std::vector<u32>> &subCommRanks);

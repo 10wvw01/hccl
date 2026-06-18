@@ -9,11 +9,10 @@
  */
 
 #include "channel.h"
-#include "hccl_ccu_res.h"
-#include "ccu_assist_pub.h"
 #include "ccu_kernel_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "alg_data_trans_wrapper.h" 
+#include "ccu_launch_dl.h"
 
 namespace ops_hccl {
 
@@ -54,7 +53,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::GetRes(AlgResourceRequest &resour
 {
     resourceRequest.notifyNumOnMainThread = 0;
     resourceRequest.slaveThreadNum = 0;
-    // resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); //TODO:啥意思
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); 
 
     return HCCL_SUCCESS;
 }
@@ -81,9 +80,8 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
         resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
 
     CcuKernelInfo kernelInfo;
-    kernelInfo.creator = [](const hcomm::CcuKernelArg &arg) {
-        return std::make_unique<CcuKernelGatherOmniPipeMesh1DMem2Mem>(arg);
-    };
+    CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuGatherOmniPipeMesh1DMem2MemKernel"));
+    kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuGatherOmniPipeMesh1DMem2MemKernel);
 
     std::vector<HcclChannelDesc> channelDescs;
     if (topoInfo->level0Topo != Level0Shape::MESH_1D_CLOS) {
@@ -101,14 +99,26 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem][%s] Get Mesh channels Success.", __func__);
     std::map<u32, u32> subRankIdx2RankIdx;
     for (u32 i=0; i< channelDescs.size(); i++) {
-        u32 remoteRank = channelDescs[i].remoteRank;
-        u32 subRankIdx = RemoteRankId2RankId(remoteRank);
+        remoteRank = channelDescs[i].remoteRank;
+        subRankIdx = RemoteRankId2RankId(remoteRank);
         subRankIdx2RankIdx[subRankIdx] = remoteRank;
+
+        HCCL_DEBUG("[%s] myRank_[%u]  remoteRank[%u] ", __func__, myRank_, remoteRank);
     }
     subRankIdx2RankIdx[mySubCommRank_] = myRank_;
 
-    kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2Mem>(subCommRanks_[0].size(),
-        mySubCommRank_, subCommRootId_, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
+    auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2Mem>();
+    kernelArg->rankSize = subCommRanks_[0].size();
+    kernelArg->rankId = mySubCommRank_;
+    kernelArg->rootId = subCommRootId_;
+    kernelArg->opParam = param;
+    kernelArg->subCommRanks = subCommRanks_;
+    kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
+    kernelArg->ifRealRoot = ifRealRoot_;
+    kernelArg->myrealrank = myRank_;
+
+    kernelInfo.setKernelArg(kernelArg);
+    
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
@@ -141,23 +151,15 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
     
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
-    // uint64_t token = CcuRep::GetTokenInfo(
-    //     reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
-    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start2");
+
 
     if (localCopyFlag == 0) {
-        HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start3");
         // 当前卡就是root卡，receive其他所有卡
         // 当前卡不是root卡，直接结束
-        // uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
-        uint64_t inputSliceStride = 0;
-        uint64_t outputSliceStride = 0;
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start5:%d",stepSliceInfo.inputOmniPipeSliceStride.size());
-        uint32_t repeatNum = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_].size();
         uint64_t sliceSize;
         uint64_t inputOmniPipeSliceStride;
         uint64_t outputOmniPipeSliceStride;
-        HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum=%u", repeatNum);
         // 遍历peer对端的卡
         auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerIdSize=%u", inputOmniPipeSliceStrides.size()); // 这里子通信域里的第几个卡
@@ -167,71 +169,41 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
             for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
                 sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
+
                 inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt]; // 远端的输入offset
                 outputOmniPipeSliceStride = stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt]; // 远端的输出offset
-                // if (templateDataParams.isloopOne_ == false) {
-                //     inputOmniPipeSliceStride += 256;
-                //     outputOmniPipeSliceStride += 256;
-                // }
+
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] sliceSize=%u", sliceSize);
                 // 自己是逻辑root卡 && 自己不和自己通信
                 bool ifNewRoot = (subRoot == mySubCommRank_ && peerId != subRoot); // 判断是不是root，需不需要做搬运  
-                std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgGatherOmniPipeMesh1DMem2Mem>(
+                std::vector<uint64_t> taskArgs = {
                     inputAddr, 
                     outputAddr,
                     token, 
                     localCopyFlag, 
                     sliceSize, 
-                    inputSliceStride, 
-                    outputSliceStride, 
                     inputOmniPipeSliceStride, 
                     outputOmniPipeSliceStride, 
                     isStepOne_, 
                     isLastStep_, 
-                    ifNewRoot);
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
-               mySubCommRank_, subCommRootId_, rankId_);
-                void* taskArgPtr = static_cast<void*>(taskArg.get());
-                // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] 209");
-                // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum[%d] [%d] [%d]",repeatNum, templateResource.threads.size(),templateResource.ccuKernels.size());
-                CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[0],
-                    templateResource.ccuKernels[0], taskArgPtr));
-                if (ifNewRoot && sliceSize!=0) {
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] myRank[%u]  mySubCommRank_[%d]", myRank_, mySubCommRank_);
+                    ifNewRoot,
+                    peerId
+                };
+                // if (ifNewRoot && sliceSize!=0) {
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-                            " sliceSize=%llu inputSliceStride=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu",
-                            rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, inputSliceStride, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_);
-                
-                }// HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu "
-                //             "sliceSize=%llu inputSliceStride=%llu localCopyFlag=%llu",
-                //             rpt, inputAddr, outputAddr, sliceSize, inputSliceStride, localCopyFlag);
+                            " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d] peerId[%d]",
+                            rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, peerId);
+            
+                // }
+                uint64_t argSize = taskArgs.size();
+                CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
+                if (launchRet != CCU_SUCCESS) {
+                    HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
+                    return ConvertCcuToHccl(launchRet);
+                }
             }
         }
     } 
-    // if (localCopyFlag == 0) {
-    //     uint64_t sliceSize;
-    //     uint64_t inputOmniPipeSliceStride;
-    //     uint64_t outputOmniPipeSliceStride;
-    //     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] subRoot=%u mySubCommRank_=%u", subRoot,  mySubCommRank_);
-    //     bool ifNewRoot = (subRoot == mySubCommRank_ && isStepOne_);
-    //     auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
-    //      std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgGatherOmniPipeMesh1DMem2Mem>(
-    //                 inputAddr, 
-    //                 outputAddr,
-    //                 token, 
-    //                 localCopyFlag, 
-    //                 256, 
-    //                 0,
-    //                 0,
-    //                 512, 
-    //                 512, 
-    //                 1, 
-    //                 0, 
-    //                 ifNewRoot);
-    //     void* taskArgPtr = static_cast<void*>(taskArg.get());
-    //             CHK_RET(HcclCcuKernelLaunch(
-    //                 param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[0], taskArgPtr));
-    // } 
     else if (localCopyFlag == 1) {
         HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
         DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
@@ -259,7 +231,7 @@ u64 CcuTempGatherOmniPipeMesh1DMem2Mem::CalcScratchMultiple(BufferType inBuffTyp
 {
     (void)inBuffType;
     (void)outBuffType;
-    return 0;
+    return templateRankSize_;
 }
 
 } // namespace ops_hccl

@@ -22,6 +22,7 @@ CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CcuTempReduceScatterOmniPipeMesh1DMem
 {
     std::vector<u32> ranks = subCommRanks[0];
     templateRankSize_ = ranks.size();
+<<<<<<< HEAD
     auto it = std::find(ranks.begin(), ranks.end(), rankId);
     if (it != ranks.end()) {
         // 获取本卡在子通信域(如果有)中的rankid
@@ -29,6 +30,15 @@ CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CcuTempReduceScatterOmniPipeMesh1DMem
     }
     HCCL_DEBUG("[CcuTempReduceScatterOmniPipeMesh1DMem2Mem] myRank[%u] mySubCommRank[%u] "
                 "templateRankSize[%u]", rankId, mySubCommRank_, templateRankSize_);
+=======
+    // 获取本卡在子通信域(如果有)中的rankid
+    auto it = std::find(ranks.begin(), ranks.end(), rankId);
+    if (it != ranks.end()) {
+        mySubCommRank_ = std::distance(ranks.begin(), it);
+    }
+    HCCL_DEBUG(
+        "[%s] myRank[%u] mySubCommRank[%u] templateRankSize[%u]", __func__, rankId, mySubCommRank_, templateRankSize_);
+>>>>>>> 58f399c7 (reduce)
 }
 
 CcuTempReduceScatterOmniPipeMesh1DMem2Mem::~CcuTempReduceScatterOmniPipeMesh1DMem2Mem()
@@ -94,8 +104,13 @@ HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, con
     HCCL_DEBUG("[CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CalcRes] Get Mesh Channel Success!");
 
     auto kernelArg = std::make_shared<CcuKernelArgReduceScatterOmniPipeMesh1DMem2Mem>();
+<<<<<<< HEAD
     kernelArg->rankId = mySubCommRank_;
     kernelArg->rankSize = subCommRanks_[0].size();
+=======
+    kernelArg->rankSize = subCommRanks_[0].size();
+    kernelArg->rankId = mySubCommRank_;
+>>>>>>> 58f399c7 (reduce)
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
     kernelInfo.setKernelArg(kernelArg);
@@ -113,16 +128,28 @@ HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, con
 HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::KernelRun(
     const OpParam &param, const TemplateDataParams &templateDataParams, TemplateResource &templateResource)
 {
+<<<<<<< HEAD
     buffInfo_ = templateDataParams.buffInfo;
     auto stepSliceInfo = templateDataParams.stepSliceInfo;
 
     uint64_t inputAddrBase = PointerToAddr(buffInfo_.inputPtr);
     uint64_t outputAddrBase = PointerToAddr(buffInfo_.outputPtr);
     uint64_t scratchAddr = PointerToAddr(buffInfo_.hcclBuff.addr) + buffInfo_.hcclBuffBaseOff;
+=======
+    HCCL_DEBUG("[%s] start", __func__);
+    buffInfo_ = templateDataParams.buffInfo;
+    auto stepSliceInfo = templateDataParams.stepSliceInfo;
+
+    uint64_t scratchAddr = PointerToAddr(buffInfo_.hcclBuff.addr) + buffInfo_.hcclBuffBaseOff;
+
+    uint64_t inputAddrBase = PointerToAddr(buffInfo_.inputPtr);
+    uint64_t outputAddrBase = PointerToAddr(buffInfo_.outputPtr);
+>>>>>>> 58f399c7 (reduce)
 
     uint64_t inBuffBaseOff = templateDataParams.buffInfo.inBuffBaseOff;
     uint64_t outBuffBaseOff = templateDataParams.buffInfo.outBuffBaseOff;
 
+<<<<<<< HEAD
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
 
@@ -130,18 +157,38 @@ HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::KernelRun(
     uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
     
     uint64_t localCopyFlag = templateDataParams.localCopyFlag;
+=======
+    uint64_t inputAddr = inputAddrBase + inBuffBaseOff;
+    uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
+    uint64_t token;
+    CHK_RET(GetToken(buffInfo_, token));
+
+    HCCL_DEBUG("[%s] myRank[%u] templateResource.threads size[%u] templateResource.ccuKernels size[%u]", __func__,
+        myRank_, templateResource.threads.size(), templateResource.ccuKernels.size());
+    uint64_t localCopyFlag = templateDataParams.localCopyFlag;
+    uint64_t offset = 0;
+>>>>>>> 58f399c7 (reduce)
     if (localCopyFlag == 0) {
         uint64_t inputSliceStride = stepSliceInfo.stepInputSliceStride[mySubCommRank_];
         uint64_t outputSliceStride = stepSliceInfo.stepOutputSliceStride[mySubCommRank_];
         uint32_t repeatNum = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_].size();
+<<<<<<< HEAD
+=======
+        HCCL_DEBUG("[%s] myRank[%u] mySubCommRank[%u] repeatNum[%u]", __func__, myRank_, mySubCommRank_, repeatNum);
+>>>>>>> 58f399c7 (reduce)
 
         for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
             uint64_t sliceSize = stepSliceInfo.stepSliceSize[mySubCommRank_][rpt];
             uint64_t inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_][rpt];
 
             LoopGroupConfig  config{};
+<<<<<<< HEAD
             config.msInterleave = CCU_MS_INTERLEAVE;
             config.loopCount    = CCU_M2M_LOCAL_COPY_LOOP_COUNT;
+=======
+            config.msInterleave = 8;
+            config.loopCount    = 16;
+>>>>>>> 58f399c7 (reduce)
             config.memSlice     = CCU_MS_SIZE;
             auto goSize = CalGoSize(sliceSize, config);
             HCCL_INFO("[%s] myRank[%u] mySubCommRank[%u] rpt[%u] inputAddrBase[%llu] outputAddrBase[%llu] "
@@ -149,13 +196,20 @@ HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::KernelRun(
                        "sliceSize[%llu] inputSliceStride[%llu] localCopyFlag[%llu]",
                         __func__, myRank_, mySubCommRank_, rpt, inputAddrBase, outputAddrBase, inBuffBaseOff,
                         outBuffBaseOff, inputAddr, outputAddr, sliceSize, inputSliceStride, localCopyFlag);
+<<<<<<< HEAD
             std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, scratchAddr, sliceSize, token, localCopyFlag,
                     inputSliceStride, outputSliceStride, inputOmniPipeSliceStride, goSize[0], goSize[1], goSize[2], goSize[3]};
+=======
+            std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, scratchAddr, sliceSize, offset, token,
+                        localCopyFlag, inputSliceStride, outputSliceStride, inputOmniPipeSliceStride,
+                        goSize[0], goSize[1], goSize[2], goSize[3]};
+>>>>>>> 58f399c7 (reduce)
     
             CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], 
                                                     taskArgs.data(), taskArgs.size());
             CHK_PRT_RET(launchRet != CCU_SUCCESS, 
                 HCCL_ERROR("[CcuTempReduceScatterOmniPipeMesh1DMem2Mem::KernelRun] kernel launch failed, ccuRet -> %d", launchRet), ConvertCcuToHccl(launchRet));
+<<<<<<< HEAD
         }
     } else if (localCopyFlag == 1) {
         DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
@@ -164,16 +218,38 @@ HcclResult CcuTempReduceScatterOmniPipeMesh1DMem2Mem::KernelRun(
                    "outputAddrOffset[%llu] sliceSize[%llu]",__func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff,
                    outputAddrBase, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize);
         CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
+=======
+            
+        }
+    } else if (localCopyFlag == 1) {
+        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
+        DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+        DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inputAddrBase[%llu] inputAddrOffset[%llu] outputAddrBase[%llu]"
+                   "outputAddrOffset[%llu] sliceSize[%llu]",
+            __func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff, outputAddrBase, buffInfo_.outBuffBaseOff,
+            templateDataParams.sliceSize);
+        CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
+        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy end", __func__, myRank_);
+>>>>>>> 58f399c7 (reduce)
     }
 
     HCCL_DEBUG("[%s] run success", __func__);
     return HcclResult::HCCL_SUCCESS;
 }
 
+<<<<<<< HEAD
+=======
+// 语义改为返回当前template的类型，mesh返回1，nhr返回0
+>>>>>>> 58f399c7 (reduce)
 u64 CcuTempReduceScatterOmniPipeMesh1DMem2Mem::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void)inBuffType;
     (void)outBuffType;
+<<<<<<< HEAD
     return templateRankSize_;
+=======
+    return 1;
+>>>>>>> 58f399c7 (reduce)
 }
 } // namespace ops_hccl
