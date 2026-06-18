@@ -64,11 +64,21 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
-    (void)opParam;
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
+    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_DATA_SIZE = 64ULL * 1024 * 1024;
+    constexpr u32 CCU_SCHEDULE_2LEVEL_MAX_RANK_SIZE = 64;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
+
     if (topoInfo->topoLevelNums > 1) {
+        if (topoInfo->userRankSize >= CCU_SCHEDULE_2LEVEL_MAX_RANK_SIZE ||
+            dataSize > CCU_SCHEDULE_2LEVEL_MAX_DATA_SIZE) {
+            HCCL_INFO("[BroadcastAutoSelector] 2D topo rankSize[%u] or dataSize[%llu] exceeds limit, "
+                      "fallback to aicpu.", topoInfo->userRankSize, dataSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if(topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1){ // 每框出1卡
                 selectAlgName = "CcuBroadcastNHR1DMem2Mem";
