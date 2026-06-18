@@ -10,14 +10,12 @@
  
 #include "ccu_v2_reduce_omnipipe_executor.h"
 #include "alg_data_trans_wrapper.h"
-#ifndef AICPU_COMPILE
-#include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
-// #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
-// #include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
+// #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
+#include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
+#include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
-#endif
 #include "ccu_alg_template_base.h"
 namespace ops_hccl {
 
@@ -808,23 +806,23 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 }
 
 // #ifndef AICPU_COMPILE // [jjy][todo] 这里的TopoMatchUBX还是TopoMatchMultilevel？这里需要写ifndef吗？
-// REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
-//                                 CcuV2ReduceOmniPipe2D,
-//                                 CcuV2ReduceOmniPipeExecutor, 
-//                                 TopoMatchUBX, 
-//                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-//                                 // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-//                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
-//                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-//                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
-//                                 // CcuTempGatherOmniPipeNHR1DMem2Mem);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                CcuTempReduceScatterMesh1DMem2Mem, 
-                                CcuTempReduceScatterNHR1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+// REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
+//                                 CcuV2ReduceOmniPipe2D,
+//                                 CcuV2ReduceOmniPipeExecutor, 
+//                                 TopoMatchUBX, 
+//                                 CcuTempReduceScatterMesh1DMem2Mem, 
+//                                 CcuTempReduceScatterNHR1DMem2Mem, 
+//                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
+//                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
 // #endif
 }
