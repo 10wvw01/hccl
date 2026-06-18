@@ -1,0 +1,147 @@
+# HcclSend<a name="ZH-CN_TOPIC_0000002519073171"></a>
+
+## Supported Products<a name="zh-cn_topic_0000001265081266_section10594071513"></a>
+
+<a name="zh-cn_topic_0000001265081266_table38301303189"></a>
+<table><thead align="left"><tr id="zh-cn_topic_0000001265081266_row20831180131817"><th class="cellrowborder" valign="top" width="57.99999999999999%" id="mcps1.1.3.1.1"><p id="zh-cn_topic_0000001265081266_p1883113061818"><a name="zh-cn_topic_0000001265081266_p1883113061818"></a><a name="zh-cn_topic_0000001265081266_p1883113061818"></a><span id="zh-cn_topic_0000001265081266_ph20833205312295"><a name="zh-cn_topic_0000001265081266_ph20833205312295"></a><a name="zh-cn_topic_0000001265081266_ph20833205312295"></a> Product </span></p>
+</th>
+<th class="cellrowborder" align="center" valign="top" width="42%" id="mcps1.1.3.1.2"><p id="zh-cn_topic_0000001265081266_p783113012187"><a name="zh-cn_topic_0000001265081266_p783113012187"></a><a name="zh-cn_topic_0000001265081266_p783113012187"></a>Supported</p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="zh-cn_topic_0000001265081266_row220181016240"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="zh-cn_topic_0000001265081266_p48327011813"><a name="zh-cn_topic_0000001265081266_p48327011813"></a><a name="zh-cn_topic_0000001265081266_p48327011813"></a><span id="zh-cn_topic_0000001265081266_ph583230201815"><a name="zh-cn_topic_0000001265081266_ph583230201815"></a><a name="zh-cn_topic_0000001265081266_ph583230201815"></a><term id="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225"><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225"></a><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225"></a>Atlas A3 training/inference products</term></span></p>
+</td>
+<td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="zh-cn_topic_0000001265081266_p7948163910184"><a name="zh-cn_topic_0000001265081266_p7948163910184"></a><a name="zh-cn_topic_0000001265081266_p7948163910184"></a>√</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row173226882415"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="zh-cn_topic_0000001265081266_p14832120181815"><a name="zh-cn_topic_0000001265081266_p14832120181815"></a><a name="zh-cn_topic_0000001265081266_p14832120181815"></a><span id="zh-cn_topic_0000001265081266_ph1292674871116"><a name="zh-cn_topic_0000001265081266_ph1292674871116"></a><a name="zh-cn_topic_0000001265081266_ph1292674871116"></a><term id="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term11962195213215"><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term11962195213215"></a><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term11962195213215"></a>Atlas A2 training/inference products</term></span></p>
+</td>
+<td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="zh-cn_topic_0000001265081266_p19948143911820"><a name="zh-cn_topic_0000001265081266_p19948143911820"></a><a name="zh-cn_topic_0000001265081266_p19948143911820"></a>√</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+> [!NOTE]NOTE
+> For Atlas A2 training /inference products, support is limited to the Atlas 800T A2 training server, Atlas 900 A2 PoD cluster basic unit, and Atlas 200T A2 Box16 heterogeneous subrack.
+
+## Function Description<a name="zh-cn_topic_0000001265081266_section212645315215"></a>
+
+`Send` is a point-to-point communication API that sends data from a specified location on the current node to a specified location on the destination node.
+
+## Prototype<a name="zh-cn_topic_0000001265081266_section13125135314218"></a>
+
+```
+HcclResult HcclSend(void* sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,HcclComm comm, aclrtStream stream)
+```
+
+## Parameter Description<a name="zh-cn_topic_0000001265081266_section1812717539212"></a>
+
+<a name="zh-cn_topic_0000001265081266_table18137135310213"></a>
+<table><thead align="left"><tr id="zh-cn_topic_0000001265081266_row1417285311217"><th class="cellrowborder" valign="top" width="20.200000000000003%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001265081266_p131726530216"><a name="zh-cn_topic_0000001265081266_p131726530216"></a><a name="zh-cn_topic_0000001265081266_p131726530216"></a> Parameter</p>
+</th>
+<th class="cellrowborder" valign="top" width="17.169999999999998%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001265081266_p01721653524"><a name="zh-cn_topic_0000001265081266_p01721653524"></a><a name="zh-cn_topic_0000001265081266_p01721653524"></a> Input/Output </p>
+</th>
+<th class="cellrowborder" valign="top" width="62.629999999999995%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001265081266_p7172195319214"><a name="zh-cn_topic_0000001265081266_p7172195319214"></a><a name="zh-cn_topic_0000001265081266_p7172195319214"></a> Description </p>
+</th>
+</tr>
+</thead>
+<tbody><tr id="zh-cn_topic_0000001265081266_row1117295311215"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p14172185315214"><a name="zh-cn_topic_0000001265081266_p14172185315214"></a><a name="zh-cn_topic_0000001265081266_p14172185315214"></a>sendBuf</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p161721753129"><a name="zh-cn_topic_0000001265081266_p161721753129"></a><a name="zh-cn_topic_0000001265081266_p161721753129"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p5172353028"><a name="zh-cn_topic_0000001265081266_p5172353028"></a><a name="zh-cn_topic_0000001265081266_p5172353028"></a> Source data buffer address.</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row41722531724"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p11729539216"><a name="zh-cn_topic_0000001265081266_p11729539216"></a><a name="zh-cn_topic_0000001265081266_p11729539216"></a>count</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p617275320217"><a name="zh-cn_topic_0000001265081266_p617275320217"></a><a name="zh-cn_topic_0000001265081266_p617275320217"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p41729531229"><a name="zh-cn_topic_0000001265081266_p41729531229"></a><a name="zh-cn_topic_0000001265081266_p41729531229"></a>Number of sent data elements.</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row1117220531028"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p15172653628"><a name="zh-cn_topic_0000001265081266_p15172653628"></a><a name="zh-cn_topic_0000001265081266_p15172653628"></a>dataType</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p1517219536214"><a name="zh-cn_topic_0000001265081266_p1517219536214"></a><a name="zh-cn_topic_0000001265081266_p1517219536214"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p631813971515"><a name="zh-cn_topic_0000001265081266_p631813971515"></a><a name="zh-cn_topic_0000001265081266_p631813971515"></a>Sent data type, defined in<a href="https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclResult.md#ZH-CN_TOPIC_0000002486992310">HcclDataType</a>.</p>
+<p id="zh-cn_topic_0000001265081266_p1752124102514"><a name="zh-cn_topic_0000001265081266_p1752124102514"></a><a name="zh-cn_topic_0000001265081266_p1752124102514"></a><span id="zh-cn_topic_0000001265081266_ph13754548217"><a name="zh-cn_topic_0000001265081266_ph13754548217"></a><a name="zh-cn_topic_0000001265081266_ph13754548217"></a><term id="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225_1"><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225_1"></a><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term1253731311225_1"></a>Data types supported by Atlas A3 training/inference products</term></span>: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16</p>
+<p id="zh-cn_topic_0000001265081266_p852044961512"><a name="zh-cn_topic_0000001265081266_p852044961512"></a><a name="zh-cn_topic_0000001265081266_p852044961512"></a><span id="zh-cn_topic_0000001265081266_ph14880920154918"><a name="zh-cn_topic_0000001265081266_ph14880920154918"></a><a name="zh-cn_topic_0000001265081266_ph14880920154918"></a><term id="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term16184138172215"><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term16184138172215"></a><a name="zh-cn_topic_0000001265081266_zh-cn_topic_0000001312391781_term16184138172215"></a>Data types supported by Atlas A2 training/inference products</term></span>: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row18172165315213"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p101724536217"><a name="zh-cn_topic_0000001265081266_p101724536217"></a><a name="zh-cn_topic_0000001265081266_p101724536217"></a>destRank</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p917215320212"><a name="zh-cn_topic_0000001265081266_p917215320212"></a><a name="zh-cn_topic_0000001265081266_p917215320212"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p151721553528"><a name="zh-cn_topic_0000001265081266_p151721553528"></a><a name="zh-cn_topic_0000001265081266_p151721553528"></a> Rank ID of the data receiver in the communicator.</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row16172165312215"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p20172853822"><a name="zh-cn_topic_0000001265081266_p20172853822"></a><a name="zh-cn_topic_0000001265081266_p20172853822"></a>comm</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p17172853121"><a name="zh-cn_topic_0000001265081266_p17172853121"></a><a name="zh-cn_topic_0000001265081266_p17172853121"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p191724539212"><a name="zh-cn_topic_0000001265081266_p191724539212"></a><a name="zh-cn_topic_0000001265081266_p191724539212"></a>Communicator where collective communication is performed.</p>
+</td>
+</tr>
+<tr id="zh-cn_topic_0000001265081266_row6172135311215"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001265081266_p4172135314211"><a name="zh-cn_topic_0000001265081266_p4172135314211"></a><a name="zh-cn_topic_0000001265081266_p4172135314211"></a>stream</p>
+</td>
+<td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001265081266_p19172553129"><a name="zh-cn_topic_0000001265081266_p19172553129"></a><a name="zh-cn_topic_0000001265081266_p19172553129"></a> Input</p>
+</td>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001265081266_p017215310217"><a name="zh-cn_topic_0000001265081266_p017215310217"></a><a name="zh-cn_topic_0000001265081266_p017215310217"></a>Stream used by this rank.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## Return Value<a name="zh-cn_topic_0000001265081266_section1513715531221"></a>
+
+[HcclResult](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclResult.md#ZH-CN_TOPIC_0000002519072193): `HCCL_SUCCESS` on success, or others on failure.
+
+## Constraints<a name="zh-cn_topic_0000001265081266_section86843302218"></a>
+
+The `HcclSend` and `HcclRecv` APIs must be used in pairs. That is, after a process calls the `HcclSend` API, it can call the next API only after the corresponding `HcclRecv` API receives data, as shown in the following figure.
+
+![send_recv](figures/send_recv.png)
+
+## Call Example<a name="zh-cn_topic_0000001265081266_section204039211474"></a>
+
+```c
+void *sendBuf = nullptr;
+void *recvBuf = nullptr;
+uint64_t count = 8;
+size_t mallocSize = count * sizeof(float);
+
+// Initialize the communicator.
+uint32_t rankSize = 8;
+HcclComm hcclComm;
+HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
+
+// Create a task flow.
+aclrtStream stream;
+aclrtCreateStream(&stream);
+
+// Perform the Send/Recv operation. NPUs 0, 2, 4, and 6 send data, and NPUs 1, 3, 5, and 7 receive data.
+// The HcclSend and HcclRecv APIs must be used in pairs.
+if (deviceId % 2 == 0) {
+    // Allocate the device memory for storing the input data.
+    aclrtMalloc(&sendBuf, mallocSize, ACL_MEM_MALLOC_HUGE_ONLY);
+    // Initialize the input data.
+    aclrtMemcpy(sendBuf, mallocSize, hostBuf, mallocSize, ACL_MEMCPY_HOST_TO_DEVICE);
+    // Perform the Send operation.
+    HcclSend(sendBuf, count, HCCL_DATA_TYPE_FP32, deviceId + 1, hcclComm, stream);
+} else {
+    // Allocate the device memory for receiving data.
+    aclrtMalloc(&recvBuf, mallocSize, ACL_MEM_MALLOC_HUGE_ONLY);
+    // Perform the Recv operation.
+    HcclRecv(recvBuf, count, HCCL_DATA_TYPE_FP32, deviceId - 1, hcclComm, stream);
+}
+
+// Wait until the collective communication task in the task flow is complete.
+aclrtSynchronizeStream(stream);
+
+// Free resources.
+aclrtFree(sendBuf);          // Free the device memory.
+aclrtFree(recvBuf);          // Free the device memory.
+aclrtDestroyStream(stream);  // Destroy the task flow.
+HcclCommDestroy(hcclComm);   // Destroy the communicator.
+```
