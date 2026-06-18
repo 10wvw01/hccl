@@ -85,6 +85,10 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             selectAlgName = "CcuReduceScatterMesh1D";
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+        // ccu_ms 模式不支持 inplace 场景
+        CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+            HCCL_WARNING("[ReduceScatterAutoSelector] ccu_ms mode not support inplace."),
+            SelectorStatus::NOT_MATCH);
         if (topoInfo->level0PcieMix && !IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
             HCCL_WARNING("[ReduceScatterAutoSelector] pcie mixed topo is not supported yet for ccu ms mode.");
             return SelectorStatus::NOT_MATCH;
@@ -138,6 +142,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
         HCCL_WARNING("[ReduceScatterAutoSelector] ReduceOp[%d] is not supported yet for ccu schedule mode.",
             opParam.reduceType),
         SelectorStatus::NOT_MATCH);
+
+    // ccu 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[ReduceScatterAutoSelector] ccu schedule mode not support inplace."),
+        SelectorStatus::NOT_MATCH);
+
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (Is64BitDataType(opParam.DataDes.dataType)) {
@@ -223,6 +233,10 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuScheduleMesh1D(const 
 SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                                     std::string &selectAlgName) const
 {
+    // ccu 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[ReduceScatterAutoSelector] ccu schedule mode not support inplace."),
+        SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8, HCCL_WARNING("[ReduceScatterAutoSelector] dataType[%d] is "
