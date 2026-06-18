@@ -1218,7 +1218,7 @@ HcclResult HcclGetThread(
         auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
         if (hcommFunction.dlHcclThreadAcquireWithConfig) {
             std::vector<ThreadConfig> threadConfigs(threadNum);
-            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+            CHK_RET(static_cast<HcclResult>(hcommFunction.dlThreadConfigInit(threadConfigs.data(), threadNum)));
             threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
             HCCL_DEBUG("[HcclGetThread] AICPU thread[0] notify num[%u].", threadConfigs[0].notifyNumPerThread);
             for (u32 i = 1; i < threadNum; i++) {
@@ -1229,7 +1229,7 @@ HcclResult HcclGetThread(
                 threadConfigs.data(), threads.data()));
             // 申请展开流对应的Thread
             ThreadConfig unfoldThreadConfig;
-            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
+            CHK_RET(static_cast<HcclResult>(hcommFunction.dlThreadConfigInit(&unfoldThreadConfig, 1)));
             unfoldThreadConfig.notifyNumPerThread = 0;
             CHK_RET(hcommFunction.dlHcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
                 &unfoldThreadConfig, &resCtxHost->unfoldThread));
@@ -1286,7 +1286,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
             auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
             if (hcommFunction.dlHcclThreadAcquireWithConfig) {
                 std::vector<ThreadConfig> threadConfigs(threadNum);
-                CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+                CHK_RET(static_cast<HcclResult>(hcommFunction.dlThreadConfigInit(threadConfigs.data(), threadNum)));
                 for (u32 i = 0; i < threadNum; i++) {
                     threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
                 }

@@ -37,6 +37,19 @@ typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
 
 #endif /* CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1) */
 
+/* 待hcomm提供版本号 */
+#if CANN_VERSION_NUM < CANN_VERSION(9, 2, 0, 1)
+typedef enum {
+    THREAD_TYPE_INVALID = -1,
+    THREAD_TYPE_TS = 0
+} ThreadType;
+
+typedef struct {
+    uint32_t notifyNumPerThread;
+} ThreadConfig;
+
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,6 +64,8 @@ DECL_SUPPORT_FLAG(HcclConfigGetInfo);
 DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
     ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
 DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
+
+DECL_WEAK_FUNC(HcommResult, ThreadConfigInit, ThreadConfig *config, uint32_t threadNum);
 
 void HcclCommDlInit(void* libHcommHandle);
 
