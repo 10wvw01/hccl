@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
-#define HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
+#ifndef HCCL_CCU_KERNEL_GATHER_OMNIPIPE_NHR_1D_MEM2MEM_NEW_H
+#define HCCL_CCU_KERNEL_GATHER_OMNIPIPE_NHR_1D_MEM2MEM_NEW_H
 
 #include <vector>
 #include <ios>
@@ -17,48 +17,78 @@
 #include "utils.h"
 #include "ccu_kernel_utils.h"
 #include "ccu_kernel_alg_base.h"
+#include "template_utils.h"
 
 namespace ops_hccl {
 
-struct CcuKernelArgGatherOmniPipeMesh1DMem2MemY : CcuKernelArgBase {
+#ifndef NHR_STEP_INFO_DEFINED
+#define NHR_STEP_INFO_DEFINED
+using NHRStepInfo = struct NHRStepInfo {
+    u32 step = 0;
+    u32 myRank = 0;
+    u32 nSlices;
+    u32 toRank = 0;
+    u32 fromRank = 0;
+    std::vector<u32> txSliceIdxs;
+    std::vector<u32> rxSliceIdxs;
+
+    NHRStepInfo() : nSlices(0)
+    {
+    }
+};
+#endif
+
+struct CcuKernelArgGatherOmniPipeNHR1DMem2Mem : CcuKernelArgBase {
     uint64_t rankSize;
     uint32_t rankId;
     uint32_t rootId;
     OpParam opParam;
     std::vector<std::vector<uint32_t>> subCommRanks;
-    std::map<uint32_t, uint32_t> subRankIdx2RankIdx;
-    bool ifRealRoot; 
+    bool ifRealRoot;
     uint32_t myrealrank;
+    std::vector<NHRStepInfo> stepInfoVector;
+    std::map<u32, u32> rank2ChannelIdx;
 };
 
-struct GatherOmniPipeMesh1DMem2MemContextY {
-    CcuKernelArgGatherOmniPipeMesh1DMem2MemY* arg;
+struct GatherOmniPipeNHR1DMem2MemContext {
+    CcuKernelArgGatherOmniPipeNHR1DMem2Mem* arg;
+    
     uint64_t rankSize{0};
     uint32_t rankId{0};
     uint32_t rootId{0};
-    std::map<uint32_t, uint32_t> subRankIdx2RankIdx;
+    bool ifRealRoot{false};
+    uint32_t myrealrank{0};
+    uint32_t myRankIdx{0};
+    uint32_t localSize{0};
     HcclDataType dataType{HcclDataType::HCCL_DATA_TYPE_RESERVED};
+    std::vector<NHRStepInfo> stepInfoVector;
+    std::map<u32, u32> rank2ChannelIdx;
+    
+
 
     std::vector<ccu::Variable> input;
     ccu::Variable output;
+    std::vector<ccu::Variable> scratch;
     std::vector<ccu::Variable> token;
+    ccu::Variable localCopyFlag;
     ccu::Variable sliceSize;
-    ccu::Variable inputSliceStride;
-    ccu::Variable outputSliceStride;
     ccu::Variable inputOmniPipeSliceStride;
     ccu::Variable outputOmniPipeSliceStride;
-    ccu::Variable localCopyFlag;
+    
     ccu::Variable isStepOne;
     ccu::Variable isLastStep;
     ccu::Variable ifNewRoot;
+
+    std::vector<ccu::Variable> inputOmniSliceStrideVec;
     
     std::vector<ccu::RemoteAddr> inputMem;
     std::vector<ccu::LocalAddr> outputMem;
+    
     ccu::Event event;
 };
 
-CcuResult CcuGatherOmniPipeMesh1DMem2MemKernelY(CcuKernelArg arg);
+CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg);
 
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
+#endif // HCCL_CCU_KERNEL_GATHER_OMNIPIPE_NHR_1D_MEM2MEM_NEW_H

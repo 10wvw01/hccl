@@ -9,7 +9,7 @@
  */
 #include <iostream>
 #include "channel.h"
-#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem_new.h"
+#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
 #include "alg_data_trans_wrapper.h" 
 #include "ccu_launch_dl.h"
