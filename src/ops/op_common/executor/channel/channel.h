@@ -62,7 +62,12 @@ HcclResult ProcessMeshInfo(const HcclComm comm,const std::vector<std::vector<u32
                         std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
 HcclResult ProcessFlattenLink(HcclComm comm, u32 myRank, const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
 HcclResult GetRankFullMeshLayers(HcclComm comm, const std::vector<std::vector<u32>>& subcommInfo, std::vector<uint32_t> netLayersVector,u32 myRank,u32 &curNetLayer);
-
+HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param,
+    const TopoInfoWithNetLayerDetails* topoInfo, const std::vector<std::vector<u32>>& subcommInfo,
+    std::vector<HcclChannelDesc> &channels);
+HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& param,
+    const TopoInfoWithNetLayerDetails* topoInfo, const std::vector<std::vector<u32>>& subcommInfo,
+    std::vector<HcclChannelDesc> &channels);
 }
 
 #endif
