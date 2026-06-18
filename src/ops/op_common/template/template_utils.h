@@ -473,7 +473,7 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const u32 level1ChannelNumPerRank,
                                                 const float level0DataRatio = 0.5f);
 
-bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType) const;
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType);
 
 }
 #endif
