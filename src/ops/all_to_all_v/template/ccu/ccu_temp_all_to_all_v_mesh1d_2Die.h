@@ -98,12 +98,12 @@ struct Mesh2DieCacheCtx {
     }
 };
 
-class CcuTempAllToAllVMesh1D2Die : public CcuAlgTemplateBase {
+class CcuTempAlltoAllVMesh1D2Die : public CcuAlgTemplateBase {
 public:
-    CcuTempAllToAllVMesh1D2Die() = default;
-    explicit CcuTempAllToAllVMesh1D2Die(const OpParam &param, RankId rankId,
+    CcuTempAlltoAllVMesh1D2Die() = default;
+    explicit CcuTempAlltoAllVMesh1D2Die(const OpParam &param, RankId rankId,
         const std::vector<std::vector<u32>> &subCommRanks);
-    ~CcuTempAllToAllVMesh1D2Die() override;
+    ~CcuTempAlltoAllVMesh1D2Die() override;
 
     std::string Describe() const override
     {
