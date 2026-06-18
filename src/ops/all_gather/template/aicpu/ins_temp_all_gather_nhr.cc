@@ -120,11 +120,10 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
-    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
- 	    CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));  // input buffer拷贝到scratch buffer上
- 	}
+
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         bool postLocalCopyLaunched = false;
+ 	    CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));  // input buffer拷贝到scratch buffer上
         CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
             postLocalCopyLaunched));
         if (!postLocalCopyLaunched) {
