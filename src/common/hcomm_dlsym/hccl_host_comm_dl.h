@@ -48,6 +48,14 @@ typedef struct {
     uint32_t notifyNumPerThread;
 } ThreadConfig;
 
+static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
+{
+    for (uint32_t i = 0; i < num; i++) {
+        config[i].notifyNumPerThread = 0;
+    }
+    return HCCL_SUCCESS;
+}
+
 #endif
 
 #ifdef __cplusplus
@@ -64,8 +72,6 @@ DECL_SUPPORT_FLAG(HcclConfigGetInfo);
 DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
     ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
 DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
-
-DECL_WEAK_FUNC(HcommResult, ThreadConfigInit, ThreadConfig *config, uint32_t threadNum);
 
 void HcclCommDlInit(void* libHcommHandle);
 
