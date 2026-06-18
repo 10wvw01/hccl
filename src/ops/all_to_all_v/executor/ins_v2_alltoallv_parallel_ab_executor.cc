@@ -678,7 +678,17 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RunATemplates(
                  myRank_, aParams.count, aParams.sliceSize, intraLinkMap_.size(), interLinkMap_.size());
     CHK_RET(PreSyncInterThreads(mainThread_, {aIntraThreads_[0], aInterThreads_[0]},
                                 {aIntraMeta_.notifyNumOnMainThread, aInterMeta_.notifyNumOnMainThread}));
-    CHK_RET(aIntraTemp.KernelRun(param, aParams, aIntraRes));
+    TemplateDataParams aIntraParams = aParams;
+    if (myRank_ < aIntraParams.sendCounts.size() && myRank_ < aIntraParams.recvCounts.size()) {
+        u64 selfCount = aIntraParams.sendCounts[myRank_];
+        aIntraParams.count = aIntraParams.count >= selfCount ? aIntraParams.count - selfCount : 0;
+        aIntraParams.sliceSize = aIntraParams.count * dataTypeSize_;
+        aIntraParams.sendCounts[myRank_] = 0;
+        aIntraParams.recvCounts[myRank_] = 0;
+        HCCL_WARNING("[A2AV_AB][RunA] skip mesh self local copy. rank=%u selfCount=%llu",
+                     myRank_, selfCount);
+    }
+    CHK_RET(aIntraTemp.KernelRun(param, aIntraParams, aIntraRes));
     CHK_RET(aInterTemp.KernelRun(param, aParams, aInterRes));
     CHK_RET(PostSyncInterThreads(mainThread_, {aIntraThreads_[0], aInterThreads_[0]}, {0, 1}));
     HCCL_WARNING("[A2AV_AB][RunA][POST] rank=%u", myRank_);

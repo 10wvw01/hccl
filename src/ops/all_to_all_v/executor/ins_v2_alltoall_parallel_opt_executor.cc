@@ -665,8 +665,21 @@ HcclResult InsV2AlltoAllParallelOptExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     // 开始 Stage 0，Presync，确保所有线程和模板同步准备好进行第一阶段的计算。
     CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
-    
-    CHK_RET(tempAlgIntra.KernelRun(param, tempAlgParams, intraTempAlgRes));
+
+    TemplateDataParams intraTempAlgParams = tempAlgParams;
+    if (IsAlltoAllNoMemcpyAlg(param) && param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV &&
+        myRank_ < intraTempAlgParams.sendCounts.size() && myRank_ < intraTempAlgParams.recvCounts.size()) {
+        u64 selfCount = intraTempAlgParams.sendCounts[myRank_];
+        intraTempAlgParams.count = intraTempAlgParams.count >= selfCount ? intraTempAlgParams.count - selfCount : 0;
+        intraTempAlgParams.sliceSize = intraTempAlgParams.count * dataTypeSize_;
+        intraTempAlgParams.sendCounts[myRank_] = 0;
+        intraTempAlgParams.recvCounts[myRank_] = 0;
+        HCCL_WARNING("[ALLTOALL_NO_MEMCPY][OrchestrateLoop] skip mesh self local copy. "
+                     "rank=%u selfCount=%llu",
+                     myRank_, selfCount);
+    }
+
+    CHK_RET(tempAlgIntra.KernelRun(param, intraTempAlgParams, intraTempAlgRes));
     CHK_RET(tempAlgInter.KernelRun(param, tempAlgParams, interTempAlgRes));
 
     // 结束 Stage 0，Postync，确保所有线程和模板同步结束第一阶段的计算。

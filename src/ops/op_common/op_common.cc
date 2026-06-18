@@ -101,13 +101,6 @@ bool NeedAlltoAllVNoMemcpyExchange(const OpParam &param)
     return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV && IsAlltoAllNoMemcpyAlg(param);
 }
 
-bool IsAlltoAllVABNoMemcpyAlg(const OpParam &param)
-{
-    return std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpy") == 0 ||
-           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2") == 0 ||
-           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
-}
-
 struct RemoteA2AVInfo {
     u64 rdisplForLocalRank = 0;
     u64 recvCountForLocalRank = 0;
@@ -2532,27 +2525,6 @@ HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam)
 HcclResult SetMultipleDimensionSplitRatio(OpParam &param) {
     double ratioValue = 0;
     const double DEFAULT_MULT_RATIO = 0.5;
-    const double DEFAULT_A2AV_AB_RATIO = 0.8;
-    const char *a2avABRatioEnv = std::getenv("HCCL_A2AV_AB_RATIO");
-    if (IsAlltoAllVABNoMemcpyAlg(param)) {
-        if (a2avABRatioEnv == nullptr) {
-            param.opConfig.multipleDimensionSplitRatio = DEFAULT_A2AV_AB_RATIO;
-            HCCL_WARNING("[OpCommon] HCCL_A2AV_AB_RATIO is not set, use default value: %f",
-                         DEFAULT_A2AV_AB_RATIO);
-            return HCCL_SUCCESS;
-        }
-        char *end = nullptr;
-        double a2avABRatio = std::strtod(a2avABRatioEnv, &end);
-        if (end == a2avABRatioEnv || a2avABRatio < 0 || a2avABRatio > 1) {
-            HCCL_WARNING("[OpCommon] HCCL_A2AV_AB_RATIO[%s] invalid, use default value: %f",
-                         a2avABRatioEnv, DEFAULT_A2AV_AB_RATIO);
-            param.opConfig.multipleDimensionSplitRatio = DEFAULT_A2AV_AB_RATIO;
-        } else {
-            param.opConfig.multipleDimensionSplitRatio = a2avABRatio;
-            HCCL_WARNING("[OpCommon] Set A2AV AB ratio to: %f", param.opConfig.multipleDimensionSplitRatio);
-        }
-        return HCCL_SUCCESS;
-    }
     if (!GetExternalInputMultipleDimensionSplitRatio(ratioValue)) {
         param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
         HCCL_INFO("[OpCommon] Ratio is not set, use default value: %f", DEFAULT_MULT_RATIO);

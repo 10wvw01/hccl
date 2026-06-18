@@ -157,7 +157,7 @@ SelectorStatus AlltoAllAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerD
         }
     }
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS) {
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         uint32_t dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllVDataDes.sendType];
         u64* sendCounts = reinterpret_cast<u64*>(opParam.all2AllVDataDes.sendCounts);
         uint64_t dataSize = sendCounts[0] * static_cast<u64>(dataTypeSize);
@@ -166,6 +166,8 @@ SelectorStatus AlltoAllAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerD
         } else {
             selectAlgName = "InsAlltoAllMesh1DSingleChannel";
         }
+    } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+        selectAlgName = "InsAlltoAllMesh1D";
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // PCIE-SW定制机型，使用mesh1d算法
         if (topoInfo->level0PcieMix) {
