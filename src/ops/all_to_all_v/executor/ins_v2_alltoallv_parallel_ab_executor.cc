@@ -68,6 +68,28 @@ void BuildSingleLayerUbx4x2Hierarchy(u32 userRank, std::vector<std::vector<u32>>
     }
     interHierarchyInfo = {closRanks};
 }
+
+std::vector<ChannelInfo> SelectChannelsByPortGroupSize(const std::vector<ChannelInfo> &channels,
+                                                       bool preferAggregate)
+{
+    std::vector<ChannelInfo> selected;
+    for (const auto &channel : channels) {
+        bool isAggregate = channel.portGroupSize > 1;
+        if (isAggregate == preferAggregate) {
+            selected.push_back(channel);
+        }
+    }
+    return selected.empty() ? channels : selected;
+}
+
+void DumpChannelPortGroups(const char *tag, u32 rank, u32 peer, const std::vector<ChannelInfo> &channels)
+{
+    for (u32 idx = 0; idx < channels.size(); ++idx) {
+        HCCL_WARNING("[A2AV_AB][%s] rank=%u peer=%u linkIdx=%u portGroupSize=%u remoteRank=%u notify=%u",
+                     tag, rank, peer, idx, channels[idx].portGroupSize, channels[idx].remoteRank,
+                     channels[idx].notifyNum);
+    }
+}
 }
 
 template <typename AlgTopoMatch>
@@ -251,7 +273,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::CalcRes(
     resourceRequest.channels.emplace_back(aIntraReq.channels[0]);
     resourceRequest.channels.emplace_back(aInterReq.channels[0]);
     // B segment reuses the acquired intra/inter channels at runtime:
-    // intra peer -> one mesh channel; inter peer -> all available clos channels.
+    // intra peer -> one mesh channel; inter peer -> aggregate clos channel when available.
     HCCL_WARNING("[A2AV_AB][CalcRes] rank=%u aIntraSlave=%u aInterSlave=%u bSlave=%u "
                  "aIntraNotifyMain=%u aInterNotifyMain=%u bNotifyMain=%u totalSlave=%u "
                  "notifyMain=%u channelGroups=%zu",
@@ -270,6 +292,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
     remoteRankToChannelInfo_.clear();
     intraLinkMap_.clear();
     interLinkMap_.clear();
+    aInterLinkMap_.clear();
     fullLinkMap_.clear();
     bRunLinkMap_.clear();
     remoteTotalSendCountsWithoutSelf_.assign(resCtx.topoInfo.userRankSize, 0);
@@ -308,9 +331,16 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RestoreChannelMaps(
         }
         interLinkMap_ = mergedInterMap;
     }
-    HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] rank=%u channelLevels=%zu intra=%zu inter=%zu full=%zu",
+    for (const auto &item : interLinkMap_) {
+        aInterLinkMap_[item.first] = SelectChannelsByPortGroupSize(item.second, false);
+        HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] rank=%u peer=%u rawInterLinks=%zu aSplitLinks=%zu",
+                     resCtx.topoInfo.userRank, item.first, item.second.size(), aInterLinkMap_[item.first].size());
+        DumpChannelPortGroups("RestoreRawInter", resCtx.topoInfo.userRank, item.first, item.second);
+        DumpChannelPortGroups("RestoreAInter", resCtx.topoInfo.userRank, item.first, aInterLinkMap_[item.first]);
+    }
+    HCCL_WARNING("[A2AV_AB][RestoreChannelMaps] rank=%u channelLevels=%zu intra=%zu inter=%zu aInter=%zu full=%zu",
                  resCtx.topoInfo.userRank, remoteRankToChannelInfo_.size(), intraLinkMap_.size(),
-                 interLinkMap_.size(), fullLinkMap_.size());
+                 interLinkMap_.size(), aInterLinkMap_.size(), fullLinkMap_.size());
     return HCCL_SUCCESS;
 }
 
@@ -334,8 +364,10 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBRunLinkMap()
                                    myRank_, peer, intraLinkMap_.size(), interLinkMap_.size()),
                         HcclResult::HCCL_E_INTERNAL);
             bRunLinkMap_[peer].push_back(it->second[0]);
-            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=1 inputLinks=%zu runLinks=1",
-                         myRank_, peer, it->second.size());
+            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=1 inputLinks=%zu runLinks=1 "
+                         "selectedPortGroup=%u",
+                         myRank_, peer, it->second.size(), bRunLinkMap_[peer][0].portGroupSize);
+            DumpChannelPortGroups("BuildBIntra", myRank_, peer, bRunLinkMap_[peer]);
         } else {
             auto it = interLinkMap_.find(peer);
             CHK_PRT_RET(it == interLinkMap_.end() || it->second.empty(),
@@ -343,9 +375,14 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBRunLinkMap()
                                    "intraMap=%zu interMap=%zu",
                                    myRank_, peer, intraLinkMap_.size(), interLinkMap_.size()),
                         HcclResult::HCCL_E_INTERNAL);
-            bRunLinkMap_[peer] = it->second;
-            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=0 inputLinks=%zu runLinks=%zu",
-                         myRank_, peer, it->second.size(), bRunLinkMap_[peer].size());
+            std::vector<ChannelInfo> aggregateLinks = SelectChannelsByPortGroupSize(it->second, true);
+            bRunLinkMap_[peer] = aggregateLinks;
+            bool useAggregate = !aggregateLinks.empty() && aggregateLinks[0].portGroupSize > 1;
+            HCCL_WARNING("[A2AV_AB][BuildBRunLinkMap] rank=%u peer=%u isIntra=0 inputLinks=%zu runLinks=%zu "
+                         "useAggregate=%u",
+                         myRank_, peer, it->second.size(), bRunLinkMap_[peer].size(), useAggregate ? 1 : 0);
+            DumpChannelPortGroups("BuildBRawInter", myRank_, peer, it->second);
+            DumpChannelPortGroups("BuildBInter", myRank_, peer, bRunLinkMap_[peer]);
         }
     }
     CHK_PRT_RET(bRunLinkMap_.size() + 1 < rankSize_,
@@ -364,7 +401,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildRuntimeTemplateM
     aIntraMeta_.notifyNumOnMainThread = aIntraMeta_.slaveThreadNum;
     aIntraMeta_.notifyNumPerThread.assign(aIntraMeta_.slaveThreadNum, 1);
 
-    u32 aInterCommThreadNum = std::max(1u, static_cast<u32>(CalcChannelsPerRank(interLinkMap_)));
+    u32 aInterCommThreadNum = std::max(1u, static_cast<u32>(CalcChannelsPerRank(aInterLinkMap_)));
     u32 aInterThreadNum = aInterCommThreadNum;
     aInterMeta_.slaveThreadNum = aInterThreadNum > 0 ? aInterThreadNum - 1 : 0;
     aInterMeta_.notifyNumOnMainThread = aInterMeta_.slaveThreadNum;
@@ -496,6 +533,7 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::BuildBaseParams(
     };
     fillRemoteInfo(intraLinkMap_);
     fillRemoteInfo(interLinkMap_);
+    fillRemoteInfo(aInterLinkMap_);
     fillRemoteInfo(bRunLinkMap_);
     HCCL_WARNING("[A2AV_AB][BaseParam] remote exchange table filled. rank=%u rankSize=%llu",
                  myRank_, rankSize_);
@@ -663,19 +701,21 @@ HcclResult InsV2AlltoAllVParallelABExecutor<AlgTopoMatch>::RunATemplates(
     aIntraTemp.SetMeshDimensions(rankSize_, myRank_, rankSizeLevel0_, rankSizeLevel1_);
     aInterTemp.SetMeshDimensions(rankSize_, myRank_, rankSizeLevel0_, rankSizeLevel1_);
     if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS || param.engine == CommEngine::COMM_ENGINE_AIV) {
-        aInterTemp.SetchannelsPerRank(interLinkMap_);
+        aInterTemp.SetchannelsPerRank(aInterLinkMap_);
     }
     TemplateResource aIntraRes;
     aIntraRes.channels = intraLinkMap_;
     aIntraRes.threads = aIntraThreads_;
     aIntraRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     TemplateResource aInterRes;
-    aInterRes.channels = interLinkMap_;
+    aInterRes.channels = aInterLinkMap_;
     aInterRes.threads = aInterThreads_;
     aInterRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
 
-    HCCL_WARNING("[A2AV_AB][RunA][PRE] rank=%u aCount=%llu aSize=%llu intraChannels=%zu interChannels=%zu",
-                 myRank_, aParams.count, aParams.sliceSize, intraLinkMap_.size(), interLinkMap_.size());
+    HCCL_WARNING("[A2AV_AB][RunA][PRE] rank=%u aCount=%llu aSize=%llu intraChannels=%zu rawInterChannels=%zu "
+                 "aInterChannels=%zu",
+                 myRank_, aParams.count, aParams.sliceSize, intraLinkMap_.size(), interLinkMap_.size(),
+                 aInterLinkMap_.size());
     CHK_RET(PreSyncInterThreads(mainThread_, {aIntraThreads_[0], aInterThreads_[0]},
                                 {aIntraMeta_.notifyNumOnMainThread, aInterMeta_.notifyNumOnMainThread}));
     TemplateDataParams aIntraParams = aParams;

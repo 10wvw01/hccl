@@ -78,6 +78,7 @@ private:
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::map<u32, std::vector<ChannelInfo>> intraLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> interLinkMap_;
+    std::map<u32, std::vector<ChannelInfo>> aInterLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> fullLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> bRunLinkMap_;
     std::vector<u64> remoteTotalSendCountsWithoutSelf_;
