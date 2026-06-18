@@ -196,7 +196,7 @@ private:
 template<typename T>
 __aicore__ inline void AivAlltoAllV2Mesh1D(KERNEL_ARGS_DEF)
 {
-    uint32_t usePingPongBuffer = 0;
+    bool usePingPongBuffer = 0;
     if (len * sizeof(T) <= DATA_LIMIT) {
         usePingPongBuffer = 1;
     }
@@ -217,7 +217,7 @@ template<typename T>
 __aicore__ inline void AivAlltoAllV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     __gm__ AivSuperKernelArgs* args = reinterpret_cast<__gm__ AivSuperKernelArgs*>(hiddenInput);
-    uint32_t usePingPongBuffer = 0;
+    bool usePingPongBuffer = 0;
     if (args->len * sizeof(T) <= DATA_LIMIT) {
         usePingPongBuffer = 1;
     }
