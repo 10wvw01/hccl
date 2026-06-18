@@ -71,13 +71,16 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
+    CCU_CHK_RET(ccu::LoadArg(ctx.peerId, argId++));
     
     return CCU_SUCCESS;
 }
 
 static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 {
+    HCCL_INFO("-------start--------,RankId[%u]", ctx.rankId);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+        HCCL_INFO("-------1--------,i[%u] RankId[%u]", i, ctx.rankId);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.rankId],
             INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.rankId],
@@ -86,9 +89,10 @@ static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     
     uint32_t allBit = (1 << INPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+        HCCL_INFO("-------2--------,i[%u] RankId[%u]", i, ctx.rankId);
         ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit);
     }
-    
+    HCCL_INFO("-------end--------,RankId[%u]", ctx.rankId);
     return CCU_SUCCESS;
 }
 
@@ -110,21 +114,27 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
         uint16_t rankMask = 1 << rankIdx;
-        
-        CCU_IF(ctx.sliceSize != 0)
-        {
-            if (rankIdx == ctx.rankId) {
+        if (rankIdx == ctx.rankId) {
+            ccu::EventRecord(ctx.event, rankMask);
+            continue;
+        }
+
+        CCU_IF(ctx.sliceSize != 0) {
+            CCU_IF(ctx.peerId == rankIdx) {
+                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
+                HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx,ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize);
+            }
+            HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] 127");
+            CCU_IF(ctx.peerId != rankIdx) {
                 ccu::EventRecord(ctx.event, rankMask);
-            } else {
-                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], 
-                    ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
-                channelId++;
             }
         }
+
         CCU_IF(ctx.sliceSize == 0)
         {
             ccu::EventRecord(ctx.event, rankMask);
         }
+        channelId++;
     }
     
     ccu::EventWait(ctx.event, (1 << ctx.rankSize) - 1);
@@ -161,14 +171,14 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernelY(CcuKernelArg arg)
     HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] GatherOmniPipeMesh1DMem2MemY run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
-    CCU_CHK_RET(LoadArgs(ctx));
+    CCU_CHK_RET(LoadArgs(ctx)); 
     
     CCU_CHK_RET(PreSync(ctx));
     
     CCU_CHK_RET(DoRepeatGather(ctx));
     
     CCU_CHK_RET(PostSync(ctx));
-    HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] GatherOmniPipeMesh1DMem2MemY end");
+    HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] new GatherOmniPipeMesh1DMem2MemY end");
     
     return CCU_SUCCESS;
 }
