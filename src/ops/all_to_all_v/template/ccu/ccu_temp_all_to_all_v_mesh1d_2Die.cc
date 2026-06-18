@@ -12,7 +12,7 @@
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
 #include "ccu_temp_all_to_all_v_mesh1d_2Die.h"
-#include "kernel/ccu_kernel_all_to_all_v_mesh2die.h"
+#include "kernel/ccu_kernel_all_to_all_v_mesh1d_2die.h"
 #include "ccu_launch_dl.h"
 #include "hccl_res_dl.h"
 
@@ -67,11 +67,11 @@ HcclResult CcuTempAllToAllVMesh1D2Die::CalcRes(HcclComm comm, const OpParam& par
 
     for (uint32_t dieId = 0; dieId < DIE_NUM; dieId++) {
         CcuKernelInfo kernelInfo;
-        CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuAllToAllVMesh2DieKernel"));
-        kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuAllToAllVMesh2DieKernel);
+        CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuAllToAllVMesh1D2DieKernel"));
+        kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuAllToAllVMesh1D2DieKernel);
 
         const bool withMyRank = channels_[dieId].size() < channels_[1 - dieId].size();
-        auto kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh2Die>();
+        auto kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh1D2Die>();
         kernelArg->rankId = myRank_;
         kernelArg->opParam = param;
         kernelArg->subCommRanks = subCommRanks_;
