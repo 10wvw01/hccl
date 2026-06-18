@@ -14,6 +14,7 @@
 #include "alg_env_config.h"
 #include "hccl_inner_dl.h"
 #include "param_check.h"
+#include "comm_engine_utils.h"
 
 using namespace ops_hccl;
 
@@ -128,7 +129,8 @@ HcclResult HcclKfcOpArgsSetCommEngine(void *opArgs, uint8_t commEngine)
     CHK_PTR_NULL(opArgs);
     // A3只支持AICPU和AIV场景
     if (commEngine != COMM_ENGINE_AICPU && commEngine != COMM_ENGINE_AIV) {
-        HCCL_ERROR("[%s] commEngine[%u] not supported", __func__, commEngine);
+        HCCL_ERROR("[%s] commEngine[%s] not supported", __func__,
+                   GetCommEngineStr(static_cast<CommEngine>(commEngine)).c_str());
         return HCCL_E_NOT_SUPPORT;
     }
 
