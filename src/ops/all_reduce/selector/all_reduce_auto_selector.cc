@@ -365,7 +365,7 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             selectAlgName = "InsAllReduceNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
-                selectAlgName = "InsV2AllReduceSequenceMesh1DNhrNhr";
+                selectAlgName = "InsV2AllReduceSequenceMesh1DNHRNHR";
             } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_2) {
                 if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
                     selectAlgName = (dataSize > AR_AICPU_SEQUENCE_DATA_SIZE) ?
