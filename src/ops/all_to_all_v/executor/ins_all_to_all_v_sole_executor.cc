@@ -285,7 +285,7 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
 // 第二个参数是All to AllV的template文件
 #ifndef AICPU_COMPILE
 #if !defined(HCCL_CANN_COMPAT_850)
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh1D, InsAlltoAllVSoleExecutor, TopoMatch1D,
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAlltoAllVMesh1D, InsAlltoAllVSoleExecutor, TopoMatch1D,
     CcuTempAlltoAllVMesh1D);
 #endif /* !HCCL_CANN_COMPAT_850 */
 
@@ -300,8 +300,8 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh2Die, InsAllto
 #endif /* !HCCL_CANN_COMPAT_850 */
 
 #if !defined(HCCL_CANN_COMPAT_850)
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh1D2Die, InsAlltoAllVSoleExecutor, TopoMatch1D,
-    CcuTempAllToAllVMesh1D2Die);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAlltoAllVMesh1D2Die, InsAlltoAllVSoleExecutor, TopoMatch1D,
+    CcuTempAlltoAllVMesh1D2Die);
 #endif /* !HCCL_CANN_COMPAT_850 */
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
