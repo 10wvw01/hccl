@@ -13,8 +13,8 @@
 #include "hccl.h"
 #include "hccl/hccl_types.h"
 #include "acl/acl_rt.h"
-#include "hccl_verifier.h"
 #include "check_utils.h"
+#include "hccl_verifier.h"
 #include <thread>
 #include "alg_env_config.h"
 
@@ -33,8 +33,9 @@ protected:
     }
     void TearDown() override
     {
-        unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
+        unsetenv("HCCL_OP_EXPANSION_MODE");
+
     }
     static void SetUpTestCase()
     {}
@@ -47,8 +48,8 @@ void RunReduceScatter3LevelA5(const TopoMeta &topoMeta, const u64 &recvCount, co
 {
     SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
 
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
 
     auto rankSize = CalRankSize(topoMeta);
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE_REDUCE_SCATTER[dataType];
@@ -63,12 +64,13 @@ void RunReduceScatter3LevelA5(const TopoMeta &topoMeta, const u64 &recvCount, co
             HcclComm comm = nullptr;
             CHK_RET(HcclCommInitClusterInfo("./ranktable.json", rankId, &comm));
 
-            void *sendBuf = nullptr;
             void *recvBuf = nullptr;
+            void *sendBuf = nullptr;
             u64 sendBufSize = recvCount * dataTypeSize * rankSize;
             u64 recvBufSize = recvCount * dataTypeSize;
-            aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+
             aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+            aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
 
             CHK_RET(HcclReduceScatter(sendBuf, recvBuf, recvCount, dataType, reduceOp, comm, stream));
 
