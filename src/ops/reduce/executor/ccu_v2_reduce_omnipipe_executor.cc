@@ -10,14 +10,12 @@
  
 #include "ccu_v2_reduce_omnipipe_executor.h"
 #include "alg_data_trans_wrapper.h"
-#ifndef AICPU_COMPILE
-#include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
+// #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
-#endif
 #include "ccu_alg_template_base.h"
 namespace ops_hccl {
 
@@ -756,51 +754,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             //第一步做完后回到主流做尾同步
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
         }
-        
-        // if (myRank_ == param.root) {
-        //     // 4.4 G本地拷贝 (TODO:待修改)
-        //     HCCL_DEBUG("[%s] Gather local copy start, myRank[%d], currDataCount %llu, processedDataCount %llu dataSize_ %llu",
-        //                     __func__, myRank_, dataCount_, processedDataCount, dataSize_);
-        //     // ThreadHandle mainThread = threads_[0];
-        //     // std::vector<ThreadHandle> syncThreads{threads_[1]};
-        //     // std::vector<u32> notifyIdxesMainToSub{0};
-        //     // std::vector<u32> notifyIdxesSubToMain{0};
-        //     CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
-        //     for (u32 i = 0; i < rankSize_; i++) { 
-        //         // templateResourceGX.threads.clear();
-        //         // templateResourceGX.threads.emplace_back(threads_[1]);
-        //         TemplateDataParams tempAlgParamLocalCopy;
-        //         tempAlgParamLocalCopy.localCopyFlag = 1;
-        //         tempAlgParamLocalCopy.buffInfo.outputPtr = param.outputPtr;
-        //         tempAlgParamLocalCopy.buffInfo.hcclBuff = resCtx.cclMem;
-        //         tempAlgParamLocalCopy.buffInfo.outBuffType = BufferType::OUTPUT;
-        //         tempAlgParamLocalCopy.count = allRankSplitData[i]; // 128
-        //         tempAlgParamLocalCopy.sliceSize = allRankSplitData[i] *dataTypeSize_ ; // 128*4
-        //         tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = i * allRankSplitData[i] * dataTypeSize_; // i * 512
-        //         tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = i * allRankSplitData[i] * dataTypeSize_;  // i * 512
-        //         if (i == param.root) {
-        //             tempAlgParamLocalCopy.buffInfo.inputPtr = param.inputPtr;
-        //             tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::INPUT;
-        //         } else {
-        //             tempAlgParamLocalCopy.buffInfo.inputPtr = resCtx.cclMem.addr;
-        //             tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-        //         }
-        //         HCCL_DEBUG("[%s] tempAlgParamLocalCopy.buffInfo.inputPtr[%u] ",&(param.inputPtr));
-        //         HCCL_DEBUG("[%s] myRank[%u] localCopy inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu]", __func__,
-        //         myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff,
-        //         tempAlgParamLocalCopy.sliceSize);
-        //         CHK_RET(gAlgTempX->KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));     
-        //         }
-        //     CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
-        //     HCCL_DEBUG("[%s] AG local copy end", __func__);
-        // }
-
-        processedDataCount += currDataCount;
-    }
-    processedDataCount = 0; // loop偏移
-    if (myRank_ == param.root) { // loop偏移 + 外部卡偏移
-        u64 currDataCount = 0;
-        for (u64 loop = 0; loop < loopTimes; loop++) {
+        if (myRank_ == param.root) { // loop偏移 + 外部卡偏移
             // 4.4 G本地拷贝 (TODO:待修改)
             HCCL_DEBUG("[%s] Gather local copy start, myRank[%d], currDataCount %llu, processedDataCount %llu dataSize_ %llu",
                             __func__, myRank_, dataCount_, processedDataCount, dataSize_);
@@ -809,11 +763,10 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             std::vector<u32> notifyIdxesMainToSub{0};
             std::vector<u32> notifyIdxesSubToMain{0};
             u64 rankOffset = 0;
-           
+        
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             for (u32 i = 0; i < rankSize_; i++) {
-                currDataCount = multiLoopAllRankSplitData[loop][i];
-                HCCL_DEBUG("[%s] currDataCount is %llu", __func__, currDataCount);
+                HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCount);
                 TemplateDataParams tempAlgParamLocalCopy;
                 tempAlgParamLocalCopy.localCopyFlag = 1;
                 tempAlgParamLocalCopy.buffInfo.outputPtr = param.outputPtr;
@@ -832,40 +785,44 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                     tempAlgParamLocalCopy.buffInfo.inputPtr = resCtx.cclMem.addr;
                     tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
                 }
+
+                // HCCL_DEBUG("[%s] tempAlgParamLocalCopyxx.buffInfo.inputPtr[%u] ",&(param.inputPtr));
                 HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu]", __func__,
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff,
                 tempAlgParamLocalCopy.sliceSize, processedDataCount);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
             }
-            processedDataCount += currDataCount;
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
-            
+                
+            HCCL_DEBUG("[%s] AG local copy end", __func__);
         }
-        HCCL_DEBUG("[%s] AG local copy end", __func__);
+
+        processedDataCount += currDataCount;
     }
+
     HCCL_INFO("[%s][OrchestrateLoop] End.", __func__);
     return HCCL_SUCCESS;
 }
 
 // #ifndef AICPU_COMPILE // [jjy][todo] 这里的TopoMatchUBX还是TopoMatchMultilevel？这里需要写ifndef吗？
-// REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
-//                                 CcuV2ReduceOmniPipe2D,
-//                                 CcuV2ReduceOmniPipeExecutor, 
-//                                 TopoMatchUBX, 
-//                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-//                                 // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-//                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
-//                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-//                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
-//                                 // CcuTempGatherOmniPipeNHR1DMem2Mem);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                CcuTempReduceScatterMesh1DMem2Mem, 
-                                CcuTempReduceScatterNHR1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+// REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
+//                                 CcuV2ReduceOmniPipe2D,
+//                                 CcuV2ReduceOmniPipeExecutor, 
+//                                 TopoMatchUBX, 
+//                                 CcuTempReduceScatterMesh1DMem2Mem, 
+//                                 CcuTempReduceScatterNHR1DMem2Mem, 
+//                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
+//                                 CcuTempGatherOmniPipeMesh1DMem2MemY);
 // #endif
 }
