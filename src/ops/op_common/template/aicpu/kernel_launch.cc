@@ -553,7 +553,7 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         HCCL_ERROR("%s args is nullptr", __func__);
         return 1;
     }
-    P2pParam *params = (P2pParam *)args;
+    HcclP2pParam *params = (HcclP2pParam *)args;
     ThreadHandle sendRecvStream = params->sendRecvStream;
     OpParam *param = (OpParam *)(params->opParams);
 
