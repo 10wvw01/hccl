@@ -142,7 +142,7 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
 
     return HcclResult::HCCL_SUCCESS;
 }
-bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType) const
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType)
 {
     CHK_PRT_RET(topoInfo->netLayerDetails.localNetInsSizeOfLayer.size() <= netLayer,
         HCCL_WARNING("[BaseSelector][IsLayerAllConnetedWithTopo] localNetInsSizeOfLayer size[%u] <= netLayer[%u]",
