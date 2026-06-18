@@ -7,14 +7,12 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
+#include <iostream>
 #include "channel.h"
-#include "hccl_ccu_res.h"
-#include "ccu_assist_pub.h"
-
-#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem.h"
+#include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem_new.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
 #include "alg_data_trans_wrapper.h" 
+#include "ccu_launch_dl.h"
 
 namespace ops_hccl {
 
@@ -70,9 +68,11 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
                resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
 
     CcuKernelInfo kernelInfo;
-    kernelInfo.creator = [](const hcomm::CcuKernelArg& arg) {
-                             return std::make_unique<CcuKernelGatherOmniPipeNHR1DMem2Mem>(arg);
-                         };
+    CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuGatherOmniPipeNHR1DMem2MemKernel"));
+    kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuGatherOmniPipeNHR1DMem2MemKernel);
+    // kernelInfo.creator = [](const hcomm::CcuKernelArg& arg) {
+    //                          return std::make_unique<CcuKernelGatherOmniPipeNHR1DMem2Mem>(arg);
+    //                      };
 
     std::vector<HcclChannelDesc> channelDescs;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
@@ -106,8 +106,23 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     CHK_RET(CalcNHRInfo(stepInfoVector));
     kernelInfo.channels = channelDescs;
 
-    kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>(
-        subCommRanks_[0].size(), mySubCommRank_, subCommRootId_, param, subCommRanks_, ifRealRoot_, myRank_,stepInfoVector, rank2ChannelIdx, subRankIdx2RankIdx);
+    auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>();
+    kernelArg->rankSize = subCommRanks_[0].size();
+    kernelArg->rankId = mySubCommRank_;
+    kernelArg->rootId = subCommRootId_;
+    kernelArg->opParam = param;
+    kernelArg->subCommRanks = subCommRanks_;
+    kernelArg->ifRealRoot = ifRealRoot_;
+    kernelArg->myrealrank = myRank_;
+    kernelArg->stepInfoVector = stepInfoVector;
+    kernelArg->rank2ChannelIdx = rank2ChannelIdx;
+    // kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
+    
+    kernelInfo.setKernelArg(kernelArg);
+
+
+    // kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>(
+    //     subCommRanks_[0].size(), mySubCommRank_, subCommRootId_, param, subCommRanks_, ifRealRoot_, myRank_,stepInfoVector, rank2ChannelIdx, subRankIdx2RankIdx);
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__,
@@ -166,7 +181,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                     inputOmniSliceStrideVec.push_back(0);
                 }
             }
-            std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgGatherOmniPipeNHR1DMem2Mem>(
+
+            std::vector<uint64_t> taskArgs = {
                 inputAddr, 
                 outputAddr,
                 scratchAddr,
@@ -177,17 +193,37 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                 outputOmniPipeSliceStride, 
                 isStepOne_, 
                 isLastStep_, 
-                ifNewRoot,
-                inputOmniSliceStrideVec);
-
-            void* taskArgPtr = static_cast<void*>(taskArg.get());
-            HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subCommRootId_, rankId_);
-            CHK_RET(HcclCcuKernelLaunch(
-                param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[0], taskArgPtr));
-            if (ifNewRoot) {
-            HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] sliceSize=%llu  inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu isStepOne_[%d] isLastStep_[%d] ",
-                        sliceSize, inputOmniPipeSliceStride,outputOmniPipeSliceStride, isStepOne_,isLastStep_);
+                ifNewRoot
+            };
+            taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
+            uint64_t argSize = taskArgs.size();
+            CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
+            if (launchRet != CCU_SUCCESS) {
+                HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
+                return ConvertCcuToHccl(launchRet);
             }
+            // std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgGatherOmniPipeNHR1DMem2Mem>(
+            //     inputAddr, 
+            //     outputAddr,
+            //     scratchAddr,
+            //     token, 
+            //     localCopyFlag, 
+            //     sliceSize, 
+            //     inputOmniPipeSliceStride, 
+            //     outputOmniPipeSliceStride, 
+            //     isStepOne_, 
+            //     isLastStep_, 
+            //     ifNewRoot,
+            //     inputOmniSliceStrideVec);
+
+            // void* taskArgPtr = static_cast<void*>(taskArg.get());
+            // HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u", mySubCommRank_, subCommRootId_, rankId_);
+            // CHK_RET(HcclCcuKernelLaunch(
+            //     param.hcclComm, templateResource.threads[0], templateResource.ccuKernels[0], taskArgPtr));
+            // if (ifNewRoot) {
+            // HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] sliceSize=%llu  inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu isStepOne_[%d] isLastStep_[%d] ",
+            //             sliceSize, inputOmniPipeSliceStride,outputOmniPipeSliceStride, isStepOne_,isLastStep_);
+            // }
         }
     }
     else if (localCopyFlag == 1) {
