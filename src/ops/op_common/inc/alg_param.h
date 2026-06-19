@@ -378,6 +378,8 @@ struct ChannelInfo {
     u64 remoteAlltoAllVRecvCountForLocalRank = 0;
     u64 remoteAlltoAllVTotalSendCountWithoutSelf = 0;
     u64 remoteAlltoAllVMaxSendCountWithoutSelf = 0;
+    std::vector<u64> remoteAlltoAllVRecvCounts;
+    std::vector<u64> remoteAlltoAllVRdispls;
     HcclMem remoteInput;  // A3用的，cclIn
     HcclMem remoteOutput; // A3用的, cclOut
 };

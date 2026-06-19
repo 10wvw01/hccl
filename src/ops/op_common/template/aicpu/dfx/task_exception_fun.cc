@@ -28,9 +28,17 @@ bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpy") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodUbxV2") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3NoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVMesh1DNoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVMesh1DNoMemcpy1D") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpy") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodUbxV2") == 0 ||
-           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0;
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABNoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABRelayNoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABRelayNoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABRelayNoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABInlineNoMemcpy") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABInlineNoMemcpyPodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABInlineNoMemcpyPodDirect") == 0;
 }
 
 u64 GetOpInfoInputMemSize(const OpParam &param)

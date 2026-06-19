@@ -273,6 +273,10 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByLoop(const std::vector<u32> &com
         }
         const std::vector<ChannelInfo> &curChannels = it->second;
         u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
+        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop][SCHED] rank=%u round=%u/%u "
+                  "remoteRank=%u rankIdx=%u channelSize=%zu validChannels=%u channelsPerRank=%u",
+                  myRank_, roundIdx, commLoops, remoteRank, rankIdx, curChannels.size(),
+                  curValidChannelsSize, channelsPerRank_);
         // send数据按照channel分片
         CHK_RET(CalcDataSplitByPortGroupCommon(tempAlgParams.sendCounts[remoteRank], dataTypeSize_, curChannels,
             sendCountsSplit_, sendSizeSplit_, sendOffsetSplit_, curValidChannelsSize));
@@ -318,6 +322,9 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByChannel(const TemplateDataParams
     std::vector<ThreadHandle> subThreadsCurRank; // 当前rank的rank内从流
     if (curValidChannelsSize > 1 && roundIdx != 0) {
         subThreadsCurRank.assign(threads.begin() + queIdx + 1, threads.begin() + queIdx + curValidChannelsSize);
+        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByChannel][SYNC_PRE] rank=%u remoteRank=%u "
+                  "round=%u curValidChannels=%u mainThreadIdx=%u subThreadNum=%zu",
+                  myRank_, remoteRank, roundIdx, curValidChannelsSize, queIdx, subThreadsCurRank.size());
         PreSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank);
     }
     for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
@@ -382,17 +389,21 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByChannel(const TemplateDataParams
         SendRecvInfo sendRecvInfo{{channelSend, channelRecv},
             {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_};
         CHK_RET(RunSendRecv(tempAlgParams, sendRecvInfo, sendInfo, recvInfo, threads[queIdx], channelId));
-        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop] do send recv write on thread[%u], channelId[%u], "\
-            "send size[%llu], recv size[%llu], remote rank[%u], noMemcpy[%d], txDstOff[%llu].",
-            queIdx, channelId, sendSizeSplit_[channelId], recvSizeSplit_[channelId], remoteRank,
-            noMemcpyMode, txDstOffset);
+        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop][SUBMIT] rank=%u round=%u/%u "
+                  "remoteRank=%u threadIdx=%u channelId=%u sendSize=%llu recvSize=%llu "
+                  "noMemcpy=%d txDstOff=%llu",
+                  myRank_, roundIdx, commLoops, remoteRank, queIdx, channelId,
+                  sendSizeSplit_[channelId], recvSizeSplit_[channelId], noMemcpyMode, txDstOffset);
         if (!noMemcpyMode && !isDmaRead_ && recvSizeSplit_[channelId] > 0) {
             CHK_RET(PostCopy(tempAlgParams, threads[queIdx], myRankCclBuffIdx, remoteRank,
                 recvSizeSplit_[channelId], recvCountsSplit_[channelId], recvOffsetSplit_[channelId]));
         }
         queIdx++;
     }
-    if (curValidChannelsSize > 1 && roundIdx != commLoops - 1) {
+    if (!subThreadsCurRank.empty() && roundIdx != commLoops - 1) {
+        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByChannel][SYNC_POST] rank=%u remoteRank=%u "
+                  "round=%u curValidChannels=%u",
+                  myRank_, remoteRank, roundIdx, curValidChannelsSize);
         PostSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank);
     }
     return HcclResult::HCCL_SUCCESS;
