@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ using ops_hccl::TemplateType;
 
 constexpr TemplateType TEMPLATE_REDUCE_SCATTER_BIRS = static_cast<TemplateType>(1001);
 constexpr TemplateType TEMPLATE_REDUCE_SCATTER_BIRS_INTER = static_cast<TemplateType>(1002);
+constexpr TemplateType TEMPLATE_ALL_GATHER_BIRS = static_cast<TemplateType>(1003);
+constexpr TemplateType TEMPLATE_ALL_GATHER_MESH = static_cast<TemplateType>(1004);
+constexpr TemplateType TEMPLATE_ALL_REDUCE_BIAR = static_cast<TemplateType>(1005);
+
 
 class AlgTemplateBaseExperimental : public ops_hccl::AlgTemplateBase {
     public:

@@ -135,6 +135,38 @@ HcclResult SelectAlgReduceScatter(HcclComm comm, OpParam &param, TopoInfo* topoI
     return HCCL_SUCCESS;
 }
 
+HcclResult SelectAlgAllReduce(HcclComm comm, OpParam &param, TopoInfo* topoInfo, AlgType& algType, std::string &algName)
+{
+    (void) comm;
+    ValidateAndResetAlgLevel1(algType, "All_Reduce");
+
+    if (topoInfo->userRankSize == 1) {
+        return HCCL_E_INTERNAL;
+    } else if (topoInfo->deviceType == DevType::DEV_TYPE_910_93 && (topoInfo->userRankSize % 2 == 0)) {
+        algName = "AllReduceBIARExecutor";
+    }
+
+    CHK_RET(FillAlgTagAndDebugInfo(param, topoInfo, algType, algName, "All_Reduce"));
+    return HCCL_SUCCESS;
+}
+
+HcclResult SelectAlgAllGather(HcclComm comm, OpParam &param, TopoInfo* topoInfo, AlgType& algType, std::string &algName)
+{
+    (void) comm;
+    ValidateAndResetAlgLevel1(algType, "All_Gather");
+
+    if (topoInfo->userRankSize == 1) {
+        return HCCL_E_INTERNAL;
+    } else if (topoInfo->deviceType == DevType::DEV_TYPE_910_93 && (topoInfo->userRankSize % 2 == 0)) {
+        algName = "AllGatherBIRSExecutor";
+    } else {
+        algName = "AllGatherMeshExecutor";
+    }
+        
+    CHK_RET(FillAlgTagAndDebugInfo(param, topoInfo, algType, algName, "All_Gather"));
+    return HCCL_SUCCESS;
+}
+
 struct ThreadResources {
     ThreadHandle cpuTsThread = 0;
     ThreadHandle exportedAicpuTsThread = 0;
@@ -253,7 +285,12 @@ HcclResult DoAicpuKernelLaunch(OpParam &param, uint64_t &beginTime)
                             ret), HCCL_E_OPEN_FILE_FAILURE);
 
     if (HcommIsProfilingSupported()) {
-        std::string profName = "ReduceScatterAicpuKernel";
+        std::string profName = "";
+        if (param.opType == HCCL_CMD_REDUCE_SCATTER) {
+            profName = "ReduceScatterAicpuKernel";
+        } else if (param.opType == HCCL_CMD_ALLREDUCE) {
+            profName = "AllReduceAicpuKernel";
+        }
         HCCL_DEBUG("[%s] profName = [%s]", __func__, profName);
         HcommProfilingReportKernel(beginTime, profName.c_str());
     }
@@ -299,6 +336,10 @@ HcclResult ExecOpBirs(HcclComm comm, OpParam &param)
     std::string algName;
     if (param.opType == HCCL_CMD_REDUCE_SCATTER) {
         CHK_RET(SelectAlgReduceScatter(comm, param, topoInfo, algType, algName));
+    } else if (param.opType == HCCL_CMD_ALLREDUCE) {
+        CHK_RET(SelectAlgAllReduce(comm, param, topoInfo, algType, algName));   
+    } else if (param.opType == HCCL_CMD_ALLGATHER) {
+        CHK_RET(SelectAlgAllGather(comm, param, topoInfo, algType, algName));   
     }
 
     std::unique_ptr<ExecutorBase> executor = CollAlgExecRegistry::Instance().GetAlgExec(algName);

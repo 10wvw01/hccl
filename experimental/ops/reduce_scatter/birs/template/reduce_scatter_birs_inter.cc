@@ -125,17 +125,12 @@ HcclResult ReduceScatterBIRSInter::PreprocInterServer(const u32 rank, const u32 
             vec_offsets.push_back(((intraRankSize_ / rankSizeX_) + i) * localStrideSize * serverNum_);
         }
     }
-    auto ind = intraRankSize_ / rankSizeX_;;
-    for (u32 i = 1; i < ind; i+=2){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 1], localStrideSize * serverNum_, mainThread);
+    auto ind = intraRankSize_ / rankSizeX_;   
+    for (u32 stride = 1; stride < ind; stride *= 2) {
+        for (u32 i = stride; i < ind; i += stride * 2) {
+            LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - stride], localStrideSize * serverNum_, mainThread);
+        }
     }
-    for (size_t i = 2; i < ind; i+=4){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 2], localStrideSize * serverNum_, mainThread);
-    }
-    for (size_t i = 4; i < ind; i+=8){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 4], localStrideSize * serverNum_, mainThread);
-    }
-
     u64 remoteOffsetByte = localStrideSize * serverNum_;
     u64 localOffsetByte = vec_offsets[0] + localStrideSize * (((rank) % rankSize) / intraRankSize_);
     void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);

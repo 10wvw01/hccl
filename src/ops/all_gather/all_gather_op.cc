@@ -37,7 +37,11 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
     #else
     if (deviceType != DevType::DEV_TYPE_910_95) {
     #endif
+    #ifdef ENABLE_EXPERIMENTAL
+        return ops_hccl_experimental::AllGatherExperimental(sendBuf, recvBuf, sendCount, dataType, comm, stream);
+    #else
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
+    #endif
     }
     CHK_PRT_RET(sendCount == 0, HCCL_WARNING("input sendCount is 0, return all gather success"), HCCL_SUCCESS);
 

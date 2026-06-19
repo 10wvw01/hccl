@@ -28,6 +28,16 @@ HcclResult TaskCheckAllReduceSemantics(std::map<RankId, RankMemorySemantics> &al
             return HcclResult::HCCL_E_PARA;
         }
 
+        // for (auto &ele : allRankMemSemantics[rankId][BufferType::INPUT]) {
+        //     printf("[rankID:%d] input ele is %s", rankId, ele.Describe().c_str());
+        // }
+        // for (auto &ele : allRankMemSemantics[rankId][BufferType::CCL]) {
+        //     printf("[rankID:%d] ccl ele is %s", rankId, ele.Describe().c_str());
+        // }
+        // for (auto &ele : allRankMemSemantics[rankId][BufferType::OUTPUT]) {
+        //     printf("[rankID:%d] output ele is %s", rankId, ele.Describe().c_str());
+        // }
+
         u64 totalSize = 0;
         for (auto &ele : allRankMemSemantics[rankId][BufferType::OUTPUT]) {
             if (ele.startAddr != totalSize) {

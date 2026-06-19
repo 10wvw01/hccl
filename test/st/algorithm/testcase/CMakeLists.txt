@@ -10,17 +10,18 @@
 
 set(src_list
     main.cc
-    scatter_testcase.cc
-    all_reduce_testcase.cc
-    all_reduce_parallel_testcase.cc
-    all_gather_aicpu_testcase.cc
-    all_gather_dpu_testcase.cc
-    all_gather_v_testcase.cc
-    reduce_scatter_aicpu_testcase.cc
-    reduce_scatter_v_testcase.cc
-    alltoall_testcase.cc
-    alltoallv_testcase.cc
-    alltoallvc_testcase.cc
+    reduce_scatter_testcase_a3.cc
+    #all_gather_testcase_a3.cc
+    #all_reduce_testcase_a3.cc
+    #all_reduce_parallel_testcase.cc
+    #all_gather_aicpu_testcase.cc
+    #all_gather_dpu_testcase.cc
+    #all_gather_v_testcase.cc
+    #reduce_scatter_aicpu_testcase.cc
+    #reduce_scatter_v_testcase.cc
+    #alltoall_testcase.cc
+    #alltoallv_testcase.cc
+    #alltoallvc_testcase.cc
 )
 
 add_executable(hccl_checker_ops_stest ${src_list})

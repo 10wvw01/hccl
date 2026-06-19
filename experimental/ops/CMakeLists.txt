@@ -13,6 +13,8 @@ if(NOT ENABLE_EXPERIMENTAL)
 endif()
 
 add_subdirectory(op_common)
+add_subdirectory(all_gather)
+add_subdirectory(all_reduce)
 add_subdirectory(reduce_scatter)
 
 set(EXPERIMENTAL_INCLUDE_LIST
@@ -21,6 +23,11 @@ set(EXPERIMENTAL_INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/op_common/
     ${CMAKE_CURRENT_SOURCE_DIR}/op_common/template
     ${CMAKE_CURRENT_SOURCE_DIR}/op_common/topo
+    ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/
+    ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/
+    ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/template/
+    ${CMAKE_CURRENT_SOURCE_DIR}/all_reduce/
+    ${CMAKE_CURRENT_SOURCE_DIR}/all_reduce/biar/
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/template/
@@ -32,6 +39,14 @@ if(TARGET scatter_aicpu_kernel)
     target_sources(scatter_aicpu_kernel PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/op_common/template/alg_template_base_experimental.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/op_common/topo/topo_experimental.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/all_gather_mesh_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/all_gather_birs_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/all_gather_executor_base.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/template/all_gather_birs.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_gather/biar/template/all_gather_mesh.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_reduce/biar/all_reduce_biar_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_reduce/biar/all_reduce_executor_base.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/all_reduce/biar/template/all_reduce_biar.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/reduce_scatter_birs_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/reduce_scatter_executor_base.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/template/reduce_scatter_birs.cc

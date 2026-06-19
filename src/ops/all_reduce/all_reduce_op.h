@@ -18,6 +18,9 @@
 #include "executor_v2_base.h"
 #include "alg_type.h"
 #include "execute_selector.h"
+#ifdef ENABLE_EXPERIMENTAL
+#include "all_reduce_op_experimental.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
