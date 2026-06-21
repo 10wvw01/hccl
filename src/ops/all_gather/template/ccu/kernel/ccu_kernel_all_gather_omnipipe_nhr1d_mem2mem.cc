@@ -162,17 +162,16 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherOmniPipeNHR1DMem2MemCon
         u32 sendSliceIdx = sendSliceIdxList[idx];
         src.addr = ctx.output[arg->myRankIdx];
         dst.addr = ctx.output[toRankIdx];
+        ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
         if (sendSliceIdx == arg->rankId) {
             src.addr += ctx.sliceStride;
             src.addr += ctx.inputOmniPipeSliceStride;
 
             dst.addr += ctx.sliceStride;
             dst.addr += ctx.inputOmniPipeSliceStride;
-            ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
         } else {
             src.addr += ctx.inputOmniSliceStrideVec[sendSliceIdx];
             dst.addr += ctx.inputOmniSliceStrideVec[sendSliceIdx];
-            ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
         }
 
         uint16_t mask = 1 << idx;
