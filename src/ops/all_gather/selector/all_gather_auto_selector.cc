@@ -77,9 +77,14 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         CHK_PRT_RET(CheckClosNumMultipleOfMeshNum(topoInfo, isClosNumMultipleOfMeshNum) != HCCL_SUCCESS,
             HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
         if (dataSize > SMALL_COUNT_512KB) {
-            // 大数据量场景，4P内并发executor资源不够暂不支持，因此4P内和4P外回退ccu_sched模式
-            HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
-            return SelectorStatus::NOT_MATCH;
+            // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
+            if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
+                selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
+                return SelectorStatus::MATCH;
+            } else {
+                HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
+                return SelectorStatus::NOT_MATCH;
+            }
         } else {
                 selectAlgName = "CcuAllGatherMesh1D";
                 return SelectorStatus::MATCH;
@@ -176,7 +181,6 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
     (void)configAlgMap;
-    u32 ccuMaxSize = 64;
     u32 ccuSize = 32;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
@@ -192,10 +196,6 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
                 HCCL_WARNING("[Algo][AllGatherAutoSelector] ccu_sched does not support inplace allgather."),
                 SelectorStatus::NOT_MATCH);
-            if (topoInfo->userRankSize > ccuMaxSize) {
-                HCCL_INFO("[AllGatherAutoSelector] ranksize > ccuMaxSize, fallback to aicpu mode.");
-                return SelectorStatus::NOT_MATCH;
-            }
             if (topoInfo->Level1Nhr) {
                 selectAlgName = "CcuAllGatherNHR1DMem2Mem";
                 HCCL_INFO("[AllGatherAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
@@ -305,8 +305,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                     selectAlgName = "InsAllGatherMesh1D";
                 }
             } else if(isClosNumMultipleOfMeshNum && dataSize > SMALL_COUNT_512KB) {
-                selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? "InsAllGatherParallelMesh1DNHRMultiJetty" :
-                                                                          "InsV2AllGatherOmniPipe";
+                selectAlgName = "InsAllGatherParallelMesh1DNHRMultiJetty";
             } else {
                 // 4P外非对称场景，大小数据量都用NHR算法
                 selectAlgName = "InsAllGatherNHR";
@@ -328,18 +327,17 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    (void)opParam;
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] rankSize[%u] larger than [%u]",
-            __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        HCCL_DEBUG("[AllGatherAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
         return SelectorStatus::NOT_MATCH;
     }
 
     void *cclBufferAddr;
     uint64_t cclBufferSize;
     CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[AllGatherAutoSelector] HcclGetHcclBuffer failed."),
-        SelectorStatus::NOT_MATCH);
+        HCCL_WARNING("[AllGatherAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
@@ -349,8 +347,7 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
         return SelectorStatus::NOT_MATCH;
     }
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]",
-            __func__, totalSize, cclBufferSize);
+        HCCL_DEBUG("[AllGatherAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
     }
 
