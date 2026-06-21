@@ -181,12 +181,6 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
-        constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
-        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-            HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
-            return SelectorStatus::NOT_MATCH;
-        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
@@ -244,7 +238,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllGatherOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
@@ -260,7 +254,9 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllGatherNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
+            if (topoInfo->topoLevelNums >= 3) {
+                selectAlgName = "InsAllGatherSequenceNHRNHRMesh1D";
+            } else if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllGatherSequenceNHRMesh1D" : "InsAllGatherParallelMesh1DNHR";
             } else {
@@ -342,12 +338,6 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
         SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
-    if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
-        HCCL_DEBUG("[AllGatherAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
-            __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
-        return SelectorStatus::NOT_MATCH;
-    }
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]",
             __func__, totalSize, cclBufferSize);
