@@ -174,6 +174,10 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     Level0MeshType level0MeshType;
     NetLayerDetails netLayerDetails;
     std::vector<TopoInstDetails> topoInstDetailsOfLayer;
+    double rs_x_bw;
+    double rs_y_bw;
+    double ag_x_bw;
+    double ag_y_bw;
 
     std::vector<char> Serialize()
     {
@@ -218,6 +222,10 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
             binaryStream << topoInstDetailsOfLayer[idx].ranksInTopo;
             binaryStream << topoInstDetailsOfLayer[idx].rankNumForTopoType;
         }
+        binaryStream << rs_x_bw;
+        binaryStream << rs_y_bw;
+        binaryStream << ag_x_bw;
+        binaryStream << ag_y_bw;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -267,6 +275,10 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
             binaryStream >> topoInstDetailsOfLayer[idx].ranksInTopo;
             binaryStream >> topoInstDetailsOfLayer[idx].rankNumForTopoType;
         }
+        binaryStream >> rs_x_bw;
+        binaryStream >> rs_y_bw;
+        binaryStream >> ag_x_bw;
+        binaryStream >> ag_y_bw;
     }
 };
 
@@ -328,7 +340,7 @@ struct CcuFastLaunchCtx {
     CcuKernelSubmitInfo *GetCcuKernelSubmitInfoPtr() const
     {
         size_t offset = offsetof(CcuFastLaunchCtx, ccuKernelNum)
-                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO 
+                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO
                         + sizeof(ThreadHandle) * threadNum;
         return reinterpret_cast<CcuKernelSubmitInfo*>(
                     reinterpret_cast<char*>(const_cast<CcuFastLaunchCtx*>(this)) + offset
@@ -337,8 +349,8 @@ struct CcuFastLaunchCtx {
 
     static u64 GetCtxSize(u32 threadNum, u32 totalCcuKernelNum)
     {
-        return sizeof(CcuFastLaunchCtx) 
-               + sizeof(ThreadHandle) * threadNum 
+        return sizeof(CcuFastLaunchCtx)
+               + sizeof(ThreadHandle) * threadNum
                + sizeof(CcuKernelSubmitInfo) * totalCcuKernelNum;
     }
 };
