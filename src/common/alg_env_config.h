@@ -25,6 +25,7 @@ constexpr u32 HCCL_RETRY_ENABLE_LEVEL_0 = 0;        // HCCL 重执行层级0
 constexpr u32 HCCL_RETRY_ENABLE_LEVEL_1 = 1;        // HCCL 重执行层级1
 constexpr u32 HCCL_RETRY_ENABLE_LEVEL_2 = 2;        // HCCL 重执行层级2
 constexpr u32 HCCL_RETRY_ENABLE_LEVEL_NUM = 3;     // HCCL 重执行层级最多3级
+constexpr double HCCL_BW_DEFAULT = 1.0;
 
 enum class DeterministicEnableLevel {
     DETERMINISTIC_DISABLE = 0,          // 不支持确定性
@@ -52,9 +53,13 @@ struct AlgEnvConfig {
     double execTimeout;
     bool multipleDimensionSplitRatioSet;
     double multipleDimensionSplitRatio;
+     bool taskExceptionEnable;
     bool hcclRetryConfig[HCCL_RETRY_ENABLE_LEVEL_NUM];
-    bool taskExceptionEnable;
     std::map<HcclCMDType, std::vector<HcclAlgoType>> hcclAlgoConfig;
+    double hccl_rs_x_bw;
+    double hccl_rs_y_bw;
+    double hccl_ag_x_bw;
+    double hccl_ag_y_bw;
 
     AlgEnvConfig()
     {
@@ -183,6 +188,14 @@ bool RunIndependentOpExpansion(DevType deviceType);
 bool GetExternalInputMultipleDimensionSplitRatio(double &multipleDimensionSplitRatio);
 
 bool GetExternalInputTaskExceptionEnable();
+HcclResult ParseBandWidthRSX(int flag=0);
+HcclResult ParseBandWidthRSY(int flag=0);
+HcclResult ParseBandWidthAGX(int flag=0);
+HcclResult ParseBandWidthAGY(int flag=0);
+double GetExternalInputBandWidthRSX();
+double GetExternalInputBandWidthRSY();
+double GetExternalInputBandWidthAGX();
+double GetExternalInputBandWidthAGY();
 }
 
 #endif // HCCL_ALG_ENV_CONFIG_H

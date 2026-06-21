@@ -98,6 +98,8 @@ SelectorStatus ScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWith
             topoInfo->level0Topo);
         return SelectorStatus::NOT_MATCH;
     }
+    selectAlgName = "CcuV2ScatterOmniPipe";
+    HCCL_INFO("[ScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }
 
