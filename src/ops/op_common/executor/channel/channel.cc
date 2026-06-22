@@ -652,6 +652,37 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
             (memcmp(endPoint0.commAddr.eid, endPoint1.commAddr.eid, sizeof(endPoint0.commAddr.eid)) == 0);
     }
 }
+static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
+{
+    uint8_t eidRank[16];
+    memcpy(eidRank, endPoint0.commAddr.eid, sizeof(eid));
+    uint8_t eidRemoteRank[16];
+    memcpy(eidRemoteRank, endPoint1.commAddr.eid, sizeof(eid));
+
+    uint64_t subnetPrefix = 0;
+    uint64_t subnetPrefixRemote = 0;
+
+    // 使用 memcpy 避免对齐问题
+    (void)memcpy_s(&subnetPrefix, sizeof(subnetPrefix), eidRank, sizeof(subnetPrefix));
+    (void)memcpy_s(&subnetPrefixRemote, sizeof(subnetPrefixRemote), eidRemoteRank, sizeof(subnetPrefixRemote));
+
+    // 转换字节序（网络字节序 -> 主机字节序）
+    subnetPrefix = be64toh(subnetPrefix);
+    subnetPrefixRemote = be64toh(subnetPrefixRemote);
+
+    char bufferRank[17];
+    char bufferRemoteRank[17];
+    snprintf(bufferRank, sizeof(bufferRank), "%016llx", static_cast<unsigned long long>(subnetPrefix));
+    snprintf(bufferRemoteRank, sizeof(bufferRemoteRank), "%016llx", static_cast<unsigned long long>(subnetPrefixRemote));
+
+    // if (ret < 0) {
+    //     HCCL_ERROR("[%s] snprintf_s failed for EID", __func__);
+    //     return "conversion failed";
+    // }
+    if ((bufferRank[11] == bufferRemoteRank[11]) && (bufferRank[11] != 'f')) {
+        return true;
+    }
+}
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
 
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType)
