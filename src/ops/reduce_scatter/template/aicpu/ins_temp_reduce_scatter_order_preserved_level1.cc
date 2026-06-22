@@ -500,11 +500,11 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunLocalReduce(
             // 计算目标虚拟索引，超出的第一个块和第一个块合并，第二个超出块和第二个块合并，以此类推
             u32 dstVirtualIdx = srcVirtualIdx % M;
 
-            // 虚拟索引映射到实际peerRank（数据来源rank）
-            // peerRank表示该数据块来自哪个rank
-            // 例如: myAlgRank=0, srcVirtualIdx=4 -> srcPeerRank=4
-            u32 srcPeerRank = (myAlgRank + srcVirtualIdx) % templateRankSize_;
-            u32 dstPeerRank = (myAlgRank + dstVirtualIdx) % templateRankSize_;
+            // 保序规约：虚拟索引直接映射到peerRank（canonical顺序）
+            // 所有rank使用相同的peerRank顺序，确保浮点规约结果一致
+            // 例如: srcVirtualIdx=2 -> srcPeerRank=2（所有rank都相同）
+            u32 srcPeerRank = srcVirtualIdx;
+            u32 dstPeerRank = dstVirtualIdx;
 
             u32 srcOutputIndex = CalcOutputIndex(srcPeerRank, myAlgRank);
             u32 dstOutputIndex = CalcOutputIndex(dstPeerRank, myAlgRank);
@@ -534,7 +534,7 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunLocalReduce(
         step++;
     }
 
-    HCCL_INFO("[RunLocalReduce] End, total steps[%u], final data at virtualIdx[0] (myAlgRank[%u])",
+    HCCL_INFO("[RunLocalReduce] End, total steps[%u], final data at peerRank[0] (canonical order, myAlgRank[%u])",
         step, myAlgRank);
     return HCCL_SUCCESS;
 }
@@ -553,7 +553,8 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::PostCopy(
         return HCCL_SUCCESS;
     }
 
-    u32 outputIndex = CalcOutputIndex(myAlgRank, myAlgRank);
+    // 保序规约后，结果落在peerRank=0的位置（dstVirtualIdx始终为0）
+    u32 outputIndex = CalcOutputIndex(0, myAlgRank);
     // 计算源地址偏移量（临时缓冲区中的归约结果位置）
     u64 srcOffset = memBlockInfo.outputOffsets[outputIndex];
     // 目标偏移量为0（用户输出缓冲区起始位置）
