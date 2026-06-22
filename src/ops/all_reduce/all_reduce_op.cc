@@ -101,10 +101,10 @@ HcclResult HcclAllReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
     std::string tagStr = tag;
 
     /* 接口交互信息日志 */
-    CHK_RET(AllReduceEntryLog(sendBuf, recvBuf, sendCount, dataType, op, stream, param.tag, "HcclAllReduceGraphMode"));
+    CHK_RET(AllReduceEntryLog(sendBuf, recvBuf, sendCount, dataType, op, stream, param.tag, "HcclAllReduceGraphMode", true));
     // 执行AllReduce
     CHK_RET_AND_PRINT_IDE(AllReduceOutPlaceGraphMode(sendBuf, recvBuf, sendCount, dataType, op, comm, stream, resPack, param), tagStr.c_str());
-    CHK_RET(LogHcclExit("HcclAllReduceGraphMode", param.tag, startut));
+    CHK_RET(LogHcclExit("HcclAllReduceGraphMode", param.tag, startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -218,9 +218,9 @@ HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count,
 }
 
 HcclResult AllReduceEntryLog(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
-    aclrtStream stream, const char *tag, const std::string &opName)
+    aclrtStream stream, const char *tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
