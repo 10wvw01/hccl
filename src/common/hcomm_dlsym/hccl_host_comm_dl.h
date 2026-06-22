@@ -37,7 +37,7 @@ typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
 
 #endif /* CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1) */
 
-#if GetHcommVersion() < CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
 typedef enum {
     THREAD_TYPE_INVALID = -1,
     THREAD_TYPE_TS = 0
