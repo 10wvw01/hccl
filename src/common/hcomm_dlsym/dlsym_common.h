@@ -37,8 +37,16 @@ typedef enum {
 } HcclCommStatus;
 
 typedef uint64_t ThreadHandle;
-
 #endif
+
+typedef enum {
+    HCCL_COMM_STATE_DESTROY_PRE = 0,   /* 调用通信域销毁HcclCommDestroy前 */
+    HCCL_COMM_STATE_DESTROY_POST = 1,  /* 调用通信域销毁HcclCommDestroy后 */
+    HCCL_COMM_STATE_RESUME_PRE = 2,    /* 调用step快恢恢复通信域资源HcclCommResume前 */
+    HCCL_COMM_STATE_RESUME_POST = 3    /* 调用step快恢恢复通信域资源HcclCommResume后 */
+} HcclCommStateOp;
+
+typedef HcclResult (*HcclCommStateCallback)(HcclComm comm, HcclCommStateOp state, void *args);
 
 #ifdef __cplusplus
 extern "C" {
