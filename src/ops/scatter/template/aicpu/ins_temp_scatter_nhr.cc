@@ -11,6 +11,9 @@
 #include "ins_temp_scatter_nhr.h"
 
 namespace ops_hccl {
+namespace {
+constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
+}
 InsTempScatterNHR::InsTempScatterNHR(const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
                                         const std::vector<std::vector<u32>> &subCommRanks)
                                         : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -38,10 +41,21 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
 
     std::vector<HcclChannelDesc> level0Channels;
     std::vector<HcclChannelDesc> myChannelDescs;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    u64 dataSize = param.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        if (IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+        if (IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) && dataSize >= SMALL_COUNT_512KB) {
             // zzy todo
             // CHK_RET(CalcChannelRequestNhrWithMultiJetty(comm, param, topoInfo, subCommRanks_, level0Channels));
+            // for test
+            HCCL_INFO("[InsTempScatterNHR][CalcRes] ypc test");
+            CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs,
+                CommTopo::COMM_TOPO_CLOS));
+            for (auto channel : myChannelDescs) {
+                if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                    level0Channels.push_back(channel);
+                }
+            }
         } else {
             CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs,
                 CommTopo::COMM_TOPO_CLOS));
@@ -57,6 +71,8 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     resourceRequest.channels.push_back(level0Channels);
     channelsPerRank_ = CalcChannelsPerRank(level0Channels);
     if (channelsPerRank_ > MAX_JETTY_NUM) {
+        // for test
+        channelsPerRank_ = std::min(channelsPerRank_, static_cast<u32>(4));
         HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
             __func__, channelsPerRank_, MAX_JETTY_NUM);
     } else {
