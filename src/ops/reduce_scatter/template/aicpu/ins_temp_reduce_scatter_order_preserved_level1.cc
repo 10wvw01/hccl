@@ -161,25 +161,38 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
 
     // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
     HCCL_INFO("[RS_OrderPreserved] >>> Step1: PreLocalCopy");
-    // 打印PreLocalCopy前的输入数据（本rank的slice）
+    // PreLocalCopy前：打印输入数据（本rank的slice + 全量）
     {
         u32 myAlgRankTmp = 0;
         GetAlgRank(myRank_, subCommRanks_[0], myAlgRankTmp);
         u64 mySliceSize = memBlockInfo_.size[myAlgRankTmp];
         u64 myUserOffset = memBlockInfo_.userInputOffsets[myAlgRankTmp];
-        PrintSliceData("RS_PreLocalCopy_BEFORE_input_mySlice", tempAlgParams.buffInfo.inputPtr,
+        PrintSliceData("RS_Step1_BEFORE_input_mySlice", tempAlgParams.buffInfo.inputPtr,
             myUserOffset, mySliceSize, dataType_);
-        // 打印输入数据的完整内容（所有slice）
-        PrintSliceData("RS_PreLocalCopy_BEFORE_input_full", tempAlgParams.buffInfo.inputPtr,
+        PrintSliceData("RS_Step1_BEFORE_input_full", tempAlgParams.buffInfo.inputPtr,
             tempAlgParams.buffInfo.inBuffBaseOff,
             tempAlgParams.buffInfo.inputSize, dataType_);
+        // 逐个rank的输入slice打印
+        for (u32 r = 0; r < memBlockInfo_.size.size(); r++) {
+            PrintSliceData("RS_Step1_BEFORE_input_rankSlice", tempAlgParams.buffInfo.inputPtr,
+                memBlockInfo_.userInputOffsets[r], memBlockInfo_.size[r], dataType_);
+        }
     }
     CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
-    HCCL_INFO("[RS_OrderPreserved] PreLocalCopy done");
-    // 打印PreLocalCopy后的CCL buffer临时数据（所有rank区域）
+    HCCL_INFO("[RS_OrderPreserved] Step1: PreLocalCopy submitted (async DMA)");
+
+    // DEBUG SYNC: 等待PreLocalCopy的DMA完成，才能读取CCL buffer中的数据
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: waiting for PreLocalCopy DMA completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: PreLocalCopy DMA complete, data now visible");
+    // PreLocalCopy后：打印CCL buffer中本rank写入的区域
     {
         for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
-            PrintSliceData("RS_PreLocalCopy_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+            PrintSliceData("RS_Step1_AFTER_cclBuff_rankRegion", tempAlgParams.buffInfo.hcclBuff.addr,
                 memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
         }
     }
@@ -193,59 +206,62 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
 
     // 步骤2: 执行AllToAll操作（每个rank将自己的数据发送给其他rank，并接收其他rank的数据）
     HCCL_INFO("[RS_OrderPreserved] >>> Step2: RunAllToAll");
-    // 打印AllToAll前的CCL buffer数据
-    {
-        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
-            PrintSliceData("RS_AllToAll_BEFORE_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
-                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
-        }
-    }
     CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
-    HCCL_INFO("[RS_OrderPreserved] AllToAll done");
-    // 打印AllToAll后的CCL buffer数据（此时已经收到了所有rank的数据）
-    {
-        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
-            PrintSliceData("RS_AllToAll_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
-                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
-        }
-    }
+    HCCL_INFO("[RS_OrderPreserved] Step2: AllToAll submitted (async comm)");
     // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
-    if (dataType_ == HcclDataType::HCCL_DATA_TYPE_FP64) {
-        // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
-        CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
-        CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
-        for (const auto &thread : templateResource.threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+
+    // DEBUG SYNC: 等待AllToAll通信完成，确保所有rank的数据都已到达CCL buffer
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: waiting for AllToAll completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: AllToAll complete, all rank data now visible");
+    // AllToAll同步完成后：打印CCL buffer中每个rank的数据（此时应包含所有rank的原始数据）
+    {
+        for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
+            PrintSliceData("RS_Step2_AFTER_AllToAll_cclBuff_rankRegion", tempAlgParams.buffInfo.hcclBuff.addr,
+                memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
         }
     }
 
     // 步骤3: 执行本地归约操作（将收到的所有数据在本地进行归约）
-    HCCL_INFO("[RS_OrderPreserved] >>> Step3: RunLocalReduce");
+    HCCL_INFO("[RS_OrderPreserved] >>> Step3: RunLocalReduce (CPU sync compute)");
     CHK_RET(RunLocalReduce(templateResource.threads, tempAlgParams));
-    HCCL_INFO("[RS_OrderPreserved] LocalReduce done");
-    // 打印LocalReduce后的CCL buffer数据（归约结果）
+    HCCL_INFO("[RS_OrderPreserved] Step3: LocalReduce done (sync CPU op, data visible)");
+    // LocalReduce是CPU同步操作，数据已经可见，打印归约结果（每个rank区域的最终值）
     {
         for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
-            PrintSliceData("RS_LocalReduce_AFTER_cclBuff_outputIdx", tempAlgParams.buffInfo.hcclBuff.addr,
+            PrintSliceData("RS_Step3_AFTER_LocalReduce_cclBuff_rankRegion", tempAlgParams.buffInfo.hcclBuff.addr,
                 memBlockInfo_.outputOffsets[i], memBlockInfo_.size[i], dataType_);
         }
     }
 
     // 步骤4: 执行后处理拷贝（将归约结果从临时缓冲区拷贝到用户输出缓冲区）
-    HCCL_INFO("[RS_OrderPreserved] >>> Step4: PostCopy");
+    HCCL_INFO("[RS_OrderPreserved] >>> Step4: PostCopy (async DMA)");
     CHK_RET(PostCopy(tempAlgParams, templateResource.threads));
-    HCCL_INFO("[RS_OrderPreserved] PostCopy done");
-    // 打印PostCopy后的输出数据（归约最终结果）
+    HCCL_INFO("[RS_OrderPreserved] Step4: PostCopy submitted (async DMA)");
+
+    // DEBUG SYNC: 等待PostCopy DMA完成，才能读取output中的最终归约结果
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: waiting for PostCopy DMA completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: PostCopy DMA complete, output data now visible");
+    // PostCopy后：打印output中的本rank归约结果（ReduceScatter的最终输出）
     {
         u32 myAlgRankTmp = 0;
         GetAlgRank(myRank_, subCommRanks_[0], myAlgRankTmp);
         u64 mySliceSize = memBlockInfo_.size[myAlgRankTmp];
-        PrintSliceData("RS_PostCopy_AFTER_output_myRank", tempAlgParams.buffInfo.outputPtr,
+        PrintSliceData("RS_Step4_AFTER_PostCopy_output_myRank", tempAlgParams.buffInfo.outputPtr,
             tempAlgParams.buffInfo.outBuffBaseOff, mySliceSize, dataType_);
     }
 
