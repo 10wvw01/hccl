@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_V_MESH_1D_2DIE_H_
@@ -15,7 +15,6 @@
 #include <set>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
 
@@ -126,8 +125,6 @@ public:
 private:
     HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
-    void FillRankGroupTaskArgs(uint32_t kernelIdx, const Mesh2DieCacheCtx &cacheCtx,
-        const LoopGroupConfig &config, std::vector<uint64_t> &taskArgs);
     HcclResult SaveCacheCtx(HcclComm comm, const OpParam &param);
     HcclResult LoadCacheCtx(const OpParam &param, Mesh2DieCacheCtx &cacheCtx);
 
@@ -140,6 +137,7 @@ private:
     std::vector<std::vector<HcclChannelDesc>> kernelChannels_{MAX_KERNEL_NUM_2DIE};
     std::array<RankGroup, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
+    std::array<uint32_t, MAX_KERNEL_NUM_2DIE> kernelType_ = {KERNEL_FULLMESH, KERNEL_CLOS_MAJOR, KERNEL_CLOS_MINOR};
     std::map<uint32_t, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     std::set<RankId> closPeers_;
 
