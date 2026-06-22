@@ -382,6 +382,77 @@ struct ChannelInfo {
     std::vector<u64> remoteAlltoAllVRdispls;
     HcclMem remoteInput;  // A3用的，cclIn
     HcclMem remoteOutput; // A3用的, cclOut
+
+    std::vector<char> Serialize() const
+    {
+        BinaryStream binaryStream;
+        binaryStream << isValid;
+        binaryStream << remoteRank;
+        binaryStream << protocol;
+        binaryStream << locationType;
+        binaryStream << notifyNum;
+        binaryStream << portGroupSize;
+        binaryStream << handle;
+        binaryStream << remoteCclMem.type;
+        binaryStream << remoteCclMem.addr;
+        binaryStream << remoteCclMem.size;
+        binaryStream << remoteInputGraphMode.type;
+        binaryStream << remoteInputGraphMode.addr;
+        binaryStream << remoteInputGraphMode.size;
+        binaryStream << remoteOutputGraphMode.type;
+        binaryStream << remoteOutputGraphMode.addr;
+        binaryStream << remoteOutputGraphMode.size;
+        binaryStream << hasRemoteAlltoAllVInfo;
+        binaryStream << remoteAlltoAllVRdisplForLocalRank;
+        binaryStream << remoteAlltoAllVRecvCountForLocalRank;
+        binaryStream << remoteAlltoAllVTotalSendCountWithoutSelf;
+        binaryStream << remoteAlltoAllVMaxSendCountWithoutSelf;
+        binaryStream << remoteAlltoAllVRecvCounts;
+        binaryStream << remoteAlltoAllVRdispls;
+        binaryStream << remoteInput.type;
+        binaryStream << remoteInput.addr;
+        binaryStream << remoteInput.size;
+        binaryStream << remoteOutput.type;
+        binaryStream << remoteOutput.addr;
+        binaryStream << remoteOutput.size;
+        std::vector<char> result;
+        binaryStream.Dump(result);
+        return result;
+    }
+
+    void DeSerialize(std::vector<char> &data)
+    {
+        BinaryStream binaryStream(data);
+        binaryStream >> isValid;
+        binaryStream >> remoteRank;
+        binaryStream >> protocol;
+        binaryStream >> locationType;
+        binaryStream >> notifyNum;
+        binaryStream >> portGroupSize;
+        binaryStream >> handle;
+        binaryStream >> remoteCclMem.type;
+        binaryStream >> remoteCclMem.addr;
+        binaryStream >> remoteCclMem.size;
+        binaryStream >> remoteInputGraphMode.type;
+        binaryStream >> remoteInputGraphMode.addr;
+        binaryStream >> remoteInputGraphMode.size;
+        binaryStream >> remoteOutputGraphMode.type;
+        binaryStream >> remoteOutputGraphMode.addr;
+        binaryStream >> remoteOutputGraphMode.size;
+        binaryStream >> hasRemoteAlltoAllVInfo;
+        binaryStream >> remoteAlltoAllVRdisplForLocalRank;
+        binaryStream >> remoteAlltoAllVRecvCountForLocalRank;
+        binaryStream >> remoteAlltoAllVTotalSendCountWithoutSelf;
+        binaryStream >> remoteAlltoAllVMaxSendCountWithoutSelf;
+        binaryStream >> remoteAlltoAllVRecvCounts;
+        binaryStream >> remoteAlltoAllVRdispls;
+        binaryStream >> remoteInput.type;
+        binaryStream >> remoteInput.addr;
+        binaryStream >> remoteInput.size;
+        binaryStream >> remoteOutput.type;
+        binaryStream >> remoteOutput.addr;
+        binaryStream >> remoteOutput.size;
+    }
 };
 
 // 算法ctx，key为通信域id+算法名，提前在device上
@@ -448,7 +519,14 @@ struct AlgResourceCtxSerializable {
         binaryStream << commInfoPtr;
         binaryStream << threads;
         binaryStream << unfoldThread;
-        binaryStream << channels;
+        binaryStream << channels.size();
+        for (const auto &level : channels) {
+            binaryStream << level.size();
+            for (const auto &channel : level) {
+                std::vector<char> channelSeq = channel.Serialize();
+                binaryStream << channelSeq;
+            }
+        }
         binaryStream << isHcommBatchTransferOnThreadSupported;
 
         binaryStream << npu2DpuShmemPtr;
@@ -481,7 +559,21 @@ struct AlgResourceCtxSerializable {
         binaryStream >> commInfoPtr;
         binaryStream >> threads;
         binaryStream >> unfoldThread;
-        binaryStream >> channels;
+        {
+            size_t levelNum;
+            binaryStream >> levelNum;
+            channels.resize(levelNum);
+            for (size_t i = 0; i < levelNum; ++i) {
+                size_t channelNum;
+                binaryStream >> channelNum;
+                channels[i].resize(channelNum);
+                for (size_t j = 0; j < channelNum; ++j) {
+                    std::vector<char> channelSeq;
+                    binaryStream >> channelSeq;
+                    channels[i][j].DeSerialize(channelSeq);
+                }
+            }
+        }
         binaryStream >> isHcommBatchTransferOnThreadSupported;
 
         binaryStream >> npu2DpuShmemPtr;
