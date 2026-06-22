@@ -15,7 +15,10 @@
 
 DEFINE_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStatus *status);
 
+DEFINE_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallBack, const char *regName, HcclCommStateCallback cb, void *args);
+
 // 初始化
 void HcclDeviceCommDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcclCommGetStatus);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcclCommRegCommStateCallBack);
 }

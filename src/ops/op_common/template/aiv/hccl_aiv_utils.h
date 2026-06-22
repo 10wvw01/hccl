@@ -223,6 +223,9 @@ HcclResult EvictAivCacheIfNeeded(HcclComm comm, AivCacheIndexCtx *indexCtx);
 HcclResult ReplayAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, OpParam &param, bool &cacheHit);
 
 HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, AivCacheIndexCtx *indexCtx);
+
+HcclResult AivTagClearCb(HcclComm comm, HcclCommStateOp state, void* userPtr);
+
 }
  
 #endif // HCCL_AIV_UTILS_H
