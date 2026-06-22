@@ -655,9 +655,9 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 {
     uint8_t eidRank[16];
-    memcpy(eidRank, endPoint0.commAddr.eid, sizeof(eid));
+    memcpy(eidRank, endPoint0.commAddr.eid, sizeof(eidRank));
     uint8_t eidRemoteRank[16];
-    memcpy(eidRemoteRank, endPoint1.commAddr.eid, sizeof(eid));
+    memcpy(eidRemoteRank, endPoint1.commAddr.eid, sizeof(eidRemoteRank));
 
     uint64_t subnetPrefix = 0;
     uint64_t subnetPrefixRemote = 0;
