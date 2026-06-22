@@ -19,7 +19,6 @@
 #include "ccu_temp_all_to_all_mesh2die.h"
 #include "ccu_temp_all_to_all_mesh1d_multi_jetty.h"
 #include "ccu_temp_all_to_all_mesh1d_2Die.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
 #endif
 
 #define CONST_ZERO 0
