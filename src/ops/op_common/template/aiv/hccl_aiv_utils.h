@@ -17,6 +17,7 @@
 #include "hccl_types.h"
 #include "acl/acl_rt.h"
 #include "alg_param.h"
+#include "dlsym_common.h"
 
 namespace ops_hccl {
 constexpr u32 MAX_RANK_SIZE = 512; // 注意要和device侧的一致
@@ -223,6 +224,9 @@ HcclResult EvictAivCacheIfNeeded(HcclComm comm, AivCacheIndexCtx *indexCtx);
 HcclResult ReplayAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, OpParam &param, bool &cacheHit);
 
 HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, AivCacheIndexCtx *indexCtx);
+
+HcclResult AivTagClearCb(HcclComm comm, HcclCommStateOp state, void* userPtr);
+
 }
  
 #endif // HCCL_AIV_UTILS_H
