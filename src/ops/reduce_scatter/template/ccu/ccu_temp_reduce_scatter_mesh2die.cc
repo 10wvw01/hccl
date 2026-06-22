@@ -195,7 +195,7 @@ HcclResult CcuTempReduceScatterMesh2Die::FastLaunch(const OpParam& param, const 
     uint64_t inputAddr       = PointerToAddr(buffInfo_.inputPtr)      + args[0];
     uint64_t outputAddr      = PointerToAddr(buffInfo_.outputPtr)     + args[1];
     uint64_t token           = args[2];
-    uint64_t scratchAddr     = PointerToAddr(buffInfo_.hcclBuff.addr) + args[3];
+    uint64_t scratchAddr     = PointerToAddr(buffInfo_.hcclBuff.addr) + args[3] + args[4];
     uint64_t sliceSize       = args[4];
     uint64_t rmtReduceSliceOffset = args[5];
 
