@@ -238,7 +238,7 @@ u64 CcuTempGatherOmniPipeMesh1DMem2Mem::CalcScratchMultiple(BufferType inBuffTyp
 {
     (void)inBuffType;
     (void)outBuffType;
-    return 0;
+    return templateRankSize_;
 }
 
 } // namespace ops_hccl
