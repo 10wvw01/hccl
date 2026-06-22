@@ -48,11 +48,11 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
     const char* commId = param.commName;
     std::ostringstream oss;
     oss << inputSize << delimiter
-        << static_cast<uint8_t>(opType) << delimiter
-        << static_cast<uint8_t>(dataType) << delimiter
-        << static_cast<uint8_t>(reduceType) << delimiter
-        << static_cast<uint8_t>(isZeroCopy) << delimiter
-        << static_cast<uint8_t>(opMode) << delimiter
+        << opType << delimiter
+        << dataType << delimiter
+        << reduceType << delimiter
+        << isZeroCopy << delimiter
+        << opMode << delimiter
         << commId;
     cacheTag = oss.str();
         
