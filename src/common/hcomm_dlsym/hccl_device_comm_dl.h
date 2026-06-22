@@ -21,6 +21,9 @@ extern "C" {
 DECL_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStatus *status);
 DECL_SUPPORT_FLAG(HcclCommGetStatus);
 
+DECL_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallBack, const char *regName, HcclCommStateCallback cb, void *args);
+DECL_SUPPORT_FLAG(HcclCommRegCommStateCallBack);
+
 void HcclDeviceCommDlInit(void* libHcommHandle);
 
 #ifdef __cplusplus
