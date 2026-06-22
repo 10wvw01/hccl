@@ -415,7 +415,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         // 检查aicpu task cache使能约束
         bool enableCache = param->aicpuCacheEnable;
+        HCCL_INFO("[HcclLaunchAicpuKernel] enableCache[%d]", enableCache);
         
+        // 检查是否cache miss
         std::string cacheTag = "";
         bool isCacheMiss = true;
         if (enableCache) { // 如果使能aicpu task cache
@@ -440,6 +442,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
             }
         }
+        HCCL_INFO("[HcclLaunchAicpuKernel] isCacheMiss[%d] for cacheTag[%s]", isCacheMiss, cacheTag.c_str());
 
         if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
             // 执行算法编排
