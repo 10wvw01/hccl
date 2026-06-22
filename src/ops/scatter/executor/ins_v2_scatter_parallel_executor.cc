@@ -202,6 +202,13 @@ HcclResult InsV2ScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         rankSizeLevel0_,
         rankSizeLevel1_);
 
+    // 实例化算法模板类
+    InsAlgTemplate0 tempAlgIntra(param, resCtx.topoInfo.userRank, temp0HierarchyInfo_);
+    InsAlgTemplate1 tempAlgInter(param, resCtx.topoInfo.userRank, temp1HierarchyInfo_);
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+        tempAlgInter.SetchannelsPerRank(interChannelInfo_);
+    }
+
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InsV2ScatterParallelExecutor][Orchestrate]errNo[0x%016llx] Scatter excutor kernel run failed",
