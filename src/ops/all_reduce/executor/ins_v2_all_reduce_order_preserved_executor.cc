@@ -51,7 +51,7 @@ void InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlg
             ss << " values[float32]: [";
             for (u64 i = 0; i < printCount; i++) {
                 if (i > 0) ss << ", ";
-                ss << ptr[i];
+                ss << std::setprecision(9) << ptr[i];
             }
             ss << "]";
             break;
@@ -72,7 +72,7 @@ void InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlg
             ss << " values[float64]: [";
             for (u64 i = 0; i < printCount; i++) {
                 if (i > 0) ss << ", ";
-                ss << ptr[i];
+                ss << std::setprecision(17) << ptr[i];
             }
             ss << "]";
             break;
