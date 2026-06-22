@@ -107,7 +107,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     dataCount_ = param.DataDes.count;
     dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-    root_ = param.root;
     
     rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
     rankSizeLevel1_ = algHierarchyInfo.infos[0][1].size() / rankSizeLevel0_;
@@ -115,8 +114,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 
-    rootXAixs = root_ % rankSizeLevel0_;
-    rootYAixs = root_ / rankSizeLevel0_;
+    rootXAixs = param.root % rankSizeLevel0_;
+    rootYAixs = param.root / rankSizeLevel0_;
 
     isRoot = (myRank_ == root_);
  	// isSameXAxis = (rankIdxLevel0_ == rootXAixs) && !isRoot;
@@ -574,6 +573,13 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         
+        for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel1.size();++i){
+            for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride.size();++j){
+                for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j].size();k++){
+                    HCCL_INFO("[zq][dataSliceLevel] myRank[%u] inputOmniPipeSliceStride[%U][%u][%u]", myRank, i, j, k, omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j][k]);
+                }
+            }
+        }
         HCCL_DEBUG("[%s] dataCount_ %llu, processedDataCount %llu, maxCountPerLoop %llu, currDataCount %llu",
                         __func__, dataCount_, processedDataCount, maxCountPerLoop, currDataCount);
 
@@ -654,8 +660,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         HCCL_DEBUG("[%s] level0StepCountAG %u", __func__, level0StepCountAG);
         for (u32 i = 0; i < level0StepCountAG; i++) {
             // 初始化机内template param
-            // GenTemplateAlgParamsByDimData(tempGAlgParamsX, omniPipeSliceInfoAG.dataSliceLevel0[i], processedDataCount);
-            // GenTemplateAlgParamsByDimData(tempGAlgParamsY, omniPipeSliceInfoAG.dataSliceLevel1[i], processedDataCount);
             // 开始前同步
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             
