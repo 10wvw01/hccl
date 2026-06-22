@@ -15,14 +15,12 @@
 #include "ins_temp_all_gather_nhr_dpu.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_gather_mesh_1D.h"
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_mesh_1D.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_all_gather_2dies_mesh_1d_mem2mem.h"
 #include "ccu_temp_all_gather_2dies_mesh_1D.h"
 #include "ccu_temp_all_gather_nhr_1D_multi_jetty_mem2mem.h"
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #include "topo_match_ubx.h"
 namespace ops_hccl {
@@ -144,6 +142,11 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     } else {
         maxDataSizePerLoop = transportBoundDataSize;
     }
+
+    // 如果是对称内存，每次传输的大小不受cclbuffer和UB_MAX_DATA_SIZE的限制
+    if (param.supportSymmetricMemory) {
+        maxDataSizePerLoop = dataSize_;
+    }
     u64 maxCountPerLoop = maxDataSizePerLoop / dataTypeSize_;
     // 计算loopTimes
     u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
@@ -191,12 +194,16 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
     const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[InsV2AllGatherSoleExecutor] loopTimes==1, save fast launch ctx.");
-    u32 threadNum = 1;
     u32 ccuKernelNum = templateAlgRes.submitInfos.size();
     if (ccuKernelNum < 1) {
         HCCL_INFO("[InsV2AllGatherSoleExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
+    CHK_PRT_RET(ccuKernelNum > templateAlgRes.threads.size(),
+        HCCL_ERROR("[InsV2AllGatherSoleExecutor][FastLaunchSaveCtx] ccuKernelNum[%u] is bigger than thread size[%llu].",
+            ccuKernelNum, templateAlgRes.threads.size()),
+        HCCL_E_INTERNAL);
+    u32 threadNum = ccuKernelNum;
     HCCL_INFO("[InsV2AllGatherSoleExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
@@ -214,12 +221,14 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
     ccuFastLaunchCtx->threadNum = threadNum;
     ccuFastLaunchCtx->notifyNumOnMainThread = notifyNumOnMainThread;
     ThreadHandle *threads = ccuFastLaunchCtx->GetThreadHandlePtr();
-    threads[0] = templateAlgRes.threads[0];
+    for (u32 i = 0; i < threadNum; i++) {
+        threads[i] = templateAlgRes.threads[i];
+    }
         
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    for (int i = 0; i < ccuKernelNum; i++) {
+    for (u32 i = 0; i < ccuKernelNum; i++) {
         kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
     }
     return HCCL_SUCCESS;
