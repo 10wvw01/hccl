@@ -86,7 +86,7 @@ static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContext &ctx)
     
     uint32_t allBit = (1 << INPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
-        ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit);
+        // ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit);
     }
     
     return CCU_SUCCESS;
@@ -165,7 +165,7 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
     // CCU_CHK_RET(DoRepeatGather(ctx));
     
