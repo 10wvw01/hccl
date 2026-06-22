@@ -375,6 +375,39 @@ HcclResult InsTempAlltoAllMeshClosV3NoMemcpy::RunClosNoMemcpySlot(
     rxSrcSlices.emplace_back(rxChannel.remoteOutputGraphMode.addr, rxSrcOffset, actualChunkSize, chunkCount);
     rxDstSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, rxDstOffset, actualChunkSize, chunkCount);
 
+    const bool samePeerChannel = slotPlan.txRank == slotPlan.rxRank &&
+                                 slotPlan.txChannelIdx == slotPlan.rxChannelIdx;
+    if (samePeerChannel) {
+        TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
+        TxRxChannels sendRecvChannels(txChannel, rxChannel);
+        SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
+        HCCL_WARNING("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] myRank=%d round=%u samePeerChannel=1 "
+                     "channelIdx=%u txRank=%u rxRank=%u txSrcOff=%llu txDstOff=%llu "
+                     "rxSrcOff=%llu rxDstOff=%llu chunk=%llu",
+                     myRank_, round, slotPlan.txChannelIdx, slotPlan.txRank, slotPlan.rxRank,
+                     txSrcOffset, txDstOffset, rxSrcOffset, rxDstOffset, actualChunkSize);
+
+        HcclResult dmaResult = SendRecvBatchWrite(sendRecvInfo, sendThread);
+        if (dmaResult == HcclResult::HCCL_E_INTERNAL) {
+            u32 failedAlgRank = 0;
+            if (GetAlgRank(slotPlan.txRank, subCommRanks_[0], failedAlgRank) == HCCL_SUCCESS &&
+                failedAlgRank < failedRanks_.size()) {
+                failedRanks_[failedAlgRank] = 1;
+            }
+            HCCL_WARNING("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] peer timed out. "
+                         "myRank=%d txRank=%u rxRank=%u round=%u channelIdx=%u samePeerChannel=1",
+                         myRank_, slotPlan.txRank, slotPlan.rxRank, round, slotPlan.txChannelIdx);
+            return HCCL_SUCCESS;
+        }
+        CHK_PRT_RET(dmaResult != HCCL_SUCCESS,
+                    HCCL_ERROR("[ALLTOALL_NO_MEMCPY][MeshClos][RunSlot] SendRecvBatchWrite failed. "
+                               "myRank=%d txRank=%u rxRank=%u round=%u channelIdx=%u err=0x%x",
+                               myRank_, slotPlan.txRank, slotPlan.rxRank, round,
+                               slotPlan.txChannelIdx, dmaResult),
+                    dmaResult);
+        return HCCL_SUCCESS;
+    }
+
     SlicesList sendSlicesList(txSrcSlices, txDstSlices);
     SlicesList recvSlicesList(rxSrcSlices, rxDstSlices);
     DataInfo sendInfo(txChannel, sendSlicesList, dataType_);
