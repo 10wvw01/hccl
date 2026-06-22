@@ -77,7 +77,9 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 
 static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 {
+    HCCL_INFO("-------start--------,RankId[%u]", ctx.rankId);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+        HCCL_INFO("-------1--------,i[%u] RankId[%u]", i, ctx.rankId);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.rankId],
             INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.rankId],
@@ -86,9 +88,10 @@ static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     
     uint32_t allBit = (1 << INPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+        HCCL_INFO("-------2--------,i[%u] RankId[%u]", i, ctx.rankId);
         ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit);
     }
-    
+    HCCL_INFO("-------end--------,RankId[%u]", ctx.rankId);
     return CCU_SUCCESS;
 }
 
@@ -162,9 +165,9 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernelY(CcuKernelArg arg)
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx)); 
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
-    // CCU_CHK_RET(DoRepeatGather(ctx));
+    CCU_CHK_RET(DoRepeatGather(ctx));
     
     // CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] GatherOmniPipeMesh1DMem2MemY end");
