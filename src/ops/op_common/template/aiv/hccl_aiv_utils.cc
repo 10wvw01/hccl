@@ -865,6 +865,19 @@ HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHas
     return HCCL_SUCCESS;
 }
 
+HcclResult AivTagClearCb(HcclComm comm, HcclCommStateOp state, void* userPtr)
+{
+    CHK_PTR_NULL(userPtr);
+    if (state != HcclCommStateOp::HCCL_COMM_STATE_RESUME_POST) {
+        HCCL_INFO("[%s] CommStateOp is not HCCL_COMM_STATE_RESUME_POST, skip aiv tag clear.", __func__);
+        return HCCL_SUCCESS;
+    }
+    ACLCHECK(haclrtMemset(static_cast<u8 *>(userPtr) + AIV_FLAG_ADDR_OFFSET, AIV_TAG_BUFF_LEN - AIV_FLAG_ADDR_OFFSET,
+        0, AIV_TAG_BUFF_LEN - AIV_FLAG_ADDR_OFFSET));
+    HCCL_INFO("[%s] Aiv commInfoBuffer[%p] tag buffer clear success.", __func__, userPtr);
+    return HCCL_SUCCESS;
+}
+
 // KernelLaunch内部接口
 HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 argsSize)
 {
