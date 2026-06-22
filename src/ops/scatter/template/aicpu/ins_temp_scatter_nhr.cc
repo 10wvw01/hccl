@@ -178,6 +178,7 @@ HcclResult InsTempScatterNHR::KernelRun(const OpParam& param, const TemplateData
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
     enableRemoteMemAccess_ = tempAlgParams.enableRemoteMemAccess;
     threadNum_ =  GetThreadNum();
+    HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
     processSize_ = tempAlgParams.sliceSize;
     count_ = tempAlgParams.count;
     dataType_ = param.DataDes.dataType;
