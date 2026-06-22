@@ -20,7 +20,7 @@ constexpr u64 AR_ONESHOT_1D_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 AR_M2M_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_MAX_DATA_SIZE = 32 * 1024 * 1024;
-constexpr u64 AR_AICPU_1D_64P_SMALL_DATA_SIZE = 32 * 1024 * 1024;
+constexpr u64 AR_AICPU_1D_CROSS_SMALL_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_64DATATYPE_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
@@ -30,6 +30,8 @@ constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_AR_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AIV_SMALL_DATA_SIZE_IN_BOARD = 128 * 1024;
 constexpr u64 AR_AIV_BOARD_SIZE = 8;
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -165,6 +167,9 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+                HCCL_WARNING("[Algo][AllReduceAutoSelector] ccu_sched does not support inplace allreduce."),
+                SelectorStatus::NOT_MATCH);
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             if (topoInfo->Level1Nhr) {
                 selectAlgName = "CcuAllReduceNHR1D";
@@ -269,6 +274,10 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(const To
 SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0Algo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                  std::string &selectAlgName, const u64 dataSize) const
 {
+    // ccu 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][AllReduceAutoSelector] ccu_sched does not support inplace allreduce."),
+        SelectorStatus::NOT_MATCH);
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, opParam, selectAlgName, dataSize);
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
@@ -282,7 +291,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0Algo(const TopoInfo
             }
         } else {
             CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
-            HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode "
+            HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode. "
                     "with ms reduce.", opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
         return SelectCcuScheduleLevel0UBXAlgo(topoInfo, selectAlgName, dataSize);
         }
@@ -333,7 +342,15 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD;
 
     if (topoInfo->topoLevelNums > 1) {
-        if (isDataTypeOrReduceTypeSpecial) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+            if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
+                selectAlgName = "InsV2AllReduceOmniPipeUboe";
+            } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
+                selectAlgName = "InsAllReduceNHR";
+            } else {
+                selectAlgName = "InsAllReduceParallelRSAGUboe";
+            }
+        } else if (isDataTypeOrReduceTypeSpecial) {
             selectAlgName = "InsAllReduceAicpuReduceNHR";
         } else if (topoInfo->Level1Nhr) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
@@ -342,7 +359,7 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllReduceNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (dataSize > AR_AICPU_1D_64P_SMALL_DATA_SIZE) {
+            if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize > AR_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllReduceSequenceMesh1DNhr" : "InsAllReduceParallelRSAG";
             } else {

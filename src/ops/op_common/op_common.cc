@@ -51,6 +51,8 @@
 #include "hcomm_diag_dl.h"
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
+#include "ccu_launch_dl.h"
+#include "hccl_ccu_res_dl.h"
 
 namespace ops_hccl {
 // 用于维护增量建链算子的host ctx信息
@@ -75,7 +77,7 @@ HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetL
 {
     // 仅在跨框非对称场景下检查
     if (topoInfo->topoLevelNums > 1 && topoInfo->multiModuleDiffDeviceNumMode) {
-        // 三个已适配非对称的算子：AllGather, AllReduce, ReduceScatter
+        // 已适配非对称的算子：AllGather, AllReduce, ReduceScatter, AllToAll(V/VC)
         bool isSupportedOp = (opType == HcclCMDType::HCCL_CMD_ALLGATHER ||
                              opType == HcclCMDType::HCCL_CMD_ALLREDUCE ||
                              opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER ||
@@ -565,6 +567,8 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         CHK_RET(resRet);
     }
 
+    param.cacheValid = isResourceReused;
+
     // Op注册
     HcclDfxOpInfoCompat hcclDfxOpInfo{};
     CHK_RET(ConstructHcclDfxOpInfo(param, param.algTag, ALG_TAG_LENGTH, hcclDfxOpInfo, cpuTsThread));
@@ -761,8 +765,11 @@ HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std:
         AivParamStorage *aivParam = nullptr;
         HcclResult ret = GetAivParamStorageByComm(comm, &aivParam);
         if (ret == HCCL_SUCCESS && aivParam != nullptr) {
-        numBlocksLimit = aivParam->aivCoreLimit;
-    }
+            numBlocksLimit = aivParam->aivCoreLimit;
+        } else {
+            HCCL_ERROR("[%s] GetAivParamStorageByComm faile, ret[%d], aivParam[%p]", __func__, ret, aivParam);
+            return HCCL_E_INTERNAL;
+        }
     } else {
         ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
     }
@@ -874,7 +881,7 @@ static HcclResult TryReuseResource(HcclComm comm, OpParam& param, bool& increCre
         ctxEngine = COMM_ENGINE_AICPU_TS;
     }
     if (HcclEngineCtxGet(comm, param.algTag, ctxEngine, &ctx, &size) == HCCL_SUCCESS) {
-        HCCL_DEBUG("Already have context, skip create, ctxSize is %u", param.ctxSize);
+        HCCL_DEBUG("Already have context, skip create, ctxSize is %llu", size);
         isResourceReused = true;
         *resCtxSequence = ctx;
         param.ctxSize = size;
@@ -1062,7 +1069,12 @@ HcclResult ReuseCachedDeviceCtx(HcclComm comm, const OpParam &param, void **resC
 {
     void *ctx = nullptr;
     uint64_t size = 0;
-    HcclResult ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
+    HcclResult ret;
+    if (param.engine == COMM_ENGINE_CPU) {
+        ret = HcclEngineCtxGet(comm, param.algTag, COMM_ENGINE_AICPU_TS, &ctx, &size);
+    } else {
+        ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
+    }
     if (ret == HCCL_SUCCESS) {
         *resCtxSequence = ctx;
         ctxSize = size;
@@ -1078,7 +1090,11 @@ HcclResult IncrementalCreateChannel(HcclComm comm, const OpParam &param, AlgReso
 {
     HcclResult ret = HcclGetChannel(comm, param, resRequest, &hostCtxObj);
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to incrementally create channel."), ret);
-    ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+    if (param.engine == COMM_ENGINE_CPU) {
+        ret = HcclEngineCtxDestroy(comm, param.algTag, COMM_ENGINE_AICPU_TS);
+    } else {
+        ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+    }
     if (ret != HCCL_SUCCESS) {
         HCCL_ERROR("failed to destroy device Ctx, ret[%d].", ret);
     }
@@ -1128,7 +1144,6 @@ HcclResult GetAlgResAICPU(HcclComm comm, const OpParam &param, AlgResourceReques
     uint64_t hostCtxSize = 0;
     HcclResult hostCtxRet = HcclEngineCtxGet(comm, hostCacheTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS,
         &hostCtxPtr, &hostCtxSize);
-
     if (!increCreateChannelFlag || hostCtxRet != HCCL_SUCCESS) {
         resCtxHost->commInfoPtr = static_cast<void*>(comm);
         resCtxHost->topoInfo = *topoInfo;
@@ -1414,9 +1429,7 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
         CHK_RET(HcclRankGraphGetEndpointInfo(comm, resCtxHost->topoInfo.userRank, &localEndpoint,
                 ENDPOINT_ATTR_BW_COEFF, portSizeTypeSize, static_cast<void*>(&portSize)));
         channel.portGroupSize = portSize;
-        CHK_PRT_RET(portSize == 0,
-                    HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.",
-                    resCtxHost->topoInfo.userRank, portSize), HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(portSize == 0, HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.", resCtxHost->topoInfo.userRank, portSize), HcclResult::HCCL_E_INTERNAL);
 #endif
         void* remoteCclBufferAddr = nullptr;
         uint64_t remoteCclBufferSize = 0;
@@ -1530,7 +1543,14 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
         CHK_RET(ret);
     }
 
-    CHK_RET(HcclGetCcuKernel(comm, resRequest, resCtxHost));
+    ret = HcclGetCcuKernel(comm, resRequest, resCtxHost);
+    if (ret == HCCL_E_UNAVAIL) {
+        // 进行资源回退
+        HCCL_WARNING("[HcclGetCcuKernel] ccu kernel unavailable, try to fallback.");
+        return HCCL_E_UNAVAIL;
+    } else {
+        CHK_RET(ret);
+    }
 #endif
     return HCCL_SUCCESS;
 }
@@ -1559,7 +1579,15 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
                 CHK_RET(ret);
             }
         }
-        kernelInfo.kernelArg->channels = kernelChannels;
+        auto* kernelArgBase = static_cast<CcuKernelArgBase*>(kernelInfo.kernelArg);
+        if (!kernelArgBase) {
+            HCCL_ERROR("[HcclGetChannelForCcu] kernelArg ptr is err.");
+            return HCCL_E_INTERNAL;
+        }
+        for (u32 i = 0; i < channelNum; ++i) {
+            kernelArgBase->channels[i] = kernelChannels[i];
+        }
+        kernelArgBase->channelCount = channelNum;
         HCCL_INFO("[HcclGetChannelForCcu] Get [%lu] channels", channelNum);
     }
     return HCCL_SUCCESS;
@@ -1568,19 +1596,30 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
 HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
                           std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
 {
+    CcuInsHandle insHandle{0};
+    uint32_t insNum = 0;
+    CHK_RET(HcclCommQueryCcuIns(comm, &insHandle, &insNum));
+    CHK_PRT_RET(insNum != 1, HCCL_ERROR("[HcclGetCcuKernel] HcclCommQueryCcuIns fail! insNum is [%u]", insNum),
+                HCCL_E_INTERNAL);
+
     u32 totalKernelNum = 0;
     for (auto t: resRequest.ccuKernelNum) {
         totalKernelNum += t;
     }
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
-        HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"),
-        HCCL_E_INTERNAL);
+                HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"), HCCL_E_INTERNAL);
 
     // 按照resgroup进行注册
     u32 currentResGroup = 0;
     u32 maxResGroup = 0;
     resCtxHost->ccuKernels.resize(totalKernelNum);
+
     while (currentResGroup <= maxResGroup) {
+        CcuResult regStartRet = HcommCcuKernelRegisterStart(insHandle);
+        if (regStartRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet);
+            return ConvertCcuToHccl(regStartRet);
+        }
         for (u32 i = 0; i < totalKernelNum; i++) {
             CcuKernelInfo& kernelInfo = resRequest.ccuKernelInfos[i];
             if (kernelInfo.resGroup > maxResGroup) {
@@ -1589,16 +1628,30 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
             if (kernelInfo.resGroup != currentResGroup) {
                 continue;
             }
-            void* kernelArgPtr = static_cast<void*>(kernelInfo.kernelArg.get()); // 保证没有释放
-            void* creatorPtr = static_cast<void*>(&kernelInfo.creator);
 
-            HCCL_DEBUG("[AllocAlgResource] kernelArgPtr[%p], creator[%p]", kernelArgPtr, &(kernelInfo.creator));
-            CcuKernelHandle handle;
-            CHK_RET(HcclCcuKernelRegister(comm, &handle, creatorPtr, kernelArgPtr));
-            
-            resCtxHost->ccuKernels[i] = handle;
+            HCCL_DEBUG("[HcclGetCcuKernel] kernelFuncName[%s]", kernelInfo.kernelFuncName);
+            CcuKernelHandle kernelHandle;
+            const void *kernelArgs[] = {kernelInfo.kernelArg};
+
+            constexpr uint32_t dieId = 0; // 预留接口，暂无含义
+            constexpr uint32_t kernelArgNum = 1;
+            CcuResult regRet = HcommCcuKernelRegister(insHandle, dieId, kernelInfo.kernelFuncName,
+                                                      reinterpret_cast<void*>(kernelInfo.kernelFunc),
+                                                      kernelArgs, kernelArgNum, &kernelHandle);
+            if (regRet != CCU_SUCCESS) {
+                HCCL_ERROR("ccu kernel register failed: ccuRet -> %d", regRet);
+                return ConvertCcuToHccl(regRet);
+            }
+            resCtxHost->ccuKernels[i] = kernelHandle;
         }
-        CHK_RET(HcclCcuKernelRegisterFinish(comm));
+        CcuResult regEndRet = HcommCcuKernelRegisterEnd(insHandle);
+        if (regEndRet == CCU_E_UNAVAIL) {
+            HCCL_WARNING("[HcclGetCcuKernel] ccu kernel register end unavailable, try to fallback.");
+            return HCCL_E_UNAVAIL;
+        } else if (regEndRet != CCU_SUCCESS) {
+            HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet);
+            return ConvertCcuToHccl(regEndRet);
+        }
         currentResGroup++;
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
@@ -1807,10 +1860,12 @@ std::string GetSupportDataType(bool needReduce)
 
 HcclResult CheckReduceOp(const HcclDataType dataType, const HcclReduceOp op)
 {
+    std::vector<HcclDataType> prodSupportList = {HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_INT32, HCCL_DATA_TYPE_INT64, HCCL_DATA_TYPE_UINT64,
+                                                 HCCL_DATA_TYPE_FP16, HCCL_DATA_TYPE_FP32, HCCL_DATA_TYPE_FP64};
     const std::vector<std::string> infoTitle({"ccl_op", "value", "parameter", "expect"});
     if (op == HcclReduceOp::HCCL_REDUCE_PROD) {
-        if (!Is64BitDataType(dataType)) {
-            RPT_INPUT_ERR(true, "EI0003", infoTitle, std::vector<std::string>({"CheckReduceOp", GetReduceOpEnumStr(op), "ReduceOp",
+        if (std::find(prodSupportList.begin(), prodSupportList.end(), dataType) == prodSupportList.end()) {
+            RPT_INPUT_ERR(true, "EI0003", infoTitle, std::vector<std::string>({"CheckReduceDataType", GetDataTypeEnumStr(dataType), "dataType",
                 GetReduceProdSupportDataType()}));
             HCCL_ERROR("[Check][ReduceOp][DataType]errNo[0x%016llx] reduceop is [%s] data type[%s] not supported, support range=[%s]",
                         HCCL_ERROR_CODE(HCCL_E_NOT_SUPPORT), GetReduceOpEnumStr(op).c_str(), GetDataTypeEnumStr(dataType).c_str(),
@@ -1823,7 +1878,8 @@ HcclResult CheckReduceOp(const HcclDataType dataType, const HcclReduceOp op)
 
 std::string GetReduceProdSupportDataType()
 {
-    std::vector<HcclDataType> supportList = {HCCL_DATA_TYPE_INT64, HCCL_DATA_TYPE_UINT64, HCCL_DATA_TYPE_FP64};
+    std::vector<HcclDataType> supportList = {HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_INT32, HCCL_DATA_TYPE_INT64, HCCL_DATA_TYPE_UINT64,
+                                             HCCL_DATA_TYPE_FP16, HCCL_DATA_TYPE_FP32, HCCL_DATA_TYPE_FP64};
     std::string supportInfo = "";
     for (u32 i = 0; i < supportList.size(); i++) {
         if (i != 0) {
@@ -2188,9 +2244,9 @@ bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig)
     return false;
 }
 
-HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut)
+HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         HcclUs endut = TIME_NOW();
         std::string endInfo = opName + ":success,take time: " +
             std::to_string(DURATION_US(endut - startut).count()) + " us, tag: " + tag;
@@ -2391,6 +2447,45 @@ bool IsHostDpu(HcclComm comm)
     uint32_t *netLayers = nullptr;
     uint32_t netLayerNum = 0;
     CHK_RET(HcclRankGraphGetLayers(comm, &netLayers, &netLayerNum));
+    if (ret != HCCL_SUCCESS) {
+        return false;
+    }
+
+    TopoInfoWithNetLayerDetails topoInfo;
+    topoInfo.serverNum = level0RankListNum;
+    topoInfo.topoLevelNums = netLayerNum;
+    topoInfo.userRankSize = rankSize;
+    ret = CheckHostDPUOnly(comm, &topoInfo, hostDpuOnly);
+    if (ret == HCCL_SUCCESS && hostDpuOnly) {
+        return true;
+    }
+    return false;
+}
+
+// 判定当前通信域是否为「框间 host-DPU」场景。逻辑与 IsHostDpu 一致，
+// 但不限定 910B —— 950 Barrier 新流程（框内 AICPU + 框间 DPU）仅在该场景启用。
+bool IsBarrierHostDpu(HcclComm comm)
+{
+    HcclResult ret;
+    bool hostDpuOnly = false;
+
+    uint32_t *level0SizeList = nullptr;
+    uint32_t level0RankListNum = 0;
+    ret = HcclRankGraphGetInstSizeListByLayer(comm, static_cast<uint32_t>(HcclNetLayer::HCCL_NetLayer_L0),
+        &level0SizeList, &level0RankListNum);
+    if (ret != HCCL_SUCCESS) {
+        return false;
+    }
+
+    u32 rankSize = 0;
+    ret = HcclGetRankSize(comm, &rankSize);
+    if (ret != HCCL_SUCCESS) {
+        return false;
+    }
+
+    uint32_t *netLayers = nullptr;
+    uint32_t netLayerNum = 0;
+    ret = HcclRankGraphGetLayers(comm, &netLayers, &netLayerNum);
     if (ret != HCCL_SUCCESS) {
         return false;
     }
