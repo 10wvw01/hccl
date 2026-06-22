@@ -652,7 +652,7 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
             (memcmp(endPoint0.commAddr.eid, endPoint1.commAddr.eid, sizeof(endPoint0.commAddr.eid)) == 0);
     }
 }
-static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
+static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 {
     uint8_t eidRank[16];
     memcpy(eidRank, endPoint0.commAddr.eid, sizeof(eid));
@@ -679,9 +679,12 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
     //     HCCL_ERROR("[%s] snprintf_s failed for EID", __func__);
     //     return "conversion failed";
     // }
-    if ((bufferRank[11] == bufferRemoteRank[11]) && (bufferRank[11] != 'f')) {
-        return true;
-    }
+    // if ((bufferRank[11] == bufferRemoteRank[11]) && (bufferRank[11] != 'f')) {
+    //     return true;
+    // } else {
+    //     return false;
+    // }
+    return ((bufferRank[11] == bufferRemoteRank[11]) && (bufferRank[11] != 'f')) ;
 }
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
 
