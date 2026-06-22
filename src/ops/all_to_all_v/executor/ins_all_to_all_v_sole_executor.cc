@@ -50,7 +50,11 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::InitCommInfo(
     devType_ = topoInfo->deviceType;
     dataType_ = param.all2AllVDataDes.sendType;
     dataTypeSize_ =  SIZE_TABLE[dataType_];
-    dataCount_ = param.DataDes.count;
+    u64* sendCounts = reinterpret_cast<u64*>(param.all2AllVDataDes.sendCounts);
+    dataCount_ = 0;
+    for (u64 i = 0; i < rankSize_; i++) {
+        dataCount_ += sendCounts[i];
+    }
     dataSize_ = dataCount_ * dataTypeSize_;
 
     HCCL_INFO("[InsAlltoAllVSoleExecutor][InitCommInfo] myRank [%u], rankSize [%u], devType [%u], dataType_ [%u], "
@@ -74,7 +78,7 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(HcclC
     }
 
     // 构建template
-    std::shared_ptr<InsAlgTemplate> algTemplate = 
+    std::shared_ptr<InsAlgTemplate> algTemplate =
         std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierachyInfo);
     // 调用计算资源的函数
     CHK_RET(algTemplate->CalcRes(comm, param, topoInfo, resourceRequest));
@@ -265,14 +269,14 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
     ThreadHandle *threads = fastLaunchCtx->GetThreadHandlePtr();
     tempFastLaunchCtx.threads.assign(threads, threads + fastLaunchCtx->threadNum);
     HCCL_INFO("[InsAlltoAllVSoleExecutor][FastLaunch] threadNum[%llu]", fastLaunchCtx->threadNum);
-    
+
     // 2 取arg
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = fastLaunchCtx->GetCcuKernelSubmitInfoPtr();
     tempFastLaunchCtx.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + fastLaunchCtx->ccuKernelNum[0]);
     HCCL_INFO("[InsAlltoAllVSoleExecutor][FastLaunch] ccuKernelNum[%llu]", fastLaunchCtx->ccuKernelNum[0]);
     tempFastLaunchCtx.buffInfo.inputPtr = param.inputPtr;
     tempFastLaunchCtx.buffInfo.outputPtr = param.outputPtr;
-    
+
     // 3 调template
     std::unique_ptr<InsAlgTemplate> algTemplate = std::make_unique<InsAlgTemplate>();
     CHK_RET(algTemplate->FastLaunch(param, tempFastLaunchCtx));

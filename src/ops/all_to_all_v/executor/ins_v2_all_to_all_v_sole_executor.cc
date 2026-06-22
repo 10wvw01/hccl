@@ -11,6 +11,7 @@
 #include "ins_v2_all_to_all_v_sole_executor.h"
 #include "ins_temp_all_to_all_v_mesh_1D.h"
 #include "ins_temp_dpu_alltoall_mesh.h"
+#include <cstring>
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_to_all_mesh_1D.h"
 #include "aiv_temp_all_to_all_v_mesh_1D.h"
@@ -27,6 +28,55 @@
 #define INST_NUM_NET 2
 
 namespace ops_hccl {
+namespace {
+bool IsMesh1DAlltoAllVNoMemcpyAlg(const OpParam &param)
+{
+    return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV &&
+           (std::strcmp(param.algName, "InsAlltoAllVMesh1DNoMemcpy") == 0 ||
+            std::strcmp(param.algName, "InsAlltoAllVMesh1DNoMemcpy1D") == 0);
+}
+
+HcclResult FillMesh1DNoMemcpyRemoteInfo(
+    const OpParam &param, u32 myRank, u64 rankSize,
+    const std::map<u32, std::vector<ChannelInfo>> &channels, TemplateDataParams &params)
+{
+    if (!IsMesh1DAlltoAllVNoMemcpyAlg(param)) {
+        return HCCL_SUCCESS;
+    }
+    params.enableRemoteMemAccess = true;
+    params.buffInfo.inputSize = param.inputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
+    params.buffInfo.outputSize = param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
+    params.remoteRdispls.assign(rankSize, 0);
+    params.remoteRecvCounts.assign(rankSize, 0);
+    for (const auto &item : channels) {
+        if (item.second.empty()) {
+            continue;
+        }
+        const u32 remoteRank = item.first;
+        const ChannelInfo &channel = item.second[0];
+        CHK_PRT_RET(remoteRank >= rankSize,
+                    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][Mesh1DNoMemcpy] invalid remote rank. "
+                               "rank=%u remoteRank=%u rankSize=%llu",
+                               myRank, remoteRank, rankSize),
+                    HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(!channel.hasRemoteAlltoAllVInfo,
+                    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][Mesh1DNoMemcpy] missing remote A2AV info. "
+                               "rank=%u remoteRank=%u",
+                               myRank, remoteRank),
+                    HcclResult::HCCL_E_INTERNAL);
+        params.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
+        params.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+        HCCL_INFO("[InsV2AlltoAllVSoleExecutor][Mesh1DNoMemcpy] rank=%u peer=%u "
+                  "remoteRdisplForLocal=%llu remoteRecvForLocal=%llu linkCount=%zu",
+                  myRank, remoteRank, params.remoteRdispls[remoteRank],
+                  params.remoteRecvCounts[remoteRank], item.second.size());
+    }
+    HCCL_WARNING("[InsV2AlltoAllVSoleExecutor][Mesh1DNoMemcpy] enabled. rank=%u rankSize=%llu "
+                 "inputBytes=%llu outputBytes=%llu channelPeers=%zu",
+                 myRank, rankSize, params.buffInfo.inputSize, params.buffInfo.outputSize, channels.size());
+    return HCCL_SUCCESS;
+}
+}
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::InsV2AlltoAllVSoleExecutor()
@@ -248,7 +298,11 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     }
 
     std::vector<std::vector<u32>> tempAlgHierachyInfo;
-    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+    if (resCtx.algHierarchyInfo.infos.size() >= COMM_LAYER_SIZE_2 &&
+        resCtx.algHierarchyInfo.infos[0].size() == 1 && resCtx.algHierarchyInfo.infos[1].size() >= 1) {
+        tempAlgHierachyInfo.push_back(resCtx.algHierarchyInfo.infos[0][0]);
+        tempAlgHierachyInfo.push_back(resCtx.algHierarchyInfo.infos[1][0]);
+    } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
         if (resCtx.topoInfo.topoLevelNums == 1 ) {
             tempAlgHierachyInfo = {resCtx.algHierarchyInfo.infos[0][1]};
         } else {
@@ -331,6 +385,10 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         tempAlgParams.recvCounts.resize(rankSize_, 0);
         tempAlgParams.sdispls.resize(rankSize_, 0);
         tempAlgParams.rdispls.resize(rankSize_, 0);
+        if (IsMesh1DAlltoAllVNoMemcpyAlg(param)) {
+            tempAlgParams.remoteRdispls.resize(rankSize_, 0);
+            tempAlgParams.remoteRecvCounts.resize(rankSize_, 0);
+        }
 
         for (u64 i = 0; i < rankSize_; i++) {
             if (sendCounts[i] > processedDataCount) {
@@ -347,6 +405,14 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
             } else {
                 tempAlgParams.recvCounts[i] = 0;
                 tempAlgParams.rdispls[i] = rdispls[i] + recvCounts[i];
+            }
+        }
+        CHK_RET(FillMesh1DNoMemcpyRemoteInfo(param, resCtx.topoInfo.userRank, rankSize_,
+                                             templateAlgRes.channels, tempAlgParams));
+        if (IsMesh1DAlltoAllVNoMemcpyAlg(param)) {
+            for (u64 i = 0; i < rankSize_; ++i) {
+                tempAlgParams.remoteRdispls[i] += processedDataCount;
+                tempAlgParams.remoteRecvCounts[i] = tempAlgParams.sendCounts[i];
             }
         }
 
@@ -416,14 +482,14 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
     ThreadHandle *threads = fastLaunchCtx->GetThreadHandlePtr();
     tempFastLaunchCtx.threads.assign(threads, threads + fastLaunchCtx->threadNum);
     HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] threadNum[%llu]", fastLaunchCtx->threadNum);
-    
+
     // 2 取arg
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = fastLaunchCtx->GetCcuKernelSubmitInfoPtr();
     tempFastLaunchCtx.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + fastLaunchCtx->ccuKernelNum[0]);
     HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] ccuKernelNum[%llu]", fastLaunchCtx->ccuKernelNum[0]);
     tempFastLaunchCtx.buffInfo.inputPtr = param.inputPtr;
     tempFastLaunchCtx.buffInfo.outputPtr = param.outputPtr;
-    
+
     // 3 调template
     std::unique_ptr<InsAlgTemplate> algTemplate = std::make_unique<InsAlgTemplate>();
     CHK_RET(algTemplate->FastLaunch(param, tempFastLaunchCtx));
@@ -438,11 +504,15 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DSingleChannel,
     InsTempAlltoAllVMesh1D);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1DNoMemcpy1D, InsV2AlltoAllVSoleExecutor,
+    TopoMatch1D, InsTempAlltoAllVMesh1D);
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DUBX, InsV2AlltoAllVSoleExecutor, TopoMatchUBX1d,
     InsTempAlltoAllVMesh1D);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1DUBX, InsV2AlltoAllVSoleExecutor, TopoMatchUBX1d,
     InsTempAlltoAllVMesh1D);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1DNoMemcpy, InsV2AlltoAllVSoleExecutor,
+    TopoMatchUBX1d, InsTempAlltoAllVMesh1D);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLVC, InsAlltoAllVCMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
