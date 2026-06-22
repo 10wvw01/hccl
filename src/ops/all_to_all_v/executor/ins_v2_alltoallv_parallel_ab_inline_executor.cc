@@ -454,7 +454,11 @@ HcclResult InsV2AlltoAllVParallelABInlineExecutor<AlgTopoMatch>::RunInlineTempla
     InsTempAlltoAllVABInlineNoMemcpy bClosTemp(param, resCtx.topoInfo.userRank, interHierarchyInfo_);
     meshTemp.SetMeshDimensions(rankSize_, myRank_, meshSize_, groupNum_);
     aClosTemp.SetMeshDimensions(rankSize_, myRank_, meshSize_, groupNum_);
-    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS || param.engine == CommEngine::COMM_ENGINE_AIV) {
+    CHK_PRT_RET(param.engine != CommEngine::COMM_ENGINE_AICPU_TS,
+                HCCL_ERROR("[A2AV_AB_INLINE][RunInlineTemplates] only AICPU_TS engine is supported. "
+                           "engine=%d", static_cast<int>(param.engine)),
+                HcclResult::HCCL_E_NOT_SUPPORT);
+    {
         aClosTemp.SetchannelsPerRank(aClosLinkMap_);
     }
     TemplateResource meshRes;

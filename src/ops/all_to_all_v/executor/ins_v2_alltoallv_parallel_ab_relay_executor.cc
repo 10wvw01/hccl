@@ -446,6 +446,13 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::SplitABParams(
         bParams.recvCounts[i] = baseParams.recvCounts[i] - aParams.recvCounts[i];
         bParams.sdispls[i] = baseParams.sdispls[i] + aParams.sendCounts[i];
         bParams.rdispls[i] = baseParams.rdispls[i] + aParams.recvCounts[i];
+        if (i < aParams.remoteRecvCounts.size()) {
+            aParams.remoteRecvCounts[i] = aParams.sendCounts[i];
+            bParams.remoteRecvCounts[i] = bParams.sendCounts[i];
+        }
+        if (i < bParams.remoteRdispls.size()) {
+            bParams.remoteRdispls[i] = baseParams.remoteRdispls[i] + aParams.sendCounts[i];
+        }
         aTotal += aParams.sendCounts[i];
         bTotal += bParams.sendCounts[i];
     }
@@ -473,7 +480,9 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::CheckRelayScratc
     for (u64 count : bParams.recvCounts) {
         maxBCount = std::max(maxBCount, count);
     }
-    u64 required = rankSize_ * rankSize_ * slotStride_;
+    // Relay scratch only holds same-group src ranks' B data for inter-group
+    // dst peers: meshSize_ * groupNum_ slots == rankSize_ slots, O(N).
+    u64 required = rankSize_ * slotStride_;
     CHK_PRT_RET(maxBCount > 0 && required > resCtx.cclMem.size,
                 HCCL_ERROR("[A2AV_AB_RELAY][Scratch] insufficient ccl buffer. rank=%u required=%llu "
                            "cclSize=%llu slotStride=%llu maxBCount=%llu rankSize=%llu",

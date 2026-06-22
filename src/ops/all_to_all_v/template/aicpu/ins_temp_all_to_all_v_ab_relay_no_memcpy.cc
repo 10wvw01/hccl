@@ -130,7 +130,13 @@ HcclResult InsTempAlltoAllVABRelayNoMemcpy::CheckSliceRange(
 
 u64 InsTempAlltoAllVABRelayNoMemcpy::CalcRelaySlotOffset(u32 srcRank, u32 dstRank) const
 {
-    return (static_cast<u64>(srcRank) * rankSize_ + dstRank) * slotStride_;
+    // Use intra-group relative srcRank and inter-group dstRank to keep scratch
+    // address space O(rankSize) instead of O(rankSize^2). Only same-group src
+    // ranks ever write/read relay slots, so (srcLocal * groupNum + dstGroup)
+    // uniquely identifies each (src, dst) pair with max index rankSize-1.
+    u32 srcLocal = srcRank % meshSize_;
+    u32 dstGroup = meshSize_ == 0 ? 0 : dstRank / meshSize_;
+    return (static_cast<u64>(srcLocal) * groupNum_ + dstGroup) * slotStride_;
 }
 
 void InsTempAlltoAllVABRelayNoMemcpy::CalcChannelSplit(
