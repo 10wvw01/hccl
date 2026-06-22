@@ -44,15 +44,16 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
     // 使用'-'作为间隔符, 拼接cacheTag
     // 注意: 把input size放在前面, 如果需要解析, 可以减少解析开销
     // 注意: commId放在最后, 如果需要解析, 无需考虑commId中含有delimiter的情况
+    // 注意: enum class不能转为uint8_t, 否则会作为char输出
     const char delimiter = '-';
     const char* commId = param.commName;
     std::ostringstream oss;
     oss << inputSize << delimiter
-        << opType << delimiter
-        << dataType << delimiter
-        << reduceType << delimiter
-        << isZeroCopy << delimiter
-        << opMode << delimiter
+        << static_cast<uint32_t>(opType) << delimiter
+        << static_cast<uint32_t>(dataType) << delimiter
+        << static_cast<uint32_t>(reduceType) << delimiter
+        << static_cast<uint32_t>(isZeroCopy) << delimiter
+        << static_cast<uint32_t>(opMode) << delimiter
         << commId;
     cacheTag = oss.str();
         
