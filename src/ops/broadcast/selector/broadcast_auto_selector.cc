@@ -13,6 +13,9 @@
 #include "hccl_aiv_utils.h"
 
 namespace ops_hccl {
+
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+
 SelectorStatus BroadcastAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
@@ -121,9 +124,14 @@ SelectorStatus BroadcastAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
 {
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
-    
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+            if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
+                selectAlgName = "InsBroadcastNHR";
+            } else {
+                selectAlgName = "InsBroadcastParallelNHRNHRUboe";
+            }
+        } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsBroadcastNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsBroadcastParallelMesh1DNHR";
@@ -173,7 +181,7 @@ SelectorStatus BroadcastAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     (void)configAlgMap;
     std::vector<HcclAlgoType> algos = std::vector<HcclAlgoType>(HCCL_ALGO_LEVEL_NUM, HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT);
 
-    if (topoInfo->userRankSize > MAX_RANK_SIZE) {
+    if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
         HCCL_DEBUG("[BroadcastAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
         return SelectorStatus::NOT_MATCH;
     }

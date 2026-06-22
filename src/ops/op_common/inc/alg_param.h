@@ -298,7 +298,7 @@ public:
 };
 
 // 算法taskArg入参最大个数，用于快速下发缓存
-#define CCU_MAX_TASK_ARG_NUM 30
+#define CCU_MAX_TASK_ARG_NUM 48
 
 struct CcuKernelSubmitInfo {
     CcuKernelHandle kernelHandle;
@@ -511,6 +511,11 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u64 inputSize = 0;
     void* outputPtr = nullptr;
     u64 outputSize = 0;
+    void* inputSymWindow = nullptr;
+    void* outputSymWindow = nullptr;
+    bool supportSymmetricMemory{false};
+    u64 inputOffset = 0;
+    u64 outputOffset = 0;
     HcclMem hcclBuff;   // 当前仅快速下发时使用此处的地址
     HcclReduceOp reduceType = HcclReduceOp::HCCL_REDUCE_RESERVED;
     u32 root = INVALID_VALUE_RANKID;
@@ -519,6 +524,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     OpMode opMode;
     bool   enableDetour{false};
     bool   isMc2{false};
+    bool   cacheValid{false};
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
     AlgType algType;

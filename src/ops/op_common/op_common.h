@@ -179,7 +179,7 @@ HcclResult HcclRegstryBuff(HcclComm comm, const char *memTag, void *bufferPtr, u
 
 HcclResult HcclGetRemoteBuff(HcclComm comm, ChannelHandle channel, const char *memTag, void **bufferPtr, uint64_t *bufferSize);
 
-HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut);
+HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut, bool forceLog = false);
 
 HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
@@ -191,6 +191,8 @@ HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetai
 
 HcclResult SetExecTimeout(OpParam &param);
 bool IsHostDpu(HcclComm comm);
+
+bool IsBarrierHostDpu(HcclComm comm);
 }  // namespace ops_hccl
 
 #endif
