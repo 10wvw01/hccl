@@ -44,12 +44,25 @@ typedef enum {
 } HcclCommStatus;
 #endif
 
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+typedef enum {
+    HCCL_COMM_STATE_PHASE_INVALID = -1,
+    HCCL_COMM_STATE_PHASE_DESTROY_PRE = 0,   /* 调用通信域销毁HcclCommDestroy前 */
+    HCCL_COMM_STATE_PHASE_DESTROY_POST = 1,  /* 调用通信域销毁HcclCommDestroy后 */
+    HCCL_COMM_STATE_PHASE_RESUME_PRE = 2,    /* 调用step快恢恢复通信域资源HcclCommResume前 */
+    HCCL_COMM_STATE_PHASE_RESUME_POST = 3    /* 调用step快恢恢复通信域资源HcclCommResume后 */
+} HcclCommStatePhase;
+
+typedef HcclResult (*HcclCommStateCallback)(HcclComm comm, HcclCommStatePhase state, void *args);
+#endif
+
 /* 9.0.0 起 hccl_types.h 已提供 ThreadHandle，仅 < 9.0.0 (8.5.x) 需要桩 */
 #if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
 typedef uint64_t ThreadHandle;
 #endif
 
-#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+#ifndef HCCL_GROUP_FEATURE_SUPPORT
+#include "hcomm_res_defs.h"
 
 const uint32_t P2P_MAX_ARG_SIZE = 8192U;
 typedef struct {
