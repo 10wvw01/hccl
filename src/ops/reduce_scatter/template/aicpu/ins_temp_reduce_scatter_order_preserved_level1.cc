@@ -41,7 +41,7 @@ static void PrintSliceData(const char *tag, const void *baseAddr, u64 offset, u6
         ss << " fp32: [";
         for (u64 i = 0; i < printCount; i++) {
             if (i > 0) ss << ", ";
-            ss << ptr[i];
+            ss << std::setprecision(9) << ptr[i];
         }
         ss << "]";
     } else if (dataType == HcclDataType::HCCL_DATA_TYPE_FP64) {
@@ -49,7 +49,7 @@ static void PrintSliceData(const char *tag, const void *baseAddr, u64 offset, u6
         ss << " fp64: [";
         for (u64 i = 0; i < printCount; i++) {
             if (i > 0) ss << ", ";
-            ss << ptr[i];
+            ss << std::setprecision(17) << ptr[i];
         }
         ss << "]";
     } else if (dataType == HcclDataType::HCCL_DATA_TYPE_INT32) {
