@@ -373,6 +373,13 @@ struct ChannelInfo {
     HcclMem remoteCclMem; // A5用的
     HcclMem remoteInputGraphMode;   // A5用的, 图模式下远端sendBuf地址
     HcclMem remoteOutputGraphMode;  // A5用的，图模式下远端recvBuf地址
+    bool hasRemoteAlltoAllVInfo = false;
+    u64 remoteAlltoAllVRdisplForLocalRank = 0;
+    u64 remoteAlltoAllVRecvCountForLocalRank = 0;
+    u64 remoteAlltoAllVTotalSendCountWithoutSelf = 0;
+    u64 remoteAlltoAllVMaxSendCountWithoutSelf = 0;
+    std::vector<u64> remoteAlltoAllVRecvCounts;
+    std::vector<u64> remoteAlltoAllVRdispls;
     HcclMem remoteInput;  // A3用的，cclIn
     HcclMem remoteOutput; // A3用的, cclOut
 };
@@ -676,6 +683,24 @@ struct OpExchangeInfo {
     u32 aivCoreLimit = MAX_NUM_BLOCKS;
     char group[MAX_LENGTH] = {0};
     char tag[TAG_LENGTH] = {0};
+};
+
+constexpr u32 A2AV_EXCHANGE_MAGIC = 0x41325658; // "A2VX"
+constexpr u32 A2AV_EXCHANGE_VERSION = 3;
+constexpr u32 A2AV_EXCHANGE_MAX_RANK_SIZE = 64;
+
+struct A2AVNoMemcpyExchangeInfo {
+    OpExchangeInfo base;
+    u32 magic = A2AV_EXCHANGE_MAGIC;
+    u32 version = A2AV_EXCHANGE_VERSION;
+    u32 rankSize = 0;
+    u32 userRank = INVALID_VALUE_RANKID;
+    u64 totalSendCountWithoutSelf = 0;
+    u64 maxSendCountWithoutSelf = 0;
+    u64 sendCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 recvCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 sdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 rdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
 };
 
 } 
