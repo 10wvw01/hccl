@@ -13,8 +13,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_scatter_parallel_executor.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

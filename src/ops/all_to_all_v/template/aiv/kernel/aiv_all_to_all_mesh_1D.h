@@ -21,7 +21,7 @@ public:
     {
         uint64_t smallDataSize = 512 * 1024;
         dataSize_ = len_ * sizeof(T);
-        coreIdx_ = blockIdx_;
+        coreIdx_ = GetBlockIdx();
         // 小数据量情况下，缩减实际使用核数
         if (dataSize_ <= smallDataSize && numBlocks_ > rankSize_) {
             coreNum_ = rankSize_;

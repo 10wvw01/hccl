@@ -143,4 +143,5 @@ rankId: 1, input: [ 1 ]
 rankId: 0, input: [ 0 ]
 rankId: 0, output: [ 0 1 ]
 rankId: 1, output: [ 0 1 ]
+HcclAllGatherCustom test completed successfully
 ```

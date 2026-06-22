@@ -19,9 +19,6 @@
 #include "executor_v2_base.h"
 #include "alg_type.h"
 #include "execute_selector.h"
-#ifdef ENABLE_EXPERIMENTAL
-#include "reduce_scatter_op_experimental.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,7 +50,7 @@ HcclResult GetAlgResReduceScatter(HcclComm comm, OpParam &param, std::shared_ptr
     TopoInfoWithNetLayerDetails* topoInfo, AlgResourceCtx** resCtx, aclrtNotify* notifies);
     
 HcclResult ReduceScatterEntryLog(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, HcclReduceOp op,
-    aclrtStream stream, const char *tag, const std::string &opName, bool forceLog = false);
+    aclrtStream stream, const char *tag, const std::string &opName);
 
 }
 

@@ -22,9 +22,9 @@ using namespace AscendC;
 
 #define AIV_REDUCE_SCATTER_KERNEL_BATCH_DEF(type) \
 extern "C" __global__ __aicore__ void aiv_reduce_scatter_##type(KERNEL_ARGS_DEF) { \
-    if (numBlocks > 2 * rankSize) { \
+    if (AscendC::GetBlockNum() > 2 * rankSize) { \
         AivReduceScatterV2Mesh1DBigData<type>(KERNEL_ARGS_CALL); \
-    } else if (numBlocks >= rankSize) { \
+    } else if (AscendC::GetBlockNum() >= rankSize) { \
         AivReduceScatterV2LocalTree<type>(KERNEL_ARGS_CALL); \
     } else { \
         AivReduceScatterV2LocalTreeCoreCtrl<type>(KERNEL_ARGS_CALL); \

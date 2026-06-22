@@ -231,13 +231,12 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByLoop(const std::vector<u32> &com
     for (u32 rankIdx = 0; rankIdx < commRanks.size(); rankIdx++) {
         u32 remoteRank = commRanks[rankIdx];
         // 取出本次通信对端的channel
-        auto it = channels.find(remoteRank);
-        if (it == channels.end()) {
+        if (channels.find(remoteRank) == channels.end()) {
             HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop] remoteRank[%u] "\
                 "does not exist in channels map!", remoteRank);
             return HCCL_E_PARA;
         }
-        const std::vector<ChannelInfo> &curChannels = it->second;
+        const std::vector<ChannelInfo> &curChannels = channels.at(remoteRank);
         u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
         // send数据按照channel分片
         CHK_RET(CalcDataSplitByPortGroupCommon(tempAlgParams.sendCounts[remoteRank], dataTypeSize_, curChannels,
@@ -281,9 +280,11 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByChannel(const TemplateDataParams
     u32 queIdx = myRankCclBuffIdx * channelsPerRank_ + 1;
     const ThreadHandle &mainThreadCurRank = threads[queIdx]; // 当前rank分配到的第一条流（rank内主流）
     std::vector<ThreadHandle> subThreadsCurRank; // 当前rank的rank内从流
-    if (curValidChannelsSize > 1 && roundIdx != 0) {
+    if (curValidChannelsSize > 1) {
         subThreadsCurRank.assign(threads.begin() + queIdx + 1, threads.begin() + queIdx + curValidChannelsSize);
-        PreSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank);
+        if (roundIdx != 0) {
+            CHK_RET(PreSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank));
+        }
     }
     for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
         if (roundIdx != 0 && isDmaRead_ && sendSizeSplit_[channelId] > 0) {
@@ -331,7 +332,7 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByChannel(const TemplateDataParams
         queIdx++;
     }
     if (curValidChannelsSize > 1 && roundIdx != commLoops - 1) {
-        PostSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank);
+        CHK_RET(PostSyncInterThreadsPerRank(mainThreadCurRank, subThreadsCurRank));
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -340,6 +341,7 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecv(const TemplateDataParams &tempAlg
     const SendRecvInfo &sendRecvInfo, const DataInfo &sendInfo, const DataInfo &recvInfo,
     const ThreadHandle& thread, const u32 channelId) const
 {
+    (void) tempAlgParams;
     if (isDmaRead_) {
         if (sendSizeSplit_[channelId] > 0 && recvSizeSplit_[channelId] > 0) {
             CHK_PRT_RET(SendRecvRead(sendRecvInfo, thread),
@@ -381,6 +383,7 @@ HcclResult InsTempAlltoAllVMesh1D::PreCopyByLoop(const std::vector<u32> &commRan
     const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
     const TemplateDataParams &tempAlgParams, const u32 myAlgRank)
 {
+    (void) myAlgRank;
     for (u32 rankIdx = 0; rankIdx < commRanks.size(); rankIdx++) {
         u32 remoteRank = commRanks[rankIdx];
         u32 myRankCclBuffIdx = 0; // myRank与remoteRank交互时myRank提供的cclbuffer index

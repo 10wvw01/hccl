@@ -86,11 +86,8 @@ int Sample(void *arg)
     ACLCHECK(aclrtFreeHost(hostBuf));
     // 执行 AllGather 操作
     HCCLCHECK(HcclAllGatherCustom(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, hcclComm, stream));
-    // 阻塞等待任务流中的集合通信任务执行完成
-    ACLCHECK(aclrtSynchronizeStream(stream));
 
-    // 第二次调用：同一通信域，engine context 已存在，走资源复用路径
-    HCCLCHECK(HcclAllGatherCustom(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, hcclComm, stream));
+    // 阻塞等待任务流中的集合通信任务执行完成
     ACLCHECK(aclrtSynchronizeStream(stream));
 
     // 将 Device 侧集合通信任务结果拷贝到 Host，并打印结果

@@ -230,7 +230,7 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
     const std::vector<DataSlice> emptySlices;
     TxRxSlicesList writeSlicesList({txSrcSlices, txDstSlices}, {emptySlices, emptySlices});
     SendRecvInfo writeInfo(sendRecvChannels, writeSlicesList);
-    CHK_PRT_RET(SendRecvBatchWrite(writeInfo, threads[channelIdx]),
+    CHK_PRT_RET(SendRecvWrite(writeInfo, threads[channelIdx]),
         HCCL_ERROR("[InsTempAllGatherNHR] last step write failed (step=%u)", step),
         HcclResult::HCCL_E_INTERNAL);
 
@@ -250,7 +250,7 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
 
     TxRxSlicesList readSlicesList({emptySlices, emptySlices}, {rxSrcSlices, rxDstSlices});
     SendRecvInfo readInfo(sendRecvChannels, readSlicesList);
-    CHK_PRT_RET(SendRecvBatchRead(readInfo, threads[channelIdx]),
+    CHK_PRT_RET(SendRecvRead(readInfo, threads[channelIdx]),
         HCCL_ERROR("[InsTempAllGatherNHR] last step read failed (step=%u)", step),
         HcclResult::HCCL_E_INTERNAL);
 
@@ -263,18 +263,8 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
 {
     AicpuNHRStepInfo stepInfo;
     CHK_RET(GetStepInfo(step, nSteps, stepInfo));
-    u32 fromRankKey = GetRankFromMap(stepInfo.fromRank);
-    u32 toRankKey = GetRankFromMap(stepInfo.toRank);
-    CHK_PRT_RET(channels.count(fromRankKey) == 0 || channelIdx >= channels.at(fromRankKey).size() ||
-                channels.count(toRankKey) == 0 || channelIdx >= channels.at(toRankKey).size(),
-        HCCL_ERROR("[InsTempAllGatherNHR] rank[%u] invalid channel access, fromRankKey[%u] toRankKey[%u] channelIdx[%u] "
-                   "channels.size[%zu] fromChannelSize[%zu] toChannelSize[%zu]",
-            __func__, myRank_, fromRankKey, toRankKey, channelIdx, channels.size(),
-            channels.count(fromRankKey) ? channels.at(fromRankKey).size() : 0,
-            channels.count(toRankKey) ? channels.at(toRankKey).size() : 0),
-        HCCL_E_INTERNAL);
-    const ChannelInfo &channelRecv = channels.at(fromRankKey)[channelIdx];
-    const ChannelInfo &channelSend = channels.at(toRankKey)[channelIdx];
+    const ChannelInfo &channelRecv = channels.at(GetRankFromMap(stepInfo.fromRank))[channelIdx];
+    const ChannelInfo &channelSend = channels.at(GetRankFromMap(stepInfo.toRank))[channelIdx];
     HCCL_DEBUG("[InsTempAllGatherNHR] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
         myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
@@ -297,7 +287,7 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
     SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
 
     if (isDmaRead_) {
-        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
+        CHK_PRT_RET(SendRecvBatchRead(sendRecvInfo, threads[channelIdx]),
             HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
             HcclResult::HCCL_E_INTERNAL);
     } else {

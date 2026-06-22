@@ -13,12 +13,9 @@ set(src_list
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/dpu_alg_data_trans_wrapper.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/dpu_alg_nhr_opt_wrapper.cc
     )
 endif()
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

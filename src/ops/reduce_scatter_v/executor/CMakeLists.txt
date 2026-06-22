@@ -12,8 +12,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_reduce_scatter_v_sole_executor.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

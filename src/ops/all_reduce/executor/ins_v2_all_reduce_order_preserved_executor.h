@@ -70,6 +70,8 @@ protected:
         u64 currDataCount, u64 processedDataCount,
         std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes);
 
+    
+
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;
 

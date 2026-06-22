@@ -111,12 +111,12 @@ HcclResult HcclSendGraphMode(
     resPack.scratchMemSize = scratchMemSize;
 
     /* 接口交互信息日志 */
-    CHK_RET(SendEntryLog(sendBuf, count, dataType, destRank, stream, opTag, "HcclSendGraphMode", true));
+    CHK_RET(SendEntryLog(sendBuf, count, dataType, destRank, stream, opTag, "HcclSendGraphMode"));
 
     // 执行Send
     CHK_RET_AND_PRINT_IDE(SendExec(sendBuf, count, dataType, destRank, comm, stream, rankSize, OpMode::OFFLOAD, opTag, resPack), opTag.c_str());
 
-    CHK_RET(LogHcclExit("HcclSendGraphMode", opTag.c_str(), startut, true));
+    CHK_RET(LogHcclExit("HcclSendGraphMode", opTag.c_str(), startut));
 
     HCCL_INFO("[HcclSendGraphMode][%d]->[%d] Success.", userRank, destRank);
     return HcclResult::HCCL_SUCCESS;
@@ -223,9 +223,9 @@ namespace ops_hccl {
     }
     
 HcclResult SendEntryLog(void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,
-    aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
+    aclrtStream stream, const std::string &tag, const std::string &opName)
 {
-    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
+    if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

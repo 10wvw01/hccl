@@ -19,13 +19,9 @@ if(NOT HCCL_CANN_COMPAT_850)
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_ubx.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_ubx_1d.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_pcie_mix.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_3_level.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_squeeze_2d.cc
     )
 endif()
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

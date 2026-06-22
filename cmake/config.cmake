@@ -74,7 +74,7 @@ function(generate_stub STUB)
     endif() 
 endfunction(generate_stub) 
 
-if(ENABLE_BUILD_AARCH)
+if(AARCH_MODE)
     set(STUBS
         hcomm 
         ccl_kernel
@@ -86,7 +86,7 @@ if(ENABLE_BUILD_AARCH)
             generate_stub(${STUB}) 
         endif() 
     endforeach()
-elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
+elseif(KERNEL_MODE AND BUILD_OPEN_PROJECT)
     # Device aicpu 构建：8.5.0 CANN 下 devlib/device/libccl_kernel.so 不存在，需要生成桩库
     if(CUSTOM_ASCEND_CANN_PACKAGE_PATH)
         set(_hccl_devlib_dir ${CUSTOM_ASCEND_CANN_PACKAGE_PATH}/devlib/device)
@@ -142,11 +142,11 @@ endif ()
 set(HI_PYTHON                     "python3"                       CACHE   STRING   "python executor")
 
 message(STATUS "config.cmake KERNEL_MODE=${KERNEL_MODE} BUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}")
-
-#Device 构建安装目录
-set(HCCL_DEVICE_BUILD_PATH ${CMAKE_BINARY_DIR}/device_build)
-set(HCCL_DEVICE_INSTALL_PATH ${CMAKE_BINARY_DIR}/device_install)
-
+if(BUILD_OPEN_PROJECT AND KERNEL_MODE)
+    set(PRODUCT_SIDE                  device)
+else()
+    set(PRODUCT_SIDE                  host)
+endif()
 set(INSTALL_LIBRARY_DIR ${CMAKE_SYSTEM_PROCESSOR}-linux/lib64)
 set(INSTALL_INCLUDE_DIR ${CMAKE_SYSTEM_PROCESSOR}-linux/include)
 set(INSTALL_AICPU_KERNEL_JSON_DIR opp/built-in/op_impl/aicpu)

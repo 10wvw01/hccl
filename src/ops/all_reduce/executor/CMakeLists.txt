@@ -10,6 +10,7 @@
 
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sole_executor.cc
+    # ${CMAKE_CURRENT_SOURCE_DIR}/ins_all_reduce_parallel_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_parallel_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sequence_executor_aicpu.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_two_shot_sole_executor.cc
@@ -24,8 +25,6 @@ if(NOT HCCL_CANN_COMPAT_850)
     )
 endif()
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

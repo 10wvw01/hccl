@@ -41,14 +41,6 @@ HcclResult HcclBroadcast(void *buf, uint64_t count, HcclDataType dataType, uint3
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return broadcast success"), HCCL_SUCCESS);
     OpParam param;
     CHK_RET(BroadcastInitAndCheck(comm, buf, count, dataType, root, stream, param));
-
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
-    }
-
     CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcast"));
 
     // 执行Broadcast
@@ -93,12 +85,12 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
     resPack.scratchMemSize = scratchMemSize;
     std::string tagStr = tag;
 
-    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode", true));
+    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode"));
 
     // 执行Broadcast
     CHK_RET_AND_PRINT_IDE(BroadcastOutPlaceGraphMode(buf, count, dataType, root, comm, stream, tagStr, resPack), tagStr.c_str());
 
-    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut, true));
+    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut));
 
     return HCCL_SUCCESS;
 }
@@ -263,9 +255,9 @@ HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclData
 }
 
 HcclResult BroadcastEntryLog(const void *buf, uint64_t count, HcclDataType dataType, uint32_t root,
-                             aclrtStream stream, const char *tag, const std::string &opName, bool forceLog)
+                             aclrtStream stream, const char *tag, const std::string &opName)
 {
-    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
+    if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

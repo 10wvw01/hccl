@@ -45,15 +45,17 @@ HcclResult GetDeviceType(DeviceType *deviceType)
     return HCCL_E_NOT_SUPPORT;
 }
 
-HcclResult FillChannelDesc(HcclComm comm, uint32_t srcRank, uint32_t dstRank,
-                           HcclChannelDesc &desc)
+HcclResult AcquireChannel(HcclComm comm, CommEngine engine,
+                          uint32_t srcRank, uint32_t dstRank, ChannelHandle *channel)
 {
+    // Ascend 950 创建 Channel
     uint32_t netLayer = 0;
     uint32_t listSize = 0;
     CommLink *linkList = nullptr;
     CHK_RET(HcclRankGraphGetLinks(comm, netLayer, srcRank, dstRank, &linkList,
                                   &listSize));
 
+    HcclChannelDesc desc;
     CHK_RET(HcclChannelDescInit(&desc, 1));
     CommProtocol protocol = CommProtocol::COMM_PROTOCOL_UBC_CTP;
     bool protocolExists = false;
@@ -75,10 +77,11 @@ HcclResult FillChannelDesc(HcclComm comm, uint32_t srcRank, uint32_t dstRank,
     }
     if (!protocolExists) {
         HCCL_ERROR(
-            "[FillChannelDesc] Protocol %d not found between rank %u and rank %u",
+            "[AcquireChannel] Protocol %d not found between rank %u and rank %u",
             protocol, srcRank, dstRank);
         return HCCL_E_NOT_FOUND;
     }
+    CHK_RET(HcclChannelAcquire(comm, engine, &desc, 1, channel));
     return HCCL_SUCCESS;
 }
 
@@ -124,30 +127,19 @@ HcclResult HcclGetThreadAICPU(HcclComm comm, const OpParam &param, AlgResourceCt
 HcclResult HcclGetChannelAICPU(HcclComm comm, const OpParam &param, AlgResourceCtx &resCtxHost)
 {
     uint32_t channelNum = param.rankSize - 1;
-    std::vector<HcclChannelDesc> descs(channelNum);
     std::vector<ChannelHandle> channels(channelNum);
-    std::vector<uint32_t> remoteRanks(channelNum);
-
-    uint32_t idx = 0;
-    for (uint32_t remoteRank = 0; remoteRank < param.rankSize; remoteRank++) {
+    for(uint32_t remoteRank=0; remoteRank<param.rankSize; remoteRank++) {
         if (remoteRank == param.myRank) {
             continue;
         }
-        CHK_RET(FillChannelDesc(comm, param.myRank, remoteRank, descs[idx]));
-        remoteRanks[idx] = remoteRank;
-        idx++;
-    }
-
-    CHK_RET(HcclChannelAcquire(comm, COMM_ENGINE_AICPU_TS, descs.data(), channelNum, channels.data()));
-
-    for (uint32_t i = 0; i < channelNum; i++) {
+        CHK_RET(AcquireChannel(comm, COMM_ENGINE_AICPU_TS, param.myRank, remoteRank, &channels[remoteRank]));
         ChannelInfo channel;
-        channel.remoteRank = remoteRanks[i];
-        channel.handle = channels[i];
+        channel.remoteRank = remoteRank;
+        channel.handle = channels[remoteRank];
         channel.notifyNum = CHANNEL_NOTIFY_NUM;
-        void *cclBuf;
+        void * cclBuf;
         uint64_t cclBufSize;
-        CHK_RET(HcclChannelGetHcclBuffer(comm, channels[i], &cclBuf, &cclBufSize));
+        CHK_RET(HcclChannelGetHcclBuffer(comm, channels[remoteRank], &cclBuf, &cclBufSize));
         channel.remoteCclMem = CommBuffer{cclBuf, cclBufSize};
         resCtxHost.channels.push_back(channel);
     }

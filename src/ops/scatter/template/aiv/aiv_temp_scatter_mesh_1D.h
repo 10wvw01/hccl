@@ -35,7 +35,6 @@ public:
     HcclResult KernelRun(const OpParam& param,
                          const TemplateDataParams& tempAlgParams,
                          const TemplateResource& templateResource) override;
-    HcclResult CalNumBlocks(u32& numBlocks, u64 dataSize, u32 numBlocksLimit) override;
 };
 }  // namespace Hccl
 

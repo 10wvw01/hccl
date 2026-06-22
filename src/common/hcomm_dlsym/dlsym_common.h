@@ -28,7 +28,7 @@
 #include "hccl/hccl_types.h"
 
 /* beta.1 起 hccl_types.h 已提供 HcclCommStatus，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
-#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
 typedef enum {
     HCCL_COMM_STATUS_READY = 0,
     HCCL_COMM_STATUS_SUSPENDING = 1,
@@ -42,9 +42,6 @@ typedef enum {
     HCCL_COMM_STATE_RESUME_PRE = 2,    /* 调用step快恢恢复通信域资源HcclCommResume前 */
     HCCL_COMM_STATE_RESUME_POST = 3    /* 调用step快恢恢复通信域资源HcclCommResume后 */
 } HcclCommStateOp;
-
-typedef uint64_t ThreadHandle;
-
 
 #endif
 
@@ -80,7 +77,7 @@ extern "C" {
 } while(0)
 
 #define DECL_WEAK_FUNC(type, func_name, ...) \
-    type func_name(__VA_ARGS__) __attribute__((weak))
+    type func_name(__VA_ARGS__) __attribute__((weak));
 
 #define DEFINE_WEAK_FUNC(type, func_name, ...) \
     static bool g_##func_name##Supported = false; \

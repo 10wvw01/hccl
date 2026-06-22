@@ -16,7 +16,7 @@ RHD算法同样适用于“星型”或“胖树”拓扑互联，算法的时�
 
 Recursive Halving-Doubling为递归二分和倍增算法，对于2的整数次幂，使用Vector/Distance Halving/Doubling策略，对于非2的整数次幂，划分为2r（part1）和p-2r两部分（$r=p-2^{\lfloor log(p)\rfloor}$），先将part1部分合并为r，使得剩余的rank之和为p-r（block），再执行2的整数次幂的HD（Halving-Doubling）算法，最后再在part1部分恢复出2r，得到最终结果。
 
-**表1**  Recursive Halving-Doubling算法中各操作计算耗时
+**表 1**  Recursive Halving-Doubling算法中各操作计算耗时
 
 | 操作          | 耗时                                                         |
 | ------------- | ------------------------------------------------------------ |

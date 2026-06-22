@@ -45,13 +45,6 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
     std::string opTag;
     CHK_RET(AllGatherInitAndCheck(comm, sendBuf, recvBuf, sendCount, dataType, stream, opTag));
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
-    }
-
     CHK_RET(AllGatherEntryLog(sendBuf, recvBuf, sendCount, dataType, stream, opTag, "HcclAllGather"));
 
     // 执行AllGather
@@ -97,12 +90,12 @@ HcclResult HcclAllGatherGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
     resPack.scratchMemSize = scratchMemSize;
     std::string tagStr = tag;
 
-    CHK_RET(AllGatherEntryLog(sendBuf, recvBuf, sendCount, dataType, stream, opTag, "HcclAllGatherGraphMode", true));
+    CHK_RET(AllGatherEntryLog(sendBuf, recvBuf, sendCount, dataType, stream, opTag, "HcclAllGatherGraphMode"));
 
     // 执行AllGather
     CHK_RET_AND_PRINT_IDE(AllGatherOutPlaceGraphMode(sendBuf, recvBuf, sendCount, dataType, comm, stream, tagStr, resPack), tagStr.c_str());
 
-    CHK_RET(LogHcclExit("HcclAllGatherGraphMode", opTag.c_str(), startut, true));
+    CHK_RET(LogHcclExit("HcclAllGatherGraphMode", opTag.c_str(), startut));
 
     return HCCL_SUCCESS;
 }
@@ -150,25 +143,6 @@ HcclResult CheckAllGatherInputPara(const HcclComm comm, const void* sendBuf, con
     CHK_PTR_NULL(recvBuf);
 
     return HCCL_SUCCESS;
-}
-
-bool AllGatherSupportSymmetricMemory(OpParam &opParam)
-{
-    size_t inputOffset = 0;
-    size_t outputOffset = 0;
-
-    HcclResult ret = HcclCommSymWinGet(opParam.hcclComm, opParam.inputPtr, opParam.inputSize, &opParam.inputSymWindow, &inputOffset);
-    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.inputSymWindow == nullptr,
-                HCCL_INFO("[%s] input[%p] size[%llu] is not support symmetric memory",
-                    __func__, opParam.inputPtr, opParam.inputSize), false);
-    ret = HcclCommSymWinGet(opParam.hcclComm, opParam.outputPtr, opParam.outputSize, &opParam.outputSymWindow, &outputOffset);
-    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.outputSymWindow == nullptr,
-                HCCL_INFO("[%s] output[%p] size[%llu] is not support symmetric memory",
-                    __func__, opParam.outputPtr, opParam.outputSize), false);
-    opParam.supportSymmetricMemory = true;
-    opParam.inputOffset = inputOffset;
-    opParam.outputOffset = outputOffset;
-    return true;
 }
 
 HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, HcclComm comm,
@@ -226,9 +200,6 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
     }
-    if (param.opMode == OpMode::OPBASE && AllGatherSupportSymmetricMemory(param)) {
-        HCCL_INFO("[%s] symmetric memory enabled", __func__);
-    }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName, resPack));
     HCCL_INFO("Execute AllGatherOutPlace success.");
     return HCCL_SUCCESS;
@@ -253,10 +224,10 @@ HcclResult AllGatherOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount, H
     return HCCL_SUCCESS;
 }
 
-HcclResult AllGatherEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
+HcclResult AllGatherEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName)
 {
     /* 接口交互信息日志 */
-    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
+    if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

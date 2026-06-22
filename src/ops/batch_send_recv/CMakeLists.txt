@@ -9,14 +9,11 @@
 # -----------------------------------------------------------------------------------------------------------
 add_subdirectory(executor)
 add_subdirectory(selector)
-add_subdirectory(template)
 
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/batch_send_recv_op.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

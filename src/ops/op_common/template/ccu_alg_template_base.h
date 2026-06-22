@@ -13,7 +13,6 @@
 
 #include "common_alg_template_base.h"
 
-
 namespace ops_hccl {
 
 constexpr uint32_t CCU_DIE_NUM_MAX_2 = 2;
@@ -24,21 +23,21 @@ public:
     explicit CcuAlgTemplateBase(const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
                                 const std::vector<std::vector<u32>> &subCommRanks);
 
-    ~CcuAlgTemplateBase();
+    virtual ~CcuAlgTemplateBase();
 
-    std::string Describe() const override = 0;
+    virtual std::string Describe() const override = 0;
 
-    HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+    virtual HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                AlgResourceRequest& resourceRequest) override;
-    HcclResult KernelRun(const OpParam& param,
+    virtual HcclResult KernelRun(const OpParam& param,
                                  const TemplateDataParams& templateDataParams,
                                  TemplateResource& templateResource) override;
-    HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;
+    virtual HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;
                                  
-    HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;
-    u64 GetThreadNum() const override;
+    virtual HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;
+    virtual u64 GetThreadNum() const override;
 
-    u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
+    virtual u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
     uint64_t PointerToAddr(void* pointer) const;
     

@@ -13,10 +13,25 @@
  
 #include "utils.h"
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_all_gather_nhr1d_mem2mem.h"
+
+#ifndef NHR_STEP_INFO_DEFINED
+#define NHR_STEP_INFO_DEFINED
+using NHRStepInfo = struct NHRStepInfoDef {
+    u32 step = 0;
+    u32 myRank = 0;
+    u32 nSlices;
+    u32 toRank = 0;
+    u32 fromRank = 0;
+    std::vector<u32> txSliceIdxs;
+    std::vector<u32> rxSliceIdxs;
+
+    NHRStepInfoDef() : nSlices(0)
+    {
+    }
+};
+#endif
 
 namespace ops_hccl {
-
 class CcuTempAllGatherNHR1DMem2Mem : public CcuAlgTemplateBase {
 public:
     CcuTempAllGatherNHR1DMem2Mem() = default;
@@ -51,13 +66,6 @@ private:
     HcclResult GetStepInfo(u32 step, u32 nSteps, NHRStepInfo &stepInfo);
     HcclResult SplitDataFor2Dies(const OpParam& param, const TemplateDataParams& templateDataParams, uint64_t& die0Size,
                                  uint64_t& die1Size) const;
-    HcclResult BuildCcuKernelInfos(const OpParam& param, uint32_t dieNum, uint32_t kernelNum,
-                                   const std::vector<NHRStepInfo>& stepInfoVector,
-                                   const std::map<u32, u32>& rank2ChannelIdx,
-                                   const std::vector<std::vector<HcclChannelDesc>>& channelsPerDie,
-                                   AlgResourceRequest& resourceRequest);
-    HcclResult PrepareLaunchArgs(const OpParam& param, const TemplateDataParams& templateDataParams, u32 kernelNum,
-                                 std::vector<uint64_t>& taskArgs, uint64_t& argSize);
 };
  
 } // namespace ops_hccl
