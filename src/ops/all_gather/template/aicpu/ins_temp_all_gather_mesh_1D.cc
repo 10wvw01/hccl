@@ -12,7 +12,63 @@
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
 #include "hccl_sym_win.h"
+#include <iomanip>
+#include <sstream>
 namespace ops_hccl {
+
+static void PrintSliceData1D(const char *tag, const void *baseAddr, u64 offset, u64 byteSize,
+    HcclDataType dataType)
+{
+    if (baseAddr == nullptr || byteSize == 0) {
+        HCCL_INFO("[%s] addr NULL or size 0, skip", tag);
+        return;
+    }
+    u32 typeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 elemCount = byteSize / typeSize;
+    if (elemCount == 0) {
+        HCCL_INFO("[%s] elemCount 0, skip", tag);
+        return;
+    }
+    u64 printCount = std::min(elemCount, static_cast<u64>(256));
+    const u8 *addr = static_cast<const u8 *>(baseAddr) + offset;
+
+    std::stringstream ss;
+    ss << "[" << tag << "] offset[" << offset << "] bytes[" << byteSize << "] elems[" << elemCount << "]";
+
+    if (dataType == HcclDataType::HCCL_DATA_TYPE_FP32) {
+        const float *ptr = reinterpret_cast<const float *>(addr);
+        ss << " fp32: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << std::setprecision(9) << ptr[i];
+        }
+        ss << "]";
+    } else if (dataType == HcclDataType::HCCL_DATA_TYPE_FP64) {
+        const double *ptr = reinterpret_cast<const double *>(addr);
+        ss << " fp64: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << std::setprecision(17) << ptr[i];
+        }
+        ss << "]";
+    } else if (dataType == HcclDataType::HCCL_DATA_TYPE_INT32) {
+        const int32_t *ptr = reinterpret_cast<const int32_t *>(addr);
+        ss << " int32: [";
+        for (u64 i = 0; i < printCount; i++) {
+            if (i > 0) ss << ", ";
+            ss << ptr[i];
+        }
+        ss << "]";
+    } else {
+        ss << " raw_hex: [";
+        for (u64 i = 0; i < std::min(byteSize, static_cast<u64>(64)); i++) {
+            if (i > 0) ss << " ";
+            ss << std::hex << static_cast<unsigned>(addr[i]) << std::dec;
+        }
+        ss << "]";
+    }
+    HCCL_INFO("%s", ss.str().c_str());
+}
 InsTempAllGatherMesh1D::InsTempAllGatherMesh1D(const OpParam &param, const u32 rankId,
                                                const std::vector<std::vector<u32>> &subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -73,8 +129,61 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
     threadNum_ = templateResource.threads.size();
     tempAlgParams_ = tempAlgParams;
     dataType_ = param.DataDes.dataType;
-    HCCL_DEBUG("[InsTempAllGatherMesh1D] Rank [%d], get threadNum_[%d].", myRank_, threadNum_);
+
+    // Step1: LocalDataCopy - 打印输入数据，执行后同步再打印
+    HCCL_INFO("[AG_Mesh1D] >>> Step1: LocalDataCopy");
+    PrintSliceData1D("AG_Step1_BEFORE_input", tempAlgParams.buffInfo.inputPtr,
+        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.inputSize, dataType_);
+    // 逐个rank slice打印输入
+    {
+        u32 myAlgRank = 0;
+        CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
+        for (u32 i = 0; i < subCommRanks_[0].size(); i++) {
+            u32 algRank = 0;
+            CHK_RET(GetAlgRank(subCommRanks_[0][i], subCommRanks_[0], algRank));
+            u64 sliceSize = tempAlgParams.sliceSize;
+            if (tempAlgParams.tailSize != 0 && algRank == templateRankSize_ - 1) {
+                sliceSize = tempAlgParams.tailSize;
+            }
+            u64 sliceOffset = tempAlgParams.outputSliceStride * algRank;
+            if (sliceSize > 0) {
+                PrintSliceData1D("AG_Step1_BEFORE_input_rankSlice", tempAlgParams.buffInfo.inputPtr,
+                    sliceOffset + tempAlgParams.buffInfo.inBuffBaseOff, sliceSize, dataType_);
+            }
+        }
+    }
     CHK_RET(LocalDataCopy(templateResource.threads));
+    HCCL_INFO("[AG_Mesh1D] Step1: LocalDataCopy submitted (async)");
+
+    // DEBUG SYNC: 等待LocalDataCopy DMA完成
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: waiting for LocalDataCopy DMA completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: LocalDataCopy DMA complete");
+    // LocalDataCopy后：打印output中本rank的slice + scratch中的数据
+    {
+        u32 myAlgRank = 0;
+        CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
+        u64 mySliceSize = tempAlgParams.sliceSize;
+        if (tempAlgParams.tailSize != 0 && myAlgRank == templateRankSize_ - 1) {
+            mySliceSize = tempAlgParams.tailSize;
+        }
+        u64 mySliceOffset = tempAlgParams.outputSliceStride * myAlgRank;
+        PrintSliceData1D("AG_Step1_AFTER_output_mySlice", tempAlgParams.buffInfo.outputPtr,
+            mySliceOffset + tempAlgParams.buffInfo.outBuffBaseOff, mySliceSize, dataType_);
+        // 打印scratch中的本rank区域
+        if (!enableRemoteMemAccess_) {
+            u64 scratchRepeatStride = tempAlgParams.sliceSize * templateRankSize_;
+            u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff;
+            u64 myScratchOff = scratchBase + tempAlgParams.sliceSize * myAlgRank;
+            PrintSliceData1D("AG_Step1_AFTER_scratch_myRank", tempAlgParams.buffInfo.hcclBuff.addr,
+                myScratchOff, mySliceSize, dataType_);
+        }
+    }
+
     if (templateRankSize_ == 1) {
         return HcclResult::HCCL_SUCCESS;
     }
@@ -84,15 +193,87 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
 
+    // Step2: RunAllGatherMesh - 异步通信，同步后再打印
+    HCCL_INFO("[AG_Mesh1D] >>> Step2: RunAllGatherMesh");
     CHK_RET(RunAllGatherMesh(templateResource.threads, templateResource.channels));
+    HCCL_INFO("[AG_Mesh1D] Step2: AllGatherMesh submitted (async)");
 
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
+
+    // DEBUG SYNC: 等待AllGatherMesh通信完成
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: waiting for AllGatherMesh completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: AllGatherMesh complete, all rank data now visible");
+    // AllGatherMesh后：打印scratch + output中每个rank的slice
+    {
+        for (u32 rpt = 0; rpt < tempAlgParams_.repeatNum; ++rpt) {
+            u64 scratchRepeatStride = tempAlgParams_.sliceSize * templateRankSize_;
+            u64 scratchBase = tempAlgParams_.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
+            u64 outBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff + rpt * tempAlgParams_.outputRepeatStride;
+            if (!enableRemoteMemAccess_) {
+                PrintSliceData1D("AG_Step2_AFTER_cclBuff_scratch", tempAlgParams_.buffInfo.hcclBuff.addr,
+                    scratchBase, scratchRepeatStride, dataType_);
+            }
+            for (u32 i = 0; i < subCommRanks_[0].size(); i++) {
+                u32 algRank = 0;
+                CHK_RET(GetAlgRank(subCommRanks_[0][i], subCommRanks_[0], algRank));
+                u64 sliceSize = tempAlgParams_.sliceSize;
+                if (tempAlgParams_.tailSize != 0 && algRank == templateRankSize_ - 1) {
+                    sliceSize = tempAlgParams_.tailSize;
+                }
+                u64 sliceOffset = tempAlgParams_.outputSliceStride * algRank + outBaseOff;
+                if (sliceSize > 0) {
+                    PrintSliceData1D("AG_Step2_AFTER_output_rankSlice", tempAlgParams.buffInfo.outputPtr,
+                        sliceOffset, sliceSize, dataType_);
+                }
+            }
+        }
+    }
+
+    // Step3: PostLocalCopy - 异步DMA，同步后再打印
+    HCCL_INFO("[AG_Mesh1D] >>> Step3: PostLocalCopy");
+    CHK_RET(PostLocalCopy(templateResource.threads));
+    HCCL_INFO("[AG_Mesh1D] Step3: PostLocalCopy submitted (async)");
+
+    // DEBUG SYNC: 等待PostLocalCopy DMA完成
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: waiting for PostLocalCopy DMA completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[AG_Mesh1D] DEBUG_SYNC: PostLocalCopy DMA complete, final output now visible");
+    // PostLocalCopy后：打印最终output（每个rank的slice + 全量）
+    {
+        for (u32 rpt = 0; rpt < tempAlgParams_.repeatNum; ++rpt) {
+            u64 outBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff + rpt * tempAlgParams_.outputRepeatStride;
+            for (u32 i = 0; i < subCommRanks_[0].size(); i++) {
+                u32 algRank = 0;
+                CHK_RET(GetAlgRank(subCommRanks_[0][i], subCommRanks_[0], algRank));
+                u64 sliceSize = tempAlgParams_.sliceSize;
+                if (tempAlgParams_.tailSize != 0 && algRank == templateRankSize_ - 1) {
+                    sliceSize = tempAlgParams_.tailSize;
+                }
+                u64 sliceOffset = tempAlgParams_.outputSliceStride * algRank + outBaseOff;
+                if (sliceSize > 0) {
+                    PrintSliceData1D("AG_Step3_AFTER_output_rankSlice", tempAlgParams.buffInfo.outputPtr,
+                        sliceOffset, sliceSize, dataType_);
+                }
+            }
+        }
+        PrintSliceData1D("AG_Step3_AFTER_output_full", tempAlgParams.buffInfo.outputPtr,
+            tempAlgParams.buffInfo.outBuffBaseOff, tempAlgParams.buffInfo.outputSize, dataType_);
+    }
     HCCL_INFO("[InsTempAllGatherMesh1D] Run End");
-    return HcclResult::HCCL_SUCCESS;
+    return HCCL_SUCCESS;
 }
 
 HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHandle> &threads,
