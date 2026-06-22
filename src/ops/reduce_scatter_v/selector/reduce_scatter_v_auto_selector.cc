@@ -199,13 +199,17 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_ERROR("[Algo][ReduceScatterVAutoSelector] ReduceOp [PROD] is not supported yet for aicpu mode."),
         SelectorStatus::NOT_MATCH);
-    if (Is64BitDataType(opParam.vDataDes.dataType)) {
-        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] INT64, UINT64 or FP64 are not yet supported for all mode.");
+    if (Is64BitDataType(opParam.vDataDes.dataType) && opParam.vDataDes.dataType != HcclDataType::HCCL_DATA_TYPE_INT64) {
+        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] UINT64 or FP64 are not yet supported for aicpu mode.");
         return SelectorStatus::NOT_MATCH;
     }
 
     if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
-        selectAlgName = "InsReduceScatterVMesh1D";
+        if (opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT64) {
+            selectAlgName = "InsReduceScatterVAicpuReduceNHR";
+        } else {
+            selectAlgName = "InsReduceScatterVMesh1D";
+        }
     } else {
         return SelectorStatus::NOT_MATCH;
     }

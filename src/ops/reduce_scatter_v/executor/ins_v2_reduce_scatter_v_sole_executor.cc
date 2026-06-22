@@ -10,6 +10,7 @@
 
 #include "ins_v2_reduce_scatter_v_sole_executor.h"
 #include "ins_temp_reduce_scatter_v_mesh_1D.h"
+#include "ins_temp_reduce_scatter_v_aicpu_reduce_nhr.h"
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_v_mesh_1D_mem2mem.h"
 
@@ -171,6 +172,8 @@ HcclResult InsV2ReduceScatterVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orches
 // 第二个参数是Reduce Scatter的template文件
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V, InsReduceScatterVMesh1D, InsV2ReduceScatterVSoleExecutor, TopoMatch1D,
     InsTempReduceScatterVMesh1D);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V, InsReduceScatterVAicpuReduceNHR, InsV2ReduceScatterVSoleExecutor, TopoMatch1D,
+    InsTempReduceScatterVAicpuReduceNHR);
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V, CcuReduceScatterVMesh1D, InsV2ReduceScatterVSoleExecutor, TopoMatch1D,
