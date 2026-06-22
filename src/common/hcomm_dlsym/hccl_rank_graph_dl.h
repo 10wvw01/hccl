@@ -15,7 +15,7 @@
 #include "hccl_rank_graph.h"   // 原头文件，包含所有类型和 inline 函数
 
 /* 8.5.0 桩: hccl_rank_graph.h 中 9.0.0 新增类型 */
-#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0, 2)
 typedef enum {
     ENDPOINT_ATTR_INVALID = -1,
     ENDPOINT_ATTR_BW_COEFF = 0,

@@ -15,14 +15,12 @@
 #include "ins_temp_all_gather_nhr_dpu.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_gather_mesh_1D.h"
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_mesh_1D.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_all_gather_2dies_mesh_1d_mem2mem.h"
 #include "ccu_temp_all_gather_2dies_mesh_1D.h"
 #include "ccu_temp_all_gather_nhr_1D_multi_jetty_mem2mem.h"
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #include "topo_match_ubx.h"
 namespace ops_hccl {
@@ -143,6 +141,11 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         maxDataSizePerLoop = std::min(transportBoundDataSize, scratchBoundDataSize);
     } else {
         maxDataSizePerLoop = transportBoundDataSize;
+    }
+
+    // 如果是对称内存，每次传输的大小不受cclbuffer和UB_MAX_DATA_SIZE的限制
+    if (param.supportSymmetricMemory) {
+        maxDataSizePerLoop = dataSize_;
     }
     u64 maxCountPerLoop = maxDataSizePerLoop / dataTypeSize_;
     // 计算loopTimes
