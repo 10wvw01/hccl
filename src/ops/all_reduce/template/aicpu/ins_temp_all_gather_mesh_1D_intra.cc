@@ -11,6 +11,7 @@
 #include "ins_temp_all_gather_mesh_1D_intra.h"
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
+#include <iomanip>
 #include <sstream>
 
 namespace ops_hccl {
