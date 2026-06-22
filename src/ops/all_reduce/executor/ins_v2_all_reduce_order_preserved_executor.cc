@@ -17,6 +17,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <iomanip>
 #include <sstream>
 
 namespace ops_hccl {

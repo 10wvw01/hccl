@@ -11,6 +11,7 @@
 // 包含本类的头文件声明
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
 #include "alg_env_config.h"
+#include <iomanip>
 #include <sstream>
 
 namespace ops_hccl {
