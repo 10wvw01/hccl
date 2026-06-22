@@ -47,6 +47,9 @@ DECL_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgT
     uint32_t infoLen, void *info);
 DECL_SUPPORT_FLAG(HcclConfigGetInfo);
 
+DECL_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallBack, const char *regName, HcclCommStateCallback cb, void *args);
+DECL_SUPPORT_FLAG(HcclCommRegCommStateCallBack);
+
 void HcclCommDlInit(void* libHcommHandle);
 
 #ifdef __cplusplus
