@@ -37,7 +37,21 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     CHK_PTR_NULL(topoInfo);
 
     std::vector<HcclChannelDesc> level0Channels;
-    CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level0Channels));
+    std::vector<HcclChannelDesc> myChannelDescs;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS));
+        for (auto channel : myChannelDescs) {
+            if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                level0Channels.push_back(channel);
+            }
+        }
+        if (level0Channels.empty()) {
+            HCCL_ERROR("[InsTempScatterNHR::CalcRes] no UBC_CTP channel found.");
+            return HcclResult::HCCL_E_INTERNAL;
+        }
+    } else {
+        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level0Channels));
+    }
     resourceRequest.channels.push_back(level0Channels);
     channelsPerRank_ = CalcChannelsPerRank(level0Channels);
     CHK_RET(GetRes(resourceRequest));
