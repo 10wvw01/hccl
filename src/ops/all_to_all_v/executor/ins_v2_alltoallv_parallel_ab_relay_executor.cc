@@ -455,6 +455,12 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::SplitABParams(
         }
         aTotal += aParams.sendCounts[i];
         bTotal += bParams.sendCounts[i];
+        if (i != myRank_ && (baseParams.sendCounts[i] > 0 || baseParams.recvCounts[i] > 0)) {
+            HCCL_WARNING("[A2AV_AB_RELAY][SplitPeer] rank=%u peer=%llu baseSend=%llu aSend=%llu "
+                         "bSend=%llu baseRecv=%llu aRecv=%llu bRecv=%llu", myRank_, i,
+                         baseParams.sendCounts[i], aParams.sendCounts[i], bParams.sendCounts[i],
+                         baseParams.recvCounts[i], aParams.recvCounts[i], bParams.recvCounts[i]);
+        }
     }
     aParams.count = aTotal;
     aParams.sliceSize = aTotal * dataTypeSize_;
@@ -492,11 +498,14 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::CheckRelayScratc
 }
 
 template <typename AlgTopoMatch>
-HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAOriginal(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const TemplateDataParams &aParams)
+HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAOriginalAndPreroute(
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const TemplateDataParams &aParams,
+    const TemplateDataParams &bParams)
 {
-    if (aParams.count == 0) {
-        HCCL_WARNING("[A2AV_AB_RELAY][RunAOriginal] skip empty A.");
+    bool hasA = aParams.count > 0;
+    bool hasB = bParams.count > 0;
+    if (!hasA && !hasB) {
+        HCCL_WARNING("[A2AV_AB_RELAY][RunAOriginalAndPreroute] skip empty A/B.");
         return HCCL_SUCCESS;
     }
     InsTempAlltoAllMesh2DV3NoMemcpy aIntraTemp(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
@@ -514,8 +523,13 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAOriginal(
     aInterRes.channels = aInterLinkMap_;
     aInterRes.threads = aInterThreads_;
     aInterRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
-    CHK_RET(PreSyncInterThreads(mainThread_, {aIntraThreads_[0], aInterThreads_[0]},
-                                {aIntraMeta_.notifyNumOnMainThread, aInterMeta_.notifyNumOnMainThread}));
+    InsTempAlltoAllVABRelayNoMemcpy relayTemp(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
+    relayTemp.SetRelayInfo(A2AVABRelayPhase::PREROUTE_TO_RELAY, static_cast<u32>(rankSize_),
+                           static_cast<u32>(meshSize_), slotStride_);
+    TemplateResource relayRes;
+    relayRes.channels = intraLinkMap_;
+    relayRes.threads = bRelayThreads_;
+    relayRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     TemplateDataParams aIntraParams = aParams;
     if (myRank_ < aIntraParams.sendCounts.size()) {
         u64 selfCount = aIntraParams.sendCounts[myRank_];
@@ -524,30 +538,37 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAOriginal(
         aIntraParams.sendCounts[myRank_] = 0;
         aIntraParams.recvCounts[myRank_] = 0;
     }
-    CHK_RET(aIntraTemp.KernelRun(param, aIntraParams, aIntraRes));
-    CHK_RET(aInterTemp.KernelRun(param, aParams, aInterRes));
-    CHK_RET(PostSyncInterThreads(mainThread_, {aIntraThreads_[0], aInterThreads_[0]}, {0, 1}));
-    return HCCL_SUCCESS;
-}
-
-template <typename AlgTopoMatch>
-HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAPreroute(
-    const OpParam &param, const AlgResourceCtxSerializable &resCtx, const TemplateDataParams &bParams)
-{
-    if (bParams.count == 0) {
-        HCCL_WARNING("[A2AV_AB_RELAY][RunAPreroute] skip empty B preroute.");
-        return HCCL_SUCCESS;
+    std::vector<ThreadHandle> stageMains;
+    std::vector<u32> mainNotifyIdx;
+    if (hasA) {
+        stageMains.push_back(aInterThreads_[0]);
+        mainNotifyIdx.push_back(aInterMeta_.notifyNumOnMainThread);
+        stageMains.push_back(aIntraThreads_[0]);
+        mainNotifyIdx.push_back(aIntraMeta_.notifyNumOnMainThread);
     }
-    InsTempAlltoAllVABRelayNoMemcpy relayTemp(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
-    relayTemp.SetRelayInfo(A2AVABRelayPhase::PREROUTE_TO_RELAY, static_cast<u32>(rankSize_),
-                           static_cast<u32>(meshSize_), slotStride_);
-    TemplateResource relayRes;
-    relayRes.channels = intraLinkMap_;
-    relayRes.threads = bRelayThreads_;
-    relayRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
-    CHK_RET(PreSyncInterThreads(mainThread_, {bRelayThreads_[0]}, {bRelayMeta_.notifyNumOnMainThread}));
-    CHK_RET(relayTemp.KernelRun(param, bParams, relayRes));
-    CHK_RET(PostSyncInterThreads(mainThread_, {bRelayThreads_[0]}, {2}));
+    if (hasB) {
+        stageMains.push_back(bRelayThreads_[0]);
+        mainNotifyIdx.push_back(bRelayMeta_.notifyNumOnMainThread);
+    }
+    CHK_RET(PreSyncInterThreads(mainThread_, stageMains, mainNotifyIdx));
+    HCCL_WARNING("[A2AV_AB_RELAY][Stage1] rank=%u submit order: A_CLOS -> A_MESH -> B_PREROUTE. "
+                 "hasA=%d hasB=%d", myRank_, hasA, hasB);
+    if (hasA) {
+        HCCL_WARNING("[A2AV_AB_RELAY][Stage1][A_CLOS_SUBMIT] rank=%u count=%llu", myRank_, aParams.count);
+        CHK_RET(aInterTemp.KernelRun(param, aParams, aInterRes));
+        HCCL_WARNING("[A2AV_AB_RELAY][Stage1][A_MESH_SUBMIT] rank=%u count=%llu", myRank_, aIntraParams.count);
+        CHK_RET(aIntraTemp.KernelRun(param, aIntraParams, aIntraRes));
+    }
+    if (hasB) {
+        HCCL_WARNING("[A2AV_AB_RELAY][Stage1][B_PREROUTE_SUBMIT] rank=%u count=%llu", myRank_, bParams.count);
+        CHK_RET(relayTemp.KernelRun(param, bParams, relayRes));
+    }
+    std::vector<u32> postNotifyIdx;
+    postNotifyIdx.reserve(stageMains.size());
+    for (u32 i = 0; i < stageMains.size(); ++i) {
+        postNotifyIdx.push_back(i);
+    }
+    CHK_RET(PostSyncInterThreads(mainThread_, stageMains, postNotifyIdx));
     return HCCL_SUCCESS;
 }
 
@@ -616,8 +637,7 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::Orchestrate(
         slotStride_ = HCCL_MIN_SLICE_ALIGN;
     }
     CHK_RET(CheckRelayScratch(bParams, resCtx));
-    CHK_RET(RunAOriginal(param, resCtx, aParams));
-    CHK_RET(RunAPreroute(param, resCtx, bParams));
+    CHK_RET(RunAOriginalAndPreroute(param, resCtx, aParams, bParams));
     CHK_RET(RunBRelay(param, resCtx, bParams));
     HCCL_WARNING("[A2AV_AB_RELAY][Orchestrate] end.");
     return HCCL_SUCCESS;

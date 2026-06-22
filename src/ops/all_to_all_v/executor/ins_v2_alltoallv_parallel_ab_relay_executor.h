@@ -42,10 +42,8 @@ private:
                                TemplateDataParams &params);
     HcclResult SplitABParams(const TemplateDataParams &baseParams, double ratio,
                              TemplateDataParams &aParams, TemplateDataParams &bParams) const;
-    HcclResult RunAOriginal(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                            const TemplateDataParams &aParams);
-    HcclResult RunAPreroute(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                            const TemplateDataParams &bParams);
+    HcclResult RunAOriginalAndPreroute(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
+                                       const TemplateDataParams &aParams, const TemplateDataParams &bParams);
     HcclResult RunBRelay(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
                          const TemplateDataParams &bParams);
     HcclResult BuildRuntimeMetas();

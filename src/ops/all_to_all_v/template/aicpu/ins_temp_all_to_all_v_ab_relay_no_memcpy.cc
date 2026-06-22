@@ -292,8 +292,13 @@ HcclResult InsTempAlltoAllVABRelayNoMemcpy::RunPrerouteToRelay(
         std::vector<DataSlice> txDstSlices;
         CHK_RET(BuildPrerouteSlices(peerRank, channel, params, txSrcSlices, txDstSlices));
         ThreadHandle thread = resource.threads[std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1))];
-        HCCL_WARNING("[A2AV_AB_RELAY][A_PREROUTE] rank=%u peer=%u slices=%zu threadIdx=%u",
-                     myRank_, peerRank, txSrcSlices.size(), std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1)));
+        u64 totalBytes = 0;
+        for (const auto &slice : txSrcSlices) {
+            totalBytes += slice.size;
+        }
+        HCCL_WARNING("[A2AV_AB_RELAY][A_PREROUTE] rank=%u peer=%u slices=%zu bytes=%llu threadIdx=%u",
+                     myRank_, peerRank, txSrcSlices.size(), totalBytes,
+                     std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1)));
         CHK_RET(RunPeerSendRecv(channel, txSrcSlices, txDstSlices, thread));
         ++threadIdx;
     }
@@ -336,8 +341,13 @@ HcclResult InsTempAlltoAllVABRelayNoMemcpy::RunRelayToOutput(
             std::vector<DataSlice> txDstSlices;
             CHK_RET(BuildRelaySlices(peerRank, channels, channelIdx, params, txSrcSlices, txDstSlices));
             ThreadHandle thread = resource.threads[std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1))];
-            HCCL_WARNING("[A2AV_AB_RELAY][B_RELAY] rank=%u peer=%u channel=%u/%zu slices=%zu threadIdx=%u",
-                         myRank_, peerRank, channelIdx, channels.size(), txSrcSlices.size(),
+            u64 totalBytes = 0;
+            for (const auto &slice : txSrcSlices) {
+                totalBytes += slice.size;
+            }
+            HCCL_WARNING("[A2AV_AB_RELAY][B_RELAY] rank=%u peer=%u channel=%u/%zu slices=%zu "
+                         "bytes=%llu threadIdx=%u", myRank_, peerRank, channelIdx, channels.size(),
+                         txSrcSlices.size(), totalBytes,
                          std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1)));
             CHK_RET(RunPeerSendRecv(channels[channelIdx], txSrcSlices, txDstSlices, thread));
             ++threadIdx;

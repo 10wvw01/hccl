@@ -11,6 +11,7 @@
 #include "ins_v2_alltoallv_parallel_ab_inline_executor.h"
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include "ins_temp_all_to_all_v_ab_inline_no_memcpy.h"
 #include "ins_temp_alltoall_mesh_2d_v3_no_memcpy.h"
 #include "ins_temp_alltoall_mesh_clos_v3_no_memcpy.h"
@@ -62,6 +63,31 @@ void BuildSingleLayerUbx4x2Hierarchy(u32 userRank, std::vector<std::vector<u32>>
         }
     }
     interHierarchyInfo = {closRanks};
+}
+
+HcclResult KeepFirstFourClosLinksPerPeer(u32 myRank, std::vector<HcclChannelDesc> &channels)
+{
+    std::map<u32, u32> linkCountByPeer;
+    std::vector<HcclChannelDesc> selected;
+    selected.reserve(channels.size());
+    for (const auto &channel : channels) {
+        u32 &count = linkCountByPeer[channel.remoteRank];
+        if (count < B_CLOS_LINK_IDX + 1) {
+            selected.push_back(channel);
+        }
+        ++count;
+    }
+    for (const auto &item : linkCountByPeer) {
+        CHK_PRT_RET(item.second < B_CLOS_LINK_IDX + 1,
+                    HCCL_ERROR("[A2AV_AB_INLINE][CalcRes] split clos requires 4 links per peer before acquire. "
+                               "rank=%u peer=%u links=%u. Aggregate clos rootinfo is not supported.",
+                               myRank, item.first, item.second),
+                    HcclResult::HCCL_E_NOT_SUPPORT);
+        HCCL_WARNING("[A2AV_AB_INLINE][CalcRes] rank=%u peer=%u rawLinks=%u useLinks=%u",
+                     myRank, item.first, item.second, B_CLOS_LINK_IDX + 1);
+    }
+    channels.swap(selected);
+    return HCCL_SUCCESS;
 }
 }
 
@@ -177,8 +203,9 @@ HcclResult InsV2AlltoAllVParallelABInlineExecutor<AlgTopoMatch>::CalcRes(
     CHK_PRT_RET(meshReq.channels.empty() || closReq.channels.empty(),
                 HCCL_ERROR("[A2AV_AB_INLINE][CalcRes] empty channel request."),
                 HcclResult::HCCL_E_INTERNAL);
+    CHK_RET(KeepFirstFourClosLinksPerPeer(myRank_, closReq.channels[0]));
     meshMeta_ = {meshReq.slaveThreadNum, meshReq.notifyNumOnMainThread, meshReq.notifyNumPerThread};
-    aClosMeta_.slaveThreadNum = A_CLOS_LINK_NUM > 0 ? A_CLOS_LINK_NUM - 1 : 0;
+    aClosMeta_.slaveThreadNum = A_CLOS_LINK_NUM;
     aClosMeta_.notifyNumOnMainThread = aClosMeta_.slaveThreadNum;
     aClosMeta_.notifyNumPerThread.assign(aClosMeta_.slaveThreadNum, 1);
     u32 closPeerNum = rankSize_ > meshSize_ ? static_cast<u32>(rankSize_ - meshSize_) : 0;
