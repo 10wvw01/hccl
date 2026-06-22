@@ -359,3 +359,24 @@ foreach(target ${AIV_TARGETS})
         add_dependencies(aiv_all_targets ${target})
     endif()
 endforeach()
+
+if(DEVICE_MODE AND KERNEL_MODE)
+    set(CCL_KERNEL_TAR_DIR ${OPS_BASE_DIR}/build_device/ccl_kernel_tar_pkg/aicpu_kernels_device)
+    add_custom_command(
+        TARGET scatter_aicpu_kernel
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CCL_KERNEL_TAR_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:scatter_aicpu_kernel> ${CCL_KERNEL_TAR_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:hccl_kernel_compat> ${CCL_KERNEL_TAR_DIR}
+        COMMENT "Copying libscatter_aicpu_kernel.so&libhccl_kernel_compat.so to ${CCL_KERNEL_TAR_DIR}"
+    )
+
+    set(AICPU_CUSTOM_DIR ${OPS_BASE_DIR}/build_device/aicpu_custom/)
+    add_custom_command(
+        TARGET scatter_aicpu_kernel
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${AICPU_CUSTOM_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:scatter_aicpu_kernel> ${AICPU_CUSTOM_DIR}/libscatter_aicpu_kernel.so
+        COMMENT "Copying libscatter_aicpu_kernel.so to ${AICPU_CUSTOM_DIR}/libscatter_aicpu_kernel.so"
+    )
+endif()

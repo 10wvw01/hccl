@@ -16,6 +16,8 @@
 #include "topo_match_base.h"
 #include "topo_match_ubx.h"
 #include "topo_match_ubx_1d.h"
+#include "topo_match_clos_mesh_2d_v2.h"
+#include "topo_match_clos_mesh_2d_ubx_v2.h"
 
 namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate> class InsV2AlltoAllVSoleExecutor : public InsCollAlgBase {
@@ -35,7 +37,7 @@ public:
 
 #ifndef AICPU_COMPILE
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const;
- 	HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *fastLaunchCtx) override;    
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *fastLaunchCtx) override;
 #endif
 
 protected:
