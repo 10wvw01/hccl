@@ -159,9 +159,9 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernelY(CcuKernelArg arg)
     GatherOmniPipeMesh1DMem2MemContextY ctx;
     
     HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] GatherOmniPipeMesh1DMem2MemY run");
-    CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
-    CCU_CHK_RET(InitResource(ctx));
-    CCU_CHK_RET(LoadArgs(ctx));
+    // CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
+    // CCU_CHK_RET(InitResource(ctx));
+    // CCU_CHK_RET(LoadArgs(ctx));
     
     // CCU_CHK_RET(PreSync(ctx));
     
