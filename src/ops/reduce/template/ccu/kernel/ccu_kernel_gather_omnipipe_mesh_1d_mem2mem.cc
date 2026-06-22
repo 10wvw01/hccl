@@ -169,7 +169,7 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     
     CCU_CHK_RET(DoRepeatGather(ctx));
     
-    // CCU_CHK_RET(PostSync(ctx));
+    CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] GatherOmniPipeMesh1DMem2Mem end");
     
     return CCU_SUCCESS;
