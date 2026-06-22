@@ -232,10 +232,19 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     }
 
     // 步骤3: 执行本地归约操作（将收到的所有数据在本地进行归约）
-    HCCL_INFO("[RS_OrderPreserved] >>> Step3: RunLocalReduce (CPU sync compute)");
+    HCCL_INFO("[RS_OrderPreserved] >>> Step3: RunLocalReduce");
     CHK_RET(RunLocalReduce(templateResource.threads, tempAlgParams));
-    HCCL_INFO("[RS_OrderPreserved] Step3: LocalReduce done (sync CPU op, data visible)");
-    // LocalReduce是CPU同步操作，数据已经可见，打印归约结果（每个rank区域的最终值）
+    HCCL_INFO("[RS_OrderPreserved] Step3: LocalReduce submitted (async)");
+
+    // DEBUG SYNC: 等待LocalReduce完成，才能读到归约后的数据
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: waiting for LocalReduce completion...");
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+    CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+    for (const auto &thread : templateResource.threads) {
+        CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+    }
+    HCCL_INFO("[RS_OrderPreserved] DEBUG_SYNC: LocalReduce complete, reduced data now visible");
+    // LocalReduce完成后：打印CCL buffer中每个rank区域的归约结果
     {
         for (u32 i = 0; i < memBlockInfo_.outputOffsets.size(); i++) {
             PrintSliceData("RS_Step3_AFTER_LocalReduce_cclBuff_rankRegion", tempAlgParams.buffInfo.hcclBuff.addr,
