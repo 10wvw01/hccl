@@ -28,8 +28,8 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
 {
     std::vector<HcclChannelDesc> level1Channels;
     std::vector<HcclChannelDesc> myChannelDescs;
-    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
-    u64 dataSize = opParam.DataDes.count * perDataSize;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    u64 dataSize = param.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         if (IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize < SMALL_COUNT_512KB) {
             CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
