@@ -106,7 +106,6 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
 namespace ops_hccl {
 HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclDataType dataType, uint32_t root, const aclrtStream stream, OpParam &param)
 {
-    (void) root;
     (void) stream;
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
@@ -122,6 +121,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
     CHK_RET(HcclGetRankId(comm, &userRank));
     CHK_RET(HcclCheckTag(param.tag));
     CHK_RET(HcomCheckUserRank(rankSize, userRank));
+    CHK_RET(HcomCheckUserRank(rankSize, root));
     CHK_RET(CheckCount(count));
     CHK_RET(CheckDataType(dataType, false));
 
