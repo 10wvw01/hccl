@@ -165,6 +165,8 @@ HcclResult InsV2ScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         resCtx.cclMem.size);
     if (param.engine != CommEngine::COMM_ENGINE_AIV && param.engine != CommEngine::COMM_ENGINE_CCU) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+        intraChannelInfo_ = remoteRankToChannelInfo_[0];
+        interChannelInfo_ = remoteRankToChannelInfo_[1];
     }
     dataCount_ = param.DataDes.count;
     dataType_ = param.DataDes.dataType;
@@ -201,13 +203,6 @@ HcclResult InsV2ScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         myRank_,
         rankSizeLevel0_,
         rankSizeLevel1_);
-
-    // 实例化算法模板类
-    InsAlgTemplate0 tempAlgIntra(param, resCtx.topoInfo.userRank, temp0HierarchyInfo_);
-    InsAlgTemplate1 tempAlgInter(param, resCtx.topoInfo.userRank, temp1HierarchyInfo_);
-    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-        tempAlgInter.SetchannelsPerRank(interChannelInfo_);
-    }
 
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
