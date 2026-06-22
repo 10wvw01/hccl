@@ -34,6 +34,8 @@ public:
 
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource& templateResource) override;
+    HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;              
+    u64 GetThreadNum() const override;
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 private:
     HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs);
