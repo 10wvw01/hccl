@@ -107,7 +107,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     dataCount_ = param.DataDes.count;
     dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-    root_ = param.root;
     
     rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
     rankSizeLevel1_ = algHierarchyInfo.infos[0][1].size() / rankSizeLevel0_;
@@ -115,8 +114,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 
-    rootXAixs = root_ % rankSizeLevel0_;
-    rootYAixs = root_ / rankSizeLevel0_;
+    rootXAixs = param.root % rankSizeLevel0_;
+    rootYAixs = param.root / rankSizeLevel0_;
 
     isRoot = (myRank_ == root_);
  	// isSameXAxis = (rankIdxLevel0_ == rootXAixs) && !isRoot;
