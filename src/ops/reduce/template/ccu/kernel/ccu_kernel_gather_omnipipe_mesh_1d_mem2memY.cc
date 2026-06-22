@@ -113,21 +113,21 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
         uint16_t rankMask = 1 << rankIdx;
-        
-        CCU_IF(ctx.sliceSize != 0)
-        {
-            if (rankIdx == ctx.rankId) {
-                ccu::EventRecord(ctx.event, rankMask);
-            } else {
-                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], 
-                    ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
-                channelId++;
-            }
+        if (rankIdx == ctx.rankId) {
+            ccu::EventRecord(ctx.event, rankMask);
+            continue;
         }
+
+        CCU_IF(ctx.sliceSize != 0) {
+            ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], 
+                ctx.inputMem[channelId], ctx.sliceSize, ctx.event, rankMask);
+        }
+
         CCU_IF(ctx.sliceSize == 0)
         {
             ccu::EventRecord(ctx.event, rankMask);
         }
+        channelId++;
     }
     
     ccu::EventWait(ctx.event, (1 << ctx.rankSize) - 1);
@@ -136,18 +136,39 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 
 static CcuResult DoRepeatGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 {
-    for (uint64_t curId = 0; curId < ctx.rankSize; curId++) {
-        if (curId == ctx.rankId) {
+    ccu::LocalAddr dst;
+    std::vector<ccu::RemoteAddr> src;
+    src.resize(ctx.rankSize);
+    dst.addr = ctx.input[ctx.rankId];
+    dst.addr += ctx.inputOmniPipeSliceStride;
+    dst.token = ctx.token[ctx.rankId];
+    src[ctx.rankSize - 1].addr = dst.addr;
+    src[ctx.rankSize - 1].token = dst.token;
+
+    // 准备源地址
+    uint32_t idx = 0;
+    for (auto i = 0; i < ctx.rankSize; ++i) {
+        if (i == arg->rankId) {
             continue;
         }
-        ctx.inputMem[curId].token = ctx.token[curId];
-        ctx.inputMem[curId].addr = ctx.input[curId];
-        ctx.inputMem[curId].addr += ctx.inputOmniPipeSliceStride;
-
-        ctx.outputMem[curId].token = ctx.token[curId];
-        ctx.outputMem[curId].addr = ctx.output;
-        ctx.outputMem[curId].addr += ctx.outputOmniPipeSliceStride;
+        src[idx].addr = ctx.input[i];
+        src[idx].addr += ctx.inputOmniPipeSliceStride;
+        src[idx].token = ctx.token[i];
+        idx++;
     }
+
+    // 准备目的地址
+    std::vector<ccu::LocalAddr> scratchMem;
+    scratchMem.resize(arg->rankSize);
+    ccu::Variable scratchOffset;
+    scratchOffset = 0;
+    for (auto i = 0; i < ctx.rankSize; ++i) {
+        scratchMem[i].addr = ctx.output;
+        scratchMem[i].addr += ctx.outputOmniPipeSliceStride;
+        scratchMem[i].token = ctx.token[arg->rankId];
+        scratchOffset += ctx.sliceSize;
+    }
+    
     CCU_IF(ctx.ifNewRoot == true)
     {
         CCU_CHK_RET(DoGather(ctx));
