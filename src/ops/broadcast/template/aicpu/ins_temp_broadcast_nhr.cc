@@ -29,8 +29,21 @@ HcclResult InsTempBroadcastNHR::CalcRes(HcclComm comm, const OpParam& param, con
     GetRes(resourceRequest);
 
     std::vector<HcclChannelDesc> level0Channels;
-    CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix &&
+        IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+        // zzy todo
+        // CHK_RET(CalcChannelRequestNhrWithMultiJetty(comm, param, topoInfo, subCommRanks_, level0Channels));
+    } else {
+        CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+    }
     resourceRequest.channels.push_back(level0Channels);
+    channelsPerRank_ = CalcChannelsPerRank(level0Channels);
+    if (channelsPerRank_ > MAX_JETTY_NUM) {
+        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
+            __func__, channelsPerRank_, MAX_JETTY_NUM);
+    } else {
+        HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
+    }
     HCCL_WARNING("Resource calculation is temporarily not performed in the template.");
     return HCCL_SUCCESS;
 }

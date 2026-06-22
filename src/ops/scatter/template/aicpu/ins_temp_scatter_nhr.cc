@@ -26,7 +26,7 @@ u64 InsTempScatterNHR::GetThreadNum() const
 }
 
 void InsTempScatterNHR::SetRoot(u32 root)
-{   
+{
     HCCL_INFO("[InsTempScatterNHR][SetRoot] myRank_ [%u], set root_ [%u] ", myRank_, root);
     root_ = root;
 }
@@ -39,10 +39,16 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     std::vector<HcclChannelDesc> level0Channels;
     std::vector<HcclChannelDesc> myChannelDescs;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS));
-        for (auto channel : myChannelDescs) {
-            if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-                level0Channels.push_back(channel);
+        if (IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            // zzy todo
+            // CHK_RET(CalcChannelRequestNhrWithMultiJetty(comm, param, topoInfo, subCommRanks_, level0Channels));
+        } else {
+            CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs,
+                CommTopo::COMM_TOPO_CLOS));
+            for (auto channel : myChannelDescs) {
+                if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                    level0Channels.push_back(channel);
+                }
             }
         }
     } else {
@@ -50,6 +56,12 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     }
     resourceRequest.channels.push_back(level0Channels);
     channelsPerRank_ = CalcChannelsPerRank(level0Channels);
+    if (channelsPerRank_ > MAX_JETTY_NUM) {
+        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
+            __func__, channelsPerRank_, MAX_JETTY_NUM);
+    } else {
+        HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
+    }
     CHK_RET(GetRes(resourceRequest));
     return HCCL_SUCCESS;
 }
