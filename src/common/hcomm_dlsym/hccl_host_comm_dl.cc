@@ -18,8 +18,11 @@ DEFINE_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStat
 DEFINE_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgType,
     uint32_t infoLen, void *info);
 
+DEFINE_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallBack, const char *regName, HcclCommStateCallback cb, void *args);
+
 // 初始化
 void HcclCommDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcclCommGetStatus);
     INIT_SUPPORT_FLAG(libHcommHandle, HcclConfigGetInfo);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcclCommRegCommStateCallBack);
 }
