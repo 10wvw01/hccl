@@ -37,7 +37,17 @@ typedef enum {
 } HcclCommStatus;
 
 typedef uint64_t ThreadHandle;
+#endif
 
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+typedef enum {
+    HCCL_COMM_STATE_DESTROY_PRE = 0,   /* 调用通信域销毁HcclCommDestroy前 */
+    HCCL_COMM_STATE_DESTROY_POST = 1,  /* 调用通信域销毁HcclCommDestroy后 */
+    HCCL_COMM_STATE_RESUME_PRE = 2,    /* 调用step快恢恢复通信域资源HcclCommResume前 */
+    HCCL_COMM_STATE_RESUME_POST = 3    /* 调用step快恢恢复通信域资源HcclCommResume后 */
+} HcclCommStatePhase;
+
+typedef HcclResult (*HcclCommStateCallback)(HcclComm comm, HcclCommStatePhase state, void *args);
 #endif
 
 #ifdef __cplusplus
