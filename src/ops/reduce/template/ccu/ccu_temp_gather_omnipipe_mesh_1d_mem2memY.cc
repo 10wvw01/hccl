@@ -102,9 +102,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::CalcRes(HcclComm comm, const OpP
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY][%s] Get Mesh channels Success.", __func__);
     std::map<u32, u32> subRankIdx2RankIdx;
     for (u32 i=0; i< channelDescs.size(); i++) {
-        u32 remoteRank = channelDescs[i].remoteRank;
-        u32 subRankIdx = RemoteRankId2RankId(remoteRank);
+        remoteRank = channelDescs[i].remoteRank;
+        subRankIdx = RemoteRankId2RankId(remoteRank);
         subRankIdx2RankIdx[subRankIdx] = remoteRank;
+        HCCL_DEBUG("[%s] myRank_[%u]  remoteRank[%u] ", __func__, myRank_, remoteRank);
     }
     subRankIdx2RankIdx[mySubCommRank_] = myRank_;
 
@@ -185,6 +186,15 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
             for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) {
                 sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
+                // if (isStepOne_) {//不搬运3卡
+                //     sliceSize = 0;
+                // }
+                // if (isLastStep_&& rpt==0) {//不搬运4卡
+                //     sliceSize = 0;
+                // }
+                // if (isLastStep_&& rpt==1) {//不搬运5卡
+                //     sliceSize = 0;
+                // }
                 inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt];
                 outputOmniPipeSliceStride= stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt];
                 
@@ -207,8 +217,15 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                     outputOmniPipeSliceStride, 
                     isStepOne_, 
                     isLastStep_, 
-                    ifNewRoot
+                    ifNewRoot,
+                    peerId
                 };
+                // if (ifNewRoot && sliceSize!=0) {
+                    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
+                                " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu myRank[%u]  subRoot[%d] peerId[%d]",
+                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, peerId);
+                
+                // }
                 uint64_t argSize = taskArgs.size();
                 CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
                 if (launchRet != CCU_SUCCESS) {
@@ -239,7 +256,7 @@ u64 CcuTempGatherOmniPipeMesh1DMem2MemY::CalcScratchMultiple(BufferType inBuffTy
 {
     (void)inBuffType;
     (void)outBuffType;
-    return 0;
+    return templateRankSize_;
 }
 
 } // namespace ops_hccl

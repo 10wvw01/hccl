@@ -101,18 +101,23 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             HCCL_ERROR("[ReduceScatterAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
         if (isMeshNumEqualToClosNum && topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO) {// 4P mesh
             if (IsSmallData(dataSize)) { // 小数据量，用1d mesh算法
-                selectAlgName = "CcuReduceScatterMesh1D";
+                // selectAlgName = "CcuReduceScatterMesh1D";
+                selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
             } else { // 大数据量，用mesh+clos并行算法
-                selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
+                // selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
+                selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
             }
         } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
-            HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
-            return SelectorStatus::NOT_MATCH;
+            // HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
+            // return SelectorStatus::NOT_MATCH;
+            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
         } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_REDUCE_MS_ALGO) {
-            selectAlgName = "CcuReduceScatterMesh1D";
+            // selectAlgName = "CcuReduceScatterMesh1D";
+            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
         } else {
-            HCCL_DEBUG("[ReduceScatterAutoSelector] level0Topo[%u] is not supported mesh yet.", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;       
+            // HCCL_DEBUG("[ReduceScatterAutoSelector] level0Topo[%u] is not supported mesh yet.", topoInfo->level0Topo);
+            // return SelectorStatus::NOT_MATCH;       
+            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
         }
     } else {
         HCCL_WARNING("[ReduceScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
@@ -232,6 +237,10 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuScheduleMesh1D(const 
 SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                                     std::string &selectAlgName) const
 {
+    selectAlgName = "CcuV2ReduceScatterOmniPipe";
+    HCCL_INFO("[ReduceScatterAutoSelector zjq][%s] Algo match [%s]", __func__, selectAlgName.c_str());
+    return SelectorStatus::MATCH;
+
     // ccu 模式不支持 inplace 场景
     CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
         HCCL_WARNING("[ReduceScatterAutoSelector] ccu schedule mode not support inplace."),
@@ -263,17 +272,21 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoIn
             // 4P mesh
             if (IsSmallData(dataSize)) {
                 // 小数据量，用1d mesh算法
-                selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
+                // selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
+                selectAlgName = "CcuV2ReduceScatterOmniPipe";
             } else {
                 // 大数据量，用mesh+clos并行算法
-                selectAlgName = "CcuReduceScatterConcurrentMeshNHRSche";
+                // selectAlgName = "CcuReduceScatterConcurrentMeshNHRSche";
+                selectAlgName = "CcuV2ReduceScatterOmniPipe";
             }
         } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
             // 矩形场景大数据量，用2d并行算法
-            selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
+            // selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
+            selectAlgName = "CcuV2ReduceScatterOmniPipe";
         } else {
             // 其他场景，用1d NHR算法
-            selectAlgName = "CcuReduceScatterNhr1DMem2MemMultiJetty";
+            // selectAlgName = "CcuReduceScatterNhr1DMem2MemMultiJetty";
+            selectAlgName = "CcuV2ReduceScatterOmniPipe";
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         if (topoInfo->level0PcieMix) {
