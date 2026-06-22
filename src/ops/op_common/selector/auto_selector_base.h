@@ -119,4 +119,13 @@ inline bool Is64BitDataType(const HcclDataType dataType)
 }
 
 } // namespace Hccl
+
+// AIV_ONLY 额外打 ERROR（直接报错不回退，原因同 BASE_LOG）
+#define HCCL_AIV_NOT_MATCH_LOG(opParam, BASE_LOG, fmt, ...) do { \
+    BASE_LOG(fmt, ##__VA_ARGS__); \
+    if ((opParam).opExecuteConfig == OpExecuteConfig::AIV_ONLY) { \
+        HCCL_ERROR(fmt, ##__VA_ARGS__); \
+    } \
+} while (0)
+
 #endif
