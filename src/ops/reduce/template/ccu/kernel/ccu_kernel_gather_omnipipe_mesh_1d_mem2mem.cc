@@ -165,7 +165,7 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
     // CCU_CHK_RET(DoRepeatGather(ctx));
     
