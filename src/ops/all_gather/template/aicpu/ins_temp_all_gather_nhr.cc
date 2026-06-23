@@ -13,9 +13,6 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
-
-constexpr u32 TWO_TIMES_STREAM = 2;
-
 InsTempAllGatherNHR::InsTempAllGatherNHR(const OpParam &param, const u32 rankId,
                                          const std::vector<std::vector<u32>> &subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -28,7 +25,19 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
                                         AlgResourceRequest &resourceRequest)
 {
     std::vector<HcclChannelDesc> level1Channels;
-    CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
+    std::vector<HcclChannelDesc> myChannelDescs;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
+        for(auto channel : myChannelDescs) {
+            if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                level1Channels.push_back(channel);
+            }
+        }
+        HCCL_DEBUG("[InsTempAllGatherNHR::CalcRes] Get Channel Success!");
+    } else {
+        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
+        level1Channels = myChannelDescs;
+    }
     resourceRequest.channels.push_back(level1Channels);
     channelsPerRank_ = CalcChannelsPerRank(level1Channels);
     CHK_RET(GetRes(resourceRequest));
@@ -39,14 +48,14 @@ HcclResult InsTempAllGatherNHR::GetRes(AlgResourceRequest &resourceRequest) cons
     u32 threadNum = GetThreadNum();
     resourceRequest.slaveThreadNum = threadNum - 1;
     // 一个notify用于主从流之间的同步，另一个用于PostLocalCopy和NHR最后一个step并行执行时的前同步
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, TWO_TIMES_STREAM);
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 2);
     resourceRequest.notifyNumOnMainThread = threadNum - 1;
     return HCCL_SUCCESS;
 }
 u64 InsTempAllGatherNHR::GetThreadNum() const
 {
     // 多申请一倍的流用来最后做PostLocalCopy和NHR最后一个step并行执行
-    return channelsPerRank_ * TWO_TIMES_STREAM;
+    return channelsPerRank_ * 2;
 }
 
 u64 InsTempAllGatherNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
@@ -97,7 +106,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
 
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
- 	                                          templateResource.threads.begin() + threadNum_);
+                                             templateResource.threads.begin() + threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
@@ -112,7 +121,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     }
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
- 	                                          templateResource.threads.begin() + threadNum_);
+                                             templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
@@ -254,8 +263,18 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
 {
     AicpuNHRStepInfo stepInfo;
     CHK_RET(GetStepInfo(step, nSteps, stepInfo));
-    const ChannelInfo &channelRecv = channels.at(GetRankFromMap(stepInfo.fromRank))[channelIdx];
-    const ChannelInfo &channelSend = channels.at(GetRankFromMap(stepInfo.toRank))[channelIdx];
+    u32 fromRankKey = GetRankFromMap(stepInfo.fromRank);
+    u32 toRankKey = GetRankFromMap(stepInfo.toRank);
+    CHK_PRT_RET(channels.count(fromRankKey) == 0 || channelIdx >= channels.at(fromRankKey).size() ||
+                channels.count(toRankKey) == 0 || channelIdx >= channels.at(toRankKey).size(),
+        HCCL_ERROR("[InsTempAllGatherNHR] rank[%u] invalid channel access, fromRankKey[%u] toRankKey[%u] channelIdx[%u] "
+                   "channels.size[%zu] fromChannelSize[%zu] toChannelSize[%zu]",
+            __func__, myRank_, fromRankKey, toRankKey, channelIdx, channels.size(),
+            channels.count(fromRankKey) ? channels.at(fromRankKey).size() : 0,
+            channels.count(toRankKey) ? channels.at(toRankKey).size() : 0),
+        HCCL_E_INTERNAL);
+    const ChannelInfo &channelRecv = channels.at(fromRankKey)[channelIdx];
+    const ChannelInfo &channelSend = channels.at(toRankKey)[channelIdx];
     HCCL_DEBUG("[InsTempAllGatherNHR] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
         myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
