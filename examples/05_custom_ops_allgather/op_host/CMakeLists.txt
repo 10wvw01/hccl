@@ -45,11 +45,6 @@ target_link_options(hccl_custom_allgather PRIVATE
 target_compile_options(hccl_custom_allgather PRIVATE
     $<$<COMPILE_LANGUAGE:ASC>: --npu-arch=dav-2201>
 )
-
-target_link_directories(hccl_custom_allgather PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-)
-
 target_link_libraries(hccl_custom_allgather PRIVATE
     -Wl,--no-as-needed
     hcomm

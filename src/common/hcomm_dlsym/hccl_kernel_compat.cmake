@@ -35,10 +35,6 @@ target_link_options(hccl_kernel_compat PRIVATE
     $<$<CONFIG:Release>:-s>
 )
 
-target_link_directories(hccl_kernel_compat PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
-)
-
 install(TARGETS hccl_kernel_compat
     LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
     ${INSTALL_OPTIONAL}
