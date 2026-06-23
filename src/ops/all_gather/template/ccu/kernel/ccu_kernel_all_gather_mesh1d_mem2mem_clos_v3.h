@@ -23,6 +23,8 @@ struct CcuKernelArgAllGatherMesh1DMem2MemClosV3 : CcuKernelArgBase {
     uint32_t                                rankId;
     OpParam                                 opParam;
     std::vector<std::vector<uint32_t>>      subCommRanks;
+    std::vector<uint32_t>                   mainChannelIdxByRank;
+    std::vector<uint32_t>                   sharedChannelIdxByRank;
 };
 
 struct AllGatherMesh1DMem2MemClosV3Context : CcuKernelCtxBase {
@@ -31,6 +33,8 @@ struct AllGatherMesh1DMem2MemClosV3Context : CcuKernelCtxBase {
     ccu::Variable input;
     std::vector<ccu::Variable> output;
     std::vector<ccu::Variable> token;
+    std::vector<ccu::Variable> sharedOutput;
+    std::vector<ccu::Variable> sharedToken;
     ccu::Variable currentRankSliceInputOffset;
     ccu::Variable currentRankSliceOutputOffset;
     ccu::Variable tmpRepeatNum;
@@ -39,10 +43,17 @@ struct AllGatherMesh1DMem2MemClosV3Context : CcuKernelCtxBase {
     ccu::Variable normalSliceSize;
     ccu::Variable lastSliceSize;
     ccu::Variable isInputOutputEqual;
+    ccu::Variable mainSliceSize;
+    ccu::Variable sharedSliceSize;
     GroupOpSizeVars goSize;
     ccu::LocalAddr src_loccopy;
     ccu::LocalAddr localDst;
+    ccu::LocalAddr sharedSrc;
     std::vector<ccu::Event> events;
+    std::vector<ccu::Event> sharedEvents;
+    std::vector<uint16_t> sharedEventMasks;
+    std::vector<uint32_t> mainChannelIdxByRank;
+    std::vector<uint32_t> sharedChannelIdxByRank;
 };
 
 CcuResult CcuAllGatherMesh1DMem2MemClosV3Kernel(CcuKernelArg arg);
@@ -50,4 +61,3 @@ CcuResult CcuAllGatherMesh1DMem2MemClosV3Kernel(CcuKernelArg arg);
 } // namespace ops_hccl
 
 #endif // HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V3
-
