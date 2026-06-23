@@ -511,12 +511,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_INFO("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
     HCCL_INFO("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
-    u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
-    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    // u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
+    // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
     HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
 #endif
 
-#if T_DESC("looptimes实现2", false)
+#if T_DESC("looptimes实现2", true)
     OmniPipeScratchParam scratchParam;
     CHK_RET(InitOmniPipeScratchParam(scratchParam, param, endpointAttrBwAvg));
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
@@ -529,7 +529,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_DEBUG("[%s]maxCountPerLoop[%u], loopTimes[%u]", __func__, maxCountPerLoop, loopTimes);
 #endif
 
-#if T_DESC("looptimes实现3", true)
+#if T_DESC("looptimes实现3", false)
     // u64 maxCountPerLoop = static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_; // UB传输的限制
     u64 maxCountPerLoop = static_cast<u64>(256) / dataTypeSize_; 
     u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1); //总的需要传输的数据量 / UB限制
@@ -549,8 +549,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
 
     // 3.1 计算n-1次loop的slice信息
-    // u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
-    // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
+    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
     HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
     // std::vector<u64> dataWholeSize(rankSize_, perLoopSize);
