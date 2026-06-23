@@ -201,10 +201,6 @@ target_compile_definitions(scatter_aicpu_kernel PRIVATE
 
 hccl_apply_cann_compat(scatter_aicpu_kernel)
 
-target_link_directories(scatter_aicpu_kernel PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
-)
-
 target_link_libraries(scatter_aicpu_kernel PRIVATE
     -Wl,--no-as-needed
     ccl_kernel

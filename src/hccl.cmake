@@ -72,11 +72,6 @@ target_compile_options(hccl PRIVATE
     -fstack-protector-all
 )
 
-# libhccl
-target_link_directories(hccl PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-)
-
 if(NOT STATIC_MODE)
     add_dependencies(hccl hccl_compat)
 endif()
@@ -116,10 +111,6 @@ if(NOT STATIC_MODE)
         $<$<CONFIG:Release>:-s>
     )
 endif()
-
-target_link_directories(hccl PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-)
 
 if(STATIC_MODE)
     target_link_libraries(hccl PRIVATE
@@ -206,10 +197,6 @@ target_link_libraries(opgraph_hccl PRIVATE
     rt2_registry
     -Wl,--no-whole-archive
     -Wl,-Bsymbolic
-)
-
-target_link_directories(opgraph_hccl PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
 )
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph/ops_proto_hccl.h
