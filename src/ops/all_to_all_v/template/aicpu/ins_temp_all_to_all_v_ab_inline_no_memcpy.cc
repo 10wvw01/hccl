@@ -124,6 +124,10 @@ HcclResult InsTempAlltoAllVABInlineNoMemcpy::RunPeer(
     u64 rxByteSize = rxCount * dataTypeSize_;
     u64 txSrcOffset = params.sdispls[peerRank] * dataTypeSize_;
     u64 txDstOffset = params.remoteRdispls[peerRank] * dataTypeSize_;
+    if (txByteSize == 0 && rxByteSize == 0) {
+        HCCL_WARNING("[A2AV_AB_INLINE][B_CLOS] skip zero pair. rank=%u peer=%u", myRank_, peerRank);
+        return HCCL_SUCCESS;
+    }
     CHK_PRT_RET(params.remoteRecvCounts[peerRank] != txCount,
                 HCCL_ERROR("[A2AV_AB_INLINE][Template] remote recv count mismatch. rank=%u peer=%u "
                            "localSend=%llu remoteRecvForLocal=%llu",
@@ -143,11 +147,16 @@ HcclResult InsTempAlltoAllVABInlineNoMemcpy::RunPeer(
                                 params.buffInfo.inputSize, channel.remoteOutputGraphMode.size));
         txSrcSlices.emplace_back(params.buffInfo.inputPtr, txSrcOffset, txByteSize, txCount);
         txDstSlices.emplace_back(channel.remoteOutputGraphMode.addr, txDstOffset, txByteSize, txCount);
-    } else {
-        txSrcSlices.emplace_back(nullptr, 0, 0, 0);
-        txDstSlices.emplace_back(nullptr, 0, 0, 0);
     }
-    rxSrcSlices.emplace_back(params.buffInfo.outputPtr, params.rdispls[peerRank] * dataTypeSize_, rxByteSize, rxCount);
+    u64 rxLocalOffset = params.rdispls[peerRank] * dataTypeSize_;
+    if (rxByteSize > 0) {
+        CHK_PRT_RET(rxLocalOffset + rxByteSize > params.buffInfo.outputSize,
+                    HCCL_ERROR("[A2AV_AB_INLINE][Template] local recv slice out of range. rank=%u peer=%u "
+                               "rxOff=%llu rxSize=%llu outputSize=%llu", myRank_, peerRank, rxLocalOffset,
+                               rxByteSize, params.buffInfo.outputSize),
+                    HcclResult::HCCL_E_INTERNAL);
+    }
+    rxSrcSlices.emplace_back(params.buffInfo.outputPtr, rxLocalOffset, rxByteSize, rxCount);
     rxDstSlices.emplace_back(params.buffInfo.outputPtr, params.rdispls[peerRank] * dataTypeSize_, rxByteSize, rxCount);
 
     SendRecvInfo sendRecvInfo{{channel, channel}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}},
