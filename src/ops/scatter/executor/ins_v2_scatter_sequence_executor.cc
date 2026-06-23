@@ -9,7 +9,7 @@
  */
 
 #include "ins_v2_scatter_sequence_executor.h"
-#include "ins_temp_scatter_mesh_1D_intra.h"
+#include "ins_temp_scatter_mesh_1D.h"
 #include "ins_temp_scatter_nhr_dpu_inter_node.h"
 
 namespace ops_hccl {
@@ -109,9 +109,6 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     rankSizeLevel0_ = algHierarchyInfo_.infos[0][0].size();
     rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
 
-    // 计算框内的root同号卡
-    intraLocalRoot_ = root_ % rankSizeLevel0_ + rankIdxLevel1_ * rankIdxLevel0_;
-
     dataCount_ = param.DataDes.count;
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
@@ -171,8 +168,6 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     templateResourceInter.dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
 
     // 中转内存单次最多能够接受的output count，注意是count不是size
-    u64 dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
-    u64 dataCount_ = param.DataDes.count;
     u64 maxCountPerLoop = tempAlgParamsScatterIntra.buffInfo.hcclBuff.size / rankSizeLevel1_ / HCCL_MIN_SLICE_ALIGN *
                           HCCL_MIN_SLICE_ALIGN / dataTypeSize_; // 由于框内每个rank最终都会有框间同号卡的数据，因此这里需要除以rankSizeLevel1_
     // 计算loopTimes
@@ -197,7 +192,7 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         tempAlgParamsScatterIntra.sliceSize = currDataCount * dataTypeSize_;
         tempAlgParamsScatterIntra.tailSize = tempAlgParamsScatterIntra.sliceSize;
         // inputSliceStride：相邻rank的数据在input中的间隔（按global rank排列）
-        tempAlgParamsScatterIntra.inputSliceStride = dataCount_;
+        tempAlgParamsScatterIntra.inputSliceStride = dataSize_;
         // outputSliceStride = 0：发给同一个rank的m份数据在同一区域（由repeat控制）
         tempAlgParamsScatterIntra.outputSliceStride = 0;
 
@@ -217,7 +212,7 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         // 结果：每个框的rank i得到自己的那份数据
         tempAlgParamsScatterInter.count = currDataCount;
         tempAlgParamsScatterInter.buffInfo.inBuffBaseOff = 0;
-        tempAlgParamsScatterInter.buffInfo.outBuffBaseOff = 0;
+        tempAlgParamsScatterInter.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
         tempAlgParamsScatterInter.buffInfo.hcclBuffBaseOff = 0;
         // 框间root：root所在框的同号卡（发起框间scatter）
         tempAlgParamsScatterInter.root = (param.root / rankSizeLevel0_) * rankSizeLevel0_ + (myRank_ % rankSizeLevel0_);
@@ -255,5 +250,5 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 }
 
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_SCATTER, InsScatterSequenceMeshNhrDPU, InsV2ScatterSequenceExecutor,
-    TopoMatchMultilevel, InsTempScatterMesh1DIntra, InsTempScatterNHRDPUInterNode);
+    TopoMatchMultilevel, InsTempScatterMesh1D, InsTempScatterNHRDPUInterNode);
 }  // namespace ops_hccl

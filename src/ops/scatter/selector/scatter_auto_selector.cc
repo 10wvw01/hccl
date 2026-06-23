@@ -167,6 +167,7 @@ SelectorStatus ScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDeta
 {
     HCCL_INFO("topoInfo->topoLevelNums is %u, topoInfo->level0Topo is %u", topoInfo->topoLevelNums, topoInfo->level0Topo);
     (void)configAlgMap;
+    (void)opParam;
     if (topoInfo->topoLevelNums > 1) {
         selectAlgName = "InsScatterSequenceMeshNhrDPU";
         HCCL_INFO("Using algo InsScatterSequenceMeshNhrDPU");
