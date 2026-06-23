@@ -146,12 +146,12 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::KernelRun(
 
     // 转换成eager-mode，保障AICPU指令下发执行完成
     if (HcommBatchModeEnd(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
     if (HcommThreadSynchronize(templateResource.threads[0]) != 0) {
-        HCCL_ERROR("HcommThreadSynchronize failed");
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] HcommThreadSynchronize failed");
         return HCCL_E_INTERNAL;
     }
 
@@ -170,25 +170,25 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::KernelRun(
         return HCCL_E_INTERNAL;
     }
 
-    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu]HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
+    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu] HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
     // 等待DPU数据传输，然后回写结果回来
     void *recvData = nullptr;
     u32 recvMsgId = 0;
 
     if (HcommWaitResponse(reinterpret_cast<uint64_t>(templateResource.dpu2NpuShmemPtr), recvData, 0, &recvMsgId) != 0) {
-        HCCL_ERROR("HcommWaitResponse failed");
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] HcommWaitResponse failed");
         return HCCL_E_INTERNAL;
     }
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu]HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
+    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
 
     if (recvMsgId != sendMsgId) {
-        HCCL_ERROR("recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
         return HCCL_E_INTERNAL;
     }
 

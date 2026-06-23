@@ -52,10 +52,9 @@ protected:
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap);
     HcclResult InitCommInfo(
-        const OpParam &param, const TopoInfo *topoInfo, const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+        const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo, const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
     HcclResult PrepareResForTemplateLevel(u32 level, std::shared_ptr<InsAlgTemplateBase> &tempBase);
-    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams,
-                                             const StepSliceInfo &stepSliceInfo) const;
+    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, const StepSliceInfo &stepSliceInfo) const;
     HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfo *topoInfo,
         std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest) const;
 
@@ -68,7 +67,7 @@ protected:
     uint64_t rankIdxLevel2_{0};
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
-    ThreadHandle              controlThread_ = 0;
+    ThreadHandle              controlThread_;
     std::vector<std::vector<ThreadHandle>> levelThreads_;
     // xy两轴间同步使用
     std::vector<u32>          notifyIdxCtrlToTempLevel01_;
@@ -91,8 +90,24 @@ protected:
     std::vector<ThreadHandle> level2Threads_;
 
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
-    std::vector<std::map<u32 ,std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
+    std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;                 // 相当于之前的std::vector<InsQuePtr> tempInsQue_;
+
+    enum class TopoType { UBX_2LEVEL, THREE_LEVEL };
+    TopoType topoType_ = TopoType::UBX_2LEVEL;
+
+    HcclResult BuildSubCommAndTempMap(
+        const OpParam& param,
+        const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+        std::vector<std::vector<u32>>& subCommRanks0,
+        std::vector<std::vector<u32>>& subCommRanks1,
+        std::vector<std::vector<u32>>& subCommRanks2,
+        std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
+        const TopoInfoWithNetLayerDetails* topoInfo);
+
+    std::vector<std::vector<u32>> subCommRanks0_;
+    std::vector<std::vector<u32>> subCommRanks1_;
+    std::vector<std::vector<u32>> subCommRanks2_;
 };
 }
 

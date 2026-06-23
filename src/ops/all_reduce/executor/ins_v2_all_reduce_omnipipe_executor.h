@@ -17,14 +17,15 @@
 #include "alg_v2_template_base.h"
 #include "executor_v2_base.h"
 #include "coll_alg_v2_exec_registry.h"
-#include "workflow.h"
-#include "sal.h"
 #include "utils.h"
 #include "log.h"
+#include "workflow.h"
+#include "sal.h"
 #include "config_log.h"
 #include "topo_match_base.h"
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
+#include "topo_match_pcie_mix.h"
 #include "omnipipe_data_slice_calc.h"
 
 namespace ops_hccl {
@@ -57,22 +58,23 @@ protected:
         std::vector<std::map<u32, std::vector<ChannelInfo>>> &rankIdToChannelInfo) const override;
 
     HcclResult InitOmniPipeScratchParam(OmniPipeScratchParam& scratchParam, const OpParam &param,
-        const std::vector<EndpointAttrBwCoeff>& endpointAttrBwNew,
+        const std::vector<double>& endpointAttrBwNew,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap) const;
 
     HcclResult InitOmniPipeSliceParam(OmniPipeSliceParam& sliceParam, const OpParam &param,
-        const std::vector<EndpointAttrBwCoeff>& endpointAttrBwNew,
+        const std::vector<double>& endpointAttrBwNew,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap, u64 maxCountPerLoop) const;
 
     HcclResult CalcResLevel(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        const std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
+        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
 
     HcclResult PrepareResForTemplateLevelRS(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
     HcclResult PrepareResForTemplateLevelAG(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
 
     HcclResult InitSubCommRanks(std::vector<std::vector<u32>>& subCommRanks0,
         std::vector<std::vector<u32>>& subCommRanks1,
-        std::vector<std::vector<u32>>& subCommRanks2);
+        std::vector<std::vector<u32>>& subCommRanks2,
+        const TopoInfoWithNetLayerDetails* topoInfo);
 
     HcclResult InitTemplate(const OpParam &param, std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
         const std::vector<std::vector<u32>>& subCommRanks0,
@@ -86,6 +88,8 @@ protected:
 
     HcclResult DoLocalCopy(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread,
         const std::vector<u64>& allRankSplitData, const std::vector<u64>& curLoopAllRankSplitData) const;
+
+    HcclResult ClacOmniBandwidthInSever(const AlgResourceCtxSerializable &resCtx, std::vector<double>& bdvec);
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
