@@ -85,6 +85,10 @@ if(BUILD_OPEN_PROJECT)
         c_sec
         unified_dlog
         -Wl,--no-as-needed
+        runtime_headers
+        mmpa_headers
+        msprof_headers
+        error_manager_headers
     )
 else()
     target_link_libraries(hccl PRIVATE
@@ -128,6 +132,10 @@ else()
             c_sec
             unified_dlog
             -Wl,--no-as-needed
+            runtime_headers
+            mmpa_headers
+            msprof_headers
+            error_manager_headers
         )
     else()
         target_link_libraries(hccl PRIVATE
@@ -197,6 +205,11 @@ target_link_libraries(opgraph_hccl PRIVATE
     rt2_registry
     -Wl,--no-whole-archive
     -Wl,-Bsymbolic
+    unified_dlog
+    runtime_headers
+    mmpa_headers
+    msprof_headers
+    hcomm_headers
 )
 
  target_link_directories(opgraph_hccl PRIVATE 
