@@ -42,11 +42,19 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
                 HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] Rank [%d], rankSize is 0.", myRank_),
                 HcclResult::HCCL_E_PARA);
 
-    for (const auto &netLayerIdx : topoInfo->netLayerDetails.netLayers) {
-        CommTopo topoType;
-        HcclRankGraphGetTopoTypeByLayer(comm, netLayerIdx, &topoType);
+    const auto &netLayers = topoInfo->netLayerDetails.netLayers;
+    CHK_PRT_RET(topoInfo->topoLevelNums > netLayers.size(),
+        HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] topoLevelNums[%u] is larger than netLayers size[%zu].",
+            topoInfo->topoLevelNums, netLayers.size()),
+        HcclResult::HCCL_E_INTERNAL);
+    for (u32 layerIdx = 0; layerIdx < topoInfo->topoLevelNums; layerIdx++) {
+        const auto netLayerIdx = netLayers[layerIdx];
+        CommTopo topoType = CommTopo::COMM_TOPO_RESERVED;
+        CHK_RET(HcclRankGraphGetTopoTypeByLayer(comm, netLayerIdx, &topoType));
         CHK_PRT_RET((topoType != COMM_TOPO_CUSTOM && topoType != CommTopo::COMM_TOPO_CLOS),
-                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] netLayer [%d], topoType not COMM_TOPO_CUSTOM or COMM_TOPO_CLOS.", netLayerIdx),
+                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] active netLayer [%u], topoType [%d] not "
+                    "COMM_TOPO_CUSTOM or COMM_TOPO_CLOS.",
+                    netLayerIdx, topoType),
                 HcclResult::HCCL_E_PARA);
     }
 
