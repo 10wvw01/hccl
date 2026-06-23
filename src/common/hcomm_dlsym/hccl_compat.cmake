@@ -78,10 +78,6 @@ else()
         )
     endif()
 
-    target_link_directories(hccl_compat PRIVATE
-        ${ASCEND_CANN_PACKAGE_PATH}/lib64
-    )
-
     install(TARGETS hccl_compat
         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
         ${INSTALL_OPTIONAL}

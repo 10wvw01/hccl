@@ -76,10 +76,7 @@ endfunction(generate_stub)
 
 if(ENABLE_BUILD_AARCH)
     set(STUBS
-        hcomm 
         ccl_kernel
-        c_sec
-        unified_dlog
     ) 
     foreach(STUB ${STUBS}) 
         if(NOT TARGET ${STUB}) 
