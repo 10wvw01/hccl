@@ -46,6 +46,58 @@
 
 ## 问题背景
 
+### Barrier 算子介绍
+
+Barrier 是**集合通信同步原语**：通信域内所有 rank 到达 Barrier 调用点后，才能继续往下执行。不搬运任何数据，纯同步。
+
+**典型用途**：
+
+- **流水线同步**：多个集合通信算子之间插入 Barrier，保证前一个全部完成才开始下一个
+- **阶段对齐**：训练迭代之间、前向/反向之间插入 Barrier，保证所有 rank 处于同一阶段
+- **资源安全**：保证前面算子对 buffer 的读写全部完成后，才允许后续算子覆盖
+
+**原理**：利用已有 channel 通信链路，发**空 slice**（无数据）的 SendRecv/Send/Recv，只做 Notify signal 的收发，不搬运数据。
+
+```
+Rank0 ──signal──> Rank1     "我到了"
+Rank0 <──signal── Rank1     "我也到了"
+（所有 rank 互相确认到达后，Barrier 完成）
+```
+
+**实现方式对比**：
+
+| 方式 | 实现 | 缺点 |
+|------|------|------|
+| 旧方案（hcomm） | AllReduce(SUM, 8 bytes) | 传 32 字节无用数据 + 做 SUM 计算，浪费带宽和算力 |
+| 新方案（hccl_2039） | 空 slice signal 同步 | 无数据搬运，纯信号，零带宽浪费 |
+
+**拓扑与执行**：950 芯片多级拓扑下，Barrier 分框内框间两级执行：
+
+```
+先框间：NHR 算法，log(M) 步串行，每步与一个远端 rank 做 signal 同步
+后框内：Mesh1D 算法，1 步全并行，同时与所有本地 rank 做 signal 同步
+```
+
+框内走 HCCS（微秒级），框间走网络（十微秒级），分级执行充分利用快链路。
+
+**引擎支持**：
+
+| 引擎 | 框内 | 框间 | 状态 |
+|------|------|------|------|
+| HostDPU | AICPU Mesh1D | DPU NHR | 已实现 |
+| AICPU | AICPU Mesh1D | AICPU NHR | 本次新增 |
+| CCU | — | — | 不支持 |
+| AIV | — | — | 不支持 |
+
+**性能特征**：
+
+- **无数据搬运**：不占用带宽，不占用计算资源
+- **延迟取决于步数**：两级 = log(M)×网络延迟 + 1×HCCS延迟
+- **线程开销**：框内 Mesh1D 需 N_intra-1 个线程，框间 NHR 需 1 个线程
+- **channel 开销**：框内 N_intra-1 条 + 框间 log(M) 条
+
+### 当前问题
+
 当前 barrier 算子在新流程中仅实现了 HostDPU 引擎（框内 AICPU Mesh1D + 框间 DPU NHR）。950 芯片支持多种引擎（HostDPU、AICPU、CCU、AIV），但 AICPU 引擎尚未实现，对应场景回退到旧 `HcclBarrier`（hcomm 的 AllReduce(count=8) 实现），浪费带宽和计算资源，且语义不清晰。
 
 需要为 barrier 增加 AICPU 引擎支持，消除对应场景对旧 AllReduce 回退的依赖。
