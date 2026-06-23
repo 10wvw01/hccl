@@ -92,9 +92,9 @@ Rank0 <──signal── Rank1     "我也到了"
 **性能特征**：
 
 - **无数据搬运**：不占用带宽，不占用计算资源
-- **延迟取决于步数**：两级 = log(M)×网络延迟 + 1×HCCS延迟
-- **线程开销**：框内 Mesh1D 需 N_intra-1 个线程，框间 NHR 需 1 个线程
-- **channel 开销**：框内 N_intra-1 条 + 框间 log(M) 条
+- **延迟取决于步数**：拍平 NHR = log(N)×网络延迟
+- **线程开销**：1 个线程（NHR 串行执行）
+- **channel 开销**：log(N) 条
 
 ### 当前问题
 
@@ -121,7 +121,7 @@ Rank0 <──signal── Rank1     "我也到了"
 | ② | 串行 Mesh1D+NHR DPU | 框内 Mesh1D(AICPU) + 框间 NHR(DPU)，串行执行，已有 | 1+log(M)=3 | N_intra-1=7 | 10 | ✓ | 仅HostDPU | 已实现 | 低 | 现有方案，不改 |
 | ③ | 拍平 Mesh1D（全并行） | 全 rank 扁平，Mesh1D 一步全并行，所有 rank 同时互相 SendRecvWrite | 1 | N_total-1=31 | 31 | ✓ | 全AICPU | 低 | 低 | 一次性线程数多，见排除分析 |
 | ③' | 拍平 Mesh1D（分轮并发） | 照搬 AlltoAll 模式，限制并发数为 16，分轮执行 | ceil((N-1)/16)=2 | min(16,N-1)=16 | 31 | ✓ | 全AICPU | 低 | 低 | channel 数多，但线程可控 |
-| ④ | 拍平 NHR | 全 rank 扁平，NHR 串行 log(N) 步，每步 partner 距离翻倍 | log(N)=5 | 1 | 31 | ✓ | 全AICPU | 低 | 中高 | 步数多，不分级编排 |
+| ④ | 拍平 NHR | 全 rank 扁平，NHR 串行 log(N) 步，每步 partner 距离翻倍 | log(N)=5 | 1 | 31 | ✓ | 全AICPU | 低 | 中高 | **选定方案** |
 | ⑤ | 串行两级 Mesh1D+NHR AICPU | 框内 Mesh1D(1步并行) + 框间 NHR(log(M)步串行)，先框间后框内，全 AICPU | 1+log(M)=3 | N_intra-1+1=8 | 10 | ✓ | 全AICPU | 中 | 中 | **综合最优** |
 | ⑥ | 并行两级 Mesh1D+NHR AICPU | 框内 Mesh1D 和框间 NHR 同时执行，前同步后汇合，全 AICPU | max(1,log(M))=2 | N_intra+1=9 | 10 | ✓ | 全AICPU | 中高 | 中低 | 收益有限，复杂度高 |
 
@@ -129,7 +129,9 @@ Rank0 <──signal── Rank1     "我也到了"
 
 - **① AllReduce(8)**：传 32 字节无用数据 + 做 SUM 计算，就是要被替代的方案
 - **③ 拍平 Mesh1D（全并行）**：一次性 N-1 个线程全并行，32 rank 需 31 个线程；虽然未超 AICPU 上限（200），但资源开销大
-- **③' 拍平 Mesh1D（分轮并发）**：照搬 AlltoAll 的 `ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE=16` 分轮模式，线程可控（16），但 channel 数仍为 N-1（31），远多于两级方案的 10 条；且不分级编排，无法按拓扑层级优化执行顺序
+- **③' 拍平 Mesh1D（分轮并发）**：照搬 AlltoAll 的 `ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE=16` 分轮模式，线程可控（16），但 channel 数仍为 N-1（31），远多于 NHR 的 log(N) 条
+- **⑤ 串行两级 Mesh1D+NHR AICPU**：多级拓扑下比拍平 NHR 快 40~58%，但需新增 NHR AICPU 模板 + SoleExecutor + 两级 SequenceExecutor 注册 + 按拓扑分流的 selector，代码量和复杂度高
+- **⑥ 并行两级 Mesh1D+NHR AICPU**：比串行两级再省 1 步 HCCS 延迟，收益有限，复杂度更高
 
 ### 候选方案对比
 
@@ -184,37 +186,53 @@ Rank0 <──signal── Rank1     "我也到了"
 
 **结论**：规模越大，两级方案优势越大——拍平方案的轮数和 channel 随 rank 数线性增长，两级方案对数增长。串行两级在代码复杂度和资源之间取得最佳平衡。
 
-## 选定方案：串行两级 Mesh1D(框内) + NHR(框间)，全 AICPU
+## 选定方案：拍平 NHR，全 AICPU
 
 ### 执行流程
 
 ```
 每个 rank:
-  1. 框间 NHR AICPU（log(M)步串行，1线程，网络 channel）
-  2. 框内 Mesh1D（1步全并行，N_intra-1线程，HCCS channel）
+  NHR 算法，log(N) 步串行，每步与 1 个 partner 做 signal 同步
+  每步 delta 翻倍：N/2, N/4, ..., 1
+  所有 rank 同时执行，每步 N/2 对并行通信
 
-先框间后框内，与现有 DPU 版 SequenceExecutor 顺序一致。
+单级拓扑：所有步走 HCCS
+多级拓扑：所有步走网络（CalcChannelRequestNhr 只取 layer1）
+每server出1卡：所有步走网络
 ```
 
 ### 选型理由
 
-1. **步数少**：3 步 vs 拍平 NHR 的 5 步，框内 Mesh1D 一步并行完成
-2. **框内利用快链路**：Mesh1D 走 HCCS（框内高速互联），不退化到网络
-3. **线程可控**：8 个线程（N_intra-1+1），低于拍平 Mesh1D 分轮的 16 个
-4. **channel 少**：10 条 channel，远低于拍平方案的 31 条
-5. **与 DPU 版结构对称**：复用 `SequenceExecutor`，无需新写 executor
-6. **代码量最小**：仅新增 1 个模板文件（NHR AICPU），executor 和 selector 复用/微调
-7. **风险最低**：不引入并行同步复杂度
+1. **代码最简**：1 个模板 + 1 个 executor + 1 个 TopoMatch1D，无按拓扑分流逻辑
+2. **线程最少**：1 个线程，不随 rank 数增长
+3. **channel 最少**：log(N) 条，远少于 Mesh1D 的 N-1 条
+4. **全场景通吃**：单级/多级/每server1卡 统一走 NHR，selector 不分流
+5. **与 AllGather NHR 对称**：AllGather 的 `InsAllGatherNHR` 也是 `SoleExecutor + TopoMatch1D`
+6. **风险最低**：不涉及两级编排、不涉及 SequenceExecutor、不涉及 TopoMatchMultilevel
+
+### 性能权衡
+
+拍平 NHR 在多级拓扑下所有步走网络，比两级方案多 log(N_intra) 步网络延迟（约 40~58% 慢）。但 barrier 不是关键路径算子，延迟差异在可接受范围内。以简洁性和低资源开销换取性能，是合理的工程取舍。
+
+以 32 rank、4 pod、8 卡/pod 为例：
+
+| 维度 | 拍平 NHR（选定） | 两级串行（备选） |
+|------|----------------|----------------|
+| 步数 | log(32)=5 | 1+log(4)=3 |
+| 线程 | 1 | 8 |
+| channel | 5 | 10 |
+| 延迟 | 5×20us=100us | 2×20+1×2=42us |
+| 代码量 | ~200 行 | ~282 行 |
+| executor | SoleExecutor | SoleExecutor + SequenceExecutor |
+| selector 分流 | 无（统一 NHR） | 4 条路径 |
 
 ## 范围边界
 
 ### In Scope
 
-- 新增 `InsTempBarrierNhrAicpu` 模板（框间 AICPU NHR）
-- 新增 executor 注册 `InsBarrierMesh1DNhrAicpu`（两级：Mesh1D + NHR AICPU）
-- 新增 executor 注册 `InsBarrierMesh1D`（单级：仅 Mesh1D，复用现有模板）
-- 新增 executor 注册 `InsBarrierNhrAicpu`（单级：仅 NHR，CLOS/每server出1卡）
-- 修改 selector 增加 `SelectAicpuAlgo` 路径，按 `topoLevelNums` 分流
+- 新增 `InsTempBarrierNhrAicpu` 模板（NHR AICPU，通吃所有拓扑）
+- 新增 executor 注册 `InsBarrierNhrAicpu`（单级 NHR，SoleExecutor + TopoMatch1D）
+- 修改 selector 增加 `SelectAicpuAlgo`，统一返回 `InsBarrierNhrAicpu`
 - 修改 `barrier_op.cc` 增加引擎白名单，HostDPU 和 AICPU 引擎走新流程，其余回退
 
 ### Out of Scope
@@ -222,20 +240,17 @@ Rank0 <──signal── Rank1     "我也到了"
 - CCU 引擎 barrier
 - AIV 引擎 barrier
 - 图模式（`HcclBarrierGraphMode`）——当前 barrier 无图模式入口，`opMode` 硬编码为 `OPBASE`，本次不涉及
-- 并行执行优化（方案⑥）
-- 拍平算法（方案③③'④）
+- 两级编排（方案⑤⑥）——备选方案，后续如需更低延迟可升级
+- 拍平 Mesh1D（方案③③'）
 - 现有 HostDPU 路径的任何改动
 
 ## 场景路由
 
 ```
-950 + HostDPU 引擎 + 多级拓扑    → selector 选 InsBarrierMeshNhrDPU（串行 DPU，已有，不改）
-950 + AICPU 引擎 + 多级正常拓扑  → selector 选 InsBarrierMesh1DNhrAicpu（两级 AICPU，新增）
-950 + AICPU 引擎 + 多级每server1卡 → selector 选 InsBarrierNhrAicpu（单级 NHR，新增）
-950 + AICPU 引擎 + 单级 Mesh1D   → selector 选 InsBarrierMesh1D（单级 Mesh1D，新增）
-950 + AICPU 引擎 + 单级 CLOS     → selector 选 InsBarrierNhrAicpu（单级 NHR，新增）
-950 + CCU/AIV 引擎               → 本次不涉及，回退旧 HcclBarrier
-非950                            → 回退旧 HcclBarrier（不变）
+950 + HostDPU 引擎       → selector 选 InsBarrierMeshNhrDPU（两级 DPU，已有，不改）
+950 + AICPU 引擎（任意拓扑）→ selector 选 InsBarrierNhrAicpu（拍平 NHR，新增）
+950 + CCU/AIV 引擎        → 本次不涉及，回退旧 HcclBarrier
+非950                     → 回退旧 HcclBarrier（不变）
 ```
 
 ## 涉及文件
@@ -246,12 +261,12 @@ Rank0 <──signal── Rank1     "我也到了"
 | `src/ops/barrier/template/aicpu/ins_temp_barrier_nhr_aicpu.h` | 新增 |
 | `src/ops/barrier/template/aicpu/CMakeLists.txt` | 加新文件 |
 | `src/ops/barrier/executor/ins_v2_barrier_sole_executor.h` | 新增 |
-| `src/ops/barrier/executor/ins_v2_barrier_sole_executor.cc` | 新增（含单级注册） |
+| `src/ops/barrier/executor/ins_v2_barrier_sole_executor.cc` | 新增（含 NHR 注册） |
 | `src/ops/barrier/executor/CMakeLists.txt` | 加新文件 |
-| `src/ops/barrier/executor/ins_v2_barrier_sequence_executor.cc` | 修改（加两级注册） |
-| `src/ops/barrier/selector/barrier_auto_selector.cc` | 加 SelectAicpuAlgo（按 topoLevelNums/Level1Nhr/localNetInsSize 分流） |
+| `src/ops/barrier/selector/barrier_auto_selector.cc` | 加 SelectAicpuAlgo（统一返回 NhrAicpu） |
 | `src/ops/barrier/selector/barrier_auto_selector.h` | 加 SelectAicpuAlgo 声明 |
 | `src/ops/barrier/barrier_op.cc` | 引擎白名单判断 |
+| `src/scatter_aicpu_kernel.cmake` | 加 nhr_aicpu.cc + sole_executor.cc |
 
 ## 关键设计决策
 
@@ -262,18 +277,19 @@ DPU 版 `InsTempBarrierNHRDPU::RunNHRBarrier` 已实现完整的 NHR step 通信
 - DPU 版：通过 `HcommSendRequest`/`HcommWaitResponse` 发给 DPU 执行，`RunNHRBarrier` 在 `#ifndef AICPU_COMPILE` 下
 - AICPU 版：直接在 AICPU 上执行 `RunNHRBarrier`，去掉 DPU 的请求-响应封装
 
-### Executor 复用 SequenceExecutor
+### Executor 复用 SoleExecutor + TopoMatch1D
 
-现有 `InsV2BarrierSequenceExecutor` 是模板化的，通过 `REGISTER_EXECUTOR_BY_TWO_TEMPS` 注册不同模板组合。新增注册即可：
+拍平 NHR 只需单模板单级执行，与 AllGather 的 `InsAllGatherNHR` 结构对称：
 
 ```cpp
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_BARRIER,
-                               InsBarrierMesh1DNhrAicpu,        // 新 algName
-                               InsV2BarrierSequenceExecutor,    // 复用
-                               TopoMatchMultilevel,             // 复用
-                               InsTempBarrierMesh1D,            // 复用框内模板
-                               InsTempBarrierNhrAicpu);         // 新框间模板
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_BARRIER,
+                 InsBarrierNhrAicpu,
+                 InsV2BarrierSoleExecutor,
+                 TopoMatch1D,
+                 InsTempBarrierNhrAicpu);
 ```
+
+无需 SequenceExecutor、无需 TopoMatchMultilevel、无需按拓扑分流。
 
 ### barrier_op.cc 引擎白名单
 
@@ -455,7 +471,7 @@ set(src_list
 | 验证项 | 方法 |
 |--------|------|
 | 不 hang | 所有 rank 线程 join 完成 |
-| 走新 AICPU 流程 | 日志含 `SelectAicpuAlgo` + `InsBarrierMesh1DNhrAicpu` 或 `InsBarrierMesh1D` 或 `InsBarrierNhrAicpu` |
+| 走新 AICPU 流程 | 日志含 `SelectAicpuAlgo` + `InsBarrierNhrAicpu` |
 | 不回退旧流程 | 日志不含 `BarrierFallbackToOldFlow`（除未开启 AICPU 的回退用例） |
 | 纯 signal 同步 | 日志含 `RunNHRBarrier` / `RunBarrierMesh`，不含数据搬运 |
 | 从流检查 | 如调用 checker，关注 `CheckSlaveTaskQueue` 是否报错；如报错则跳过 checker 仅验证不 hang |
@@ -807,7 +823,7 @@ private:
 
 ### 7. 修改 `selector/barrier_auto_selector.cc`
 
-新增 `SelectAicpuAlgo` 实现，参考 AllGather selector 的分流逻辑：
+新增 `SelectAicpuAlgo` 实现，统一返回拍平 NHR，不按拓扑分流：
 
 ```cpp
 SelectorStatus BarrierAutoSelector::SelectAicpuAlgo(
@@ -817,54 +833,13 @@ SelectorStatus BarrierAutoSelector::SelectAicpuAlgo(
 {
     (void)opParam;
     (void)configAlgMap;
-    HCCL_INFO("[BarrierAutoSelector][SelectAicpuAlgo] start, topoLevelNums[%u], level0Topo[%u], "
-        "Level1Nhr[%d], localNetInsSizeOfLayer[0][%u]",
-        topoInfo->topoLevelNums, topoInfo->level0Topo,
-        topoInfo->Level1Nhr, topoInfo->netLayerDetails.localNetInsSizeOfLayer[0]);
-
-    if (topoInfo->topoLevelNums > 1) {
-        // 多级拓扑
-        if (topoInfo->Level1Nhr || topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
-            // 每个server出1卡或Layer1为NHR拓扑：无需框内Mesh，纯NHR
-            selectAlgName = "InsBarrierNhrAicpu";
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            // 正常多级：框内Mesh1D + 框间NHR
-            selectAlgName = "InsBarrierMesh1DNhrAicpu";
-        } else {
-            HCCL_ERROR("[BarrierAutoSelector][SelectAicpuAlgo] multi-level topo not match, "
-                "level0Topo[%u]", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        }
-    } else {
-        // 单级拓扑
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            selectAlgName = "InsBarrierMesh1D";
-        } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
-            // CLOS拓扑走NHR
-            selectAlgName = "InsBarrierNhrAicpu";
-        } else {
-            HCCL_ERROR("[BarrierAutoSelector][SelectAicpuAlgo] topo not match, level0Topo[%u]",
-                topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        }
-    }
-
+    HCCL_INFO("[BarrierAutoSelector][SelectAicpuAlgo] topoLevelNums[%u], level0Topo[%u]",
+        topoInfo->topoLevelNums, topoInfo->level0Topo);
+    selectAlgName = "InsBarrierNhrAicpu";
     HCCL_INFO("[BarrierAutoSelector][SelectAicpuAlgo] Algo match[%s]", selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }
 ```
-
-### 算法选择路由
-
-| 场景 | 条件 | 算法 | executor |
-|------|------|------|---------|
-| 单级 Mesh1D | `topoLevelNums==1 && level0Topo==MESH_1D` | `InsBarrierMesh1D` | SoleExecutor + TopoMatch1D |
-| 单级 CLOS | `topoLevelNums==1 && level0Topo==CLOS` | `InsBarrierNhrAicpu` | SoleExecutor + TopoMatch1D |
-| 多级，每server出1卡 | `localNetInsSizeOfLayer[0]==1` | `InsBarrierNhrAicpu` | SoleExecutor + TopoMatch1D |
-| 多级，Layer1为NHR | `Level1Nhr==true` | `InsBarrierNhrAicpu` | SoleExecutor + TopoMatch1D |
-| 多级，正常 | 其他 | `InsBarrierMesh1DNhrAicpu` | SequenceExecutor + TopoMatchMultilevel |
-
-**纯 NHR 场景说明**：每个 server 出 1 卡时，layer0 只有 1 个 rank，框内无需同步（Mesh1D 直接返回），只需框间 NHR。此时用单级 NHR（`SoleExecutor` + `TopoMatch1D`）比两级（`SequenceExecutor` + `TopoMatchMultilevel`）更简洁，避免不必要的两级编排开销。
 
 ### 8. 修改 `barrier_op.cc`
 
@@ -917,16 +892,15 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
 |------|------|--------|
 | `template/aicpu/ins_temp_barrier_nhr_aicpu.h` | 新增 | ~40 行 |
 | `template/aicpu/ins_temp_barrier_nhr_aicpu.cc` | 新增 | ~100 行 |
-| `template/aicpu/CMakeLists.txt` | 修改 | +1 行（加 ins_temp_barrier_nhr_aicpu.cc） |
+| `template/aicpu/CMakeLists.txt` | 修改 | +1 行 |
 | `executor/ins_v2_barrier_sole_executor.h` | 新增 | ~35 行 |
-| `executor/ins_v2_barrier_sole_executor.cc` | 新增 | ~60 行（含 2 个单级注册） |
-| `executor/CMakeLists.txt` | 修改 | +1 行（加 ins_v2_barrier_sole_executor.cc） |
-| `executor/ins_v2_barrier_sequence_executor.cc` | 修改 | +8 行（include + 两级注册） |
+| `executor/ins_v2_barrier_sole_executor.cc` | 新增 | ~50 行（含 1 个 NHR 注册） |
+| `executor/CMakeLists.txt` | 修改 | +1 行 |
 | `selector/barrier_auto_selector.h` | 修改 | +3 行 |
-| `selector/barrier_auto_selector.cc` | 修改 | ~25 行（按 topoLevelNums/Level1Nhr/localNetInsSize 分流） |
+| `selector/barrier_auto_selector.cc` | 修改 | ~10 行（统一返回 NhrAicpu） |
 | `barrier_op.cc` | 修改 | ~8 行（白名单替换） |
-| `src/scatter_aicpu_kernel.cmake` | 修改 | +2 行（加 nhr_aicpu.cc + sole_executor.cc 到 NOT COMP_850 块） |
-| **总计** | | **~282 行** |
+| `src/scatter_aicpu_kernel.cmake` | 修改 | +2 行 |
+| **总计** | | **~250 行** |
 
 ## Barrier AICPU 全流程调用链
 
@@ -1066,19 +1040,16 @@ Orchestrate(param, resCtx)
         ├─ 引擎白名单 (HostDPU / AICPU)
         ├─ Selector
         │   └─ AutoSelectorBase::Select
-        │       └─ SelectAicpuAlgo → "InsBarrierMesh1DNhrAicpu"
+        │       └─ SelectAicpuAlgo → "InsBarrierNhrAicpu"
         └─ HcclExecOp
             ├─ HcclGetAlgRes
-            │   ├─ CalcAlgHierarchyInfo (TopoMatchMultilevel::MatchTopo)
-            │   └─ CalcRes (Mesh1D + NhrAicpu)
+            │   ├─ CalcAlgHierarchyInfo (TopoMatch1D::MatchTopo)
+            │   └─ CalcRes (NhrAicpu)
             └─ HcclAicpuKernelEntranceLaunch
                 └─ AicpuKernelLaunch
                     └─ executor->Orchestrate
-                        ├─ NhrAicpu::KernelRun (框间, log(M)步)
-                        │   └─ RunNHRBarrier (空slice signal同步)
-                        └─ Mesh1D::KernelRun (框内, 1步并行)
-                            ├─ PreSync → RunBarrierMesh → PostSync
-                            └─ (空slice signal同步)
+                        └─ NhrAicpu::KernelRun (log(N)步串行)
+                            └─ RunNHRBarrier (空slice signal同步)
 ```
 
 ## 架构分析
@@ -1099,10 +1070,7 @@ Orchestrate(param, resCtx)
 │  ├─ CheckHostDPUOnly=true → SelectDPUAlgo           │  HostDPU 路径(已有)
 │  ├─ CCU/AIV → NOT_MATCH                             │  不支持
 │  └─ IsStarsState(AICPU_TS) → SelectAicpuAlgo        │  AICPU 路径(新增)
-│      ├─ 单级 MESH_1D  → "InsBarrierMesh1D"          │
-│      ├─ 单级 CLOS     → "InsBarrierNhrAicpu"        │
-│      ├─ 多级每server1卡 → "InsBarrierNhrAicpu"      │
-│      └─ 多级正常       → "InsBarrierMesh1DNhrAicpu" │
+│      └─ 统一返回 "InsBarrierNhrAicpu"               │
 └──────────────────────┬──────────────────────────────┘
                        │
                        ▼
@@ -1115,20 +1083,20 @@ Orchestrate(param, resCtx)
                        │
           ┌────────────┼────────────┐
           ▼            ▼            ▼
-┌─────────────┐ ┌────────────┐ ┌──────────────┐
-│ SoleExecutor │ │ Sequence   │ │ Sequence     │
-│ +TopoMatch1D │ │ Executor   │ │ Executor     │
-│              │ │ +Multilevel│ │ +Multilevel  │
-│ 单级Mesh1D   │ │ 两级AICPU  │ │ 两级DPU(已有)│
-│ 或单级NHR    │ │ Mesh1D+NHR │ │ Mesh1D+NHRDPU│
-└──────┬───────┘ └─────┬──────┘ └──────┬───────┘
-       │                 │               │
-       ▼                 ▼               ▼
-┌─────────────┐ ┌────────────┐ ┌──────────────┐
-│ Mesh1D      │ │ NHR AICPU  │ │ NHR DPU      │
-│ 或 NHR AICPU│ │ → Mesh1D   │ │ → Mesh1D     │
-│ (空slice)   │ │ (空slice)  │ │ (空slice)    │
-└─────────────┘ └────────────┘ └──────────────┘
+┌─────────────┐ ┌────────────────────┐
+│ SoleExecutor │ │ Sequence           │
+│ +TopoMatch1D │ │ Executor           │
+│              │ │ +Multilevel        │
+│ 拍平 NHR     │ │ 两级DPU(已有)      │
+│ AICPU        │ │ Mesh1D+NHRDPU      │
+└──────┬───────┘ └─────────┬──────────┘
+       │                   │
+       ▼                   ▼
+┌─────────────┐ ┌──────────────┐
+│ NHR AICPU   │ │ NHR DPU      │
+│ (空slice)   │ │ → Mesh1D     │
+│             │ │ (空slice)    │
+└─────────────┘ └──────────────┘
 ```
 
 ### 三层正交分离
@@ -1159,13 +1127,12 @@ HostDPU 和 AICPU 是两个正交维度：
 
 HostDPU=true 时，框间走 DPU，框内仍由设备引擎执行——所以 `opExecuteConfig` 可以是任意值，`Select()` 内部才覆盖为 `HOSTCPU`。
 
-### 三种算法形态
+### 两种算法形态
 
 | 形态 | executor | topo match | 模板 | 适用场景 |
 |------|---------|-----------|------|---------|
-| 单级 | SoleExecutor | TopoMatch1D | 1个 | 单级拓扑 / 每server1卡 |
-| 两级AICPU | SequenceExecutor | TopoMatchMultilevel | 2个(Mesh1D+NHR AICPU) | 多级正常 |
-| 两级DPU | SequenceExecutor | TopoMatchMultilevel | 2个(Mesh1D+NHR DPU) | HostDPU |
+| 拍平 NHR AICPU | SoleExecutor | TopoMatch1D | 1个(NHR AICPU) | AICPU 引擎所有拓扑 |
+| 两级 DPU | SequenceExecutor | TopoMatchMultilevel | 2个(Mesh1D+NHR DPU) | HostDPU |
 
 ### 架构优点
 
