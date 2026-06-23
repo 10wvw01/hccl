@@ -22,7 +22,6 @@
 #include "kernel_launch.h"
 #include "hcomm_diag_dl.h"
 #include "hcomm_device_profiling_dl.h"
-#include "dlhcomm_function.h"
 #include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
