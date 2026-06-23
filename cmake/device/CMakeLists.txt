@@ -26,6 +26,19 @@ message(STATUS "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}")
 include(${HCCL_DIR}/cmake/config.cmake)
 include(${HCCL_DIR}/cmake/func.cmake)
 
+find_cann_package(acl_rt MODULE REQUIRED)
+find_cann_package(msprof MODULE REQUIRED)
+find_cann_package(securec MODULE REQUIRED)
+find_cann_package(unified_dlog MODULE REQUIRED)
+find_cann_package(mmpa MODULE REQUIRED)
+find_cann_package(runtime MODULE REQUIRED)
+find_cann_package(error_manager MODULE REQUIRED)
+find_cann_package(hcomm MODULE REQUIRED)
+find_cann_package(graph MODULE REQUIRED)     # 涵盖 graph, graph_base, register
+find_cann_package(ascendcl MODULE REQUIRED)
+find_cann_package(ascendc_runtime MODULE REQUIRED)
+find_cann_package(ascend_dump MODULE REQUIRED)
+
 # 添加子目录
 add_cann_subdirectories_relative(${HCCL_DIR}
     ${HCCL_DIR}/src

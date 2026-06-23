@@ -59,7 +59,7 @@ include(cmake/fetch_cann_cmake.cmake)
 project(hccl)
 
 # 初始化 CANN 项目配置
-init_cann_project()
+init_cann_project(PREPEND_MODULE_PATH)
 
 # 采用 C++14 标准
 set(CMAKE_CXX_STANDARD 14)
@@ -131,6 +131,11 @@ elseif(BUILD_OPEN_PROJECT)
     find_cann_package(mmpa MODULE REQUIRED)
     find_cann_package(runtime MODULE REQUIRED)
     find_cann_package(error_manager MODULE REQUIRED)
+    find_cann_package(hcomm MODULE REQUIRED)
+    find_cann_package(graph MODULE REQUIRED)     # 涵盖 graph, graph_base, register
+    find_cann_package(ascendcl MODULE REQUIRED)
+    find_cann_package(ascendc_runtime MODULE REQUIRED)
+    find_cann_package(ascend_dump MODULE REQUIRED)
     
     # 检查构建依赖
     check_pkg_build_deps("hccl")
