@@ -516,7 +516,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
 #endif
 
-#if T_DESC("looptimes实现2", true)
+#if T_DESC("looptimes实现2", false)
     OmniPipeScratchParam scratchParam;
     CHK_RET(InitOmniPipeScratchParam(scratchParam, param, endpointAttrBwAvg));
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
@@ -529,7 +529,20 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_DEBUG("[%s]maxCountPerLoop[%u], loopTimes[%u]", __func__, maxCountPerLoop, loopTimes);
 #endif
 
-#if T_DESC("looptimes实现3", false)
+#if T_DESC("looptimes实现3", true)
+    u64 templateScratchMultiplier = rankSizeLevel0_;
+    u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
+    u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier; // / HCCL_MIN_SLICE_ALIGN* HCCL_MIN_SLICE_ALIGN
+    u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
+
+    // u64 maxCountPerLoop = static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_; //size:128k count:32768
+    // u64 maxCountPerLoop = static_cast<u64>(256) / dataTypeSize_; //size:128k count:32768
+    u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
+    HCCL_DEBUG("[%s] myRank[%u] loopTimes[%llu]", __func__, myRank_, loopTimes);
+
+#endif
+
+#if T_DESC("looptimes实现4", false)
     // u64 maxCountPerLoop = static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_; // UB传输的限制
     u64 maxCountPerLoop = static_cast<u64>(256) / dataTypeSize_; 
     u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1); //总的需要传输的数据量 / UB限制
