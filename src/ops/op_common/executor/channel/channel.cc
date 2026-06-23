@@ -922,8 +922,9 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
                 continue;
             }
             std::vector<CommLink> links(linkList, linkList + listSize);
-            CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, subcommInfo[0][rankIdx], netLayer, channels, false, true, isIsolation));
-
+            if (rankIdx != localRank) {
+                CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, subcommInfo[0][rankIdx], netLayer, channels, false, true, isIsolation));
+            }
             if (channels.size() > channelCountBefore) {
                 break;
             }
