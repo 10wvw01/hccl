@@ -29,6 +29,20 @@ SelectorStatus BarrierAutoSelector::SelectDPUAlgo(
     return SelectorStatus::MATCH;
 }
 
+SelectorStatus BarrierAutoSelector::SelectAicpuAlgo(
+    const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
+    const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
+    std::string &selectAlgName) const
+{
+    (void)opParam;
+    (void)configAlgMap;
+    HCCL_INFO("[BarrierAutoSelector][SelectAicpuAlgo] topoLevelNums[%u], level0Topo[%u]",
+        topoInfo->topoLevelNums, topoInfo->level0Topo);
+    selectAlgName = "InsBarrierNhrAicpu";
+    HCCL_INFO("[BarrierAutoSelector][SelectAicpuAlgo] Algo match[%s]", selectAlgName.c_str());
+    return SelectorStatus::MATCH;
+}
+
 REGISTER_SELECTOR_BY_OPTYPE(HcclCMDType::HCCL_CMD_BARRIER, 18, BarrierAutoSelector);
 
 }  // namespace ops_hccl
