@@ -8,124 +8,46 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2_H
-#define HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2_H
+#ifndef HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2
+#define HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2
 
 #include <vector>
 #include <ios>
-#include "utils.h"
-#include "ccu_kernel.h"
 #include "ccu_kernel_utils.h"
 #include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
 
-class CcuKernelArgAllGatherMesh1DMem2MemClosV2 : public hcomm::CcuKernelArg {
-public:
-    explicit CcuKernelArgAllGatherMesh1DMem2MemClosV2(uint64_t dimSize, uint32_t rankId, const OpParam& opParam,
-                                                    const std::vector<std::vector<uint32_t>>& subCommRanks)
-        : dimSize_(dimSize),
-          rankId_(rankId),
-          opParam_(opParam),
-          subCommRanks_(subCommRanks)
-    {
-        HCCL_DEBUG("[CcuKernelArgAllGatherMesh1DMem2MemClosV2] dimSize: %lu, rankId: %u",
-                   dimSize_, rankId_);
-    }
-    hcomm::CcuKernelSignature GetKernelSignature() const override
-    {
-        hcomm::CcuKernelSignature signature;
-        GenerateCcuKernelSignature(signature, "CcuKernelArgAllGatherMesh1DMem2MemClosV2", opParam_, subCommRanks_);
-        return signature;
-    }
-    uint64_t                                dimSize_;
-    uint32_t                                rankId_;
-    OpParam                                 opParam_;
-    std::vector<std::vector<uint32_t>>      subCommRanks_;
+struct CcuKernelArgAllGatherMesh1DMem2MemClosV2 : CcuKernelArgBase {
+    uint64_t                                rankSize;
+    uint32_t                                rankId;
+    OpParam                                 opParam;
+    std::vector<std::vector<uint32_t>>      subCommRanks;
 };
 
-class CcuTaskArgAllGatherMesh1DMem2MemClosV2 : public hcomm::CcuTaskArg {
-public:
-    explicit CcuTaskArgAllGatherMesh1DMem2MemClosV2(uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
-                                                        uint64_t inputSliceStride, uint64_t outputSliceStride,
-                                                        uint64_t repeatNum, uint64_t inputRepeatStride,
-                                                        uint64_t outputRepeatStride, uint64_t normalSliceSize,
-                                                        uint64_t lastSliceSize, uint64_t isInputOutputEqual)
-        : inputAddr_(inputAddr), outputAddr_(outputAddr), token_(token), inputSliceStride_(inputSliceStride),
-          outputSliceStride_(outputSliceStride), repeatNum_(repeatNum), inputRepeatStride_(inputRepeatStride),
-          outputRepeatStride_(outputRepeatStride), normalSliceSize_(normalSliceSize), lastSliceSize_(lastSliceSize),
-          isInputOutputEqual_(isInputOutputEqual)
-    {
-        HCCL_DEBUG("[CcuTaskArgAllGatherMesh1DMem2MemClosV2] inputAddr: %lu, outputAddr: %lu, inputSliceStride: %lu, "
-                   "outputSliceStride: %lu",
-                   inputAddr_, outputAddr_, inputSliceStride_, outputSliceStride_);
-    }
+struct AllGatherMesh1DMem2MemClosV2Context : CcuKernelCtxBase {
+    const CcuKernelArgAllGatherMesh1DMem2MemClosV2 *arg;
 
-    uint64_t inputAddr_;
-    uint64_t outputAddr_;
-    uint64_t token_;
-
-    uint64_t inputSliceStride_;
-    uint64_t outputSliceStride_;
-    uint64_t repeatNum_;
-    uint64_t inputRepeatStride_;
-    uint64_t outputRepeatStride_;
-
-    uint64_t normalSliceSize_;
-    uint64_t lastSliceSize_;
-    uint64_t isInputOutputEqual_;
+    ccu::Variable input;
+    std::vector<ccu::Variable> output;
+    std::vector<ccu::Variable> token;
+    ccu::Variable currentRankSliceInputOffset;
+    ccu::Variable currentRankSliceOutputOffset;
+    ccu::Variable tmpRepeatNum;
+    ccu::Variable inputRepeatStride;
+    ccu::Variable outputRepeatStride;
+    ccu::Variable normalSliceSize;
+    ccu::Variable lastSliceSize;
+    ccu::Variable isInputOutputEqual;
+    GroupOpSizeVars goSize;
+    ccu::LocalAddr src_loccopy;
+    ccu::LocalAddr localDst;
+    std::vector<ccu::Event> events;
 };
 
-class CcuKernelAllGatherMesh1DMem2MemClosV2 : public CcuKernelAlgBase {
-public:
-    CcuKernelAllGatherMesh1DMem2MemClosV2(const hcomm::CcuKernelArg &arg);
-    ~CcuKernelAllGatherMesh1DMem2MemClosV2() override {}
+CcuResult CcuAllGatherMesh1DMem2MemClosV2Kernel(CcuKernelArg arg);
 
-    HcclResult Algorithm() override;
-    std::vector<uint64_t> GeneArgs(const hcomm::CcuTaskArg &arg) override;
+} // namespace ops_hccl
 
-private:
-    HcclResult InitResource();
-    void LoadArgs();
-    void PreSync();
-    void PostSync();
-    void DoRepeatAllGather();
-    void DoAllGather(const hcomm::CcuRep::LocalAddr              &src,
-                                                             const std::vector<hcomm::CcuRep::RemoteAddr> &dst,
-                                                             const CcuRep::Variable            &sliceSize);
+#endif // HCCL_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2
 
-    // CcuKernelAlgDataWrapper algWrapper;
-    uint64_t rankSize_{0};
-    uint32_t rankId_{0};
-
-    CcuRep::Variable              localInput_;
-    std::vector<CcuRep::Variable> output_;
-    std::vector<CcuRep::Variable> token_;
-    CcuRep::Variable              currentRankSliceInputOffset_;
-    CcuRep::Variable              currentRankSliceOutputOffset_;
-    CcuRep::Variable              inputRepeatStride_;
-    CcuRep::Variable              outputRepeatStride_;
-    CcuRep::Variable              normalSliceSize_;
-    CcuRep::Variable              lastSliceSize_;
-    CcuRep::Variable              isInputOutputEqual_;
-    CcuRep::Variable              repeatTimeflag_;
-    CcuRep::Variable              tmpRepeatNum_;
-    CcuRep::Variable              constVar1_;
-    std::vector<CcuRep::CompletedEvent> event_;
-
-    GroupOpSize localGoSize_;
-
-    hcomm::CcuRep::LocalAddr src;
-    hcomm::CcuRep::LocalAddr remote_src;
-    std::vector<hcomm::CcuRep::RemoteAddr> dst;
-    hcomm::CcuRep::LocalAddr src_loccopy;
-
-    CcuRep::Variable srcOffset_;
-    CcuRep::Variable dstOffset_;
-
-    uint16_t selfBit_{0};
-    uint16_t allBit_{0};
-};
-
-}// namespace ops_hccl
-#endif // HCCLV2_CCU_KERNEL_ALL_GATHER_MESH_1D_MEM2MEM_CLOS_V2_H
