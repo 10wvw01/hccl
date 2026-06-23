@@ -228,26 +228,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
         closDieId, channels_[closDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
 
-    // for (uint32_t dieId = 0; dieId < DIE_NUM; dieId++) {
-    //     CcuKernelInfo kernelInfo;
-    //     strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuAllToAllMesh2DieKernel");
-    //     kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
-
-    //     const bool withMyRank = channels_[dieId].size() > channels_[1 - dieId].size() ? false : true;
-    //     auto kernelArg = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
-    //     kernelArg->rankSize = rankSize;
-    //     kernelArg->rankId = myRank_;
-    //     kernelArg->opParam = param;
-    //     kernelArg->subCommRanks = subCommRanks_;
-    //     kernelArg->withMyRank = withMyRank;
-    //     kernelArg->rankGroup = rankGroup_[dieId];
-    //     kernelInfo.setKernelArg(kernelArg);
-    //     kernelInfo.channels = channels_[dieId];
-    //     resourceRequest.ccuKernelInfos.emplace_back(kernelInfo);
-    //     HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
-    //         dieId, channels_[dieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
-    // }
-
     return HcclResult::HCCL_SUCCESS;
 }
 
