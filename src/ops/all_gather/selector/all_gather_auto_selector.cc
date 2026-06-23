@@ -26,6 +26,57 @@ constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
+namespace {
+bool IsTopoMatch1DAllGatherAlg(const std::string &algName)
+{
+    return algName == "InsAllGatherMesh1D" ||
+        algName == "InsAllGatherMesh1D1DZAxisDetour" ||
+        algName == "InsAllGatherNHR" ||
+        algName == "InsAllGatherNHRDPU" ||
+        algName == "CcuAllGatherMesh1DMem2Mem" ||
+        algName == "CcuAllGatherMesh1D" ||
+        algName == "CcuAllGatherNHR1DMem2Mem" ||
+        algName == "AivAllGatherMesh1D" ||
+        algName == "CcuAllGatherMesh2Die" ||
+        algName == "CcuAllGatherMesh2DieMem2Mem" ||
+        algName == "CcuAllGatherNHR1DMem2MemMultiJetty";
+}
+
+bool HasOcsMeshInActiveLayers(const TopoInfoWithNetLayerDetails *topoInfo)
+{
+    if (topoInfo == nullptr) {
+        return false;
+    }
+    const auto &netLayers = topoInfo->netLayerDetails.netLayers;
+    if (topoInfo->topoLevelNums == 0 || topoInfo->topoLevelNums > netLayers.size()) {
+        return false;
+    }
+    for (u32 layerIdx = 0; layerIdx < topoInfo->topoLevelNums; layerIdx++) {
+        u32 netLayerIdx = netLayers[layerIdx];
+        if (netLayerIdx >= topoInfo->topoInstDetailsOfLayer.size()) {
+            return false;
+        }
+        for (const auto &topoType : topoInfo->topoInstDetailsOfLayer[netLayerIdx].typeOfTopo) {
+            if (topoType == CommTopo::COMM_TOPO_OCS_MESH) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+SelectorStatus CheckOcsTopoForSelectedAlg(const TopoInfoWithNetLayerDetails *topoInfo,
+                                          const std::string &selectAlgName)
+{
+    if (HasOcsMeshInActiveLayers(topoInfo) && IsTopoMatch1DAllGatherAlg(selectAlgName)) {
+        HCCL_WARNING("[AllGatherAutoSelector] active OCS_MESH topo does not support TopoMatch1D alg[%s].",
+            selectAlgName.c_str());
+        return SelectorStatus::NOT_MATCH;
+    }
+    return SelectorStatus::MATCH;
+}
+} // namespace
+
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
     std::string &selectAlgName) const
@@ -40,7 +91,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
         return SelectMeshAlgo(topoInfo, opParam, selectAlgName);
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
@@ -55,13 +106,13 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
             SelectorStatus::NOT_MATCH);
         if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
             selectAlgName = "CcuAllGatherMesh2Die";
-            return SelectorStatus::MATCH;
+            return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
          } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
         } else {
             selectAlgName = "CcuAllGatherMesh1D";
-            return SelectorStatus::MATCH;
+            return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
@@ -80,21 +131,21 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
             // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
             if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
                 selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             } else {
                 HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
                 return SelectorStatus::NOT_MATCH;
             }
         } else {
                 selectAlgName = "CcuAllGatherMesh1D";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             }
         } else {
         HCCL_DEBUG("[AllGatherAutoSelector] Level0Topo[%u] is not supported for ccu_ms mode, reset to default.", topoInfo->level0Topo);
         return SelectorStatus::NOT_MATCH;
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
@@ -119,7 +170,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         selectAlgName = "CcuAllGatherMesh1DMem2Mem";
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
@@ -135,7 +186,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
         selectAlgName = "CcuAllGatherMesh1DMem2Mem";
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0Algo(
@@ -172,7 +223,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0Algo(
     }
 
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
@@ -193,22 +244,22 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
             if (topoInfo->Level1Nhr) {
                 selectAlgName = "CcuAllGatherNHR1DMem2Mem";
                 HCCL_INFO("[AllGatherAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllGatherAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
                 selectAlgName = "CcuAllGatherNHR1DMem2Mem";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             } else if (dataSize < AG_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) {
                 selectAlgName = "CcuAllGatherMesh1DMem2Mem";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             } else if (dataSize < AG_CCU_SEQUENCE_MAX_DATA_SIZE) {
                 selectAlgName = "CcuAllGatherSequenceMeshMesh";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             } else {
                 selectAlgName = "CcuAllGatherParallelMesh1DNHR";
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             }
         } else if (topoInfo->level0Topo == Level0Shape::CLOS && (!IsInputOutputOverlap(opParam))) {
             selectAlgName = "CcuAllGatherNHR1DMem2Mem";
@@ -224,7 +275,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
         return SelectCcuScheduleLevel0Algo(topoInfo, selectAlgName, dataSize);
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
@@ -285,7 +336,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                                                                           "InsV2AllGatherOmniPipePcie";
                 }
                 HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-                return SelectorStatus::MATCH;
+                return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
             }
             // UBX机型
             bool isMeshNumEqualToClosNum = false;
@@ -314,7 +365,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         }
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
@@ -343,7 +394,7 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
 
     selectAlgName = "AivAllGatherMesh1D";
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-    return SelectorStatus::MATCH;
+    return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
 }
 
 SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
@@ -356,11 +407,11 @@ SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
         if ((topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
             selectAlgName = "InsAllGatherMeshNhrDPU";
             HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-            return SelectorStatus::MATCH;
+            return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             selectAlgName = "InsV2AllGatherOmniPipe";
             HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-            return SelectorStatus::MATCH;
+            return CheckOcsTopoForSelectedAlg(topoInfo, selectAlgName);
         } 
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] end", __func__);
