@@ -1221,6 +1221,9 @@ HcclResult HcclGetThread(
             CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
             threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
             HCCL_DEBUG("[HcclGetThread] AICPU thread[0] notify num[%u].", threadConfigs[0].notifyNumPerThread);
+            CHK_PRT_RET(resRequest.notifyNumPerThread.size() < threadNum - 1,
+                HCCL_ERROR("[HcclGetThread] notifyNumPerThread size[%zu] is less than slaveThreadNum[%u].",
+                    resRequest.notifyNumPerThread.size(), threadNum - 1), HCCL_E_INTERNAL);
             for (u32 i = 1; i < threadNum; i++) {
                 threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i - 1];
                 HCCL_DEBUG("[HcclGetThread] AICPU thread[%u] notify num[%u].", i, threadConfigs[i].notifyNumPerThread);
@@ -1286,7 +1289,10 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
             auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
             if (hcommFunction.dlHcclThreadAcquireWithConfig) {
                 std::vector<ThreadConfig> threadConfigs(threadNum);
-            CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+                CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+                CHK_PRT_RET(resRequest.notifyNumPerThread.size() < threadNum,
+                    HCCL_ERROR("[GeGetThread] notifyNumPerThread size[%zu] is less than slaveThreadNum[%u].",
+                        resRequest.notifyNumPerThread.size(), threadNum), HCCL_E_INTERNAL);
                 for (u32 i = 0; i < threadNum; i++) {
                     threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
                 }
