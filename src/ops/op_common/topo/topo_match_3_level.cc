@@ -12,10 +12,6 @@
 #include "op_common.h"
 
 namespace ops_hccl {
-
-constexpr uint32_t lAYER_NUM_2 = 2;
-constexpr uint32_t lAYER_NUM_3 = 3;
-
 TopoMatch3Level::TopoMatch3Level()
     : TopoMatchBase()
 {
@@ -106,6 +102,9 @@ HcclResult TopoMatch3Level::TopoForLayerGeneric(
 
 bool TopoMatch3Level::CheckVecElementAllSame(const uint32_t* instSizeList, uint32_t listSize) const
 {
+    if (instSizeList == nullptr || listSize == 0) {
+        return false;
+    }
 #ifndef AICPU_COMPILE
     uint32_t firstSize = instSizeList[0];
     for (uint32_t i = 1; i < listSize; i++) {
@@ -163,16 +162,26 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     uint32_t layer1Size = listSize;
     uint32_t baseModSizeL1 = layer0Size;
     
-    if (layerNum >= lAYER_NUM_2) {
+    if (layerNum >= 2) {
         uint32_t netLayerL1 = 1;
-        CHK_RET(TopoForLayerGeneric(comm, netLayerL1, baseModSizeL1, myRank, algHierarchyInfo, netLayerL1));
+        bool hostDPUOnly = false;
+        if ((CheckHostDPUOnly(comm, topoInfo, hostDPUOnly) == HcclResult::HCCL_SUCCESS) && hostDPUOnly) {
+            netLayerL1 = topoInfo->netLayerDetails.netLayers[topoInfo->netLayerDetails.netLayerNum - 1];
+        }
+        CHK_RET(TopoForLayerGeneric(comm, netLayerL1, baseModSizeL1, myRank, algHierarchyInfo, 1));
     }
-    if (layerNum >= lAYER_NUM_3) {
+    if (layerNum >= 3) {
         uint32_t netLayerL2 = 2;
         // 应该除以超节点数量
-        uint32_t superPodNum = topoInfo->netLayerDetails.localNetInsSizeOfLayer[2] / topoInfo->netLayerDetails.localNetInsSizeOfLayer[1];
+        uint32_t layer1Size = topoInfo->netLayerDetails.localNetInsSizeOfLayer[1];
+        uint32_t layer2Size = topoInfo->netLayerDetails.localNetInsSizeOfLayer[2];
+        if (layer1Size == 0 || layer2Size == 0 || (layer2Size < layer1Size)) {
+            HCCL_ERROR("super Pod Num is 0 layer1Size %u layer2Size %u.", layer1Size, layer2Size);
+            return HcclResult::HCCL_E_NOT_SUPPORT;
+        }
+        uint32_t superPodNum = layer2Size / layer1Size;
         uint32_t baseModSizeL2 = layer0Size * layer1Size / superPodNum;
-        CHK_RET(TopoForLayerGeneric(comm, netLayerL2, baseModSizeL2, myRank, algHierarchyInfo, netLayerL2));
+        CHK_RET(TopoForLayerGeneric(comm, netLayerL2, baseModSizeL2, myRank, algHierarchyInfo, 2));
     }
 
 #endif
