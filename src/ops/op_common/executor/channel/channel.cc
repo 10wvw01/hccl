@@ -814,7 +814,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
             continue;
         }
         CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[idx], topoType));
-        if ((isClos && topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc)) || 
+        if ((isClos && topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc, isIsolation)) || 
             (isMesh && topoType == CommTopo::COMM_TOPO_1DMESH)) {
             HcclChannelDesc channelDesc;
             HcclChannelDescInit(&channelDesc, 1);
