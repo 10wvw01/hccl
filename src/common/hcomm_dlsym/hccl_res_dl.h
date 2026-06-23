@@ -59,7 +59,7 @@ static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
     for (uint32_t i = 0; i < num; i++) {
         config[i].notifyNumPerThread = 0;
     }
-    return HCCL_SUCCESS;
+    return 0;
 }
 
 #endif
