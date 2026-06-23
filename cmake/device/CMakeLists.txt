@@ -34,7 +34,7 @@ add_cann_subdirectories_relative(${HCCL_DIR}
 pack_targets_and_files(
     OUTPUT_TARGET "generate_device_aicpu_package"
     OUTPUT "aicpu_hccl.tar.gz"
-    TARGETS scatter_aicpu_kernel hccl_kernel_compat
+    TARGETS hccl_aicpu_kernel hccl_kernel_compat
     MANIFEST "bin_hash.cfg"
     TAR_ROOT_DIR "aicpu_kernels_device"
 )

@@ -21,15 +21,15 @@ endif()
 # 基于ini生成json文件
 SET(HCCL_CMAKE_DIR ${OPS_BASE_DIR}/cmake/)
 message(STATUS "HCCL_CMAKE_DIR = ${HCCL_CMAKE_DIR}")
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
     COMMAND ${HI_PYTHON}
             ${HCCL_CMAKE_DIR}/scripts/parser_ini.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/scatter_aicpu_kernel.ini
-            ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/hccl_aicpu_kernel.ini
+            ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libscatter_aicpu_kernel.json
+add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libhccl_aicpu_kernel.json
     DESTINATION ${INSTALL_AICPU_KERNEL_JSON_DIR}/config
     ${INSTALL_OPTIONAL}
     COMPONENT hccl

@@ -26,10 +26,10 @@ set(EXPERIMENTAL_INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/template/
 )
 
-if(TARGET scatter_aicpu_kernel)
-    target_include_directories(scatter_aicpu_kernel PRIVATE ${EXPERIMENTAL_INCLUDE_LIST})
-    target_compile_definitions(scatter_aicpu_kernel PRIVATE ENABLE_EXPERIMENTAL)
-    target_sources(scatter_aicpu_kernel PRIVATE
+if(TARGET hccl_aicpu_kernel)
+    target_include_directories(hccl_aicpu_kernel PRIVATE ${EXPERIMENTAL_INCLUDE_LIST})
+    target_compile_definitions(hccl_aicpu_kernel PRIVATE ENABLE_EXPERIMENTAL)
+    target_sources(hccl_aicpu_kernel PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/op_common/template/alg_template_base_experimental.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/op_common/topo/topo_experimental.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/reduce_scatter_birs_executor.cc
