@@ -120,7 +120,7 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 
         CCU_IF(ctx.sliceSize != 0) {
             ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], 
-                ctx.inputMem[channelId], ctx.sliceSize, ctx.event, rankMask);
+                ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
         }
 
         CCU_IF(ctx.sliceSize == 0)
