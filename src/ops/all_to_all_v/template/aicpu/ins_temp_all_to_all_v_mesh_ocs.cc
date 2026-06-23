@@ -284,8 +284,6 @@ HcclResult InsTempAlltoAllVMeshOcs::RunLimitedConcurrencyOcs(
             } else {
                 channelCount = static_cast<u32>(recvChannelVec->size());
             }
-            channelsPerRank_ = channelCount;
-
             /* 计算 CCL Buffer 槽位索引 */
             u32 dstIdx = CalcSendDstIdxOcs(sendRank, concurrentPlanesPerRound);
             u32 srcIdx = CalcRecvSrcIdxOcs(recvRank, concurrentPlanesPerRound);
@@ -482,9 +480,10 @@ HcclResult InsTempAlltoAllVMeshOcs::RunSendRecvByChannelOcs(const TemplateDataPa
     }
 
     /* ---- recv 后执行 PostCopy ----
-     * 将 CCL Buffer 槽位中的数据搬到用户输出 buffer */
+     * 将 CCL Buffer 槽位中的数据搬到用户输出 buffer
+     * 注：RecvWrite/LocalCopy 在 batch mode 下位于同一 thread 的 task 队列中，
+     * 硬件按 FIFO 顺序执行，因此 LocalCopy 开始时 RecvWrite 已完成数据写入 */
     if (doRecv && recvSizeSplit_[channelId] > 0) {
-        // 疑问：这里执行本地拷贝不需要等待对端写入成功么
         CHK_RET(PostCopyOcs(tempAlgParams, thread, srcIdx, recvRank,
             recvSizeSplit_[channelId], recvCountsSplit_[channelId], recvOffsetSplit_[channelId]));
     }
