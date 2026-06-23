@@ -223,7 +223,7 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSav
     const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[InsAlltoAllVSoleExecutor] save fast launch ctx.");
-    u32 threadNum = 1;
+    u32 threadNum = static_cast<u32>(templateAlgRes.threads.size());
     u32 ccuKernelNum = templateAlgRes.submitInfos.size();
     if (ccuKernelNum < 1) {
         HCCL_INFO("[InsAlltoAllVSoleExecutor] ccu kernel num is 0, no need to save.");
@@ -233,10 +233,19 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSav
         "[InsAlltoAllVSoleExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
-    // 申请ctx
+    // 申请ctx：先查已有上下文，大小匹配则复用，否则重新创建
     void *ctxPtr = nullptr;
-    HCCL_INFO("[InsAlltoAllVSoleExecutor][HcclEngineCtxCreate] Tag[%s], size[%llu]", param.fastLaunchTag, size);
-    CHK_RET(HcclEngineCtxCreate(param.hcclComm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, size, &ctxPtr));
+    uint64_t ctxSize = 0;
+    HcclResult getRet = HcclEngineCtxGet(param.hcclComm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU,
+        &ctxPtr, &ctxSize);
+    if (getRet != HCCL_SUCCESS || ctxPtr == nullptr || ctxSize != size) {
+        HCCL_INFO("[InsAlltoAllVSoleExecutor][FastLaunchSaveCtx] create new ctx, Tag[%s], size[%llu]",
+            param.fastLaunchTag, size);
+        CHK_RET(HcclEngineCtxCreate(param.hcclComm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, size, &ctxPtr));
+    } else {
+        HCCL_INFO("[InsAlltoAllVSoleExecutor][FastLaunchSaveCtx] reuse existing ctx, Tag[%s], size[%llu]",
+            param.fastLaunchTag, size);
+    }
 
     CcuFastLaunchCtx *ccuFastLaunchCtx = reinterpret_cast<CcuFastLaunchCtx *>(ctxPtr);
     // 1 算法名:
@@ -247,12 +256,16 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSav
     ccuFastLaunchCtx->threadNum = threadNum;
     ccuFastLaunchCtx->notifyNumOnMainThread = notifyNumOnMainThread;
     ThreadHandle *threads = ccuFastLaunchCtx->GetThreadHandlePtr();
-    threads[0] = templateAlgRes.threads[0];
+    for (u32 i = 0; i < threadNum; i++) {
+        threads[i] = templateAlgRes.threads[i];
+    }
 
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernels = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernels[0] = templateAlgRes.submitInfos[0];
+    for (u32 i = 0; i < ccuKernelNum; i++) {
+        kernels[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 
