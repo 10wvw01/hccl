@@ -136,39 +136,18 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 
 static CcuResult DoRepeatGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
 {
-    ccu::LocalAddr dst;
-    std::vector<ccu::RemoteAddr> src;
-    src.resize(ctx.rankSize);
-    dst.addr = ctx.input[ctx.rankId];
-    dst.addr += ctx.inputOmniPipeSliceStride;
-    dst.token = ctx.token[ctx.rankId];
-    src[ctx.rankSize - 1].addr = dst.addr;
-    src[ctx.rankSize - 1].token = dst.token;
-
-    // 准备源地址
-    uint32_t idx = 0;
-    for (auto i = 0; i < ctx.rankSize; ++i) {
-        if (i == ctx.rankId) {
+    for (uint64_t curId = 0; curId < ctx.rankSize; curId++) {
+        if (curId == ctx.rankId) {
             continue;
         }
-        src[idx].addr = ctx.input[i];
-        src[idx].addr += ctx.inputOmniPipeSliceStride;
-        src[idx].token = ctx.token[i];
-        idx++;
-    }
+        ctx.inputMem[curId].token = ctx.token[curId];
+        ctx.inputMem[curId].addr = ctx.input[curId];
+        ctx.inputMem[curId].addr += ctx.inputOmniPipeSliceStride;
 
-    // 准备目的地址
-    std::vector<ccu::LocalAddr> scratchMem;
-    scratchMem.resize(ctx.rankSize);
-    ccu::Variable scratchOffset;
-    scratchOffset = 0;
-    for (auto i = 0; i < ctx.rankSize; ++i) {
-        scratchMem[i].addr = ctx.output;
-        scratchMem[i].addr += ctx.outputOmniPipeSliceStride;
-        scratchMem[i].token = ctx.token[ctx.rankId];
-        scratchOffset += ctx.sliceSize;
+        ctx.outputMem[curId].token = ctx.token[curId];
+        ctx.outputMem[curId].addr = ctx.output;
+        ctx.outputMem[curId].addr += ctx.outputOmniPipeSliceStride;
     }
-    
     CCU_IF(ctx.ifNewRoot == true)
     {
         CCU_CHK_RET(DoGather(ctx));

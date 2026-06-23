@@ -593,7 +593,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j].size();k++){
-                    HCCL_INFO("[zq][dataSliceLevel0] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j][k]);
+                    HCCL_INFO("[zq][dataSliceLevel0] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel0[i].stepSliceSize[j][k]);
                 }
             }
         }
@@ -601,7 +601,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel1.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j].size();k++){
-                    HCCL_INFO("[zq][dataSliceLevel1] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j][k]);
+                    HCCL_INFO("[zq][dataSliceLevel1] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel0[i].stepSliceSize[j][k]);
                 }
             }
         }
