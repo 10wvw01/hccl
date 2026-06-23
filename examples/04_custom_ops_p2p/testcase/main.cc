@@ -9,12 +9,10 @@
  */
 
 #include <iostream>
-#include <fstream>
 #include <vector>
-#include <memory>
 #include <thread>
+#include <future>
 #include <chrono>
-#include <atomic>
 #include <cstring>
 
 #include <acl/acl_rt.h>
@@ -135,20 +133,31 @@ int main()
     HCCLCHECK(HcclGetRootInfo(rootInfo));
 
     // 启动线程执行集合通信操作
-    std::vector<std::thread> threads(devCount);
+    std::vector<std::future<int>> futures(devCount);
     std::vector<ThreadContext> args(devCount);
     for (uint32_t i = 0; i < devCount; i++) {
         args[i].rootInfo = rootInfo;
         args[i].device = i;
         args[i].devCount = devCount;
-        threads[i] = std::thread(Sample, (void *)&args[i]);
+        futures[i] = std::async(std::launch::async, Sample, (void *)&args[i]);
     }
+    int ret = 0;
     for (uint32_t i = 0; i < devCount; i++) {
-        threads[i].join();
+        int threadRet = futures[i].get();
+        if (threadRet != 0) {
+            ret = threadRet;
+        }
     }
 
     // 释放资源
     ACLCHECK(aclrtFreeHost(rootInfoBuf));  // 释放 Host 内存
     ACLCHECK(aclFinalize());               // 设备去初始化
+
+    // 打印结果
+    if (ret != 0) {
+        std::cerr << "HcclSendCustom/HcclRecvCustom test failed with ret: " << ret << std::endl;
+        return ret;
+    }
+    std::cout << "HcclSendCustom/HcclRecvCustom test completed successfully" << std::endl;
     return 0;
 }
