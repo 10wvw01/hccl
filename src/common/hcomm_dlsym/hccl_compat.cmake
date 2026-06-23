@@ -67,6 +67,10 @@ else()
             unified_dlog
             acl_rt
             -Wl,--no-as-needed
+            runtime_headers
+            mmpa_headers
+            msprof_headers
+            hcomm_headers
         )
     else()
         target_link_libraries(hccl_compat PRIVATE

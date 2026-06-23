@@ -135,7 +135,11 @@ elseif(BUILD_OPEN_PROJECT)
     find_cann_package(ascendcl MODULE REQUIRED)
     find_cann_package(ascendc_runtime MODULE REQUIRED)
     find_cann_package(ascend_dump MODULE REQUIRED)
-    
+    find_cann_package(asc_devkit MODULE REQUIRED)     # → asc_kernel_headers, kernel_tiling_headers
+    find_cann_package(ascend_hal MODULE REQUIRED)     # → ascend_hal_headers
+    find_cann_package(atrace MODULE REQUIRED)         # → atrace_headers
+    find_cann_package(tsdclient MODULE REQUIRED)      # → tsdclient
+
     # 检查构建依赖
     check_pkg_build_deps("hccl")
     add_version_info_targets()
