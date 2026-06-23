@@ -51,7 +51,8 @@ HcclResult CcuTempAllGatherMesh1DMem2MemClosV2::CalcRes(HcclComm comm, const OpP
     if(topoInfo->level0Topo != Level0Shape::MESH_1D_CLOS) {
         CHK_RET(CalcChannelRequestMesh1DFullMesh(comm, param, topoInfo, subCommRanks_, channelDescs));
     } else {
-        CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks_, channelDescs, CommTopo::COMM_TOPO_1DMESH));
+        CHK_RET(CalcChannelRequestMesh1DWithPriorityTopoClosV2(comm, param, topoInfo, subCommRanks_, channelDescs,
+            CommTopo::COMM_TOPO_1DMESH));
         for(auto channel : channelDescs){
             if(channel.channelProtocol != COMM_PROTOCOL_UBC_CTP){
                 HCCL_ERROR("[CcuTempAllGatherMesh1DMem2MemClosV2][CalcRes] channelProtocol: %u", channel.channelProtocol);
