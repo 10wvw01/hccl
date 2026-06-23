@@ -11,14 +11,16 @@
 #include "ins_reduce_scatter_parallel_executor.h"
 #include <cmath>
 #include "ins_temp_reduce_scatter_mesh_1D.h"
+#include "ins_temp_reduce_scatter_mesh_1d_dpu.h"
 #include "ins_temp_reduce_scatter_nhr.h"
 #include "alg_data_trans_wrapper.h"
+#include "topo_match_squeeze_2d.h"
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 namespace ops_hccl {
@@ -160,7 +162,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsInter0.buffInfo.inBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
     tempAlgParamsInter0.buffInfo.outBuffBaseOff = dataOffset;
-    tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[2]; 
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[2];
+    } else {
+        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+    }
     tempAlgParamsInter0.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
     tempAlgParamsInter0.tailSize = tempAlgParamsInter0.sliceSize;
     tempAlgParamsInter0.count = dataCountPerLoopAixs0;
@@ -195,7 +201,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter1.count = dataCountPerLoopAixs1;
 
     tempAlgParamsInter1.inputSliceStride = dataSize_ * rankSizeLevel0_;
-    tempAlgParamsInter1.outputSliceStride = 0;
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsInter1.outputSliceStride = 0;
+    } else {
+        tempAlgParamsInter1.outputSliceStride = dataCountPerLoopAixs1 * dataTypeSize_;
+    }
     tempAlgParamsInter1.repeatNum = rankSizeLevel0_;
     tempAlgParamsInter1.inputRepeatStride = dataSize_;
     tempAlgParamsInter1.outputRepeatStride = dataCountPerLoopAixs1 * dataTypeSize_ * rankSizeLevel1_;
@@ -216,7 +226,11 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsIntra1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsIntra1.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParamsIntra1.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
-    tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3]; 
+    if (engine_ == CommEngine::COMM_ENGINE_CCU) {
+        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3]; 
+    } else {
+        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3] + rankIdxLevel1_ * dataCountPerLoopAixs1 * dataTypeSize_;
+    }
     tempAlgParamsIntra1.buffInfo.outBuffBaseOff = dataOffset;
     tempAlgParamsIntra1.buffInfo.hcclBuffBaseOff = scratchOffVec[1];
     tempAlgParamsIntra1.sliceSize = dataCountPerLoopAixs1 * dataTypeSize_;
@@ -289,6 +303,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
+    engine_ = param.engine;
 
     std::vector<std::vector<u32>> temp0HierarchyInfo;
     std::vector<std::vector<u32>> temp1HierarchyInfo;
@@ -368,43 +383,14 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     u64 inter1ScratchOffset = inter0ScratchOffset + scratchMultipleInter0 * scratchMemBlockSize;
     std::vector<u64> scratchOffVec = {intra0ScratchOffset, intra1ScratchOffset, inter0ScratchOffset, inter1ScratchOffset};
 
-    // dataSplitSize为分数，这里maxCountPerLoop对10取整
-    u64 maxCountPerLoop = (std::min(static_cast<u64>(scratchMemBlockSize), static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_ / 10) * 10; 
+    u64 maxCountPerLoop =
+        std::min(static_cast<u64>(scratchMemBlockSize), static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_;
+    CHK_PRT_RET(maxCountPerLoop == 0,
+                HCCL_ERROR("[InsReduceScatterParallelExecutor][OrchestrateLoop] maxCountPerLoop is 0"),
+                HcclResult::HCCL_E_INTERNAL);
 
-    // ============ 循环前的数据对齐操作 ============
-    u64 alignSizeData = AICPU_ALIGN_SIZE; // 用于4k对齐
-    
-    // 根据 dataSplitSize 计算两块数据的大小
-    u64 dataCountPerLoopAixs0 = static_cast<u64>(dataSplitSize[0] * maxCountPerLoop);
-    u64 dataCountPerLoopAixs1 = maxCountPerLoop - dataCountPerLoopAixs0;
-    
-    // 对两块数据分别进行4K对齐（向下取整）
-    if (dataCountPerLoopAixs0 * dataTypeSize_ >= alignSizeData) {
-        dataCountPerLoopAixs0 = dataCountPerLoopAixs0 * dataTypeSize_ / alignSizeData * alignSizeData / dataTypeSize_;
-    }
-    if (dataCountPerLoopAixs1 * dataTypeSize_ >= alignSizeData) {
-        dataCountPerLoopAixs1 = dataCountPerLoopAixs1 * dataTypeSize_ / alignSizeData * alignSizeData / dataTypeSize_;
-    }
-    
-    // 用对齐后的数据量之和重新刷新 maxCountPerLoop
-    maxCountPerLoop = dataCountPerLoopAixs0 + dataCountPerLoopAixs1;
-    // ====================================================
-
+    u64 alignSize = AICPU_ALIGN_SIZE;
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
-
-    // ============ 计算尾块数据量 ============
-    u64 finalDataCountPerLoopAixs0 = dataCountPerLoopAixs0;
-    u64 finalDataCountPerLoopAixs1 = dataCountPerLoopAixs1;
-    
-    if (loopTimes > 1) {
-        u64 finalCount = dataCount_ - (loopTimes - 1) * maxCountPerLoop;
-        finalDataCountPerLoopAixs0 = static_cast<u64>(dataSplitSize[0] * finalCount);
-        finalDataCountPerLoopAixs1 = finalCount - finalDataCountPerLoopAixs0;
-    } else {
-        finalDataCountPerLoopAixs0 = static_cast<u64>(dataSplitSize[0] * dataCount_);
-        finalDataCountPerLoopAixs1 = dataCount_ - finalDataCountPerLoopAixs0;
-    }
-    // ====================================================
 
     TemplateDataParams tempAlgParamsIntra0;
     TemplateDataParams tempAlgParamsInter0;
@@ -414,6 +400,9 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     TemplateResource templateAlgResIntra;
     TemplateResource templateAlgResInter;
     if (param.engine == COMM_ENGINE_CCU) {
+        CHK_PRT_RET(resCtx.ccuKernelNum.size() <= 1,
+            HCCL_ERROR("[%s] ccuKernelNum size[%zu] is less than 2", __func__, resCtx.ccuKernelNum.size()),
+            HCCL_E_INTERNAL);
         templateAlgResIntra.ccuKernels.insert(templateAlgResIntra.ccuKernels.end(),
                                               resCtx.ccuKernels.begin(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0]);
@@ -427,12 +416,30 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     templateAlgResIntra.threads = intraThreads_;
     templateAlgResInter.threads = interThreads_;
 
-    for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
-        // 使用预计算的对齐后数据量
-        u64 currCountPart0 = (loopIndex == loopTimes - 1) ? finalDataCountPerLoopAixs0 : dataCountPerLoopAixs0;
-        u64 currCountPart1 = (loopIndex == loopTimes - 1) ? finalDataCountPerLoopAixs1 : dataCountPerLoopAixs1;
-        
-        u64 dataOffset0 = loopIndex * maxCountPerLoop * dataTypeSize_;
+    u64 processedCount = 0;
+    u32 loopIndex = 0;
+    while (processedCount < dataCount_) {
+        u64 remainingCount = dataCount_ - processedCount;
+        u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
+        u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
+        currCount = std::min(currCount, maxCountPerLoop);
+        u64 currCountPart0 = static_cast<u64>(dataSplitSize[0] * currCount);
+        u64 currCountPart1 = currCount - currCountPart0;
+        if (remainingLoopTimes > 1) {
+            u64 alignedCountPart0 = currCountPart0;
+            u64 alignedCountPart1 = currCountPart1;
+            alignedCountPart0 = alignedCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            alignedCountPart1 = alignedCountPart1 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            if (alignedCountPart0 + alignedCountPart1 > 0) {
+                currCountPart0 = alignedCountPart0;
+                currCountPart1 = alignedCountPart1;
+            }
+        }
+        CHK_PRT_RET(currCountPart0 + currCountPart1 == 0,
+                    HCCL_ERROR("[InsReduceScatterParallelExecutor][OrchestrateLoop] currCount is 0"),
+                    HcclResult::HCCL_E_INTERNAL);
+
+        u64 dataOffset0 = processedCount * dataTypeSize_;
         u64 dataOffset1 = dataOffset0 + currCountPart0 * dataTypeSize_;
 
         //第一步开始前同步
@@ -464,6 +471,9 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         CHK_RET(tempAlgIntra.KernelRun(param, tempAlgParamsIntra1, templateAlgResIntra));
         //尾同步
         CHK_RET(PostSyncInterThreads(controlThread_, templateMainThreads_, notifyIdxTemplatesToControl_));
+
+        processedCount += currCountPart0 + currCountPart1;
+        loopIndex++;
     }
     
 #ifndef AICPU_COMPILE
@@ -566,22 +576,26 @@ uint64_t InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 }
 
 // 算法注册
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelMesh1DNHR,
     InsReduceScatterParallelExecutor, TopoMatchMultilevel, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelMesh1DNHRUBX,
     InsReduceScatterParallelExecutor, TopoMatchUBX, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelMesh1DNHRPcie,
     InsReduceScatterParallelExecutor, TopoMatchPcieMix, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
-#endif /* !HCCL_CANN_COMPAT_850 */
+
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterParallelNHRNHRUboe,
+    InsReduceScatterParallelExecutor, TopoMatchSqueeze2D, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHR,
-    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterMesh1DMem2Mem);
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHRMultiJetty,
     InsReduceScatterParallelExecutor, TopoMatchUBX, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }

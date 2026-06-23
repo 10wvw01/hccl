@@ -13,6 +13,14 @@
 
     图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
 
+  - **AICPU_TS**：代表通信算子在AI CPU展开，Device侧根据硬件型号自动选择相应的调度器。
+
+    该配置项支持Broadcast、Reduce、AllReduce、Scatter、ReduceScatter、ReduceScatterV、AllGather、AllGatherV、AlltoAll、AlltoAllV、AlltoAllVC、Send、Recv、BatchSendRecv算子。
+
+    **注意**：
+
+    图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
+
   - **AIV**：代表通信算子在Vector Core展开，执行也在Vector Core。Ascend 950PR不支持此配置。
     - 该配置项仅支持对称组网、推理特性。
     - 该配置项不支持多通信域并行的场景（因为不支持多个通信域同时配置为“AIV”模式），否则可能会导致不可预期行为。您可以在初始化具有特定配置的通信域时，通过“HcclCommConfig”将某个通信域的算子展开模式设置为“AIV”。
@@ -27,6 +35,9 @@
     MS模式为与多个远端通信时，使用CCU片上Memory Slice作为中转，用于节省内存读写带宽，Memory Slice的特点是大小较小，但速度较快。
 
     当CCU资源不足时，系统会自动切换为AI_CPU模式。
+    - 该配置项仅支持Broadcast、Reduce、AllReduce、ReduceScatter、AllGather、AllGatherV、ReduceScatterV算子，当前仅支持单机场景。
+      - 针对Broadcast、AllGather、AllGatherV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、bfp16。
+      - 针对Reduce、AllReduce、ReduceScatter、ReduceScatterV算子，数据类型支持int16、int32、float16、float32、bfp16。
 
   - **CCU_SCHED（默认值）**：代表通信算子在CCU展开，使用调度模式。
 
@@ -109,8 +120,7 @@
     - 算法编排展开位置设置为“AIV”时，若同时设置了[HCCL_DETERMINISTIC](HCCL_DETERMINISTIC.md)环境变量为“true”或“strict”开启了确定性计算，确定性计算的优先级更高，某些场景下“AIV”展开可能不生效。
     - 对于Atlas 200T A2 Box16异构子框，不支持跨框通信场景。
 
-<cann-filter npu-type="310p">
-
+<!-- npu="310p" id1 -->
 - **针对Atlas 300I Duo 推理卡**：支持的配置如下，若设置了不支持的环境变量，使用默认值。
   - **HOST（默认值）**：代表通信算子在Host侧CPU展开，Device侧根据硬件型号自动选择相应的调度器。
   - **AI_CPU**：代表通信算子在AI CPU展开，Device侧根据硬件型号自动选择相应的调度器。
@@ -118,7 +128,7 @@
     - 仅支持AllReduce算子，AllReduce算子支持的数据类型可参见HcclAllReduce接口。
     - 配置为“AI_CPU”后，通信算子不再支持profiling性能数据采集与分析功能。
     - 对于静态shape图，不支持此配置项，即不支持指定通信算子的展开模式为AI CPU。
-</cann-filter>
+<!-- end id1 -->
 
 ## 配置示例
 

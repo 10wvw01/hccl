@@ -15,17 +15,23 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_reduce_scatter_mesh_1D.h"
 #include "ins_temp_reduce_scatter_nhr.h"
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
+#include "topo_match_squeeze_2d.h"
 
 namespace ops_hccl {
+
+constexpr int INT_0 = 0;
+constexpr int INT_1 = 1;
+constexpr int INT_2 = 2;
+constexpr int INT_3 = 3;
 
 template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
     typename AlgTemplate3>
@@ -324,34 +330,39 @@ template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, t
 HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2,
     AlgTemplate3>::PrepareResForStage2(u32 stage)
 {
+    u32 stageNum = 2;
     if (param_.engine == COMM_ENGINE_CCU) {
-        tempAlgResArr_.at(stage * 2).ccuKernels.clear();
-        tempAlgResArr_.at(stage * 2 + 1).ccuKernels.clear();
+        tempAlgResArr_.at(stage * stageNum).ccuKernels.clear();
+        tempAlgResArr_.at(stage * stageNum + 1).ccuKernels.clear();
         if (stage == 0) {
-            tempAlgResArr_.at(stage * 2).ccuKernels.insert(tempAlgResArr_.at(stage * 2).ccuKernels.end(),
+            tempAlgResArr_.at(stage * stageNum).ccuKernels.insert(
+                                               tempAlgResArr_.at(stage * stageNum).ccuKernels.end(),
                                                resCtx_.ccuKernels.begin(),
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0]);
-            tempAlgResArr_.at(stage * 2 + 1).ccuKernels.insert(tempAlgResArr_.at(stage * 2 + 1).ccuKernels.end(),
+            tempAlgResArr_.at(stage * stageNum + 1).ccuKernels.insert(
+                                               tempAlgResArr_.at(stage * stageNum + 1).ccuKernels.end(),
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0],
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1]);
         } else {
-            tempAlgResArr_.at(stage * 2).ccuKernels.insert(tempAlgResArr_.at(stage * 2).ccuKernels.end(),
+            tempAlgResArr_.at(stage * stageNum).ccuKernels.insert(
+                                               tempAlgResArr_.at(stage * stageNum).ccuKernels.end(),
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1],
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1] + resCtx_.ccuKernelNum[2]);
-            tempAlgResArr_.at(stage * 2 + 1).ccuKernels.insert(tempAlgResArr_.at(stage * 2 + 1).ccuKernels.end(),
+            tempAlgResArr_.at(stage * stageNum + 1).ccuKernels.insert(
+                                               tempAlgResArr_.at(stage * stageNum + 1).ccuKernels.end(),
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1] + resCtx_.ccuKernelNum[2],
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1] + resCtx_.ccuKernelNum[2] + resCtx_.ccuKernelNum[3]);
         }
     } else {
-        tempAlgResArr_.at(stage * 2).channels = intraLinks_;
-        tempAlgResArr_.at(stage * 2 + 1).channels = interLinks_;
+        tempAlgResArr_.at(stage * INT_2).channels = intraLinks_;
+        tempAlgResArr_.at(stage * INT_2 + INT_1).channels = interLinks_;
     }
 
-    tempAlgResArr_.at(stage * 2).threads = intraThreads_;
-    tempAlgResArr_.at(stage * 2).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * INT_2).threads = intraThreads_;
+    tempAlgResArr_.at(stage * INT_2).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
-    tempAlgResArr_.at(stage * 2 + 1).threads = interThreads_;
-    tempAlgResArr_.at(stage * 2 + 1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * INT_2 + INT_1).threads = interThreads_;
+    tempAlgResArr_.at(stage * INT_2 + INT_1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
     return HCCL_SUCCESS;
 }
@@ -488,27 +499,28 @@ HcclResult
         dataOffsetPerLoop_.at(0) = loopIndex * maxCountPerLoop * dataTypeSize_;
         dataOffsetPerLoop_.at(1) = dataOffsetPerLoop_.at(0) + dataCountPerLoop_.at(0) * dataTypeSize_;
 
-        for (u32 stageIdx = 0; stageIdx < 2; stageIdx++) {
+        u32 stageNum = 2;
+        for (u32 stageIdx = 0; stageIdx < stageNum; stageIdx++) {
             // 计算算法模板所需资源
             CHK_RET(PrepareResForStage(stageIdx));
             CHK_RET(PrepareResForStage2(stageIdx));
             // 每个阶段分2步执行任务编排
-            for (u32 stepIdx = 0; stepIdx < 2; stepIdx++) {
+            for (u32 stepIdx = 0; stepIdx < stageNum; stepIdx++) {
                 CHK_RET(OrchestrateStep(stageIdx, stepIdx));
 #ifndef AICPU_COMPILE
                 if (loopTimes == 1 && param_.engine == CommEngine::COMM_ENGINE_CCU) {
                     if (stageIdx == 0 && stepIdx == 0) {
-                        ccuKernelLaunchNumRSIntra0_ = tempAlgResArr_.at(0).submitInfos.size();
-                        ccuKernelLaunchNumRSInter1_ = tempAlgResArr_.at(1).submitInfos.size();
+                        ccuKernelLaunchNumRSIntra0_ = tempAlgResArr_.at(INT_0).submitInfos.size();
+                        ccuKernelLaunchNumRSInter1_ = tempAlgResArr_.at(INT_1).submitInfos.size();
                     } else if (stageIdx == 0 && stepIdx == 1) {
-						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
-                        ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
+						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(INT_0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
+                        ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(INT_1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
                     } else if (stageIdx == 1 && stepIdx == 0) {
-						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(2).submitInfos.size();
-                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(3).submitInfos.size();
+						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(INT_2).submitInfos.size();
+                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(INT_3).submitInfos.size();
                     } else if (stageIdx == 1 && stepIdx == 1 && param_.opMode != OpMode::OFFLOAD) {
-						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
-    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
+						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(INT_2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
+    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(INT_3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
                         CHK_RET(FastLaunchSaveCtx());
                     }
                 }
@@ -745,7 +757,7 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
 #endif
 
 // 算法注册
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh1DNHR, ReduceParallelExecutor,
     TopoMatchMultilevel, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D,
     InsTempAllGatherNHR);
@@ -754,14 +766,17 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh
     InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh1DNHRPcie, ReduceParallelExecutor,
     TopoMatchPcieMix, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
-#endif /* !HCCL_CANN_COMPAT_850 */
+
+REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelNHRNHRUboe, ReduceParallelExecutor,
+    TopoMatchSqueeze2D, InsTempReduceScatterNHR, InsTempReduceScatterNHR, InsTempAllGatherNHR, InsTempAllGatherNHR);
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
     REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, CcuReduceParallelMesh1DNHR, ReduceParallelExecutor,
         TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
     REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, CcuReduceParallelMesh1DNHRUBX, ReduceParallelExecutor,
         TopoMatchUBX, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }  // namespace ops_hccl

@@ -20,6 +20,8 @@
 #include "alg_type.h"
 #include "execute_selector.h"
 #include "acl/acl_rt.h"
+#include "ccu_primitives_dl.hpp"
+#include "ccu_log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +34,7 @@ extern "C" {
 namespace ops_hccl {
 HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName, const ResPackGraphMode &resPack = ResPackGraphMode());
 
-HcclResult ExecuteAivCacheLogic(OpParam &param, const std::string &algName,
+HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string &algName,
                                 std::unique_ptr<InsCollAlgBase> &executor,
                                 AlgResourceCtxSerializable &resCtxHost);
 
@@ -44,6 +46,8 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam &param, std::unique_ptr<InsCollA
 HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInfo &exchangeInfo);
 
 HcclResult FillOpExchangeInfoWithDataDes(const OpParam &param, OpExchangeInfo &exchangeInfo);
+
+HcclResult AddExchangeInfo(HcclComm comm, const OpParam &param);
 
 HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost, TopoInfoWithNetLayerDetails *topoInfo,
@@ -69,9 +73,9 @@ HcclResult GeReuseResource(HcclComm comm, OpParam &param, std::unique_ptr<InsCol
         std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, TopoInfoWithNetLayerDetails* topoInfo, const ResPackGraphMode &resPack);
 
 HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
-                          std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost);
+                          AlgResourceCtxSerializable* resCtxHost);
 HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &param, std::vector<HcclChannelDesc>& channelRequest,
-                              const CommEngine commEngine, std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, MemRegInfo &memRegInfo);
+                              const CommEngine commEngine, AlgResourceCtxSerializable* resCtxHost, MemRegInfo &memRegInfo);
 HcclResult RegGraphModeBuffers(HcclComm comm, const OpParam &param, char* inputBuffTag, char* outputBuffTag, std::vector<HcclMemHandle>& memHandles);
 HcclResult GetGraphModeBuffers(HcclComm comm, ChannelHandle channelHandle, const char* inputBuffTag, const char* outputBuffTag, ChannelInfo& channel);
 HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
@@ -120,7 +124,7 @@ void CompReqChannelWithExistChannel(const std::vector<std::vector<ChannelInfo>>&
                                     AlgResourceRequest &resRequest);
 
 HcclResult HcclMemcpyCtxHostToDevice(HcclComm comm, const OpParam &param,
-    std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, void **resCtxSequence, uint64_t& ctxSize);
+    const std::vector<char>& seq, void **resCtxSequence, uint64_t& ctxSize);
 
 HcclResult SingleRankProc(HcclComm comm, OpParam &param);
 
@@ -150,7 +154,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
 
 HcclResult AicpuKernelLaunch(HcclComm comm, OpParam &param, ThreadHandle unfoldThread);
 
-HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     AlgResourceCtxSerializable &resCtxHost);
 
 HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param);
@@ -174,15 +178,11 @@ HcclResult HcclRegstryBuff(HcclComm comm, const char *memTag, void *bufferPtr, u
 
 HcclResult HcclGetRemoteBuff(HcclComm comm, ChannelHandle channel, const char *memTag, void **bufferPtr, uint64_t *bufferSize);
 
-HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut);
+HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut, bool forceLog = false);
 
 HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
 HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam);
-
-HcclResult HcclAllocAlgResourceAivGraphMode(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, AlgResourceCtxSerializable* resCtxHost);
-
-HcclResult HcclRegstryBuffGraphMode(HcclComm comm, const char *memTag, void *bufferPtr, uint64_t bufferSize, HcclMemHandle *memHandle);
 
 HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
 
@@ -190,6 +190,8 @@ HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetai
 
 HcclResult SetExecTimeout(OpParam &param);
 bool IsHostDpu(HcclComm comm);
+
+bool IsBarrierHostDpu(HcclComm comm);
 }  // namespace ops_hccl
 
 #endif

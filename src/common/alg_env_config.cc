@@ -75,7 +75,8 @@ HcclResult ParseExecTimeout()
         return HCCL_SUCCESS;
     }
 
-    if (!IsValidNumberFormat(execTimeOutEnv, 2)) {
+    u32 timeoutSize = 2;
+ 	if (!IsValidNumberFormat(execTimeOutEnv, timeoutSize)) {
         HCCL_WARNING("[ParseExecTimeout] HCCL_EXEC_TIMEOUT[%s] format is invalid, use default.",
             execTimeOutEnv.c_str());
         g_algEnvConfig.execTimeOutSet = false;
@@ -92,6 +93,13 @@ HcclResult ParseExecTimeout()
         return HCCL_E_PARA;
     }
 
+    if (execTimeOut > static_cast<double>(UINT32_MAX)) {
+        g_algEnvConfig.execTimeOutSet = false;
+        g_algEnvConfig.execTimeout = 0;
+        HCCL_WARNING("[ParseExecTimeout] HCCL_EXEC_TIMEOUT[%s] is too large, use default.",
+            execTimeOutEnv.c_str());
+        return HCCL_E_PARA;
+    }
     g_algEnvConfig.execTimeOutSet = true;
     g_algEnvConfig.execTimeout = execTimeOut;
     return HCCL_SUCCESS;
@@ -791,7 +799,7 @@ HcclResult ParseOpExpansion()
         return HCCL_SUCCESS;
     }
 
-    if (opExpansionModeEnv == "AI_CPU") {
+    if (opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "AICPU_TS") {
         if (deviceType == DevType::DEV_TYPE_910) {
             HCCL_WARNING("910 do not support AICPU unfold.");
         } else {
@@ -961,8 +969,18 @@ HcclResult ParseDeterministic()
         // 规约保序场景（严格的确定性计算，在确定性的基础上强保证规约顺序一致）
         DevType deviceType;
         CHK_RET(hrtGetDeviceType(deviceType));
-        if (deviceType != DevType::DEV_TYPE_910B && deviceType != DevType::DEV_TYPE_910_93) {
-            // 规约保序仅支持A2 A3场景
+        // 规约保序支持A2 A3 A5场景
+        bool supportedDevice = false;
+        #ifdef MACRO_DEV_TYPE_NEW
+        supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
+                          deviceType == DevType::DEV_TYPE_910_93 || 
+                          deviceType == DevType::DEV_TYPE_950);
+        #else
+        supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
+                          deviceType == DevType::DEV_TYPE_910_93 || 
+                          deviceType == DevType::DEV_TYPE_910_95);
+        #endif
+        if (!supportedDevice) {
             HCCL_ERROR("HCCL_DETERMINISTIC is set to [%s], Reduce order preservation is not supported for "
                        "deviceType[%d], please check",
                 hcclDeterministicEnv.c_str(),
@@ -991,19 +1009,15 @@ HcclResult ParseDfsConfig()
     }
     dfsConfigEnv.erase(std::remove(dfsConfigEnv.begin(), dfsConfigEnv.end(), ' '), dfsConfigEnv.end());
     std::transform(dfsConfigEnv.begin(), dfsConfigEnv.end(), dfsConfigEnv.begin(), ::tolower);
-
-    constexpr std::size_t DFS_CONFIG_ITEM_NUM = 2;
-    const std::array<std::string, DFS_CONFIG_ITEM_NUM> dfsConfigItems = {"task_exception", "inconsistent_check"};
     auto items = SplitDfsConfig(dfsConfigEnv, ',');
     for (const auto &item : items) {
         auto itemPair = SplitDfsConfig(item, ':');
         constexpr std::size_t ITEM_SIZE = 2;
-        if (itemPair.size() != ITEM_SIZE
-            || std::find(dfsConfigItems.begin(), dfsConfigItems.end(), itemPair[0]) == dfsConfigItems.end()) {
+        if (itemPair.size() != ITEM_SIZE) {
             HCCL_ERROR("[ParseDfsConfig] failed. invalid item[%s]", item.c_str());
             return HCCL_E_PARA;
         }
-        if (itemPair[0] == dfsConfigItems[1]) {
+        if (itemPair[0] == "inconsistent_check") {
             CHK_RET(ParseInconsistentCheckSwitch(itemPair[1]));
         }
     }
@@ -1168,6 +1182,11 @@ const bool &GetExternalInputHcclEnableEntryLog()
     return g_algEnvConfig.enableEntryLog;
 }
 
+const u8 &GetExternalInputHcclDeterministic()
+{
+    return g_algEnvConfig.hcclDeterministic;
+}
+
 bool RunIndependentOpExpansion(DevType deviceType)
 {
     std::string opExpansionModeEnv = GetEnv("HCCL_OP_EXPANSION_MODE");
@@ -1180,7 +1199,8 @@ bool RunIndependentOpExpansion(DevType deviceType)
     #else
     if (deviceType == DevType::DEV_TYPE_910_95) {
     #endif
-        return opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "HOST_TS" ||
+        return opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "AICPU_TS" ||
+               opExpansionModeEnv == "HOST_TS" ||
                opExpansionModeEnv == "EmptyString" || opExpansionModeEnv == "AIV" ||
                opExpansionModeEnv == "CCU_SCHED" ||
                opExpansionModeEnv == "CCU_MS";

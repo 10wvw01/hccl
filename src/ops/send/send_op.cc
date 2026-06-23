@@ -54,7 +54,7 @@ HcclResult HcclSend(
         return HcclSendNext(sendBuf, count, dataType, destRank, comm, stream);
     }
 
-    if (GetHcommVersion() < 90000000) {
+    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) {
         return HcclSendInner(sendBuf, count, dataType, destRank, comm, stream);
     }
 
@@ -77,9 +77,10 @@ HcclResult HcclSendGraphMode(
 {
     HCCL_INFO("[HcclSendGraphMode] Start.");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclSendGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     
     HcclUs startut = TIME_NOW(); // 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());
@@ -91,6 +92,7 @@ HcclResult HcclSendGraphMode(
     CHK_RET(GetAndCheckSendPara(comm, sendBuf, count, dataType, destRank, rankSize, userRank, opTag));
 
     // 拼装ResPackGraphMode
+    CHK_PTR_NULL(tag);
     ResPackGraphMode resPack;
     // 设置tag
     s32 fillTagRet = strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
@@ -109,12 +111,12 @@ HcclResult HcclSendGraphMode(
     resPack.scratchMemSize = scratchMemSize;
 
     /* 接口交互信息日志 */
-    CHK_RET(SendEntryLog(sendBuf, count, dataType, destRank, stream, opTag, "HcclSendGraphMode"));
+    CHK_RET(SendEntryLog(sendBuf, count, dataType, destRank, stream, opTag, "HcclSendGraphMode", true));
 
     // 执行Send
     CHK_RET_AND_PRINT_IDE(SendExec(sendBuf, count, dataType, destRank, comm, stream, rankSize, OpMode::OFFLOAD, opTag, resPack), opTag.c_str());
 
-    CHK_RET(LogHcclExit("HcclSendGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclSendGraphMode", opTag.c_str(), startut, true));
 
     HCCL_INFO("[HcclSendGraphMode][%d]->[%d] Success.", userRank, destRank);
     return HcclResult::HCCL_SUCCESS;
@@ -221,9 +223,9 @@ namespace ops_hccl {
     }
     
 HcclResult SendEntryLog(void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,
-    aclrtStream stream, const std::string &tag, const std::string &opName)
+    aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

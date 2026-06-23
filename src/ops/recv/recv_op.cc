@@ -21,7 +21,7 @@ using namespace ops_hccl;
 extern "C" unsigned int LaunchAicpuKernel(OpParam *param);
 
 HcclResult HcclRecvNext(
-    void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, HcclComm comm, aclrtStream stream)
+    void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, const HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("[HcclRecv] Start.");
     HcclUs startut = TIME_NOW(); // 走老流程的判断时间不统计在内
@@ -52,7 +52,7 @@ HcclResult HcclRecv(
         return HcclRecvNext(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
-    if (GetHcommVersion() < 90000000) {
+    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) {
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
@@ -75,9 +75,10 @@ HcclResult HcclRecvGraphMode(
 {
     HCCL_INFO("[HcclRecvGraphMode] Start.");
     // 根据group获取通信域
+    CHK_PTR_NULL(group);
     HcclComm comm = nullptr;
     HCCL_INFO("[HcclRecvGraphMode] get group name: %s", group);
-    HcomGetCommHandleByGroup(group, &comm);
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
     
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
 
@@ -90,6 +91,7 @@ HcclResult HcclRecvGraphMode(
     CHK_RET(GetAndCheckRecvPara(comm, recvBuf, count, dataType, srcRank, rankSize, userRank, opTag));
 
     // 拼装ResPackGraphMode
+    CHK_PTR_NULL(tag);
     ResPackGraphMode resPack;
     // 设置tag
     auto fillTagRet = strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
@@ -108,12 +110,12 @@ HcclResult HcclRecvGraphMode(
     resPack.scratchMemSize = scratchMemSize;
 
     /* 接口交互信息日志 */
-    CHK_RET(RecvEntryLog(recvBuf, count, dataType, srcRank, stream, opTag, "HcclRecvGraphMode"));
+    CHK_RET(RecvEntryLog(recvBuf, count, dataType, srcRank, stream, opTag, "HcclRecvGraphMode", true));
 
     // 执行Recv
     CHK_RET_AND_PRINT_IDE(RecvExec(recvBuf, count, dataType, srcRank, comm, stream, rankSize, OpMode::OFFLOAD, opTag, resPack), opTag.c_str());
 
-    CHK_RET(LogHcclExit("HcclRecvGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclRecvGraphMode", opTag.c_str(), startut, true));
         
     HCCL_INFO("[HcclRecvGraphMode][%d]<-[%d] Success.", userRank, srcRank);
     return HcclResult::HCCL_SUCCESS;
@@ -221,16 +223,16 @@ namespace ops_hccl {
     }
 
     HcclResult RecvEntryLog(void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank,
-        aclrtStream stream, const std::string &tag, const std::string &opName)
+        aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
     {
-        if (GetExternalInputHcclEnableEntryLog()) {
+        if (forceLog || GetExternalInputHcclEnableEntryLog()) {
             s32 deviceLogicId = 0;
             ACLCHECK(aclrtGetDevice(&deviceLogicId));
             s32 streamId = 0;
             ACLCHECK(aclrtStreamGetId(stream, &streamId));
             char stackLogBuffer[LOG_TMPBUF_SIZE];
             s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-                "opTag[%s], recvBuf[%p], count[%llu], dataType[%s], srcRank[%u], streamId[%d], deviceLogicId[%d]",
+                "tag[%s], recvBuf[%p], count[%llu], dataType[%s], srcRank[%u], streamId[%d], deviceLogicId[%d]",
                 tag.c_str(), recvBuf, count, GetDataTypeEnumStr(dataType).c_str(), srcRank, streamId, deviceLogicId);
 
             CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));

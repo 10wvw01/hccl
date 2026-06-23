@@ -19,6 +19,8 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_all_gather_mesh1d_mem2mem_clos_v3.cc
 )
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

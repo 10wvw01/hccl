@@ -40,12 +40,15 @@ namespace ops_hccl {
 HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts,
     const void *recvDispls, HcclDataType dataType, HcclComm comm, aclrtStream stream, const std::string &tag);
 HcclResult AllGatherVEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls,
-    HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName);
+    HcclDataType dataType, aclrtStream stream, const std::string &tag, const u32 totalRanks, const std::string &opName, bool forceLog = false);
 
 HcclResult AllGatherVOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts,
  	const void *recvDispls, HcclDataType dataType, HcclComm comm, aclrtStream stream, const std::string &tag, const ResPackGraphMode &resPack);
 
-HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void* recvBuf, const void *recvCounts, const void *recvDispls, const aclrtStream stream);
+HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls, const aclrtStream stream);
+
+HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBuf, const void *recvCounts,
+    u32 &rankSize, u32 &userRank, bool &allRecvCountsZero);
 
 HcclResult AllGatherVExecOp(HcclComm comm, OpParam &param);
 

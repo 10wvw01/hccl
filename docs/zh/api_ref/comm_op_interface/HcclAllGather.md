@@ -2,26 +2,21 @@
 
 ## 产品支持情况
 
-<cann-filter npu-type="950">
-
-- Ascend 950PR/Ascend 950DT：支持</cann-filter>
-<cann-filter npu-type="A3">
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持</cann-filter>
-<cann-filter npu-type="910b">
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持</cann-filter>
-<cann-filter npu-type="310p">
-- Atlas 推理系列产品：支持</cann-filter>
-<cann-filter npu-type="910">
-- Atlas 训练系列产品：支持</cann-filter>
-
-<cann-filter npu-type="910b,310P">
-
-> [!NOTE]说明
-<cann-filter npu-type="910b">
-> - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800T A2 训练服务器、Atlas 900 A2 PoD 集群基础单元、Atlas 200T A2 Box16 异构子框。</cann-filter>
-<cann-filter npu-type="310p">
-> - 针对Atlas 推理系列产品，仅支持Atlas 300I Duo 推理卡。</cann-filter>
-</cann-filter>
+<!-- npu="950" id1 -->
+- Ascend 950PR/Ascend 950DT：支持
+<!-- end id1 -->
+<!-- npu="A3" id2 -->
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+<!-- end id2 -->
+<!-- npu="910b" id3 -->
+- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+<!-- end id3 -->
+<!-- npu="310p" id4 -->
+- Atlas 推理系列产品：支持
+<!-- end id4 -->
+<!-- npu="910" id5 -->
+- Atlas 训练系列产品：支持
+<!-- end id5 -->
 
 ## 功能说明
 
@@ -45,9 +40,17 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
 | sendBuf | 输入 | 源数据buffer地址。 |
 | recvBuf | 输出 | 目的数据buffer地址，集合通信结果输出至此buffer中。 |
 | sendCount | 输入 | 参与allgather操作的sendBuf的数据size，recvBuf的数据size则等于sendCount * rank size。 |
-| dataType | 输入 | allgather操作的数据类型，[HcclDataType](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclDataType.md)类型。<br>针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float8-e5m2、float8-e4m3、float8-e8m0、hifloat8、float16、float32、float64、bfp16。<br>针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。<br>针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。<cann-filter npu-type="910"><br>针对Atlas 训练系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。</cann-filter><cann-filter npu-type="310p"><br>针对Atlas 300I Duo 推理卡，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。</cann-filter> |
+| dataType | 输入 | allgather操作的数据类型，[HcclDataType](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclDataType.md)类型。<br>不同的型号支持的数据类型不同，详细请参见[数据类型说明](#数据类型说明)。|
 | comm | 输入 | 集合通信操作所在的通信域。 |
 | stream | 输入 | 本rank所使用的stream。 |
+
+### 数据类型说明
+
+- 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float8-e5m2、float8-e4m3、float8-e8m0、hifloat8、float16、float32、float64、bfp16。
+- 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+- 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+- 针对Atlas 训练系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。
+- 针对Atlas 300I Duo 推理卡，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。
 
 ## 返回值
 
@@ -61,7 +64,7 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
 ## 调用示例
 
 ```c
-// 申请集合通信操作的 Device 内存
+// 申请集合通信操作的Device内存
 void *sendBuf = nullptr, *recvBuf = nullptr;
 uint32_t rankSize = 8;
 uint64_t sendCount = 1;  // 每个节点发送的数据个数
@@ -78,14 +81,14 @@ HcclCommInitRootInfo(rankSize, &rootInfo, devId, &hcclComm);
 aclrtStream stream;
 aclrtCreateStream(&stream);
 
-// 执行 AllGather，将通信域内所有 rank 的 sendBuf 按照 rank_id 顺序拼接起来，再将结果发送到所有 rank 的 recvBuf
+// 执行AllGather，将通信域内所有rank的sendBuf 按照rank_id顺序拼接起来，再将结果发送到所有rank的recvBuf
 HcclAllGather(sendBuf, recvBuf, sendCount, HCCL_DATA_TYPE_FP32, hcclComm, stream);
 // 阻塞等待任务流中的集合通信任务执行完成
 aclrtSynchronizeStream(stream);
 
 // 释放资源
-aclrtFree(sendBuf);          // 释放 Device 侧内存
-aclrtFree(recvBuf);          // 释放 Device 侧内存
+aclrtFree(sendBuf);          // 释放Device侧内存
+aclrtFree(recvBuf);          // 释放Device侧内存
 aclrtDestroyStream(stream);  // 销毁任务流
 HcclCommDestroy(hcclComm);   // 销毁通信域
 ```

@@ -15,7 +15,7 @@
 #include "ccu_temp_all_to_all_v_mesh_1D.h"
 #include "ccu_temp_all_to_all_v_mesh2die.h"
 #include "ccu_temp_all_to_all_v_mesh_1D_multi_jetty.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 #define CONST_ZERO 0
@@ -165,10 +165,16 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
     const OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
     HCCL_INFO("[InsAlltoAllVSoleExecutor][OrchestrateLoop] Start");
-    
-    // 构建template
+
+    std::vector<std::vector<u32>> tempAlgHierachyInfo;
+    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+        tempAlgHierachyInfo.push_back(resCtx.algHierarchyInfo.infos[0][1]);    // clos拓扑，包含所有rank
+    } else {
+        tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[0];
+    }
     std::shared_ptr<InsAlgTemplate> algTemplate =
-        std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, resCtx.algHierarchyInfo.infos[0]);
+ 	    std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierachyInfo);
+    // 构建template
     algTemplate->SetA2ASendRecvInfo(localSendRecvInfo_);
 
     // 准备资源
@@ -213,7 +219,7 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
 #ifndef AICPU_COMPILE
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
-    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread)
+    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[InsAlltoAllVSoleExecutor] save fast launch ctx.");
     u32 threadNum = 1;
@@ -292,12 +298,12 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, CcuAllToAllVMesh2Die, InsAllto
     CcuTempAlltoAllVMesh2Die);
 #endif /* !HCCL_CANN_COMPAT_850 */
 
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV,
                 CcuAllToAllVMesh1DMultiJetty,
                 InsAlltoAllVSoleExecutor,
                 TopoMatchUBX,
                 CcuTempAllToAllVMesh1DMultiJetty);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }

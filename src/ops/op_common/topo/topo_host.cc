@@ -418,7 +418,7 @@ HcclResult GetModuleMap(HcclComm comm, TopoInfo* topoInfo, std::map<u32, std::ve
             ranksStr += std::to_string(pair.second[i]);
         }
         ranksStr += "}";
-        HCCL_DEBUG("[GetModuleMap]  ModuleIdx[%u]: %s", pair.first, ranksStr.c_str());
+        HCCL_DEBUG("[GetModuleMap] ModuleIdx[%u]: %s", pair.first, ranksStr.c_str());
     }
 
     return HCCL_SUCCESS;
@@ -691,12 +691,10 @@ HcclResult ExtractNetLayerDetails(const HcclComm comm, TopoInfoWithNetLayerDetai
     }
 
     HCCL_INFO(
-        "[BaseSelector][ExtractNetLayerDetails] topoLevelNum[%u], netLayerNum[%u], netLayers.size[%u]",
-        topoLevelNum, netLayerNum, netLayers.size());
+        "[BaseSelector][ExtractNetLayerDetails] topoLevelNum[%u], netLayerNum[%u], netLayers.size[%u]", topoLevelNum, netLayerNum, netLayers.size());
 
     CHK_PRT_RET(topoLevelNum == 0, HCCL_ERROR(
-        "[BaseSelector][ExtractNetLayerDetails] topoLevelNum[%u] is invalid, netLayerNum[%u]", topoLevelNum, netLayerNum),
-        HCCL_E_INTERNAL);
+        "[BaseSelector][ExtractNetLayerDetails] topoLevelNum[%u] is invalid, netLayerNum[%u]", topoLevelNum, netLayerNum), HCCL_E_INTERNAL);
     return HCCL_SUCCESS;
 }
 
@@ -742,8 +740,7 @@ HcclResult ExtractTopoDetails(HcclComm comm, TopoInfoWithNetLayerDetails* topoIn
             // 获取拓扑实例的类型
             ret = HcclRankGraphGetTopoType(comm, netLayerIdx, topoInstId, &topoType);
             CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetTopoType failed, netLayerIdx[%u], topoInstId[%u]",
-                    netLayerIdx, topoInstId), ret);
+                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetTopoType failed, netLayerIdx[%u], topoInstId[%u]", netLayerIdx, topoInstId), ret);
 
             // 获取拓扑实例中包含的rank
             uint32_t *ranksTemp;
@@ -753,8 +750,7 @@ HcclResult ExtractTopoDetails(HcclComm comm, TopoInfoWithNetLayerDetails* topoIn
                 ranks.push_back(ranksTemp[rankIdx]);
             }
             CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetRanksByTopoInst failed, netLayerIdx[%u], topoInstId[%u]",
-                    netLayerIdx, topoInstId), ret);
+                HCCL_ERROR("[BaseSelector][ExtractTopoDetails] GetRanksByTopoInst failed, netLayerIdx[%u], topoInstId[%u]", netLayerIdx, topoInstId), ret);
 
             // 将topoInstId按照topoType进行归类
             currentLayerTopo2SizeMap[topoType].push_back(rankNum);
@@ -896,6 +892,7 @@ HcclResult CalcLevel0MeshType(HcclComm comm, TopoInfoWithNetLayerDetails *topoIn
 HcclResult CalAllLevelEndpointAttrBwCoeff(
     HcclComm comm, uint32_t rankId, uint32_t levelSize, std::vector<std::vector<EndpointAttrBwCoeff>> &endpointAttrBw)
 {
+    (void) levelSize;
     uint32_t *netLayers = nullptr; // 网络层次list
     uint32_t netLayerNum = 0;
     CHK_RET(HcclRankGraphGetLayers(comm, &netLayers, &netLayerNum)); // 获取layer总数和layerlist
@@ -910,13 +907,13 @@ HcclResult CalAllLevelEndpointAttrBwCoeff(
             uint32_t endPointNums = 0;
             CHK_RET(HcclRankGraphGetEndpointNum(
                 comm, netLayerId, topoInstId, &endPointNums)); // 获取endPointNums，计算同层有多少节点
-            EndpointDesc *endPointDescs;
+            auto endPointDescs = std::make_unique<EndpointDesc[]>(endPointNums);
             CHK_RET(HcclRankGraphGetEndpointDesc(comm, netLayerId, topoInstId, &endPointNums,
-                endPointDescs)); // 根据Layer和topoInstId，拿到所有的Endpoint信息；返回vector(获取EndpointDesc)
+                endPointDescs.get())); // 根据Layer和topoInstId，拿到所有的Endpoint信息；返回vector(获取EndpointDesc)
             uint32_t infoLen = sizeof(EndpointAttrBwCoeff);
             EndpointAttrBwCoeff bwCoeff{};
             CHK_RET(HcclRankGraphGetEndpointInfo(
-                comm, rankId, endPointDescs, ENDPOINT_ATTR_BW_COEFF, infoLen, &bwCoeff)); // 获取该维度的带宽
+                comm, rankId, endPointDescs.get(), ENDPOINT_ATTR_BW_COEFF, infoLen, &bwCoeff)); // 获取该维度的带宽
             endpointAttrBw.emplace_back(bwCoeff);
         }
     }
