@@ -28,6 +28,14 @@ target_compile_options(hccl_kernel_compat PRIVATE
     -fstack-protector-all
 )
 
+target_link_libraries(hccl_kernel_compat PRIVATE
+    unified_dlog
+    runtime_headers
+    mmpa_headers
+    msprof_headers
+    hcomm_headers
+)
+
 target_link_options(hccl_kernel_compat PRIVATE
     -Wl,-z,relro
     -Wl,-z,now

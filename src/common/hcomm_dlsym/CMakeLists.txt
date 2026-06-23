@@ -14,19 +14,7 @@ if(BUILD_OPEN_PROJECT)
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/ccu
 
-        ${ASCEND_CANN_PACKAGE_PATH}/include
-        ${ASCEND_CANN_PACKAGE_PATH}/include/acl
-
-        # hcomm头文件
-        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
-
-        # 包间接口
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/base/
+        # CANN include/pkg_inc 路径已由 *_headers INTERFACE 目标接管
     )
 else()
     set(INCLUDE_LIST
