@@ -526,3 +526,156 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
 | `selector/barrier_auto_selector.cc` | 修改 | +12 行 |
 | `barrier_op.cc` | 修改 | ~8 行（白名单替换） |
 | **总计** | | **~170 行** |
+
+## Barrier AICPU 全流程调用链
+
+### 入口层：`barrier_op.cc`
+
+```
+HcclBarrier(comm, stream)                          // 用户调用入口
+  ├─ 版本/芯片检查（< 9.0 或非 950 → 回退旧 HcclBarrier）
+  ├─ BarrierInitAndCheck(comm, stream, opTag)       // 参数校验 + 生成 tag
+  ├─ BarrierEntryLog(stream, opTag, "HcclBarrier")  // 入口日志
+  ├─ BarrierOutPlace(comm, stream, opTag)           // 核心执行 ← 见下
+  └─ LogHcclExit("HcclBarrier", opTag, startut)     // 退出日志
+```
+
+### 核心层：`BarrierOutPlace()`
+
+```
+BarrierOutPlace(comm, stream, tag)
+  ├─ 构造 OpParam（opType=HCCL_CMD_BARRIER, inputPtr=nullptr, count=0）
+  ├─ HcclGetOpExpansionMode(comm, param)            // 设置 param.opExecuteConfig
+  ├─ rankSize==1 → 直接返回
+  │
+  ├─ 【引擎白名单判断】（新增改动点）
+  │   isHostDpu = IsBarrierHostDpu(comm)            // 拓扑检查：是否 HostDPU-only
+  │   isAicpu = (param.opExecuteConfig == AICPU_TS) // 引擎检查：是否 AICPU
+  │   if (!isHostDpu && !isAicpu)
+  │       └─ BarrierFallbackToOldFlow()             // CCU/AIV/其他 → 回退
+  │
+  ├─ Selector(comm, param, topoInfo, algName)       // 算法选择 ← 见下
+  │   if (selRet != MATCH)
+  │       └─ BarrierFallbackToOldFlow()             // 未匹配 → 回退
+  │
+  ├─ ShouldUseInnerOp() && OPBASE → 回退
+  │
+  └─ HcclExecOp(comm, param, topoInfo, algName, ResPackGraphMode())  // 执行 ← 见下
+```
+
+### 算法选择层：`Selector()` → `AutoSelectorBase::Select()`
+
+```
+Selector(comm, param, topoInfo, algName)            // op_common.cc
+  ├─ HcclCalcTopoInfo(comm, param, topoInfo)        // 计算拓扑信息
+  ├─ CheckAsymmetricTopoSupport(param.opType, topoInfo)  // 非对称检查
+  ├─ ExecuteSelector::Run(param, topoInfo, algName)
+  │   └─ AutoSelectorBase::Select(param, topoInfo, algName)
+  │       │
+  │       ├─ CheckHostDPUOnly() == true?
+  │       │   └─ YES → SelectDPUAlgo() → "InsBarrierMeshNhrDPU"   // HostDPU 路径
+  │       │
+  │       ├─ CCU_MS → SelectCcuMsAlgo() → NOT_MATCH（barrier 未实现）
+  │       ├─ CCU_SCHED → SelectCcuScheduleAlgo() → NOT_MATCH
+  │       ├─ AIV → ProcessAivConfig() → NOT_MATCH
+  │       │
+  │       └─ IsStarsState(AICPU_TS)?
+  │           └─ YES → SelectAicpuAlgo()                            // AICPU 路径（新增）
+  │                     └─ selectAlgName = "InsBarrierMesh1DNhrAicpu"
+  │                     └─ return MATCH
+  │
+  ├─ SetCommEngine(param)                            // 设置 param.engine = COMM_ENGINE_AICPU_TS
+  ├─ LoadAICPUKernel()                               // 加载 AICPU kernel
+  ├─ SetOpParamAlgTag(param, algName)
+  └─ SetExecTimeout(param)
+```
+
+### 执行层：`HcclExecOp()` → executor → template
+
+```
+HcclExecOp(comm, param, topoInfo, algName, resPack)  // op_common.cc
+  │
+  ├─ CollAlgExecRegistryV2::GetAlgExec(BARRIER, "InsBarrierMesh1DNhrAicpu")
+  │   └─ 返回 InsV2BarrierSequenceExecutor<TopoMatchMultilevel,
+  │         InsTempBarrierMesh1D, InsTempBarrierNhrAicpu> 实例
+  │
+  ├─ HcclGetAlgRes(comm, param, executor, topoInfo, ...)  // 资源计算
+  │   ├─ executor->CalcAlgHierarchyInfo(comm, topoInfo, algHierarchyInfo)
+  │   │   └─ TopoMatchMultilevel::MatchTopo(comm, topoInfo, algHierarchyInfo)
+  │   │       ├─ 获取 layerNum、instSizeList
+  │   │       ├─ isSymmetric = CheckVecElementAllSame(instSizeList)
+  │   │       ├─ TopoForLayer0() → algHierarchyInfo.infos[0]  // 框内 rank 列表
+  │   │       ├─ TopoForLayer1() → algHierarchyInfo.infos[1]  // 框间 rank 列表
+  │   │       └─ (3级时) TopoForLayer2() → algHierarchyInfo.infos[2]
+  │   │
+  │   ├─ executor->CalcRes(comm, param, topoInfo, algHierarchyInfo, resRequest)
+  │   │   ├─ InsTempBarrierMesh1D::CalcRes()   → 框内: N_intra-1 线程, N_intra-1 channel
+  │   │   └─ InsTempBarrierNhrAicpu::CalcRes() → 框间: 0 线程, log(M) channel
+  │   │   └─ 合并: slaveThreadNum = max(N_intra-1, 0), channels = {框内, 框间}
+  │   │
+  │   └─ GetAlgResWithEngine()  → 分配线程/channel/notify，序列化 resCtx
+  │
+  ├─ HcclAicpuKernelEntranceLaunch(comm, param, ...)  // AICPU kernel 下发
+  │   ├─ HcommThreadNotifyRecordOnThread()  // Host 通知 Device 主线程
+  │   ├─ AicpuKernelLaunch(comm, param, unfoldThread)  // 下发到 AICPU
+  │   │   └─ executor->Orchestrate(param, resCtx)      // ← 编排执行
+  │   └─ HcclThreadNotifyWaitOnThreadDefault()  // Host 等待 Device 完成
+  │
+  └─ (完成)
+```
+
+### 编排层：`InsV2BarrierSequenceExecutor::Orchestrate()`
+
+```
+Orchestrate(param, resCtx)
+  │
+  ├─ 构造框间模板: InsTempBarrierNhrAicpu(param, myRank, algHierarchyInfo.infos[1])
+  ├─ 构造框内模板: InsTempBarrierMesh1D(param, myRank, algHierarchyInfo.infos[0])
+  │
+  ├─ 分配资源:
+  │   templateResourceInter.channels = remoteRankToChannelInfo_[1]  // 框间 channel
+  │   templateResourceInter.threads = resCtx.threads
+  │   templateResourceIntra.channels = remoteRankToChannelInfo_[0]  // 框内 channel
+  │   templateResourceIntra.threads = resCtx.threads
+  │
+  ├─ 执行框间（先）:
+  │   interTempAlg.KernelRun(param, interTempDataParams, templateResourceInter)
+  │   └─ InsTempBarrierNhrAicpu::KernelRun()
+  │       └─ RunNHRBarrier(channels)
+  │           └─ for step in 0..log(M):
+  │               ├─ 计算 deltaRank, recvFrom, sendTo
+  │               └─ 空slice SendRecvWrite / SendWrite + RecvWrite  // 纯 signal 同步
+  │
+  └─ 执行框内（后）:
+      intraTempAlg.KernelRun(param, intraTempDataParams, templateResourceIntra)
+      └─ InsTempBarrierMesh1D::KernelRun()
+          ├─ PreSyncInterThreads(主线程 → N_intra-1 子线程)
+          ├─ RunBarrierMesh(threads, channels)
+          │   └─ for each connectedRank:
+          │       └─ 空slice SendRecvWrite(threads[i])  // 分发到子线程，并行执行
+          └─ PostSyncInterThreads(子线程 → 主线程)  // 等待全部完成
+```
+
+### 完整调用链一览
+
+```
+用户调用
+  HcclBarrier
+    └─ BarrierOutPlace
+        ├─ 引擎白名单 (HostDPU / AICPU)
+        ├─ Selector
+        │   └─ AutoSelectorBase::Select
+        │       └─ SelectAicpuAlgo → "InsBarrierMesh1DNhrAicpu"
+        └─ HcclExecOp
+            ├─ HcclGetAlgRes
+            │   ├─ CalcAlgHierarchyInfo (TopoMatchMultilevel::MatchTopo)
+            │   └─ CalcRes (Mesh1D + NhrAicpu)
+            └─ HcclAicpuKernelEntranceLaunch
+                └─ AicpuKernelLaunch
+                    └─ executor->Orchestrate
+                        ├─ NhrAicpu::KernelRun (框间, log(M)步)
+                        │   └─ RunNHRBarrier (空slice signal同步)
+                        └─ Mesh1D::KernelRun (框内, 1步并行)
+                            ├─ PreSync → RunBarrierMesh → PostSync
+                            └─ (空slice signal同步)
+```
