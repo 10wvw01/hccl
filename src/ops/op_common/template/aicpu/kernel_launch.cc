@@ -415,7 +415,16 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         // 检查aicpu task cache使能约束
         bool enableCache = param->aicpuCacheEnable;
-        HCCL_INFO("[HcclLaunchAicpuKernel] enableCache[%d]", enableCache);
+
+        // 打印算子信息用于调试
+        static uint64_t opUnfoldIdx = 0;
+        HCCL_INFO("[HcclLaunchAicpuKernel] opUnfoldIdx[%llu] commName[%s] opType[%d] inputPtr[0x%016llx] inputSize[%llu] "
+            "outputPtr[0x%016llx] outputSize[%llu] opMode[%d] algName[%s] isZeroCopy[%d] opExpanMode[%d] enableCache[%d]",
+            opUnfoldIdx++, param->commName, reinterpret_cast<int8_t>(param->opType),
+            reinterpret_cast<uint64_t>(param->inputPtr), param->inputSize,
+            reinterpret_cast<uint64_t>(param->outputPtr), param->outputSize,
+            reinterpret_cast<int8_t>(param->opMode), param->algName, param->isZeroCopy,
+            reinterpret_cast<int8_t>(param->opExpanMode), enableCache);
         
         // 检查是否cache miss
         std::string cacheTag = "";
