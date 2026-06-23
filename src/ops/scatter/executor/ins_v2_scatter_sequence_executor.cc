@@ -9,7 +9,7 @@
  */
 
 #include "ins_v2_scatter_sequence_executor.h"
-#include "ins_temp_scatter_mesh_1D_intra.h"
+#include "ins_temp_scatter_mesh_1D.h"
 #include "ins_temp_scatter_nhr_dpu_inter_node.h"
 
 namespace ops_hccl {
@@ -255,5 +255,5 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 }
 
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_SCATTER, InsScatterSequenceMeshNhrDPU, InsV2ScatterSequenceExecutor,
-    TopoMatchMultilevel, InsTempScatterMesh1DIntra, InsTempScatterNHRDPUInterNode);
+    TopoMatchMultilevel, InsTempScatterMesh1D, InsTempScatterNHRDPUInterNode);
 }  // namespace ops_hccl
