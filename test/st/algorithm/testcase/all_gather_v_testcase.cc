@@ -116,5 +116,4 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_3layer_2pod_1server_8rank_fp16_e
 
     RunAllGatherVMultilevel(topoMeta, vDataDes);
 }
-=======
->>>>>>> 6d73d7d2 (first_to_merge)
+
