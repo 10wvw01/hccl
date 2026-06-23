@@ -13,7 +13,6 @@
 
 #include "dlsym_common.h"
 #include "hccl_comm.h"   // 原始头文件，包含所有类型和声明
-#include "hcomm_res_defs.h"
 
 /* beta.1 起 hccl_comm.h 已提供 HcclOpExpansionMode/HcclConfigType，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
@@ -37,26 +36,6 @@ typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
 
 #endif /* CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1) */
 
-#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
-typedef enum {
-    THREAD_TYPE_INVALID = -1,
-    THREAD_TYPE_TS = 0
-} ThreadType;
-
-typedef struct {
-    uint32_t notifyNumPerThread;
-} ThreadConfig;
-
-static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
-{
-    for (uint32_t i = 0; i < num; i++) {
-        config[i].notifyNumPerThread = 0;
-    }
-    return HCCL_SUCCESS;
-}
-
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -67,10 +46,6 @@ DECL_SUPPORT_FLAG(HcclCommGetStatus);
 DECL_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgType,
     uint32_t infoLen, void *info);
 DECL_SUPPORT_FLAG(HcclConfigGetInfo);
-
-DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
-    ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
-DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
 
 void HcclCommDlInit(void* libHcommHandle);
 
