@@ -15,7 +15,6 @@ using namespace AscendC;
 // todo 简化参数
  
 class AivBroadcastMesh1D : public AivCommBase {
-
 public:
     __aicore__ inline AivBroadcastMesh1D() {}
 
@@ -71,10 +70,12 @@ __aicore__ inline void AivBroadcastMesh1D::Process(uint64_t curCount, uint64_t s
     if (rank_ == root_) {
         CpGM2GM(cclGM, inputGM, countPerCore);
         PipeBarrier<PIPE_ALL>();
-        Record(peerRank, blockIdx_, curTag_);
+        for (uint32_t i = 0; i < rankSize_; i++) {
+            Record(peerRank, blockIdx_ % coreNumPerRank + i * coreNumPerRank, curTag_);
+        }
     }
     // allgather
-    WaitFlag(rank_, blockIdx_ % coreNumPerRank + rank_ * coreNumPerRank, curTag_);
+    WaitFlag(rank_, blockIdx_, curTag_);
     Record(peerRank, curStageCoreNum + blockIdx_ % coreNumPerRank + rank_ * coreNumPerRank, curTag_);
     WaitFlag(rank_, curStageCoreNum + blockIdx_ % coreNumPerRank + peerRank * coreNumPerRank, curTag_);
     CpGM2GM(inputGM, cclGM, countPerCore);
