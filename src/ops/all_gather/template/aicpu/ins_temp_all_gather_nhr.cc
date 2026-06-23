@@ -31,23 +31,12 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
     u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     u64 dataSize = param.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        if (IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize < SMALL_COUNT_512KB) {
-            CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
-            for(auto channel : myChannelDescs) {
-                if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-                    level1Channels.push_back(channel);
-                }
+        bool isIsolation = !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize < SMALL_COUNT_512KB);
+        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation)); 
+        for(auto channel : myChannelDescs) {
+            if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                level1Channels.push_back(channel);
             }
-            HCCL_DEBUG("[InsTempAllGatherNHR::CalcRes] Get Channel Success!");
-        } else {
-           // zjy todo:
-            //CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
-            for(auto channel : myChannelDescs) {
-                if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-                    level1Channels.push_back(channel);
-                }
-            }
-            HCCL_DEBUG("[InsTempAllGatherNHR::CalcRes] Get Channel Success!");
         }
     } else {
         CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
