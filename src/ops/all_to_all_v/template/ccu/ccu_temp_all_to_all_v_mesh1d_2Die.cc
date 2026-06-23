@@ -17,6 +17,20 @@
 #include "hccl_res_dl.h"
 
 namespace ops_hccl {
+
+constexpr uint32_t CACHED_IN_BUFF_OFF     = 0;
+constexpr uint32_t CACHED_OUT_BUFF_OFF    = 1;
+constexpr uint32_t CACHED_TOKEN           = 2;
+constexpr uint32_t CACHED_GO_SIZE_BASE    = 3;
+constexpr uint32_t CACHED_GO_SIZE_NUM     = 4;
+constexpr uint32_t CACHED_KERNEL_TYPE     = 7;
+constexpr uint32_t CACHED_IS_2PLUS6       = 8;
+constexpr uint32_t CACHED_WITH_MY_RANK    = 9;
+constexpr uint32_t CACHED_PEER_MASK       = 10;
+constexpr uint32_t CACHED_CLOS_PEER_MASK  = 11;
+constexpr uint32_t CACHED_RANK_SIZE       = 12;
+constexpr uint32_t CACHED_ARGS_NUM        = 13;
+
 CcuTempAlltoAllVMesh1D2Die::CcuTempAlltoAllVMesh1D2Die(const OpParam &param, RankId rankId,
     const std::vector<std::vector<u32>> &subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
@@ -237,7 +251,7 @@ void CcuTempAlltoAllVMesh1D2Die::FillRankGroupTaskArgs(uint32_t kernelIdx, const
             } else if (kernelIdx == KERNEL_CLOS_MINOR) {
                 sendSize = sendSize * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
             }
-            HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FillRankGroupTaskArgs] Rank[%d] kernel[%u] peer[%u] "
+            HCCL_DEBUG("[CcuTempAlltoAllVMesh1D2Die][FillRankGroupTaskArgs] Rank[%d] kernel[%u] peer[%u] "
                 "closSplit: origSendSize[%llu] -> sendSize[%llu], sendOffset[%llu], recvOffset[%llu].",
                 myRank_, kernelIdx, peerId, origSendSize, sendSize, sendOffset, recvOffset);
         }
@@ -320,6 +334,30 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
             HCCL_ERROR("[CcuTempAlltoAllVMesh1D2Die][KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);
         }
+
+        CcuKernelSubmitInfo submitInfo;
+        submitInfo.kernelHandle = templateResource.ccuKernels[i];
+        submitInfo.cachedArgs[CACHED_IN_BUFF_OFF] = buffInfo_.inBuffBaseOff;
+        submitInfo.cachedArgs[CACHED_OUT_BUFF_OFF] = buffInfo_.outBuffBaseOff;
+        submitInfo.cachedArgs[CACHED_TOKEN] = token;
+        for (uint32_t j = 0; j < CACHED_GO_SIZE_NUM; j++) {
+            submitInfo.cachedArgs[CACHED_GO_SIZE_BASE + j] = xnMaxTransportGoSize[j];
+        }
+        submitInfo.cachedArgs[CACHED_KERNEL_TYPE] = kernelType_[i];
+        submitInfo.cachedArgs[CACHED_IS_2PLUS6] = is2Plus6_ ? 1 : 0;
+        submitInfo.cachedArgs[CACHED_WITH_MY_RANK] = kernelWithMyRank_[i] ? 1 : 0;
+        uint64_t peerMask = 0;
+        for (auto peer : kernelRankGroup_[i]) {
+            peerMask |= (1ULL << peer);
+        }
+        submitInfo.cachedArgs[CACHED_PEER_MASK] = peerMask;
+        uint64_t closPeerMask = 0;
+        for (auto peer : closPeers_) {
+            closPeerMask |= (1ULL << peer);
+        }
+        submitInfo.cachedArgs[CACHED_CLOS_PEER_MASK] = closPeerMask;
+        submitInfo.cachedArgs[CACHED_RANK_SIZE] = templateRankSize_;
+        templateResource.submitInfos.push_back(submitInfo);
     }
 
     std::vector<u32> notifyIdxSubToMain(subThreadCount);
@@ -330,6 +368,132 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
 
     HCCL_DEBUG("[CcuTempAlltoAllVMesh1D2Die][KernelRun] end. Rank[%d]", myRank_);
 
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAlltoAllVMesh1D2Die::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
+{
+    uint32_t kernelCount = static_cast<uint32_t>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
+    if (kernelCount == 0) {
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] ccu kernel num is 0, just success.");
+        return HcclResult::HCCL_SUCCESS;
+    }
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] start, kernelCount[%u]", kernelCount);
+
+    HcclDataType dataType = param.all2AllVDataDes.sendType;
+    uint64_t dataTypeSize = SIZE_TABLE[dataType];
+    uint32_t rankSize = static_cast<uint32_t>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs[CACHED_RANK_SIZE]);
+
+    A2ASendRecvInfo sendRecvInfo;
+    sendRecvInfo.sendLength.resize(rankSize, 0);
+    sendRecvInfo.sendOffset.resize(rankSize, 0);
+    sendRecvInfo.recvOffset.resize(rankSize, 0);
+    sendRecvInfo.recvLength.resize(rankSize, 0);
+
+    const u64 *data = reinterpret_cast<const u64 *>(param.varData);
+    for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize; i++) {
+        u64 val = i / rankSize;
+        u64 curRank = i % rankSize;
+        switch (val) {
+            case 0:
+                sendRecvInfo.sendLength[curRank] = data[i] * dataTypeSize;
+                break;
+            case 1:
+                sendRecvInfo.recvLength[curRank] = data[i] * dataTypeSize;
+                break;
+            case 2:
+                sendRecvInfo.sendOffset[curRank] = data[i] * dataTypeSize;
+                break;
+            case 3:
+                sendRecvInfo.recvOffset[curRank] = data[i] * dataTypeSize;
+                break;
+            default:
+                break;
+        }
+    }
+
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
+    config.memSlice = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
+
+    uint32_t subThreadCount = kernelCount - 1;
+    std::vector<ThreadHandle> subThreads(tempFastLaunchCtx.threads.begin() + 1,
+        tempFastLaunchCtx.threads.begin() + 1 + subThreadCount);
+    std::vector<u32> notifyIdxMainToSub(subThreadCount, 0);
+    CHK_RET(PreSyncInterThreads(tempFastLaunchCtx.threads[0], subThreads, notifyIdxMainToSub));
+
+    for (uint32_t i = 0; i < kernelCount; i++) {
+        const uint64_t *args = tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs;
+        uint64_t inputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[CACHED_IN_BUFF_OFF];
+        uint64_t outputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[CACHED_OUT_BUFF_OFF];
+        uint64_t token = args[CACHED_TOKEN];
+        uint32_t kernelType = static_cast<uint32_t>(args[CACHED_KERNEL_TYPE]);
+        bool is2Plus6 = (args[CACHED_IS_2PLUS6] != 0);
+        uint64_t peerMask = args[CACHED_PEER_MASK];
+        uint64_t closPeerMask = args[CACHED_CLOS_PEER_MASK];
+
+        std::vector<uint64_t> taskArgs;
+        taskArgs.push_back(inputAddr);
+        taskArgs.push_back(outputAddr);
+        taskArgs.push_back(token);
+        for (uint32_t j = 0; j < CACHED_GO_SIZE_NUM; j++) {
+            taskArgs.push_back(args[CACHED_GO_SIZE_BASE + j]);
+        }
+
+        for (uint32_t rank = 0; rank < rankSize; rank++) {
+            if (!(peerMask & (1ULL << rank))) {
+                continue;
+            }
+            RankId peerId = rank;
+            uint64_t sendSize = sendRecvInfo.sendLength[peerId];
+            uint64_t sendOffset = sendRecvInfo.sendOffset[peerId];
+            uint64_t recvOffset = sendRecvInfo.recvOffset[peerId];
+
+            if (is2Plus6 && (closPeerMask & (1ULL << peerId))) {
+                uint64_t recvLength = sendRecvInfo.recvLength[peerId];
+                if (kernelType == KERNEL_CLOS_MAJOR) {
+                    sendOffset += sendSize * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
+                    recvOffset += recvLength * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
+                    sendSize = sendSize * CLOS_RATIO_MAJOR / CLOS_RATIO_TOTAL;
+                } else if (kernelType == KERNEL_CLOS_MINOR) {
+                    sendSize = sendSize * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
+                }
+            }
+
+            const uint64_t floorLoopNum = sendSize / UB_MAX_TRANS_SIZE;
+            uint64_t sendLoopNum = UINT64_MAX - 1 - floorLoopNum;
+            uint64_t sendTailSize = sendSize - floorLoopNum * UB_MAX_TRANS_SIZE;
+            auto sendTailGoSize = CalGoSize(sendTailSize, config);
+            taskArgs.push_back(sendOffset);
+            taskArgs.push_back(recvOffset);
+            taskArgs.push_back(sendTailSize);
+            for (auto val : sendTailGoSize) {
+                taskArgs.push_back(val);
+            }
+            taskArgs.push_back(sendLoopNum);
+        }
+
+        uint64_t argSize = taskArgs.size();
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] kernel[%u] argSize[%llu] kernelType[%u]",
+            i, argSize, kernelType);
+        CcuResult launchRet = HcommCcuKernelLaunch(
+            tempFastLaunchCtx.threads[i],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle,
+            taskArgs.data(), argSize);
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
+    }
+
+    std::vector<u32> notifyIdxSubToMain(subThreadCount);
+    for (uint32_t i = 0; i < subThreadCount; i++) {
+        notifyIdxSubToMain[i] = i;
+    }
+    CHK_RET(PostSyncInterThreads(tempFastLaunchCtx.threads[0], subThreads, notifyIdxSubToMain));
+
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] end");
     return HcclResult::HCCL_SUCCESS;
 }
 } // namespace ops_hccl

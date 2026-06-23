@@ -129,6 +129,8 @@ public:
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource& templateResource) override;
 
+    HcclResult FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx) override;
+
     void SetA2ASendRecvInfo(const A2ASendRecvInfo &sendRecvInfo);
 
 private:
@@ -148,6 +150,7 @@ private:
     std::vector<std::vector<HcclChannelDesc>> kernelChannels_{MAX_KERNEL_NUM_2DIE};
     std::array<RankGroup, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
+    std::array<uint32_t, MAX_KERNEL_NUM_2DIE> kernelType_ = {KERNEL_FULLMESH, KERNEL_CLOS_MAJOR, KERNEL_CLOS_MINOR};
     std::map<uint32_t, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     std::set<RankId> closPeers_;
 
