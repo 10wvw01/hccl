@@ -256,6 +256,7 @@ struct TemplateDataParams {
     std::vector<u64> remoteRecvCounts;
     u64 alltoAllVABThreshold{0};
     u64 alltoAllVABMeshSize{0};
+    std::vector<u64> alltoAllVV2SlotOffsets;
     StepSliceInfo stepSliceInfo;
     BatchSendRecvOpType opType;
 
@@ -282,6 +283,7 @@ struct TemplateDataParams {
         binaryStream << remoteRecvCounts;
         binaryStream << alltoAllVABThreshold;
         binaryStream << alltoAllVABMeshSize;
+        binaryStream << alltoAllVV2SlotOffsets;
         binaryStream << allRankProcessedDataCount;
         binaryStream << root;
         binaryStream << dataType;
@@ -315,6 +317,7 @@ struct TemplateDataParams {
         binaryStream >> remoteRecvCounts;
         binaryStream >> alltoAllVABThreshold;
         binaryStream >> alltoAllVABMeshSize;
+        binaryStream >> alltoAllVV2SlotOffsets;
         binaryStream >> allRankProcessedDataCount;
         binaryStream >> root;
         binaryStream >> dataType;

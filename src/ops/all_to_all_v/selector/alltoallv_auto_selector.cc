@@ -52,6 +52,12 @@ bool IsAlltoAllVMesh1DNoMemcpyEnabled()
     return env != nullptr && std::strcmp(env, "1") == 0;
 }
 
+bool IsAlltoAllVV2Stage1NoMemcpyEnabled()
+{
+    const char *env = std::getenv("HCCL_ENABLE_A2AV_V2_STAGE1_NO_MEMCPY");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
 const char *GetAlltoAllVOptTopoMode()
 {
     return std::getenv("HCCL_A2A_OPT_TOPO");
@@ -149,6 +155,26 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)opParam;
     (void)configAlgMap;
+    if (IsAlltoAllVV2Stage1NoMemcpyEnabled()) {
+        const char *topoMode = GetAlltoAllVOptTopoMode();
+        if (IsAlltoAllVClosMesh2DTopoSupported(topoInfo)) {
+            if (topoMode != nullptr && std::strcmp(topoMode, "pod_ubx_v2") == 0) {
+                selectAlgName = "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodUbxV2";
+            } else if (topoMode != nullptr && std::strcmp(topoMode, "pod_direct") == 0) {
+                selectAlgName = "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodDirect";
+            } else {
+                selectAlgName = "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy";
+            }
+            HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2AV V2 stage1 no-memcpy opt match[%s] topoMode[%s]",
+                         __func__, selectAlgName.c_str(), topoMode == nullptr ? "(unset)" : topoMode);
+            return SelectorStatus::MATCH;
+        }
+        HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2AV V2 stage1 no-memcpy opt skipped. unsupported topo=%d "
+                     "pcieMix=%d topoMode[%s]",
+                     __func__, static_cast<int>(topoInfo->level0Topo), static_cast<int>(topoInfo->level0PcieMix),
+                     topoMode == nullptr ? "(unset)" : topoMode);
+    }
+
     if (IsAlltoAllVMesh1DNoMemcpyEnabled()) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
             selectAlgName = "InsAlltoAllVMesh1DNoMemcpy";
