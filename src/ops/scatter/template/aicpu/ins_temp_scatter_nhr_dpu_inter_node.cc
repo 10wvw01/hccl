@@ -210,8 +210,8 @@ HcclResult InsTempScatterNHRDPUInterNode::PostLocalCopy(const TemplateDataParams
 
     u32 myAlgRank;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
-    u64 sliceSize = tempAlgParams.count;
-    u64 sliceCount = tempAlgParams.sliceSize;
+    u64 sliceCount = tempAlgParams.count;
+    u64 sliceSize = tempAlgParams.sliceSize;
     u64 scratchOffset = myAlgRank * sliceSize;
     u64 outOffset = tempAlgParams.buffInfo.outBuffBaseOff;
     DataSlice srcSlice(tempAlgParams.buffInfo.hcclBuff.addr, scratchOffset, sliceSize, sliceCount);
@@ -269,7 +269,7 @@ HcclResult InsTempScatterNHRDPUInterNode::BatchSend(AicpuNHRStepInfo &stepInfo, 
         u64 sliceOffset = tempAlgParam.allRankDispls.at(txId);
         u64 srcDstOffset = repeat * templateRankSize_ * sliceSize + tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
         
-        HCCL_INFO("[InsTempScatterNHRDPUInter][BatchSend]in step [%u]: myRank[%d], toRank[%d], slicesize is [%u] "
+        HCCL_INFO("[InsTempScatterNHRDPUInterNode][BatchSend]in step [%u]: myRank[%d], toRank[%d], slicesize is [%u] "
                   ",srcDstOffset is [%u] ",
             i,
             myRank_,
@@ -349,7 +349,7 @@ HcclResult InsTempScatterNHRDPUInterNode::BatchSR(AicpuNHRStepInfo &stepInfo, co
         u64 sliceOffset = tempAlgParam.allRankDispls.at(txId);
         u64 srcDstOffset = repeat * templateRankSize_ * sliceSize + tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
 
-        HCCL_INFO("[InsTempScatterNHRDPUInter][BatchSR]in step [%u]: myRank[%d], toRank[%d], slicesize is [%u] "
+        HCCL_INFO("[InsTempScatterNHRDPUInterNode][BatchSR]in step [%u]: myRank[%d], toRank[%d], slicesize is [%u] "
                   ",srcDstOffset is [%u] ",
             i,
             myRank_,
