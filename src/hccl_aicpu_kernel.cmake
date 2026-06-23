@@ -8,7 +8,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-add_library(scatter_aicpu_kernel SHARED
+add_library(hccl_aicpu_kernel SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/common/utils.cc
     # ${CMAKE_CURRENT_SOURCE_DIR}/common/adapter_acl.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/common/config_log.cc
@@ -137,7 +137,7 @@ add_library(scatter_aicpu_kernel SHARED
 )
 
 if(NOT HCCL_CANN_COMPAT_850)
-    target_sources(scatter_aicpu_kernel PRIVATE
+    target_sources(hccl_aicpu_kernel PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/send/executor/ins_send_dpu_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/recv/executor/ins_recv_dpu_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/send/template/host_nic/ins_temp_send_host_nic_dpu.cc
@@ -177,51 +177,51 @@ if(NOT HCCL_CANN_COMPAT_850)
     )
 endif()
 
-target_include_directories(scatter_aicpu_kernel PRIVATE
+target_include_directories(hccl_aicpu_kernel PRIVATE
     ${INCLUDE_LIST}
 )
 
-target_compile_options(scatter_aicpu_kernel PRIVATE
+target_compile_options(hccl_aicpu_kernel PRIVATE
     $<$<CONFIG:Debug>:-g>
     $<$<CONFIG:Release>:-O3>
     -fstack-protector-all
     -Werror
 )
 
-target_link_options(scatter_aicpu_kernel PRIVATE
+target_link_options(hccl_aicpu_kernel PRIVATE
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-z,noexecstack
     $<$<CONFIG:Release>:-s>
 )
 
-target_compile_definitions(scatter_aicpu_kernel PRIVATE
+target_compile_definitions(hccl_aicpu_kernel PRIVATE
     -DAICPU_COMPILE
 )
 
-hccl_apply_cann_compat(scatter_aicpu_kernel)
+hccl_apply_cann_compat(hccl_aicpu_kernel)
 
-target_link_directories(scatter_aicpu_kernel PRIVATE
+target_link_directories(hccl_aicpu_kernel PRIVATE
     ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
 )
 
-target_link_libraries(scatter_aicpu_kernel PRIVATE
+target_link_libraries(hccl_aicpu_kernel PRIVATE
     -Wl,--no-as-needed
     ccl_kernel
     hccl_kernel_compat
     -Wl,--no-as-needed
 )
-add_dependencies(scatter_aicpu_kernel hccl_kernel_compat)
+add_dependencies(hccl_aicpu_kernel hccl_kernel_compat)
 
 
 if(STATIC_MODE)
-    install(TARGETS scatter_aicpu_kernel
+    install(TARGETS hccl_aicpu_kernel
         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
         ${INSTALL_OPTIONAL}
         COMPONENT hccl
     )
 else()
-    install(TARGETS scatter_aicpu_kernel
+    install(TARGETS hccl_aicpu_kernel
         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
         ${INSTALL_OPTIONAL}
         COMPONENT hccl
