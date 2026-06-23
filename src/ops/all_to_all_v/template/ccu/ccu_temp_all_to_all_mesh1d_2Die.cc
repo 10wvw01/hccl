@@ -196,14 +196,14 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     strcpy_s(kernelInfoMesh.kernelFuncName, sizeof(kernelInfoMesh.kernelFuncName), "CcuAllToAllMesh2DieKernel");
     kernelInfoMesh.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
 
-    auto kernelArg = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
-    kernelArg->rankSize = rankSize;
-    kernelArg->rankId = myRank_;
-    kernelArg->opParam = param;
-    kernelArg->subCommRanks = subCommRanks_;
-    kernelArg->withMyRank = true;
-    kernelArg->rankGroup = rankGroup_[meshDieId];
-    kernelInfoMesh.setKernelArg(kernelArg);
+    auto kernelArgMesh = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
+    kernelArgMesh->rankSize = rankSize;
+    kernelArgMesh->rankId = myRank_;
+    kernelArgMesh->opParam = param;
+    kernelArgMesh->subCommRanks = subCommRanks_;
+    kernelArgMesh->withMyRank = true;
+    kernelArgMesh->rankGroup = rankGroup_[meshDieId];
+    kernelInfoMesh.setKernelArg(kernelArgMesh);
     kernelInfoMesh.channels = channels_[meshDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoMesh);
     HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
@@ -215,14 +215,14 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     strcpy_s(kernelInfoClos.kernelFuncName, sizeof(kernelInfoClos.kernelFuncName), "CcuAllToAllMesh2DieKernel");
     kernelInfoClos.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
 
-    auto kernelArg = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
-    kernelArg->rankSize = rankSize;
-    kernelArg->rankId = myRank_;
-    kernelArg->opParam = param;
-    kernelArg->subCommRanks = subCommRanks_;
-    kernelArg->withMyRank = false;
-    kernelArg->rankGroup = rankGroup_[closDieId];
-    kernelInfoClos.setKernelArg(kernelArg);
+    auto kernelArgClos = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
+    kernelArgClos->rankSize = rankSize;
+    kernelArgClos->rankId = myRank_;
+    kernelArgClos->opParam = param;
+    kernelArgClos->subCommRanks = subCommRanks_;
+    kernelArgClos->withMyRank = false;
+    kernelArgClos->rankGroup = rankGroup_[closDieId];
+    kernelInfoClos.setKernelArg(kernelArgClos);
     kernelInfoClos.channels = channels_[closDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoClos);
     HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
