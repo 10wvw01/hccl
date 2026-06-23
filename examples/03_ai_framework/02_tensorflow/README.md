@@ -18,6 +18,7 @@
 - <term>Atlas 训练系列产品</term> / <term>Atlas 推理系列产品</term>
 
 注意：本样例代码基于 TensorFlow 1.x 框架开发，不兼容 TensorFlow 2.x。推荐使用 TensorFlow 1.15.0 版本。
+
 ### 配置环境变量
 
 ```bash
