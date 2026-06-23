@@ -18,12 +18,8 @@ DEFINE_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStat
 DEFINE_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgType,
     uint32_t infoLen, void *info);
 
-DEFINE_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
-    ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
-
 // 初始化
 void HcclCommDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcclCommGetStatus);
     INIT_SUPPORT_FLAG(libHcommHandle, HcclConfigGetInfo);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcclThreadAcquireWithConfig);
 }
