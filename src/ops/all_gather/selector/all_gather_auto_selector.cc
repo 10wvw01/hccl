@@ -92,12 +92,13 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         HCCL_DEBUG("[AllGatherAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);
     CHK_PRT_RET(CheckClosNumMultipleOfMeshNum(topoInfo, isClosNumMultipleOfMeshNum) != HCCL_SUCCESS,
         HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
+    u32 ccuSelectMode = GetExternalInputCcuSelectMode();
     if (dataSize > SMALL_COUNT_512KB) {
         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
             selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
-        } else if(GetExternalInputCcuSelectMode() == 3 ) {
+        } else if (ccuSelectMode == 3) {
             selectAlgName = "CcuAllGatherParallelMesh1DMem2MemClosV3";
-        } else if(GetExternalInputCcuSelectMode() == 1 || GetExternalInputCcuSelectMode() == 2) {
+        } else if (ccuSelectMode == 1 || ccuSelectMode == 2) {
             selectAlgName = "CcuAllGatherParallelMesh1DMem2MemClosV2";
         } else if (isClosNumMultipleOfMeshNum) {
             selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
@@ -107,6 +108,8 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
     } else {
         selectAlgName = "CcuAllGatherMesh1DMem2Mem";
     }
+    HCCL_INFO("[AllGatherAutoSelector][CCU_MODE_PATH] mode[%u], dataSize[%llu], selectAlg[%s]",
+              ccuSelectMode, dataSize, selectAlgName.c_str());
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }

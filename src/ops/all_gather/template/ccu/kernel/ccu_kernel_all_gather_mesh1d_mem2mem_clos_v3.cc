@@ -229,6 +229,19 @@ void CcuKernelAllGatherMesh1DMem2MemClosV3::PostSync()
 
 void CcuKernelAllGatherMesh1DMem2MemClosV3::DoAllGather()
 {
+    CCU_IF(sharedSliceSize_ != 0)
+    {
+        for (uint64_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
+            uint32_t sharedChannelIdx = sharedChannelIdxByRank_[rankIdx];
+            if (rankIdx != rankId_ && sharedChannelIdx < channels_.size()) {
+                uint32_t eventIdx = rankIdx / BIT_NUM_PER_CKE;
+                sharedEvent_[eventIdx].SetMask(1 << (rankIdx % BIT_NUM_PER_CKE));
+                WriteNb(channels_[sharedChannelIdx], sharedDst[rankIdx], shared_src, sharedSliceSize_,
+                        sharedEvent_[eventIdx]);
+            }
+        }
+    }
+
     for (uint64_t rankIdx = 0; rankIdx < rankSize_; rankIdx++) {
         uint32_t eventIdx = rankIdx / BIT_NUM_PER_CKE;
         event_[eventIdx].SetMask(1 << (rankIdx % BIT_NUM_PER_CKE));
@@ -244,9 +257,6 @@ void CcuKernelAllGatherMesh1DMem2MemClosV3::DoAllGather()
             CCU_IF(sharedSliceSize_ != 0)
             {
                 WriteNb(channels_[mainChannelIdx], dst[rankIdx], src, mainSliceSize_, event_[eventIdx]);
-                sharedEvent_[eventIdx].SetMask(1 << (rankIdx % BIT_NUM_PER_CKE));
-                WriteNb(channels_[sharedChannelIdx], sharedDst[rankIdx], shared_src, sharedSliceSize_,
-                        sharedEvent_[eventIdx]);
             }
             CCU_IF(sharedSliceSize_ == 0)
             {

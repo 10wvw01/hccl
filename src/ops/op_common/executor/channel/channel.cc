@@ -816,8 +816,13 @@ HcclResult ProcessLinksForChannelClosV2(HcclComm comm, u32 myRank, u32 rank, std
         uint32_t priorityLink = 0;
         CommTopo topoType;
         u32 fixedIdx = 0;
-        bool useFixedIdx = true;
-        if (GetExternalInputCcuSelectMode() == 2 && GetFixedLinkIdxForRankPairClosV2(myRank, rank, fixedIdx) && fixedIdx < listSize) {
+        u32 ccuSelectMode = GetExternalInputCcuSelectMode();
+        bool useFixedIdx = ccuSelectMode == 2 && GetFixedLinkIdxForRankPairClosV2(myRank, rank, fixedIdx) &&
+            fixedIdx < listSize;
+        HCCL_INFO("[CalcChannelRequestWithPriorTopoClosV2][CCU_MODE_PATH] mode[%u], pair[%u,%u], "
+                  "useFixedIdx[%u], fixedIdx[%u], linkListSize[%u]",
+                  ccuSelectMode, myRank, rank, static_cast<u32>(useFixedIdx), fixedIdx, listSize);
+        if (useFixedIdx) {
             priorityLink = fixedIdx;
             CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[priorityLink], topoType));
             HCCL_INFO("[CalcChannelRequestWithPriorTopoClosV2] Use fixed link idx[%u] for rank pair[%u, %u], topoType[%u].",
@@ -929,6 +934,10 @@ HcclResult ProcessLinksForChannelClosV3(HcclComm comm, u32 myRank, u32 rank,
         bool useFixedIdx = (ccuSelectMode == 2 || ccuSelectMode == 3) &&
             GetFixedLinkIdxForRankPairClosV3(myRank, rank, fixedIdx) && fixedIdx < listSize;
         bool useSharedLink = ccuSelectMode == 3 && useFixedIdx && CCU_SHARED_LINK_IDX < listSize;
+        HCCL_INFO("[CalcChannelRequestWithPriorTopoClosV3][CCU_MODE_PATH] mode[%u], pair[%u,%u], "
+                  "useFixedIdx[%u], fixedIdx[%u], useSharedLink[%u], sharedLinkIdx[%u], linkListSize[%u]",
+                  ccuSelectMode, myRank, rank, static_cast<u32>(useFixedIdx), fixedIdx,
+                  static_cast<u32>(useSharedLink), CCU_SHARED_LINK_IDX, listSize);
         if (useFixedIdx) {
             priorityLink = fixedIdx;
             CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[priorityLink], topoType));

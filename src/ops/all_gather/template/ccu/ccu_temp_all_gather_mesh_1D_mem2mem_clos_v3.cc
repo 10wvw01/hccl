@@ -17,17 +17,32 @@
 
 namespace ops_hccl {
 constexpr uint64_t SLICE_RATIO_BASE = 100;
+constexpr uint64_t SHARED_SLICE_ALIGN_SIZE = 4096;
 
 void CalcMainSharedSliceSize(uint64_t normalSliceSize, uint64_t dataTypeSize, uint64_t &mainSliceSize,
     uint64_t &sharedSliceSize)
 {
-    mainSliceSize = normalSliceSize * GetExternalInputCcuMainSharedRatio() / SLICE_RATIO_BASE;
-    mainSliceSize = mainSliceSize / dataTypeSize * dataTypeSize;
+    uint64_t alignSize = dataTypeSize > SHARED_SLICE_ALIGN_SIZE ? dataTypeSize : SHARED_SLICE_ALIGN_SIZE;
+    u32 mainSharedRatio = GetExternalInputCcuMainSharedRatio();
+    mainSliceSize = normalSliceSize * mainSharedRatio / SLICE_RATIO_BASE;
+    if (normalSliceSize < alignSize * 2 || normalSliceSize % alignSize != 0) {
+        mainSliceSize = normalSliceSize;
+        sharedSliceSize = 0;
+        HCCL_INFO("[CcuTempAllGatherMesh1DMem2MemClosV3][CCU_RATIO_PATH] ratio[%u], normalSliceSize[%llu], "
+                  "alignSize[%llu], split disabled by alignment guard.",
+                  mainSharedRatio, normalSliceSize, alignSize);
+        return;
+    }
+
+    mainSliceSize = mainSliceSize / alignSize * alignSize;
     sharedSliceSize = normalSliceSize - mainSliceSize;
-    if (mainSliceSize == 0 || sharedSliceSize == 0) {
+    if (mainSliceSize == 0 || sharedSliceSize == 0 || sharedSliceSize % alignSize != 0) {
         mainSliceSize = normalSliceSize;
         sharedSliceSize = 0;
     }
+    HCCL_INFO("[CcuTempAllGatherMesh1DMem2MemClosV3][CCU_RATIO_PATH] ratio[%u], normalSliceSize[%llu], "
+              "alignSize[%llu], mainSliceSize[%llu], sharedSliceSize[%llu]",
+              mainSharedRatio, normalSliceSize, alignSize, mainSliceSize, sharedSliceSize);
 }
 
 CcuTempAllGatherMesh1DMem2MemClosV3::CcuTempAllGatherMesh1DMem2MemClosV3(const OpParam& param, const u32 rankId,
