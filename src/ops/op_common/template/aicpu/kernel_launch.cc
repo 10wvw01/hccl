@@ -420,11 +420,11 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         static uint64_t opUnfoldIdx = 0;
         HCCL_INFO("[HcclLaunchAicpuKernel] opUnfoldIdx[%llu] commName[%s] opType[%u] inputPtr[0x%016llx] inputSize[%llu] "
             "outputPtr[0x%016llx] outputSize[%llu] opMode[%u] algName[%s] isZeroCopy[%d] opExpanMode[%u] enableCache[%d]",
-            opUnfoldIdx++, param->commName, reinterpret_cast<uint32_t>(param->opType),
-            reinterpret_cast<uint64_t>(param->inputPtr), param->inputSize,
-            reinterpret_cast<uint64_t>(param->outputPtr), param->outputSize,
-            reinterpret_cast<uint32_t>(param->opMode), param->algName, param->isZeroCopy,
-            reinterpret_cast<uint32_t>(param->commOpExpansionMode), enableCache);
+            opUnfoldIdx++, param->commName, static_cast<uint32_t>(param->opType),
+            static_cast<uint64_t>(param->inputPtr), param->inputSize,
+            static_cast<uint64_t>(param->outputPtr), param->outputSize,
+            static_cast<uint32_t>(param->opMode), param->algName, param->isZeroCopy,
+            static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
         
         // 检查是否cache miss
         std::string cacheTag = "";
