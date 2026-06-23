@@ -538,37 +538,34 @@ HcclResult InsV2AlltoAllVParallelABRelayExecutor<AlgTopoMatch>::RunAOriginalAndP
         aIntraParams.sendCounts[myRank_] = 0;
         aIntraParams.recvCounts[myRank_] = 0;
     }
-    std::vector<ThreadHandle> stageMains;
-    std::vector<u32> mainNotifyIdx;
     if (hasA) {
-        stageMains.push_back(aInterThreads_[0]);
-        mainNotifyIdx.push_back(aInterMeta_.notifyNumOnMainThread);
-        stageMains.push_back(aIntraThreads_[0]);
-        mainNotifyIdx.push_back(aIntraMeta_.notifyNumOnMainThread);
-    }
-    if (hasB) {
-        stageMains.push_back(bRelayThreads_[0]);
-        mainNotifyIdx.push_back(bRelayMeta_.notifyNumOnMainThread);
-    }
-    CHK_RET(PreSyncInterThreads(mainThread_, stageMains, mainNotifyIdx));
-    HCCL_WARNING("[A2AV_AB_RELAY][Stage1] rank=%u submit order: A_CLOS -> A_MESH -> B_PREROUTE. "
-                 "hasA=%d hasB=%d", myRank_, hasA, hasB);
-    if (hasA) {
+        CHK_RET(PreSyncInterThreads(mainThread_, {aInterThreads_[0], aIntraThreads_[0]},
+                                    {aInterMeta_.notifyNumOnMainThread,
+                                     aIntraMeta_.notifyNumOnMainThread}));
+        HCCL_WARNING("[A2AV_AB_RELAY][Stage1] rank=%u submit A_CLOS + A_MESH. hasB=%d",
+                     myRank_, hasB);
         HCCL_WARNING("[A2AV_AB_RELAY][Stage1][A_CLOS_SUBMIT] rank=%u count=%llu", myRank_, aParams.count);
         CHK_RET(aInterTemp.KernelRun(param, aParams, aInterRes));
         HCCL_WARNING("[A2AV_AB_RELAY][Stage1][A_MESH_SUBMIT] rank=%u count=%llu", myRank_, aIntraParams.count);
         CHK_RET(aIntraTemp.KernelRun(param, aIntraParams, aIntraRes));
+        if (hasB) {
+            CHK_RET(PostSyncInterThreads(mainThread_, {aIntraThreads_[0]}, {1}));
+            HCCL_WARNING("[A2AV_AB_RELAY][Stage1] rank=%u A_MESH done, start B_PREROUTE while A_CLOS runs.",
+                         myRank_);
+        }
     }
     if (hasB) {
+        CHK_RET(PreSyncInterThreads(mainThread_, {bRelayThreads_[0]}, {bRelayMeta_.notifyNumOnMainThread}));
         HCCL_WARNING("[A2AV_AB_RELAY][Stage1][B_PREROUTE_SUBMIT] rank=%u count=%llu", myRank_, bParams.count);
         CHK_RET(relayTemp.KernelRun(param, bParams, relayRes));
     }
-    std::vector<u32> postNotifyIdx;
-    postNotifyIdx.reserve(stageMains.size());
-    for (u32 i = 0; i < stageMains.size(); ++i) {
-        postNotifyIdx.push_back(i);
+    if (hasA && hasB) {
+        CHK_RET(PostSyncInterThreads(mainThread_, {aInterThreads_[0], bRelayThreads_[0]}, {0, 2}));
+    } else if (hasA) {
+        CHK_RET(PostSyncInterThreads(mainThread_, {aInterThreads_[0], aIntraThreads_[0]}, {0, 1}));
+    } else if (hasB) {
+        CHK_RET(PostSyncInterThreads(mainThread_, {bRelayThreads_[0]}, {2}));
     }
-    CHK_RET(PostSyncInterThreads(mainThread_, stageMains, postNotifyIdx));
     return HCCL_SUCCESS;
 }
 
