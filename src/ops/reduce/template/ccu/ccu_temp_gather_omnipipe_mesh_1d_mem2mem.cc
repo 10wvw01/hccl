@@ -167,11 +167,11 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
         uint64_t inputSliceStride = 0;
         uint64_t outputSliceStride = 0;
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start5:%d",stepSliceInfo.inputOmniPipeSliceStride.size());
-        uint32_t repeatNum = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_].size();
+        // uint32_t repeatNum = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_].size();
         uint64_t sliceSize;
         uint64_t inputOmniPipeSliceStride;
         uint64_t outputOmniPipeSliceStride;
-        HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum=%u", repeatNum);
+        // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] repeatNum=%u", repeatNum);
         // 遍历peer对端的卡
         auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerIdSize=%u", inputOmniPipeSliceStrides.size()); // 这里子通信域里的第几个卡
