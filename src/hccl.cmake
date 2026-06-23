@@ -199,6 +199,10 @@ target_link_libraries(opgraph_hccl PRIVATE
     -Wl,-Bsymbolic
 )
 
+ target_link_directories(opgraph_hccl PRIVATE 
+     ${ASCEND_CANN_PACKAGE_PATH}/lib64 
+ )
+
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph/ops_proto_hccl.h
     DESTINATION ${INSTALL_OPGRAPH_INCLUDE_DIR} 
     ${INSTALL_OPTIONAL}
