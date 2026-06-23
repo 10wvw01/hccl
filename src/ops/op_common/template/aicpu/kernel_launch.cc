@@ -22,6 +22,7 @@
 #include "kernel_launch.h"
 #include "hcomm_diag_dl.h"
 #include "hcomm_device_profiling_dl.h"
+#include "dlhcomm_function.h"
 #include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
@@ -384,6 +385,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         // 主thread等待Host stream的通知
         ThreadHandle exportedAicpuTsThread = param->opThread;
         u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
+        auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
         if (!hcommFunction.dlHcclThreadAcquireWithConfig) {
             for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
                 if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
