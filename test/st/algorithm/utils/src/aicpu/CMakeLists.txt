@@ -235,6 +235,8 @@ add_library(scatter_aicpu_kernel SHARED
 
     ${HCCL_DEV_BASE}/src/ops/all_to_all_v/executor/ins_v2_all_to_all_v_sole_executor.cc
     ${HCCL_DEV_BASE}/src/ops/all_to_all_v/template/aicpu/ins_temp_all_to_all_v_mesh_1D.cc
+    ${HCCL_DEV_BASE}/src/ops/all_to_all_v/template/aicpu/ins_temp_all_to_all_v_mesh_ocs.cc
+    ${HCCL_DEV_BASE}/src/ops/all_to_all_v/selector/alltoall_ocs_selector_helper.cc
     ${HCCL_DEV_BASE}/src/ops/all_to_all_v/template/aicpu/ins_temp_dpu_alltoall_mesh.cc
 
     ${HCCL_DEV_BASE}/src/ops/send/executor/ins_v2_send_sole_executor.cc
