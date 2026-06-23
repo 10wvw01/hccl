@@ -252,12 +252,43 @@ HcclResult TopoMatchMultilevel::MatchTopo(const HcclComm comm, TopoInfoWithNetLa
         listSize,
         PrintCArray<uint32_t>(instSizeList, listSize).c_str());
     bool isSymmetric = CheckVecElementAllSame(instSizeList, listSize);
+    HCCL_INFO("[TopoMatchMultilevel][MatchTopo] Rank [%d], isSymmetric[%d], topoLevelNums[%u], listSize[%u]",
+        myRank, isSymmetric, topoInfo->topoLevelNums, listSize);
+
+    // 检查layer1（pod间）对称性：每个pod内的instance数是否相同
+    bool layer1Symmetric = true;
+    if (topoInfo->topoLevelNums > 1) {
+        uint32_t *layer1InstSizeList = nullptr;
+        uint32_t layer1ListSize = 0;
+        CHK_RET(HcclRankGraphGetInstSizeListByLayer(comm, 1, &layer1InstSizeList, &layer1ListSize));
+        HCCL_INFO("[TopoMatchMultilevel][MatchTopo] layer1 listSize[%u]", layer1ListSize);
+        for (uint32_t i = 0; i < layer1ListSize; i++) {
+            HCCL_INFO("[TopoMatchMultilevel][MatchTopo] layer1 instSizeList[%u]=[%u]", i, layer1InstSizeList[i]);
+        }
+        layer1Symmetric = CheckVecElementAllSame(layer1InstSizeList, layer1ListSize);
+        HCCL_INFO("[TopoMatchMultilevel][MatchTopo] layer1Symmetric[%d]", layer1Symmetric);
+    }
+
+    // 三级拓扑暂不支持任何非对称场景（layer0 或 layer1）
+    if (topoInfo->topoLevelNums >= COMM_LAYER_SIZE_3 && (!isSymmetric || !layer1Symmetric)) {
+        HCCL_ERROR("[TopoMatchMultilevel][MatchTopo] Asymmetric mode not supported for 3-level topology, "
+            "topoLevelNums[%u], isSymmetric[%d], layer1Symmetric[%d]",
+            topoInfo->topoLevelNums, isSymmetric, layer1Symmetric);
+        return HcclResult::HCCL_E_NOT_SUPPORT;
+    }
 
     // 非对称仅支持 Mesh1D，提前校验 topoInstNum
     if (!isSymmetric) {
+        HCCL_INFO("[TopoMatchMultilevel][MatchTopo] Asymmetric mode detected, "
+            "topoLevelNums[%u], listSize[%u]", topoInfo->topoLevelNums, listSize);
+        for (uint32_t i = 0; i < listSize; i++) {
+            HCCL_INFO("[TopoMatchMultilevel][MatchTopo] Asymmetric instSizeList[%u]=[%u]", i, instSizeList[i]);
+        }
+
         uint32_t *topoInsts;
         uint32_t topoInstNum = 0;
         CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 0, &topoInsts, &topoInstNum));
+        HCCL_INFO("[TopoMatchMultilevel][MatchTopo] Asymmetric mode, topoInstNum[%u]", topoInstNum);
         CHK_PRT_RET(topoInstNum != NET_INST_NUM_1,
             HCCL_ERROR("[TopoMatchMultilevel][MatchTopo] Asymmetric mode only supports Mesh1D, "
                 "but topoInstNum [%u]", topoInstNum),
