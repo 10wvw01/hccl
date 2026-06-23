@@ -57,10 +57,6 @@ target_link_options(hccl_custom_allgather_aicpu PRIVATE
 target_compile_options(hccl_custom_allgather_aicpu PRIVATE
     $<$<COMPILE_LANGUAGE:ASC>:--npu-arch=dav-2201>  # Atlas A2/A3系列产品
 )
-target_link_directories(hccl_custom_allgather_aicpu PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64/device/lib64 # 包含 AICPU 动态链接库
-)
 target_link_libraries(hccl_custom_allgather_aicpu PRIVATE
     hcomm
     c_sec
@@ -96,10 +92,6 @@ if(KERNEL_MODE)
     target_compile_options(custom_allgather_aicpu_kernel PRIVATE
         -g
         -O0
-    )
-    target_link_directories(custom_allgather_aicpu_kernel PRIVATE
-        ${ASCEND_CANN_PACKAGE_PATH}/lib64/device/lib64
-        ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
     )
     target_link_libraries(custom_allgather_aicpu_kernel PRIVATE
         ccl_kernel
