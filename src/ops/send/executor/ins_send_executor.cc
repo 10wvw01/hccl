@@ -130,7 +130,7 @@ namespace ops_hccl {
         dataTypeSize_ = static_cast<u64>(DATATYPE_SIZE_TABLE[dataType_]);
         dataSize_ = dataCount_ * dataTypeSize_;
  
-        HCCL_DEBUG("[InsSendExecutor][Orchestrate][%d]->[%d] Start.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsSendExecutor][OrchestrateP2p][%d]->[%d] Start.", myRank_, remoteRank_);
         // 给channels_赋值
         auto channelIt = std::find_if(
             resCtx.channels.at(0).begin(), resCtx.channels.at(0).end(),
@@ -139,7 +139,7 @@ namespace ops_hccl {
             });
         CHK_PRT_RET(
             channelIt == resCtx.channels.at(0).end(),
-            HCCL_ERROR("[InsSendExecutor][Orchestrate] Channel[%d]-[%d] not found.", myRank_, remoteRank_),
+            HCCL_ERROR("[InsSendExecutor][OrchestrateP2p] Channel[%d]-[%d] not found.", myRank_, remoteRank_),
             HcclResult::HCCL_E_NOT_FOUND);
         const ChannelInfo &channel = *channelIt;
         
@@ -153,7 +153,7 @@ namespace ops_hccl {
         } else {
             CHK_RET(OrchestrateOpbase(param, resCtx, sendRecvStream, channel));
         }
-        HCCL_DEBUG("[InsSendExecutor][Orchestrate][%d]->[%d] Success.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsSendExecutor][OrchestrateP2p][%d]->[%d] Success.", myRank_, remoteRank_);
  
         return HcclResult::HCCL_SUCCESS;
     }
