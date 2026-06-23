@@ -385,8 +385,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         // 主thread等待Host stream的通知
         ThreadHandle exportedAicpuTsThread = param->opThread;
         u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
-        auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
-        if (!hcommFunction.dlHcclThreadAcquireWithConfig) {
+        if (HcommIsSupportHcclThreadAcquireWithConfig()) {
             for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
                 if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
                     maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
