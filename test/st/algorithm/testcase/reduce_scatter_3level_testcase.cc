@@ -135,11 +135,11 @@ TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_int32_max_d
 }
 
 // P1: #10 - small-scale large-data loop segmentation
-TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x4x2_fp32_sum_multi_loop)
+TEST_F(ST_REDUCE_SCATTER_3LEVEL_TEST, st_reduce_scatter_3level_4x2x2_fp32_sum_multi_loop)
 {
     TopoMeta topoMeta;
-    GenTopoMeta(topoMeta, 2, 4, 4);
-    auto recvCount = 400 * 1024 * 1024;
+    GenTopoMeta(topoMeta, 2, 2, 2);
+    auto recvCount = 500 * 1024 * 1024;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
     RunReduceScatter3LevelA5(topoMeta, recvCount, dataType, reduceOp);
