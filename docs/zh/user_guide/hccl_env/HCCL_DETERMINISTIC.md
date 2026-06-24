@@ -21,7 +21,11 @@ HCCL_DETERMINISTIC支持的取值如下：
   - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，
     - 支持通信算子AllReduce、ReduceScatter，支持数据类型float16、float32、bfp16，归约操作仅支持sum。
     - 通信规模要求rank size ≥ 3。
-    - 若超节点内存在多个AI Server，仅支持AI Server间使用HCCS链路进行SDMA通信的场景，不支持使用RoCE进行RDMA通信的场景，即不支持设置环境变量[HCCL_INTER_HCCS_DISABLE](HCCL_INTER_HCCS_DISABLE.md)为“TRUE”。
+    - 若超节点内存在多个AI Server，仅支持AI Server间使用HCCS链路进行SDMA通信的场景，不支持使用RoCE进行RDMA通信的场景，即不支持设置环境变量[HCCL_INTER_HCCS_DISABLE](HCCL_INTER_HCCS_DISABLE.md)为"TRUE"。
+  - 针对Ascend 950PR/Ascend 950DT，
+    - 支持通信算子AllReduce、ReduceScatter，支持数据类型float16、float32、bfp16、float64，归约操作支持sum和prod。
+    - 通信规模要求rank size ≥ 3且rank size ≤ 32。
+    - 仅支持通信算子展开模式为AI CPU，保序模式下CCU_MS、CCU_SCHED、AIV均不生效，需回退到AI CPU执行。
 
 一般情况下无需开启归约算子的确定性计算，当模型多次执行结果不同或者精度调优时，可通过此环境变量开启确定性计算进行辅助调试调优，但开启后，算子执行时间会变慢，导致性能下降。
 
@@ -42,3 +46,5 @@ export HCCL_DETERMINISTIC=true
 Atlas A2 训练系列产品/Atlas A2 推理系列产品
 
 Atlas A3 训练系列产品/Atlas A3 推理系列产品
+
+Ascend 950PR/Ascend 950DT
