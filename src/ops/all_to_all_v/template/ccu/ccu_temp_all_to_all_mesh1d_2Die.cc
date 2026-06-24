@@ -217,7 +217,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     kernelArgMesh->withMyRank = true;
     kernelArgMesh->rankGroup = rankGroup_[meshDieId];
     kernelInfoMesh.setKernelArg(kernelArgMesh);
-    kernelInfoMesh.channels = channels_[meshDieId];
+    kernelInfoMesh.channels = meshChannels_[meshDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoMesh);
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
         meshDieId, meshChannels_[meshDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
@@ -226,8 +226,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     CcuKernelInfo kernelInfoClos;
     strcpy_s(kernelInfoClos.kernelFuncName, sizeof(kernelInfoClos.kernelFuncName), "CcuAllToAllMesh2DieKernel");
     kernelInfoClos.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
-    uint32_t closDieId = 1 - meshDieId;
-    auto kernelInfoClos = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
+    auto kernelArgClos = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
     kernelArgClos->rankSize = rankSize;
     kernelArgClos->rankId = myRank_;
     kernelArgClos->opParam = param;
@@ -235,7 +234,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     kernelArgClos->withMyRank = false;
     kernelArgClos->rankGroup = rankGroup_[closDieId];
     kernelInfoClos.setKernelArg(kernelArgClos);
-    kernelInfoClos.channels = channels_[closDieId];
+    kernelInfoClos.channels = closChannels_[closDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoClos);
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
         closDieId, closChannels_[closDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
@@ -247,7 +246,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     CcuKernelInfo kernelInfoClos2Port;
     strcpy_s(kernelInfoClos2Port.kernelFuncName, sizeof(kernelInfoClos2Port.kernelFuncName), "CcuKernelAlltoAllMesh1D");
     kernelInfoClos2Port.kernelFunc = reinterpret_cast<void *>(CcuAlltoAllMesh1DKernel);
-    auto kernelInfoClos2Port = std::make_shared<CcuKernelArgAlltoAllMesh1D>();
+    auto kernelArgClos2Port = std::make_shared<CcuKernelArgAlltoAllMesh1D>();
     kernelArgClos2Port->rankSize = rankSize;
     kernelArgClos2Port->rankId = myRank_;
     kernelArgClos2Port->opParam = param;
@@ -432,7 +431,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     uint64_t dstOffset = myRank_ * dstStride;
 
     HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] Start");
-    if (tempRankSize_ == 1) {
+    if (templateRankSize_ == 1) {
         DataSlice usrInSlice = DataSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
         DataSlice usrOutSlice = DataSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
         LocalCopy(templateResource.threads[DIE_NUM], usrInSlice, usrOutSlice);
