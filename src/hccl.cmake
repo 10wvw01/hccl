@@ -85,10 +85,10 @@ if(BUILD_OPEN_PROJECT)
         c_sec
         unified_dlog
         -Wl,--no-as-needed
-        runtime_headers
-        mmpa_headers
-        msprof_headers
-        error_manager_headers
+        $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:mmpa_headers>
+        $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
     )
 else()
     target_link_libraries(hccl PRIVATE
@@ -132,10 +132,10 @@ else()
             c_sec
             unified_dlog
             -Wl,--no-as-needed
-            runtime_headers
-            mmpa_headers
-            msprof_headers
-            error_manager_headers
+            $<BUILD_INTERFACE:runtime_headers>
+            $<BUILD_INTERFACE:mmpa_headers>
+            $<BUILD_INTERFACE:msprof_headers>
+            $<BUILD_INTERFACE:error_manager_headers>
         )
     else()
         target_link_libraries(hccl PRIVATE
@@ -212,9 +212,9 @@ target_link_libraries(opgraph_hccl PRIVATE
     hcomm_headers
 )
 
- target_link_directories(opgraph_hccl PRIVATE 
-     ${ASCEND_CANN_PACKAGE_PATH}/lib64 
- )
+target_link_directories(opgraph_hccl PRIVATE 
+    ${ASCEND_CANN_PACKAGE_PATH}/lib64 
+)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph/ops_proto_hccl.h
     DESTINATION ${INSTALL_OPGRAPH_INCLUDE_DIR} 

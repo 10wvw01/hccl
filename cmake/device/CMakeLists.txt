@@ -34,16 +34,16 @@ find_cann_package(mmpa MODULE REQUIRED)
 find_cann_package(runtime MODULE REQUIRED)
 find_cann_package(error_manager MODULE REQUIRED)
 find_cann_package(hcomm MODULE REQUIRED)
-find_cann_package(graph MODULE REQUIRED)     # 涵盖 graph, graph_base, register
+find_cann_package(graph MODULE REQUIRED)
 find_cann_package(ascendcl MODULE REQUIRED)
 find_cann_package(ascendc_runtime MODULE REQUIRED)
 find_cann_package(ascend_dump MODULE REQUIRED)
-find_cann_package(aicpu_sharder MODULE REQUIRED)  # device 侧需要
-find_cann_package(asc_devkit MODULE REQUIRED)     # → asc_kernel_headers, kernel_tiling_headers
-find_cann_package(ascend_hal MODULE REQUIRED)     # → ascend_hal_headers
-find_cann_package(atrace MODULE REQUIRED)         # → atrace_headers
-find_cann_package(metadef MODULE REQUIRED)        # device 侧需要
-find_cann_package(tsdclient MODULE REQUIRED)      # → tsdclient
+find_cann_package(aicpu_sharder MODULE REQUIRED)
+find_cann_package(asc_devkit MODULE REQUIRED)
+find_cann_package(ascend_hal MODULE REQUIRED)
+find_cann_package(atrace MODULE REQUIRED)
+find_cann_package(metadef MODULE REQUIRED)
+find_cann_package(tsdclient MODULE REQUIRED)
 
 # 添加子目录
 add_cann_subdirectories_relative(${HCCL_DIR}

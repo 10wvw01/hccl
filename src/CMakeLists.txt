@@ -206,9 +206,7 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template
 )
 
-if(BUILD_OPEN_PROJECT)
-    # CANN include/pkg_inc 路径已由 *_headers INTERFACE 目标接管，不再直接附加到 INCLUDE_LIST
-else()
+if(NOT BUILD_OPEN_PROJECT)
     list(APPEND INCLUDE_LIST
         ${TOP_DIR}/inc
         ${TOP_DIR}/inc/aicpu/tsd
