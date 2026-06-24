@@ -52,10 +52,12 @@ private:
     void Create910DLinks(uint32_t srcRank, uint32_t dstRank);
     void InitL1L2TopoInsts(uint32_t podNum);
     void InitHostDpuInfo(uint32_t serverNum);
+    void InitLevel3Enable();  // 读取 HCCL_SIM_ENABLE_LEVEL3 环境变量，决定是否启用第4层(net_layer_3)
 
 private:
     bool is2D{false};
     bool isDpuEnable{false};
+    bool enableLevel3_{false};  // 是否启用第4层(net_layer_3, SuperNode级OCS)，默认 false，保证现有用例零影响
     std::vector<uint32_t> allRankList_;
     std::map<uint32_t, std::vector<uint32_t>> serverId2RankList_;
     std::map<uint32_t, std::vector<uint32_t>> podId2RankList_;
@@ -68,12 +70,14 @@ private:
     std::vector<uint32_t> podServersGroup_;
     std::vector<uint32_t> podRanksGroup_;
     std::vector<uint32_t> allRankNum_;
+    std::vector<uint32_t> level3RanksGroup_;  // 第4层每个OcsDomain实例的rank数
 
     // A5 topo
     std::map<uint32_t, std::map<uint32_t, std::vector<uint32_t>>> dev2TopoInsts_;  // serverId->每个dev对应的实例Id
     std::map<uint32_t, std::map<uint32_t, std::vector<uint32_t>>> instId2RankIds_;  // serverId->每个实例对应的rankId集合
     std::map<uint32_t, std::vector<uint32_t>> level1TopoInsts_;
     std::vector<uint32_t> level2TopoInsts_;
+    std::vector<uint32_t> level3TopoInsts_;  // 第4层(net_layer_3)实例集合
     std::vector<EndpointDesc> dpuDesc_;  // 模拟dpu网卡
 
     // links map
