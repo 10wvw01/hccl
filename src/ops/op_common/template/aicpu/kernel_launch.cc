@@ -255,7 +255,7 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
 {
     FUNCTION_TRACE; // 细化打点会有性能损耗
     if (param == nullptr) {
