@@ -38,13 +38,14 @@ public:
     u64 CalcScratchMultiple(BufferType inBufferType, BufferType outBufferType) override;
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
                          TemplateResource &templateResource) override;
+    u64 GetThreadNum() const override { return 1; }  // 仅需主线程，NHR 串行执行
 
 protected:
     u32 GetRankFromMap(const uint32_t rankIdx) const;
     HcclResult RunNHRBarrier(const std::map<u32, std::vector<ChannelInfo>> &channels,
                              const ThreadHandle &thread);
-    void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override {}
-    void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override {}
+    void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override {}  // 单线程，无需线程间同步
+    void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override {}  // 单线程，无需线程间同步
 };
 
 }  // namespace ops_hccl

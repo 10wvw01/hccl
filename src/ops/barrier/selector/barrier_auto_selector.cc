@@ -13,9 +13,10 @@
 
 namespace ops_hccl {
 
-// Barrier 新流程仅在「框间 host-DPU」场景启用，该场景下 Select() 只会走 SelectDPUAlgo；
-// 其余场景在 BarrierOutPlace 中已提前回退到 HcclBarrierInner，不会进入算法选择，
-// 因此这里不再提供 SelectAicpuAlgo（基类默认 NOT_MATCH 即可）。
+// Barrier 新流程支持 HostDPU 和 AICPU 两种引擎：
+// - HostDPU 场景：Select() 内部 CheckHostDPUOnly → SelectDPUAlgo → InsBarrierMeshNhrDPU
+// - AICPU 场景：Select() 内部 IsStarsState → SelectAicpuAlgo → InsBarrierNhrAicpu
+// 其余引擎（CCU/AIV）在 BarrierOutPlace 中已提前回退到旧 HcclBarrier，不会进入算法选择。
 SelectorStatus BarrierAutoSelector::SelectDPUAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
