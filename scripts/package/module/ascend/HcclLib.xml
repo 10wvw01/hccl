@@ -22,10 +22,10 @@
         <file value="hccl.h"/>
         <file value="hccl_mc2.h"/>
     </file_info>
-    <file_info value="include" copy_type="source" dst_path="opp/built-in/op_graph/inc" install_path="opp/built-in/op_graph/inc" install_type="all" install_mod="440">
+    <file_info value="include" copy_type="source" dst_path="opp/built-in/op_graph/inc" install_path="opp/built-in/op_graph/inc" install_type="all" install_mod="555">
         <file value="ops_proto_hccl.h"/>
     </file_info>
-    <file_info value="include" copy_type="delivery" dst_path="$(TARGET_ENV)/include/es" install_path="$(TARGET_ENV)/include/es" install_type="all" install_mod="440">
+    <file_info value="include" copy_type="delivery" dst_path="$(TARGET_ENV)/include/es" install_path="$(TARGET_ENV)/include/es" install_type="all" install_mod="555">
         <file value="es_hccl"/>
     </file_info>
     <file_info value="lib64" copy_type="delivery" src_path="build" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="440">
@@ -89,10 +89,10 @@
     <file_info value="json" copy_type="delivery" src_path="build" dst_path="opp/built-in/op_impl/aicpu/config" install_path="opp/built-in/op_impl/aicpu/config" install_type="all" install_mod="440">
         <file value="libscatter_aicpu_kernel.json"/>
     </file_info>
-    <file_info value="lib64" copy_type="delivery" dst_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_type="all" install_mod="550">
+    <file_info value="lib64" copy_type="delivery" dst_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_path="opp/built-in/op_graph/lib/linux/$(ARCH)" install_type="all" install_mod="555">
         <file value="libopgraph_hccl.so" file_type="shared"/>
     </file_info>
-    <file_info value="lib64" copy_type="delivery" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="550">
+    <file_info value="lib64" copy_type="delivery" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="555">
         <file value="libes_hccl.so" file_type="shared"/>
     </file_info>
     <dir_info value="ops_hccl" install_path="ops_hccl" install_mod="550" install_type="all">
