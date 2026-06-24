@@ -13,7 +13,6 @@
 #include "alg_data_trans_wrapper.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_all_gather_nhr.h"
-#include "alg_data_trans_wrapper.h"
 
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
@@ -72,12 +71,12 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     resourceRequest.channels.emplace_back(Level0TempRequest.channels[0]);
     resourceRequest.channels.emplace_back(Level1TempRequest.channels[0]);
     resourceRequest.channels.emplace_back(Level2TempRequest.channels[0]);
-    HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
+    HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] notifyNumOnMainThread[%u], slaveThreadNum[%u], "
                "channels[%u]",
-               myRank_, resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
+               resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
                resourceRequest.channels.size());
     for (auto i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
-        HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] myRank[%u], notifyNumPerThread[%u]=[%u]", myRank_, i,
+        HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] myRank[%u], notifyNumPerThread[%u]=[%u]", i,
                    resourceRequest.notifyNumPerThread[i]);
     }
 
@@ -152,9 +151,6 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     tempAlgLevel0.GetRes(Level0TempRequest);
     tempAlgLevel1.GetRes(Level1TempRequest);
     tempAlgLevel2.GetRes(Level2TempRequest);
-    auto Level0NotifyOnMainThread = Level0TempRequest.notifyNumOnMainThread;
-    auto Level1NotifyOnMainThread = Level1TempRequest.notifyNumOnMainThread;
-    auto Level2NotifyOnMainThread = Level2TempRequest.notifyNumOnMainThread;
 
     levels_[0].threads.assign(threads_.begin(), threads_.begin() + Level0TempRequest.slaveThreadNum + 1);
     levels_[1].threads.assign(threads_.begin(), threads_.begin() + Level1TempRequest.slaveThreadNum + 1);
@@ -185,7 +181,12 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
 
     u64 maxCountPerLoop =
         (std::min(static_cast<u64>(scratchMemBlockSize), static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_ / 10) * 10;
-
+    if (maxCountPerLoop == 0) {
+        HCCL_ERROR("[InsV2AllGatherParallelExecutor] myRank[%u] maxCountPerLoop is 0, "
+            "scratchMultiplier[%u] too large for cclBuffSize[%llu]",
+            myRank_, templateScratchMultiplier, tempAlgParamsLevel2.buffInfo.hcclBuff.size);
+        return HCCL_E_INTERNAL;
+    }
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
 
     TemplateResource Level2TempAlgRes, Level1TempAlgRes, Level0TempAlgRes;
