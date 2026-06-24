@@ -30,7 +30,7 @@ HcclResult InsTempBarrierNhrAicpu::CalcRes(HcclComm comm, const OpParam &param,
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempBarrierNhrAicpu][CalcRes] level1Channels[%u].", level1Channels.size());
+    HCCL_INFO("[InsTempBarrierNhrAicpu][CalcRes] level1Channels[%zu].", level1Channels.size());
     return HCCL_SUCCESS;
 }
 
@@ -83,8 +83,17 @@ HcclResult InsTempBarrierNhrAicpu::RunNHRBarrier(
         uint32_t recvFrom = (rankIdx + templateRankSize_ - deltaRank) % templateRankSize_;
         uint32_t sendTo = (rankIdx + deltaRank) % templateRankSize_;
 
-        auto rxChannel = channels.at(GetRankFromMap(recvFrom));
-        auto txChannel = channels.at(GetRankFromMap(sendTo));
+        auto rxIter = channels.find(GetRankFromMap(recvFrom));
+        auto txIter = channels.find(GetRankFromMap(sendTo));
+        CHK_PRT_RET(rxIter == channels.end() || txIter == channels.end(),
+            HCCL_ERROR("[InsTempBarrierNhrAicpu] channel not found (step=%u), recvFrom[%u] sendTo[%u]",
+                step, GetRankFromMap(recvFrom), GetRankFromMap(sendTo)),
+            HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(rxIter->second.empty() || txIter->second.empty(),
+            HCCL_ERROR("[InsTempBarrierNhrAicpu] channel empty (step=%u)", step),
+            HcclResult::HCCL_E_INTERNAL);
+        const auto &rxChannel = rxIter->second;
+        const auto &txChannel = txIter->second;
 
         std::vector<DataSlice> emptySlices;
         if (txChannel[0].remoteRank == rxChannel[0].remoteRank) {
