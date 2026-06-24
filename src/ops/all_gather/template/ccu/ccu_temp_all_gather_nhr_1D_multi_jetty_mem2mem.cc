@@ -191,17 +191,12 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::PrepareLaunchArgs(const OpPar
         return HcclResult::HCCL_SUCCESS;
     }
 
-    LoopGroupConfig  config{};
-    config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount    = CCU_MS_LOCAL_COPY_LOOP_COUNT;
-    config.memSlice     = CCU_MS_SIZE * LOCAL_COPY_MS_PER_LOOP;
-    auto   goSize       = CalGoSize(sliceSize, config);
 
     taskArgs = {inputAddr, outputAddr, token, sliceSize, sliceSizePerJetty,
                 lastSliceSizePerJetty, repeatNumInv, inputSliceStride,
                 outputSliceStride, inputRepeatStride, outputRepeatStride,
-                isInputOutputEqual, goSize[0], goSize[1], goSize[2], goSize[3]};
-    argSize = 16;
+                isInputOutputEqual};
+    argSize = 12;
 
     HCCL_DEBUG("[CcuTempAllGatherNHR1DMultiJettyMem2Mem] inputAddr[%llu], outputAddr[%llu],"
     "sliceSize[%llu], sliceSizePerJetty[%llu], lastSliceSizePerJetty[%llu], repeatNumInv[%llu], inputSliceStride[%llu], "
@@ -239,7 +234,7 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::KernelRun(const OpParam& para
     submitInfo.kernelHandle = templateResource.ccuKernels[0];
     CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4],
                            taskArgs[5], taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9],
-                           taskArgs[10], taskArgs[11], taskArgs[12], taskArgs[13], taskArgs[14], taskArgs[15],
+                           taskArgs[10], taskArgs[11],
                            buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, mySubCommRank_));
     templateResource.submitInfos.push_back(submitInfo);
 
@@ -261,10 +256,10 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::FastLaunch(const OpParam& par
     constexpr u32 inputSliceStrideIdx  = 7;
     constexpr u32 outputSliceStrideIdx  = 8;
     constexpr u32 isInputOutputEqualIdx = 11;
-    constexpr u32 inputOffsetIdx = 16;
-    constexpr u32 outputOffsetIdx = 17;
-    constexpr u32 mySubCommRankIdx = 18;
-    uint64_t argSize = 16;
+    constexpr u32 inputOffsetIdx = 12;
+    constexpr u32 outputOffsetIdx = 13;
+    constexpr u32 mySubCommRankIdx = 14;
+    uint64_t argSize = 12;
 
     uint64_t inputAddr          = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
     uint64_t outputAddr         = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
