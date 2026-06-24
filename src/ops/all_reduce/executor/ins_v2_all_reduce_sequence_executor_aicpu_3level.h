@@ -73,7 +73,6 @@ protected:
 
     uint64_t rankIdxLevel0_{0};
     uint64_t rankIdxLevel1_{0};
-    uint64_t rankIdxLevel2_{0};
 
     bool skipLevel1_{false};
 
