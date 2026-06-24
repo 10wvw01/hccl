@@ -254,6 +254,11 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
             i, cacheCtx.rankGroup[i].size());
         CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[i],
             templateResource.ccuKernels[i], taskArgPtr));
+
+        CcuKernelSubmitInfo submitInfo;
+        submitInfo.kernelHandle = templateResource.ccuKernels[i];
+        CHK_RET(FillCachedArgs(submitInfo, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, token));
+        templateResource.submitInfos.push_back(submitInfo);
     }
 
     std::vector<u32> notifyIdxSubToMain(subThreadCount);
@@ -264,6 +269,83 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
 
     HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][KernelRun] end. Rank[%d], kernelCount[%u].", myRank_, kernelCount);
 
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAlltoAllVMesh1D2Die::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
+{
+    uint32_t kernelCount = static_cast<uint32_t>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
+    if (kernelCount == 0) {
+        return HcclResult::HCCL_SUCCESS;
+    }
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] start, kernelCount[%u]", kernelCount);
+
+    Mesh2DieCacheCtx cacheCtx;
+    CHK_RET(LoadCacheCtx(param, cacheCtx));
+
+    HcclDataType dataType = param.all2AllVDataDes.sendType;
+    uint64_t dataTypeSize = SIZE_TABLE[dataType];
+    uint32_t rankSize = static_cast<uint32_t>(param.varMemSize / (ALL_TO_ALL_V_VECTOR_NUM * sizeof(u64)));
+    CHK_PRT_RET(rankSize == 0,
+        HCCL_ERROR("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] rankSize is 0, varMemSize[%llu]", param.varMemSize),
+        HcclResult::HCCL_E_INTERNAL);
+
+    A2ASendRecvInfo sendRecvInfo;
+    sendRecvInfo.sendLength.resize(rankSize, 0);
+    sendRecvInfo.sendOffset.resize(rankSize, 0);
+    sendRecvInfo.recvOffset.resize(rankSize, 0);
+    sendRecvInfo.recvLength.resize(rankSize, 0);
+
+    const u64 *data = reinterpret_cast<const u64 *>(param.varData);
+    for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize; i++) {
+        u64 val = i / rankSize;
+        u64 curRank = i % rankSize;
+        switch (val) {
+            case 0:
+                sendRecvInfo.sendLength[curRank] = data[i] * dataTypeSize;
+                break;
+            case 1:
+                sendRecvInfo.recvLength[curRank] = data[i] * dataTypeSize;
+                break;
+            case 2:
+                sendRecvInfo.sendOffset[curRank] = data[i] * dataTypeSize;
+                break;
+            case 3:
+                sendRecvInfo.recvOffset[curRank] = data[i] * dataTypeSize;
+                break;
+            default:
+                break;
+        }
+    }
+
+    uint32_t subThreadCount = kernelCount - 1;
+    std::vector<ThreadHandle> subThreads(tempFastLaunchCtx.threads.begin() + 1,
+        tempFastLaunchCtx.threads.begin() + 1 + subThreadCount);
+    std::vector<u32> notifyIdxMainToSub(subThreadCount, 0);
+    CHK_RET(PreSyncInterThreads(tempFastLaunchCtx.threads[0], subThreads, notifyIdxMainToSub));
+
+    for (uint32_t i = 0; i < kernelCount; i++) {
+        const uint64_t *args = tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs;
+        uint64_t inputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[0];
+        uint64_t outputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[1];
+        uint64_t token = args[2];
+
+        std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAllToAllVMesh1D2Die>(
+            inputAddr, outputAddr, token, sendRecvInfo);
+        void *taskArgPtr = static_cast<void *>(taskArg.get());
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] kernel[%u] rankGroupSize[%zu]",
+            i, cacheCtx.rankGroup[i].size());
+        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, tempFastLaunchCtx.threads[i],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle, taskArgPtr));
+    }
+
+    std::vector<u32> notifyIdxSubToMain(subThreadCount);
+    for (uint32_t i = 0; i < subThreadCount; i++) {
+        notifyIdxSubToMain[i] = i;
+    }
+    CHK_RET(PostSyncInterThreads(tempFastLaunchCtx.threads[0], subThreads, notifyIdxSubToMain));
+
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][FastLaunch] end");
     return HcclResult::HCCL_SUCCESS;
 }
 } // namespace ops_hccl
