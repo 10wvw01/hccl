@@ -251,7 +251,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     kernelArgClos2Port->rankId = myRank_;
     kernelArgClos2Port->opParam = param;
     kernelArgClos2Port->subCommRanks = subCommRanks_;
-    kernelArgClos2Port->withMyRank = false;
     kernelInfoClos2Port.setKernelArg(kernelArgClos2Port);
     kernelInfoClos2Port.channels =  closChannels_[meshDieId];
     resourceRequest.ccuKernelInfos.emplace_back(kernelInfoClos2Port);
@@ -411,7 +410,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
             taskArgs2die.push_back(val);
         }
 
-        uint32_t argSize = static_cast<uint32_t>(taskArgs.size());
+        uint32_t argSize = static_cast<uint32_t>(taskArgs2die.size());
         CcuResult launchRet = HcommCcuKernelLaunch(
             templateResource.threads[dieId], templateResource.ccuKernels[dieId],
             taskArgs2die.data(), argSize);
@@ -425,58 +424,40 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     if (kernelNum == DIE_NUM + 1 && templateRankSize_ != 1 && sliceSizeMesh1d!=0) {
         HCCL_INFO("[CcuTempAllToAllMesh1D] Run");
     
-    uint64_t srcStride = templateDataParams.outputSliceStride;
-    uint64_t dstStride = templateDataParams.outputSliceStride;
-    uint64_t srcOffset = 0;
-    uint64_t dstOffset = myRank_ * dstStride;
-
-    HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] Start");
-    if (templateRankSize_ == 1) {
-        DataSlice usrInSlice = DataSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
-        DataSlice usrOutSlice = DataSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
-        LocalCopy(templateResource.threads[DIE_NUM], usrInSlice, usrOutSlice);
-
-        HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] end");
-        return HcclResult::HCCL_SUCCESS;
-    }
-
-    HCCL_INFO("[CcuTempAllToAllMesh1D] Run Init: myRank_[%d], dimSize[%llu], inputAddr[%llu],"\
-        "outputAddr[%llu], sliceSize[%llu], srcOffset[%llu], dstOffset[%llu]",
-        myRank_, dimSize[0], inputAddr1d, outputAddr1d, sliceSize, srcOffset, dstOffset);
-
-    auto     goSize     = CalGoSize(sliceSizeMesh1d, config);
-    std::vector<uint64_t> taskArgs = {inputAddr1d, outputAddr1d, token, sliceSizeMesh1d, srcStride, srcOffset, dstOffset, goSize[0], goSize[1], goSize[2], goSize[3]};
-    uint64_t argSize = 11;
-
-    HCCL_INFO("[CcuTempAlltoAllMesh1D::KernelRun] TaskArgs: inputAddr[%llu], outputAddr[%llu], "
-            "srcStride[%llu], srcOffset[%llu],"
-            "dstOffset[%llu], sliceSize[%llu], goSize: [%llu], [%llu], [%llu], [%llu]",
-            inputAddr, outputAddr, srcStride, srcOffset,
-            dstOffset, sliceSize, goSize[0], goSize[1], goSize[2], goSize[3]);
-
-    CcuResult launchRet =  HcommCcuKernelLaunch(templateResource.threads[DIE_NUM], templateResource.ccuKernels[DIE_NUM], taskArgs1d.data(), argSize);
-    if (launchRet != CCU_SUCCESS) {
-        HCCL_ERROR("[CcuTempAlltoAllMesh1D::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
-        return ConvertCcuToHccl(launchRet);
-    }
-
-
-
-        //2port参数
-        // 拿到input和output的首地址,和每片小数据的大小
         uint64_t srcStride = templateDataParams.outputSliceStride;
         uint64_t dstStride = templateDataParams.outputSliceStride;
         uint64_t srcOffset = 0;
         uint64_t dstOffset = myRank_ * dstStride;
 
-        HCCL_INFO("[CcuTempAllToAllMesh1D2Die] Run Init: myRank_[%d],  inputAddr[%llu],"\
-            "outputAddr[%llu], sliceSizeMesh1d[%llu], srcOffset[%llu], dstOffset[%llu]",
-            myRank_, inputAddr, outputAddr, sliceSizeMesh1d, srcOffset, dstOffset);
-        std::unique_ptr<hcomm::CcuTaskArg> taskArg = std::make_unique<CcuTaskArgAlltoAllMesh1D>(
-            inputAddr, outputAddr, sliceSizeMesh1d, token, srcOffset, dstOffset, srcStride);
+        HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] Start");
+        if (templateRankSize_ == 1) {
+            DataSlice usrInSlice = DataSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
+            DataSlice usrOutSlice = DataSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff + sliceSizeMesh2die, sliceSizeMesh1d);
+            LocalCopy(templateResource.threads[DIE_NUM], usrInSlice, usrOutSlice);
 
-        void* taskArgPtr = static_cast<void*>(taskArg.get());
-        CHK_RET(HcclCcuKernelLaunch(param.hcclComm, templateResource.threads[DIE_NUM], templateResource.ccuKernels[DIE_NUM], taskArgPtr));
+            HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] end");
+            return HcclResult::HCCL_SUCCESS;
+        }
+
+        HCCL_INFO("[CcuTempAllToAllMesh1D] Run Init: myRank_[%d], dimSize[%llu], inputAddr[%llu],"\
+            "outputAddr[%llu], sliceSize[%llu], srcOffset[%llu], dstOffset[%llu]",
+            myRank_, dimSize[0], inputAddr1d, outputAddr1d, sliceSize, srcOffset, dstOffset);
+
+        auto     goSize     = CalGoSize(sliceSizeMesh1d, config);
+        std::vector<uint64_t> taskArgs1d = {inputAddr1d, outputAddr1d, token, sliceSizeMesh1d, srcStride, srcOffset, dstOffset, goSize[0], goSize[1], goSize[2], goSize[3]};
+        uint64_t argSize = 11;
+
+        HCCL_INFO("[CcuTempAlltoAllMesh1D::KernelRun] TaskArgs: inputAddr[%llu], outputAddr[%llu], "
+                "srcStride[%llu], srcOffset[%llu],"
+                "dstOffset[%llu], sliceSize[%llu], goSize: [%llu], [%llu], [%llu], [%llu]",
+                inputAddr1d, outputAddr1d, srcStride, srcOffset,
+                dstOffset, sliceSizeMesh1d, goSize[0], goSize[1], goSize[2], goSize[3]);
+
+        CcuResult launchRet =  HcommCcuKernelLaunch(templateResource.threads[DIE_NUM], templateResource.ccuKernels[DIE_NUM], taskArgs1d.data(), argSize);
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAlltoAllMesh1D::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
     }
 
     // 后流同步
