@@ -450,7 +450,7 @@ template <typename InsAlgTemplate>
 HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
     InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::GenTempResource(
     const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
-    const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempReousrce) const
+    const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempResource) const
 {
     AlgResourceRequest req;
     algTemplate->GetRes(req);
@@ -459,8 +459,8 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
             "than remoteRankToChannelInfo_.size()[%u]", channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
-    tempReousrce.channels = remoteRankToChannelInfo_[channelLevelIdx];
-    tempReousrce.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
+    tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];
+    tempResource.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
     return HCCL_SUCCESS;
 }
 
