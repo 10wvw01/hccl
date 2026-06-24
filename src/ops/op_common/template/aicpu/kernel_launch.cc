@@ -481,8 +481,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
             // 提交aicpu task cache
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
+            // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
             if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
-                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT, param->opConfig.debugConfig)));
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
                 // 首次缓存记录通信域与tag关系
                 if (isCacheMiss) {
                     AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
