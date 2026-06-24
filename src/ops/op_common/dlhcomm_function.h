@@ -18,7 +18,6 @@
 #include "hccl/base.h"
 #include "hccl_res.h"
 #include "hccl_host_comm_dl.h"
-#include "hccl_res_dl.h"
 #include <atomic>
 
 namespace ops_hccl {
