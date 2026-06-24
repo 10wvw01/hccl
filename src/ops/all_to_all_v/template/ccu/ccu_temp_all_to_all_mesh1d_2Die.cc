@@ -439,10 +439,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
             return HcclResult::HCCL_SUCCESS;
         }
 
-        HCCL_INFO("[CcuTempAllToAllMesh1D] Run Init: myRank_[%d], dimSize[%llu], inputAddr[%llu],"\
-            "outputAddr[%llu], sliceSize[%llu], srcOffset[%llu], dstOffset[%llu]",
-            myRank_, dimSize[0], inputAddr1d, outputAddr1d, sliceSize, srcOffset, dstOffset);
-
         auto     goSize     = CalGoSize(sliceSizeMesh1d, config);
         std::vector<uint64_t> taskArgs1d = {inputAddr1d, outputAddr1d, token, sliceSizeMesh1d, srcStride, srcOffset, dstOffset, goSize[0], goSize[1], goSize[2], goSize[3]};
         uint64_t argSize = 11;
