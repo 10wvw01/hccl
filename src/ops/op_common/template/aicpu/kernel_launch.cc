@@ -989,5 +989,6 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
         return 1;
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
+    HcclTimer::DumpTimerLogs();
     return 0;
 }
