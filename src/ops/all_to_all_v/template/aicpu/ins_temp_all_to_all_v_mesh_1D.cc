@@ -52,6 +52,7 @@ HcclResult InsTempAlltoAllVMesh1D::CalcRes(HcclComm comm, const OpParam& param, 
     resourceRequest.channels.push_back(level0Channels);
     if (std::string(param.algName) != "InsAlltoAllMesh1DSingleChannel") {
         channelsPerRank_ = CalcChannelsPerRank(level0Channels);
+        channelsPerRank_ = 1;
     }
     HCCL_INFO("[InsTempAlltoAllVMesh1D][CalcRes] channelsPerRank_ is [%u]", channelsPerRank_);
     resourceRequest.slaveThreadNum = std::min(ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE, templateRankSize_ - 1) * channelsPerRank_;
@@ -148,6 +149,7 @@ HcclResult InsTempAlltoAllVMesh1D::KernelRun(const OpParam& param,
     }
     if (std::string(param.algName) != "InsAlltoAllMesh1DSingleChannel") {
         channelsPerRank_ = CalcChannelsPerRank(templateResource.channels); // 每个rank的channel数量的最大值
+        channelsPerRank_ = 1;
     }
     CHK_RET(RunALLtoALL(templateResource.channels, templateResource.threads, tempAlgParams, myAlgRank));
 
