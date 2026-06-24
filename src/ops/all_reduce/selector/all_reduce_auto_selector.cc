@@ -345,8 +345,10 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             if (!topoInfo->level2Uboe) {
-                HCCL_DEBUG("[AllReduceAutoSelector] level2 protocol is not UBOE, skip Uboe algos.");
-                return SelectorStatus::NOT_MATCH;
+                selectAlgName = "InsV2AllReduceSequenceMesh1DNHRNHR";
+                HCCL_INFO("[AllReduceAutoSelector] level2 protocol is not UBOE, select [%s] for 3-level topo.",
+                    selectAlgName.c_str());
+                return SelectorStatus::MATCH;
             }
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllReduceOmniPipeUboe";
