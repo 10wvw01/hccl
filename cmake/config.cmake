@@ -21,6 +21,7 @@ function(generate_stub_with_output_name STUB STUB_OUTPUT_NAME)
             list(GET temp_list 1 target_plain_name)
         endif()
 
+
         if (NOT TARGET ${target_plain_name}_stub_tmp)
             add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/stub/${target_plain_name}.c
                 COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/stub
@@ -34,6 +35,7 @@ function(generate_stub_with_output_name STUB STUB_OUTPUT_NAME)
                 RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/stub)
         endif()
 
+
         add_library(${STUB} SHARED IMPORTED GLOBAL)
         if (UNIX)
             set_target_properties(${STUB} PROPERTIES
@@ -46,9 +48,11 @@ function(generate_stub_with_output_name STUB STUB_OUTPUT_NAME)
         endif()
         add_dependencies(${STUB} ${target_plain_name}_stub_tmp)
 
+
         message(STATUS "Stub library lib${STUB_OUTPUT_NAME}.so")
     endif()
 endfunction()
+
 
 function(generate_stub STUB)
     if(DEFINED STUB_OUTPUT_NAME_${STUB})
@@ -57,7 +61,9 @@ function(generate_stub STUB)
         set(STUB_OUTPUT_NAME ${STUB})
     endif()
 
+
     generate_stub_with_output_name(${STUB} ${STUB_OUTPUT_NAME})
+
 
     if(DEFINED STUB_LINK_LIBRARIES_${STUB})
         foreach(LIB ${STUB_LINK_LIBRARIES_${STUB}})
