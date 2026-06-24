@@ -63,14 +63,14 @@ else()
 
     if(BUILD_OPEN_PROJECT)
         target_link_libraries(hccl_compat PRIVATE
+            $<BUILD_INTERFACE:runtime_headers>
+            $<BUILD_INTERFACE:mmpa_headers>
+            $<BUILD_INTERFACE:msprof_headers>
+            $<BUILD_INTERFACE:hcomm_headers>
             -Wl,--no-as-needed
             unified_dlog
             acl_rt
             -Wl,--no-as-needed
-            runtime_headers
-            mmpa_headers
-            msprof_headers
-            hcomm_headers
         )
     else()
         target_link_libraries(hccl_compat PRIVATE
