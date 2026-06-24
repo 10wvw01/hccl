@@ -41,6 +41,12 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
         return HCCL_SUCCESS;
     }
 
+    // 校验算子类型
+    if (!IsOpTypeSupported(param.opType)) {
+        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is not supported", param.opType);
+        return HCCL_SUCCESS;
+    }
+
     // 屏蔽inplace场景
     bool isInplace = false;
     CHK_RET(IsInplace(param, isInplace, topoInfo));
@@ -51,11 +57,6 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     }
 
     if(!IsTopoSupported(resCtxHost)) {
-        return HCCL_SUCCESS;
-    }
-
-    if (!IsOpTypeSupported(param.opType)) {
-        HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] opType[%d] is not supported", param.opType);
         return HCCL_SUCCESS;
     }
 

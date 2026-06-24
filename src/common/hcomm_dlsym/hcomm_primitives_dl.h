@@ -117,7 +117,7 @@ HcclResult HcclChannelNotifyWaitDefault(ChannelHandle channel, uint32_t localNot
 
 DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheLookup);
-DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count, uint64_t debugConfig);
+DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheSubmit);
 DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheClear);
