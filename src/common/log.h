@@ -196,6 +196,7 @@ class HcclTimerDumper {
     };
     ~HcclTimerDumper()
     {
+        HCCL_ERROR("~HcclTimerDumper: timerEntries.size=%d", HcclTimer::timerEntries.size());
         HcclTimer::DumpTimerLogs();
     }
 };

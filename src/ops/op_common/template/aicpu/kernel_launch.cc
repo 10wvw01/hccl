@@ -624,6 +624,13 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     return 0;
 }
 
+extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+{
+    unsigned int ret = HcclLaunchAicpuKernel1(param);
+    HcclTimer::DumpTimerLogs();
+    return ret;
+}
+
 HcclResult ops_hccl::RestoreVarDataBatchSendRecv(OpParam &param)
 {
     u64 sendRecvItemSize = static_cast<u64>(sizeof(HcclSendRecvItem));
@@ -991,6 +998,5 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
         return 1;
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
-    HcclTimer::DumpTimerLogs();
     return 0;
 }
