@@ -17,6 +17,12 @@ if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_to_all_v_concurrent_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_to_all_concurrent_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoall_parallel_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoall_parallel_opt_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_ab_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_ab_relay_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_ab_inline_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_v2_stage1_no_memcpy_executor.cc
     )
 endif()
 
