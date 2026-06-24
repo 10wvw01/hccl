@@ -153,8 +153,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcChannelRequest(HcclComm comm, const Op
             HCCL_INFO("listSize = %u", listSize);
             std::vector<CommLink> links(linkList, linkList + listSize);
             bool protocolFound = false;
-            CHK_RET(ProcessLinkForProtocolNhr(comm, expectedProtocols, links, myRank, rank, netLayer, channels[netLayer], protocolFound,
-            std::string("[CalcChannelRequestMesh1D]")));
+            CHK_RET(ProcessLinkForProtocolNhr(comm, expectedProtocols, links, myRank, rank, netLayer, channels[netLayer], protocolFound));
             HCCL_INFO("netLayer = %llu,channels[netLayer].size()= %llu,rank = %u",netLayer,channels[netLayer].size(),rank);
         }
         CHK_PRT_RET(channels.empty(),
@@ -164,65 +163,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcChannelRequest(HcclComm comm, const Op
 #endif
     return HCCL_SUCCESS;
 }
-
-HcclResult CcuTempAllToAllMesh1D2Die::RestoreChannelMap(const std::vector<std::vector<HcclChannelDesc>>& channelDescs,
-                                std::map<u32, std::vector<std::vector<HcclChannelDesc>>>& rankIdToChannelDesc)
-{
-
-    //多少个kernel
-    std::vector<HcclChannelDesc> channelDescs;
-    // 要拿所有的channel，mesh和clos的。
-    // mesh和clos的channel分开。通过layer去查，或者通过到某个对端的数量来判断，两个的就是clos。
-    // 获取mesh的dieid。
-    // 获取clos的dieid
-    CHK_RET(CalcChannelRequest(comm, param, topoInfo, subCommRanks_, channelDescs));
-    CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
-    HCCL_INFO("channelDescs size[%u]", channelDescs.size());
-
-    uint32_t meshDieId = 0;
-    CHK_RET(PartitionChannels(comm, channelDescs, meshDieId, rankIdToChannelDesc_));
-    resourceRequest.channels.emplace_back(channelDescs);
-    HCCL_INFO("resourceRequest.channels[%d]",resourceRequest.channels.size());
-
-    const uint32_t rankSize = subCommRanks_[0].size();
-    resourceRequest.ccuKernelNum.push_back(DIE_NUM);        // kernel数量
-
-    // 先下发mesh的kernel
-    CcuKernelInfo kernelInfoMesh;
-    strcpy_s(kernelInfoMesh.kernelFuncName, sizeof(kernelInfoMesh.kernelFuncName), "CcuAllToAllMesh2DieKernel");
-    kernelInfoMesh.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
-
-    auto kernelArgMesh = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
-    kernelArgMesh->rankSize = rankSize;
-    kernelArgMesh->rankId = myRank_;
-    kernelArgMesh->opParam = param;
-    kernelArgMesh->subCommRanks = subCommRanks_;
-    kernelArgMesh->withMyRank = true;
-    kernelArgMesh->rankGroup = rankGroup_[meshDieId];
-    kernelInfoMesh.setKernelArg(kernelArgMesh);
-    kernelInfoMesh.channels = channels_[meshDieId];
-    resourceRequest.ccuKernelInfos.emplace_back(kernelInfoMesh);
-    HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
-        meshDieId, channels_[meshDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
-
-    // 下发clos的kernel
-    uint32_t closDieId = 1 - meshDieId;
-    CcuKernelInfo kernelInfoClos;
-    strcpy_s(kernelInfoClos.kernelFuncName, sizeof(kernelInfoClos.kernelFuncName), "CcuAllToAllMesh2DieKernel");
-    kernelInfoClos.kernelFunc = reinterpret_cast<void *>(CcuAllToAllMesh2DieKernel);
-
-    auto kernelArgClos = std::make_shared<CcuKernelArgAllToAllMesh2Die>();
-    kernelArgClos->rankSize = rankSize;
-    kernelArgClos->rankId = myRank_;
-    kernelArgClos->opParam = param;
-    kernelArgClos->subCommRanks = subCommRanks_;
-    kernelArgClos->withMyRank = false;
-    kernelArgClos->rankGroup = rankGroup_[closDieId];
-    kernelInfoClos.setKernelArg(kernelArgClos);
-    kernelInfoClos.channels = channels_[closDieId];
-    resourceRequest.ccuKernelInfos.emplace_back(kernelInfoClos);
-    HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
-        closDieId, channels_[closDieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
 
 HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& param,
  	     const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)

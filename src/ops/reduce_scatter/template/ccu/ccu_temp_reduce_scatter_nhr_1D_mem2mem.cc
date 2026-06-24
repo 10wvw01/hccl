@@ -132,7 +132,7 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPara
         kernelArg->rankId = mySubCommRank_;
         kernelArg->mySubCommRankId = mySubCommRank_;
         kernelArg->axisId = kernelIdx;
-        kernelArg->axisSize = enableDieNum;
+        kernelArg->axisSize = dieNum;
         kernelArg->stepInfoVector = stepInfoVector;
         kernelArg->rank2ChannelIdx = rank2ChannelIdx;
         kernelArg->opParam = param;
