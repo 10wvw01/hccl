@@ -547,8 +547,19 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
             u64 tailSize = (q + r) * dataTypeSize_;
             if (tailSize > rsResultBuffSize_ && q > 0) {
                 u64 maxTailElements = rsResultBuffSize_ / dataTypeSize_;
+                if (maxTailElements == 0) {
+                    HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu3Level] rsResultBuffSize_[%llu] is smaller than "
+                        "dataTypeSize_[%llu], buffer too small", rsResultBuffSize_, dataTypeSize_);
+                    return HCCL_E_INTERNAL;
+                }
                 u64 newQ = q - 1;
-                u64 newR = std::min(static_cast<u64>(rankSizeLevel0_ - 1), maxTailElements - newQ);
+                u64 newR;
+                if (newQ >= maxTailElements) {
+                    newQ = maxTailElements;
+                    newR = 0;
+                } else {
+                    newR = std::min(static_cast<u64>(rankSizeLevel0_ - 1), maxTailElements - newQ);
+                }
                 currDataCount = newQ * rankSizeLevel0_ + newR;
             }
         } else {
