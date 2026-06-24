@@ -184,7 +184,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     if (maxCountPerLoop == 0) {
         HCCL_ERROR("[InsV2AllGatherParallelExecutor] myRank[%u] maxCountPerLoop is 0, "
             "scratchMultiplier[%u] too large for cclBuffSize[%llu]",
-            myRank_, templateScratchMultiplier, tempAlgParamsLevel2.buffInfo.hcclBuff.size);
+            totalScratchMultiple, scratchMemBlockSize);
         return HCCL_E_INTERNAL;
     }
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
