@@ -354,8 +354,8 @@ void TopoModel::GetEndpointDesc(uint32_t curRank, uint32_t layer, uint32_t topoI
 {
     char *dpnEnv = getenv("ENABLE_HOSTDPU_FOR_LLT");
     if (dpnEnv != nullptr && std::string(dpnEnv) == "1") {
-        *descNum = dpuDesc_.size();
-        for (auto i = 0; i < dpuDesc_.size(); i++) {
+        *descNum = static_cast<uint32_t>(dpuDesc_.size());
+        for (size_t i = 0; i < dpuDesc_.size(); i++) {
             endpointDesc[i] = dpuDesc_[i];
         }
         return;
