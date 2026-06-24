@@ -16,6 +16,7 @@ constexpr uint32_t GRID_SIZE = 8;
 constexpr uint32_t NetLayerL0 = 0;
 constexpr uint32_t NetLayerL1 = 1;
 constexpr uint32_t NetLayerL2 = 2;
+constexpr uint32_t NetLayerL3 = 3;  // 第4层(net_layer_3, SuperNode级OCS)
 constexpr uint32_t SERVER_CLOS_INSTID = 16;
 
 TopoModel::TopoModel(const TopoMeta& topoMeta)
@@ -51,12 +52,22 @@ TopoModel::TopoModel(const TopoMeta& topoMeta)
     }
 
     allRankNum_.push_back(rankId);
+    InitLevel3Enable();
     InitNetLayerInfo(serverId, superpodId);
     Init910BLinkMap();
     Init910CLinkMap();
     Init910DLinkMap();
     InitL1L2TopoInsts(superpodId);
     InitHostDpuInfo(serverId);
+}
+
+void TopoModel::InitLevel3Enable()
+{
+    // 仅当显式设置环境变量时启用第4层，保证现有用例(最多3层)零影响
+    char *lvl3Env = getenv("HCCL_SIM_ENABLE_LEVEL3");
+    if (lvl3Env != nullptr && std::string(lvl3Env) == "1") {
+        enableLevel3_ = true;
+    }
 }
 
 void TopoModel::InitHostDpuInfo(uint32_t serverNum)
@@ -86,6 +97,8 @@ void TopoModel::InitL1L2TopoInsts(uint32_t podNum)
     }
 
     level2TopoInsts_.push_back(0);
+    // level3(SuperNode级OCS)同样认为只有一个实例0
+    level3TopoInsts_.push_back(0);
 }
 
 void TopoModel::InitTopoInstsMap(uint32_t serverId, uint32_t rankId, const std::vector<uint32_t> &phyIds)
@@ -185,6 +198,13 @@ void TopoModel::InitNetLayerInfo(uint32_t serverNum, uint32_t podNum)
 
     if (podNum > 1) {
         netLayerList_ = {0, 1, 2};
+    }
+
+    // 第4层(net_layer_3)仅显式启用时追加，保证现有拓扑行为不变
+    if (enableLevel3_ && podNum > 1) {
+        netLayerList_ = {0, 1, 2, 3};
+        // 第4层OcsDomain实例覆盖全部rank，每个实例rank数 = 全量rank数
+        level3RanksGroup_.push_back(allRankList_.size());
     }
 }
 
@@ -305,6 +325,9 @@ void TopoModel::GetTopoInstsByLayer(uint32_t curRank, uint32_t netLayer, uint32_
     } else if (netLayer == NetLayerL2) {
         *topoInsts = level2TopoInsts_.data();
         *topoInstNum = level2TopoInsts_.size();
+    } else if (netLayer == NetLayerL3) {
+        *topoInsts = level3TopoInsts_.data();
+        *topoInstNum = level3TopoInsts_.size();
     }
 }
 
@@ -319,6 +342,10 @@ void TopoModel::GetRanksByTopoInst(uint32_t curRank, uint32_t netLayer, uint32_t
         *ranks = podId2RankList_[podId].data();
         *rankNum = podId2RankList_[podId].size();
     } else if (netLayer == NetLayerL2) {
+        *ranks = allRankList_.data();
+        *rankNum = allRankList_.size();
+    } else {
+        // NetLayerL3 及以上: 覆盖全部 rank
         *ranks = allRankList_.data();
         *rankNum = allRankList_.size();
     }
@@ -574,6 +601,12 @@ void TopoModel::Create910DLinks(uint32_t srcRank, uint32_t dstRank)
     // level2
     link.linkAttr.linkProtocol = CommProtocol::COMM_PROTOCOL_UBC_CTP;
     allLinkMap_[rankPair][NetLayerL2].push_back(link);
+
+    // level3(net_layer_3, SuperNode级OCS): 跨pod链路，与level2同协议(OCS与CLOS同协议)
+    if (enableLevel3_ && !IsSamePod(srcRank, dstRank)) {
+        link.linkAttr.linkProtocol = CommProtocol::COMM_PROTOCOL_UBC_CTP;
+        allLinkMap_[rankPair][NetLayerL3].push_back(link);
+    }
 
     // level1 同pod才有level1链路
     if (IsSamePod(srcRank, dstRank)) {

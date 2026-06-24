@@ -30,6 +30,7 @@ constexpr u64 OMNI_PCIE_RS_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_SCHED_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_MS_DATA_SIZE = 2 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u32 TOPO_LEVEL_NUM_4 = 4;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 SelectorStatus ReduceScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
@@ -324,6 +325,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     }
 
     if (topoInfo->topoLevelNums > 1) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_4 && topoInfo->level3Ocs) {
+            // 4层 OCS 拓扑(SuperNode 级)，序列编排 intra+inter1+inter2+inter3
+            selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHRMesh1D";
+            HCCL_INFO("[ReduceScatterAutoSelector] 4-level OCS topology, select [%s]", selectAlgName.c_str());
+            return SelectorStatus::MATCH;
+        }
         if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterAicpuReduceNHR";
         } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {

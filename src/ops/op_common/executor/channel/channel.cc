@@ -512,6 +512,14 @@ HcclResult CalcChannelRequestMesh1DLevel1(HcclComm comm, const OpParam& param,
         1, "CalcChannelRequestMesh1DLevel1", false);
 }
 
+HcclResult CalcChannelRequestMesh1DByLayer(HcclComm comm, const OpParam& param,
+    const TopoInfoWithNetLayerDetails* topoInfo,
+    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels, u32 netLayer)
+{
+    return CalcChannelRequestMesh1DByLevel(comm, param, topoInfo, subcommInfo, channels,
+        netLayer, "CalcChannelRequestMesh1DByLayer", false);
+}
+
 HcclResult CalcChannelRequestMesh2D(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
     const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels)
 {
