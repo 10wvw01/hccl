@@ -62,12 +62,15 @@ private:
     HcclResult RunStage1ToOutput(const TemplateDataParams &params, const TemplateResource &resource) const;
     HcclResult CopySelfToOutput(const TemplateDataParams &params, const ThreadHandle &thread) const;
     HcclResult CopyLocalRelayToOutput(const TemplateDataParams &params, const ThreadHandle &thread) const;
+    HcclResult CopyFinalDstLocalRelayToOutput(const TemplateDataParams &params, const ThreadHandle &thread) const;
     HcclResult BuildStage0Slices(u32 relayRank, const ChannelInfo &channel, const TemplateDataParams &params,
                                  std::vector<DataSlice> &txSrcSlices,
                                  std::vector<DataSlice> &txDstSlices) const;
     HcclResult BuildStage1Slices(u32 finalDst, const ChannelInfo &channel, const TemplateDataParams &params,
                                  std::vector<DataSlice> &txSrcSlices,
                                  std::vector<DataSlice> &txDstSlices) const;
+    bool IsV2Peer(u32 peerRank) const;
+    u32 SelectChannelIdx(u32 peerRank, const std::vector<ChannelInfo> &channels) const;
     void SplitPairCount(u64 count, u64 &part0, u64 &part1) const;
     void GetSplitParts(u32 srcRank, u32 dstRank, u64 count, std::vector<SplitPart> &parts) const;
     u64 CalcRelaySlotOffset(u32 srcRank, u32 dstRank, u32 partIdx) const;

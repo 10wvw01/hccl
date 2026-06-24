@@ -178,6 +178,30 @@ u64 GetExactRelaySlotOffset(const TemplateDataParams &params, u32 rankSize, u32 
     return fallbackOffset;
 }
 
+bool InsTempAlltoAllVV2Stage1NoMemcpy::IsV2Peer(u32 peerRank) const
+{
+    return meshSize_ != 0 && peerRank < rankSize_ && peerRank / meshSize_ != myRank_ / meshSize_;
+}
+
+u32 InsTempAlltoAllVV2Stage1NoMemcpy::SelectChannelIdx(
+    u32 peerRank, const std::vector<ChannelInfo> &channels) const
+{
+    if (channels.empty() || !IsV2Peer(peerRank) || channels.size() == 1) {
+        return 0;
+    }
+
+    const u32 myGroup = myRank_ / meshSize_;
+    const u32 peerGroup = peerRank / meshSize_;
+    const u32 myLocal = myRank_ % meshSize_;
+    const u32 peerLocal = peerRank % meshSize_;
+    const u32 lowGroup = std::min(myGroup, peerGroup);
+    const u32 highGroup = std::max(myGroup, peerGroup);
+    const u32 lowLocal = std::min(myLocal, peerLocal);
+    const u32 highLocal = std::max(myLocal, peerLocal);
+    const u32 hash = lowGroup * groupNum_ + highGroup + lowLocal * meshSize_ + highLocal;
+    return hash % static_cast<u32>(channels.size());
+}
+
 HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopySelfToOutput(
     const TemplateDataParams &params, const ThreadHandle &thread) const
 {
@@ -223,6 +247,37 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopyLocalRelayToOutput(
             HCCL_WARNING("[A2AV_V2_STAGE1_NM][LocalRelay] rank=%u dst=%u part=%u count=%llu "
                          "srcOff=%llu slotOff=%llu",
                          myRank_, finalDst, partIdx, part.count, srcOffset, dstOffset);
+            CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopyFinalDstLocalRelayToOutput(
+    const TemplateDataParams &params, const ThreadHandle &thread) const
+{
+    for (u32 srcRank = 0; srcRank < rankSize_; ++srcRank) {
+        if (srcRank == myRank_ || !HasCount(params.recvCounts, srcRank)) {
+            continue;
+        }
+        std::vector<SplitPart> parts;
+        GetSplitParts(srcRank, myRank_, params.recvCounts[srcRank], parts);
+        for (u32 partIdx = 0; partIdx < parts.size(); ++partIdx) {
+            const SplitPart &part = parts[partIdx];
+            if (part.relayRank != myRank_ || part.count == 0) {
+                continue;
+            }
+            u64 byteSize = part.count * dataTypeSize_;
+            u64 srcOffset = GetExactRelaySlotOffset(params, rankSize_, srcRank, myRank_, partIdx,
+                CalcRelaySlotOffset(srcRank, myRank_, partIdx));
+            u64 dstOffset = (params.rdispls[srcRank] + part.offsetCount) * dataTypeSize_;
+            CHK_RET(CheckSliceRange("LOCAL_RELAY_TO_OUTPUT", srcRank, srcOffset, dstOffset, byteSize,
+                                    params.buffInfo.hcclBuff.size, params.buffInfo.outputSize));
+            DataSlice srcSlice(params.buffInfo.hcclBuff.addr, srcOffset, byteSize, part.count);
+            DataSlice dstSlice(params.buffInfo.outputPtr, dstOffset, byteSize, part.count);
+            HCCL_WARNING("[A2AV_V2_STAGE1_NM][LocalRelayToOutput] rank=%u src=%u part=%u count=%llu "
+                         "slotOff=%llu dstOff=%llu",
+                         myRank_, srcRank, partIdx, part.count, srcOffset, dstOffset);
             CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
         }
     }
@@ -307,16 +362,20 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunStage0ToRelay(
         }
         std::vector<DataSlice> txSrcSlices;
         std::vector<DataSlice> txDstSlices;
-        CHK_RET(BuildStage0Slices(relayRank, item.second[0], params, txSrcSlices, txDstSlices));
-        ThreadHandle thread = resource.threads[std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1))];
+        u32 channelIdx = SelectChannelIdx(relayRank, item.second);
+        const ChannelInfo &channel = item.second[channelIdx];
+        CHK_RET(BuildStage0Slices(relayRank, channel, params, txSrcSlices, txDstSlices));
+        u32 runThreadIdx = std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1));
+        ThreadHandle thread = resource.threads[runThreadIdx];
         u64 totalBytes = 0;
         for (const auto &slice : txSrcSlices) {
             totalBytes += slice.size_;
         }
-        HCCL_WARNING("[A2AV_V2_STAGE1_NM][Stage0] rank=%u relay=%u slices=%zu bytes=%llu threadIdx=%u",
-                     myRank_, relayRank, txSrcSlices.size(), totalBytes,
-                     std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1)));
-        CHK_RET(RunPeerSendRecv(item.second[0], txSrcSlices, txDstSlices, thread));
+        HCCL_WARNING("[A2AV_V2_STAGE1_NM][SelectChannel] phase=stage0 rank=%u peer=%u links=%zu "
+                     "selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u",
+                     myRank_, relayRank, item.second.size(), channelIdx, channel.portGroupSize,
+                     txSrcSlices.size(), totalBytes, runThreadIdx);
+        CHK_RET(RunPeerSendRecv(channel, txSrcSlices, txDstSlices, thread));
         ++threadIdx;
     }
     return HCCL_SUCCESS;
@@ -326,6 +385,7 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunStage1ToOutput(
     const TemplateDataParams &params, const TemplateResource &resource) const
 {
     u32 threadIdx = 1;
+    CHK_RET(CopyFinalDstLocalRelayToOutput(params, resource.threads[0]));
     for (const auto &item : resource.channels) {
         u32 finalDst = item.first;
         if (finalDst == myRank_ || item.second.empty()) {
@@ -333,16 +393,20 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunStage1ToOutput(
         }
         std::vector<DataSlice> txSrcSlices;
         std::vector<DataSlice> txDstSlices;
-        CHK_RET(BuildStage1Slices(finalDst, item.second[0], params, txSrcSlices, txDstSlices));
-        ThreadHandle thread = resource.threads[std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1))];
+        u32 channelIdx = SelectChannelIdx(finalDst, item.second);
+        const ChannelInfo &channel = item.second[channelIdx];
+        CHK_RET(BuildStage1Slices(finalDst, channel, params, txSrcSlices, txDstSlices));
+        u32 runThreadIdx = std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1));
+        ThreadHandle thread = resource.threads[runThreadIdx];
         u64 totalBytes = 0;
         for (const auto &slice : txSrcSlices) {
             totalBytes += slice.size_;
         }
-        HCCL_WARNING("[A2AV_V2_STAGE1_NM][Stage1] rank=%u dst=%u slices=%zu bytes=%llu threadIdx=%u",
-                     myRank_, finalDst, txSrcSlices.size(), totalBytes,
-                     std::min(threadIdx, static_cast<u32>(resource.threads.size() - 1)));
-        CHK_RET(RunPeerSendRecv(item.second[0], txSrcSlices, txDstSlices, thread));
+        HCCL_WARNING("[A2AV_V2_STAGE1_NM][SelectChannel] phase=stage1 rank=%u peer=%u links=%zu "
+                     "selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u",
+                     myRank_, finalDst, item.second.size(), channelIdx, channel.portGroupSize,
+                     txSrcSlices.size(), totalBytes, runThreadIdx);
+        CHK_RET(RunPeerSendRecv(channel, txSrcSlices, txDstSlices, thread));
         ++threadIdx;
     }
     return HCCL_SUCCESS;
