@@ -46,7 +46,7 @@ private:
     HcclResult GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo &stepInfo);
     u32 GetRankFromMap(const u32 algRankIdx);
     HcclResult LocalDataCopy(const std::vector<ThreadHandle> &threads, u32 sliceIdx);
-    HcclResult RunAllGather(const std::vector<ThreadHandle> &threads);
+    HcclResult RunAllGather(const std::vector<ThreadHandle> &threads, u32 sliceIdx);
     HcclResult PostLocalReduce(const std::vector<ThreadHandle> &threads);
     HcclResult LocalCopyToOutput(const std::vector<ThreadHandle> &threads, u32 sliceIdx);
     TemplateDataParams tempAlgParams_;

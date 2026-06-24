@@ -65,7 +65,7 @@ HcclResult InsTempReduceScatterVAicpuReduceNHR::KernelRun(const OpParam& param,
             CHK_RET(LocalCopyToOutput(templateResource.threads, sliceIdx));
         }
         // 这里通过allgather来传递数据，实际上只有一个rank需要这份数据
-        CHK_RET(RunAllGather(templateResource.threads));
+        CHK_RET(RunAllGather(templateResource.threads, sliceIdx));
         // 每个循环都必须确保通信任务完成后，才去做本地归约
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
@@ -181,7 +181,7 @@ HcclResult InsTempReduceScatterVAicpuReduceNHR::PostLocalReduce(const std::vecto
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult InsTempReduceScatterVAicpuReduceNHR::RunAllGather(const std::vector<ThreadHandle> &threads)
+HcclResult InsTempReduceScatterVAicpuReduceNHR::RunAllGather(const std::vector<ThreadHandle> &threads, u32 sliceIdx)
 {
     const u32 nSteps = GetNHRStepNum(templateRankSize_);
 
@@ -215,13 +215,13 @@ HcclResult InsTempReduceScatterVAicpuReduceNHR::RunAllGather(const std::vector<T
                 const u64 rxScratchOff = scratchBase + tempAlgParams_.outputSliceStride * rxIdx;
 
                 txSrcSlicesAll.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, txScratchOff,
-                    allRankProcessSize_[txIdx], allRankCounts_[txIdx]);
+                    allRankProcessSize_[sliceIdx], allRankCounts_[sliceIdx]);
                 txDstSlicesAll.emplace_back(sendCclBuffAddr, txScratchOff,
-                    allRankProcessSize_[txIdx], allRankCounts_[txIdx]);
+                    allRankProcessSize_[sliceIdx], allRankCounts_[sliceIdx]);
                 rxSrcSlicesAll.emplace_back(recvCclBuffAddr, rxScratchOff,
-                    allRankProcessSize_[rxIdx], allRankCounts_[rxIdx]);
+                    allRankProcessSize_[sliceIdx], allRankCounts_[sliceIdx]);
                 rxDstSlicesAll.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, rxScratchOff,
-                    allRankProcessSize_[rxIdx], allRankCounts_[rxIdx]);
+                    allRankProcessSize_[sliceIdx], allRankCounts_[sliceIdx]);
             }
         }
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
