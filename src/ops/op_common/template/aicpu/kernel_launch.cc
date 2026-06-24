@@ -456,6 +456,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
             // 执行算法编排
+            MY_TIMER("HcclLaunchAicpuKernel_Orchestrate");
             if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
                 HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
                 return 1;
