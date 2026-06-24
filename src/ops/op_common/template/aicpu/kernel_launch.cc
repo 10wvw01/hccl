@@ -257,6 +257,7 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 
 extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 {
+    FUNCTION_TRACE; // 细化打点会有性能损耗
     if (param == nullptr) {
         HCCL_ERROR("%s param is nullptr", __func__);
         return 1;
@@ -447,6 +448,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
+                MY_TIMER("HcclLaunchAicpuKernel_HcommIsSupportHcommAicpuTsTaskCacheLookup");
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
             }
         }
@@ -482,6 +484,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             // 提交aicpu task cache
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
             if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
+                MY_TIMER("HcclLaunchAicpuKernel_HcommIsSupportHcommAicpuTsTaskCacheSubmit");
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT, param->opConfig.debugConfig)));
                 // 首次缓存记录通信域与tag关系
                 if (isCacheMiss) {

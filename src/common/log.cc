@@ -10,6 +10,11 @@
 #include "log.h"
 
 thread_local bool g_hcclErrToWarn = false;
+
+uint64_t HcclTimer::timerCounter = 0;
+std::vector<TimerEntry> HcclTimer::timerEntries;
+HcclTimerDumper g_TimerDumper;
+
 constexpr int32_t HCCL_LOG_LEVEL_INVALID = -1;
 static int32_t g_logLevelCache = -1;
 int32_t dlog_getlevel(int32_t moduleId, int32_t *enableEvent) __attribute((weak));
