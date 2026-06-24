@@ -366,6 +366,14 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             selectAlgName = "InsAllReduceAicpuReduceNHR";
         } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             if (!topoInfo->level2Uboe) {
+                // level0(server内)只有1张卡时, level0退化为单点, Mesh1D无意义,
+                // 等价于每机1卡的扁平NHR场景, 应全打平走NHR, 不走三级Mesh1D算法
+                if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+                    selectAlgName = "InsAllReduceNHR";
+                    HCCL_INFO("[AllReduceAutoSelector] level0 is degenerate (1 card per server) on 3-level topo, "
+                        "select [%s].", selectAlgName.c_str());
+                    return SelectorStatus::MATCH;
+                }
                 selectAlgName = "InsV2AllReduceSequenceMesh1DNHRNHR";
                 HCCL_INFO("[AllReduceAutoSelector] level2 protocol is not UBOE, select [%s] for 3-level topo.",
                     selectAlgName.c_str());
