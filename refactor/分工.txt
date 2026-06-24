@@ -1,0 +1,15 @@
+api -> 直接拷贝
+c_adaptor -> 直接拷贝
+executor -> 蔡鑫
+op_common -> 樊伟
+template/engines/launcher -> 卢杨
+template/engines/op_alg -> 卢杨
+template/primitives -> 彭晨晨
+selector -> 杨华宝
+utils -> 杨华宝/姚智勇
+
+架构设计文档 -> 樊伟
+OpParam重构 -> 
+
+
+选择AICPU AllGather
