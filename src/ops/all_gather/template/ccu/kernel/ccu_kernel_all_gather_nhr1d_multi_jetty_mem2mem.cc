@@ -235,7 +235,7 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
             ctx.srcMem.addr += ctx.inputRepeatStride;
             ctx.myDstMem.addr += ctx.outputRepeatStride;
         }
-        const uint16_t rankMask = 1 << arg->rankId;
+        const uint16_t rankMask = 1 ; //<< arg->rankId
         CCU_IF(ctx.isInputOutputEqual == 0)
         {
             CCU_IF(ctx.sliceSize != 0) {
