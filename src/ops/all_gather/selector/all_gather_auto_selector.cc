@@ -26,12 +26,26 @@ constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
+namespace {
+bool IsTopoLevelUnsupported(const TopoInfoWithNetLayerDetails *topoInfo)
+{
+    if (topoInfo == nullptr || topoInfo->topoLevelNums <= TOPO_LEVEL_NUM_3) {
+        return false;
+    }
+    HCCL_WARNING("[AllGatherAutoSelector] topoLevelNums[%u] is not supported for allgather auto selector.",
+        topoInfo->topoLevelNums);
+    return true;
+}
+} // namespace
+
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
+        __func__), SelectorStatus::NOT_MATCH);
 
     if (topoInfo->topoLevelNums > 1) {
         HCCL_WARNING("[AllGatherAutoSelector] levelNum > 1 is not supported yet for ccu_ms mode.");
@@ -181,6 +195,8 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
     (void)configAlgMap;
+    CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
+        __func__), SelectorStatus::NOT_MATCH);
     u32 ccuSize = 32;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
@@ -233,6 +249,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
+        __func__), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
@@ -324,6 +342,8 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
     (void)opParam;
+    CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
+        __func__), SelectorStatus::NOT_MATCH);
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
         HCCL_DEBUG("[AllGatherAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
@@ -352,6 +372,8 @@ SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
+    CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
+        __func__), SelectorStatus::NOT_MATCH);
     if (topoInfo->topoLevelNums > 1) {
         if ((topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
             selectAlgName = "InsAllGatherMeshNhrDPU";
