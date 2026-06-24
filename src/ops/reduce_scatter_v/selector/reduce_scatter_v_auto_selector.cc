@@ -205,11 +205,12 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
     }
 
     if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
-        if (opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT64) {
-            selectAlgName = "InsReduceScatterVAicpuReduceNHR";
-        } else {
-            selectAlgName = "InsReduceScatterVMesh1D";
-        }
+        // if (opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT64) {
+        //     selectAlgName = "InsReduceScatterVAicpuReduceNHR";
+        // } else {
+        //     selectAlgName = "InsReduceScatterVMesh1D";
+        // }
+        selectAlgName = "InsReduceScatterVMesh1D";
     } else {
         return SelectorStatus::NOT_MATCH;
     }
