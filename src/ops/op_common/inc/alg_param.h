@@ -171,6 +171,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     bool level0PcieMix{false};
     bool level0BigClosRange{false};
     bool level2Uboe{false};
+    bool level3Ocs{false}; // 4层OCS拓扑(SuperNode级)标记，由 CalcLevel3Ocs 填充
     u32 topoInstDetailsOfLayerSize = 0;
     Level0MeshType level0MeshType;
     NetLayerDetails netLayerDetails;
@@ -206,6 +207,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream << level0PcieMix;
         binaryStream << level0BigClosRange;
         binaryStream << level2Uboe;
+        binaryStream << level3Ocs;
         binaryStream << topoInstDetailsOfLayerSize;
         binaryStream << level0MeshType;
         binaryStream << netLayerDetails.netLayerNum;
@@ -255,6 +257,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> level0PcieMix;
         binaryStream >> level0BigClosRange;
         binaryStream >> level2Uboe;
+        binaryStream >> level3Ocs;
         binaryStream >> topoInstDetailsOfLayerSize;
         binaryStream >> level0MeshType;
         binaryStream >> netLayerDetails.netLayerNum;

@@ -39,6 +39,9 @@ HcclResult CalcChannelRequestMesh1DLevel0(HcclComm comm, const OpParam& param, c
     const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
 HcclResult CalcChannelRequestMesh1DLevel1(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
     const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
+// 在指定 net_layer 上建 Mesh1D channel(用于高层 inter, 如 layer3 OCS), linkRequired=false 表示跨框链路非强求
+HcclResult CalcChannelRequestMesh1DByLayer(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels, u32 netLayer);
 HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
     const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
 HcclResult CalcChannelRequestMesh2D(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

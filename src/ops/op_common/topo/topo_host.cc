@@ -28,6 +28,7 @@ constexpr u32 FACTOR_NUM_TWO = 2;
 constexpr s32 DEVICE_PER_MODULE = 8;
 constexpr uint32_t NET_LAYER_NUM_TWO = 2;
 constexpr uint32_t NET_LAYER_NUM_THREE = 3;
+constexpr uint32_t NET_LAYER_NUM_FOUR = 4;
 constexpr u32 DEVICE_NO_HCCS_LINK_COUNT = 2; // 设备没有与自身和通过同一SIO链路连接的companion设备的HCCS_SW链路
 constexpr u32 TOPO_INST_NUM_MESH_1D_CLOS = 2; // MESH_1D_CLOS拓扑类型的实例数量
 
@@ -684,6 +685,18 @@ static HcclResult CalcLevel2Uboe(const HcclComm comm, TopoInfoWithNetLayerDetail
     return HCCL_SUCCESS;
 }
 
+// 计算 Level3 OCS 标记：4 层拓扑(逻辑 layer3，SuperNode 级 OCS_MESH)存在时置 true。
+// OCS 层与 CLOS 层使用相同协议，因此仅按活跃层数判定，无需区分协议类型。
+static HcclResult CalcLevel3Ocs(const HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
+{
+    if (topoInfo->topoLevelNums < NET_LAYER_NUM_FOUR) {
+        return HCCL_SUCCESS;
+    }
+    topoInfo->level3Ocs = true;
+    HCCL_INFO("[TopoHost][CalcLevel3Ocs] topoLevelNums[%u] >= 4, set level3Ocs to true", topoInfo->topoLevelNums);
+    return HCCL_SUCCESS;
+}
+
 HcclResult CalcTopoShape(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
 {
     CHK_RET(ExtractNetLayerDetails(comm, topoInfo));
@@ -695,6 +708,7 @@ HcclResult CalcTopoShape(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
     CHK_RET(IsLevel0PcieMix(comm, topoInfo));
     CHK_RET(CalcLevel0MeshType(comm, topoInfo));
     CHK_RET(CalcLevel2Uboe(comm, topoInfo));
+    CHK_RET(CalcLevel3Ocs(comm, topoInfo));
     return HCCL_SUCCESS;
 }
 

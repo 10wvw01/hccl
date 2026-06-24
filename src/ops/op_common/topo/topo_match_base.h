@@ -28,6 +28,7 @@ constexpr int COMM_LAYER_SIZE_0 = 0;
 constexpr int COMM_LAYER_SIZE_1 = 1;
 constexpr int COMM_LAYER_SIZE_2 = 2;
 constexpr int COMM_LAYER_SIZE_3 = 3;
+constexpr int COMM_LAYER_SIZE_4 = 4;
 
 constexpr int NET_INST_NUM_0 = 0;
 constexpr int NET_INST_NUM_1 = 1;
