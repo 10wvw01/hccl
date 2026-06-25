@@ -1,3 +1,4 @@
+
 HcclResult SendWrite(const DataInfo &sendInfo, const ThreadHandle &thread);
 HcclResult RecvWrite(const DataInfo &recvInfo, const ThreadHandle &thread);
 HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread);

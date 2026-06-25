@@ -133,7 +133,7 @@ HCCLResult RunNhrReduceScatter(const NhrAlgParam& param,bool isDmaRead)
 
 // ===== NHR AllGather 原语实现 =====
 // 计算AllGather NHR每一步的数据切片，并调用合适的传输方式下发task
-HCCLResult RunNhrAllGather(const NhrAlgParam& param,bool isDmaRead)
+HCCLResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource， EngineType engineType)
 {
     SliceInfoList steps;
     u32 nSteps = CalcNhrStepNum(param.rankSize);
@@ -165,14 +165,14 @@ HCCLResult RunNhrAllGather(const NhrAlgParam& param,bool isDmaRead)
             }
         }
 
-        SendRecv(isDmaRead);
+        SendRecv(tempAlgParams, templateResource, engineType);
     }
     return steps;
 }
 
 // ===== NHR Scatter 原语实现 =====
 
-HCCLResult RunNhrScatter(const NhrAlgParam& param, u32 root, bool isDmaRead)
+HCCLResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource， EngineType engineType)
 {
     SliceInfoList steps;
     u32 nSteps = CalcNhrStepNum(param.rankSize);
@@ -206,7 +206,7 @@ HCCLResult RunNhrScatter(const NhrAlgParam& param, u32 root, bool isDmaRead)
         }
 
         // Scatter 不做归约，使用普通 SendRecv
-        SelectSendRecvOp(isDmaRead);
+        SelectSendRecvOp(tempAlgParams, templateResource, engineType);
     }
     return steps;
 }
