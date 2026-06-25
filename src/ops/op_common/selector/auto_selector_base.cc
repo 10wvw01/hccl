@@ -81,7 +81,7 @@ bool AutoSelectorBase::IsDefaultAlg(const HcclAlgoType algoType) const
 
 bool AutoSelectorBase::IsSmallData(const u64 dataSize) const
 {
-    return dataSize <= SMALL_SIZE_512KB;
+    return dataSize < SMALL_COUNT_512KB;
 }
 
 bool AutoSelectorBase::IsLargeData(const u64 dataSize) const
