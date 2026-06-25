@@ -11,6 +11,7 @@
 set(src_list
     main.cc
     all_gather_3level_testcase.cc
+    all_gather_4level_testcase.cc
     scatter_testcase.cc
     all_reduce_testcase.cc
     all_reduce_parallel_testcase.cc
