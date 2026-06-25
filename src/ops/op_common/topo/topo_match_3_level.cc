@@ -12,6 +12,8 @@
 #include "op_common.h"
 
 namespace ops_hccl {
+constexpr uint32_t LAYERNUM2 = 2;
+constexpr uint32_t LAYERNUM3 = 3;
 TopoMatch3Level::TopoMatch3Level()
     : TopoMatchBase()
 {
@@ -162,7 +164,7 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     uint32_t layer1Size = listSize;
     uint32_t baseModSizeL1 = layer0Size;
     
-    if (layerNum >= 2) {
+    if (layerNum >= LAYERNUM2) {
         uint32_t netLayerL1 = 1;
         bool hostDPUOnly = false;
         if ((CheckHostDPUOnly(comm, topoInfo, hostDPUOnly) == HcclResult::HCCL_SUCCESS) && hostDPUOnly) {
@@ -170,7 +172,7 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
         }
         CHK_RET(TopoForLayerGeneric(comm, netLayerL1, baseModSizeL1, myRank, algHierarchyInfo, 1));
     }
-    if (layerNum >= 3) {
+    if (layerNum >= LAYERNUM3) {
         uint32_t netLayerL2 = 2;
         // 应该除以超节点数量
         uint32_t layer1Size = topoInfo->netLayerDetails.localNetInsSizeOfLayer[1];
@@ -181,7 +183,7 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
         }
         uint32_t superPodNum = layer2Size / layer1Size;
         uint32_t baseModSizeL2 = layer0Size * layer1Size / superPodNum;
-        CHK_RET(TopoForLayerGeneric(comm, netLayerL2, baseModSizeL2, myRank, algHierarchyInfo, 2));
+        CHK_RET(TopoForLayerGeneric(comm, netLayerL2, baseModSizeL2, myRank, algHierarchyInfo, LAYERNUM2));
     }
 
 #endif

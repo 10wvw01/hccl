@@ -38,7 +38,6 @@ public:
                                  const TemplateResource &templateAlgRes1, u32 notifyNumOnMainThread);
 #endif
 
-
 private:
     /* *************** 算法编排 *************** */
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,

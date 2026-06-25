@@ -435,10 +435,10 @@ static CcuResult ReduceLoopGroup(ReduceScatterMesh1DMem2MemContext &ctx, ccu::Lo
     // 第一个loopgroup，处理m部分数据
     CCU_IF(ctx.goSize.loopParam != 0)
     {
+        ccu::Variable sliceSize;
         loopParam = GetLoopParam(0, ctx.moConfig.memSlice * ctx.moConfig.loopCount, 0);
         loopParam = loopParam + ctx.goSize.loopParam;
 
-        ccu::Variable sliceSize;
         sliceSize          = ctx.moConfig.memSlice;
         sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
 
@@ -493,11 +493,11 @@ static CcuResult ReduceLoopGroup(ReduceScatterMesh1DMem2MemContext &ctx, ccu::Lo
             scratch[i].addr += ctx.goSize.residual;
         }
         src.addr += ctx.goSize.residual;
+        ccu::Variable sliceSize;
         for (uint32_t i = 0; i < expansionNum; i++) {
             dst.addr += ctx.goSize.residual;
         }
 
-        ccu::Variable sliceSize;
         sliceSize          = ctx.moConfig.memSlice;
         sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
 

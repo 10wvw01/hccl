@@ -568,7 +568,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     bool isZeroCopy = false;
     char algName[OP_ALG_LENGTH] = "";
     HcclOpExpansionMode commOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
-    OpExecuteConfig opExecuteConfig;
+    OpExecuteConfig opExecuteConfig{OpExecuteConfig::DEFAULT};
     u32 numBlocksLimit = 0;
     bool isAivClearEnable = false;
     u64 ctxSize = 0;
