@@ -35,6 +35,12 @@ private:
     HcclResult PreprareDataSplitForMultiChannelOmni(const TemplateResource &templateResource);
     HcclResult DoLastStepCopyNhr(const std::vector<ThreadHandle>& threads,
                                const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
+    HcclResult BuildNhrSendRecvSlices(const AicpuNHRStepInfo &stepInfo, const ChannelInfo &channelSend,
+                                      const ChannelInfo &channelRecv, const u32 &channelIdx, bool useOutputSrc,
+                                      std::vector<DataSlice> &txSrcSlices, std::vector<DataSlice> &txDstSlices,
+                                      std::vector<DataSlice> &rxSrcSlices, std::vector<DataSlice> &rxDstSlices);
+    HcclResult CopyLastStepSliceToOutput(const std::vector<ThreadHandle>& threads,
+                                         const AicpuNHRStepInfo &stepInfo, const u32 &channelIdx);
     u64 dataTypeSize_{0};
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;

@@ -14,6 +14,17 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
+static void CalcMeshScratchOffsets(const TemplateDataParams &tempAlgParams, u32 myAlgRank, u32 connectedAlgRank,
+    u32 rpt, u64 &txOffset, u64 &rxOffset)
+{
+    u64 txBaseOff = tempAlgParams.buffInfo.inBuffBaseOff +
+                    tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
+    u64 rxBaseOff = tempAlgParams.buffInfo.outBuffBaseOff +
+                    tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
+    txOffset = tempAlgParams.stepSliceInfo.stepInputSliceStride[myAlgRank] + txBaseOff;
+    rxOffset = tempAlgParams.stepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxBaseOff;
+}
+
 InsTempAllGatherOmniPipeMesh1D::InsTempAllGatherOmniPipeMesh1D(const OpParam& param,
                                                                const u32 rankId,  // 传通信域的rankId，userRank
                                                                const std::vector<std::vector<u32>>& subCommRanks)
@@ -98,12 +109,9 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
             std::vector<DataSlice> rxSrcSlices;
             std::vector<DataSlice> rxDstSlices;
             for (u32 rpt = 0; rpt < tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++rpt) {
-                u64 txBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
-                                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
-                u64 rxBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
-                                tempAlgParams_.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
-                u64 txOffset = tempAlgParams_.stepSliceInfo.stepInputSliceStride[myAlgRank] + txBaseOff;
-                u64 rxOffset = tempAlgParams_.stepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxBaseOff;
+                u64 txOffset = 0;
+                u64 rxOffset = 0;
+                CalcMeshScratchOffsets(tempAlgParams_, myAlgRank, connectedAlgRank, rpt, txOffset, rxOffset);
                 DataSlice txSrcSlice =
                     DataSlice(txSrcPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
                             tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 本地(send)
@@ -167,12 +175,9 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
             std::vector<DataSlice> rxSrcSlices;
             std::vector<DataSlice> rxDstSlices;
             for (u32 rpt = 0; rpt < tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++rpt) {
-                u64 txBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
-                                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
-                u64 rxBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
-                                tempAlgParams_.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
-                u64 txOffset = tempAlgParams_.stepSliceInfo.stepInputSliceStride[myAlgRank] + txBaseOff;
-                u64 rxOffset = tempAlgParams_.stepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxBaseOff;
+                u64 txOffset = 0;
+                u64 rxOffset = 0;
+                CalcMeshScratchOffsets(tempAlgParams_, myAlgRank, connectedAlgRank, rpt, txOffset, rxOffset);
 
                 u64 txWriteSrcBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
                                 tempAlgParams_.omniReadDstStepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
