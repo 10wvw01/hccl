@@ -14,6 +14,9 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
+#include "alg_data_trans_wrapper.h"
+#include <cstdlib>
+#include <string>
 
 namespace ops_hccl {
 
@@ -603,7 +606,25 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         // ----------- AGL0: level0 AllGather -----------
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
             tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
-        CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
+
+        // [DEBUG] 环境变量 HCCL_DUMP_BEFORE_AGL0=1 时跳过 AGL0，直接把 AGL2 后的 cclMem 搬到 output。
+        // 目的：判断 RSL0->RSL2->AGL2 三步的 cclMem 是否正确（正确则 bug 在 AGL0，错误则 bug 在前三步）。
+        // 每个 rank 把自己持有的 cclMem[0..sliceBytes] 搬到 output 自己的 rankIdxLevel0 位置。
+        const char *dumpEnv = getenv("HCCL_DUMP_BEFORE_AGL0");
+        bool dumpBeforeAGL0 = (dumpEnv != nullptr) && (std::string(dumpEnv) == "1");
+        if (dumpBeforeAGL0) {
+            u64 sliceBytes = currDataCount / rankSizeLevel0_ * dataTypeSize_;
+            u64 outOff = rankIdxLevel0_ * sliceBytes + processedDataCount * dataTypeSize_;
+            DataSlice srcSlice(resCtx.cclMem.addr, rsResultBuffOffset_, sliceBytes, sliceBytes / dataTypeSize_);
+            DataSlice dstSlice(param.outputPtr, outOff, sliceBytes, sliceBytes / dataTypeSize_);
+            if (!threads_.empty()) {
+                CHK_RET(LocalCopy(threads_[0], srcSlice, dstSlice));
+            }
+            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP] loop[%u] rankIdxLevel0[%u] "
+                "dump cclMem[0..%llu] -> output[%llu..%llu]", loop, rankIdxLevel0_, sliceBytes, outOff, outOff + sliceBytes);
+        } else {
+            CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
+        }
 
         processedDataCount += currDataCount;
         loop++;
