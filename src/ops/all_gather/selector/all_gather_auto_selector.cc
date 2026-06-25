@@ -21,7 +21,8 @@ constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
-constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
+constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 1 * 1024 * 1024 * 1024;
+constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -232,8 +233,15 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
-        // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
-        if (topoInfo->Level1Nhr) {
+        if (topoInfo->topoLevelNums == 3) {
+            if (topoInfo->deviceNumPerModule == 8) {
+                selectAlgName = "InsV2AllGatherOmniPipeUboe";
+            } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
+                selectAlgName = "InsAllGatherNHR";
+            } else {
+                selectAlgName = "InsAllGatherParallelMesh1DNHRUboe";
+            }
+        } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsAllGatherNHR";
             HCCL_INFO("[AllGatherAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
         } else if (topoInfo->Level0Nhr) {
@@ -266,7 +274,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                 if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                     selectAlgName = "InsAllGatherMesh1D";
                 } else {
-                    selectAlgName = "InsAllGatherParallelMesh1DNHRPcie";
+                    selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? "InsAllGatherParallelMesh1DNHRPcie" :
+                                                                          "InsV2AllGatherOmniPipePcie";
                 }
                 HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
                 return SelectorStatus::MATCH;
