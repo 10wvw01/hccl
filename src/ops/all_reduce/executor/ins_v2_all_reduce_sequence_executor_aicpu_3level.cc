@@ -594,9 +594,10 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         // GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
         // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
         {
-            // dump rsResult 区（RSL0 输出），范围 = sliceSizeRSL1（=RSL0.sliceSize）。
-            // 顺带多读一些，看 padding/边界：dump 整个 output 容量（dataSize_），但只到 cclMem 可见范围。
-            u64 dumpBytes = dataSize_;
+            // dump rsResult 区（RSL0 输出）。注意：dataSize_ 因 Orchestrate 里初始化顺序 bug
+            // （dataSize_ 在 dataTypeSize_ 之前赋值）恒为 0，不能用作字节数。
+            // 用 currDataCount * dataTypeSize_ 作为本次 loop 的真实数据字节数（=64B）。
+            u64 dumpBytes = currDataCount * dataTypeSize_;
             u64 outOff = processedDataCount * dataTypeSize_;
             DataSlice srcSlice(resCtx.cclMem.addr, 0, dumpBytes, dumpBytes / dataTypeSize_);
             DataSlice dstSlice(param.outputPtr, outOff, dumpBytes, dumpBytes / dataTypeSize_);
