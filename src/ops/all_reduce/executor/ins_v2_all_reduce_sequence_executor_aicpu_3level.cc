@@ -595,7 +595,12 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
             tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
 
-        // [DEBUG] 强制跳过 AGL0，直接把 AGL2 后的 cclMem 搬到 output。
+        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 AGL0 KernelRun。
+        //
+        // 正常代码（当前注释掉）:
+        // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
+        //
+        // [DEBUG-DUMP] 强制跳过 AGL0，直接把 AGL2 后的 cclMem 搬到 output。
         // 判据：若每个 rank output 里自己 rankIdxLevel0 位置的值正确 -> bug 在 AGL0；否则在前三步。
         {
             u64 sliceBytes = currDataCount / rankSizeLevel0_ * dataTypeSize_;
