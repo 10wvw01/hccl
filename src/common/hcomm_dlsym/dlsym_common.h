@@ -26,6 +26,7 @@
 #include "dlog_pub.h"
 
 #include "hccl/hccl_types.h"
+#include "hccl/hccl_comm.h"
 
 /* beta.1 起 hccl_types.h 已提供 HcclCommStatus，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
 #if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
@@ -38,6 +39,60 @@ typedef enum {
 
 typedef uint64_t ThreadHandle;
 
+#endif
+
+#ifndef HCCL_GROUP_FEATURE_SUPPORT
+#include "hcomm_res_defs.h"
+
+#define MAX_ARG_SIZE 8192U
+typedef struct {
+    ThreadHandle sendRecvStream;
+    uint8_t opParams[MAX_ARG_SIZE];
+} P2pParam;
+
+typedef struct {
+    void *buffer;
+    uint8_t reserved[8];
+    HcclCMDType cmdType;
+    HcclDataType dataType;
+    uint64_t count;
+    uint32_t remoteRank;
+    void *unfoldStream;
+} HcclOpP2pDesc;
+
+const uint32_t HCCL_OP_DESC_OP_NAME_MAX_LEN = 256;
+const uint32_t HCCL_OP_DESC_RESERVED_LEN = 64;
+
+typedef struct {
+    CommAbiHeader header;
+    uint32_t opDescType;
+    char opName[HCCL_OP_DESC_OP_NAME_MAX_LEN];
+    union {
+        uint8_t reserved[256];
+        HcclOpP2pDesc p2p;
+    };
+} HcclOpDesc;
+
+const uint32_t HCCL_OPDESC_MAGIC_WORD = 0x0f0f0f0f;
+const uint32_t HCCL_OPDESC_VERSION = 1;
+const uint32_t HCCL_KERNEL_SO_NAME_MAX_LEN = 256;
+const uint32_t HCCL_KERNEL_FUNC_NAME_MAX_LEN = 256;
+
+typedef struct {
+    char kernelSoName[HCCL_KERNEL_SO_NAME_MAX_LEN];
+    char kernelFuncName[HCCL_KERNEL_FUNC_NAME_MAX_LEN];
+    void *args;
+    uint32_t argSize;
+} HcclKernelFuncInfo;
+
+const uint32_t HCCL_KERNEL_LAUNCH_CFG_MAGIC_WORD = 0x0f0f0f0f;
+const uint32_t HCCL_KERNEL_LAUNCH_CFG_VERSION = 1;
+
+typedef struct {
+    CommAbiHeader header;
+    uint64_t timeOut;
+    uint8_t reserved[120];
+} HcclKernelLaunchCfg;
 #endif
 
 #ifdef __cplusplus
