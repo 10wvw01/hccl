@@ -45,6 +45,7 @@ static CcuResult InitResource(AllToAllVMesh1D2DieContext &ctx)
     ctx.token.resize(arg->channelCount + 1);
     for (uint32_t peerId = 0; peerId < arg->channelCount; peerId++) {
         HCCL_DEBUG("[CcuKernelAllToAllVMesh1D2Die] RankId[%u], PeerId[%u]", arg->rankId, peerId);
+        HCCL_INFO("[hhhhhhhhandle] arg->channels[peerId] = [%llu]", arg->channels[peerId]);
         ctx.output[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[peerId], OUTPUT_XN_ID);
         ctx.token[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[peerId], TOKEN_XN_ID);
     }

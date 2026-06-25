@@ -1567,6 +1567,7 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
             CHK_RET(AddExchangeInfo(comm, param));
             auto ret = HcclChannelAcquire(comm, param.engine, kernelChannelRequest.data(),
                 channelNum, kernelChannels.data());
+            HCCL_INFO("[hhhhhhhhandle] kernelChannels.data() = [%llu]", kernelChannels.data());
             // 需要资源回退。返回资源不够
             if (ret == HCCL_E_UNAVAIL) {
                 HCCL_WARNING("[HcclChannelAcquire] channel unavailable, channel num[%u].", channelNum);
@@ -1582,6 +1583,7 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
         }
         for (u32 i = 0; i < channelNum; ++i) {
             kernelArgBase->channels[i] = kernelChannels[i];
+            HCCL_INFO("[hhhhhhhhandle] i = [%u], kernelArgBase->channels[i] = [%llu]", i,kernelArgBase->channels[i]);
         }
         kernelArgBase->channelCount = channelNum;
         HCCL_INFO("[HcclGetChannelForCcu] Get [%lu] channels", channelNum);
