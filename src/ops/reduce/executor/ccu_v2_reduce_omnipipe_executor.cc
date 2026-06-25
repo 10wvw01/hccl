@@ -603,7 +603,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         
-        std::cout<<sliceParam.toString()<<std::endl;
+        // std::cout<<sliceParam.toString()<<std::endl;
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j].size();k++){

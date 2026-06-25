@@ -102,9 +102,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::CalcRes(HcclComm comm, const OpP
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY][%s] Get Mesh channels Success.", __func__);
     std::map<u32, u32> subRankIdx2RankIdx;
     for (u32 i=0; i< channelDescs.size(); i++) {
-        u32 remoteRank = channelDescs[i].remoteRank;
-        u32 subRankIdx = RemoteRankId2RankId(remoteRank);
+        remoteRank = channelDescs[i].remoteRank;
+        subRankIdx = RemoteRankId2RankId(remoteRank);
         subRankIdx2RankIdx[subRankIdx] = remoteRank;
+        HCCL_DEBUG("[%s] myRank_[%u]  remoteRank[%u] ", __func__, myRank_, remoteRank);
     }
     subRankIdx2RankIdx[mySubCommRank_] = myRank_;
 
@@ -210,10 +211,9 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                     ifNewRoot
                 };
                 if (ifNewRoot && sliceSize!=0) {
-                    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] myRank[%u]  subroot[%d]", myRank_, subRoot);
                     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-                                " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu",
-                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_);
+                                " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu myRank[%u]  suborot[%d] subRankIdx[%u] remoteRank[%d]",
+                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, subRankIdx, remoteRank);
                 
                 }
                 uint64_t argSize = taskArgs.size();
