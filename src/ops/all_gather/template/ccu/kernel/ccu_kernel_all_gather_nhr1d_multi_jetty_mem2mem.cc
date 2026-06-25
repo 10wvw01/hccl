@@ -206,6 +206,7 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
 {
     ccu::Variable tmpSliceOffset;
     ccu::Variable myrankInputSliceOffset;
+    ccu::Variable tmpCopyRepeatNum;
     const auto *arg = ctx.arg;
     tmpSliceOffset = 0;
     myrankInputSliceOffset = 0;
@@ -226,10 +227,11 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
     ctx.myDstMem.token = ctx.token[ctx.myRankIdx];
 
     ctx.tmpCopyRepeatNumInv = ctx.repeatNumInv;
+    tmpCopyRepeatNum = ctx.repeatNumInv;
 
-    CCU_WHILE(ctx.tmpCopyRepeatNumInv != UINT64_MAX)
+    CCU_WHILE(tmpCopyRepeatNum != UINT64_MAX)
     {
-        ctx.tmpCopyRepeatNumInv += ctx.constVar1;
+        tmpCopyRepeatNum += ctx.constVar1;
         CCU_IF(ctx.repeatTimeflag != 0)
         {
             ctx.srcMem.addr += ctx.inputRepeatStride;
