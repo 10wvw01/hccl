@@ -79,7 +79,7 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
     ResPackGraphMode resPack;
     // 设置tag
     if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
-        HCCL_ERROR("failed to fill resPack.tag");
+        HCCL_ERROR("failed to fill broadcast resPack.tag");
         return HCCL_E_INTERNAL;
     }
     // 设置streams
@@ -93,12 +93,12 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
     resPack.scratchMemSize = scratchMemSize;
     std::string tagStr = tag;
 
-    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode"));
+    CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode", true));
 
     // 执行Broadcast
     CHK_RET_AND_PRINT_IDE(BroadcastOutPlaceGraphMode(buf, count, dataType, root, comm, stream, tagStr, resPack), tagStr.c_str());
 
-    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut));
+    CHK_RET(LogHcclExit("HcclBroadcastGraphMode", param.tag, startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -106,7 +106,6 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
 namespace ops_hccl {
 HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclDataType dataType, uint32_t root, const aclrtStream stream, OpParam &param)
 {
-    (void) root;
     (void) stream;
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
@@ -122,6 +121,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
     CHK_RET(HcclGetRankId(comm, &userRank));
     CHK_RET(HcclCheckTag(param.tag));
     CHK_RET(HcomCheckUserRank(rankSize, userRank));
+    CHK_RET(HcomCheckUserRank(rankSize, root));
     CHK_RET(CheckCount(count));
     CHK_RET(CheckDataType(dataType, false));
 
@@ -263,9 +263,9 @@ HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclData
 }
 
 HcclResult BroadcastEntryLog(const void *buf, uint64_t count, HcclDataType dataType, uint32_t root,
-                             aclrtStream stream, const char *tag, const std::string &opName)
+                             aclrtStream stream, const char *tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

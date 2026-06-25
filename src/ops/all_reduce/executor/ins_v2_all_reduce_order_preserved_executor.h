@@ -28,17 +28,17 @@
 namespace ops_hccl {
 
 struct OrderPreservedAllReduceMemInfo {
-    u64 sizePerBlock;
+    u64 sizePerBlock{0};
     std::vector<u64> groupSize;
     bool scratchMemFlag;
-    u64 totalSize;
+    u64 totalSize{0};
 };
 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
 class InsV2AllReduceOrderPreservedExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllReduceOrderPreservedExecutor();
-    ~InsV2AllReduceOrderPreservedExecutor() = default;
+    ~InsV2AllReduceOrderPreservedExecutor() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
@@ -69,8 +69,6 @@ protected:
     HcclResult RunAllGather(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         u64 currDataCount, u64 processedDataCount,
         std::shared_ptr<InsAlgTemplateAG> agTempAlg, TemplateResource &agTemplateAlgRes);
-
-    
 
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;

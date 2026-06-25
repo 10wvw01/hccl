@@ -13,6 +13,8 @@
 
 namespace ops_hccl {
 
+constexpr u32 TOPO_LEVEL_1 = 1;
+constexpr u32 TOPO_LEVEL_3 = 3;
 constexpr u64 RSV_CCU_8P_MIN_DATA_SIZE = 32 * 1024 * 1024;
 
 SelectorStatus ReduceScatterVAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
@@ -21,6 +23,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNet
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu ms 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu ms does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // MS 模式不支持 int8
     CHK_PRT_RET(opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
         HCCL_WARNING("[ReduceScatterVAutoSelector] dataType[%d] is not supported yet for ccu_ms mode.",
@@ -94,6 +100,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoW
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu schedule 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu schedule does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // ccu 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_WARNING("[ReduceScatterVAutoSelector] ReduceOp[%d] is not supported yet for ccu schedule mode.",
@@ -194,7 +204,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->topoLevelNums >= 1 && topoInfo->topoLevelNums <= 3) {
+    if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
         selectAlgName = "InsReduceScatterVMesh1D";
     } else {
         return SelectorStatus::NOT_MATCH;
@@ -207,7 +217,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLa
                                                        std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
-    HCCL_DEBUG("[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode, reverting to AICPU mode.");
+    HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode.");
     return SelectorStatus::NOT_MATCH;
 }
 

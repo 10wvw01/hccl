@@ -46,7 +46,7 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
     // 参数校验等工作
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     u32 userRank = INVALID_VALUE_RANKID;
     bool allRecvCountsZero = false;
@@ -85,7 +85,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
  	// 检查入参指针有效性
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
  	// tag有效性,是否过长
  	char commName[COMM_INDENTIFIER_MAX_LENGTH];
  	CHK_RET(HcclGetCommName(comm, commName));
@@ -109,7 +109,10 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 拼装ResPackGraphMode
  	ResPackGraphMode resPack;
  	// 设置tag
- 	strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
+    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
+        HCCL_ERROR("failed to fill all_gather_v resPack.tag");
+        return HCCL_E_INTERNAL;
+    }
  	// 设置streams
  	if (streams != nullptr && streamCount > 0) {
  	  	for (size_t i = 0; i < streamCount; i++) {
@@ -120,16 +123,17 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	resPack.scratchMemAddr = scratchMemAddr;
  	resPack.scratchMemSize = scratchMemSize;
 
- 	CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, rankSize, "HcclAllGatherVGraphMode"));  	 
+    CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, rankSize, "HcclAllGatherVGraphMode", true));
  	// 执行AllGatherV
  	CHK_RET_AND_PRINT_IDE(AllGatherVOutPlaceGraphMode(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, comm, stream, tag, resPack), opTag);
- 	CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut, true));
 
  	return HCCL_SUCCESS;
 }
  	
 namespace ops_hccl {
-HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls, const aclrtStream stream)
+HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls,
+    const aclrtStream stream, void *sendBuf, uint64_t sendCount)
 {
     // 入参合法性校验
     RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
@@ -144,6 +148,11 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
     RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclAllGatherV", "nullptr", "stream", "non-null pointer"}));
     CHK_PTR_NULL(stream);
+    if (sendCount > 0) {
+        RPT_INPUT_ERR(sendBuf == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
+            std::vector<std::string>({"HcclAllGatherV", "nullptr", "sendBuf", "non-null pointer"}));
+        CHK_PTR_NULL(sendBuf);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -253,9 +262,9 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
 }
 
 HcclResult AllGatherVEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls,
-    HcclDataType dataType, aclrtStream stream, const std::string &tag, const u32 totalRanks, const std::string &opName)
+    HcclDataType dataType, aclrtStream stream, const std::string &tag, const u32 totalRanks, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
