@@ -64,7 +64,7 @@ HcclResult InitRankInfo(HcclComm comm, TopoInfo* topoInfo)
 HcclResult CalcOcsGroupNumFromL1(TopoInfoWithNetLayerDetails* topoInfo)
 {
     CHK_PTR_NULL(topoInfo);
-    constexpr u32 kNetLayerL1 = 1;
+    constexpr u32 kNetLayerL1 = 2;
     if (topoInfo->netLayerDetails.instSizeListOfLayer.size() <= kNetLayerL1) {
         topoInfo->ocsGroupNum = 1;
         return HCCL_SUCCESS;
