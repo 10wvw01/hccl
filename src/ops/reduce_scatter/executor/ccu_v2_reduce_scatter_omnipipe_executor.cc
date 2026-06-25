@@ -289,10 +289,11 @@ HcclResult CcuV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTempLevel0, In
     PrepareResForTemplate(param, resCtx, algTemplateLevel0, algTemplateLevel1);
 
     // 1、计算带宽
-    double eqBwLevel0 = GetExternalInputBandWidthRSX();
-    double eqBwLevel1 = GetExternalInputBandWidthRSY();
-    std::vector<double> endpointAttrBwAvg = {eqBwLevel0, eqBwLevel1, 1.0};
-    HCCL_INFO("[jjy]ReduceScatter eqBwLevel0:%f,eqBwLevel1:%f",eqBwLevel0,eqBwLevel1);
+    // double eqBwLevel0 = GetExternalInputBandWidthRSX();
+    // double eqBwLevel1 = GetExternalInputBandWidthRSY();
+    // std::vector<double> endpointAttrBwAvg = {eqBwLevel0, eqBwLevel1, 1.0};
+    std::vector<double> endpointAttrBwAvg = {3.0, 4.0, 1.0};
+    // HCCL_INFO("[jjy]ReduceScatter eqBwLevel0:%f,eqBwLevel1:%f",eqBwLevel0,eqBwLevel1);
 
     // 2、计算loop
     u64 templateScratchMultiplier = algTemplateLevel0.CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
