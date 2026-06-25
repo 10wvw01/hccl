@@ -286,30 +286,8 @@ static constexpr uint32_t opExpansionModeCcuMs = 4;
 
 bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccuFastLaunchCtx)
 {
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
-    param.hcclComm = comm;
-    if (param.opMode == OpMode::OFFLOAD) {
-        return false;
-    }
-    // 1. 引擎为ccu模式
-    if (param.engine != CommEngine::COMM_ENGINE_CCU) {
-        return false;
-    }
-    CHK_RET(SetOpParamFastLaunchTag(param));
-
-    // 2. 查到engineCtx
-    uint64_t size = 0;
-    void *fastLaunchCtxPtr = nullptr;
-    if (HcclEngineCtxGet(comm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, &fastLaunchCtxPtr, &size) == HCCL_SUCCESS) {
-        HCCL_INFO("[ShouldGoCcuFastLaunch] get fastLaunchCtx success, size is %u", size);
-        *ccuFastLaunchCtx = reinterpret_cast<CcuFastLaunchCtx*>(fastLaunchCtxPtr);
-        return true;
-    }
+    HCCL_INFO("[ShouldGoCcuFastLaunch] DISABLED: always return false, skip fastLaunch cache");
     return false;
-#else
-    (void)comm; (void)param; (void)ccuFastLaunchCtx;
-    return false;
-#endif
 }
 
 HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tagSize, HcclDfxOpInfoCompat& hcclDfxOpInfo,
@@ -451,16 +429,8 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, 
     std::string &algName, const ResPackGraphMode &resPack)
 {   
-    void* fallbackCtx = nullptr;
-    uint64_t fallbackCtxSize = ALG_MAX_LENGTH;
-    CHK_RET(HcclEngineCtxCreate(comm, param.fallbackTag, CommEngine::COMM_ENGINE_CCU, fallbackCtxSize, &fallbackCtx));
-    char* newAlgName = static_cast<char*>(fallbackCtx);
+    HCCL_INFO("[FallbackOp] DISABLED: skip HcclEngineCtxCreate for fallbackTag");
     CHK_RET(ReSelector(comm, param, topoInfo, algName));
-    auto copyRet = sprintf_s(newAlgName, fallbackCtxSize, "%s", algName.c_str());
-    if (copyRet <= 0) {
-        HCCL_ERROR("[%s] failed to fill newAlgName", __func__);
-        return HCCL_E_INTERNAL;
-    }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName, resPack));
     return HCCL_SUCCESS;
 }
@@ -517,7 +487,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = 0;
     CHK_RET(SetOpParamFallbackTag(param, algName));
-    if (HcclEngineCtxGet(comm, param.fallbackTag, param.engine, &fallbackCtx, &fallbackCtxSize) == HCCL_SUCCESS) {
+    if (false && HcclEngineCtxGet(comm, param.fallbackTag, param.engine, &fallbackCtx, &fallbackCtxSize) == HCCL_SUCCESS) {
         HCCL_INFO("[HcclExecOp] Engine ctx exists, try to fallback.");
         std::string newAlgName = static_cast<char*>(fallbackCtx);
         HCCL_INFO("[HcclExecOp] Cached algo type is %s.", newAlgName.c_str());
@@ -866,32 +836,8 @@ void CompReqChannelWithExistChannel(const std::vector<std::vector<ChannelInfo>>&
 static HcclResult TryReuseResource(HcclComm comm, OpParam& param, bool& increCreateChannelFlag,
     void** resCtxSequence, uint64_t& size, bool &isResourceReused)
 {
-    // 增量建链模式下不能复用资源
-    if (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV && param.opMode == OpMode::OPBASE) {
-        increCreateChannelFlag = true;
-        return HCCL_E_NOT_FOUND;
-    }
-    // 非OPBASE模式且非CCU引擎不能复用资源
-    if (param.opMode != OpMode::OPBASE && param.engine != CommEngine::COMM_ENGINE_CCU) {
-        return HCCL_E_NOT_FOUND;
-    }
-    void *ctx = nullptr;
-    // 这种情况下资源已经有了
-    CommEngine ctxEngine = param.engine;
-    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
-        // AIV模式固定利用利用algTag申请1块host内存resCtx
-        ctxEngine = COMM_ENGINE_CPU_TS;
-    } else if (param.engine == COMM_ENGINE_CPU) {
-        // host dpu申请device内存用于存放resctx
-        ctxEngine = COMM_ENGINE_AICPU_TS;
-    }
-    if (HcclEngineCtxGet(comm, param.algTag, ctxEngine, &ctx, &size) == HCCL_SUCCESS) {
-        HCCL_DEBUG("Already have context, skip create, ctxSize is %llu", size);
-        isResourceReused = true;
-        *resCtxSequence = ctx;
-        param.ctxSize = size;
-        return HCCL_SUCCESS;
-    }
+    HCCL_INFO("[TryReuseResource] DISABLED: always return HCCL_E_NOT_FOUND, skip algTag cache");
+    (void)comm; (void)param; (void)increCreateChannelFlag; (void)resCtxSequence; (void)size; (void)isResourceReused;
     return HCCL_E_NOT_FOUND;
 }
 
@@ -1514,12 +1460,13 @@ HcclResult GetAlgResCcu(HcclComm comm, const OpParam& param, AlgResourceRequest&
     std::vector<char> seq = resCtxHost->Serialize();
     uint64_t size = seq.size();
 
-    void *ctx = nullptr;
-    CHK_RET(HcclEngineCtxCreate(comm, param.algTag, param.engine, size, &ctx));
+    HCCL_INFO("[GetAlgResCcu] DISABLED: skip HcclEngineCtxCreate for algTag, alloc temp buffer instead");
+    void *ctx = malloc(size);
+    if (ctx == nullptr) return HCCL_E_MEMORY;
     memcpy_s(ctx, size, seq.data(), size);
     *resCtxSequence = ctx;
     ctxSize = size;
-    HCCL_INFO("Execute GetAlgResCCU success.");
+    HCCL_INFO("Execute GetAlgResCCU success (no cache).");
     return HCCL_SUCCESS;
 }
 
