@@ -78,6 +78,10 @@ endif()
 
 if(BUILD_OPEN_PROJECT)
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:mmpa_headers>
+        $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
         -Wl,--no-as-needed
         hcomm
         hccl_compat
@@ -85,13 +89,10 @@ if(BUILD_OPEN_PROJECT)
         c_sec
         unified_dlog
         -Wl,--no-as-needed
-        $<BUILD_INTERFACE:runtime_headers>
-        $<BUILD_INTERFACE:mmpa_headers>
-        $<BUILD_INTERFACE:msprof_headers>
-        $<BUILD_INTERFACE:error_manager_headers>
     )
 else()
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:ofed_headers>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:npu_runtime_headers>
@@ -103,7 +104,6 @@ else()
         c_sec
         unified_dlog
         -Wl,--no-as-needed
-        ofed_headers
     )
 endif()
 
@@ -126,19 +126,20 @@ if(STATIC_MODE)
 else()
     if(BUILD_OPEN_PROJECT)
         target_link_libraries(hccl PRIVATE
+            $<BUILD_INTERFACE:runtime_headers>
+            $<BUILD_INTERFACE:mmpa_headers>
+            $<BUILD_INTERFACE:msprof_headers>
+            $<BUILD_INTERFACE:error_manager_headers>
             -Wl,--no-as-needed
             hcomm
             acl_rt
             c_sec
             unified_dlog
             -Wl,--no-as-needed
-            $<BUILD_INTERFACE:runtime_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
-            $<BUILD_INTERFACE:msprof_headers>
-            $<BUILD_INTERFACE:error_manager_headers>
         )
     else()
         target_link_libraries(hccl PRIVATE
+            $<BUILD_INTERFACE:ofed_headers>
             $<BUILD_INTERFACE:slog_headers>
             $<BUILD_INTERFACE:msprof_headers>
             $<BUILD_INTERFACE:npu_runtime_headers>
@@ -149,7 +150,6 @@ else()
             c_sec
             unified_dlog
             -Wl,--no-as-needed
-            ofed_headers
         )
     endif()
 endif()
@@ -200,20 +200,20 @@ target_compile_options(opgraph_hccl PRIVATE
     -fvisibility=hidden
 )
 target_link_libraries(opgraph_hccl PRIVATE
+    $<BUILD_INTERFACE:msprof_headers>
+    $<BUILD_INTERFACE:mmpa_headers>
+    $<BUILD_INTERFACE:runtime_headers>
+    $<BUILD_INTERFACE:hcomm_headers>
     ${_op_proto_link_libs}
     -Wl,--whole-archive
     rt2_registry
     -Wl,--no-whole-archive
     -Wl,-Bsymbolic
     unified_dlog
-    runtime_headers
-    mmpa_headers
-    msprof_headers
-    hcomm_headers
 )
 
 target_link_directories(opgraph_hccl PRIVATE 
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64 
+    ${ASCEND_CANN_PACKAGE_PATH}/lib64
 )
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph/ops_proto_hccl.h
