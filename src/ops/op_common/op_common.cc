@@ -418,10 +418,12 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
     std::string ctxTag;
     u64 keyHash = 0;
     if (useCache) {
+        AIV_PROF_BEGIN(cacheCheckUs);
         keyHash = CalcAivCacheKeyHash(cacheKey);
         CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
         bool cacheHit = false;
         CHK_RET(ReplayAivCacheCtx(comm, ctxTag, keyHash, param, cacheHit));
+        AIV_PROF_END(cacheCheckUs);
 
         // Hit, return
         if (cacheHit) {
@@ -433,14 +435,18 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
         g_baseOutputAddr = reinterpret_cast<u64>(param.outputPtr);
     }
 
+    AIV_PROF_BEGIN(orchestrateUs);
     CHK_RET(executor->Orchestrate(param, resCtxHost));
+    AIV_PROF_END(orchestrateUs);
 
     // 插入cache
     if (useCache && g_recordingQueue) {
+        AIV_PROF_BEGIN(cacheStoreUs);
         AivCacheIndexCtx *indexCtx = nullptr;
         CHK_RET(GetOrCreateAivCacheIndexCtx(comm, &indexCtx));
         CHK_RET(EvictAivCacheIfNeeded(comm, indexCtx));
         CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, indexCtx));
+        AIV_PROF_END(cacheStoreUs);
         g_recordingQueue = nullptr;
         g_baseInputAddr = 0;
         g_baseOutputAddr = 0;
@@ -563,6 +569,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
     }
 
+    AIV_PROF_BEGIN(resAcquireUs);
     auto resRet = HcclGetAlgRes(comm, param, executor, topoInfo.get(), resCtxHost, &resCtxSequence, isResourceReused, resPack);
     if (resRet == HCCL_E_UNAVAIL) {
         HCCL_WARNING("[HcclGetAlgRes] resource unavailable, try to fallback.");
@@ -571,14 +578,17 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     } else {
         CHK_RET(resRet);
     }
+    AIV_PROF_END(resAcquireUs);
 
     param.cacheValid = isResourceReused;
 
     // Op注册
+    AIV_PROF_BEGIN(dfxRegUs);
     HcclDfxOpInfoCompat hcclDfxOpInfo{};
     CHK_RET(ConstructHcclDfxOpInfo(param, param.algTag, ALG_TAG_LENGTH, hcclDfxOpInfo, cpuTsThread));
     param.dataCount = hcclDfxOpInfo.dataCount;
     CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
+    AIV_PROF_END(dfxRegUs);
     ThreadHandle exportedCpuTsThread;
     ThreadHandle mainThread;
     u32 notifyNumOnMainThread;
@@ -603,9 +613,15 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         uint64_t aivBeginTime = HcommGetProfilingSysCycleTime();
         param.resCtx = resCtxSequence;
         AlgResourceCtxSerializable &aivResCtxHost = *static_cast<AlgResourceCtxSerializable *>(resCtxSequence);
+        AIV_PROF_BEGIN(aivEntranceUs);
         CHK_RET(HcclAivKernelEntranceLaunch(comm, param, topoInfo, aivResCtxHost));
+        AIV_PROF_END(aivEntranceUs);
+        AIV_PROF_BEGIN(cacheLogicUs);
         CHK_RET(ExecuteAivCacheLogic(comm, param, algName, executor, aivResCtxHost));
+        AIV_PROF_END(cacheLogicUs);
+        AIV_PROF_BEGIN(reportUs);
         CHK_RET(HcclReportAivKernel(comm, aivBeginTime));
+        AIV_PROF_END(reportUs);
     } else if (param.engine == COMM_ENGINE_CCU) {
         if (isResourceReused) {
             // 复用资源，则需从engineCtx取得res，进行反序列化

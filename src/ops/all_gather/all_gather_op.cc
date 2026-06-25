@@ -41,7 +41,9 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
     }
     CHK_PRT_RET(sendCount == 0, HCCL_WARNING("input sendCount is 0, return all gather success"), HCCL_SUCCESS);
 
-    HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
+    HcclUs startut = TIME_NOW();
+    g_aivProfiling = AivProfilingData{};
+    HcclUs profilingStart = TIME_NOW();
     std::string opTag;
     CHK_RET(AllGatherInitAndCheck(comm, sendBuf, recvBuf, sendCount, dataType, stream, opTag));
 
@@ -56,6 +58,20 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
 
     // 执行AllGather
     CHK_RET_AND_PRINT_IDE(AllGatherOutPlace(sendBuf, recvBuf, sendCount, dataType, comm, stream, opTag), opTag.c_str());
+
+    uint64_t totalUs = DURATION_US(TIME_NOW() - profilingStart).count();
+    HCCL_ERROR("[AIV-Profiling] selector[%llu] resAcquire[%llu] dfxReg[%llu] aivEntrance[%llu] "
+        "cacheLogic[%llu] total[%llu] us",
+        g_aivProfiling.selectorUs, g_aivProfiling.resAcquireUs, g_aivProfiling.dfxRegUs,
+        g_aivProfiling.aivEntranceUs, g_aivProfiling.cacheLogicUs, totalUs);
+    HCCL_ERROR("[AIV-Profiling] cacheCheck[%llu] orchestrate[%llu] cacheStore[%llu] report[%llu] us",
+        g_aivProfiling.cacheCheckUs, g_aivProfiling.orchestrateUs,
+        g_aivProfiling.cacheStoreUs, g_aivProfiling.reportUs);
+    HCCL_ERROR("[AIV-Profiling] templatePrep[%llu] kernelLaunch[%llu] aclrtLaunch[%llu] us, "
+        "kernelLaunchCount[%u] avgKernelLaunch[%llu] us",
+        g_aivProfiling.templatePrepUs, g_aivProfiling.kernelLaunchUs, g_aivProfiling.aclrtLaunchUs,
+        g_aivProfiling.kernelLaunchCount,
+        g_aivProfiling.kernelLaunchCount > 0 ? g_aivProfiling.kernelLaunchUs / g_aivProfiling.kernelLaunchCount : 0);
 
     CHK_RET(LogHcclExit("HcclAllGather", opTag.c_str(), startut));
 
@@ -217,7 +233,9 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
 
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
+    AIV_PROF_BEGIN(selectorUs);
     CHK_RET(Selector(comm, param, topoInfo, algName));
+    AIV_PROF_END(selectorUs);
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
