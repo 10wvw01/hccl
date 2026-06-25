@@ -29,11 +29,11 @@ target_compile_options(hccl_kernel_compat PRIVATE
 )
 
 target_link_libraries(hccl_kernel_compat PRIVATE
-    unified_dlog
     $<BUILD_INTERFACE:runtime_headers>
     $<BUILD_INTERFACE:mmpa_headers>
     $<BUILD_INTERFACE:msprof_headers>
-    $<BUILD_INTERFACE:hcomm_headers>
+    $<BUILD_INTERFACE:hcomm_headers>    
+    unified_dlog
 )
 
 target_link_options(hccl_kernel_compat PRIVATE
