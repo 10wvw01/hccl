@@ -21,6 +21,16 @@ SelectorStatus AutoSelectorBase::Select(OpParam &opParam, TopoInfoWithNetLayerDe
     std::map<HcclCMDType, std::vector<HcclAlgoType>> configAlgMap = GetExternalInputHcclAlgoConfigAllType();
     SelectorStatus ret = SelectorStatus::NOT_MATCH;
     bool hostDPUOnly = false;
+
+    const char *name = std::getenv("HCCL_ALG_NAME");
+    if (name == nullptr || strcmp(name, "") == 0) {
+        HCCL_WARNING("env HCCL_ALG_NAME is not set.");
+    } else {
+        std::string nameStr(name);
+        selectAlgName = nameStr;
+        HCCL_INFO("[AutoSelectorBase][%s] select %s.", __func__, selectAlgName.c_str());
+        return SelectorStatus::MATCH;
+    }
     if ((CheckHostDPUOnly(opParam.hcclComm, topoInfo, hostDPUOnly) == HCCL_SUCCESS) && hostDPUOnly) {
         opParam.opExecuteConfig = OpExecuteConfig::HOSTCPU;
         opParam.engine = CommEngine::COMM_ENGINE_CPU;
