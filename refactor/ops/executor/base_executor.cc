@@ -3,10 +3,13 @@
 BaseExecutor::BaseExecutor(HcclAlgorithm &algo)
     : algo_(algo) {}
 
-BaseExecutor::BaseExecutor(HcclAlgorithm &algo, BaseExecutorParam &param)
+BaseExecutor::BaseExecutor(HcclAlgorithm &algo, BaseOpParam &param)
     : algo_(algo), myRank_(param.myRank), rankSize_(param.rankSize),
-      dataType_(param.dataType), dataTypeSize_(param.dataTypeSize), dataCount_(param.dataCount), dataSize_(param.dataSize)
-      reduceOp_(param.reduceOp), root_(param.root) {}
+      dataType_(param.dataType), dataCount_(param.dataCount), reduceOp_(param.reduceOp), root_(param.root)
+{
+    dataTypeSize_ = DATATYPE_SIZE_TABLE[baseOpParam.dataType];
+    dataSize_ = dataCount_ * dataTypeSize_;
+}
 
 BaseExecutor::~BaseExecutor() {}
 
@@ -20,12 +23,18 @@ HcclResult BaseExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLaye
 
 HcclResult BaseExecutor::Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
-    
+    auto allTemplates = GenAllTemplates(algHierarchyInfo);
+    for (auto i = 0; i < allTemplates.size(); ++i) {
+        for (auto j = 0; j < allTemplates.at(i).size(); ++j) {
+            allTemplates.at(i).at(j).Init();
+        }
+    }
+    return HCCL_SUCCESS;
 }
 
 HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
-    // TODO：子类自行实现，或者只实现MergeResReq
+    // TODO：子类自行实现，以下只是示例，或者只实现MergeResReq
     std::vector<AlgResourceRequest> resReqList;
     for (auto i = 0; i < algo_.templates.size(); ++i) {
         // 实例化template
@@ -61,7 +70,9 @@ std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector
 HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &configParam,
     const BufferParam &bufferParam, const CommInfoList &CommInfoList)
 {
-    // TODO：子类自行实现
+    // TODO：子类自行实现，以下只是示例
+    // 初始化资源
+    InitRes();
     // 切分资源给每个Template
     SplitRes();
     // 切分数据循环
@@ -72,37 +83,31 @@ HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &
     SaveCtx();
 }
 
-// private
+// 公共工具类函数
 
-HcclResult MergeResReq(std::vector<AlgResourceRequest> &resReqList, AlgResourceRequest &resReq)
+std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
-    // 不同Executor整合资源的形式不同，有的取最大，有的加起来
-    switch (algo_.executorType)
-    {
-    case ExecutorType::SOLE:
-        // TODO
-        break;
-    case ExecutorType::PARALLEL:
-        // TODO
-        break;
-    default:
-        break;
+    // 如果用多维数组，基类提供一个生成所有template的函数
+    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> allTemplates;
+    for (auto i = 0; i < algo_.templateDescs.size(); ++i) {
+        std::vector<std::shared_ptr<BaseTemplate>> temp;
+        for (auto j = 0; j < algo_.templateDescs.at(i).size(); ++j) {
+            temp.push_back(GenTemplate(algo_.templateDescs.at(i).at(j), algHierarchyInfo.at(i).at(j)));
+        }
+        allTemplates.push_back(temp);
     }
 }
 
-HcclResult SplitRes()
+std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList)
 {
-    // 不同Executor切分资源给每个template，Merge的逆向操作
-    // 取代PrepareResForTemplate函数
-    switch (algo_.executorType)
-    {
-    case ExecutorType::SOLE:
-        // TODO
-        break;
-    case ExecutorType::PARALLEL:
-        // TODO
-        break;
-    default:
-        break;
-    }
+    // 根据templateDesc实例化Template
+    // auto singleTemplate = map[algo_.engineType][opType][algoType][ShotType][JettyType];
+    // return singleTemplate;
+}
+
+HcclResult InitRes(const AlgResourceCtxSerializable &resCtx)
+{
+    algHierarchyInfo_ = resCtx.algHierarchyInfo;
+    threads_ = resCtx.threads;
+    mainThread_ = threads_.at(0);
 }

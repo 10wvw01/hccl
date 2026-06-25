@@ -4,7 +4,7 @@ class BaseExecutor {
 public:
     BaseExecutor(HcclAlgorithm &algo);
     // TODO：是否需要2种构造函数，一种用于CalcRes，另一种用于Orchestrate
-    BaseExecutor(HcclAlgorithm &algo, BaseExecutorParam &param);
+    BaseExecutor(HcclAlgorithm &algo, BaseOpParam &param);
     ~BaseExecutor();
 
 protected:
@@ -18,7 +18,7 @@ protected:
 
     virtual HcclResult CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
 
-    virtual HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &configParam,
+    virtual HcclResult Orchestrate(const BaseOpParam &baseOpParam, ConfigParam &configParam,
         const BufferParam &bufferParam, const CommInfoList &CommInfoList);
 
     //TODO: 目前仅用于CCU，理论上可扩展至所有模式
@@ -30,23 +30,22 @@ protected:
     // rankInfo
     u32 myRank_ = INVALID_VALUE_RANKID;
     u32 rankSize_ = 0;
-
     // dataInfo
     HcclDataType dataType_;
     u64 dataTypeSize_ = 0;
     u64 dataCount_ = 0;
     u64 dataSize_ = 0;
-
     // opInfo
     HcclReduceOp reduceOp_;
     u32 root_ = INVALID_VALUE_RANKID;
     
     // TODO：分析下使用场合
     DevType devType_ = DevType::DEV_TYPE_COUNT;
-
-    std::vector<ThreadHandle> threads_;
-
+    
+    // resource
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
+    std::vector<ThreadHandle> threads_;
+    ThreadHandle mainThread_;
     
     // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
     std::vector<u32> subRankSize_;
@@ -60,14 +59,12 @@ protected:
 };
 
 
-struct BaseExecutorParam {
+struct BaseOpParam {
     u32 myRank = INVALID_VALUE_RANKID;
     u32 rankSize = 0;
 
     HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
-    u64 dataTypeSize = 0;
     u64 dataCount = 0;
-    u64 dataSize = 0;
 
     HcclReduceOp reduceOp = HCCL_REDUCE_RESERVED;  // reduce类型，搬运类算子使用默认值
     u32 root = INVALID_VALUE_RANKID;  // root节点所在rank，不涉及root算子使用默认值
