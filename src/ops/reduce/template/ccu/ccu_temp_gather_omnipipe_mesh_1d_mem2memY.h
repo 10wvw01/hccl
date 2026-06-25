@@ -56,6 +56,9 @@ public:
     // u64 totalStep_ = 0;
     u64 subRoot;
     bool isloopOne_ = false;
+
+    u32 remoteRank;
+    u32 subRankIdx;
 };
 
 } // namespace ops_hccl
