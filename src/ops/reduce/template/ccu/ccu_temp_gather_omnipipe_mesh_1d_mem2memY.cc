@@ -186,6 +186,15 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
             for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) {
                 sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
+                if (isStepOne_) {//不搬运3卡
+                    sliceSize = 0;
+                }
+                // if (isLastStep_&& rpt==0) {//不搬运4卡
+                //     sliceSize = 0;
+                // }
+                // if (isLastStep_&& rpt==1) {//不搬运5卡
+                //     sliceSize = 0;
+                // }
                 inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt];
                 outputOmniPipeSliceStride= stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt];
                 
