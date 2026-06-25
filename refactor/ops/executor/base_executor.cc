@@ -10,54 +10,58 @@ BaseExecutor::BaseExecutor(HcclAlgorithm &algo, BaseExecutorParam &param)
 
 BaseExecutor::~BaseExecutor() {}
 
-// HcclResult BaseExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
-//     AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgTopoMatch topoMatch)
-// {
-//     CHK_RET(topoMatch.MatchTopo(comm, topoInfo, algHierarchyInfo));
-//     return HCCL_SUCCESS;
-// }
-
-// TODO：其实叫SplitSubComm更贴切，subComm直接就是每个子通信域的集合
-
-using CommInfo = std::vector<u32>;
-using CommInfoList = std::vector<CommInfo>;
-
-HcclResult BaseExecutor::SplitSubComm(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
-    AlgTopoMatch topoMatch, CommInfoList &CommInfoList)
+HcclResult BaseExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
+    AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
-    CHK_RET(topoMatch.MatchTopo(comm, topoInfo, CommInfoList));
+    // TODO：topoMatch暂不修改参数
+    algo_.topoMatch.MatchTopo(comm, topoInfo, algHierarchyInfo);
     return HCCL_SUCCESS;
 }
 
-HcclResult BaseExecutor::Plan(const CommInfoList &commInfoList, std::vector<RankPair> &rankPairList)
+HcclResult BaseExecutor::Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
-    // 遍历每个子通信域，计算建链关系
-    for (auto i = 0; i < commInfoList.size(); ++i) {
-        CalcChannelReq(commInfoList.at(i), algo_.templates.at(i).algType, rankPairList);
-    }
-    // TODO：这里考虑是直接push_back到rankPairList最后，还是每个计算完merge一把（可能要去重）
+    
 }
 
-HcclResult CalcRes(const CommInfoList &CommInfoList, AlgResourceRequest &resReq)
+HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
+    // TODO：子类自行实现，或者只实现MergeResReq
     std::vector<AlgResourceRequest> resReqList;
     for (auto i = 0; i < algo_.templates.size(); ++i) {
         // 实例化template
-        u32 subRankSize = CommInfoList.at(i).size();
-        auto singleTemplate = GenTemplate(subRankSize);
+        std::vector<u32> &rankList = algHierarchyInfo.at(i);
+        TemplateDesc &templateDesc = algo_.templates.at(i);
+        auto singleTemplate = GenTemplate(templateDesc, subRankSize);
         // 计算每个template资源
         AlgResourceRequest resReqTmp;
         singleTemplate.CalcRes(algo_.opType, resReqTmp);
         resReqList.push_back(resReqTmp);
     }
 
-    // TODO:合并每个实例的template资源，不同的Executer合并方式不同
+    // 合并每个实例的template资源，不同的Executer合并方式不同
     MergeResReq(resReqList, resReq);
+}
+
+std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
+{
+    // 如果用多维数组，基类提供一个生成所有template的函数
+    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> allTemplates;
+    for (auto i = 0; i < algo_.templateDescs.size(); ++i) {
+        
+    }
+}
+
+std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList)
+{
+    // 根据templateDesc实例化Template
+    // auto singleTemplate = map[algo_.engineType][opType][algoType][ShotType][JettyType];
+    // return singleTemplate;
 }
 
 HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &configParam,
     const BufferParam &bufferParam, const CommInfoList &CommInfoList)
 {
+    // TODO：子类自行实现
     // 切分资源给每个Template
     SplitRes();
     // 切分数据循环
@@ -69,12 +73,6 @@ HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &
 }
 
 // private
-
-HcclResult CalcChannelReq(const CommInfo &commInfo, const AlgoType algoType, std::vector<RankPair> &rankPairList)
-{
-    // commInfo里就是一个rank列表
-    // 根据commInfo和algoType足以计算建链关系
-}
 
 HcclResult MergeResReq(std::vector<AlgResourceRequest> &resReqList, AlgResourceRequest &resReq)
 {
