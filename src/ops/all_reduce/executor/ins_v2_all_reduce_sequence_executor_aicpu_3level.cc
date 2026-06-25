@@ -588,7 +588,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 
         // ----------- RSL2: level2 ReduceScatter -----------
         GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
-        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));  // [DEBUG-DUMP] 跳过
+        CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
 
         // ----------- AGL2: level2 AllGather -----------
         GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
@@ -605,13 +605,15 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
             tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
 
-        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 RSL2/AGL2/AGL0。
+        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 AGL2/AGL0。
         //
         // 正常代码（当前注释掉）:
+        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
         // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
         //
-        // [DEBUG-DUMP] 跳过 RSL2/AGL2/AGL0，把 RSL0 后的 cclMem 搬到 output。
-        // 判据：若 rIdxL0==0 rank 的 cclMem 已错 -> bug 在 RSL0；否则在 RSL2/AGL2。
+        // [DEBUG-DUMP] 跳过 AGL2/AGL0，把 RSL2 后的 cclMem 搬到 output。
+        // 判据：RSL2 后 cclMem 应为跨节点 RS 结果(部分rank的elem和)，非完整。
+        //   若 rIdxL0==0 rank 的值偏离预期 -> bug 在 RSL2；否则在 AGL2。
         {
             u64 sliceBytes = currDataCount / rankSizeLevel0_ * dataTypeSize_;
             u64 outOff = rankIdxLevel0_ * sliceBytes + processedDataCount * dataTypeSize_;
@@ -620,7 +622,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
             if (!threads_.empty()) {
                 CHK_RET(LocalCopy(threads_[0], srcSlice, dstSlice));
             }
-            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL0] loop[%u] rankIdxLevel0[%u] "
+            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL2] loop[%u] rankIdxLevel0[%u] "
                 "dump cclMem[0..%llu] -> output[%llu..%llu]", loop, rankIdxLevel0_, sliceBytes, outOff, outOff + sliceBytes);
         }
 
