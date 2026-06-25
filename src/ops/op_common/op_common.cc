@@ -267,6 +267,11 @@ HcclResult SetOpParamFastLaunchTag(OpParam &param)
         int countLen = snprintf_s(countBuf, sizeof(countBuf), sizeof(countBuf) - 1, "%llu", count);
         CHK_PRT_RET((countLen <= 0), HCCL_ERROR("failed to format count"), HcclResult::HCCL_E_INTERNAL);
         countStr = countBuf;
+    } else {
+        u64 count = *reinterpret_cast<u64*>(param.all2AllVDataDes.sendCounts);
+        int countLen = snprintf_s(countBuf, sizeof(countBuf), sizeof(countBuf) - 1, "%llu", count);
+        CHK_PRT_RET((countLen <= 0), HCCL_ERROR("failed to format alltoallv count"), HcclResult::HCCL_E_INTERNAL);
+        countStr = countBuf;
     }
     // 4. root
     char rootBuf[10];
