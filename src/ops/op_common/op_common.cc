@@ -134,6 +134,11 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
         HCCL_DEBUG("[Selector] is aicpu mode");
         CHK_RET(LoadAICPUKernel()); // 该函数内部有防止重复加载的逻辑
     }
+    // 如果一开始读取到的Engine不是aiv，经过算法选择后回退到aiv，则需要重新RegisterKernel
+    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+        HCCL_DEBUG("[Selector] is aiv mode");
+        CHK_RET(RegisterKernel()); // 该函数内部有防止重复加载的逻辑
+    }
     CHK_RET(SetOpParamAlgTag(param, algName));
     // 设定执行超时时间
     CHK_RET(SetExecTimeout(param));
@@ -964,6 +969,8 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
         if (ret == HCCL_SUCCESS && aivParam != nullptr) {
             exchangeInfo.aivCoreLimit = aivParam->aivCoreLimit;
         }
+    } else {
+        ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &exchangeInfo.aivCoreLimit));
     }
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
@@ -1750,6 +1757,8 @@ HcclResult HcclAllocAlgResourceAiv(
 
         for (u32 idx = 0; idx < validChannelNum; idx++) {
             HcclChannelDesc &channelDesc = levelNChannelRequest[idx];
+            CHK_PRT_RET(channelDesc.remoteRank >= MAX_RANK_SIZE,
+                HCCL_ERROR("[%s] remoteRank[%u] exceeds MAX_RANK_SIZE[%u]", __func__, channelDesc.remoteRank, MAX_RANK_SIZE), HCCL_E_PARA);
             void* remoteBufferAddr;
             uint64_t remoteBufferSize;
             CHK_RET(HcclChannelGetHcclBuffer(comm, levelNChannels[idx], &remoteBufferAddr, &remoteBufferSize));
