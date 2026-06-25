@@ -115,10 +115,9 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
         }
 
         CCU_IF(ctx.sliceSize != 0) {
-            CCU_IF(ctx.peerId == rankIdx) {
+            if(ctx.peerId == rankIdx) {
                 ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
-            }
-            CCU_IF(ctx.peerId != rankIdx) {
+            } else  {
                 ccu::EventRecord(ctx.event, rankMask);
             }
         }
