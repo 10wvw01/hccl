@@ -306,29 +306,6 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildSt
     stage0LinkMap_.clear();
     stage1LinkMap_.clear();
 
-    auto getPairCount = [this, &params](u32 srcRank, u32 dstRank, u64 &count) -> HcclResult {
-        count = 0;
-        if (srcRank == dstRank) {
-            return HCCL_SUCCESS;
-        }
-        if (srcRank == myRank_) {
-            CHK_PRT_RET(dstRank >= params.sendCounts.size(),
-                        HCCL_ERROR("[A2AV_V2_STAGE1_NM][BuildStageLinkMaps] invalid local dst. "
-                                   "rank=%u dst=%u", myRank_, dstRank),
-                        HcclResult::HCCL_E_INTERNAL);
-            count = params.sendCounts[dstRank];
-            return HCCL_SUCCESS;
-        }
-        auto it = allLinkMap_.find(srcRank);
-        CHK_PRT_RET(it == allLinkMap_.end() || it->second.empty() ||
-                        it->second[0].remoteAlltoAllVRecvCounts.size() <= dstRank,
-                    HCCL_ERROR("[A2AV_V2_STAGE1_NM][BuildStageLinkMaps] missing global count. "
-                               "rank=%u src=%u dst=%u", myRank_, srcRank, dstRank),
-                    HcclResult::HCCL_E_INTERNAL);
-        count = it->second[0].remoteAlltoAllVRecvCounts[dstRank];
-        return HCCL_SUCCESS;
-    };
-
     auto addStage0Relay = [this](u32 srcRank, u32 dstRank, u64 count) -> HcclResult {
         if (count == 0 || srcRank == dstRank) {
             return HCCL_SUCCESS;
@@ -395,13 +372,13 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildSt
 
     for (u32 dstRank = 0; dstRank < rankSize_; ++dstRank) {
         u64 count = 0;
-        CHK_RET(getPairCount(myRank_, dstRank, count));
+        CHK_RET(GetPairCountFromRecvMatrix(params, myRank_, dstRank, count));
         CHK_RET(addStage0Relay(myRank_, dstRank, count));
         CHK_RET(addStage1Final(myRank_, dstRank, count));
     }
     for (u32 dstRank = 0; dstRank < rankSize_; ++dstRank) {
         u64 count = 0;
-        CHK_RET(getPairCount(dstRank, myRank_, count));
+        CHK_RET(GetPairCountFromRecvMatrix(params, dstRank, myRank_, count));
         CHK_RET(addStage0Relay(dstRank, myRank_, count));
         CHK_RET(addStage1Final(dstRank, myRank_, count));
     }
@@ -412,7 +389,7 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildSt
         }
         for (u32 finalDst = 0; finalDst < rankSize_; ++finalDst) {
             u64 count = 0;
-            CHK_RET(getPairCount(srcRank, finalDst, count));
+            CHK_RET(GetPairCountFromRecvMatrix(params, srcRank, finalDst, count));
             CHK_RET(addStage1Final(srcRank, finalDst, count));
         }
     }
@@ -496,6 +473,32 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildBa
 }
 
 template <typename AlgTopoMatch>
+HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::GetPairCountFromRecvMatrix(
+    const TemplateDataParams &params, u32 srcRank, u32 dstRank, u64 &count) const
+{
+    count = 0;
+    if (srcRank == dstRank) {
+        return HCCL_SUCCESS;
+    }
+    if (dstRank == myRank_) {
+        CHK_PRT_RET(srcRank >= params.recvCounts.size(),
+                    HCCL_ERROR("[A2AV_V2_STAGE1_NM][PairCount] invalid local src. rank=%u src=%u",
+                               myRank_, srcRank),
+                    HcclResult::HCCL_E_INTERNAL);
+        count = params.recvCounts[srcRank];
+        return HCCL_SUCCESS;
+    }
+    auto it = allLinkMap_.find(dstRank);
+    CHK_PRT_RET(it == allLinkMap_.end() || it->second.empty() ||
+                    it->second[0].remoteAlltoAllVRecvCounts.size() <= srcRank,
+                HCCL_ERROR("[A2AV_V2_STAGE1_NM][PairCount] missing remote recv count. "
+                           "rank=%u src=%u dst=%u", myRank_, srcRank, dstRank),
+                HcclResult::HCCL_E_INTERNAL);
+    count = it->second[0].remoteAlltoAllVRecvCounts[srcRank];
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch>
 HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::GetGlobalMaxSendCount(
     u64 &globalMaxSend) const
 {
@@ -524,17 +527,8 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildEx
                 continue;
             }
             u64 count = 0;
-            if (srcRank == myRank_) {
-                count = params.sendCounts[dstRank];
-            } else {
-                auto it = allLinkMap_.find(static_cast<u32>(srcRank));
-                CHK_PRT_RET(it == allLinkMap_.end() || it->second.empty() ||
-                                it->second[0].remoteAlltoAllVRecvCounts.size() <= dstRank,
-                            HCCL_ERROR("[A2AV_V2_STAGE1_NM][ExactSlot] missing recv count. "
-                                       "rank=%u src=%llu dst=%llu", myRank_, srcRank, dstRank),
-                            HcclResult::HCCL_E_INTERNAL);
-                count = it->second[0].remoteAlltoAllVRecvCounts[dstRank];
-            }
+            CHK_RET(GetPairCountFromRecvMatrix(params, static_cast<u32>(srcRank), static_cast<u32>(dstRank),
+                                               count));
             u64 part0 = 0;
             u64 part1 = 0;
             SplitV2PairCount(count, splitRatio_, part0, part1);

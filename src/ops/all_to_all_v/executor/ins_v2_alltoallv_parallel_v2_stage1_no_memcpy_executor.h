@@ -34,6 +34,8 @@ private:
     HcclResult RestoreChannelMaps(const AlgResourceCtxSerializable &resCtx);
     HcclResult BuildBaseParams(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
                                TemplateDataParams &params);
+    HcclResult GetPairCountFromRecvMatrix(const TemplateDataParams &params, u32 srcRank, u32 dstRank,
+                                          u64 &count) const;
     HcclResult BuildStageLinkMaps(const TemplateDataParams &params);
     HcclResult BuildRuntimeMetas();
     HcclResult PrepareTemplateResources(const AlgResourceCtxSerializable &resCtx);
