@@ -663,19 +663,14 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
 
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
         HcclResult ret = HCCL_SUCCESS;
-        if (sendRecvStream) {
-            if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
-                InsSendExecutor* sendExecutor = dynamic_cast<InsSendExecutor*>(executor.get());
-                ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
-            }
-            else {
-                InsRecvExecutor* recvExecutor = dynamic_cast<InsRecvExecutor*>(executor.get());
-                ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
-            }
+        if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
+            InsSendExecutor *sendExecutor = dynamic_cast<InsSendExecutor *>(executor.get());
+            ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
+        } else {
+            InsRecvExecutor *recvExecutor = dynamic_cast<InsRecvExecutor *>(executor.get());
+            ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
         }
-        else {
-            ret = executor->Orchestrate(*param, *resCtxPtr);
-        }
+
         if (ret != HCCL_SUCCESS) {
             HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
                     param->algName, static_cast<int>(param->opType));
