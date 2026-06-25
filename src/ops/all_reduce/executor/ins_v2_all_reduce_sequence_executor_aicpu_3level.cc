@@ -578,12 +578,12 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 
         // ----------- RSL2: level2 ReduceScatter -----------
         GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
-        CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
+        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));  // [DEBUG-DUMP] 跳过
 
         // ----------- AGL2: level2 AllGather -----------
         GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
             tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
-        CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
+        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));  // [DEBUG-DUMP] 跳过
 
         // ----------- AGL1: level1 AllGather -----------
         if (!skipLevel1_) {
@@ -595,13 +595,13 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
             tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
 
-        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 AGL0 KernelRun。
+        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 RSL2/AGL2/AGL0。
         //
         // 正常代码（当前注释掉）:
         // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
         //
-        // [DEBUG-DUMP] 强制跳过 AGL0，直接把 AGL2 后的 cclMem 搬到 output。
-        // 判据：若每个 rank output 里自己 rankIdxLevel0 位置的值正确 -> bug 在 AGL0；否则在前三步。
+        // [DEBUG-DUMP] 跳过 RSL2/AGL2/AGL0，把 RSL0 后的 cclMem 搬到 output。
+        // 判据：若 rIdxL0==0 rank 的 cclMem 已错 -> bug 在 RSL0；否则在 RSL2/AGL2。
         {
             u64 sliceBytes = currDataCount / rankSizeLevel0_ * dataTypeSize_;
             u64 outOff = rankIdxLevel0_ * sliceBytes + processedDataCount * dataTypeSize_;
@@ -610,7 +610,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
             if (!threads_.empty()) {
                 CHK_RET(LocalCopy(threads_[0], srcSlice, dstSlice));
             }
-            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP] loop[%u] rankIdxLevel0[%u] "
+            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL0] loop[%u] rankIdxLevel0[%u] "
                 "dump cclMem[0..%llu] -> output[%llu..%llu]", loop, rankIdxLevel0_, sliceBytes, outOff, outOff + sliceBytes);
         }
 
