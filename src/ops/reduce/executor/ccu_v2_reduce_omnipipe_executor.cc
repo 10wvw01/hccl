@@ -513,7 +513,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_INFO("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
     // u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
     // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
+    // HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
 #endif
 
 #if T_DESC("looptimes实现2", false)
@@ -856,8 +856,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                CcuTempGatherOmniPipeNHR1DMem2Mem);
 // REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
 //                                 CcuV2ReduceOmniPipe2D,
 //                                 CcuV2ReduceOmniPipeExecutor, 
