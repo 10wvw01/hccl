@@ -24,6 +24,7 @@
 #include "aiv_kernel_def.h"
 #include "universal_concurrent_map.h"
 #include "alg_env_config.h"
+#include "sal.h"
 #ifdef HCCL_STATIC_MODE
 #include "acl_rt.h"
 #endif
@@ -902,6 +903,7 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
         "return[%d]", funcKey, HCCL_ERROR_CODE(HCCL_E_RUNTIME), ret), HCCL_E_RUNTIME);
 
     aclrtFuncHandle funcHandle = kernelLookupResult.entry.funcHandle;
+    AIV_PROF_BEGIN(aclrtLaunchUs);
     aclError aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream,
         &cfg, args, argsSize, nullptr, 0);
     if (aclRet == ACL_ERROR_RT_INVALID_HANDLE) {
@@ -912,6 +914,7 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner] update function handle failed, ret[%d]", ret), HCCL_E_RUNTIME);
         aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream, &cfg, args, argsSize, nullptr, 0);
     }
+    AIV_PROF_END(aclrtLaunchUs);
     CHK_PRT_RET(aclRet != ACL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner]errNo[0x%016llx] aclrtLaunchKernelWithHostArgs error[%d].",
         HCCL_ERROR_CODE(HCCL_E_RUNTIME), aclRet), HCCL_E_RUNTIME);
     HcclResult dfxRet = SaveAivDfxTaskInfo(opArgs);

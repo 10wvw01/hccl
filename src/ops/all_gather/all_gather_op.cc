@@ -210,6 +210,9 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
     
     CHK_RET(HcclGetOpExpansionMode(comm, param));
 
+    g_aivProfiling = AivProfilingData{};
+    HcclUs totalT0 = TIME_NOW();
+
     CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
     if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
         return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
@@ -217,7 +220,9 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
 
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
+    AIV_PROF_BEGIN(selectorUs);
     CHK_RET(Selector(comm, param, topoInfo, algName));
+    AIV_PROF_END(selectorUs);
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
@@ -230,6 +235,16 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
         HCCL_INFO("[%s] symmetric memory enabled", __func__);
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName, resPack));
+    uint64_t totalUs = DURATION_US(TIME_NOW() - totalT0).count();
+    HCCL_ERROR("[AIV-Profiling] sel[%llu] resAcq[%llu] dfx[%llu] ent[%llu] chk[%llu] "
+        "orch[%llu] store[%llu] rpt[%llu] total[%llu] us",
+        g_aivProfiling.selectorUs, g_aivProfiling.resAcquireUs, g_aivProfiling.dfxRegUs,
+        g_aivProfiling.aivEntranceUs, g_aivProfiling.cacheCheckUs, g_aivProfiling.orchestrateUs,
+        g_aivProfiling.cacheStoreUs, g_aivProfiling.reportUs, totalUs);
+    HCCL_ERROR("[AIV-Profiling] tmplPrep[%llu] kernLaunch[%llu] aclrt[%llu] us, count[%u] avg[%llu] us",
+        g_aivProfiling.templatePrepUs, g_aivProfiling.kernelLaunchUs, g_aivProfiling.aclrtLaunchUs,
+        g_aivProfiling.kernelLaunchCount,
+        g_aivProfiling.kernelLaunchCount > 0 ? g_aivProfiling.kernelLaunchUs / g_aivProfiling.kernelLaunchCount : 0);
     HCCL_INFO("Execute AllGatherOutPlace success.");
     return HCCL_SUCCESS;
 }
