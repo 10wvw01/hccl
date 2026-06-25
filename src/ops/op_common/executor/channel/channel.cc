@@ -658,9 +658,10 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool isIsolation)
 {
     uint8_t eidRank[16];
-    memcpy(eidRank, endPoint0.commAddr.eid, sizeof(eidRank));
+    (void)memcpy_s(eidRank, sizeof(eidRank), endPoint0.commAddr.eid, sizeof(eidRank));
     uint8_t eidRemoteRank[16];
-    memcpy(eidRemoteRank, endPoint1.commAddr.eid, sizeof(eidRemoteRank));
+    (void)memcpy_s(eidRemoteRank, sizeof(eidRemoteRank), endPoint1.commAddr.eid, sizeof(eidRemoteRank));
+
     const u32 PORTVAL = 127;
     if (isIsolation) {
         return ((eidRank[PORT_IDX] == eidRemoteRank[PORT_IDX]) && (eidRank[PORT_IDX] != PORTVAL));
