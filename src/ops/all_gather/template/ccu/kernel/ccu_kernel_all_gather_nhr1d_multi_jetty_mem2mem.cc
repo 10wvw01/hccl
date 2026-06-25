@@ -73,6 +73,7 @@ static CcuResult LoadArgs(AllGatherNHR1DMultiJettyMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.inputRepeatStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.outputRepeatStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isInputOutputEqual, argId++));
+    CCU_CHK_RET(ccu::LoadArg(ctx.lastSize, argId++));
 
     HCCL_DEBUG("[CcuKernelAllGatherNHR1DMultiJettyMem2Mem] LoadArgs run finished");
     return CCU_SUCCESS;
@@ -206,6 +207,7 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
 {
     ccu::Variable tmpSliceOffset;
     ccu::Variable myrankInputSliceOffset;
+    ccu::Variable localSliceSize;
     const auto *arg = ctx.arg;
     tmpSliceOffset = 0;
     myrankInputSliceOffset = 0;
@@ -226,9 +228,11 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
     ctx.myDstMem.token = ctx.token[ctx.myRankIdx];
 
     ctx.tmpCopyRepeatNumInv = ctx.repeatNumInv;
-
+    bool islastSlice = (arg->rankId + 1 == arg->rankSize);
+    
     CCU_WHILE(ctx.tmpCopyRepeatNumInv != UINT64_MAX)
     {
+        localSliceSize = islastSlice ? ctx.lastSize : ctx.sliceSize;
         ctx.tmpCopyRepeatNumInv += ctx.constVar1;
         CCU_IF(ctx.repeatTimeflag != 0)
         {
@@ -238,8 +242,8 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
         const uint16_t rankMask = 1 ; //<< arg->rankId
         CCU_IF(ctx.isInputOutputEqual == 0)
         {
-            CCU_IF(ctx.sliceSize != 0) {
-                CCU_CHK_RET(ccu::LocalCopy(ctx.myDstMem, ctx.srcMem, ctx.sliceSize, ctx.event, rankMask));
+            CCU_IF(localSliceSize != 0) {
+                CCU_CHK_RET(ccu::LocalCopy(ctx.myDstMem, ctx.srcMem, localSliceSize, ctx.event, rankMask));
             } CCU_ELSE {
                 CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
             }

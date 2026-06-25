@@ -180,7 +180,7 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::PrepareLaunchArgs(const OpPar
     uint64_t inputRepeatStride     = templateDataParams.inputRepeatStride;
     uint64_t outputRepeatStride    = templateDataParams.outputRepeatStride;
     uint64_t repeatNumTmp          = templateDataParams.repeatNum;
-
+    uint64_t lastSize = templateDataParams.tailSize;
     uint64_t repeatNumInv = UINT64_MAX - repeatNumTmp;
 
     bool inputOutputEqual = (inputAddr + inputSliceStride * mySubCommRank_ == outputAddr + outputSliceStride * mySubCommRank_);
@@ -195,14 +195,14 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::PrepareLaunchArgs(const OpPar
     taskArgs = {inputAddr, outputAddr, token, sliceSize, sliceSizePerJetty,
                 lastSliceSizePerJetty, repeatNumInv, inputSliceStride,
                 outputSliceStride, inputRepeatStride, outputRepeatStride,
-                isInputOutputEqual};
-    argSize = 12;
+                isInputOutputEqual, lastSize};
+    argSize = 13;
 
     HCCL_DEBUG("[CcuTempAllGatherNHR1DMultiJettyMem2Mem] inputAddr[%llu], outputAddr[%llu],"
     "sliceSize[%llu], sliceSizePerJetty[%llu], lastSliceSizePerJetty[%llu], repeatNumInv[%llu], inputSliceStride[%llu], "
-    "outputSliceStride[%llu], inputRepeatStride[%llu], outputRepeatStride[%llu], isInputOutputEqual[%llu]",
+    "outputSliceStride[%llu], inputRepeatStride[%llu], outputRepeatStride[%llu], isInputOutputEqual[%llu], lastSize[%llu]",
     inputAddr, outputAddr, sliceSize, sliceSizePerJetty, lastSliceSizePerJetty, repeatNumInv, inputSliceStride,
-    outputSliceStride, inputRepeatStride, outputRepeatStride, isInputOutputEqual);
+    outputSliceStride, inputRepeatStride, outputRepeatStride, isInputOutputEqual, lastSize);
 
     return HcclResult::HCCL_SUCCESS;
 }
@@ -234,7 +234,7 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::KernelRun(const OpParam& para
     submitInfo.kernelHandle = templateResource.ccuKernels[0];
     CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4],
                            taskArgs[5], taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9],
-                           taskArgs[10], taskArgs[11],
+                           taskArgs[10], taskArgs[11], taskArgs[12],
                            buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, mySubCommRank_));
     templateResource.submitInfos.push_back(submitInfo);
 
@@ -256,10 +256,10 @@ HcclResult CcuTempAllGatherNHR1DMultiJettyMem2Mem::FastLaunch(const OpParam& par
     constexpr u32 inputSliceStrideIdx  = 7;
     constexpr u32 outputSliceStrideIdx  = 8;
     constexpr u32 isInputOutputEqualIdx = 11;
-    constexpr u32 inputOffsetIdx = 12;
-    constexpr u32 outputOffsetIdx = 13;
-    constexpr u32 mySubCommRankIdx = 14;
-    uint64_t argSize = 12;
+    constexpr u32 inputOffsetIdx = 13;
+    constexpr u32 outputOffsetIdx = 14;
+    constexpr u32 mySubCommRankIdx = 15;
+    uint64_t argSize = 13;
 
     uint64_t inputAddr          = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
     uint64_t outputAddr         = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
