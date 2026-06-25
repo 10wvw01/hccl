@@ -576,48 +576,53 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
                 tempAlgParamsRSL0.tailSize : tempAlgParamsRSL0.sliceSize;
         }
 
-        // ----------- RSL2: level2 ReduceScatter -----------
-        GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
-        CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
-
-        // ----------- AGL2: level2 AllGather -----------
-        GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
-            tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
-        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));  // [DEBUG-DUMP] 跳过
-
-        // ----------- AGL1: level1 AllGather -----------
-        if (!skipLevel1_) {
-            GenTempAlgParamsAGL1(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsAGL1);
-            CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
-        }
-
-        // ----------- AGL0: level0 AllGather -----------
-        GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
-            tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
-
-        // TODO(调试): 定位 3level AllReduce 闭环 bug 完成后，删掉下面的 DUMP 块，恢复 AGL2/AGL0。
+        // [DEBUG-DUMP] 第四轮：dump RSL0 后的 cclMem 布局。
+        // 跳过 RSL2/AGL2/AGL1/AGL0，把 cclMem 的 rsResult 区读到 output。
+        // 目的：确认 ZAxisDetour 在 cclMem rsResult 区铺出的真实布局，定 inputSliceStride 正确值。
         //
         // 正常代码（当前注释掉）:
-        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
-        // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
-        //
-        // [DEBUG-DUMP] 跳过 AGL2/AGL0，把 RSL2 后的 cclMem 搬到 output。
-        // 判据：RSL2 后 cclMem 应为跨节点 RS 结果(部分rank的elem和)，非完整。
-        //   若 rIdxL0==0 rank 的值偏离预期 -> bug 在 RSL2；否则在 AGL2。
+        // GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
+        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
         {
-            u64 sliceBytes = currDataCount / rankSizeLevel0_ * dataTypeSize_;
-            u64 outOff = rankIdxLevel0_ * sliceBytes + processedDataCount * dataTypeSize_;
-            DataSlice srcSlice(resCtx.cclMem.addr, rsResultBuffOffset_, sliceBytes, sliceBytes / dataTypeSize_);
-            DataSlice dstSlice(param.outputPtr, outOff, sliceBytes, sliceBytes / dataTypeSize_);
+            // dump rsResult 区（RSL0 输出），范围 = sliceSizeRSL1（=RSL0.sliceSize）。
+            // 顺带多读一些，看 padding/边界：dump 整个 output 容量（dataSize_），但只到 cclMem 可见范围。
+            u64 dumpBytes = dataSize_;
+            u64 outOff = processedDataCount * dataTypeSize_;
+            DataSlice srcSlice(resCtx.cclMem.addr, 0, dumpBytes, dumpBytes / dataTypeSize_);
+            DataSlice dstSlice(param.outputPtr, outOff, dumpBytes, dumpBytes / dataTypeSize_);
             if (!threads_.empty()) {
                 CHK_RET(LocalCopy(threads_[0], srcSlice, dstSlice));
             }
-            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL2] loop[%u] rankIdxLevel0[%u] "
-                "dump cclMem[0..%llu] -> output[%llu..%llu]", loop, rankIdxLevel0_, sliceBytes, outOff, outOff + sliceBytes);
+            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL0] loop[%u] rankIdxLevel0[%u] "
+                "sliceSizeRSL0[%llu] rsResultBuffSize[%llu] rsResultBuffOffset[%llu] "
+                "meshCommBuffOffset[%llu] meshCommBuffSize[%llu] -> dump %llu bytes to output[%llu]",
+                loop, rankIdxLevel0_, tempAlgParamsRSL0.sliceSize, rsResultBuffSize_, rsResultBuffOffset_,
+                meshCommBuffOffset_, meshCommBuffSize_, dumpBytes, outOff);
         }
-
         processedDataCount += currDataCount;
         loop++;
+        continue;
+
+        // [DEBUG-DUMP] 以下代码被 continue 跳过，定位完成后需连同上面的 dump 块一起删除并恢复完整流水线。
+        // ----------- RSL2: level2 ReduceScatter -----------
+        // GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
+        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
+
+        // ----------- AGL2: level2 AllGather -----------
+        // GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
+        //     tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
+        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
+
+        // ----------- AGL1: level1 AllGather -----------
+        // if (!skipLevel1_) {
+        //     GenTempAlgParamsAGL1(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsAGL1);
+        //     CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
+        // }
+
+        // ----------- AGL0: level0 AllGather -----------
+        // GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
+        //     tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
+        // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
     }
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] End.");
     return HCCL_SUCCESS;
