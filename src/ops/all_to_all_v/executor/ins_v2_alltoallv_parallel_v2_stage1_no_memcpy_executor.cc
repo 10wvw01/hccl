@@ -13,7 +13,9 @@
 namespace ops_hccl {
 namespace {
 constexpr u32 TEMPLATE_NUM = 2;
-constexpr u32 MIN_TEMPLATE_THREAD_NUM = 1;
+constexpr double DEFAULT_SPLIT_RATIO = 0.5;
+constexpr double MIN_SPLIT_RATIO = 0.0;
+constexpr double MAX_SPLIT_RATIO = 1.0;
 
 bool IsA2AVV2Stage1NoMemcpyAlg(const OpParam &param)
 {
@@ -55,6 +57,16 @@ void BuildSingleLayerUbx4x2Hierarchy(u32 userRank, std::vector<std::vector<u32>>
 u64 AlignUp(u64 value, u64 align)
 {
     return align == 0 ? value : ((value + align - 1) / align) * align;
+}
+
+void SplitV2PairCount(u64 count, double splitRatio, u64 &part0, u64 &part1)
+{
+    long double scaled = static_cast<long double>(count) * static_cast<long double>(splitRatio);
+    part0 = static_cast<u64>(scaled);
+    if (part0 > count) {
+        part0 = count;
+    }
+    part1 = count - part0;
 }
 }
 
@@ -151,8 +163,11 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::CalcRes
                            meshChannels.size(), closChannels.size()),
                 HcclResult::HCCL_E_INTERNAL);
 
-    u32 maxPeerNum = rankSize_ > 0 ? static_cast<u32>(rankSize_ - 1) : 0;
-    stage0Meta_.slaveThreadNum = std::max(MIN_TEMPLATE_THREAD_NUM, maxPeerNum) - 1;
+    u32 maxPeerNum = 0;
+    if (meshSize_ > 0 && groupNum_ > 0) {
+        maxPeerNum = static_cast<u32>((meshSize_ - 1) + (groupNum_ - 1));
+    }
+    stage0Meta_.slaveThreadNum = maxPeerNum;
     stage0Meta_.notifyNumOnMainThread = stage0Meta_.slaveThreadNum;
     stage0Meta_.notifyNumPerThread.assign(stage0Meta_.slaveThreadNum, 1);
     stage1Meta_ = stage0Meta_;
@@ -170,9 +185,9 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::CalcRes
     resourceRequest.channels.emplace_back(meshChannels);
     resourceRequest.channels.emplace_back(closChannels);
     HCCL_WARNING("[A2AV_V2_STAGE1_NM][CalcRes] rank=%u stage0Slave=%u stage1Slave=%u totalSlave=%u "
-                 "meshChannels=%zu closChannels=%zu",
+                 "meshChannels=%zu closChannels=%zu maxPeer=%u",
                  myRank_, stage0Meta_.slaveThreadNum, stage1Meta_.slaveThreadNum,
-                 resourceRequest.slaveThreadNum, meshChannels.size(), closChannels.size());
+                 resourceRequest.slaveThreadNum, meshChannels.size(), closChannels.size(), maxPeerNum);
     return HCCL_SUCCESS;
 }
 
@@ -224,13 +239,185 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::Restore
 template <typename AlgTopoMatch>
 HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildRuntimeMetas()
 {
-    u32 threadNum = std::max(MIN_TEMPLATE_THREAD_NUM, static_cast<u32>(allLinkMap_.size()));
-    stage0Meta_.slaveThreadNum = threadNum > 0 ? threadNum - 1 : 0;
+    u32 stage0PeerNum = static_cast<u32>(stage0LinkMap_.size());
+    u32 stage1PeerNum = static_cast<u32>(stage1LinkMap_.size());
+    u32 maxPeerNum = meshSize_ > 0 && groupNum_ > 0 ? static_cast<u32>((meshSize_ - 1) + (groupNum_ - 1)) : 0;
+    CHK_PRT_RET(stage0PeerNum > maxPeerNum || stage1PeerNum > maxPeerNum,
+                HCCL_ERROR("[A2AV_V2_STAGE1_NM][BuildRuntimeMetas] active peers exceed resource upper bound. "
+                           "rank=%u stage0=%u stage1=%u max=%u", myRank_, stage0PeerNum, stage1PeerNum,
+                           maxPeerNum),
+                HcclResult::HCCL_E_INTERNAL);
+    stage0Meta_.slaveThreadNum = stage0PeerNum;
     stage0Meta_.notifyNumOnMainThread = stage0Meta_.slaveThreadNum;
     stage0Meta_.notifyNumPerThread.assign(stage0Meta_.slaveThreadNum, 1);
-    stage1Meta_ = stage0Meta_;
-    HCCL_WARNING("[A2AV_V2_STAGE1_NM][BuildRuntimeMetas] rank=%u threadNum=%u peers=%zu",
-                 myRank_, threadNum, allLinkMap_.size());
+    stage1Meta_.slaveThreadNum = stage1PeerNum;
+    stage1Meta_.notifyNumOnMainThread = stage1Meta_.slaveThreadNum;
+    stage1Meta_.notifyNumPerThread.assign(stage1Meta_.slaveThreadNum, 1);
+    HCCL_WARNING("[A2AV_V2_STAGE1_NM][BuildRuntimeMetas] rank=%u stage0Peers=%u stage1Peers=%u",
+                 myRank_, stage0PeerNum, stage1PeerNum);
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch>
+bool InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::IsSameGroup(u32 rankA, u32 rankB) const
+{
+    return meshSize_ != 0 && rankA / meshSize_ == rankB / meshSize_;
+}
+
+template <typename AlgTopoMatch>
+double InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::GetSplitRatio(const OpParam &param) const
+{
+    double ratio = param.opConfig.multipleDimensionSplitRatio;
+    if (ratio < MIN_SPLIT_RATIO || ratio > MAX_SPLIT_RATIO) {
+        HCCL_WARNING("[A2AV_V2_STAGE1_NM][Ratio] invalid ratio[%f], use default[%f].",
+                     ratio, DEFAULT_SPLIT_RATIO);
+        return DEFAULT_SPLIT_RATIO;
+    }
+    HCCL_WARNING("[A2AV_V2_STAGE1_NM][Ratio] use ratio[%f] from opConfig.", ratio);
+    return ratio;
+}
+
+template <typename AlgTopoMatch>
+HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::AddStageLink(
+    u32 peerRank, std::map<u32, std::vector<ChannelInfo>> &stageLinkMap) const
+{
+    if (peerRank == myRank_) {
+        return HCCL_SUCCESS;
+    }
+    auto &srcMap = IsSameGroup(myRank_, peerRank) ? intraLinkMap_ : interLinkMap_;
+    auto it = srcMap.find(peerRank);
+    if (it != srcMap.end() && !it->second.empty()) {
+        stageLinkMap[peerRank] = it->second;
+        return HCCL_SUCCESS;
+    }
+    auto fallback = allLinkMap_.find(peerRank);
+    if (fallback != allLinkMap_.end() && !fallback->second.empty()) {
+        stageLinkMap[peerRank] = fallback->second;
+        return HCCL_SUCCESS;
+    }
+    HCCL_ERROR("[A2AV_V2_STAGE1_NM][AddStageLink] missing channel. rank=%u peer=%u", myRank_, peerRank);
+    return HcclResult::HCCL_E_INTERNAL;
+}
+
+template <typename AlgTopoMatch>
+HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildStageLinkMaps(
+    const TemplateDataParams &params)
+{
+    stage0LinkMap_.clear();
+    stage1LinkMap_.clear();
+
+    auto getPairCount = [this, &params](u32 srcRank, u32 dstRank, u64 &count) -> HcclResult {
+        count = 0;
+        if (srcRank == dstRank) {
+            return HCCL_SUCCESS;
+        }
+        if (srcRank == myRank_) {
+            CHK_PRT_RET(dstRank >= params.sendCounts.size(),
+                        HCCL_ERROR("[A2AV_V2_STAGE1_NM][BuildStageLinkMaps] invalid local dst. "
+                                   "rank=%u dst=%u", myRank_, dstRank),
+                        HcclResult::HCCL_E_INTERNAL);
+            count = params.sendCounts[dstRank];
+            return HCCL_SUCCESS;
+        }
+        auto it = allLinkMap_.find(srcRank);
+        CHK_PRT_RET(it == allLinkMap_.end() || it->second.empty() ||
+                        it->second[0].remoteAlltoAllVRecvCounts.size() <= dstRank,
+                    HCCL_ERROR("[A2AV_V2_STAGE1_NM][BuildStageLinkMaps] missing global count. "
+                               "rank=%u src=%u dst=%u", myRank_, srcRank, dstRank),
+                    HcclResult::HCCL_E_INTERNAL);
+        count = it->second[0].remoteAlltoAllVRecvCounts[dstRank];
+        return HCCL_SUCCESS;
+    };
+
+    auto addStage0Relay = [this](u32 srcRank, u32 dstRank, u64 count) -> HcclResult {
+        if (count == 0 || srcRank == dstRank) {
+            return HCCL_SUCCESS;
+        }
+        const u32 srcGroup = srcRank / meshSize_;
+        const u32 dstGroup = dstRank / meshSize_;
+        const u32 srcLocal = srcRank % meshSize_;
+        const u32 dstLocal = dstRank % meshSize_;
+        u64 part0 = 0;
+        u64 part1 = 0;
+        SplitV2PairCount(count, splitRatio_, part0, part1);
+        if (srcGroup == dstGroup) {
+            if (part0 > 0 && (srcRank == myRank_ || dstRank == myRank_)) {
+                CHK_RET(AddStageLink(srcRank == myRank_ ? dstRank : srcRank, stage0LinkMap_));
+            }
+            return HCCL_SUCCESS;
+        }
+        if (part0 > 0) {
+            u32 relay0 = static_cast<u32>(dstGroup * meshSize_ + srcLocal);
+            if (srcRank == myRank_ || relay0 == myRank_) {
+                CHK_RET(AddStageLink(srcRank == myRank_ ? relay0 : srcRank, stage0LinkMap_));
+            }
+        }
+        if (part1 > 0) {
+            u32 relay1 = static_cast<u32>(srcGroup * meshSize_ + dstLocal);
+            if (srcRank == myRank_ || relay1 == myRank_) {
+                CHK_RET(AddStageLink(srcRank == myRank_ ? relay1 : srcRank, stage0LinkMap_));
+            }
+        }
+        return HCCL_SUCCESS;
+    };
+
+    auto addStage1Final = [this](u32 srcRank, u32 finalDst, u64 count) -> HcclResult {
+        if (count == 0 || srcRank == finalDst) {
+            return HCCL_SUCCESS;
+        }
+        const u32 srcGroup = srcRank / meshSize_;
+        const u32 dstGroup = finalDst / meshSize_;
+        const u32 srcLocal = srcRank % meshSize_;
+        const u32 dstLocal = finalDst % meshSize_;
+        u64 part0 = 0;
+        u64 part1 = 0;
+        SplitV2PairCount(count, splitRatio_, part0, part1);
+        if (srcGroup == dstGroup) {
+            if (part1 > 0 && (srcRank == myRank_ || finalDst == myRank_)) {
+                CHK_RET(AddStageLink(srcRank == myRank_ ? finalDst : srcRank, stage1LinkMap_));
+            }
+            return HCCL_SUCCESS;
+        }
+        if (part0 > 0) {
+            u32 relay0 = static_cast<u32>(dstGroup * meshSize_ + srcLocal);
+            if (relay0 == myRank_ || finalDst == myRank_) {
+                CHK_RET(AddStageLink(relay0 == myRank_ ? finalDst : relay0, stage1LinkMap_));
+            }
+        }
+        if (part1 > 0) {
+            u32 relay1 = static_cast<u32>(srcGroup * meshSize_ + dstLocal);
+            if (relay1 == myRank_ || finalDst == myRank_) {
+                CHK_RET(AddStageLink(relay1 == myRank_ ? finalDst : relay1, stage1LinkMap_));
+            }
+        }
+        return HCCL_SUCCESS;
+    };
+
+    for (u32 dstRank = 0; dstRank < rankSize_; ++dstRank) {
+        u64 count = 0;
+        CHK_RET(getPairCount(myRank_, dstRank, count));
+        CHK_RET(addStage0Relay(myRank_, dstRank, count));
+        CHK_RET(addStage1Final(myRank_, dstRank, count));
+    }
+    for (u32 dstRank = 0; dstRank < rankSize_; ++dstRank) {
+        u64 count = 0;
+        CHK_RET(getPairCount(dstRank, myRank_, count));
+        CHK_RET(addStage0Relay(dstRank, myRank_, count));
+        CHK_RET(addStage1Final(dstRank, myRank_, count));
+    }
+
+    for (u32 srcRank = 0; srcRank < rankSize_; ++srcRank) {
+        if (srcRank == myRank_) {
+            continue;
+        }
+        for (u32 finalDst = 0; finalDst < rankSize_; ++finalDst) {
+            u64 count = 0;
+            CHK_RET(getPairCount(srcRank, finalDst, count));
+            CHK_RET(addStage1Final(srcRank, finalDst, count));
+        }
+    }
+    HCCL_WARNING("[A2AV_V2_STAGE1_NM][BuildStageLinkMaps] rank=%u stage0Peers=%zu stage1Peers=%zu",
+                 myRank_, stage0LinkMap_.size(), stage1LinkMap_.size());
     return HCCL_SUCCESS;
 }
 
@@ -326,12 +513,10 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildEx
     const u64 slotNum = rankSize_ * rankSize_ * 2;
     params.alltoAllVV2SlotOffsets.assign(slotNum, 0);
     exactSlotBytes_ = 0;
+    u64 directPartNum = 0;
+    u64 scratchPartNum = 0;
     auto slotIndex = [this](u64 srcRank, u64 dstRank, u64 partIdx) {
         return (srcRank * rankSize_ + dstRank) * 2 + partIdx;
-    };
-    auto splitPair = [](u64 count, u64 &part0, u64 &part1) {
-        part0 = count / 2;
-        part1 = count - part0;
     };
     for (u64 srcRank = 0; srcRank < rankSize_; ++srcRank) {
         for (u64 dstRank = 0; dstRank < rankSize_; ++dstRank) {
@@ -352,21 +537,35 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::BuildEx
             }
             u64 part0 = 0;
             u64 part1 = 0;
-            splitPair(count, part0, part1);
+            SplitV2PairCount(count, splitRatio_, part0, part1);
             u64 parts[2] = {part0, part1};
+            u64 srcGroup = srcRank / meshSize_;
+            u64 dstGroup = dstRank / meshSize_;
+            u64 srcLocal = srcRank % meshSize_;
+            u64 dstLocal = dstRank % meshSize_;
+            u64 relays[2] = {
+                srcGroup == dstGroup ? dstRank : dstGroup * meshSize_ + srcLocal,
+                srcGroup == dstGroup ? srcRank : srcGroup * meshSize_ + dstLocal
+            };
             for (u64 partIdx = 0; partIdx < 2; ++partIdx) {
                 u64 bytes = parts[partIdx] * dataTypeSize_;
                 if (bytes == 0) {
                     continue;
                 }
+                if (relays[partIdx] == srcRank || relays[partIdx] == dstRank) {
+                    ++directPartNum;
+                    continue;
+                }
                 u64 idx = slotIndex(srcRank, dstRank, partIdx);
                 params.alltoAllVV2SlotOffsets[idx] = exactSlotBytes_;
                 exactSlotBytes_ += AlignUp(bytes, HCCL_MIN_SLICE_ALIGN);
+                ++scratchPartNum;
             }
         }
     }
-    HCCL_WARNING("[A2AV_V2_STAGE1_NM][ExactSlot] rank=%u compactBytes=%llu slotNum=%llu rankSize=%llu",
-                 myRank_, exactSlotBytes_, slotNum, rankSize_);
+    HCCL_WARNING("[A2AV_V2_STAGE1_NM][ExactSlot] rank=%u compactBytes=%llu slotNum=%llu rankSize=%llu "
+                 "scratchParts=%llu directParts=%llu",
+                 myRank_, exactSlotBytes_, slotNum, rankSize_, scratchPartNum, directPartNum);
     return HCCL_SUCCESS;
 }
 
@@ -388,9 +587,10 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::RunStag
 {
     InsTempAlltoAllVV2Stage1NoMemcpy temp(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
     temp.SetV2Stage1NoMemcpyInfo(A2AVV2Stage1NoMemcpyPhase::STAGE0_TO_RELAY,
-                                 static_cast<u32>(rankSize_), static_cast<u32>(meshSize_), slotStride_);
+                                 static_cast<u32>(rankSize_), static_cast<u32>(meshSize_), slotStride_,
+                                 splitRatio_);
     TemplateResource resource;
-    resource.channels = allLinkMap_;
+    resource.channels = stage0LinkMap_;
     resource.threads = stage0Threads_;
     resource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     HCCL_WARNING("[A2AV_V2_STAGE1_NM][Stage0][PRE] rank=%u count=%llu slotStride=%llu",
@@ -408,9 +608,10 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::RunStag
 {
     InsTempAlltoAllVV2Stage1NoMemcpy temp(param, resCtx.topoInfo.userRank, interHierarchyInfo_);
     temp.SetV2Stage1NoMemcpyInfo(A2AVV2Stage1NoMemcpyPhase::STAGE1_TO_OUTPUT,
-                                 static_cast<u32>(rankSize_), static_cast<u32>(meshSize_), slotStride_);
+                                 static_cast<u32>(rankSize_), static_cast<u32>(meshSize_), slotStride_,
+                                 splitRatio_);
     TemplateResource resource;
-    resource.channels = allLinkMap_;
+    resource.channels = stage1LinkMap_;
     resource.threads = stage1Threads_;
     resource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     HCCL_WARNING("[A2AV_V2_STAGE1_NM][Stage1][PRE] rank=%u count=%llu slotStride=%llu",
@@ -438,27 +639,33 @@ HcclResult InsV2AlltoAllVParallelV2Stage1NoMemcpyExecutor<AlgTopoMatch>::Orchest
     CHK_PRT_RET(dataType_ >= HCCL_DATA_TYPE_RESERVED || dataTypeSize_ == 0,
                 HCCL_ERROR("[A2AV_V2_STAGE1_NM][Orchestrate] invalid dataType=%d", static_cast<int>(dataType_)),
                 HcclResult::HCCL_E_INTERNAL);
+    splitRatio_ = GetSplitRatio(param);
     CHK_RET(BuildHierarchyInfo(&resCtx.topoInfo, resCtx.algHierarchyInfo));
     CHK_RET(RestoreChannelMaps(resCtx));
-    CHK_RET(BuildRuntimeMetas());
-    CHK_RET(PrepareTemplateResources(resCtx));
     TemplateDataParams params;
     CHK_RET(BuildBaseParams(param, resCtx, params));
     dataCount_ = params.count;
+    CHK_RET(BuildStageLinkMaps(params));
+    CHK_RET(BuildRuntimeMetas());
+    CHK_RET(PrepareTemplateResources(resCtx));
     u64 globalMaxSend = 0;
     CHK_RET(GetGlobalMaxSendCount(globalMaxSend));
     for (u64 count : params.sendCounts) {
         globalMaxSend = std::max(globalMaxSend, count);
     }
-    slotStride_ = AlignUp((globalMaxSend + 1) / 2 * dataTypeSize_, HCCL_MIN_SLICE_ALIGN);
+    u64 maxPart0 = 0;
+    u64 maxPart1 = 0;
+    SplitV2PairCount(globalMaxSend, splitRatio_, maxPart0, maxPart1);
+    u64 maxPart = std::max(maxPart0, maxPart1);
+    slotStride_ = AlignUp(maxPart * dataTypeSize_, HCCL_MIN_SLICE_ALIGN);
     if (slotStride_ == 0) {
         slotStride_ = HCCL_MIN_SLICE_ALIGN;
     }
     CHK_RET(BuildExactSlotOffsets(params));
     CHK_RET(CheckScratch(resCtx));
-    HCCL_WARNING("[A2AV_V2_STAGE1_NM][Orchestrate] rank=%u total=%llu globalMax=%llu "
+    HCCL_WARNING("[A2AV_V2_STAGE1_NM][Orchestrate] rank=%u total=%llu globalMax=%llu splitRatio=%f "
                  "fallbackSlotStride=%llu exactSlotBytes=%llu",
-                 myRank_, dataCount_, globalMaxSend, slotStride_, exactSlotBytes_);
+                 myRank_, dataCount_, globalMaxSend, splitRatio_, slotStride_, exactSlotBytes_);
     CHK_RET(RunStage0(param, resCtx, params));
     CHK_RET(RunStage1(param, resCtx, params));
     HCCL_WARNING("[A2AV_V2_STAGE1_NM][Orchestrate] end.");

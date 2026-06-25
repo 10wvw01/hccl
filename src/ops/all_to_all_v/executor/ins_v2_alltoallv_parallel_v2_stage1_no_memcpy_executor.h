@@ -34,6 +34,7 @@ private:
     HcclResult RestoreChannelMaps(const AlgResourceCtxSerializable &resCtx);
     HcclResult BuildBaseParams(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
                                TemplateDataParams &params);
+    HcclResult BuildStageLinkMaps(const TemplateDataParams &params);
     HcclResult BuildRuntimeMetas();
     HcclResult PrepareTemplateResources(const AlgResourceCtxSerializable &resCtx);
     HcclResult BuildExactSlotOffsets(TemplateDataParams &params);
@@ -44,6 +45,9 @@ private:
                          const TemplateDataParams &params);
     HcclResult GetGlobalMaxSendCount(u64 &globalMaxSend) const;
     u64 GetRankSize(const std::vector<std::vector<u32>> &vTopo) const;
+    HcclResult AddStageLink(u32 peerRank, std::map<u32, std::vector<ChannelInfo>> &stageLinkMap) const;
+    bool IsSameGroup(u32 rankA, u32 rankB) const;
+    double GetSplitRatio(const OpParam &param) const;
 
     u32 myRank_{0};
     u64 rankSize_{0};
@@ -54,6 +58,7 @@ private:
     u64 dataCount_{0};
     u64 slotStride_{0};
     u64 exactSlotBytes_{0};
+    double splitRatio_{0.5};
 
     std::vector<std::vector<u32>> intraHierarchyInfo_;
     std::vector<std::vector<u32>> interHierarchyInfo_;
@@ -61,6 +66,8 @@ private:
     std::map<u32, std::vector<ChannelInfo>> intraLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> interLinkMap_;
     std::map<u32, std::vector<ChannelInfo>> allLinkMap_;
+    std::map<u32, std::vector<ChannelInfo>> stage0LinkMap_;
+    std::map<u32, std::vector<ChannelInfo>> stage1LinkMap_;
     std::vector<u64> remoteMaxSendCountsWithoutSelf_;
     std::vector<bool> remoteCountInfoValid_;
 

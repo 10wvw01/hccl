@@ -136,7 +136,11 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunPeerSendRecv(const ChannelInfo &
 
 void InsTempAlltoAllVV2Stage1NoMemcpy::SplitPairCount(u64 count, u64 &part0, u64 &part1) const
 {
-    part0 = count / 2;
+    long double scaled = static_cast<long double>(count) * static_cast<long double>(splitRatio_);
+    part0 = static_cast<u64>(scaled);
+    if (part0 > count) {
+        part0 = count;
+    }
     part1 = count - part0;
 }
 
@@ -154,12 +158,10 @@ void InsTempAlltoAllVV2Stage1NoMemcpy::GetSplitParts(u32 srcRank, u32 dstRank, u
     const u32 dstGroup = dstRank / meshSize_;
     const u32 srcLocal = srcRank % meshSize_;
     const u32 dstLocal = dstRank % meshSize_;
-    if (srcGroup == dstGroup) {
-        parts.push_back({dstRank, count, 0});
-        return;
-    }
-    parts.push_back({dstGroup * meshSize_ + srcLocal, part0, 0});
-    parts.push_back({srcGroup * meshSize_ + dstLocal, part1, part0});
+    u32 relay0 = dstGroup == srcGroup ? dstRank : static_cast<u32>(dstGroup * meshSize_ + srcLocal);
+    u32 relay1 = dstGroup == srcGroup ? srcRank : static_cast<u32>(srcGroup * meshSize_ + dstLocal);
+    parts.push_back({relay0, part0, 0});
+    parts.push_back({relay1, part1, part0});
 }
 
 u64 InsTempAlltoAllVV2Stage1NoMemcpy::CalcRelaySlotOffset(u32 srcRank, u32 dstRank, u32 partIdx) const
@@ -192,6 +194,16 @@ u32 InsTempAlltoAllVV2Stage1NoMemcpy::SelectChannelIdx(
 
     const u32 myGroup = myRank_ / meshSize_;
     const u32 peerGroup = peerRank / meshSize_;
+    if (groupNum_ == 4 && channels.size() >= 3) {
+        static constexpr u32 K4_EDGE_COLOR[4][4] = {
+            {0, 0, 1, 2},
+            {0, 0, 2, 1},
+            {1, 2, 0, 0},
+            {2, 1, 0, 0},
+        };
+        return K4_EDGE_COLOR[myGroup][peerGroup];
+    }
+
     const u32 myLocal = myRank_ % meshSize_;
     const u32 peerLocal = peerRank % meshSize_;
     const u32 lowGroup = std::min(myGroup, peerGroup);
@@ -222,68 +234,6 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopySelfToOutput(
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopyLocalRelayToOutput(
-    const TemplateDataParams &params, const ThreadHandle &thread) const
-{
-    for (u32 finalDst = 0; finalDst < rankSize_; ++finalDst) {
-        if (finalDst == myRank_ || !HasCount(params.sendCounts, finalDst)) {
-            continue;
-        }
-        std::vector<SplitPart> parts;
-        GetSplitParts(myRank_, finalDst, params.sendCounts[finalDst], parts);
-        for (u32 partIdx = 0; partIdx < parts.size(); ++partIdx) {
-            const SplitPart &part = parts[partIdx];
-            if (part.relayRank != myRank_ || part.count == 0) {
-                continue;
-            }
-            u64 byteSize = part.count * dataTypeSize_;
-            u64 srcOffset = (params.sdispls[finalDst] + part.offsetCount) * dataTypeSize_;
-            u64 dstOffset = GetExactRelaySlotOffset(params, rankSize_, myRank_, finalDst, partIdx,
-                CalcRelaySlotOffset(myRank_, finalDst, partIdx));
-            CHK_RET(CheckSliceRange("LOCAL_TO_RELAY_SLOT", finalDst, srcOffset, dstOffset, byteSize,
-                                    params.buffInfo.inputSize, params.buffInfo.hcclBuff.size));
-            DataSlice srcSlice(params.buffInfo.inputPtr, srcOffset, byteSize, part.count);
-            DataSlice dstSlice(params.buffInfo.hcclBuff.addr, dstOffset, byteSize, part.count);
-            HCCL_WARNING("[A2AV_V2_STAGE1_NM][LocalRelay] rank=%u dst=%u part=%u count=%llu "
-                         "srcOff=%llu slotOff=%llu",
-                         myRank_, finalDst, partIdx, part.count, srcOffset, dstOffset);
-            CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
-        }
-    }
-    return HCCL_SUCCESS;
-}
-
-HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::CopyFinalDstLocalRelayToOutput(
-    const TemplateDataParams &params, const ThreadHandle &thread) const
-{
-    for (u32 srcRank = 0; srcRank < rankSize_; ++srcRank) {
-        if (srcRank == myRank_ || !HasCount(params.recvCounts, srcRank)) {
-            continue;
-        }
-        std::vector<SplitPart> parts;
-        GetSplitParts(srcRank, myRank_, params.recvCounts[srcRank], parts);
-        for (u32 partIdx = 0; partIdx < parts.size(); ++partIdx) {
-            const SplitPart &part = parts[partIdx];
-            if (part.relayRank != myRank_ || part.count == 0) {
-                continue;
-            }
-            u64 byteSize = part.count * dataTypeSize_;
-            u64 srcOffset = GetExactRelaySlotOffset(params, rankSize_, srcRank, myRank_, partIdx,
-                CalcRelaySlotOffset(srcRank, myRank_, partIdx));
-            u64 dstOffset = (params.rdispls[srcRank] + part.offsetCount) * dataTypeSize_;
-            CHK_RET(CheckSliceRange("LOCAL_RELAY_TO_OUTPUT", srcRank, srcOffset, dstOffset, byteSize,
-                                    params.buffInfo.hcclBuff.size, params.buffInfo.outputSize));
-            DataSlice srcSlice(params.buffInfo.hcclBuff.addr, srcOffset, byteSize, part.count);
-            DataSlice dstSlice(params.buffInfo.outputPtr, dstOffset, byteSize, part.count);
-            HCCL_WARNING("[A2AV_V2_STAGE1_NM][LocalRelayToOutput] rank=%u src=%u part=%u count=%llu "
-                         "slotOff=%llu dstOff=%llu",
-                         myRank_, srcRank, partIdx, part.count, srcOffset, dstOffset);
-            CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
-        }
-    }
-    return HCCL_SUCCESS;
-}
-
 HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::BuildStage0Slices(u32 relayRank, const ChannelInfo &channel,
     const TemplateDataParams &params, std::vector<DataSlice> &txSrcSlices,
     std::vector<DataSlice> &txDstSlices) const
@@ -301,14 +251,40 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::BuildStage0Slices(u32 relayRank, co
             if (part.relayRank != relayRank || part.count == 0) {
                 continue;
             }
+            if (part.relayRank == myRank_) {
+                continue;
+            }
             u64 byteSize = part.count * dataTypeSize_;
             u64 srcOffset = (params.sdispls[dstRank] + part.offsetCount) * dataTypeSize_;
+            void *dstPtr = channel.remoteCclMem.addr;
+            u64 dstLimit = channel.remoteCclMem.size;
             u64 dstOffset = GetExactRelaySlotOffset(params, rankSize_, myRank_, dstRank, partIdx,
                 CalcRelaySlotOffset(myRank_, dstRank, partIdx));
-            CHK_RET(CheckSliceRange("STAGE0_TO_RELAY", relayRank, srcOffset, dstOffset, byteSize,
-                                    params.buffInfo.inputSize, channel.remoteCclMem.size));
+            const char *rangeTag = "STAGE0_TO_RELAY";
+            if (part.relayRank == dstRank) {
+                CHK_PRT_RET(channel.remoteAlltoAllVRdispls.size() <= myRank_,
+                            HCCL_ERROR("[A2AV_V2_STAGE1_NM][Stage0DirectOutput] missing remote rdispls. "
+                                       "rank=%u dst=%u rdispls=%zu need=%u",
+                                       myRank_, dstRank, channel.remoteAlltoAllVRdispls.size(), myRank_),
+                            HcclResult::HCCL_E_INTERNAL);
+                CHK_PRT_RET(channel.remoteOutputGraphMode.addr == nullptr,
+                            HCCL_ERROR("[A2AV_V2_STAGE1_NM][Stage0DirectOutput] null remote output. "
+                                       "rank=%u dst=%u", myRank_, dstRank),
+                            HcclResult::HCCL_E_INTERNAL);
+                dstPtr = channel.remoteOutputGraphMode.addr;
+                dstLimit = channel.remoteOutputGraphMode.size;
+                dstOffset = (channel.remoteAlltoAllVRdispls[myRank_] + part.offsetCount) * dataTypeSize_;
+                rangeTag = "STAGE0_TO_OUTPUT";
+            } else {
+                CHK_PRT_RET(channel.remoteCclMem.addr == nullptr,
+                            HCCL_ERROR("[A2AV_V2_STAGE1_NM][Stage0Relay] null remote ccl. rank=%u relay=%u "
+                                       "dst=%u part=%u", myRank_, relayRank, dstRank, partIdx),
+                            HcclResult::HCCL_E_INTERNAL);
+            }
+            CHK_RET(CheckSliceRange(rangeTag, relayRank, srcOffset, dstOffset, byteSize,
+                                    params.buffInfo.inputSize, dstLimit));
             txSrcSlices.emplace_back(params.buffInfo.inputPtr, srcOffset, byteSize, part.count);
-            txDstSlices.emplace_back(channel.remoteCclMem.addr, dstOffset, byteSize, part.count);
+            txDstSlices.emplace_back(dstPtr, dstOffset, byteSize, part.count);
         }
     }
     return HCCL_SUCCESS;
@@ -329,6 +305,10 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::BuildStage1Slices(u32 finalDst, con
         if (count == 0) {
             continue;
         }
+        CHK_PRT_RET(channel.remoteOutputGraphMode.addr == nullptr,
+                    HCCL_ERROR("[A2AV_V2_STAGE1_NM][Stage1Output] null remote output. rank=%u dst=%u",
+                               myRank_, finalDst),
+                    HcclResult::HCCL_E_INTERNAL);
         std::vector<SplitPart> parts;
         GetSplitParts(srcRank, finalDst, count, parts);
         for (u32 partIdx = 0; partIdx < parts.size(); ++partIdx) {
@@ -337,12 +317,29 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::BuildStage1Slices(u32 finalDst, con
                 continue;
             }
             u64 byteSize = part.count * dataTypeSize_;
+            if (part.relayRank == finalDst) {
+                continue;
+            }
+            void *srcPtr = params.buffInfo.hcclBuff.addr;
+            u64 srcLimit = params.buffInfo.hcclBuff.size;
             u64 srcOffset = GetExactRelaySlotOffset(params, rankSize_, srcRank, finalDst, partIdx,
                 CalcRelaySlotOffset(srcRank, finalDst, partIdx));
+            const char *rangeTag = "STAGE1_TO_OUTPUT";
+            if (srcRank == myRank_) {
+                srcPtr = params.buffInfo.inputPtr;
+                srcLimit = params.buffInfo.inputSize;
+                srcOffset = (params.sdispls[finalDst] + part.offsetCount) * dataTypeSize_;
+                rangeTag = "STAGE1_INPUT_TO_OUTPUT";
+            } else {
+                CHK_PRT_RET(params.buffInfo.hcclBuff.addr == nullptr,
+                            HCCL_ERROR("[A2AV_V2_STAGE1_NM][Stage1Relay] null local ccl. rank=%u src=%u "
+                                       "dst=%u part=%u", myRank_, srcRank, finalDst, partIdx),
+                            HcclResult::HCCL_E_INTERNAL);
+            }
             u64 dstOffset = (channel.remoteAlltoAllVRdispls[srcRank] + part.offsetCount) * dataTypeSize_;
-            CHK_RET(CheckSliceRange("STAGE1_TO_OUTPUT", finalDst, srcOffset, dstOffset, byteSize,
-                                    params.buffInfo.hcclBuff.size, channel.remoteOutputGraphMode.size));
-            txSrcSlices.emplace_back(params.buffInfo.hcclBuff.addr, srcOffset, byteSize, part.count);
+            CHK_RET(CheckSliceRange(rangeTag, finalDst, srcOffset, dstOffset, byteSize,
+                                    srcLimit, channel.remoteOutputGraphMode.size));
+            txSrcSlices.emplace_back(srcPtr, srcOffset, byteSize, part.count);
             txDstSlices.emplace_back(channel.remoteOutputGraphMode.addr, dstOffset, byteSize, part.count);
         }
     }
@@ -353,7 +350,6 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunStage0ToRelay(
     const TemplateDataParams &params, const TemplateResource &resource) const
 {
     CHK_RET(CopySelfToOutput(params, resource.threads[0]));
-    CHK_RET(CopyLocalRelayToOutput(params, resource.threads[0]));
     u32 threadIdx = 1;
     for (const auto &item : resource.channels) {
         u32 relayRank = item.first;
@@ -385,7 +381,6 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy::RunStage1ToOutput(
     const TemplateDataParams &params, const TemplateResource &resource) const
 {
     u32 threadIdx = 1;
-    CHK_RET(CopyFinalDstLocalRelayToOutput(params, resource.threads[0]));
     for (const auto &item : resource.channels) {
         u32 finalDst = item.first;
         if (finalDst == myRank_ || item.second.empty()) {
