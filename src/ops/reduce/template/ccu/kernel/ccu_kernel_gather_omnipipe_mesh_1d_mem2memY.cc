@@ -71,6 +71,7 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContextY &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
+    CCU_CHK_RET(ccu::LoadArg(ctx.peerId, argId++));
     
     return CCU_SUCCESS;
 }
@@ -117,10 +118,13 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
             ccu::EventRecord(ctx.event, rankMask);
             continue;
         }
-
         CCU_IF(ctx.sliceSize != 0) {
-            ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], 
-                ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
+            CCU_IF(ctx.peerId == rankIdx) {
+                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
+            }
+            CCU_IF(ctx.peerId != rankIdx) {
+                ccu::EventRecord(ctx.event, rankMask);
+            }
         }
 
         CCU_IF(ctx.sliceSize == 0)
@@ -142,11 +146,11 @@ static CcuResult DoRepeatGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
         }
         ctx.inputMem[curId].token = ctx.token[curId];
         ctx.inputMem[curId].addr = ctx.input[curId];
-        ctx.inputMem[curId].addr += ctx.inputOmniPipeSliceStride;
+        // ctx.inputMem[curId].addr += ctx.inputOmniPipeSliceStride;
 
         ctx.outputMem[curId].token = ctx.token[curId];
         ctx.outputMem[curId].addr = ctx.output;
-        ctx.outputMem[curId].addr += ctx.outputOmniPipeSliceStride;
+        // ctx.outputMem[curId].addr += ctx.outputOmniPipeSliceStride;
     }
     CCU_IF(ctx.ifNewRoot == true)
     {

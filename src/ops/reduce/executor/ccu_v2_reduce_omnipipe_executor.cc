@@ -35,50 +35,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 {
     u32 userrank = topoInfo->userRank;
     HCCL_DEBUG("[%s] myRank[%u]", __func__, userrank);
-
-#if T_DESC("测试拓扑2*2", false)
-    if (userrank == 0 || userrank == 1) {
-        algHierarchyInfo.infos = {{{0, 1}, {0, 1, 2, 3}}};
-    } else {
-        algHierarchyInfo.infos = {{{2, 3}, {0, 1, 2, 3}}};
-    }
-#elif T_DESC("4x2用例", false)
-    HCCL_DEBUG("[%s] 4x2-TestCase", __func__);
-    if (userrank == 0 || userrank == 1 || userrank == 2 || userrank == 3) {
-        algHierarchyInfo.infos = {{{0, 1, 2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    } else {
-        algHierarchyInfo.infos = {{{4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    }
-#elif T_DESC("2x4用例", false)
-    HCCL_DEBUG("[%s] 2x4-TestCase", __func__);
-    if (userrank == 0 || userrank == 1) {
-        algHierarchyInfo.infos = {{{0, 1}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    } else if (userrank == 2 || userrank == 3) {
-        algHierarchyInfo.infos = {{{2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    } else if (userrank == 4 || userrank == 5) {
-        algHierarchyInfo.infos = {{{4, 5}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    } else if (userrank == 6 || userrank == 7) {
-        algHierarchyInfo.infos = {{{6, 7}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    }
-#elif T_DESC("4x3用例", false)
-    if (userrank == 0 || userrank == 1 || userrank == 2 || userrank == 3) {
-        algHierarchyInfo.infos = {{{0, 1, 2, 3}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}}};
-    } else if (userrank == 4 || userrank == 5 || userrank == 6 || userrank == 7) {
-        algHierarchyInfo.infos = {{{4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}}};
-    } else if (userrank == 8 || userrank == 9 || userrank == 10 || userrank == 11) {
-        algHierarchyInfo.infos = {{{8, 9, 10, 11}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}}};
-    }
-#elif T_DESC("4x4用例", false)
-    if (userrank == 0 || userrank == 1 || userrank == 2 || userrank == 3) {
-        algHierarchyInfo.infos = {{{0, 1, 2, 3}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}};
-    } else if (userrank == 4 || userrank == 5 || userrank == 6 || userrank == 7) {
-        algHierarchyInfo.infos = {{{4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}};
-    } else if (userrank == 8 || userrank == 9 || userrank == 10 || userrank == 11) {
-        algHierarchyInfo.infos = {{{8, 9, 10, 11}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}};
-    } else if (userrank == 12 || userrank == 13 || userrank == 14 || userrank == 15) {
-        algHierarchyInfo.infos = {{{12, 13, 14, 15}, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}};
-    }
-#endif
     AlgTopoMatch topoMatch;
     CHK_RET(topoMatch.MatchTopo(comm, topoInfo, algHierarchyInfo));
 
@@ -118,8 +74,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rootYAixs = param.root / rankSizeLevel0_;
 
     isRoot = (myRank_ == root_);
- 	// isSameXAxis = (rankIdxLevel0_ == rootXAixs) && !isRoot;
-    // isSameYAxis = (rankIdxLevel1_ == rootYAixs) && !isRoot;
     isSameXAxis = (rankIdxLevel0_ == rootXAixs && !isRoot); // 同x，走NHR
     isSameYAxis = (rankIdxLevel1_ == rootYAixs && !isRoot); // 同y，走mesh
     
@@ -136,16 +90,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
             AlgResourceRequest& resReqlevel, AlgResourceRequest& resourceReq, const int& curLevel)
 {
-    // AlgResourceRequest resReqlevel;
-    // CHK_RET(tempAlg->CalcRes(comm, param, topoInfo, resReqlevel)); //每个template自己资源的计算，结果算入resReqlevel
-
     resourceReq.slaveThreadNum += resReqlevel.slaveThreadNum; // 从流数 一般是0
     resourceReq.notifyNumOnMainThread += resReqlevel.notifyNumOnMainThread; // 一般是0
     resourceReq.notifyNumPerThread.insert(resourceReq.notifyNumPerThread.end(), // 一般是0
                                             resReqlevel.notifyNumPerThread.begin(),
                                             resReqlevel.notifyNumPerThread.end());
     
-    // resourceReq.channels.push_back(resReqlevel.channels[0]); // [jjy][todo] 不是说executor中都不用放channel了吗？为什么RS和AG都写了这个？暂时写上，后面在考虑
     //资源组的值一样就一起申请，资源组的值不一样就串行申请，前一个销毁后后一个申请
     HCCL_DEBUG("[%s] currTemplate has [%d] kernels.", __func__, resReqlevel.ccuKernelNum[0]);
     if (curLevel == OMNIPIPE_RS_LEVEL0 || curLevel == OMNIPIPE_RS_LEVEL1) {
@@ -192,8 +142,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     CHK_RET(InitCommInfo(param, topoInfo, algHierarchyInfo));
 
     // 初始化通信域subCommRanks
-    // std::vector<std::vector<u32>> subCommRanks0;
-    // std::vector<std::vector<u32>> subCommRanks1;
     CHK_RET(InitSubCommRanks(subCommRanks0, subCommRanks1, algHierarchyInfo));
 
 
@@ -202,16 +150,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     CcuGAlgTemplateX gAlgTempLevelX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempLevelY(param, myRank_, subCommRanks1);
 
-
-    // 初始化template [jjy][todo] 暂时没有考虑level1size=0的情况，后续再考虑
-    // [jjy][todo] 这里RS和AG的资源好像没办法复用？因为notifyNumPerThread不一样，看AICPU那边就没复用？
-    // std::map<u32, std::shared_ptr<CcuAlgTemplateBase>> tempMap; 
-
-    // tempMap[OMNIPIPE_RS_LEVEL0] = std::make_shared<CcuRsAlgTemplateX>(param, myRank_, subCommRanks0);
-    // tempMap[OMNIPIPE_RS_LEVEL1] = std::make_shared<CcuRsAlgTemplateY>(param, myRank_, subCommRanks1);
-    // tempMap[OMNIPIPE_AG_LEVEL0] = std::make_shared<CcuGAlgTemplateX>(param, myRank_, subCommRanks0);
-    // tempMap[OMNIPIPE_AG_LEVEL1] = std::make_shared<CcuGAlgTemplateY>(param, myRank_, subCommRanks1);
-    HCCL_INFO("[calcRes] start");
     // 计算调用每一个template的资源
     resourceRequest.slaveThreadNum = 0; //ccu内部没有从流和notify
     resourceRequest.notifyNumOnMainThread = 0;
@@ -230,14 +168,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelX, resourceRequest, 2));
     CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelY, resourceRequest, 3));
 
-
-    // HCCL_INFO("[CalcResLevel] tempMap.size():[%d]", tempMap.size());
-    // for (int level = 0; level < OMNIPIPE_AR_LEVEL_NUM; level++) {
-    //     HCCL_INFO("[CalcResLevel] tempMap.count(level):[%d] level:[%d]", tempMap.count(level), level);
-    //     if (tempMap.count(level) > 0) {
-    //         CHK_RET(CalcResLevel(comm, param, topoInfo, tempMap[level], resourceRequest, level));
-    //     }
-    // }
     resourceRequest.slaveThreadNum += 1; // 需要一个主流和一个从流来并行2d   
     resourceRequest.notifyNumOnMainThread += 1; 
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
@@ -372,9 +302,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     stepSliceInfo.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     stepSliceInfo.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
 
-    // stepSliceInfo.buffInfo.inBuffBaseOff =  processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.inBuffBaseOff; // 64 * 4  
-    // stepSliceInfo.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.outBuffBaseOff; // 64 * 4
-    // HCCL_INFO("[%s] GenTempAlgParamsIn2HCCLBuff Start stepSliceInfo.buffInfo.inBuffBaseOff[%d] stepSliceInfo.buffInfo.outBuffBaseOff[%d]", __func__, stepSliceInfo.buffInfo.inBuffBaseOff, stepSliceInfo.buffInfo.outBuffBaseOff);
     tempAlgParams.buffInfo = stepSliceInfo.buffInfo;
     tempAlgParams.stepSliceInfo = stepSliceInfo;
     tempAlgParams.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.inBuffBaseOff;
@@ -384,9 +311,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
     tempAlgParams.root = param.root;
-    // tempAlgParams.subRoot = param.root;
-    // tempAlgParams.isSameXAxis = false;
-    // tempAlgParams.isSameYAxis = false;
+
     tempAlgParams.localCopyFlag = 0;
     tempAlgParams.repeatNum = stepSliceInfo.stepCount.size();
 
@@ -412,9 +337,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
     tempAlgParams.root = param.root;
-    // tempAlgParams.subRoot = param.root;
-    // tempAlgParams.isSameXAxis = false;
-    // tempAlgParams.isSameYAxis = false;
+
     tempAlgParams.localCopyFlag = 0;
     tempAlgParams.repeatNum = stepSliceInfo.stepCount.size();
 
@@ -535,8 +458,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier; // / HCCL_MIN_SLICE_ALIGN* HCCL_MIN_SLICE_ALIGN
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
 
-    // u64 maxCountPerLoop = static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_; //size:128k count:32768
-    // u64 maxCountPerLoop = static_cast<u64>(256) / dataTypeSize_; //size:128k count:32768
     u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
     HCCL_DEBUG("[%s] myRank[%u] loopTimes[%llu] maxCountPerLoop[%llu] templateScratchMultiplier[%u]", __func__, myRank_, loopTimes, maxCountPerLoop, templateScratchMultiplier);
 
@@ -710,25 +631,25 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
                 if (isRoot){ // 0 
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 0.", __func__, myRank_);
-                     gAlgTempY.subRoot = rootYAixs;  //0 纵向逻辑假root是0
-                     gAlgTempX.subRoot = rootXAixs;  //0 横向逻辑假root是0
+                     gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
+                     gAlgTempX.subRoot = 0;  //0 横向逻辑假root是0
                 }
                 if (isSameXAxis && !isRoot) { // 2
                     HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 0.", __func__, myRank_);  
-                    gAlgTempX.subRoot = rankIdxLevel0_; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rootYAixs;      //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
                 }
 
                 if (isSameYAxis && !isRoot) { // 1;
                     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = rootXAixs;       //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rankIdxLevel1_;  //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = 0;       //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
                 } 
                 
                 if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = rootXAixs; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rootYAixs; //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
 
                 }
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -736,21 +657,21 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             // ----------------第n步----------------
             // 如果当前卡是root的同x轴节点 nhr ccl->usrOut
             // 如果当前卡是root的同y轴节点 mesh ccl->usrOut
-                if (isSameXAxis && !isRoot) { // 2
+                if (isSameXAxis && !isRoot) { // 3
                     HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-                    gAlgTempY.subRoot = rootYAixs;
+                    gAlgTempY.subRoot = 0;
                     gAlgTempX.subRoot = 999;
-                } else if (isSameYAxis && !isRoot) { // 1
+                } else if (isSameYAxis && !isRoot) { // 1,2
                     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = rootXAixs;
+                    gAlgTempX.subRoot = 0;
                     gAlgTempY.subRoot = 999;
                 } else if(isRoot){//0
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
-                    gAlgTempY.subRoot = rootYAixs;//0
-                    gAlgTempX.subRoot = rootXAixs;
-                } else{//3
+                    gAlgTempY.subRoot = 0;//0
+                    gAlgTempX.subRoot = 0;
+                } else{//4,5
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
                     gAlgTempY.subRoot = 999;
                     gAlgTempX.subRoot = 999;
@@ -763,23 +684,23 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             // 如果当前卡是斜对角节点 mesh usrOut->ccl 
                 if(isRoot){
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 1.", __func__, myRank_); 
-                    gAlgTempY.subRoot = rootYAixs; //0 纵向逻辑假root是0
-                    gAlgTempX.subRoot = rootXAixs; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
                 } else if (isSameXAxis && !isRoot) { // 0 2
                 HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = rankIdxLevel0_; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = rootYAixs;      //0 纵向逻辑假root是0
+                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                    gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
 
                 } else if (isSameYAxis && !isRoot) {
                     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = rootXAixs;//TODO:root的地方待修改
+                    gAlgTempX.subRoot = 0;//TODO:root的地方待修改
                     gAlgTempY.subRoot = 999;
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = rootXAixs;
+                    gAlgTempX.subRoot = 0;
                     gAlgTempY.subRoot = 999;
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
@@ -806,7 +727,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             std::vector<u32> notifyIdxesMainToSub{0};
             std::vector<u32> notifyIdxesSubToMain{0};
             u64 rankOffset = 0;
-        
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             for (u32 i = 0; i < rankSize_; i++) {
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCount);
