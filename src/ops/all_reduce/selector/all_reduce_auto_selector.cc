@@ -383,6 +383,8 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                 selectAlgName = "InsV2AllReduceOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
                 selectAlgName = "InsAllReduceNHR";
+                HCCL_INFO("[AllReduceAutoSelector] 3-level topo level1 localNetInsSizeOfLayer==1, select [%s].",
+                    selectAlgName.c_str());
             } else {
                 selectAlgName = "InsAllReduceParallelRSAGUboe";
             }
@@ -392,6 +394,8 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             HCCL_INFO("[AllReduceAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllReduceNHR";
+            HCCL_INFO("[AllReduceAutoSelector] 2-level topo level0 localNetInsSizeOfLayer==1, select [%s].",
+                selectAlgName.c_str());
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
                 selectAlgName = "InsV2AllReduceSequenceMesh1DNHRNHR";
@@ -401,13 +405,18 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
                                 "InsAllReduceSequenceMesh1DNhr" : "InsAllReduceParallelRSAG";
                 } else {
                     selectAlgName = "InsAllReduceNHR";
+                    HCCL_INFO("[AllReduceAutoSelector] 2-level MESH_1D dataSize<=cross-small threshold, select [%s].",
+                        selectAlgName.c_str());
                 }
             } else {
                 selectAlgName = "InsAllReduceNHR";
+                HCCL_INFO("[AllReduceAutoSelector] 2-level MESH_1D topoLevelNums not 2/3, select [%s].",
+                    selectAlgName.c_str());
             }
 
         } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
             selectAlgName = "InsAllReduceNHR";
+            HCCL_INFO("[AllReduceAutoSelector] multi-level CLOS topo, select [%s].", selectAlgName.c_str());
         } else {
             return SelectorStatus::NOT_MATCH;
         }
