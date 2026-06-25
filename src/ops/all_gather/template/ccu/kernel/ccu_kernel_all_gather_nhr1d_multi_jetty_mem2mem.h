@@ -72,6 +72,7 @@ struct AllGatherNHR1DMultiJettyMem2MemContext : CcuKernelCtxBase {
     ccu::LocalAddr                            myDstMem;
     ccu::Variable                             repeatTimeflag;
     ccu::Variable                             tmpCopyRepeatNumInv;
+    ccu::Variable                             lastSize;
 };
 
 CcuResult CcuAllGatherNHR1DMultiJettyMem2MemKernel(CcuKernelArg arg);
