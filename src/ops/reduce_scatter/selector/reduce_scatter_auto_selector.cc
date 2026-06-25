@@ -270,11 +270,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoIn
             HCCL_WARNING("[ReduceScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
-        if (dataSize > RS_CCU_CLOS_1D_MIN_DATA_SIZE) {
-            selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
-        } else {
-            selectAlgName = "CcuReduceScatterNHR1DMem2Mem";
-        }
+        selectAlgName = "CcuReduceScatterNHR1DMem2Mem";
     } else {
         HCCL_DEBUG("[ReduceScatterAutoSelector] MESH_1D_CLOS not match.");
         return SelectorStatus::NOT_MATCH;
