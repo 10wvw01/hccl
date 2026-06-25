@@ -9,7 +9,7 @@
  */
 
 #include "ins_temp_reduce_scatter_nhr.h"
-constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
+#include "ins_temp_reduce_scatter_nhr_common.h"
 
 namespace ops_hccl {
 InsTempReduceScatterNHR::InsTempReduceScatterNHR(
@@ -26,31 +26,7 @@ InsTempReduceScatterNHR::~InsTempReduceScatterNHR()
 HcclResult InsTempReduceScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                             AlgResourceRequest& resourceRequest) 
 {
-    std::vector<HcclChannelDesc> channels;
-    std::vector<HcclChannelDesc> myChannelDescs;
-    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
-    u64 dataSize = param.DataDes.count * perDataSize;
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        bool isIsolation = !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize < SMALL_COUNT_512KB);
-        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation)); 
-        for(auto channel : myChannelDescs) {
-            if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-                channels.push_back(channel);
-            }
-        }
-    } else {
-        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
-        channels = myChannelDescs;
-    }
-    resourceRequest.channels.push_back(channels);
-    u32 channelsPerRank = CalcChannelsPerRank(channels);
-    HCCL_INFO("[InsTempReduceScatterNHR][CalcRes] channelsPerRank: [%u].", channelsPerRank);
-    channelsPerRank_ = channelsPerRank;
-    if (channelsPerRank_ > MAX_JETTY_NUM) {
-        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u", __func__, channelsPerRank_, MAX_JETTY_NUM);
-    } else {
-        HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
-    }
+    CHK_RET(CalcReduceScatterNhrRes(comm, param, topoInfo, subCommRanks_, resourceRequest, channelsPerRank_));
     GetRes(resourceRequest);
     HCCL_INFO("[InsTempReduceScatterNHR][CalcRes] slaveThreadNum: [%u], notifyNumOnMainThread: [%u].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
@@ -59,15 +35,7 @@ HcclResult InsTempReduceScatterNHR::CalcRes(HcclComm comm, const OpParam& param,
 
 HcclResult InsTempReduceScatterNHR::GetRes(AlgResourceRequest& resourceRequest) const
 {
-    u32 threadNum = 1 * channelsPerRank_;
-    resourceRequest.slaveThreadNum = threadNum - 1;
-    for (u32 index = 0; index < threadNum - 1; index++) {
-        resourceRequest.notifyNumPerThread.push_back(1);
-    }
-    resourceRequest.notifyNumOnMainThread = threadNum - 1;
-    HCCL_INFO("[GetRes] channelsPerRank_: [%u], slaveThreadNum: [%u].",
-        channelsPerRank_, resourceRequest.slaveThreadNum);
-    return HCCL_SUCCESS;
+    return FillReduceScatterNhrRes(channelsPerRank_, resourceRequest);
 }
 
 u64 InsTempReduceScatterNHR::GetThreadNum() const
@@ -138,10 +106,14 @@ HcclResult InsTempReduceScatterNHR::KernelRun(const OpParam& param,
                     HCCL_ERROR("[InsTempReduceScatterNHR] channelIdx[%u] out of bounds", channelIdx), HCCL_E_INTERNAL);
         CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));
     }
-    if (templateRankSize_ <= 1) {
+    auto postLocalCopyForChannels = [&]() -> HcclResult {
         for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
             CHK_RET(PostLocalCopy(templateResource.threads, channelIdx));
         }
+        return HCCL_SUCCESS;
+    };
+    if (templateRankSize_ <= 1) {
+        CHK_RET(postLocalCopyForChannels());
         if (threadNum_ > 1) {
             std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
             GetNotifyIdxSubToMain(notifyIdxSubToMain_);
@@ -152,9 +124,7 @@ HcclResult InsTempReduceScatterNHR::KernelRun(const OpParam& param,
  	for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         CHK_RET(RunNHR(templateResource.threads, channelIdx));
     }
-    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
-        CHK_RET(PostLocalCopy(templateResource.threads, channelIdx));
-    }
+    CHK_RET(postLocalCopyForChannels());
 
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);

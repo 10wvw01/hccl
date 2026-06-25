@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #include "ins_v2_reduce_scatter_omnipipe_executor.h"
 #include "topo_match_3_level.h"
@@ -14,6 +14,7 @@
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1d_dpu.h"
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "topo_match_pcie_mix.h"
+#include "omnipipe_template_utils.h"
 namespace ops_hccl {
 constexpr uint32_t HIERARCHY_SIZE_3 = 3;
 constexpr uint64_t RANK_SIZE_LEVEL_2 = 2;
@@ -312,18 +313,8 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                                    InsAlgTemplate2>::GenTemplateAlgParamsByDimData(TemplateDataParams& tempAlgParams,
                                                                                    const StepSliceInfo& stepSliceInfo) const
 {
-    // rs特殊处理，过程中的所有step都在ccl中进行数据搬运，在template中只使用ccl的起始地址就可以了，in和out不用赋值
-    tempAlgParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-    tempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
-    // 这三个值使用时，第一步从in->hccl，第二步确定性计算按序ccl->out进行规约
-    tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff;
-    tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
-    tempAlgParams.buffInfo.hcclBuffBaseOff = stepSliceInfo.buffInfo.hcclBuffBaseOff;
-    // 统一赋值，直接透传
-    tempAlgParams.stepSliceInfo = stepSliceInfo;
-    return HCCL_SUCCESS;
+    return FillOmniPipeTemplateAlgParams(tempAlgParams, stepSliceInfo);
 }
-
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 HcclResult
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::OrchestrateLoop(
