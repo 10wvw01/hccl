@@ -558,7 +558,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     ThreadHandle cpuTsThread{0};
     ThreadHandle exportedAicpuTsThread{0};
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
-        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
+        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 3, &cpuTsThread));
         // Export cpuTsThread
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
     }
@@ -675,9 +675,86 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     param.resCtx = resCtxSequence;
     param.aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
 
+    int result = sprintf_s(param.algName, sizeof(param.algName), "%s", algName.c_str());
+    if (result <= 0) {
+        HCCL_ERROR("failed to fill param.algName");
+        return HCCL_E_INTERNAL;
+    }
+
     if (param.engine == COMM_ENGINE_CPU) {
         // 注册dpu回调函数
         CHK_RET(static_cast<HcclResult>(HcclTaskRegister(comm, param.algTag, HcclLaunchDPUKernel)));
+    }
+    HCCL_INFO(
+        "[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch", static_cast<int>(param.opType));
+ 
+    if (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE) {
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch",
+            static_cast<int>(param.opType));
+ 
+        // 构造 HcclOpDesc
+        HcclOpDesc opInfo;
+        memset(&opInfo, 0, sizeof(HcclOpDesc));
+        opInfo.opDescType = 1;  // 1: P2P
+        
+        const char* opNameStr = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? "Send" : "Recv";
+        result = sprintf_s(opInfo.opName, sizeof(opInfo.opName), "Hccl%s", opNameStr);
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill opInfo.opName");
+            return HCCL_E_INTERNAL;
+        }
+        
+        opInfo.p2p.buffer = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? 
+                            param.inputPtr : param.outputPtr;
+        opInfo.p2p.cmdType = param.opType;
+        opInfo.p2p.dataType = param.DataDes.dataType;
+        opInfo.p2p.count = param.DataDes.count;
+        opInfo.p2p.remoteRank = param.sendRecvRemoteRank;
+        aclrtStream resolvedStream;
+        GetUnfoldStream(comm, param, unfoldThread, resolvedStream);
+        HCCL_INFO("unfoldThread[%llu]", unfoldThread);
+
+        opInfo.p2p.unfoldStream = resolvedStream;
+        // 构造 HcclKernelFuncInfo
+        HcclKernelFuncInfo funcInfo;
+        memset(&funcInfo, 0, sizeof(HcclKernelFuncInfo));
+        
+        result = sprintf_s(funcInfo.kernelSoName, sizeof(funcInfo.kernelSoName), 
+                          "libscatter_aicpu_kernel.so");
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill funcInfo.kernelSo");
+            return HCCL_E_INTERNAL;
+        }
+        
+        result = sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName), 
+                          "HcclLaunchP2pAicpuKernel");
+        if (result <= 0) {
+            HCCL_ERROR("failed to fill funcInfo.funcName");
+            return HCCL_E_INTERNAL;
+        }
+        
+        // 获取 aicpuThreadHandle
+        ThreadHandle aicpuThreadHandle;
+        u32 mainNotifyNum;
+        CHK_RET(GetMainThreadInfo(comm, param, aicpuThreadHandle, mainNotifyNum));
+        
+        // 调用 HcclAicpuKernelLaunch
+        void* args = &param;
+        uint32_t argSize = sizeof(OpParam) + param.varMemSize;
+ 
+        funcInfo.args = args;
+        funcInfo.argSize = argSize;
+        
+        HcclKernelLaunchCfg kernelLaunchCfg;
+        AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+        u16 kernelLaunchTimeout = IsHcommDefaultTimeoutSupported() ? timeout.kernelLaunchTimeout :
+        ToKernelLaunchTimeout(AddAicpuTimeoutOffset(param.opConfig.execTimeout, KERNEL_TIMEOUT_OFFSET));
+        kernelLaunchCfg.timeOut = kernelLaunchTimeout;
+
+        CHK_RET(HcclAicpuKernelLaunch(comm, &opInfo, &funcInfo, aicpuThreadHandle, param.stream, &kernelLaunchCfg));
+
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P launch success, algTag[%s]", param.algTag);
+        return HCCL_SUCCESS;
     }
 
     // Host stream通知Device主thread，使用主流上idx最大的notify
