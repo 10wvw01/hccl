@@ -62,10 +62,34 @@ namespace ops_hccl {
         return HcclResult::HCCL_SUCCESS;
     }
 
+HcclResult InsRecvExecutor::CalcAlgHierarchyInfo(
+        HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo)
+    {
+        // 初始化一些基本成员变量
+        myRank_ = topoInfo->userRank;
+        HCCL_DEBUG("[InsRecvExecutor][CalcAlgHierarchyInfo][%d] Start.", myRank_);
+        CHK_PRT_RET(
+            topoInfo->userRankSize == 0,
+            HCCL_ERROR("[InsRecvExecutor][CalcAlgHierarchyInfo] Rank [%d], rankSize is 0.", myRank_),
+            HcclResult::HCCL_E_PARA);
+
+        // AlgHierarchyInfoForAllLevel固定为一层
+        algHierarchyInfo.infos.resize(1);
+        algHierarchyInfo.infos[0].resize(1);
+        algHierarchyInfo.infos[0][0].clear();
+        for (uint32_t rankId = 0; rankId < topoInfo->userRankSize; rankId++) {
+            algHierarchyInfo.infos[0][0].push_back(rankId);
+        }
+
+        HCCL_DEBUG("[InsRecvExecutor][CalcAlgHierarchyInfo][%d] Success.", myRank_);
+        return HcclResult::HCCL_SUCCESS;
+    }
+
     HcclResult InsRecvExecutor::CalcRes(
         HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
     {
+    #ifndef AICPU_COMPILE
         // 初始化一些基本成员变量
         InitRecvInfo(comm, param, topoInfo, algHierarchyInfo);
         HCCL_DEBUG("[InsRecvExecutor][CalcRes][%d]<-[%d] Start.", myRank_, remoteRank_);
@@ -74,10 +98,17 @@ namespace ops_hccl {
         resourceRequest.slaveThreadNum = 0;
 
         std::vector<HcclChannelDesc> level0Channels;
-        CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels));
+        bool isGroupEnabled = false;
+        CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+        if (isGroupEnabled) {
+            CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels, 2));
+        } else {
+            CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels));
+        }
         resourceRequest.channels.push_back(level0Channels);
 
         HCCL_DEBUG("[InsRecvExecutor][CalcRes][%d]<-[%d] Success.", myRank_, remoteRank_);
+    #endif
         return HcclResult::HCCL_SUCCESS;
     }
 
@@ -136,18 +167,14 @@ namespace ops_hccl {
         dataTypeSize_ = static_cast<u64>(DATATYPE_SIZE_TABLE[dataType_]);
         dataSize_ = dataCount_ * dataTypeSize_;
  
-        HCCL_DEBUG("[InsSendExecutor][OrchestrateP2p][%d]->[%d] Start.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvExecutor][OrchestrateP2p][%d]->[%d] Start.", myRank_, remoteRank_);
+
         // 给channels_赋值
-        auto channelIt = std::find_if(
-            resCtx.channels.at(0).begin(), resCtx.channels.at(0).end(),
-            [this](const ChannelInfo &channel_) {
-                return channel_.remoteRank == remoteRank_;
-            });
-        CHK_PRT_RET(
-            channelIt == resCtx.channels.at(0).end(),
-            HCCL_ERROR("[InsSendExecutor][OrchestrateP2p] Channel[%d]-[%d] not found.", myRank_, remoteRank_),
-            HcclResult::HCCL_E_NOT_FOUND);
-        const ChannelInfo &channel = *channelIt;
+        const ChannelInfo &channel = (myRank_ <= remoteRank_ ? resCtx.channels.at(0).at(1) : resCtx.channels.at(0).at(0));
+        if (channel.remoteRank != remoteRank_) {
+            HCCL_ERROR("[InsRecvExecutor][OrchestrateP2p] Channel[%d]-[%d] not found.", myRank_, remoteRank_);
+            return HcclResult::HCCL_E_NOT_FOUND;
+        }
         
         // 判断是否为PCIE链路，如果是则使用read
         if (channel.protocol == CommProtocol::COMM_PROTOCOL_PCIE) {
@@ -159,7 +186,7 @@ namespace ops_hccl {
         } else {
             CHK_RET(OrchestrateOpbase(param, resCtx, sendRecvStream, channel));
         }
-        HCCL_DEBUG("[InsSendExecutor][OrchestrateP2p][%d]->[%d] Success.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvExecutor][OrchestrateP2p][%d]->[%d] Success.", myRank_, remoteRank_);
  
         return HcclResult::HCCL_SUCCESS;
     }
