@@ -71,7 +71,7 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDat
 </td>
 <td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001779917185_p53180767"><a name="zh-cn_topic_0000001779917185_p53180767"></a><a name="zh-cn_topic_0000001779917185_p53180767"></a>Input</p>
 </td>
-<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001779917185_p7991229191118"><a name="zh-cn_topic_0000001779917185_p7991229191118"></a><a name="zh-cn_topic_0000001779917185_p7991229191118"></a>Data type of the `Scatter` operation, defined in <a href="https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/#ZH-CN_TOPIC_0000002486992310">HcclDataType</a>.</p>
+<td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001779917185_p7991229191118"><a name="zh-cn_topic_0000001779917185_p7991229191118"></a><a name="zh-cn_topic_0000001779917185_p7991229191118"></a>Data type of the `Scatter` operation, defined in HcclDataType.</p>
 <p id="zh-cn_topic_0000001779917185_p16850153843018"><a name="zh-cn_topic_0000001779917185_p16850153843018"></a><a name="zh-cn_topic_0000001779917185_p16850153843018"></a><span id="zh-cn_topic_0000001779917185_ph13754548217"><a name="zh-cn_topic_0000001779917185_ph13754548217"></a><a name="zh-cn_topic_0000001779917185_ph13754548217"></a><term id="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term1253731311225_1"><a name="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term1253731311225_1"></a><a name="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term1253731311225_1"></a>Data type supported by Atlas A3 training/inference products</term></span>: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16</p>
 <p id="zh-cn_topic_0000001779917185_p94179211177"><a name="zh-cn_topic_0000001779917185_p94179211177"></a><a name="zh-cn_topic_0000001779917185_p94179211177"></a><span id="zh-cn_topic_0000001779917185_ph841715341959"><a name="zh-cn_topic_0000001779917185_ph841715341959"></a><a name="zh-cn_topic_0000001779917185_ph841715341959"></a><term id="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term16184138172215"><a name="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term16184138172215"></a><a name="zh-cn_topic_0000001779917185_zh-cn_topic_0000001312391781_term16184138172215"></a>Data type supported by Atlas A2 training/inference products</term></span>: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16</p>
 </td>
@@ -102,7 +102,7 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDat
 
 ## Return Value<a name="zh-cn_topic_0000001779917185_section663212844612"></a>
 
-[HcclResult](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/#ZH-CN_TOPIC_0000002519072193): `HCCL_SUCCESS` on success, or others on failure.
+[HcclResult]: `HCCL_SUCCESS` on success, or others on failure.
 
 ## Constraints<a name="zh-cn_topic_0000001779917185_section16632182812468"></a>
 
