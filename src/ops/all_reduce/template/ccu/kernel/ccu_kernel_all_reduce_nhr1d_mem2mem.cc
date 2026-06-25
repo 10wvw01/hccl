@@ -11,6 +11,7 @@
 #include "ccu_kernel_all_reduce_nhr1d_mem2mem.h"
 
 namespace ops_hccl {
+constexpr uint16_t INPUT_XN_ID      = 0;
 constexpr uint16_t OUTPUT_XN_ID     = 1;
 constexpr uint16_t TOKEN_XN_ID      = 2;
 constexpr uint16_t POST_SYNC_ID     = 3;
@@ -52,9 +53,11 @@ static CcuResult InitResource(AllReduceNHR1DContext &ctx)
 
     ctx.output.resize(ctx.localSize + 1);
     ctx.token.resize(ctx.localSize + 1);
+    ctx.rmtInput.resize(ctx.localSize);
     for (uint64_t channelIdx = 0; channelIdx < ctx.localSize; channelIdx++) {
         ctx.output[channelIdx] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], OUTPUT_XN_ID);
         ctx.token[channelIdx] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], TOKEN_XN_ID);
+        ctx.rmtInput[channelIdx] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], INPUT_XN_ID);
     }
 
     ctx.resourceAllocated = false;
@@ -85,12 +88,14 @@ static CcuResult PreSync(AllReduceNHR1DContext &ctx)
     const auto *arg = ctx.arg;
     HCCL_DEBUG("[CcuKernelAllReduceNHR1D] PreSync start");
     for (uint32_t i = 0; i < arg->channelCount; i++) {
+        ccu::WriteVariableWithNotify(arg->channels[i], ctx.input,
+            INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
         ccu::WriteVariableWithNotify(arg->channels[i], ctx.output[ctx.localSize],
             OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID);
         ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[ctx.localSize],
             TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
     }
-    uint32_t allBit = 1 << OUTPUT_XN_ID | 1 << TOKEN_XN_ID;
+    uint32_t allBit = 1 << INPUT_XN_ID | 1 << OUTPUT_XN_ID | 1 << TOKEN_XN_ID;
     for (uint32_t i = 0; i < arg->channelCount; i++) {
         ccu::NotifyWait(arg->channels[i], CKE_IDX_0, allBit);
     }
@@ -168,15 +173,11 @@ static CcuResult DoReduceScatterNHRSingleStep(AllReduceNHR1DContext &ctx, const 
             }
         }
 
-        if (nhrStepInfo.step == 0) {
-            ctx.srcMem.addr = ctx.input;
-            ctx.srcMem.addr += ctx.sliceOffset[sendSliceIdx];
-        } else {
-            ctx.srcMem.addr = ctx.output[ctx.myRankIdx];
-            ctx.srcMem.addr += ctx.sliceOffset[sendSliceIdx];
-        }
-        
-        ctx.rmtDstMem.addr = ctx.output[toRankIdx];
+        // ReduceScatter全程在INPUT上操作：所有step均从本地INPUT读取，WriteReduce到远端INPUT
+        ctx.srcMem.addr = ctx.input;
+        ctx.srcMem.addr += ctx.sliceOffset[sendSliceIdx];
+
+        ctx.rmtDstMem.addr = ctx.rmtInput[toRankIdx];
         ctx.rmtDstMem.addr += ctx.sliceOffset[sendSliceIdx];
 
         CCU_CHK_RET(DoWriteReduceSlice(ctx, nhrStepInfo.toRank, ctx.srcMem, ctx.rmtDstMem, sendSliceIdx, i % RANK_NUM_PER_CKE));
@@ -250,7 +251,12 @@ static CcuResult DoAllGatherNHRSingleStep(AllReduceNHR1DContext &ctx, const NHRS
             }
         }
 
-        ctx.srcMem.addr = ctx.output[ctx.myRankIdx];
+        // AllGather第一步从INPUT读取（reducescatter结果），后续步骤从OUTPUT读取（含收到的数据）
+        if (nhrStepInfo.step == 0) {
+            ctx.srcMem.addr = ctx.input;
+        } else {
+            ctx.srcMem.addr = ctx.output[ctx.myRankIdx];
+        }
         ctx.srcMem.addr += ctx.sliceOffset[sendSliceIdx];
 
         ctx.rmtDstMem.addr = ctx.output[toRankIdx];
@@ -271,63 +277,69 @@ static CcuResult DoAllGatherNHRSingleStep(AllReduceNHR1DContext &ctx, const NHRS
     return CCU_SUCCESS;
 }
 
+static CcuResult DoLocalCopyOwnSlice(AllReduceNHR1DContext &ctx)
+{
+    // input == output时不需要拷贝，直接记录事件
+    CCU_IF(ctx.isInputOutputEqual == 1)
+    {
+        ccu::EventRecord(ctx.localCopyEvent, 1);
+        return CCU_SUCCESS;
+    }
+
+    // 将本卡对应的reducescatter结果从INPUT拷贝到OUTPUT，与AllGather第一步并发执行
+    u32 ownSliceIdx = ctx.rankId;
+    bool islastSlice = (ownSliceIdx + 1 == ctx.rankSize);
+    ccu::Variable &sliceSize = ctx.axisId == 0? (islastSlice? ctx.die0LastSliceSize : ctx.die0SliceSize)
+                                                    : (islastSlice? ctx.die1LastSliceSize : ctx.die1SliceSize);
+
+    ctx.srcMem.addr  = ctx.input;
+    ctx.srcMem.addr += ctx.sliceOffset[ownSliceIdx];
+    ctx.srcMem.token = ctx.token[ctx.myRankIdx];
+
+    ctx.locDstMem.addr  = ctx.output[ctx.myRankIdx];
+    ctx.locDstMem.addr += ctx.sliceOffset[ownSliceIdx];
+    ctx.locDstMem.token = ctx.token[ctx.myRankIdx];
+
+    // 添加 die1 偏移
+    if (ctx.axisId == 1) {
+        ctx.srcMem.addr += ctx.die0Size;
+        ctx.locDstMem.addr += ctx.die0Size;
+    }
+
+    CCU_IF(sliceSize != 0)
+    {
+        ccu::LocalCopy(ctx.locDstMem, ctx.srcMem, sliceSize, ctx.localCopyEvent, 1);
+    }
+    CCU_IF(sliceSize == 0)
+    {
+        ccu::EventRecord(ctx.localCopyEvent, 1);
+    }
+    return CCU_SUCCESS;
+}
+
 static CcuResult DoAllGatherNHR(AllReduceNHR1DContext &ctx)
 {
     const uint32_t NHR_NUM = 2;
-    for (u64 i = ctx.stepInfoVector.size() / NHR_NUM; i < ctx.stepInfoVector.size(); i++) {
+    u64 allGatherStart = ctx.stepInfoVector.size() / NHR_NUM;
+
+    // 先下发本卡数据的LocalCopy（INPUT→OUTPUT），与AllGather第一步并发执行
+    CCU_CHK_RET(DoLocalCopyOwnSlice(ctx));
+
+    for (u64 i = allGatherStart; i < ctx.stepInfoVector.size(); i++) {
         const NHRStepInfo &nhrStepInfo = ctx.stepInfoVector[i];
         CCU_CHK_RET(DoAllGatherNHRSingleStep(ctx, nhrStepInfo));
+
+        // AllGather第一步结束后，等待LocalCopy完成，确保后续步骤从OUTPUT读取时数据已就绪
+        if (i == allGatherStart) {
+            ccu::EventWait(ctx.localCopyEvent, 1);
+        }
     }
     return CCU_SUCCESS;
 }
 
-static std::vector<u32> GetNonTxSliceIdxs(AllReduceNHR1DContext &ctx, const std::vector<u32> &txSliceIdxs)
-{
-    std::vector<bool> isTx(ctx.rankSize, false);
-    for (u32 idx : txSliceIdxs) {
-        if (idx < ctx.rankSize) {
-            isTx[idx] = true;
-        }
-    }
-
-    std::vector<u32> nonTxSliceIdxs;
-    for (u32 idx = 0; idx < ctx.rankSize; ++idx) {
-        if (!isTx[idx]) {
-            nonTxSliceIdxs.push_back(idx);
-        }
-    }
-
-    return nonTxSliceIdxs;
-}
-
-static CcuResult DoLocalCopySlice(AllReduceNHR1DContext &ctx, ccu::LocalAddr &src, ccu::LocalAddr &dst,
-                             const u32 &copySliceIdx, u32 signalIndex)
-{
-    bool islastSlice;
-    // 添加 die1 偏移
-    if (ctx.axisId == 1) {
-        src.addr += ctx.die0Size;
-        dst.addr += ctx.die0Size;
-    }
-
-    islastSlice = (copySliceIdx + 1 == ctx.rankSize);
-    ccu::Variable &sliceSize = ctx.axisId == 0? (islastSlice? ctx.die0LastSliceSize : ctx.die0SliceSize)
-                                                    : (islastSlice? ctx.die1LastSliceSize : ctx.die1SliceSize);
-    CCU_IF(sliceSize != 0)
-    {   
-        ccu::LocalCopy(dst, src, sliceSize, ctx.localEvent, 1 << signalIndex);
-    }
-    CCU_IF(sliceSize == 0)
-    {   
-        ccu::EventRecord(ctx.localEvent, 1 << signalIndex);
-    }
-    return CCU_SUCCESS;
-}
-
-static CcuResult LocalCopySlices(AllReduceNHR1DContext &ctx)
+static CcuResult InitSliceOffset(AllReduceNHR1DContext &ctx)
 {
     ccu::Variable tmpSliceOffset;
-    u32              nonTxSliceIdx    = 0;
     tmpSliceOffset                    = 0;
 
     for (u64 i = 0; i < ctx.rankSize; i++) {
@@ -336,33 +348,6 @@ static CcuResult LocalCopySlices(AllReduceNHR1DContext &ctx)
         ctx.sliceOffset[i] = tmpSliceOffset;
         tmpSliceOffset += ctx.axisId == 0? ctx.die0SliceSize: ctx.die1SliceSize;
     }
-    
-    // 当input == output时，不需要拷贝
-    CCU_IF(ctx.isInputOutputEqual == 0)
-    {
-        // 将step0中不需要写的slice，拷贝到本rank的output中
-        const NHRStepInfo &nhrStepInfo = ctx.stepInfoVector[0];
-        const std::vector<u32> &nonTxSliceIdxList = GetNonTxSliceIdxs(ctx, nhrStepInfo.txSliceIdxs);
-        for (u32 i = 0; i < nonTxSliceIdxList.size(); i++) {
-            nonTxSliceIdx = nonTxSliceIdxList[i];
-
-            if (i != 0) {
-                if (i % RANK_NUM_PER_CKE == 0) {
-                    ccu::EventWait(ctx.localEvent, (1 << RANK_NUM_PER_CKE) - 1);
-                }
-            }
-
-            ctx.srcMem.addr  = ctx.input;
-            ctx.srcMem.addr += ctx.sliceOffset[nonTxSliceIdx];
-            ctx.srcMem.token = ctx.token[ctx.myRankIdx];
-
-            ctx.locDstMem.addr  = ctx.output[ctx.myRankIdx];
-            ctx.locDstMem.addr += ctx.sliceOffset[nonTxSliceIdx];
-            ctx.locDstMem.token = ctx.token[ctx.myRankIdx];
-            CCU_CHK_RET(DoLocalCopySlice(ctx, ctx.srcMem, ctx.locDstMem, nonTxSliceIdx, i));
-        }
-        ccu::EventWait(ctx.localEvent, (1 << (nonTxSliceIdxList.size() % RANK_NUM_PER_CKE)) - 1);
-    } 
     return CCU_SUCCESS;
 }
 
@@ -383,7 +368,7 @@ CcuResult CcuAllReduceNHR1DKernel(CcuKernelArg arg)
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
-    CCU_CHK_RET(LocalCopySlices(ctx));
+    CCU_CHK_RET(InitSliceOffset(ctx));
     CCU_CHK_RET(PreSync(ctx));
     CCU_CHK_RET(DoReduceScatterNHR(ctx));
     CCU_CHK_RET(DoAllGatherNHR(ctx));
