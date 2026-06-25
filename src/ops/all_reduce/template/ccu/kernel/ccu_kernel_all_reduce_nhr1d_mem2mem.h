@@ -51,6 +51,7 @@ struct AllReduceNHR1DContext: CcuKernelCtxBase {
     ccu::Variable input;
     std::vector<ccu::Variable> output;
     std::vector<ccu::Variable> token;
+    std::vector<ccu::Variable> rmtInput;  // 远端INPUT访问变量，用于在input上做reducescatter
     ccu::Variable isInputOutputEqual;
     ccu::Variable die0Size;
     ccu::Variable die1Size;
@@ -61,6 +62,7 @@ struct AllReduceNHR1DContext: CcuKernelCtxBase {
     ccu::Variable die1LastSliceSize;
 
     ccu::Event             localEvent;
+    ccu::Event             localCopyEvent;  // LocalCopy专用事件，与AllGather并发
     std::vector<ccu::Variable> sliceOffset;
 
     ccu::LocalAddr srcMem;
