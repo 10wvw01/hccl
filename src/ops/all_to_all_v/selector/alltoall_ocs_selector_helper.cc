@@ -45,8 +45,8 @@ bool IsUseOcsAlgorithm(const TopoInfoWithNetLayerDetails* topoInfo)
         HCCL_INFO("[AlltoAllOcsHelper][IsUseOcsAlgorithm] groupNum[%u] <= 1, skip OCS", groupNum);
         return false;
     }
-    // 通信域rank数小于最大并发数回退算法
-    if (rankSize < ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE) {
+    // 通信域rank数小于等于最大并发数回退算法
+    if (rankSize <= ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE) {
         HCCL_INFO("[AlltoAllOcsHelper][IsUseOcsAlgorithm] rankSize[%u] < concurrent size %u, skip OCS", rankSize, ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE);
         return false;
     }
