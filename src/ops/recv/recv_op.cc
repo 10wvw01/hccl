@@ -196,9 +196,15 @@ namespace ops_hccl {
     {
         HCCL_DEBUG("[RecvExec][%s][%s] Start.", tag.c_str(), opMode == OpMode::OPBASE ? "OPBASE" : "OFFLOAD");
 
+        bool isGroupEnabled = false;
+        CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+        std::string tagTemp = tag;
+        if (isGroupEnabled) {
+            tagTemp += "_Group";
+        }
         // 参数构建
         OpParam param;
-        CHK_RET(GenerateRecvOpParam(param, recvBuf, count, dataType, srcRank, comm, stream, tag));
+        CHK_RET(GenerateRecvOpParam(param, recvBuf, count, dataType, srcRank, comm, stream, tagTemp));
         param.opMode = opMode;
 
         std::string algName;
@@ -211,7 +217,7 @@ namespace ops_hccl {
             return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
         }
         if (rankSize == 1) {
-            HCCL_WARNING("[RecvExec][%s][%s] ranksize == 1, enter SingleRankProc", tag.c_str(),
+            HCCL_WARNING("[RecvExec][%s][%s] ranksize == 1, enter SingleRankProc", tagTemp.c_str(),
                 opMode == OpMode::OPBASE ? "OPBASE" : "OFFLOAD");
             CHK_RET(SingleRankProc(comm, param));
             return HcclResult::HCCL_SUCCESS;
