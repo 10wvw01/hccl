@@ -24,12 +24,14 @@ constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u32 TOPO_LEVEL_NUM_4 = 4;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 namespace {
 bool IsTopoLevelUnsupported(const TopoInfoWithNetLayerDetails *topoInfo)
 {
-    if (topoInfo == nullptr || topoInfo->topoLevelNums <= TOPO_LEVEL_NUM_3) {
+    // 4层OCS拓扑(level3Ocs)在 SelectAicpuAlgo 中单独处理，此处放行至 4 层
+    if (topoInfo == nullptr || topoInfo->topoLevelNums <= TOPO_LEVEL_NUM_4) {
         return false;
     }
     HCCL_WARNING("[AllGatherAutoSelector] topoLevelNums[%u] is not supported for allgather auto selector.",
@@ -256,7 +258,11 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_4 && topoInfo->level3Ocs) {
+            selectAlgName = "InsAllGatherSequenceNHRNHRMesh1DOcs";
+            HCCL_INFO("[AllGatherAutoSelector] 4-level OCS topology, select [%s]", selectAlgName.c_str());
+            return SelectorStatus::MATCH;
+        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllGatherOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
