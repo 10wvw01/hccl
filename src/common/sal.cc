@@ -22,6 +22,8 @@
 
 using namespace std;
 
+thread_local AivProfilingData g_aivProfiling;
+
 u32 SalStrLen(const char *s, u32 maxLen)
 {
     return strnlen(s, maxLen);

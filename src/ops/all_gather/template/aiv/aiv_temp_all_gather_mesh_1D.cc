@@ -66,6 +66,7 @@ HcclResult AivTempAllGatherMesh1D::KernelRun(const OpParam& param,
 {
     HCCL_INFO("[AivTempAllGatherMesh1D] KernelRun start");
 
+    AIV_PROF_BEGIN(templatePrepUs);
     IncSliceId();  // 自动增长sliceId，传入sliceId
     dataType_ = param.DataDes.dataType;
     AivOpArgs aivAllGatherArgs;
@@ -112,8 +113,12 @@ HcclResult AivTempAllGatherMesh1D::KernelRun(const OpParam& param,
     aivAllGatherArgs.repeatNum = tempAlgParams.repeatNum;
     aivAllGatherArgs.inputRepeatStride = tempAlgParams.inputRepeatStride;
     aivAllGatherArgs.outputRepeatStride = tempAlgParams.outputRepeatStride;
+    AIV_PROF_END(templatePrepUs);
 
+    AIV_PROF_BEGIN(kernelLaunchUs);
     CHK_RET(ExecuteKernelLaunch(aivAllGatherArgs));
+    AIV_PROF_END(kernelLaunchUs);
+    g_aivProfiling.kernelLaunchCount++;
 
     HCCL_INFO("[AivTempAllGatherMesh1D] KernelRun finished");
     return HcclResult::HCCL_SUCCESS;
