@@ -190,11 +190,15 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::PrepareLaunchArgs(const OpParam& param,
     buffInfo_ = templateDataParams.buffInfo;
     uint64_t die0Size = 0;
     uint64_t die1Size = 0;
+    uint64_t die0LastSize = 0;
+    uint64_t die1LastSize = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
     if (kernelNum == MAX_DIE_NUM_2) {
         SplitDataFor2Dies(param, templateDataParams, die0Size, die1Size);
+        SplitDataFor2Dies(param, templateDataParams, die0LastSize, die1LastSize);
     } else {
         die0Size = templateDataParams.sliceSize;
+        die0LastSize = templateDataParams.tailSize;
     }
 
     uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
@@ -206,8 +210,6 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::PrepareLaunchArgs(const OpParam& param,
     uint64_t outputSliceStride = templateDataParams.outputSliceStride;
     uint64_t inputRepeatStride = templateDataParams.inputRepeatStride;
     uint64_t outputRepeatStride = templateDataParams.outputRepeatStride;
-    uint64_t die0LastSize = templateDataParams.tailSize / kernelNum;
-    uint64_t die1LastSize = templateDataParams.tailSize - die0LastSize;
     bool inputOutputEqual = (inputAddr + inputSliceStride * mySubCommRank_ == outputAddr + outputSliceStride * mySubCommRank_);
     uint64_t isInputOutputEqual = static_cast<uint64_t>(inputOutputEqual);
     
