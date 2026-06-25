@@ -254,9 +254,12 @@ struct TemplateDataParams {
     std::vector<u64> sdispls;
     std::vector<u64> rdispls;
     StepSliceInfo stepSliceInfo;
-    BatchSendRecvOpType opType;
+<<<<<<< ubxMutiJettyOmniPipeAg
+    BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
     StepSliceInfo omniReadDstStepSliceInfo;
     bool omniLastStepRead_ = false;
+=======
+>>>>>>> master
 
     std::vector<char> Serialize() const
     {
