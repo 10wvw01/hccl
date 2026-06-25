@@ -17,6 +17,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_reduce_scatter_mesh2die.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_reduce_scatter_omnipipe_mesh1d_mem2mem.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_reduce_scatter_omnipipe_nhr1d_mem2mem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_reduce_scatter_omnipipe_mesh1d.cc
 )
 
 if(TARGET hccl)
