@@ -14,10 +14,31 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
+#include <string>
+#include <vector>
 
 namespace ops_hccl {
 
 constexpr u32 SEQUENCE_EXECUTOR_LEVEL_NUM = 3;
+
+// [ZDBG] 诊断辅助: 打印 algHierarchyInfo.infos 各层 rank 列表, host/AICPU 两侧复用
+static std::string ZDbgFmtInfos(const std::vector<std::vector<std::vector<u32>>> &infos)
+{
+    std::string s;
+    for (size_t lv = 0; lv < infos.size(); ++lv) {
+        s += "L" + std::to_string(lv) + "(sz" + std::to_string(infos[lv].empty() ? 0 : infos[lv][0].size()) + ")=";
+        for (size_t g = 0; g < infos[lv].size(); ++g) {
+            s += "[";
+            for (size_t r = 0; r < infos[lv][g].size(); ++r) {
+                s += std::to_string(infos[lv][g][r]);
+                if (r + 1 < infos[lv][g].size()) { s += ","; }
+            }
+            s += "]";
+        }
+        s += " ";
+    }
+    return s;
+}
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
@@ -150,6 +171,17 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         return HCCL_E_INTERNAL;
     }
     resourceRequest.channels[2] = resReqRSL2.channels[0];
+    // [ZDBG][HOST] 序列化前的 algHierarchyInfo 与 channels(基准值), AICPU 侧应与之完全一致
+    HCCL_INFO("[ZDBG][HOST][CalcRes] myRank[%u] infos: %s", myRank_, ZDbgFmtInfos(algHierarchyInfo.infos).c_str());
+    HCCL_INFO("[ZDBG][HOST][CalcRes] myRank[%u] chNum L0[%zu] L1[%zu] L2[%zu] "
+        "(L1 跳过时为0是正常的)", myRank_,
+        resourceRequest.channels[0].size(), resourceRequest.channels[1].size(), resourceRequest.channels[2].size());
+    for (const auto &ch : resourceRequest.channels[0]) {
+        HCCL_INFO("[ZDBG][HOST][CalcRes] L0 channel remoteRank[%u] protocol[%u]", ch.remoteRank, ch.channelProtocol);
+    }
+    for (const auto &ch : resourceRequest.channels[2]) {
+        HCCL_INFO("[ZDBG][HOST][CalcRes] L2 channel remoteRank[%u] protocol[%u]", ch.remoteRank, ch.channelProtocol);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -175,6 +207,10 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
     rankSizeLevel2_ = algHierarchyInfo_.infos[2][0].size();
     skipLevel1_ = (rankSizeLevel1_ == 1);
+    // [ZDBG][AICPU] 反序列化后的 algHierarchyInfo(应与 HOST 侧一致)
+    HCCL_INFO("[ZDBG][AICPU][Orchestrate] myRank[%u] rankSizeL0[%llu] L1[%llu] L2[%llu] infos: %s",
+        myRank_, rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_,
+        ZDbgFmtInfos(algHierarchyInfo_.infos).c_str());
     if (skipLevel1_) {
         HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][Orchestrate] level1 rankSize is 1, skip level1");
     }
@@ -182,6 +218,14 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     rankIdxLevel1_ = (myRank_ / algHierarchyInfo_.infos[0][0].size()) % algHierarchyInfo_.infos[1][0].size();
 
     CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    // [ZDBG][AICPU] RestoreChannelMap 后各层通道 rank 数(空=该层无通道)
+    HCCL_INFO("[ZDBG][AICPU][Orchestrate] myRank[%u] channelRankNum L0[%zu] L1[%zu] L2[%zu]",
+        myRank_, remoteRankToChannelInfo_[0].size(), remoteRankToChannelInfo_[1].size(),
+        remoteRankToChannelInfo_[2].size());
+    for (const auto &kv : remoteRankToChannelInfo_[0]) {
+        HCCL_INFO("[ZDBG][AICPU][Orchestrate] L0 restored channel remoteRank[%u] chNum[%zu]",
+            kv.first, kv.second.size());
+    }
 
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
@@ -568,6 +612,9 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 
         // ----------- RSL0: level0 ReduceScatter -----------
         GenTempAlgParamsRSL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0);
+        // [ZDBG][AICPU] RSL0 直接证据: sliceSize==0 && tailSize==0 时 level0 会被跳过(导致 act 只含 L2)
+        HCCL_INFO("[ZDBG][AICPU][Loop] myRank[%u] loop[%llu] RSL0 sliceSize[%llu] tailSize[%llu] "
+            "(二者皆0=level0被跳过)", myRank_, loop, tempAlgParamsRSL0.sliceSize, tempAlgParamsRSL0.tailSize);
         CHK_RET(algTemplateRSL0->KernelRun(param, tempAlgParamsRSL0, templateResourceRSL0));
 
         // ----------- RSL1: level1 ReduceScatter -----------
