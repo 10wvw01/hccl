@@ -66,11 +66,14 @@ HcclResult InsCollAlgBase::FastLaunchSaveCtxTwoTemplate(const OpParam &param, co
     const u32 ccuKernelNum, const std::vector<ThreadHandle> &threads, const std::vector<u32> &ccuKernelNumList,
     const std::vector<std::vector<CcuKernelSubmitInfo>> &submitInfosList, u32 notifyNumOnMainThread) const
 {
+    (void)threadNum; (void)ccuKernelNum; (void)threads; (void)ccuKernelNumList; (void)submitInfosList; (void)notifyNumOnMainThread;
     if (param.opMode == OpMode::OFFLOAD) {
         return HCCL_SUCCESS;
     }
+    HCCL_INFO("[FastLaunchSaveCtxTwoTemplate] DISABLED for debug: skip writing fastLaunch cache, Tag[%s]", param.fastLaunchTag);
+    return HCCL_SUCCESS;
+#if 0
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
-    // 申请ctx
     void *ctxPtr = nullptr;
     HCCL_INFO("[InsCollAlgBase][FastLaunchSaveCtxTwoTemplate] Tag[%s], size[%llu]", param.fastLaunchTag, size);
     CHK_RET(HcclEngineCtxCreate(param.hcclComm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, size, &ctxPtr));
@@ -116,6 +119,7 @@ HcclResult InsCollAlgBase::FastLaunchSaveCtxTwoTemplate(const OpParam &param, co
     }
 
     return HCCL_SUCCESS;
+#endif
 }
 #endif
 

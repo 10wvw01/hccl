@@ -286,30 +286,9 @@ static constexpr uint32_t opExpansionModeCcuMs = 4;
 
 bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccuFastLaunchCtx)
 {
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
-    param.hcclComm = comm;
-    if (param.opMode == OpMode::OFFLOAD) {
-        return false;
-    }
-    // 1. 引擎为ccu模式
-    if (param.engine != CommEngine::COMM_ENGINE_CCU) {
-        return false;
-    }
-    CHK_RET(SetOpParamFastLaunchTag(param));
-
-    // 2. 查到engineCtx
-    uint64_t size = 0;
-    void *fastLaunchCtxPtr = nullptr;
-    if (HcclEngineCtxGet(comm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, &fastLaunchCtxPtr, &size) == HCCL_SUCCESS) {
-        HCCL_INFO("[ShouldGoCcuFastLaunch] get fastLaunchCtx success, size is %u", size);
-        *ccuFastLaunchCtx = reinterpret_cast<CcuFastLaunchCtx*>(fastLaunchCtxPtr);
-        return true;
-    }
-    return false;
-#else
     (void)comm; (void)param; (void)ccuFastLaunchCtx;
+    HCCL_INFO("[ShouldGoCcuFastLaunch] DISABLED for debug: always return false, skip fastLaunch cache");
     return false;
-#endif
 }
 
 HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tagSize, HcclDfxOpInfoCompat& hcclDfxOpInfo,
@@ -866,32 +845,8 @@ void CompReqChannelWithExistChannel(const std::vector<std::vector<ChannelInfo>>&
 static HcclResult TryReuseResource(HcclComm comm, OpParam& param, bool& increCreateChannelFlag,
     void** resCtxSequence, uint64_t& size, bool &isResourceReused)
 {
-    // 增量建链模式下不能复用资源
-    if (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV && param.opMode == OpMode::OPBASE) {
-        increCreateChannelFlag = true;
-        return HCCL_E_NOT_FOUND;
-    }
-    // 非OPBASE模式且非CCU引擎不能复用资源
-    if (param.opMode != OpMode::OPBASE && param.engine != CommEngine::COMM_ENGINE_CCU) {
-        return HCCL_E_NOT_FOUND;
-    }
-    void *ctx = nullptr;
-    // 这种情况下资源已经有了
-    CommEngine ctxEngine = param.engine;
-    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
-        // AIV模式固定利用利用algTag申请1块host内存resCtx
-        ctxEngine = COMM_ENGINE_CPU_TS;
-    } else if (param.engine == COMM_ENGINE_CPU) {
-        // host dpu申请device内存用于存放resctx
-        ctxEngine = COMM_ENGINE_AICPU_TS;
-    }
-    if (HcclEngineCtxGet(comm, param.algTag, ctxEngine, &ctx, &size) == HCCL_SUCCESS) {
-        HCCL_DEBUG("Already have context, skip create, ctxSize is %llu", size);
-        isResourceReused = true;
-        *resCtxSequence = ctx;
-        param.ctxSize = size;
-        return HCCL_SUCCESS;
-    }
+    (void)comm; (void)param; (void)increCreateChannelFlag; (void)resCtxSequence; (void)size; (void)isResourceReused;
+    HCCL_INFO("[TryReuseResource] DISABLED for debug: always return HCCL_E_NOT_FOUND, skip algTag cache");
     return HCCL_E_NOT_FOUND;
 }
 
