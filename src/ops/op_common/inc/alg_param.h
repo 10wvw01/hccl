@@ -444,6 +444,7 @@ struct AlgResourceCtxSerializable {
         binaryStream << unfoldThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
+        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -477,6 +478,7 @@ struct AlgResourceCtxSerializable {
         binaryStream >> unfoldThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
+        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;

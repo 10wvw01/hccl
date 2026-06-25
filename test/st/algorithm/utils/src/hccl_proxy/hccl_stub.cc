@@ -351,6 +351,11 @@ HcclResult HcclThreadAcquireWithConfig(HcclComm comm, CommEngine engine, uint32_
     return HCCL_SUCCESS;
 }
 
+bool HcommIsSupportHcclThreadAcquireWithConfig()
+{
+    return true;
+}
+
 HcclResult HcclEngineCtxGet(HcclComm comm, const char *engineTag, CommEngine engine, void **ctx, uint64_t *size)
 {
     auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
