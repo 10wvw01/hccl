@@ -13,8 +13,6 @@ if(BUILD_OPEN_PROJECT)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/ccu
-
-        # CANN include/pkg_inc 路径已由 *_headers INTERFACE 目标接管
     )
 else()
     set(INCLUDE_LIST
