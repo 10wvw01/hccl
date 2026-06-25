@@ -42,7 +42,7 @@ private:
     void GenIntraTemplateParams( TemplateDataParams &intraTempDataParams, const u64 processedDataCount,
                             const u64 currDataCount, const u64 loop) const;
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                               InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter);
+                               InsAlgTemplate0 &intraTempAlg, InsAlgTemplate1 &interTempAlg);
     template <typename InsAlgTemplate>
     HcclResult GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
         const InsAlgTemplate &algTemplate, TemplateResource &tempReousrce) const;

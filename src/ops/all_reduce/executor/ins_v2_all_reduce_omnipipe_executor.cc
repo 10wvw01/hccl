@@ -19,7 +19,9 @@
 #include <cmath>
 
 namespace ops_hccl {
-
+constexpr u32 ALG_HIERARCHY_NUM3 = 3;
+constexpr uint64_t RANK_SIZE_LEVEL1_2 = 2;
+constexpr uint64_t RANK_SIZE_LEVEL1_4 = 4;
 template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTemplateY, typename InsRsAlgTemplateZ,
           typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
 InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX,
@@ -541,10 +543,10 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     double bw_rs_l2 = BW_OMNI_DEFAULT;
 
     if (resCtx.topoInfo.level0PcieMix) {
-        if (rankSizeLevel1_ == 2) {
+        if (rankSizeLevel1_ == RANK_SIZE_LEVEL1_2) {
             bw_ag_l1 = BW_OMNI_PCIE_EIGHT_AG_CLOS;
             bw_rs_l1 = BW_OMNI_PCIE_EIGHT_RS_CLOS;
-        } else if (rankSizeLevel1_ == 4) {
+        } else if (rankSizeLevel1_ == RANK_SIZE_LEVEL1_4) {
             bw_ag_l1 = BW_OMNI_PCIE_SIXTEEN_AG_CLOS;
             bw_rs_l1 = BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
         }
