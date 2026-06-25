@@ -144,6 +144,14 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/executor
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/selector
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/executor
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/selector
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/template
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/template/aicpu
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/template/ccu
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/template/ccu/kernel
 )
 
 if(BUILD_OPEN_PROJECT)
@@ -236,6 +244,7 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
         ${CMAKE_CURRENT_SOURCE_DIR}/common/device_compat.cc
 
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/omnipipe_data_slice_calc.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/common/omni_parser.cc
         
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/exec_timeout_manager.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/executor/channel/channel.cc
@@ -328,6 +337,9 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_to_all_v/executor/ins_v2_all_to_all_concurrent_executor.cc
 
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_to_all_v/template/aicpu/ins_temp_all_to_all_v_mesh_1D.cc
+
+        ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/executor/omni_sole_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ops/omni_run/template/aicpu/omni_temp_aicpu.cc
 
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_reduce/executor/ins_v2_all_reduce_sole_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_reduce/executor/ins_v2_all_reduce_parallel_executor.cc

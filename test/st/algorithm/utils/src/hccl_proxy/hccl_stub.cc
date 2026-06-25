@@ -388,6 +388,7 @@ int32_t HcommThreadNotifyWaitOnThread(ThreadHandle thread, uint32_t notifyIdx, u
 
     // 2.从thread获得notifyId
     uint32_t notifyId = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetNotifyIdByIndex(notifyIdx);
+    HCCL_INFO("YHB-CHECKER: HcommThreadNotifyWaitOnThread notifyIdx(%u) notifyId(%u) rank(%u)", notifyIdx, notifyId, curRank);
 
     // 3.下发task
     auto task = std::make_shared<HcclSim::TaskStubLocalWaitFrom>(notifyId);
@@ -406,6 +407,7 @@ int32_t HcommThreadNotifyRecordOnThread(ThreadHandle thread, ThreadHandle dstThr
 
     // 2.从thread获得notifyId
     uint32_t notifyId = reinterpret_cast<HcclSim::SimHcclThread*>(dstThread)->GetNotifyIdByIndex(dstNotifyIdx);
+    HCCL_INFO("YHB-CHECKER: HcommThreadNotifyRecordOnThread dstNotifyIdx(%u) notifyId(%u) rank(%u)", dstNotifyIdx, notifyId, curRank);
 
     // 3.下发task
     auto task = std::make_shared<HcclSim::TaskStubLocalPostTo>(notifyId);
@@ -418,11 +420,12 @@ int32_t HcommLocalCopyOnThread(ThreadHandle thread, void *dst, const void *src, 
 {
     CHK_PTR_NULL(dst);
     CHK_PTR_NULL(src);
-
+    
     // 1.获取当前rankId和stream
     uint32_t curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
     HcclSim::SimStream *stream = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetStream();
     CHK_PTR_NULL(stream);
+    HCCL_INFO("YHB-CHECKER: HcommLocalCopyOnThread dst(%p) src(%p) len(%lu) rank(%u)", dst, src, len, curRank);
 
     // 2.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     NpuPos pos = HcclSim::SimWorld::Global()->GetNpuPosByRankId(curRank);
@@ -456,6 +459,7 @@ int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst
     // 2.获取远端和本地rankId
     uint32_t locRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLocRankId();
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommWriteOnThread dst(%p) src(%p) len(%lu) rank(%u) locRank(%u) rmtRank(%u)", dst, src, len, curRank, locRank, rmtRank);
 
     // 3.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     // src地址rank
@@ -495,6 +499,7 @@ int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst,
     // 2.获取远端和本地rankId
     uint32_t locRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLocRankId();
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommReadOnThread dst(%p) src(%p) len(%lu) rank(%u) locRank(%u) rmtRank(%u)", dst, src, len, curRank, locRank, rmtRank);
 
     // 3.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     // src地址rank
@@ -534,6 +539,7 @@ int32_t HcommChannelNotifyRecordOnThread(ThreadHandle thread, ChannelHandle chan
 
     // 2.获取远端和本地rankId
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommChannelNotifyRecordOnThread remoteNotifyIdx(%u) rmtRank(%u) rank(%u)", remoteNotifyIdx, rmtRank, curRank);
 
     // 3.通过抽象链接类型判断链接协议
     HcclSim::LinkInfo link(reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLinkType());
@@ -566,6 +572,7 @@ int32_t HcommChannelNotifyWaitOnThread(ThreadHandle thread, ChannelHandle channe
 
     // 2.获取远端和本地rankId
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommChannelNotifyWaitOnThread localNotifyIdx(%u) rmtRank(%u) rank(%u)", localNotifyIdx, rmtRank, curRank);
 
     // 3.通过抽象链接类型判断链接协议
     HcclSim::LinkInfo link(reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLinkType());
@@ -590,6 +597,7 @@ int32_t HcommLocalReduceOnThread(ThreadHandle thread, void *dst, const void *src
     uint32_t curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
     HcclSim::SimStream *stream = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetStream();
     CHK_PTR_NULL(stream);
+    HCCL_INFO("YHB-CHECKER: HcommLocalReduceOnThread dst(%p) src(%p) count(%lu) rank(%u)", dst, src, count, curRank);
 
     // 2.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     NpuPos pos = HcclSim::SimWorld::Global()->GetNpuPosByRankId(curRank);
@@ -626,6 +634,7 @@ int32_t HcommWriteReduceOnThread(ThreadHandle thread, ChannelHandle channel, voi
     // 2.获取远端和本地rankId
     uint32_t locRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLocRankId();
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommWriteReduceOnThread dst(%p) src(%p) count(%lu) rank(%u) locRank(%u) rmtRank(%u)", dst, src, count, curRank, locRank, rmtRank);
 
     // 3.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     // src地址rank
@@ -666,6 +675,7 @@ int32_t HcommReadReduceOnThread(ThreadHandle thread, ChannelHandle channel, void
     // 2.获取远端和本地rankId
     uint32_t locRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetLocRankId();
     uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommReadReduceOnThread dst(%p) src(%p) count(%lu) rank(%u) locRank(%u) rmtRank(%u)", dst, src, count, curRank, locRank, rmtRank);
 
     // 3.从模型用rankid查询NpuPos，从NpuPos获得SimNpu
     // src地址rank
@@ -698,6 +708,7 @@ int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId
     auto npuPos = HcclSim::SimWorld::Global()->GetNpuPosByRankId(curRank);
     HcclSim::SimStream *stream = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetStream();
     CHK_PTR_NULL(stream);
+    HCCL_INFO("YHB-CHECKER: HcommAclrtNotifyRecordOnThread dstNotifyId(%lu) rank(%u)", dstNotifyId, curRank);
     auto task = std::make_shared<HcclSim::TaskStubLocalPostTo>(dstNotifyId);
     HcclSim::SimTaskQueue::Global()->AppendTask(npuPos, stream, task);
     return HCCL_SUCCESS;
@@ -709,6 +720,7 @@ int32_t HcommAclrtNotifyWaitOnThread(ThreadHandle thread, uint64_t notifyId, uin
     auto npuPos = HcclSim::SimWorld::Global()->GetNpuPosByRankId(curRank);
     HcclSim::SimStream *stream = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetStream();
     CHK_PTR_NULL(stream);
+    HCCL_INFO("YHB-CHECKER: HcommAclrtNotifyWaitOnThread notifyId(%lu) rank(%u)", notifyId, curRank);
     auto task = std::make_shared<HcclSim::TaskStubLocalWaitFrom>(notifyId);
     HcclSim::SimTaskQueue::Global()->AppendTask(npuPos, stream, task);
     return HCCL_SUCCESS;
@@ -736,6 +748,8 @@ HcclResult CommWriteReduceWithNotify(ThreadHandle thread, ChannelHandle channel,
 int32_t HcommWriteWithNotifyOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
     uint64_t len, uint32_t remoteNotifyIdx)
 {
+    auto curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
+    HCCL_INFO("YHB-CHECKER: HcommWriteWithNotifyOnThread dst(%p) src(%p) len(%lu) rank(%u)", dst, src, len, curRank);
     HCCL_ERROR("[%s] not support.", __func__);
     return HCCL_E_NOT_SUPPORT;
 }
@@ -779,6 +793,9 @@ int32_t HcommReleaseComm(const char* commId)
 int32_t HcommWriteWithNotifyNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
     uint64_t len, uint32_t remoteNotifyIdx)
 {
+    auto curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
+    uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommWriteWithNotifyNbiOnThread dst(%p) src(%p) len(%lu) rank(%u) rmtRank(%u)", dst, src, len, curRank, rmtRank);
     HcommWriteOnThread(curThread, channel, dst, src, len);
     HcommChannelNotifyRecordOnThread(curThread, channel, remoteNotifyIdx);
     return 0;
@@ -793,6 +810,8 @@ HcclResult HcclDevMemAcquire(HcclComm comm, const char *memTag, uint64_t *size, 
 
 int32_t HcommFenceOnThread(ThreadHandle thread)
 {
+    auto curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
+    HCCL_INFO("YHB-CHECKER: HcommFenceOnThread rank(%u)", curRank);
     HCCL_WARNING("[%s] not support.", __func__);
     return 0;
 }
@@ -829,6 +848,9 @@ int32_t HcommSendRequest(uint64_t handle, const char *msgTag, const void *src, s
 
 int32_t HcommChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel)
 {
+    auto curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
+    uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommChannelFenceOnThread rank(%u) rmtRank(%u)", curRank, rmtRank);
     HCCL_WARNING("[%s] not support.", __func__);
     return 0;
 }
@@ -886,6 +908,9 @@ HcclResult HcommThreadJoin(ThreadHandle thread, uint32_t timeout)
 int32_t HcommWriteReduceWithNotifyOnThread(ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
     uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp, uint32_t remoteNotifyIdx)
 {
+    auto curRank = reinterpret_cast<HcclSim::SimHcclThread*>(thread)->GetCurRank();
+    uint32_t rmtRank = reinterpret_cast<HcclSim::SimChannel*>(channel)->GetRmtRankId();
+    HCCL_INFO("YHB-CHECKER: HcommWriteReduceWithNotifyOnThread dst(%p) src(%p) count(%lu) rank(%u) rmtRank(%u)", dst, src, count, curRank, rmtRank);
     HCCL_ERROR("[%s] not support.", __func__);
     return -1;
 }

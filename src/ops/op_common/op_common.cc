@@ -804,14 +804,21 @@ HcclResult HcclCalcTopoInfo(HcclComm comm, OpParam &param, std::unique_ptr<TopoI
         // 创建新的Context保存
         CHK_RET(HcclEngineCtxCreate(comm, param.tag, CommEngine::COMM_ENGINE_CPU_TS, size, &ctx));
         CHK_SAFETY_FUNC_RET(memcpy_s(ctx, size, seq.data(), size));
-        return HCCL_SUCCESS;
+    } else {
+        char *ctxTemp = reinterpret_cast<char*>(ctx);
+        std::vector<char> seq(ctxTemp, ctxTemp + size);
+        TopoInfoWithNetLayerDetails topoInfoTemp;
+        topoInfoTemp.DeSerialize(seq);
+        topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>(std::move(topoInfoTemp));
+        HCCL_INFO("[%s] HcclCalcTopoInfo end.", __func__);
     }
-    char *ctxTemp = reinterpret_cast<char*>(ctx);
-    std::vector<char> seq(ctxTemp, ctxTemp + size);
-    TopoInfoWithNetLayerDetails topoInfoTemp;
-    topoInfoTemp.DeSerialize(seq);
-    topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>(std::move(topoInfoTemp));
-    HCCL_INFO("[%s] HcclCalcTopoInfo end.", __func__);
+    if (param.xmlPath[0] != '\0') {
+        omni::BinaryParser parser{};
+        std::string fileName(param.xmlPath);
+        HCCL_INFO("[%s] parsing OMNI config from xmlPath: %s", __func__, fileName.c_str());
+        CHK_RET(parser.SetFile(fileName, topoInfo->userRank));
+        CHK_RET(parser.Parse(topoInfo->xmlInfo));
+    }
     return HCCL_SUCCESS;
 }
 
@@ -1495,6 +1502,8 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
     for (auto t: resRequest.ccuKernelNum) {
         totalKernelNum += t;
     }
+
+    HCCL_DEBUG("totalKernelNum %u, resRequest.ccuKernelInfos size %u", totalKernelNum, resRequest.ccuKernelInfos.size());
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
         HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"),
         HCCL_E_INTERNAL);

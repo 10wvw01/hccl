@@ -30,6 +30,7 @@
 #include "binary_stream.h"
 #if CANN_VERSION_NUM >= 90000000
 #include "hccl_ccu_res.h"
+#include "omni_parser.h"
 #else
 typedef void *CcuKernelHandle; // 8.5.0 下无 hccl_ccu_res.h，用 opaque 占位
 #endif
@@ -75,6 +76,9 @@ constexpr uint64_t GE_PARALLEL = 36;
 constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 // Z axis detour 需要
 constexpr u32 MESH_CHANNELS_NUM = 1;
+
+// OMNI binary config file path max length
+constexpr u32 XML_PATH_LENGTH = 512;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
@@ -173,6 +177,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     Level0MeshType level0MeshType;
     NetLayerDetails netLayerDetails;
     std::vector<TopoInstDetails> topoInstDetailsOfLayer;
+    omni::XmlInfo xmlInfo;
 
     std::vector<char> Serialize()
     {
@@ -216,6 +221,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
             binaryStream << topoInstDetailsOfLayer[idx].ranksInTopo;
             binaryStream << topoInstDetailsOfLayer[idx].rankNumForTopoType;
         }
+        xmlInfo.Serialize(binaryStream);
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -264,6 +270,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
             binaryStream >> topoInstDetailsOfLayer[idx].ranksInTopo;
             binaryStream >> topoInstDetailsOfLayer[idx].rankNumForTopoType;
         }
+        xmlInfo.DeSerialize(binaryStream);
     }
 };
 
@@ -549,6 +556,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u32 aicpuRecordCpuIdx = 0; // aicpu record host的notifyIdx
     u32 dataCount = 0; // 算子上报dfx的数据量
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
+    char xmlPath[XML_PATH_LENGTH] = ""; // OMNI: binary config file path
     u64 varMemSize{0};
     u8 varData[0];
 };
