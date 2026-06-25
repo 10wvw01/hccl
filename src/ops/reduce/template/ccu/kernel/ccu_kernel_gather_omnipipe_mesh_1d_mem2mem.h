@@ -49,6 +49,7 @@ struct GatherOmniPipeMesh1DMem2MemContext {
     ccu::Variable isStepOne;
     ccu::Variable isLastStep;
     ccu::Variable ifNewRoot;
+    ccu::Variable peerId;
     
     std::vector<ccu::RemoteAddr> inputMem;
     std::vector<ccu::LocalAddr> outputMem;
