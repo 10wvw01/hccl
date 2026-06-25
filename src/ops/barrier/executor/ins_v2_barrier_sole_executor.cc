@@ -31,7 +31,7 @@ HcclResult InsV2BarrierSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
 {
     myRank_ = topoInfo->userRank;
     CHK_PRT_RET(algHierarchyInfo.infos.empty(),
-        HCCL_ERROR("[InsV2BarrierSoleExecutor][CalcRes] algHierarchyInfo.infos is empty"),
+        HCCL_ERROR("[InsV2BarrierSoleExecutor][CalcRes] myRank[%u] algHierarchyInfo.infos is empty", myRank_),
         HCCL_E_INTERNAL);
     InsAlgTemplate tempAlg(param, topoInfo->userRank, algHierarchyInfo.infos[0]);
     CHK_RET(tempAlg.CalcRes(comm, param, topoInfo, resourceRequest));
@@ -47,10 +47,10 @@ HcclResult InsV2BarrierSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate(
     CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
 
     CHK_PRT_RET(resCtx.algHierarchyInfo.infos.empty(),
-        HCCL_ERROR("[InsV2BarrierSoleExecutor][Orchestrate] algHierarchyInfo.infos is empty"),
+        HCCL_ERROR("[InsV2BarrierSoleExecutor][Orchestrate] myRank[%u] algHierarchyInfo.infos is empty", myRank_),
         HCCL_E_INTERNAL);
     CHK_PRT_RET(remoteRankToChannelInfo_.empty(),
-        HCCL_ERROR("[InsV2BarrierSoleExecutor][Orchestrate] remoteRankToChannelInfo_ is empty"),
+        HCCL_ERROR("[InsV2BarrierSoleExecutor][Orchestrate] myRank[%u] remoteRankToChannelInfo_ is empty", myRank_),
         HCCL_E_INTERNAL);
 
     TemplateDataParams tempDataParams{};

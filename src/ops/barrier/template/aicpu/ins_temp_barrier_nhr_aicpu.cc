@@ -86,11 +86,11 @@ HcclResult InsTempBarrierNhrAicpu::RunNHRBarrier(
         auto rxIter = channels.find(GetRankFromMap(recvFrom));
         auto txIter = channels.find(GetRankFromMap(sendTo));
         CHK_PRT_RET(rxIter == channels.end() || txIter == channels.end(),
-            HCCL_ERROR("[InsTempBarrierNhrAicpu] channel not found (step=%u), recvFrom[%u] sendTo[%u]",
-                step, GetRankFromMap(recvFrom), GetRankFromMap(sendTo)),
+            HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] channel not found (step=%u), recvFrom[%u] sendTo[%u]",
+                myRank_, step, GetRankFromMap(recvFrom), GetRankFromMap(sendTo)),
             HcclResult::HCCL_E_INTERNAL);
         CHK_PRT_RET(rxIter->second.empty() || txIter->second.empty(),
-            HCCL_ERROR("[InsTempBarrierNhrAicpu] channel empty (step=%u)", step),
+            HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] channel empty (step=%u)", myRank_, step),
             HcclResult::HCCL_E_INTERNAL);
         const auto &rxChannel = rxIter->second;
         const auto &txChannel = txIter->second;
@@ -101,31 +101,31 @@ HcclResult InsTempBarrierNhrAicpu::RunNHRBarrier(
             TxRxSlicesList sendRecvSlicesList({emptySlices, emptySlices}, {emptySlices, emptySlices});
             SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
             CHK_PRT_RET(SendRecvWrite(sendRecvInfo, thread),
-                HCCL_ERROR("[InsTempBarrierNhrAicpu] SendRecvWrite failed (step=%u)", step),
+                HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] SendRecvWrite failed (step=%u)", myRank_, step),
                 HcclResult::HCCL_E_INTERNAL);
         } else if (txChannel[0].remoteRank < rxChannel[0].remoteRank) {
             SlicesList sendSliceList(emptySlices, emptySlices);
             DataInfo sendInfo(txChannel[0], sendSliceList);
             CHK_PRT_RET(SendWrite(sendInfo, thread),
-                HCCL_ERROR("[InsTempBarrierNhrAicpu] Send failed (step=%u)", step),
+                HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] Send failed (step=%u)", myRank_, step),
                 HcclResult::HCCL_E_INTERNAL);
 
             SlicesList recvSliceList(emptySlices, emptySlices);
             DataInfo recvInfo(rxChannel[0], recvSliceList);
             CHK_PRT_RET(RecvWrite(recvInfo, thread),
-                HCCL_ERROR("[InsTempBarrierNhrAicpu] Recv failed (step=%u)", step),
+                HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] Recv failed (step=%u)", myRank_, step),
                 HcclResult::HCCL_E_INTERNAL);
         } else {
             SlicesList recvSliceList(emptySlices, emptySlices);
             DataInfo recvInfo(rxChannel[0], recvSliceList);
             CHK_PRT_RET(RecvWrite(recvInfo, thread),
-                HCCL_ERROR("[InsTempBarrierNhrAicpu] Recv failed (step=%u)", step),
+                HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] Recv failed (step=%u)", myRank_, step),
                 HcclResult::HCCL_E_INTERNAL);
 
             SlicesList sendSliceList(emptySlices, emptySlices);
             DataInfo sendInfo(txChannel[0], sendSliceList);
             CHK_PRT_RET(SendWrite(sendInfo, thread),
-                HCCL_ERROR("[InsTempBarrierNhrAicpu] Send failed (step=%u)", step),
+                HCCL_ERROR("[InsTempBarrierNhrAicpu] myRank[%u] Send failed (step=%u)", myRank_, step),
                 HcclResult::HCCL_E_INTERNAL);
         }
     }
