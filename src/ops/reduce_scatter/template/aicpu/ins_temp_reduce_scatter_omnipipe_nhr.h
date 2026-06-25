@@ -38,15 +38,18 @@ public:
                          const TemplateDataParams& tempAlgParams,
                          TemplateResource& templateResource) override;
     u64 GetThreadNum() const override;
-    void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override {};
-    void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override {};
+    void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override;
+    void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
     HcclResult DoLocalCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads);
+    HcclResult PreprareDataSplitForMultiChannelOmni(const TemplateResource &templateResource);
 
 private:
     HcclResult GetStepInfoList(std::vector<AicpuNHRStepInfo> &stepInfoList);
-    HcclResult RunNHR(const std::vector<ThreadHandle> &threads);
+    HcclResult RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx);
     TemplateDataParams tempAlgParams_;
     std::map<u32, std::vector<ChannelInfo>> channels_;
+    std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
+    std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
 };
 
 } // namespace Hccl
