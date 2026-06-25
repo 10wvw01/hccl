@@ -513,7 +513,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_INFO("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
     // u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
     // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
+    // HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
 #endif
 
 #if T_DESC("looptimes实现2", false)
