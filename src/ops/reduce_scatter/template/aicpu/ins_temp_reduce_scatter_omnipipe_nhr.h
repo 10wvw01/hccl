@@ -46,12 +46,6 @@ public:
 private:
     HcclResult GetStepInfoList(std::vector<AicpuNHRStepInfo> &stepInfoList);
     HcclResult RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx);
-    HcclResult BuildReduceScatterNhrSlices(const AicpuNHRStepInfo &stepInfo, const ChannelInfo &linkSend,
-                                           const ChannelInfo &linkRecv, u32 channelIdx,
-                                           std::vector<DataSlice> &txSrcSlices,
-                                           std::vector<DataSlice> &txDstSlices,
-                                           std::vector<DataSlice> &rxSrcSlices,
-                                           std::vector<DataSlice> &rxDstSlices);
     TemplateDataParams tempAlgParams_;
     std::map<u32, std::vector<ChannelInfo>> channels_;
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;

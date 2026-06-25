@@ -614,9 +614,15 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
                 HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%llu]", innerStepNum);
             }
         }
-        scratchSize = CalScratchSize(reinterpret_cast<u64 *>(xRSDataSize), reinterpret_cast<u64 *>(yRSDataSize),
-                                     zRSDataSize, levelRankSize, zConnerStep, outerStepNum, innerStepNum,
-                                     maxStepNum, levelAlgType, engine, xB, yB);
+        if (zB > xyB) {
+            scratchSize = CalScratchSize(reinterpret_cast<u64 *>(xRSDataSize), reinterpret_cast<u64 *>(yRSDataSize),
+                                         zRSDataSize, levelRankSize, zConnerStep, outerStepNum, innerStepNum,
+                                         maxStepNum, levelAlgType, engine, xB, yB);
+        } else {
+            scratchSize = CalScratchSize(reinterpret_cast<u64 *>(xRSDataSize), reinterpret_cast<u64 *>(yRSDataSize),
+                                         zRSDataSize, levelRankSize, zConnerStep, outerStepNum, innerStepNum,
+                                         maxStepNum, levelAlgType, engine, xB, yB);
+        }
         allCclBufferSize = 0;
         if (opMode == OpMode::OPBASE
             && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {

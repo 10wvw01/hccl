@@ -20,7 +20,6 @@
 #include "ins_temp_all_gather_omnipipe_nhr_dpu.h"
 #include "ins_temp_all_gather_omnipipe_nhr.h"
 #include "topo_match_3_level.h"
-#include "omnipipe_template_utils.h"
 
 namespace ops_hccl {
 constexpr u32 ALG_HIERARCHY_NUM3 = 3;
@@ -295,8 +294,17 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
                                InsAlgTemplate2>::GenTemplateAlgParamsByDimData(TemplateDataParams& tempAlgParams,
                                                                                StepSliceInfo& stepSliceInfo) const
 {
-    return FillOmniPipeTemplateAlgParams(tempAlgParams, stepSliceInfo);
+    // tempAlgParams.buffInfo.hcclBuff 已在外部赋值
+    tempAlgParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+    tempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
+
+    tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff;
+    tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
+    tempAlgParams.buffInfo.hcclBuffBaseOff = stepSliceInfo.buffInfo.hcclBuffBaseOff;  // 实际上是空值
+    tempAlgParams.stepSliceInfo = stepSliceInfo;
+    return HCCL_SUCCESS;
 }
+
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 HcclResult
 InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::OrchestrateLoop(
