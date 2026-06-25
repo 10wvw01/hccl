@@ -181,9 +181,9 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
     param.enableDetour = false;
     param.deviceType = deviceType;
 
-    std::string algName;
+    HcclAlgorithm alg;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
-    CHK_RET(Selector(comm, param, topoInfo, algName));
+    CHK_RET(Selector(comm, param, topoInfo, &alg));
     if (ShouldUseInnerOp(param.opExecuteConfig)) {
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
@@ -192,7 +192,7 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
         CHK_RET(SingleRankProc(param));
         return HcclResult::HCCL_SUCCESS;
     }
-    CHK_RET(HcclExecOp(comm, param, topoInfo, algName, resPack));
+    CHK_RET(HcclExecOp(comm, param, topoInfo, &alg, resPack));
     HCCL_INFO("Execute AllGatherOutPlace success.");
     return HCCL_SUCCESS;
 }
