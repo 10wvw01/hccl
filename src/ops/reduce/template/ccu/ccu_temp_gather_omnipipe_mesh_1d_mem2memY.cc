@@ -185,7 +185,11 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
             HCCL_DEBUG("[----------------] a=%lu b=%lu c=%lu d=%lu", buffInfo_.inBuffBaseOff,  buffInfo_.outBuffBaseOff, templateDataParams.stepSliceInfo.buffInfo.inBuffBaseOff, templateDataParams.stepSliceInfo.buffInfo.outBuffBaseOff);
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
             for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) {
-                sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
+                sliceSize = 0;
+                if (isStepOne_) {
+                    sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
+                }
+                
                 inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt];
                 outputOmniPipeSliceStride= stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt];
                 
