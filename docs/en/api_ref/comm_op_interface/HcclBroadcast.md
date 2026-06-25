@@ -29,7 +29,7 @@
 
 `Broadcast` is a collective communication operator that broadcasts the data of the root rank to other ranks in the communicator.
 
-![](./figures/allgather.png)
+
 
 ## Prototype<a name="zh-cn_topic_0000001312481237_section1210700"></a>
 
@@ -133,8 +133,7 @@ HcclBroadcast(buf, count, HCCL_DATA_TYPE_FP32, rootRank, hcclComm, stream);
 aclrtSynchronizeStream(stream);
 
 // Free resources.
-aclrtFree(sendBuf);          // Free the device memory.
-aclrtFree(recvBuf);          // Free the device memory.
+aclrtFree(buf);          // Free the device memory.
 aclrtDestroyStream(stream);  // Destroy the task flow.
 HcclCommDestroy(hcclComm);   // Destroy the communicator.
 ```

@@ -26,7 +26,7 @@
 
 `Reduce` is a collective communication operator that performs reduction operations (such as sum, max, and min) on the data of all ranks and sends the result to the specified position on the root rank.
 
-![]
+
 
 ## Prototype<a name="zh-cn_topic_0000001316510814_section57557412"></a>
 

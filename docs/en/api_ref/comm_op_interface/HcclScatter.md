@@ -121,7 +121,7 @@ size_t sendSize = sendCount * sizeof(float);
 size_t recvSize = recvCount * sizeof(float);
 
 // Allocate the device memory for receiving the Scatter result.
-ACLCHECK(aclrtMalloc(&recvBuf, recvCount, ACL_MEM_MALLOC_HUGE_ONLY));
+ACLCHECK(aclrtMalloc(&recvBuf, recvSize, ACL_MEM_MALLOC_HUGE_ONLY));
 // On the root rank, allocate the device memory for storing the sent data.
 if (device == rootRank) {
     ACLCHECK(aclrtMalloc(&sendBuf, sendSize, ACL_MEM_MALLOC_HUGE_ONLY));

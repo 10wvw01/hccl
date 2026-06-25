@@ -54,7 +54,7 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
 </td>
 <td class="cellrowborder" valign="top" width="17.169999999999998%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001690107441_p51231519111711"><a name="zh-cn_topic_0000001690107441_p51231519111711"></a><a name="zh-cn_topic_0000001690107441_p51231519111711"></a>Input</p>
 </td>
-Address of the <td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001690107441_p612301916172"><a name="zh-cn_topic_0000001690107441_p612301916172"></a><a name="zh-cn_topic_0000001690107441_p612301916172"></a> source data buffer address.</p>
+ <td class="cellrowborder" valign="top" width="62.629999999999995%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001690107441_p612301916172"><a name="zh-cn_topic_0000001690107441_p612301916172"></a><a name="zh-cn_topic_0000001690107441_p612301916172"></a>Address of the source data buffer address.</p>
 </td>
 </tr>
 <tr id="zh-cn_topic_0000001690107441_row460577337"><td class="cellrowborder" valign="top" width="20.200000000000003%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001690107441_p412311914178"><a name="zh-cn_topic_0000001690107441_p412311914178"></a><a name="zh-cn_topic_0000001690107441_p412311914178"></a>sendCount</p>

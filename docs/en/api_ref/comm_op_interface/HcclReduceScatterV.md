@@ -63,6 +63,7 @@ HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, const void 
 </td>
 <td class="cellrowborder" valign="top" width="17.150000000000002%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000002174837853_p885716551303"><a name="zh-cn_topic_0000002174837853_p885716551303"></a><a name="zh-cn_topic_0000002174837853_p885716551303"></a>Input</p>
 </td>
+<td><p>
 Array of `uint64_t` values specifying the amount of data contributed by each rank in `sendBuf`.</p>
 <p id="zh-cn_topic_0000002174837853_p201691033122720"><a name="zh-cn_topic_0000002174837853_p201691033122720"></a><a name="zh-cn_topic_0000002174837853_p201691033122720"></a>The i-th element indicates the data size sent to rank `i`. </p>
 </td>

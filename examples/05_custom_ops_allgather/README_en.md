@@ -48,7 +48,7 @@ Install the CANN Toolkit of the latest version. For details, see [Ascend Documen
 
 ### 3. Configure Environment Variables
 
-Use the default installation path of the `root user as an example:
+Use the default installation path of the `root` user as an example:
 
 ```bash
 source /usr/local/Ascend/cann/set_env.sh

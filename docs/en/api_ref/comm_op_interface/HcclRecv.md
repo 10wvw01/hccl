@@ -95,7 +95,7 @@ HcclResult HcclRecv(void* recvBuf, uint64_t count, HcclDataType dataType, uint32
 
 ## Return Value<a name="zh-cn_topic_0000001264921402_section14576971837"></a>
 
-[HcclResult](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclDataType.md#ZH-CN_TOPIC_0000002519072193): `HCCL_SUCCESS` on success, or others on failure.
+[HcclResult](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclResult.md#ZH-CN_TOPIC_0000002519072193): `HCCL_SUCCESS` on success, or others on failure.
 
 ## Constraints<a name="zh-cn_topic_0000001264921402_section5471426246"></a>
 

@@ -1,6 +1,6 @@
 # HCCL Documentation Overview
 
-- [Collective Communication Library User Guide](./zh//user_guide/README.md): Introduces the basic concepts of HCCL, how to use HCCL APIs to develop collective communication features, how to develop communication operators, and provides fault handling and common configuration guidance.
+- [Collective Communication Library User Guide](./zh/user_guide/README.md): Introduces the basic concepts of HCCL, how to use HCCL APIs to develop collective communication features, how to develop communication operators, and provides fault handling and common configuration guidance.
 - [Communication Operator Development Guide](https://gitcode.com/cann/hcomm/blob/master/docs/zh/comm_op_dev_guide/README.md): Describes how to develop communication operators based on the APIs provided by the HCOMM communication library.
 
 ## Technical Articles

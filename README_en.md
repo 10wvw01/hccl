@@ -16,7 +16,7 @@ The Huawei Collective Communication Library (HCCL)​ is a high‑performance co
 
 HCCL is a core component of CANN. It supports multiple AI frameworks and enables communication between multiple AI processors. The following figure shows its software architecture.
 
-<img src="" alt="hccl-architecture" style="width: 65%;  height:65%;" />
+<!-- <img src="" alt="hccl-architecture" style="width: 65%;  height:65%;"/> -->
 
 HCCL consists of the HCCL and Huawei Communication (HCOMM) libraries.
 
