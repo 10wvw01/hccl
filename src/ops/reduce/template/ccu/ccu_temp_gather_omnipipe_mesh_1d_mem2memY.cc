@@ -210,10 +210,9 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                     ifNewRoot
                 };
                 if (ifNewRoot && sliceSize!=0) {
-                    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] myRank[%u]  subroot[%d]", myRank_, subRoot);
                     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-                                " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu",
-                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_);
+                                " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu myRank[%u]  subroot[%d]",
+                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot);
                 
                 }
                 uint64_t argSize = taskArgs.size();
