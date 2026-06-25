@@ -31,6 +31,9 @@ HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams,
 HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams,
                            TemplateResource &templateResource, EngineType engineType);
 
+HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams,
+                          TemplateResource &templateResource, EngineType engineType);
+
 }
 
 #endif

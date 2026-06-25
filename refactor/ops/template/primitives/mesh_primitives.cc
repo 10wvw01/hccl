@@ -199,4 +199,29 @@ HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams,
     return HCCL_SUCCESS;
 }
 
+HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams,
+                          TemplateResource &templateResource, EngineType engineType)
+{
+    (void)engineType;
+    u32 rankSize = static_cast<u32>(templateResource.channels.size()) + 1;
+    u32 myRankIdx = 0;
+    if (rankSize <= 1) {
+        return HCCL_SUCCESS;
+    }
+    bool isDmaRead = IsPcieProtocol(templateResource.channels);
+    std::vector<DataSlice> empty;
+
+    for (u32 i = 1; i < rankSize; ++i) {
+        u32 peer = (myRankIdx + i) % rankSize;
+        const ChannelInfo &link = templateResource.channels.at(peer)[0];
+        SendRecvInfo info{{link, link}, {{empty, empty}, {empty, empty}}, tempAlgParams.dataType};
+        if (isDmaRead) {
+            CHK_RET(SendRecvRead(info, templateResource.threads[i - 1]));
+        } else {
+            CHK_RET(SendRecvBatchWrite(info, templateResource.threads[i - 1]));
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
 }

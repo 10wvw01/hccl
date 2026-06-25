@@ -13,6 +13,13 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
+// ════════════════════════════════════════════════════════════════════════════════
+// 【重构标注】算(任务规划) vs 干(执行) —— 区分哪些会抽成 primitive、哪些归 engine
+//   【算】排调度：第几步 / 谁↔谁 / 收发哪些 slice / 什么 op   → 抽成 nhr_primitives::GenNhrAllGather*
+//   【干】真执行/要资源：申请 channel/thread/notify、绑真实地址、发 SendRecv*、本地拷贝/同步 → 归 engine
+//   【算/半】slice 偏移(算) 掺了真实地址(干) → 偏移进原语、地址归 engine
+//   结论：本文件里真正的"原语"只有 GetStepInfo(纯调度)；其余 Run*/Calc(Res)/LocalCopy/notify 全是干。
+// ════════════════════════════════════════════════════════════════════════════════
 InsTempAllGatherNHR::InsTempAllGatherNHR(const OpParam &param, const u32 rankId,
                                          const std::vector<std::vector<u32>> &subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -21,6 +28,7 @@ InsTempAllGatherNHR::InsTempAllGatherNHR(const OpParam &param, const u32 rankId,
 
 InsTempAllGatherNHR::~InsTempAllGatherNHR() {}
 
+// 【干·资源】申请 NHR channel + 算 thread/notify 数 → 重构后归 engine.CreateRes / executor.CalcRes
 HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
                                         AlgResourceRequest &resourceRequest)
 {
@@ -79,6 +87,7 @@ HcclResult InsTempAllGatherNHR::PreprareDataSplitForMultiChannel(const TemplateR
     return HCCL_SUCCESS;
 }
 
+// 【干·编排】调度循环 + 本地拷贝 + 主从同步的外壳；内部只有 RunStepNHR→GetStepInfo 那一小段是"算"
 HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
                                           TemplateResource &templateResource)
 {
@@ -112,8 +121,8 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     }
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         bool postLocalCopyLaunched = false;
-        CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));   // input buffer拷贝到scratch buffer上
-        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
+        CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));   // 【干】input→scratch 本地拷贝
+        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,  // 【算+干】内部 GetStepInfo=算、SendRecv=干
             postLocalCopyLaunched));
         if (!postLocalCopyLaunched) {
             CHK_RET(PostLocalCopy(templateResource.threads[channelIdx], channelIdx));
@@ -151,6 +160,7 @@ bool InsTempAllGatherNHR::IsLastStepReadSlice(u32 algRank) const
     return false;
 }
 
+// 【算/半】slice 偏移/大小计算(算，进原语 dataSlices)；scratchBase 等中转内存偏移属执行
 InsTempAllGatherNHR::SliceCalcInfo InsTempAllGatherNHR::CalcSliceInfo(
     const AicpuNHRStepInfo &stepInfo, u32 rpt, u32 i, u32 channelIdx) const
 {
@@ -172,6 +182,7 @@ InsTempAllGatherNHR::SliceCalcInfo InsTempAllGatherNHR::CalcSliceInfo(
     return info;
 }
 
+// 【算/半】把 slice 索引→DataSlice：offset/size=算(进原语)，真实地址(remoteCclMem.addr/hcclBuff.addr)=干(归 engine)
 HcclResult InsTempAllGatherNHR::BuildStepSlices(const ChannelInfo &channelSend,
     const ChannelInfo &channelRecv, const AicpuNHRStepInfo &stepInfo, const u32 &channelIdx,
     StepBuildMode mode,
@@ -214,6 +225,7 @@ HcclResult InsTempAllGatherNHR::BuildStepSlices(const ChannelInfo &channelSend,
     return HCCL_SUCCESS;
 }
 
+// 【干·执行(优化路径)】write→同步→PostLocalCopy→read，全是搬数据+同步，无调度
 HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<ThreadHandle> &threads,
     const ChannelInfo &channelSend, const ChannelInfo &channelRecv,
     const AicpuNHRStepInfo &stepInfo, const u32 &channelIdx, u32 step,
@@ -257,12 +269,13 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
     return HcclResult::HCCL_SUCCESS;
 }
 
+// 【集成点：规划+执行在此汇合】GetStepInfo(规划) → 取 channel(执行) → BuildStepSlices(规划/半) → SendRecv*(执行)
 HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &threads,
     const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 &channelIdx,
     u32 step, u32 nSteps, bool &postLocalCopyLaunched)
 {
     AicpuNHRStepInfo stepInfo;
-    CHK_RET(GetStepInfo(step, nSteps, stepInfo));
+    CHK_RET(GetStepInfo(step, nSteps, stepInfo));   // 【规划】★调度在此算出（本步对端+slice 索引）→ 抽进原语
     u32 fromRankKey = GetRankFromMap(stepInfo.fromRank);
     u32 toRankKey = GetRankFromMap(stepInfo.toRank);
     CHK_PRT_RET(channels.count(fromRankKey) == 0 || channelIdx >= channels.at(fromRankKey).size() ||
@@ -296,6 +309,7 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
     TxRxChannels sendRecvChannels(channelSend, channelRecv);
     SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
 
+    // 【执行】真正收发数据（绑了真实地址/通道/线程）→ 归 engine，原语不碰
     if (isDmaRead_) {
         CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
             HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
@@ -308,6 +322,7 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
     return HCCL_SUCCESS;
 }
 
+// 【干·驱动】只是 for step 的外壳；调度本身在 GetStepInfo，执行在 RunStepNHR
 HcclResult InsTempAllGatherNHR::RunAllGatherNHR(const std::vector<ThreadHandle> &threads,
                                                 const std::map<u32, std::vector<ChannelInfo>> &channels,
                                                 const u32 &channelIdx, bool &postLocalCopyLaunched)
@@ -325,6 +340,8 @@ u32 InsTempAllGatherNHR::GetRankFromMap(const u32 algRankIdx) const
 {
     return subCommRanks_[0].at(algRankIdx);
 }
+// ★【算·任务规划 = 真正的"原语"】算每步 sendTo/recvFrom + tx/rx slice 索引（纯调度，无地址/通道/线程）
+//   → 重构后抽成 nhr_primitives::GenNhrAllGatherSliceIdxs + GenNhrAllGatherSteps
 HcclResult InsTempAllGatherNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo &stepInfo)
 {
     u32 myAlgRank = 0;
@@ -360,6 +377,7 @@ HcclResult InsTempAllGatherNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepIn
     return HcclResult::HCCL_SUCCESS;
 }
 
+// 【干·执行】input→scratch 本地拷贝（搬数据），归 engine
 HcclResult InsTempAllGatherNHR::LocalDataCopy(const std::vector<ThreadHandle> &threads, const u32 &channelIdx)
 
 {
@@ -393,6 +411,7 @@ HcclResult InsTempAllGatherNHR::LocalDataCopy(const std::vector<ThreadHandle> &t
     return HcclResult::HCCL_SUCCESS;
 }
 
+// 【干·执行】scratch→output 本地拷贝（搬数据），归 engine
 HcclResult InsTempAllGatherNHR::PostLocalCopy(const ThreadHandle &thread, const u32 &channelIdx)
 {
     if (tempAlgParams_.buffInfo.outputPtr == tempAlgParams_.buffInfo.hcclBuff.addr) {

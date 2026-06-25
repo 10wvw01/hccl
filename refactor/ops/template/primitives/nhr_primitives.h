@@ -16,25 +16,17 @@
 
 namespace ops_hccl {
 
-u32 CalcNhrStepNum(u32 rankSize);
-
-std::pair<std::vector<u32>, std::vector<u32>> GenNhrReduceScatterSliceIdxs(
-    u32 rankSize, u32 myRankIdx, u32 step);
-
-std::pair<std::vector<u32>, std::vector<u32>> GenNhrAllGatherSliceIdxs(
-    u32 rankSize, u32 myRankIdx, u32 step, u32 nSteps);
-
 HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams,
-                               TemplateResource &templateResource,
-                               EngineType engineType);
+                               TemplateResource &templateResource, EngineType engineType);
 
 HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams,
-                           TemplateResource &templateResource,
-                           EngineType engineType);
+                           TemplateResource &templateResource, EngineType engineType);
 
 HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams,
-                         TemplateResource &templateResource,
-                         EngineType engineType);
+                         TemplateResource &templateResource, EngineType engineType);
+
+HcclResult RunNhrBarrier(const TemplateDataParams &tempAlgParams,
+                         TemplateResource &templateResource, EngineType engineType);
 
 }
 
