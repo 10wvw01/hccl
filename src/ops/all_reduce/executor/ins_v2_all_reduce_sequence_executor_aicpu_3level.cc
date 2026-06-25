@@ -14,6 +14,8 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
+#include "alg_data_trans_wrapper.h"
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -515,6 +517,32 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 {
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] Start");
 
+    // [ZDBG] 分步 dump 诊断: 通过环境变量 HCCL_ZDBG_STAGE 控制闭环执行到哪一步,
+    // 把当时 cclMem rsResult 区(offset 0)的内容搬到 outputPtr 后立即返回(跳过后续步骤)。
+    // 用 hccl_test 的 act 值反推该步后的 reduce 计数。值为空=正常运行。
+    //   RSL0 : level0 ReduceScatter 后(server 内 reduce 结果)
+    //   RSL2 : level2 ReduceScatter 后(跨 pod reduce 结果)
+    //   AGL2 : level2 AllGather 后(跨 pod 广播结果)
+    //   AGL0 : 正常完成(level0 AllGather 后)
+    std::string zdbgStage;
+    const char *zdbgEnv = getenv("HCCL_ZDBG_STAGE");
+    if (zdbgEnv != nullptr) { zdbgStage = zdbgEnv; }
+    HCCL_INFO("[ZDBG][AICPU][Loop] HCCL_ZDBG_STAGE=[%s] myRank[%u]", zdbgStage.c_str(), myRank_);
+    // 把 cclMem[0..dumpSize) 搬到 output[0..dumpSize), 用于观察该步后的中间结果
+    auto zdbgDump = [&](const char *stageName) -> bool {
+        if (zdbgStage != stageName) { return false; }
+        // rsResult 区大小 = level0 reduce 后每卡持有的数据量
+        u64 dumpSize = rsResultBuffSize_;
+        DataSlice src(resCtx.cclMem.addr, 0, dumpSize, dumpSize / dataTypeSize_);
+        DataSlice dst(param.outputPtr, 0, dumpSize, dumpSize / dataTypeSize_);
+        CHK_PRT_RET(LocalCopy(resCtx.threads[0], src, dst) != HCCL_SUCCESS,
+            HCCL_ERROR("[ZDBG] dump[%s] LocalCopy failed", stageName), HCCL_E_INTERNAL);
+        HCCL_INFO("[ZDBG][AICPU][Loop] dump[%s] done: cclMem[0..%llu) -> output, myRank[%u]",
+            stageName, dumpSize, myRank_);
+        return true;
+    };
+    (void)zdbgDump; // 未设置环境变量时不用
+
     TemplateDataParams tempAlgParamsRSL0;
     TemplateDataParams tempAlgParamsRSL1;
     TemplateDataParams tempAlgParamsRSL2;
@@ -616,6 +644,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         HCCL_INFO("[ZDBG][AICPU][Loop] myRank[%u] loop[%llu] RSL0 sliceSize[%llu] tailSize[%llu] "
             "(二者皆0=level0被跳过)", myRank_, loop, tempAlgParamsRSL0.sliceSize, tempAlgParamsRSL0.tailSize);
         CHK_RET(algTemplateRSL0->KernelRun(param, tempAlgParamsRSL0, templateResourceRSL0));
+        if (zdbgDump("RSL0")) { return HCCL_SUCCESS; }
 
         // ----------- RSL1: level1 ReduceScatter -----------
         u64 sliceSizeRSL1 = tempAlgParamsRSL0.sliceSize;
@@ -635,11 +664,13 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         // ----------- RSL2: level2 ReduceScatter -----------
         GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
         CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
+        if (zdbgDump("RSL2")) { return HCCL_SUCCESS; }
 
         // ----------- AGL2: level2 AllGather -----------
         GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
             tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
         CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
+        if (zdbgDump("AGL2")) { return HCCL_SUCCESS; }
 
         // ----------- AGL1: level1 AllGather -----------
         if (!skipLevel1_) {
