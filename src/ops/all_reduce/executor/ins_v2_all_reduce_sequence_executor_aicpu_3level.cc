@@ -14,7 +14,6 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
-#include "alg_data_trans_wrapper.h"
 
 namespace ops_hccl {
 
@@ -576,54 +575,28 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
                 tempAlgParamsRSL0.tailSize : tempAlgParamsRSL0.sliceSize;
         }
 
-        // [DEBUG-DUMP] 第四轮：dump RSL0 后的 cclMem 布局。
-        // 跳过 RSL2/AGL2/AGL1/AGL0，把 cclMem 的 rsResult 区读到 output。
-        // 目的：确认 ZAxisDetour 在 cclMem rsResult 区铺出的真实布局，定 inputSliceStride 正确值。
-        //
-        // 正常代码（当前注释掉）:
-        // GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
-        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
-        {
-            // dump rsResult 区（RSL0 输出）。注意：dataSize_ 因 Orchestrate 里初始化顺序 bug
-            // （dataSize_ 在 dataTypeSize_ 之前赋值）恒为 0，不能用作字节数。
-            // 用 currDataCount * dataTypeSize_ 作为本次 loop 的真实数据字节数（=64B）。
-            u64 dumpBytes = currDataCount * dataTypeSize_;
-            u64 outOff = processedDataCount * dataTypeSize_;
-            DataSlice srcSlice(resCtx.cclMem.addr, 0, dumpBytes, dumpBytes / dataTypeSize_);
-            DataSlice dstSlice(param.outputPtr, outOff, dumpBytes, dumpBytes / dataTypeSize_);
-            if (!threads_.empty()) {
-                CHK_RET(LocalCopy(threads_[0], srcSlice, dstSlice));
-            }
-            HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][DUMP-AFTER-RSL0] loop[%u] rankIdxLevel0[%u] "
-                "sliceSizeRSL0[%llu] rsResultBuffSize[%llu] rsResultBuffOffset[%llu] "
-                "meshCommBuffOffset[%llu] meshCommBuffSize[%llu] -> dump %llu bytes to output[%llu]",
-                loop, rankIdxLevel0_, tempAlgParamsRSL0.sliceSize, rsResultBuffSize_, rsResultBuffOffset_,
-                meshCommBuffOffset_, meshCommBuffSize_, dumpBytes, outOff);
-        }
-        processedDataCount += currDataCount;
-        loop++;
-        continue;
-
-        // [DEBUG-DUMP] 以下代码被 continue 跳过，定位完成后需连同上面的 dump 块一起删除并恢复完整流水线。
         // ----------- RSL2: level2 ReduceScatter -----------
-        // GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
-        // CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
+        GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
+        CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
 
         // ----------- AGL2: level2 AllGather -----------
-        // GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
-        //     tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
-        // CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
+        GenTempAlgParamsAGL2(loop, currDataCount, tempAlgParamsRSL2.sliceSize,
+            tempAlgParamsRSL2.tailSize, sliceSizeRSL1, tempAlgParamsAGL2);
+        CHK_RET(algTemplateAGL2->KernelRun(param, tempAlgParamsAGL2, templateResourceAGL2));
 
         // ----------- AGL1: level1 AllGather -----------
-        // if (!skipLevel1_) {
-        //     GenTempAlgParamsAGL1(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsAGL1);
-        //     CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
-        // }
+        if (!skipLevel1_) {
+            GenTempAlgParamsAGL1(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsAGL1);
+            CHK_RET(algTemplateAGL1->KernelRun(param, tempAlgParamsAGL1, templateResourceAGL1));
+        }
 
         // ----------- AGL0: level0 AllGather -----------
-        // GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
-        //     tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
-        // CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
+        GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
+            tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
+        CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
+
+        processedDataCount += currDataCount;
+        loop++;
     }
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] End.");
     return HCCL_SUCCESS;
