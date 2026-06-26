@@ -210,8 +210,8 @@ u64 InsTempAlltoAllVV2Stage1NoMemcpy4Plane::CalcRelaySlotOffset(u32 srcRank, u32
     return slotIdx * slotStride_;
 }
 
-u64 GetExactRelaySlotOffset(const TemplateDataParams &params, u32 rankSize, u32 srcRank, u32 dstRank, u32 partIdx,
-    u64 fallbackOffset)
+static u64 GetExactRelaySlotOffset(const TemplateDataParams &params, u32 rankSize, u32 srcRank, u32 dstRank,
+    u32 partIdx, u64 fallbackOffset)
 {
     u64 slotIdx = (static_cast<u64>(srcRank) * rankSize + dstRank) * 2 + partIdx;
     if (slotIdx < params.alltoAllVV2SlotOffsets.size()) {
