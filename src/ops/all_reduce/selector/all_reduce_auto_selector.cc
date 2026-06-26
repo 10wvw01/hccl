@@ -530,7 +530,9 @@ SelectorStatus AllReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->userRankSize <= AR_AIV_BOARD_SIZE) {
+    if (topoInfo->level0Topo != Level0Shape::MESH_1D) {
+        selectAlgName = "AivAllReduceMesh1DTwoShot";
+    } else if (topoInfo->userRankSize <= AR_AIV_BOARD_SIZE) {
         // 板内8p场景，按照时延拐点选择算法
         if (dataSize < AR_AIV_SMALL_DATA_SIZE_IN_BOARD) {
             selectAlgName = "AivAllReduceMesh1DOneShot";
