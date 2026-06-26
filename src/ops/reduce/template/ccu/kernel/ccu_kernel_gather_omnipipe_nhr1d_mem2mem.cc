@@ -44,6 +44,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
     
     ctx.input.resize(ctx.localSize + 1);
+    ctx.scratch.resize(ctx.localSize + 1);
     ctx.token.resize(ctx.localSize + 1);
     
     for (uint64_t channelIdx = 0; channelIdx < ctx.localSize; channelIdx++) {
@@ -178,14 +179,14 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
 
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
-    // CCU_CHK_RET(InitResource(ctx));
-    // CCU_CHK_RET(LoadArgs(ctx));
+    CCU_CHK_RET(InitResource(ctx));
+    CCU_CHK_RET(LoadArgs(ctx));
     
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
-    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
-    // CCU_CHK_RET(PostSync(ctx));
+    CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
