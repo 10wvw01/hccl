@@ -178,6 +178,18 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
             }
         }
     }
+    // [BISECT-B] RS2/AG2/AG0 已注释, 没有步骤把结果搬到 param.outputPtr,
+    // test check 看不到。这里把 RSL0 结果区(cclBuffer 偏移 outBuffBaseOff=0 处, 收拢的2片)
+    // 搬到 param.outputPtr, 让 test 能 check。
+    // 恢复时删掉这段。
+    {
+        u64 dumpCount = count_ * templateRankSize_;      // 8 * 2 = 16
+        u64 dumpSize = processSize_ * templateRankSize_; // 32B * 2 = 64B
+        DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.outputPtr,
+            tempAlgParams.buffInfo.outBuffBaseOff, dumpSize, dumpCount);
+        DataSlice dstSlice = DataSlice(param.outputPtr, 0, dumpSize, dumpCount);
+        CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
+    }
     return HCCL_SUCCESS;
 }
 
