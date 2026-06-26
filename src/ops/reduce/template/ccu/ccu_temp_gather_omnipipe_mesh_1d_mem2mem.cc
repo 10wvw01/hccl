@@ -157,50 +157,61 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
         // 当前卡就是root卡，receive其他所有卡
         // 当前卡不是root卡，直接结束
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start5:%d",stepSliceInfo.inputOmniPipeSliceStride.size());
-        uint64_t sliceSize;
-        uint64_t inputOmniPipeSliceStride;
-        uint64_t outputOmniPipeSliceStride;
+        auto sliceSize;
+        auto inputOmniPipeSliceStride;
+        auto outputOmniPipeSliceStride;
+
         // 遍历peer对端的卡
         auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
+        auto outputOmniPipeSliceStrides = stepSliceInfo.outputOmniPipeSliceStride;
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerIdSize=%u", inputOmniPipeSliceStrides.size()); // 这里子通信域里的第几个卡
         // inputOmniPipeSliceStrides[peerId][rpt] 第peerId个卡要发到root的第rpt个数据片
-        for (uint32_t peerId = 0; peerId < inputOmniPipeSliceStrides.size(); ++peerId) { // size其实是子通信域卡数
-            // 判断是不是本端自己的卡
-            HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
-            for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
-                sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
 
-                inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt]; // 远端的输入offset
-                outputOmniPipeSliceStride = stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt]; // 远端的输出offset
+        uint32_t rptTime = inputOmniPipeSliceStrides[0].size();
+        std::vector<std::vector<u32>> rptInputomniPipeSliceStrides(rptTime, inputOmniPipeSliceStrides.size());
+        std::vector<std::vector<u32>> rptOutputomniPipeSliceStrides(rptTime, inputOmniPipeSliceStrides.size());
+        std::vector<std::vector<u32>> rptSliceSizeSliceStrides(rptTime, stepSliceInfo.stepSliceSize.size());
+        for (uint32_t peerId = 0; peerId < inputOmniPipeSliceStrides.size(); ++peerId) {
+            for (uint32_t rpt = 0; rpt < rptTime; ++rpt) {
+                rptInputomniPipeSliceStrides[rpt][peerId] = inputOmniPipeSliceStrides[peerId][rpt];
+                HCCL_DEBUG("rptInputomniPipeSliceStrides[%u][%u]:%u", rpt, peerId, rptInputomniPipeSliceStrides[rpt][peerId]);
+                rptOutputomniPipeSliceStrides[rpt][peerId] = outputOmniPipeSliceStrides[peerId][rpt];
+                HCCL_DEBUG("outputOmniPipeSliceStrides[%u][%u]:%u", rpt, peerId, rptOutputomniPipeSliceStrides[rpt][peerId]);
+                rptSliceSizeSliceStrides[rpt][peerId] = stepSliceInfo.stepSliceSize[peerId][rpt];
+                HCCL_DEBUG("rptSliceSizeSliceStrides[%u][%u]:%u", rpt, peerId, rptSliceSizeSliceStrides[rpt][peerId]);
+            }
+        }
 
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] sliceSize=%u", sliceSize);
-                // 自己是逻辑root卡 && 自己不和自己通信
-                bool ifNewRoot = (subRoot == mySubCommRank_ && peerId != subRoot); // 判断是不是root，需不需要做搬运  
-                std::vector<uint64_t> taskArgs = {
-                    inputAddr, 
-                    outputAddr,
-                    token, 
-                    localCopyFlag, 
-                    sliceSize, 
-                    inputOmniPipeSliceStride, 
-                    outputOmniPipeSliceStride, 
-                    isStepOne_, 
-                    isLastStep_, 
-                    ifNewRoot,
-                    peerId
-                };
-                // if (ifNewRoot && sliceSize!=0) {
-                HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-                            " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d] peerId[%d]",
-                            rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, peerId);
-            
-                // }
-                uint64_t argSize = taskArgs.size();
-                CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
-                if (launchRet != CCU_SUCCESS) {
-                    HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
-                    return ConvertCcuToHccl(launchRet);
-                }
+        for (uint32_t rpt = 0; rpt < rptTime; ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
+            sliceSize = rptSliceSizeSliceStrides[rpt];
+            inputOmniPipeSliceStride = rptInputomniPipeSliceStrides[rpt]; // 远端的输入offset
+            outputOmniPipeSliceStride = rptOutputomniPipeSliceStrides[rpt]; // 远端的输出offset
+
+            // 自己是逻辑root卡 && 自己不和自己通信
+            bool ifNewRoot = (subRoot == mySubCommRank_ && peerId != subRoot); // 判断是不是root，需不需要做搬运  
+            std::vector<uint64_t> taskArgs = {
+                inputAddr, 
+                outputAddr,
+                token, 
+                localCopyFlag, 
+                sliceSize, 
+                inputOmniPipeSliceStride, 
+                outputOmniPipeSliceStride, 
+                isStepOne_, 
+                isLastStep_, 
+                ifNewRoot
+            };
+            // if (ifNewRoot && sliceSize!=0) {
+            HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
+                        "  localCopyFlag=%llu  ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d]",
+                        rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, localCopyFlag,  ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot);
+        
+            // }
+            uint64_t argSize = taskArgs.size();
+            CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
+            if (launchRet != CCU_SUCCESS) {
+                HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
+                return ConvertCcuToHccl(launchRet);
             }
         }
     } 
