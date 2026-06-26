@@ -132,7 +132,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::CalcRes(HcclComm comm, const OpP
     auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2MemY>();
     kernelArg->rankSize = subCommRanks_[0].size();
     kernelArg->rankId = mySubCommRank_;
-    kernelArg->rootId = subCommRootId_;
+    kernelArg->rootId = subRoot;
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
     kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;

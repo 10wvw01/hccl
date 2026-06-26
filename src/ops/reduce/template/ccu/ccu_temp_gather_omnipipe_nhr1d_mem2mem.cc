@@ -122,7 +122,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>();
     kernelArg->rankSize = subCommRanks_[0].size();
     kernelArg->rankId = mySubCommRank_;
-    kernelArg->rootId = subCommRootId_;
+    kernelArg->rootId = subRoot;
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
     kernelArg->myrealrank = myRank_;
@@ -283,7 +283,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
     stepInfo.fromRank = templateRankSize_;
     stepInfo.step = step;
     stepInfo.myRank = virtRankIdx;
-    uint32_t rootId = subCommRootId_;
+    uint32_t rootId = subRoot;
     u32 deltaRoot = (rootId + templateRankSize_ - virtRankIdx) % templateRankSize_;
     // Gather: 用 nSteps-1-step
     u32 deltaRankPair = 1 << (nSteps - 1 - step);
