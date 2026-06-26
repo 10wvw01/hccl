@@ -1,3 +1,29 @@
+/**
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+/**
+ * @defgroup hccl_algorithm HcclAlg
+ * @ingroup Hccl
+ * @brief This file defines the HCCL algorithm description structure within multiple orthogonal dimentions.
+ * This structure is represented with a class, which is instantiated by the upstream algorithm selector.
+ * This algorithm class provides public APIs to return corresponding executor to actually run/orchestrate
+ * the algorithm upon the specified communication domain.
+ * Note, the algorhtm is organized in multi-level hierarchy structure. A executor works in higher level to
+ * orchestrate multiple standalone workflows each for a specific logic sub-domain. We define the workflow
+ * with template, which is described with TemplateDesc.
+ * A logic sub-domain determines the scope a template works on. More specific, a sub-domain defines the scope
+ * in which a groups of ranks to exchange data with specified manner. Multiple scopes may overlap in physical.
+ * And. the upper layer executor takes the responsibility to schedule and synchronize its multiple templates.
+ * The executor's scheduling and synchronizing procedure is defined in its orchestrate method.
+ * The ExecutorType determines the different orchestrating methods.
+ */
 
 class TopoMatchBase {
 public:
