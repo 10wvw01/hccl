@@ -42,7 +42,7 @@ class HcclAlgorithm {
     HcclCMDType hcclCmdType;
     EngineType engineType;
     ExecutorType executorType;
-    vector<TemplateDesc> templates
+    vector<TemplateDesc> templates;
 
     // vector<vector<TemplateDesc>> templateDescs;   // 第一层表示stage，第二层表示数据part, 
     //                                               //  parallel: [[stage0_part0, stage0_part1],[stage1_part0, stage1_part1]] 

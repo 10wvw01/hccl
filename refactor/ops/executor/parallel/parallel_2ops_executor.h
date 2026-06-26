@@ -11,20 +11,10 @@ public:
 
 private:
     HcclResult PrepareResForTemplate();
-    HcclResult OrchestrateLoop(
-        const AlgResourceCtxSerializable &resCtx, InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter);
-    void GenTemplateAlgParamsIntra0(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                                    const u64 dataOffset, const u64 dataCountPerLoopAixs0, const u64 scratchOffset,
-                                    TemplateDataParams &tempAlgParamsIntra0) const;
-    void GenTemplateAlgParamsIntra1(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                                    const u64 dataOffset, const u64 dataCountPerLoopAixs1, const u64 scratchOffset,
-                                    TemplateDataParams &tempAlgParamsIntra1) const;
-    void GenTemplateAlgParamsInter0(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                                    const u64 dataOffset, const u64 dataCountPerLoopAixs0, const u64 scratchOffset,
-                                    TemplateDataParams &tempAlgParamsInter0) const;
-    void GenTemplateAlgParamsInter1(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-                                    const u64 dataOffset, const u64 dataCountPerLoopAixs1, const u64 scratchOffset,
-                                    TemplateDataParams &tempAlgParamsInter1) const;        
+    HcclResult OrchestrateLoop(const AlgResourceCtxSerializable &resCtx);
+    HcclResult GenTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource);
+    HcclResult GenTemplateDataParams(u32 stage, u32 dataPart, TemplateDataParams &templateDataParams);
+
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
     uint64_t rankIdxLevel0_{0};
