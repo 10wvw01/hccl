@@ -576,9 +576,6 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         }
 
         // ----------- RSL2: level2 ReduceScatter -----------
-        // [BISECT-A] 二分调试:RS0 内部定位,先注释掉 RS2/AG2/AG0。
-        // 恢复:取消下面三段的注释。
-        /*
         GenTempAlgParamsRSL2(loop, currDataCount, sliceSizeRSL1, tailSizeRSL1, tempAlgParamsRSL2);
         CHK_RET(algTemplateRSL2->KernelRun(param, tempAlgParamsRSL2, templateResourceRSL2));
 
@@ -597,10 +594,6 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         GenTempAlgParamsAGL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0.sliceSize,
             tempAlgParamsRSL0.tailSize, tempAlgParamsAGL0);
         CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
-        */
-        (void)algTemplateRSL2;
-        (void)algTemplateAGL2;
-        (void)algTemplateAGL0;
 
         processedDataCount += currDataCount;
         loop++;
