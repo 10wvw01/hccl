@@ -333,6 +333,20 @@ HcclResult InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0
             myRank_, totalScratchMultiple, scratchMemBlockSize);
         return HCCL_E_INTERNAL;
     }
+    // level3 (Mesh1D) 把 s3 份 gather 结果写到累积区之后 [above, above + s3*slice),
+    // 其中 above = s1*s2*s3*slice。校验最坏情形(maxCountPerLoop)下不越界 cclMem, 也不与累积区 [0, above) 重叠。
+    // above 与 s3*slice 严格 > 0(各 rankSize ≥ 1, slice > 0), 二者相加天然在累积区之外, 只需校验上界。
+    if (!skipLevel3_) {
+        const u64 maxSliceSize = maxCountPerLoop * dataTypeSize_;
+        const u64 level3RegionEnd =
+            (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ + rankSizeLevel3_) * maxSliceSize;
+        CHK_PRT_RET(level3RegionEnd > maxTmpMemSize_,
+            HCCL_ERROR("[InsV2AllGatherSequenceExecutor4LevelOCS] myRank[%u] level3 out-region [above, above+s3*slice] "
+                "exceeds cclMem: need[%llu] > cclMemSize[%llu] (s1[%llu] s2[%llu] s3[%llu] maxSliceSize[%llu])",
+                myRank_, level3RegionEnd, maxTmpMemSize_,
+                rankSizeLevel1_, rankSizeLevel2_, rankSizeLevel3_, maxSliceSize),
+            HCCL_E_INTERNAL);
+    }
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
 
     for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
@@ -363,7 +377,12 @@ HcclResult InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0
     return HcclResult::HCCL_SUCCESS;
 }
 
-// level3 inter (INPUT -> HCCL): 最外层最先执行，读 INPUT，在越过累积区(s1*s2*s3)的位置写 scratch
+// level3 inter (INPUT -> HCCL): 最外层最先执行，读 INPUT。
+// 本层是 Mesh1D 模板(非 NHR)，gather 结果落到 out 区(outputPtr=cclMem)，每 rank 一份，按 sliceSize 间隔，
+// 基址置于累积区之后(above = s1*s2*s3*slice)，与 level2 的 inBuffBaseOff 对齐。
+// 注意: Mesh1D 在 OPBASE(enableRemoteMemAccess_=false)下，PostLocalCopy 因 outBuffType=HCCL_BUFFER 被跳过，
+//       结果由 ring 步直接写入 out 区；因此 outBuffBaseOff + outputSliceStride*algRank 必须给每个 rank 独立 slot，
+//       不能像 NHR 那样 outputSliceStride=0(否则所有 rank 写同一 offset 互相覆盖)。
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1,
     typename InsAlgTemplate2, typename InsAlgTemplate3>
 void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
@@ -371,6 +390,10 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 curCount, const u64 dataOffset,
     TemplateDataParams &tempAlgParamsLevel3) const
 {
+    const u64 sliceSize = curCount * dataTypeSize_;
+    // 越过累积区 [0, s1*s2*s3*slice) 的基址: level3 产物落在 [above, above + s3*slice)
+    const u64 above = rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * sliceSize;
+
     tempAlgParamsLevel3.buffInfo.inputPtr = param.inputPtr;
     tempAlgParamsLevel3.buffInfo.outputPtr = resCtx.cclMem.addr;
     tempAlgParamsLevel3.buffInfo.hcclBuff = resCtx.cclMem;
@@ -381,15 +404,19 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     tempAlgParamsLevel3.buffInfo.outputSize = param.outputSize;
 
     tempAlgParamsLevel3.buffInfo.inBuffBaseOff = dataOffset;
-    tempAlgParamsLevel3.buffInfo.outBuffBaseOff = 0;
-    tempAlgParamsLevel3.buffInfo.hcclBuffBaseOff =
-        rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_;
-    tempAlgParamsLevel3.sliceSize = curCount * dataTypeSize_;
+    // out 区基址 = above: Mesh1D 把 s3 份 gather 结果写到这里(mesh_1D.cc 的 outBuffBaseOff/outOffset)
+    tempAlgParamsLevel3.buffInfo.outBuffBaseOff = above;
+    // scratch 镜像与 out 同基址: Mesh1D 在 OPBASE 下 ring 走 remoteCclBuff, 镜像供 TX 读自身数据;
+    // 与 out 共基址无冲突(TX 读 [above+slice*myRank], RX 写 [above+slice*connectedRank], 因 stride=slice 不重叠)
+    tempAlgParamsLevel3.buffInfo.hcclBuffBaseOff = above;
+    tempAlgParamsLevel3.sliceSize = sliceSize;
     tempAlgParamsLevel3.count = curCount;
-    tempAlgParamsLevel3.tailSize = tempAlgParamsLevel3.sliceSize;
+    tempAlgParamsLevel3.tailSize = sliceSize;
 
     tempAlgParamsLevel3.inputSliceStride = 0;
-    tempAlgParamsLevel3.outputSliceStride = 0;
+    // 关键修复: 必须用 sliceSize 间隔, 给每个 rank 独立 slot, 避免 Mesh1D ring 各步写同一 offset 覆盖。
+    // (旧值 0 是从 3 级 NHR 层照搬的, 对 NHR 有效但对 Mesh1D 致命)
+    tempAlgParamsLevel3.outputSliceStride = sliceSize;
     tempAlgParamsLevel3.repeatNum = 1;
     tempAlgParamsLevel3.inputRepeatStride = 0;
     tempAlgParamsLevel3.outputRepeatStride = 0;
