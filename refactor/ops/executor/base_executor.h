@@ -7,22 +7,26 @@ public:
     BaseExecutor(HcclAlgorithm &algo, BaseOpParam &param);
     ~BaseExecutor();
 
-protected:
-    // Describe函数完全没用到，可以删除
-    // std::string Describe();
-
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
-        AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgTopoMatch topoMatch);
+        AlgHierarchyInfoForAllLevel &algHierarchyInfo);
 
-    HcclResult Plan(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    HcclResult Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
 
-    virtual HcclResult CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    virtual HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
 
-    virtual HcclResult Orchestrate(const BaseOpParam &baseOpParam, ConfigParam &configParam,
-        const BufferParam &bufferParam, const CommInfoList &CommInfoList);
+    virtual HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
+        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
 
-    //TODO: 目前仅用于CCU，理论上可扩展至所有模式
+    // TODO: 目前仅用于CCU，理论上可扩展至所有模式
     HcclResult FastLaunch();
+
+protected:
+    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(
+        const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    
+    std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList);
+    
+    HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
 
     // algo
     HcclAlgorithm algo_;
@@ -58,6 +62,12 @@ protected:
     std::vector<std::vector<u32>> syncNotifyOnTemplates_;
 };
 
+
+struct BaseExecutorParam {
+    BaseOpParam baseOpParam;
+    ConfigParam configParam;
+    BufferParam bufferParam;
+};
 
 struct BaseOpParam {
     u32 myRank = INVALID_VALUE_RANKID;

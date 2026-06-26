@@ -32,7 +32,7 @@ HcclResult BaseExecutor::Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo)
     return HCCL_SUCCESS;
 }
 
-HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
+HcclResult BaseExecutor::CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
     // TODO：子类自行实现，以下只是示例，或者只实现MergeResReq
     std::vector<AlgResourceRequest> resReqList;
@@ -51,24 +51,8 @@ HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResou
     MergeResReq(resReqList, resReq);
 }
 
-std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
-{
-    // 如果用多维数组，基类提供一个生成所有template的函数
-    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> allTemplates;
-    for (auto i = 0; i < algo_.templateDescs.size(); ++i) {
-        
-    }
-}
-
-std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList)
-{
-    // 根据templateDesc实例化Template
-    // auto singleTemplate = map[algo_.engineType][opType][algoType][ShotType][JettyType];
-    // return singleTemplate;
-}
-
-HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &configParam,
-    const BufferParam &bufferParam, const CommInfoList &CommInfoList)
+HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
     // TODO：子类自行实现，以下只是示例
     // 初始化资源
@@ -85,7 +69,8 @@ HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam, ConfigParam &
 
 // 公共工具类函数
 
-std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
+std::vector<std::vector<std::shared_ptr<BaseTemplate>>> BaseExecutor::GenAllTemplates(
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
     // 如果用多维数组，基类提供一个生成所有template的函数
     std::vector<std::vector<std::shared_ptr<BaseTemplate>>> allTemplates;
@@ -98,14 +83,14 @@ std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(const Al
     }
 }
 
-std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList)
+std::shared_ptr<BaseTemplate> BaseExecutor::GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList)
 {
     // 根据templateDesc实例化Template
     // auto singleTemplate = map[algo_.engineType][opType][algoType][ShotType][JettyType];
     // return singleTemplate;
 }
 
-HcclResult InitRes(const AlgResourceCtxSerializable &resCtx)
+HcclResult BaseExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
 {
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
