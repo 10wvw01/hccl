@@ -2176,6 +2176,7 @@ HcclResult HcclRegstryBuff(HcclComm comm, const char *memTag, void *bufferPtr, u
     CommMem regMem{COMM_MEM_TYPE_DEVICE, bufferPtr, bufferSize};
     CHK_RET(HcclCommMemReg(comm, memTag, &regMem, memHandle));
     HCCL_INFO("[%s] regMemAddr[%p] regMemSize[%llu]", __func__, regMem.addr, regMem.size);
+    HCCL_ERROR("[%s] Register buffer failed, memTag: %s", __func__, memTag);
     CHK_PTR_NULL(*memHandle);
     return HCCL_SUCCESS;
 }

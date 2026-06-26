@@ -154,6 +154,10 @@ HcclResult InsTempBroadcastMesh1DTwoShot::RootSendData(const u64 memOffset,
     } else {
         sendDstOffset0 += tempAlgParams.buffInfo.outBuffBaseOff;
         DstPtr = linkSend.remoteOutputGraphMode.addr;
+        if (DstPtr == nullptr) {
+            HCCL_ERROR("graph mode, linkSend.remoteOutputGraphMode.addr is nullptr(158)");
+            return HCCL_E_INTERNAL;
+        }
     }
     DataSlice sendSrcSlice0 = DataSlice(tempAlgParams.buffInfo.inputPtr, sendSrcOffset0, sliceInfoVec[remoteRankIdx][0].size);
     DataSlice sendDstSlice0 = DataSlice(DstPtr, sendDstOffset0, sliceInfoVec[remoteRankIdx][0].size);
@@ -173,6 +177,10 @@ HcclResult InsTempBroadcastMesh1DTwoShot::RootSendData(const u64 memOffset,
     } else {
         sendDstOffset1 += tempAlgParams.buffInfo.outBuffBaseOff;
         DstPtr = linkSend.remoteOutputGraphMode.addr;
+        if (DstPtr == nullptr) {
+            HCCL_ERROR("graph mode, linkSend.remoteOutputGraphMode.addr is nullptr(158)");
+            return HCCL_E_INTERNAL;
+        }
     }
     DataSlice sendSrcSlice1 = DataSlice(tempAlgParams.buffInfo.inputPtr, sendSrcOffset1, sliceInfoVec[myRankIdx][0].size);
     DataSlice sendDstSlice1 = DataSlice(DstPtr, sendDstOffset1, sliceInfoVec[myRankIdx][0].size);
