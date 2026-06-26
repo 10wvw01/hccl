@@ -242,8 +242,13 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
         const uint16_t rankMask = 1 << arg->rankId;
         CCU_IF(ctx.isInputOutputEqual == 0)
         {
-            CCU_CHK_RET(GroupCopy(ctx, ctx.myDstMem, ctx.srcMem, ctx.groupOpSize));
-            CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
+            CCU_IF(ctx.sliceSize != 0) {
+                CCU_CHK_RET(ccu::LocalCopy(ctx.myDstMem, ctx.srcMem, ctx.sliceSize, ctx.event, rankMask));
+            } CCU_ELSE {
+                CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
+            }
+            // CCU_CHK_RET(GroupCopy(ctx, ctx.myDstMem, ctx.srcMem, ctx.groupOpSize));
+            // CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         } CCU_ELSE {
             CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         }
@@ -265,11 +270,6 @@ CcuResult CcuAllGatherNHR1DMultiJettyMem2MemKernel(CcuKernelArg arg)
 
     AllGatherNHR1DMultiJettyMem2MemContext ctx;
     ctx.resourceAllocated = false;
-    ctx.moConfig.msInterleave = 0;
-    ctx.moConfig.loopCount = 0;
-    ctx.moConfig.memSlice = 0;
-    ctx.moRes.eventCount = 0;
-    ctx.moRes.bufCount = 0;
 
     HCCL_INFO("[CcuKernelAllGatherNHR1DMultiJettyMem2Mem] AllGatherNHR1DMultiJettyMem2Mem start");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
