@@ -104,7 +104,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0,
                                                     channelDescs0, CommTopo::COMM_TOPO_1DMESH));
     CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks1,
-                                                    channelDescs1, false));
+                                                    channelDescs1, false, false));
 
     if ((param.engine == CommEngine::COMM_ENGINE_CCU)) {
         resReq0.ccuKernelInfos[0].channels = channelDescs0;
