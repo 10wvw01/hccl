@@ -171,6 +171,9 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
             HCCL_WARNING("[ReduceAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
+            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
+            HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet "
+            "for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
             selectAlgName = "CcuReduceParallelMesh1DNHRUBX";
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
