@@ -34,7 +34,6 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     if (rootIt != ranks.end()) {
         subCommRootId_ = std::distance(ranks.begin(), rootIt);
     }
-    rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
 }
 
@@ -51,7 +50,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetRes(AlgResourceRequest &resourc
 {
     resourceRequest.notifyNumOnMainThread = 0;
     resourceRequest.slaveThreadNum = 0;
-    // resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
 
     return HCCL_SUCCESS;
 }
@@ -75,8 +74,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     //                      };
 
     std::vector<HcclChannelDesc> channelDescs;
-    CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
-    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes] Get Mesh Channel Success!");
+    // CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
+    // HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes] Get Mesh Channel Success!");
 
     // NHR
     CommTopo priorityTopo = COMM_TOPO_CLOS;
@@ -100,7 +99,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
         HCCL_DEBUG("[%s] channel myrank[%u], mySubCommRank_[%u],  rank2ChannelIdx[%u]=%u, subRankIdx2RankIdx[%u]=%u ", __func__, myRank_,  mySubCommRank_, 
                 subRankIdx , i, subRankIdx, remoteRank);
     }
-    subRankIdx2RankIdx[mySubCommRank_] = myRank_;
+
     HCCL_DEBUG("[%s] channel myrank-look[%u], mySubCommRank_[%u],  subRankIdx2RankIdx[%u]=%u ", __func__, myRank_,  mySubCommRank_, mySubCommRank_, myRank_);
 
     CHK_RET(CalcNHRInfo(stepInfoVector));
@@ -151,8 +150,6 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
 
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
-    // uint64_t token = CcuRep::GetTokenInfo(
-    //     reinterpret_cast<uint64_t>(buffInfo_.inputPtr), static_cast<uint64_t>(buffInfo_.inputSize));
 
     if (localCopyFlag == 0) {
         uint64_t sliceSize;
