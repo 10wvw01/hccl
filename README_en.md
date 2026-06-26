@@ -71,7 +71,7 @@ To quickly build and experience this project, visit the following quick guide.
 
 ## 📖Learning Resources
 
-HCCL provides user guides, communication operator development guides, technical articles, and training videos. For details, see [HCCL references](./docs/README.md).
+HCCL provides user guides, communication operator development guides, technical articles, and training videos. For details, see [HCCL User Guide](https://www.hiascend.com/document/detail/en/canncommercial/850/commlib/hcclug/hcclug_000001.html).
 
 ## 📝 Related Information
 
