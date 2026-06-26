@@ -95,25 +95,33 @@ HcclResult InsTempReduceScatterMesh1D::KernelRun(const OpParam& param,
             CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
         }
     }
-    // [BISECT-A] 二分调试:注释 PostCopy(阶段B),直接把阶段A(RunReduceScatter)的
-    // cclBuffer 产物搬到用户输出 param.outputPtr,用测试 check 直接看 RunReduceScatter 是否正确。
-    // 理想(rank0,myAlgRank=0):cclBuffer 第0片(myAlgRank)=0,第1片(nextRank)=对端输入=全2
-    // 恢复:改回 PostCopy(param, tempAlgParams, templateResource.threads);
-    // PostCopy(param, tempAlgParams, templateResource.threads);
-    {
-        u64 dumpCount = count_ * templateRankSize_;     // 8 * 2 = 16 个元素
-        u64 dumpSize = processSize_ * templateRankSize_; // 32B * 2 = 64B
-        DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
-            tempAlgParams.buffInfo.hcclBuffBaseOff, dumpSize, dumpCount);
-        DataSlice dstSlice = DataSlice(param.outputPtr, 0, dumpSize, dumpCount);
-        CHK_RET(static_cast<HcclResult>(LocalCopy(templateResource.threads[0], srcSlice, dstSlice)));
-    }
+    // [BISECT-B] 二分调试:PostCopy 内部加开关,定位 LocalCopy vs LocalReduce。
+    // 见 PostCopy 顶部 POSTCOPY_BISECT_MODE 说明。恢复时把下面改回:
+    //   PostCopy(param, tempAlgParams, templateResource.threads);
+    PostCopy(param, tempAlgParams, templateResource.threads);
     HCCL_INFO("[InsTempReduceScatterMesh1D] Run End");
     return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads)
 {
+    // [BISECT-B] 二分调试开关。改完重新编译即可,无需环境变量。
+    //   0 = 不跑 PostCopy, 把阶段A(RunReduceScatter)cclBuffer 直接搬到 output(对照基准)
+    //   1 = 只跑 LocalCopy(注释 LocalReduce)
+    //   2 = LocalCopy + LocalReduce 都跑(=完整 PostCopy, 还原 bug 现场)
+    // 当前: 1 (下一刀二分点: 看 LocalCopy 后 buf[2] 是否已异常)
+    constexpr u32 POSTCOPY_BISECT_MODE = 1;
+
+    if (POSTCOPY_BISECT_MODE == 0) {
+        u64 dumpCount = count_ * templateRankSize_;      // 8 * 2 = 16
+        u64 dumpSize = processSize_ * templateRankSize_; // 32B * 2 = 64B
+        DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
+            tempAlgParams.buffInfo.hcclBuffBaseOff, dumpSize, dumpCount);
+        DataSlice dstSlice = DataSlice(param.outputPtr, 0, dumpSize, dumpCount);
+        CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
+        return HCCL_SUCCESS;
+    }
+
     // 通信结束之后，数据都在 cclBuffer 上，需要搬运到对应的输出位置。
     u32 rankIdx = 0;
     auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
@@ -147,6 +155,10 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
                 repeatIdx * tempAlgParams.outputRepeatStride + myAlgRank * tempAlgParams.outputSliceStride, processSize_, count_);
             CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
         }
+        // [BISECT-B] 模式1: 只跑 LocalCopy, 跳过 LocalReduce。直接把输出 dump 给测试 check。
+        if (POSTCOPY_BISECT_MODE == 1) {
+            continue;
+        }
         if (dataType_ == HCCL_DATA_TYPE_INT64 || dataType_ == HCCL_DATA_TYPE_UINT64 || dataType_ == HCCL_DATA_TYPE_FP64
             || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
             CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
@@ -166,7 +178,7 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
             }
         }
     }
-    return HcclResult::HCCL_SUCCESS;
+    return HCCL_SUCCESS;
 }
 
 HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
