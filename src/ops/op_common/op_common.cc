@@ -1074,12 +1074,12 @@ HcclResult ReuseCachedDeviceCtx(HcclComm comm, const OpParam &param, void **resC
 {
     void *ctx = nullptr;
     uint64_t size = 0;
-    HcclResult ret;
-    if (param.engine == COMM_ENGINE_CPU) {
-        ret = HcclEngineCtxGet(comm, param.algTag, COMM_ENGINE_AICPU_TS, &ctx, &size);
-    } else {
-        ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
-    }
+    HcclResult ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
+    // if (param.engine == COMM_ENGINE_CPU) {
+    //     ret = HcclEngineCtxGet(comm, param.algTag, COMM_ENGINE_AICPU_TS, &ctx, &size);
+    // } else {
+    //     ret = HcclEngineCtxGet(comm, param.algTag, param.engine, &ctx, &size);
+    // }
     if (ret == HCCL_SUCCESS) {
         *resCtxSequence = ctx;
         ctxSize = size;
@@ -1095,11 +1095,12 @@ HcclResult IncrementalCreateChannel(HcclComm comm, const OpParam &param, AlgReso
 {
     HcclResult ret = HcclGetChannel(comm, param, resRequest, &hostCtxObj);
     CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("failed to incrementally create channel."), ret);
-    if (param.engine == COMM_ENGINE_CPU) {
-        ret = HcclEngineCtxDestroy(comm, param.algTag, COMM_ENGINE_AICPU_TS);
-    } else {
-        ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
-    }
+    // if (param.engine == COMM_ENGINE_CPU) {
+    //     ret = HcclEngineCtxDestroy(comm, param.algTag, COMM_ENGINE_AICPU_TS);
+    // } else {
+    //     ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
+    // }
+    ret = HcclEngineCtxDestroy(comm, param.algTag, param.engine);
     if (ret != HCCL_SUCCESS) {
         HCCL_ERROR("failed to destroy device Ctx, ret[%d].", ret);
     }
