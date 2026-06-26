@@ -95,7 +95,19 @@ HcclResult InsTempReduceScatterMesh1D::KernelRun(const OpParam& param,
             CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
         }
     }
-    PostCopy(param, tempAlgParams, templateResource.threads);
+    // [BISECT-A] 二分调试:注释 PostCopy(阶段B),直接把阶段A(RunReduceScatter)的
+    // cclBuffer 产物搬到用户输出 param.outputPtr,用测试 check 直接看 RunReduceScatter 是否正确。
+    // 理想(rank0,myAlgRank=0):cclBuffer 第0片(myAlgRank)=0,第1片(nextRank)=对端输入=全2
+    // 恢复:改回 PostCopy(param, tempAlgParams, templateResource.threads);
+    // PostCopy(param, tempAlgParams, templateResource.threads);
+    {
+        u64 dumpCount = count_ * templateRankSize_;     // 8 * 2 = 16 个元素
+        u64 dumpSize = processSize_ * templateRankSize_; // 32B * 2 = 64B
+        DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
+            tempAlgParams.buffInfo.hcclBuffBaseOff, dumpSize, dumpCount);
+        DataSlice dstSlice = DataSlice(param.outputPtr, 0, dumpSize, dumpCount);
+        CHK_RET(static_cast<HcclResult>(LocalCopy(templateResource.threads[0], srcSlice, dstSlice)));
+    }
     HCCL_INFO("[InsTempReduceScatterMesh1D] Run End");
     return HcclResult::HCCL_SUCCESS;
 }
