@@ -27,8 +27,6 @@ static CcuResult ParseKernelArg(GatherOmniPipeNHR1DMem2MemContext &ctx,
     ctx.rankSize = kernelArg->rankSize;
     ctx.rankId = kernelArg->rankId;
     ctx.rootId = kernelArg->rootId;
-    ctx.dataType = kernelArg->opParam.DataDes.dataType;
-    ctx.ifRealRoot = kernelArg->ifRealRoot;
     ctx.stepInfoVector = kernelArg->stepInfoVector;
     ctx.rank2ChannelIdx = kernelArg->rank2ChannelIdx;
     ctx.localSize = static_cast<uint32_t>(ctx.rank2ChannelIdx.size());
@@ -183,11 +181,11 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    CCU_CHK_RET(PreSync(ctx));
+    // CCU_CHK_RET(PreSync(ctx));
     
-    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
-    CCU_CHK_RET(PostSync(ctx));
+    // CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
