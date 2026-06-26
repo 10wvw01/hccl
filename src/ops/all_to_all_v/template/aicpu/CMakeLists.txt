@@ -13,6 +13,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_all_to_all_v_ab_relay_no_memcpy.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_all_to_all_v_ab_inline_no_memcpy.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_all_to_all_v_v2_stage1_no_memcpy.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_all_to_all_v_v2_stage1_no_memcpy_4plane.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_alltoall_mesh_2d_v2.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_alltoall_mesh_clos_v2.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_alltoall_mesh_2d_v3.cc

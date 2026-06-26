@@ -82,6 +82,9 @@ bool IsRemoteUserMemExperimentalAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodUbxV2") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4Plane") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4PlanePodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4PlanePodDirect") == 0 ||
            std::strcmp(param.algName, "InsAllGatherParallelMesh1DMeshClosV2NoMemcpy") == 0 ||
            std::strcmp(param.algName, "InsAllGatherParallelMesh1DMeshClosV2NoMemcpyMultiJetty") == 0 ||
            std::strcmp(param.algName, "InsAllGatherParallelMesh1DMeshClosV2NoMemcpyPodUbxV2") == 0 ||
@@ -115,7 +118,10 @@ bool IsAlltoAllNoMemcpyAlg(const OpParam &param)
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV3ABInlineNoMemcpyPodDirect") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy") == 0 ||
            std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodUbxV2") == 0 ||
-           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodDirect") == 0;
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpyPodDirect") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4Plane") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4PlanePodUbxV2") == 0 ||
+           std::strcmp(param.algName, "InsAlltoAllVParallelMesh2DClosV2Stage1NoMemcpy4PlanePodDirect") == 0;
 }
 
 bool NeedAlltoAllVNoMemcpyExchange(const OpParam &param)
