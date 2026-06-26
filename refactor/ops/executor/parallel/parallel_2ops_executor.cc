@@ -26,10 +26,42 @@ HcclResult Parallel2OpsExecutor::Orchestrate(const AlgResourceCtxSerializable &r
     // 算法展开
 }
 
+HcclResult Parallel2OpsExecutor::GenerateTemplateRes(TemplateResource templateResource)
+{
+    templateResource
+}
+
+HcclResult Parallel2OpsExecutor::GenerateTemplateRes(TemplateDataParams &templateResource)
+{
+
+}
+
 HcclResult Parallel2OpsExecutor::OrchestrateLoop(
-    const AlgResourceCtxSerializable &resCtx, InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter)
+    const AlgResourceCtxSerializable &resCtx)
 {
     // 参考现有的allGather算子实现
+    uint32_t stageNum = algo_.templateDescs.size(); // 并行计算的步骤
+    uint32_t dataPartNum = algo_.templateDescs.at(0).size(); //每一步计算的数据部分数
+
+    for(auto stage = 0; stage < stageNum; stage++){
+        // 预先同步
+        for(auto dataPart = 0; stage < dataPartNum; dataPart++){
+            // 根据TemplateDescrb获取实例化生成算法的template
+            BaseTemplate template = Func(algo_.at(stage).at(dataPart));
+
+            // 根据阶段生成template的资源参数
+            TemplateResource templateResource;
+            GenTemplateRes(stage, dataPart, templateResource);
+
+            // 根据阶段生成template的数据参数
+            TemplateDataParams templateDataParams;
+            GenTemplateDataParams(stage, dataPart, templateDataParams);
+
+            template.KernelRun(templateDataParams, templateResource, algo_.engineType);
+        }
+        //全同步
+    }
+
 }
 
 HcclResult Parallel2OpsExecutor::HcclResult PrepareResForTemplate()
