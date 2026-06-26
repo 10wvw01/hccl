@@ -80,8 +80,6 @@ protected:
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable& resCtx);
     HcclResult CalcSliceInfoReduce(u64 dataCount);
     u64 RoundUp(const u64 dividend, const u64 divisor) const;
-    u64 GetXRoot();
-    u64 GetYRoot();
 
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;  // 相当于之前的std::vector<InsQuePtr> tempInsQue_;
@@ -92,15 +90,16 @@ protected:
 
     uint64_t rankIdxLevel0_{0};
     uint64_t rankIdxLevel1_{0};
+    uint64_t rootx{0};
+    uint64_t rooty{0};
 
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
-    bool isRoot;
-    bool isSameXAxis;
-    bool isSameYAxis;
-    u64 rootXAixs;
-    u64 rootYAixs;
-    u64 subCommRootId_;
+    bool isRoot{false};
+    bool isSameXAxis{false};
+    bool isSameYAxis{false};
+    
+    u64 subCommRootId_{0};
 
     enum OmnipipeARLevel{
         OMNIPIPE_RS_LEVEL0 = 0,
@@ -119,22 +118,25 @@ private:
     // std::vector<u32>          rsNotifyIdxControlToTemplates_;
     // std::vector<u32>          rsNotifyIdxTemplatesToControl_;
 
-    ThreadHandle controlThread_;
+    // ThreadHandle controlThread_;
 
     std::vector<std::vector<ThreadHandle>> levelThreads_;
     // std::vector<ThreadHandle> tempMainThreadsLevel01RS_;
-    std::vector<u32> ntfIdxCtrlToTempLevel01RS_;
-    std::vector<u32> ntfIdxTempToCtrlLevel01RS_;
+    // std::vector<u32> ntfIdxCtrlToTempLevel01RS_;
+    // std::vector<u32> ntfIdxTempToCtrlLevel01RS_;
+    bool isSameXAxisAsRoot = false;  //和root同x轴
+    bool isSameYAxisAsRoot = false;  //和root同y轴
 
 
-    std::vector<std::vector<ThreadHandle>> levelThreadsAG_;
-    std::vector<ThreadHandle> tempMainThreadsLevel01AG_;
-    std::vector<u32> ntfIdxCtrlToTempLevel01AG_;
-    std::vector<u32> ntfIdxTempToCtrlLevel01AG_;
 
-    std::vector<ThreadHandle> tempMainThreadsLevel0AG_;
-    std::vector<u32> ntfIdxCtrlToTempLevel0AG_;
-    std::vector<u32> ntfIdxTempToCtrlLevel0AG_;
+    // std::vector<std::vector<ThreadHandle>> levelThreadsAG_;
+    // std::vector<ThreadHandle> tempMainThreadsLevel01AG_;
+    // std::vector<u32> ntfIdxCtrlToTempLevel01AG_;
+    // std::vector<u32> ntfIdxTempToCtrlLevel01AG_;
+
+    // std::vector<ThreadHandle> tempMainThreadsLevel0AG_;
+    // std::vector<u32> ntfIdxCtrlToTempLevel0AG_;
+    // std::vector<u32> ntfIdxTempToCtrlLevel0AG_;
     
 
 };

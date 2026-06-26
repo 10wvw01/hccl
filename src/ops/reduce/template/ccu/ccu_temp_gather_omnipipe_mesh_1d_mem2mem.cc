@@ -27,22 +27,41 @@ CcuTempGatherOmniPipeMesh1DMem2Mem::CcuTempGatherOmniPipeMesh1DMem2Mem(const OpP
     if (it != ranks.end()) {
         mySubCommRank_ = std::distance(ranks.begin(), it);
     }
-    rankId_ = rankId;
     // 子通信域的root卡号
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    auto itRoot = std::find(ranks.begin(), ranks.end(), param.root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_ = std::distance(ranks.begin(), itRoot);
     }
 
     ifRealRoot_ = (rankId == param.root);
-    // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
-    //            mySubCommRank_, subCommRootId_, rankId);
 }
 
 CcuTempGatherOmniPipeMesh1DMem2Mem::~CcuTempGatherOmniPipeMesh1DMem2Mem()
 {
 }
 
+void CcuTempGatherOmniPipeMesh1DMem2Mem::SetRoot(u32 root)
+{
+    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2Mem][SetRoot] myRank_ [%u], set root [%u] ", myRank_, root);
+    std::string ranksStr = "";
+    std::vector<u32> ranks = subCommRanks_[0];
+    auto itRoot = std::find(ranks.begin(), ranks.end(), root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_  = std::distance(ranks.begin(), itRoot);
+    }
+    for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
+    HCCL_DEBUG(
+        "[%s] myRank[%u] mySubCommRank[%u] subCommRanks[%s] subCommRootId_[%d]",
+        __func__, myRank_, mySubCommRank_,  ranksStr.c_str(), subCommRootId_);
+}
+
+void CcuTempGatherOmniPipeMesh1DMem2Mem::UnsetRoot(u32 rank)
+{
+    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2Mem][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
+    if (!ifRealRoot_) {
+        subCommRootId_ = 1000;
+    }
+}
 
 u64 CcuTempGatherOmniPipeMesh1DMem2Mem::GetThreadNum() const
 {
@@ -110,11 +129,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2Mem>();
     kernelArg->rankSize = subCommRanks_[0].size();
     kernelArg->rankId = mySubCommRank_;
-    kernelArg->rootId = subRoot;
+    kernelArg->rootId = subCommRootId_;
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
     kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
-    kernelArg->ifRealRoot = ifRealRoot_;
     kernelArg->myrealrank = myRank_;
 
     kernelInfo.setKernelArg(kernelArg);
@@ -175,7 +193,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
 
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] sliceSize=%u", sliceSize);
                 // 自己是逻辑root卡 && 自己不和自己通信
-                bool ifNewRoot = (subRoot == mySubCommRank_ && peerId != subRoot); // 判断是不是root，需不需要做搬运  
+                bool ifNewRoot = (subCommRootId_ == mySubCommRank_ && peerId != subCommRootId_); // 判断是不是root，需不需要做搬运  
                 std::vector<uint64_t> taskArgs = {
                     inputAddr, 
                     outputAddr,
@@ -192,7 +210,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                 // if (ifNewRoot && sliceSize!=0) {
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
                             " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d] peerId[%d]",
-                            rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, peerId);
+                            rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_, peerId);
             
                 // }
                 uint64_t argSize = taskArgs.size();
