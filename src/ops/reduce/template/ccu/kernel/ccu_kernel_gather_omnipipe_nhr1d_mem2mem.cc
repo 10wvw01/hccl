@@ -179,9 +179,9 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     GatherOmniPipeNHR1DMem2MemContext ctx;
 
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem run");
-    // CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
-    // CCU_CHK_RET(InitResource(ctx));
-    // CCU_CHK_RET(LoadArgs(ctx));
+    CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
+    CCU_CHK_RET(InitResource(ctx));
+    CCU_CHK_RET(LoadArgs(ctx));
     
     // CCU_CHK_RET(PreSync(ctx));
     
