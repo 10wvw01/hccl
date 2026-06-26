@@ -162,6 +162,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     CHK_RET(gAlgTempLevelX.CalcRes(comm, param, topoInfo, resGReqLevelX));
     AlgResourceRequest resGReqLevelY;
     CHK_RET(gAlgTempLevelY.CalcRes(comm, param, topoInfo, resGReqLevelY));
+    gAlgTempLevelY.subRoot = rootYAixs;
 
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelX, resourceRequest, 0));
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelY, resourceRequest, 1));
@@ -304,8 +305,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
     tempAlgParams.buffInfo = stepSliceInfo.buffInfo;
     tempAlgParams.stepSliceInfo = stepSliceInfo;
-    tempAlgParams.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.inBuffBaseOff;
-    tempAlgParams.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.outBuffBaseOff;
+    tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff;
+    tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
     
     tempAlgParams.inputSliceStride = 0;
     tempAlgParams.outputSliceStride = 0;
@@ -331,8 +332,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     stepSliceInfo.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParams.buffInfo = stepSliceInfo.buffInfo;
     tempAlgParams.stepSliceInfo = stepSliceInfo;
-    tempAlgParams.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.inBuffBaseOff;
-    tempAlgParams.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.outBuffBaseOff;
+    tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff;
+    tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
     tempAlgParams.inputSliceStride = 0;
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
@@ -745,6 +746,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 }
