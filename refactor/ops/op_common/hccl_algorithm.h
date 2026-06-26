@@ -13,36 +13,83 @@
  * @ingroup Hccl
  * @brief This file defines the HCCL algorithm description structure within multiple orthogonal dimentions.
  * This structure is represented with a class, which is instantiated by the upstream algorithm selector.
- * This algorithm class provides public APIs to return corresponding executor to actually run/orchestrate
- * the algorithm upon the specified communication domain.
- * Note, the algorhtm is organized in multi-level hierarchy structure. A executor works in higher level to
+ * This algorithm class provides public APIs to construct corresponding executor to actually run the algorithm
+ * upon the specified collective communication domain.
+ * 
+ * Note, the algorhtm is organized in hierarchical structure. A executor works in higher level to
  * orchestrate multiple standalone workflows each for a specific logic sub-domain. We define the workflow
- * with template, which is described with TemplateDesc.
+ * with template, which is described with TemplateDesc. As to how the workflows are figured out upon a
+ * collective communication domain, it's the responsibility of algorithm selector, which will fill them
+ * into the vector<TemplateDesc>. As to how these workflows will be orcheatrated, it can be uniquely determined
+ * by executor's type.
+ * 
  * A logic sub-domain determines the scope a template works on. More specific, a sub-domain defines the scope
  * in which a groups of ranks to exchange data with specified manner. Multiple scopes may overlap in physical.
  * And. the upper layer executor takes the responsibility to schedule and synchronize its multiple templates.
- * The executor's scheduling and synchronizing procedure is defined in its orchestrate method.
- * The ExecutorType determines the different orchestrating methods.
+ * The executor's scheduling and synchronizing procedure is defined in its orchestrate method. The ExecutorType
+ * determines the different orchestrating methods.
+ * 
+ * For a sub-domain a specific template works on, TopoMatchBase class provides the method to match/filter the
+ * raw topo information into a specific topo view which the template cares and works on.
  */
 
-class TopoMatchBase {
-public:
-    explicit TopoMatchBase();
-    virtual ~TopoMatchBase();
+#ifndef HCCL_ALG_H
+#define HCCL_ALG_H
 
-    virtual std::string Describe() const = 0;
+#include <hccl/hccl_types.h>
+#include "topo_match_base.h"
+#include "alg_type.h"
 
-    virtual HcclResult MatchTopo(const HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
-                                 AlgHierarchyInfoForAllLevel& algHierarchyInfo);
+namespace ops_hccl {
+
+enum class HcclAlgEngineType {
+    AICPU,
+    CCU_MS,
+    CCU_SCHED,
 };
 
+enum class HcclAlgExecutorType {
+    PARALLEL,
+    CONCURRENT,
+    OMINIPIPE,
+};
+
+enum class HcclAlgShotMode {
+    ONE_SHOT,
+    TWO_SHOT,
+};
+
+enum class HcclAlgJettyMode {
+    SINGLE_JETTY,
+    MULTIPLE_JETTY,
+};
+
+struct TemplateDesc {
+    HcclCMDType hcclCmdType;
+    HcclAlgoType algType;
+    HcclAlgShotMode shotMode;
+    HcclAlgJettyMode jettyMode;
+};
 
 class HcclAlgorithm {
-    TopoMatchBase topoMatch;
+public:
     HcclCMDType hcclCmdType;
-    EngineType engineType;
-    ExecutorType executorType;
-    vector<TemplateDesc> templates;
+    HcclAlgEngineType engineType;
+    HcclAlgExecutorType executorType;
+    std::vector<TemplateDesc> templates;
+    TopoMatchBase topoView;
+
+    HcclResult GetExecutor();
+    HcclResult GetTemplate();
+
+private:
+    std::shared_ptr<BaseExecutor> executor;
+};
+
+} // namespace ops_hccl
+
+#endif
+
 
     // vector<vector<TemplateDesc>> templateDescs;   // 第一层表示stage，第二层表示数据part, 
     //                                               //  parallel: [[stage0_part0, stage0_part1],[stage1_part0, stage1_part1]] 
@@ -65,19 +112,11 @@ class HcclAlgorithm {
 
 
     // [[NHR], [NHR]]
-}
 
 
-// REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHR,
+    // REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHR,
 //                                InsV2AllGatherParallelExecutor, TopoMatchMultilevel, InsTempAllGatherMesh1D,
 //                                InsTempAllGatherNHR);
-
-struct TemplateDesc {
-    OpType op,
-    AlgType alg,  // Mesh / NHR
-    ShotType,
-    JetttyType,
-}
 
 
 // HcclAlgorithm { hcclCmdType = HCCL_CMD_ALLGATHER, engineType = AICPU, executorType = PARALLEL, templates = 
@@ -101,38 +140,3 @@ struct TemplateDesc {
 
 // ]
 // }
-
-enum EngineType {
-    AICPU,
-    CCU_MS,
-    CCU_SCHED
-}
-
-enum ExecutorType {
-    PARALLEL,
-    CONCURRENT,
-    OMINIPIPE,
-}
-
-enum AlgType {
-    MESH,
-    NHR
-}
-
-enum ShotType {
-    ONE,
-    TWO
-}
-
-enum JettyType {
-    SINGLE,
-    MULTIPLE
-}
-
-struct TemplateDesc {
-    OpType op,
-    AlgType alg,  // Mesh / NHR
-    //hashmap<CustomType, CustomValue> CustomFeatures // MultiJetty::Multi | ShotType::Oneshot/TwoShot/TwoShotMeshChunk
-    ShotType,
-    JetttyType,
-}
