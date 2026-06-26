@@ -243,8 +243,6 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
             } CCU_ELSE {
                 CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
             }
-            // CCU_CHK_RET(GroupCopy(ctx, ctx.myDstMem, ctx.srcMem, ctx.groupOpSize));
-            // CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         } CCU_ELSE {
             CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         }
