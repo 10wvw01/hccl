@@ -291,6 +291,11 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
     if (param.opMode == OpMode::OFFLOAD) {
         return false;
     }
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV || param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+        HCCL_INFO("[ShouldGoCcuFastLaunch] DISABLED for AlltoAllV: fastLaunchTag does not include dataCount, "
+                  "causing cross-size cache reuse");
+        return false;
+    }
     // 1. 引擎为ccu模式
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         return false;
