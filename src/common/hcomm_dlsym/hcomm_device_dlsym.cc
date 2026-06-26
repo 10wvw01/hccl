@@ -9,7 +9,6 @@
  */
 
 #include "hcomm_device_dlsym.h"
-#include "hccl_res_dl.h"
 #include "hccl_rank_graph_dl.h"
 #include "hcomm_primitives_dl.h"
 #include "hcomm_device_profiling_dl.h"
