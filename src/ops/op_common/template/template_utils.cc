@@ -9,6 +9,8 @@
  */
 
 #include "template_utils.h"
+constexpr u32 DIE_NUM_1 = 1;
+constexpr u32 DIE_NUM_2 = 2;
 namespace ops_hccl {
 
 HcclResult GetAlgRank(const u32 virtRank, const std::vector<u32> &rankIds, u32 &algRank)
@@ -77,6 +79,24 @@ HcclResult CalcDataSplitByPortGroupCommon(const u64 totalDataCount,
     }
 
     return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels, const uint32_t &kernelNum, std::vector<u8> &diePortGroupSize){
+    CHK_PRT_RET(kernelNum != DIE_NUM_1 && kernelNum != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] Kernelnum is %u, which is wrong.",
+                kernelNum), HcclResult::HCCL_E_INTERNAL);
+    if(kernelNum == DIE_NUM_1){
+        CHK_PRT_RET(channels.size() != DIE_NUM_1, HCCL_ERROR("[CalcPortNum] channels.size %u, which is not equal to 1.",
+            channels.size), HcclResult::HCCL_E_INTERNAL);
+        diePortGroupSize = {1, 0};
+    } else if (kernelNum == DIE_NUM_2) {
+         CHK_PRT_RET(channels.size() != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] channels.size %u, which is not equal to 2.",
+            channels.size), HcclResult::HCCL_E_INTERNAL);
+        for (u32 i = 0; i < DIE_NUM_2; i++) {
+            diePortGroupSize[i] = channels[i].portGroupSize;
+            HCCL_DEBUG("[CalcPortNum] diePortGroupSize[%u]=[%u]", i, diePortGroupSize[i]);
+        }
+    }
+    return HCCL_SUCCESS;
 }
 
 HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,

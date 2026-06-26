@@ -97,10 +97,8 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::SplitDataFor2Dies(uint64_t dataCount, u
         die1Size = dataCount * DataTypeSizeGet(dataType_);
         return HcclResult::HCCL_SUCCESS;
     }
-    u8 die0PortGroupSize = 6;
-    u8 die1PortGroupSize = 2;
 
-    die0Size = (dataCount * die0PortGroupSize / (die0PortGroupSize + die1PortGroupSize)) * DataTypeSizeGet(dataType_);
+    die0Size = (dataCount * diePortGroupSize_[0] / (diePortGroupSize_[0] + diePortGroupSize_[1])) * DataTypeSizeGet(dataType_);
     die1Size = dataCount * DataTypeSizeGet(dataType_) - die0Size;
     HCCL_INFO("[CcuTempAllReduceNHRMem2Mem1D::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size ,die1Size);
     return HcclResult::HCCL_SUCCESS;
@@ -291,11 +289,8 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::KernelRun(const OpParam& param, const T
     const u32 kernelNum = templateResource.ccuKernels.size();
     uint64_t die0Size = 0, die1Size = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    if (kernelNum == MAX_DIE_NUM_2) {
-        SplitDataFor2Dies(dataCount, die0Size, die1Size);
-    } else {
-        die0Size = templateDataParams.sliceSize;
-    }
+    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, kernelNum, diePortGroupSize_));
+    SplitDataFor2Dies(dataCount, die0Size, die1Size);
 
     buffInfo_ = templateDataParams.buffInfo;
     const uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;

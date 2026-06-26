@@ -220,10 +220,8 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& pa
         die1Size = 0;
         return HcclResult::HCCL_SUCCESS;
     }
-    u8 die0BWcoeff = 6;
-    u8 die1BWcoeff = 2;
 
-    die0Size = (dataCount * die0BWcoeff / (die0BWcoeff + die1BWcoeff)) * typeSize;
+    die0Size = (dataCount * diePortGroupSize_[0] / (diePortGroupSize_[0] + diePortGroupSize_[1])) * typeSize;
     die1Size = sliceSize - die0Size;
     HCCL_INFO("[CcuTempReduceScatterNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
@@ -247,13 +245,8 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::KernelRun(const OpParam& param,
     uint64_t die0LastSliceSize = 0;
     uint64_t die1LastSliceSize = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    if (kernelNum == MAX_DIE_NUM_2) {
-        SplitDataFor2Dies(param, templateDataParams.sliceSize, die0Size, die1Size);
-        SplitDataFor2Dies(param, templateDataParams.tailSize, die0LastSliceSize, die1LastSliceSize);
-    } else {
-        die0Size = templateDataParams.sliceSize;
-        die0LastSliceSize = templateDataParams.tailSize;
-    }
+    SplitDataFor2Dies(param, templateDataParams.sliceSize, die0Size, die1Size);
+    SplitDataFor2Dies(param, templateDataParams.tailSize, die0LastSliceSize, die1LastSliceSize);
     uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
     uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
     uint64_t token;
