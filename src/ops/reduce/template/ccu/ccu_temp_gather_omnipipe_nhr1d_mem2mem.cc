@@ -75,8 +75,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     //                      };
 
     std::vector<HcclChannelDesc> channelDescs;
-    CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
-    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes] Get Mesh Channel Success!");
+    // CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
+    // HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes] Get Mesh Channel Success!");
 
     // NHR
     CommTopo priorityTopo = COMM_TOPO_CLOS;
