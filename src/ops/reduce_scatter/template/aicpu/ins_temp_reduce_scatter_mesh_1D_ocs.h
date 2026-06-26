@@ -38,6 +38,10 @@ public:
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
+    // OCS 层到每个远端可能有多条链路(channelsPerRank_ > 1)，RunReduceScatter 会按
+    // (templateRankSize_-1) * channelsPerRank_ 个从线程分发收发任务，故线程数需与之一致，
+    // 与 InsTempReduceScatterMesh1DZAxisDetour::GetThreadNum 同口径。
+    u64 GetThreadNum() const override;
 
 private:
     // OCS 层物理 net_layer 编号，4层拓扑下为 3
