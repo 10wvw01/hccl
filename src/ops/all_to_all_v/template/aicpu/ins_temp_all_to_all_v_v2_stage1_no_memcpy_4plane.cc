@@ -34,10 +34,45 @@ struct PeerSendPlan4Plane {
     std::vector<DataSlice> extraDstSlices;
 };
 
-std::vector<u32> BuildGlobalExtraPeerOrder(u32 myRank, u32 rankSize,
+u32 GetK4EdgeColor(u32 a, u32 b)
+{
+    static constexpr u32 K4_EDGE_COLOR[4][4] = {
+        {0, 0, 1, 2},
+        {0, 0, 2, 1},
+        {1, 2, 0, 0},
+        {2, 1, 0, 0},
+    };
+    return K4_EDGE_COLOR[a][b];
+}
+
+std::vector<std::vector<u32>> BuildExtraPeerRounds(u32 myRank, u32 rankSize, u32 meshSize,
     const std::map<u32, PeerSendPlan4Plane> &plans)
 {
-    std::vector<u32> order;
+    constexpr u32 UBX_4X4_RANK_SIZE = 16;
+    constexpr u32 UBX_4X4_MESH_SIZE = 4;
+    constexpr u32 UBX_4X4_ROUND_NUM = 6;
+
+    if (rankSize == UBX_4X4_RANK_SIZE && meshSize == UBX_4X4_MESH_SIZE) {
+        std::vector<std::vector<u32>> rounds(UBX_4X4_ROUND_NUM);
+        u32 myGroup = myRank / meshSize;
+        u32 myLocal = myRank % meshSize;
+        for (const auto &item : plans) {
+            u32 peer = item.first;
+            u32 peerGroup = peer / meshSize;
+            u32 peerLocal = peer % meshSize;
+            if (peerGroup == myGroup && peerLocal != myLocal) {
+                rounds[GetK4EdgeColor(myLocal, peerLocal)].push_back(peer);
+            } else if (peerLocal == myLocal && peerGroup != myGroup) {
+                rounds[3 + GetK4EdgeColor(myGroup, peerGroup)].push_back(peer);
+            } else {
+                HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][ExtraRounds] rank=%u peer=%u not rook-edge, skip extra.",
+                             myRank, peer);
+            }
+        }
+        return rounds;
+    }
+
+    std::vector<std::vector<u32>> rounds;
     for (u32 left = 0; left < rankSize; ++left) {
         for (u32 right = left + 1; right < rankSize; ++right) {
             if (left != myRank && right != myRank) {
@@ -45,11 +80,11 @@ std::vector<u32> BuildGlobalExtraPeerOrder(u32 myRank, u32 rankSize,
             }
             u32 peer = left == myRank ? right : left;
             if (plans.find(peer) != plans.end()) {
-                order.push_back(peer);
+                rounds.push_back({peer});
             }
         }
     }
-    return order;
+    return rounds;
 }
 }
 
@@ -519,17 +554,20 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::RunStage0ToRelay(
 
     u32 extraThreadIdx = static_cast<u32>(resource.threads.size() - 1);
     ThreadHandle extraThread = resource.threads[extraThreadIdx];
-    for (u32 peerRank : BuildGlobalExtraPeerOrder(myRank_, rankSize_, plans)) {
-        const PeerSendPlan4Plane &plan = plans.at(peerRank);
-        if (plan.extraChannel == nullptr) {
-            continue;
+    auto rounds = BuildExtraPeerRounds(myRank_, rankSize_, meshSize_, plans);
+    for (u32 roundIdx = 0; roundIdx < rounds.size(); ++roundIdx) {
+        for (u32 peerRank : rounds[roundIdx]) {
+            const PeerSendPlan4Plane &plan = plans.at(peerRank);
+            if (plan.extraChannel == nullptr) {
+                continue;
+            }
+            HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][SelectChannel] phase=stage0-extra rank=%u round=%u peer=%u "
+                         "links=%zu selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u quota=%llu",
+                         myRank_, roundIdx, plan.peerRank, resource.channels.at(plan.peerRank).size(),
+                         plan.extraChannelIdx, plan.extraChannel->portGroupSize, plan.extraSrcSlices.size(),
+                         SumSliceBytes(plan.extraSrcSlices), extraThreadIdx, extraQuotaBytes);
+            CHK_RET(RunPeerSendRecv(*plan.extraChannel, plan.extraSrcSlices, plan.extraDstSlices, extraThread));
         }
-        HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][SelectChannel] phase=stage0-extra rank=%u peer=%u links=%zu "
-                     "selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u quota=%llu",
-                     myRank_, plan.peerRank, resource.channels.at(plan.peerRank).size(), plan.extraChannelIdx,
-                     plan.extraChannel->portGroupSize, plan.extraSrcSlices.size(), SumSliceBytes(plan.extraSrcSlices),
-                     extraThreadIdx, extraQuotaBytes);
-        CHK_RET(RunPeerSendRecv(*plan.extraChannel, plan.extraSrcSlices, plan.extraDstSlices, extraThread));
     }
 
     u32 threadIdx = 1;
@@ -600,17 +638,20 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::RunStage1ToOutput(
 
     u32 extraThreadIdx = static_cast<u32>(resource.threads.size() - 1);
     ThreadHandle extraThread = resource.threads[extraThreadIdx];
-    for (u32 peerRank : BuildGlobalExtraPeerOrder(myRank_, rankSize_, plans)) {
-        const PeerSendPlan4Plane &plan = plans.at(peerRank);
-        if (plan.extraChannel == nullptr) {
-            continue;
+    auto rounds = BuildExtraPeerRounds(myRank_, rankSize_, meshSize_, plans);
+    for (u32 roundIdx = 0; roundIdx < rounds.size(); ++roundIdx) {
+        for (u32 peerRank : rounds[roundIdx]) {
+            const PeerSendPlan4Plane &plan = plans.at(peerRank);
+            if (plan.extraChannel == nullptr) {
+                continue;
+            }
+            HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][SelectChannel] phase=stage1-extra rank=%u round=%u peer=%u "
+                         "links=%zu selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u quota=%llu",
+                         myRank_, roundIdx, plan.peerRank, resource.channels.at(plan.peerRank).size(),
+                         plan.extraChannelIdx, plan.extraChannel->portGroupSize, plan.extraSrcSlices.size(),
+                         SumSliceBytes(plan.extraSrcSlices), extraThreadIdx, extraQuotaBytes);
+            CHK_RET(RunPeerSendRecv(*plan.extraChannel, plan.extraSrcSlices, plan.extraDstSlices, extraThread));
         }
-        HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][SelectChannel] phase=stage1-extra rank=%u peer=%u links=%zu "
-                     "selected=%u portGroupSize=%u slices=%zu bytes=%llu threadIdx=%u quota=%llu",
-                     myRank_, plan.peerRank, resource.channels.at(plan.peerRank).size(), plan.extraChannelIdx,
-                     plan.extraChannel->portGroupSize, plan.extraSrcSlices.size(), SumSliceBytes(plan.extraSrcSlices),
-                     extraThreadIdx, extraQuotaBytes);
-        CHK_RET(RunPeerSendRecv(*plan.extraChannel, plan.extraSrcSlices, plan.extraDstSlices, extraThread));
     }
 
     u32 threadIdx = 1;
