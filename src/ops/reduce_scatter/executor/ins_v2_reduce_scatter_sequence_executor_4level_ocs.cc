@@ -476,9 +476,23 @@ HcclResult InsV2ReduceScatterSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTempl
         return HCCL_E_INTERNAL;
     }
     u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
+    // [DEBUG-RS-4LEVEL] loop 预算: 拿不到 cclMem 数值也能据此推算每 level 的字节占用上限与越界
+    HCCL_INFO("[DEBUG-RS-LOOP] myRank[%u] dataCount_[%llu] dataTypeSize_[%llu] dataSize_(fullInput)[%llu] "
+        "maxCountPerLoop[%llu] loopTimes[%llu] templateScratchMultiplier[%u] "
+        "rankSize s0[%u] s1[%u] s2[%u] s3[%u] rankIdx i0[%u] i1[%u] i2[%u] i3[%u] "
+        "skip L1[%d] L2[%d] L3[%d]",
+        myRank_, dataCount_, dataTypeSize_, dataSize_,
+        maxCountPerLoop, loopTimes, templateScratchMultiplier,
+        rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_, rankSizeLevel3_,
+        rankIdxLevel0_, rankIdxLevel1_, rankIdxLevel2_, rankIdxLevel3_,
+        static_cast<int>(skipLevel1_), static_cast<int>(skipLevel2_), static_cast<int>(skipLevel3_));
     u64 processedDataCount = 0;
     for (u64 loop = 0; loop < loopTimes; loop++) {
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
+        // [DEBUG-RS-4LEVEL] per-loop 维度: 1G case 有 3 loops, 各 loop 的 processedDataCount/currDataCount 不同,
+        // level0 的 inBuffBaseOff=processedDataCount*dtSize 随 loop 变, 需此序号关联 PostCopy/RunReduceScatter 日志
+        HCCL_INFO("[DEBUG-RS-LOOP] myRank[%u] loop[%llu/%llu] currDataCount[%llu] processedDataCount[%llu] currSliceBytes[%llu]",
+            myRank_, loop, loopTimes, currDataCount, processedDataCount, currDataCount * dataTypeSize_);
 
         GenIntraTemplateParams(tempAlgParamsLevel0, processedDataCount, currDataCount, loop);
         CHK_RET(algTemplateLevel0->KernelRun(param, tempAlgParamsLevel0, templateResource0));
