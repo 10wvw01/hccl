@@ -75,7 +75,24 @@ private:
         const std::vector<ThreadHandle> &subThreadsCurRank) const;
     HcclResult PostSyncInterThreadsPerRank(const ThreadHandle &mainThreadCurRank,
         const std::vector<ThreadHandle> &subThreadsCurRank) const;
+    bool IsAlltoAllDetourCandidate() const;
+    bool IsAlltoAllDetourEnabled() const;
+    bool IsAlltoAllDetourDstRank(u32 rank) const;
+    bool ShouldSkipDirectSend(u32 remoteRank) const;
+    bool ShouldSkipDirectRecv(u32 remoteRank) const;
+    u32 CalcDetourScratchBuffIdx(u32 dstRank) const;
+    void CalcCclBuffIdxByRank(u32 rank, u32 remoteRank, u32 &rankCclBuffIdx, u32 &remoteCclBuffIdx) const;
+    HcclResult RunDetourPreStage(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    HcclResult SyncDetourPreStageToForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads) const;
+    HcclResult RunDetourForwardForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams, u32 dstRank) const;
+    HcclResult PostCopyDetourFromSrcRank(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread) const;
 
+    HcclCMDType opType_{HcclCMDType::HCCL_CMD_INVALID};
     u64 dataTypeSize_{0};
     bool isDmaRead_{false};
     u32 concurrentSendRecvNum_{1};
