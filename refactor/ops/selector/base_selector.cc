@@ -1,3 +1,5 @@
+# include "alg_selector.h"
+# include "engine_selector.h"
 // HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
 //     HcclAlgorithm &alg) {
 //     engineSelector.Select() //选出执行引擎
@@ -14,8 +16,8 @@
 //   └── PostProcess  ← 第三阶段：设置algTag, kernel加载等
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     HcclAlgorithm &alg) {
-    EngineType engineType = EngineSelector.Select(); //选出执行引擎
-    AlgorithmSelector opSelector(engineType);
+    EngineType engineType = EngineSelector.Select(comm, param); //选出执行引擎
+    AlgorithmSelector opSelector(comm, param, engineType);
     HcclAlgorithm alg = opSelector.Selector(); //根据算子、拓扑选算法（数据结构包含顶层调度逻辑Executor，及算法Template等信息）
 }
 
