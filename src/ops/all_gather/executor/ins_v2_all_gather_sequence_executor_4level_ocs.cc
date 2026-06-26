@@ -333,17 +333,19 @@ HcclResult InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0
             myRank_, totalScratchMultiple, scratchMemBlockSize);
         return HCCL_E_INTERNAL;
     }
-    // level3 (Mesh1D) 把 s3 份 gather 结果写到累积区之后 [above, above + s3*slice),
-    // 其中 above = s1*s2*s3*slice。校验最坏情形(maxCountPerLoop)下不越界 cclMem, 也不与累积区 [0, above) 重叠。
-    // above 与 s3*slice 严格 > 0(各 rankSize ≥ 1, slice > 0), 二者相加天然在累积区之外, 只需校验上界。
+    // level3 (Mesh1D) 把 s3 份 gather 结果写到 [above, above + s3*slice):
+    //   - skipLevel2_=false 时 above = s1*s2*s3*slice (越过累积区, 由 level2 搬到 [0,…));
+    //   - skipLevel2_=true  时 above = 0 (无层搬运, 直接写 [0,…))。
+    // 校验最坏情形(maxCountPerLoop)下该区间不越界 cclMem。
     if (!skipLevel3_) {
         const u64 maxSliceSize = maxCountPerLoop * dataTypeSize_;
-        const u64 level3RegionEnd =
-            (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ + rankSizeLevel3_) * maxSliceSize;
+        const u64 level3Above = skipLevel2_ ? 0 :
+            (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * maxSliceSize);
+        const u64 level3RegionEnd = level3Above + rankSizeLevel3_ * maxSliceSize;
         CHK_PRT_RET(level3RegionEnd > maxTmpMemSize_,
             HCCL_ERROR("[InsV2AllGatherSequenceExecutor4LevelOCS] myRank[%u] level3 out-region [above, above+s3*slice] "
-                "exceeds cclMem: need[%llu] > cclMemSize[%llu] (s1[%llu] s2[%llu] s3[%llu] maxSliceSize[%llu])",
-                myRank_, level3RegionEnd, maxTmpMemSize_,
+                "exceeds cclMem: need[%llu] > cclMemSize[%llu] (skipLevel2[%d] s1[%llu] s2[%llu] s3[%llu] maxSliceSize[%llu])",
+                myRank_, level3RegionEnd, maxTmpMemSize_, skipLevel2_,
                 rankSizeLevel1_, rankSizeLevel2_, rankSizeLevel3_, maxSliceSize),
             HCCL_E_INTERNAL);
     }
@@ -391,8 +393,12 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     TemplateDataParams &tempAlgParamsLevel3) const
 {
     const u64 sliceSize = curCount * dataTypeSize_;
-    // 越过累积区 [0, s1*s2*s3*slice) 的基址: level3 产物落在 [above, above + s3*slice)
-    const u64 above = rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * sliceSize;
+    // level3 产物落点基址。设计契约: level2 负责把 level3 产物从 [above] 搬运到累积区 [0,…)。
+    // - level2 活动 (rankSizeLevel2_>1): level3 写到 [above, above+s3*slice) (越过累积区, 不与 ring 步冲突),
+    //   由 level2 (inBuffBaseOff2=above) 读入并搬到 [0,…)。
+    // - level2 跳过 (rankSizeLevel2_==1, skipLevel2_): 没有层搬运 above→0, level3 必须直接写到 [0, s3*slice),
+    //   供 level1 (若活动, 读[0]) 或 level0 (读[0]) 直接读。否则 level0 读 [0] 是空的 → 全零。
+    const u64 above = skipLevel2_ ? 0 : (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * sliceSize);
 
     tempAlgParamsLevel3.buffInfo.inputPtr = param.inputPtr;
     tempAlgParamsLevel3.buffInfo.outputPtr = resCtx.cclMem.addr;
