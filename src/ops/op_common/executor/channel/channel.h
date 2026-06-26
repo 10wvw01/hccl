@@ -69,7 +69,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param,
     std::vector<HcclChannelDesc> &channels, bool isIsolation = false);
 HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& param,
     const TopoInfoWithNetLayerDetails* topoInfo, const std::vector<std::vector<u32>>& subcommInfo,
-    std::vector<HcclChannelDesc> &channels, bool isIsolation = false);
+    std::vector<HcclChannelDesc> &channels, bool isIsolation = false, bool execptMesh = true);
 }
 
 #endif

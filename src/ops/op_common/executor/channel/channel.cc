@@ -912,7 +912,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
 }
 
 HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels, bool isIsolation)
+    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels, bool isIsolation, bool execptMesh)
 {
  #ifndef AICPU_COMPILE
      (void) param;
@@ -942,7 +942,7 @@ HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& pa
                 continue;
             }
             std::vector<CommLink> links(linkList, linkList + listSize);
-            if (rank / CONST4P == topoInfo->userRank / CONST4P) {
+            if (rank / CONST4P == topoInfo->userRank / CONST4P && execptMesh) {
                 CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, rank, netLayer, channels, true, false));
             } else {
                 CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, rank, netLayer, channels, false, true, isIsolation));
