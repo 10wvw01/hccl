@@ -52,7 +52,7 @@ HcclResult BaseExecutor::CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchy
 }
 
 HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
-    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
 {
     // TODO：子类自行实现，以下只是示例
     // 初始化资源
@@ -95,4 +95,14 @@ HcclResult BaseExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
     mainThread_ = threads_.at(0);
+    // TODO：考虑不同Executor
+    // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
+    channelTable_ = RestoreChannelMap();
+}
+
+std::vector<std::map<u32, std::vector<ChannelInfo>> BaseExecutor::RestoreChannelMap(
+    const AlgResourceCtxSerializable &resCtx)
+{
+    // 桥接用函数，理论上直接resCtx直接用该结构表即可
+    // 使用原函数，略做改造，直接返回结构表（是否有性能问题？）
 }

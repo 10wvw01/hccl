@@ -15,7 +15,7 @@ public:
     virtual HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
 
     virtual HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
+        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
     // TODO: 目前仅用于CCU，理论上可扩展至所有模式
     HcclResult FastLaunch();
@@ -45,21 +45,25 @@ protected:
     
     // TODO：分析下使用场合
     DevType devType_ = DevType::DEV_TYPE_COUNT;
-    
-    // resource
+
+    // 拓扑分级信息
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
-    std::vector<ThreadHandle> threads_;
-    ThreadHandle mainThread_;
-    
     // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
     std::vector<u32> subRankSize_;
     std::vector<u32> subRankIdx_;
-    std::vector<std::map<u32, std::vector<ChannelInfo>>> subChannels_;
-    std::vector<std::vector<ThreadHandle>> subThreads_;
-    std::vector<u32> syncNotifyOnMain_;
     
+    // 资源信息
+    // [线程资源]
+    ThreadHandle mainThread_;
+    std::vector<ThreadHandle> threads_;
+    std::vector<std::vector<ThreadHandle>> subThreads_;
+    // [Notify资源]
+    std::vector<u32> syncNotifyOnMain_;
     // vector外层表示stage，内层第一个元素表示intra的最后一个notifyid，第二个元素表示inter的最后一个notifyid，内层可扩展
     std::vector<std::vector<u32>> syncNotifyOnTemplates_;
+    // [Channel资源]
+    // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
+    std::vector<std::map<u32, std::vector<ChannelInfo>> channelTable_;
 };
 
 
