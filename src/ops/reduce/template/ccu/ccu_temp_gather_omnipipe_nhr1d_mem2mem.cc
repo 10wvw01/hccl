@@ -34,6 +34,7 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     if (rootIt != ranks.end()) {
         subCommRootId_ = std::distance(ranks.begin(), rootIt);
     }
+    rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
 }
 
@@ -69,13 +70,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     CcuKernelInfo kernelInfo;
     CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuGatherOmniPipeNHR1DMem2MemKernel"));
     kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuGatherOmniPipeNHR1DMem2MemKernel);
-    // kernelInfo.creator = [](const hcomm::CcuKernelArg& arg) {
-    //                          return std::make_unique<CcuKernelGatherOmniPipeNHR1DMem2Mem>(arg);
-    //                      };
 
     std::vector<HcclChannelDesc> channelDescs;
-    // CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
-    // HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes] Get Mesh Channel Success!");
 
     // NHR
     CommTopo priorityTopo = COMM_TOPO_CLOS;
@@ -95,12 +91,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
         u32 remoteRank = channelDescs[i].remoteRank;
         u32 subRankIdx = RemoteRankId2RankId(remoteRank);
         rank2ChannelIdx[subRankIdx] = i;
-        subRankIdx2RankIdx[subRankIdx] = remoteRank; // TODO 可以删除,当前没用到
-        HCCL_DEBUG("[%s] channel myrank[%u], mySubCommRank_[%u],  rank2ChannelIdx[%u]=%u, subRankIdx2RankIdx[%u]=%u ", __func__, myRank_,  mySubCommRank_, 
-                subRankIdx , i, subRankIdx, remoteRank);
     }
-
-    HCCL_DEBUG("[%s] channel myrank-look[%u], mySubCommRank_[%u],  subRankIdx2RankIdx[%u]=%u ", __func__, myRank_,  mySubCommRank_, mySubCommRank_, myRank_);
 
     CHK_RET(CalcNHRInfo(stepInfoVector));
     kernelInfo.channels = channelDescs;
@@ -115,13 +106,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
     kernelArg->myrealrank = myRank_;
     kernelArg->stepInfoVector = stepInfoVector;
     kernelArg->rank2ChannelIdx = rank2ChannelIdx;
-    // kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
     
     kernelInfo.setKernelArg(kernelArg);
-
-
-    // kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeNHR1DMem2Mem>(
-    //     subCommRanks_[0].size(), mySubCommRank_, subCommRootId_, param, subCommRanks_, ifRealRoot_, myRank_,stepInfoVector, rank2ChannelIdx, subRankIdx2RankIdx);
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__,
