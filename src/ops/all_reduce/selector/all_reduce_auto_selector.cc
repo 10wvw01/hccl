@@ -336,13 +336,6 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         return SelectorStatus::MATCH;
     }
 
-    // [魔改/临时调试] 2 级拓扑强制走 InsAllReduceSequenceMesh1DNhr，便于定位选路/性能问题
-    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_2) {
-        selectAlgName = "InsAllReduceSequenceMesh1DNhr";
-        HCCL_INFO("[AllReduceAutoSelector] [HACK] topoLevelNums==2, force select [%s].", selectAlgName.c_str());
-        return SelectorStatus::MATCH;
-    }
-
     bool isDataTypeOrReduceTypeSpecial =
         opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT64 ||
         opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_UINT64 ||
