@@ -362,6 +362,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	CcuRsAlgTemplateY rsAlgTempY(param, myRank_, subCommRanks1);
     CcuGAlgTemplateX gAlgTempX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempY(param, myRank_, subCommRanks1);
+    gAlgTempX.subRoot = rootXAixs;
+    gAlgTempY.subRoot = rootYAixs;
+
     levelThreads_.resize(CCU_OMNIPIPE_LEVEL_NUM);
     levelThreads_[CCU_OMNIPIPE_LEVEL0].push_back(threads_[0]);
     levelThreads_[CCU_OMNIPIPE_LEVEL1].push_back(threads_[1]);
@@ -629,29 +632,29 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             
             if (i == 0) { // 第一步
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
-                if (isRoot){ // 0 
-                    HCCL_INFO("[%s][isRoot] myRank_[%d] 0.", __func__, myRank_);
-                     gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
-                     gAlgTempX.subRoot = 0;  //0 横向逻辑假root是0
-                }
-                if (isSameXAxis && !isRoot) { // 2
-                    HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 0.", __func__, myRank_);  
-                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
-                }
+                // if (isRoot){ // 0 
+                //     HCCL_INFO("[%s][isRoot] myRank_[%d] 0.", __func__, myRank_);
+                //      gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
+                //      gAlgTempX.subRoot = 0;  //0 横向逻辑假root是0
+                // }
+                // if (isSameXAxis && !isRoot) { // 2
+                //     HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 0.", __func__, myRank_);  
+                //     gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                //     gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
+                // }
 
-                if (isSameYAxis && !isRoot) { // 1;
-                    HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = 0;       //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
-                } 
+                // if (isSameYAxis && !isRoot) { // 1;
+                //     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 0.", __func__, myRank_);
+                //     gAlgTempX.subRoot = 0;       //0 横向逻辑假root是0
+                //     gAlgTempY.subRoot = 0;  //0 纵向逻辑假root是0
+                // } 
                 
-                if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
-                    HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
-                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
+                // if (!isSameXAxis && !isSameYAxis && !isRoot){ // 3
+                //     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 0.", __func__, myRank_);
+                //     gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                //     gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
 
-                }
+                // }
             }else if (i == level0StepCountAG - 1) {  // 最后一步
                 HCCL_INFO("[%s][KernelRun] lastStep.", __func__);
             // ----------------第n步----------------
@@ -660,17 +663,17 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 if (isSameXAxis && !isRoot) { // 3
                     HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-                    gAlgTempY.subRoot = 0;
+                    // gAlgTempY.subRoot = 0;
                     gAlgTempX.subRoot = 999;
                 } else if (isSameYAxis && !isRoot) { // 1,2
                     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = 0;
+                    // gAlgTempX.subRoot = 0;
                     gAlgTempY.subRoot = 999;
                 } else if(isRoot){//0
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
-                    gAlgTempY.subRoot = 0;//0
-                    gAlgTempX.subRoot = 0;
+                    // gAlgTempY.subRoot = 0;//0
+                    // gAlgTempX.subRoot = 0;
                 } else{//4,5
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
                     gAlgTempY.subRoot = 999;
@@ -684,23 +687,23 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             // 如果当前卡是斜对角节点 mesh usrOut->ccl 
                 if(isRoot){
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 1.", __func__, myRank_); 
-                    gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
-                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
-                } else if (isSameXAxis && !isRoot) { // 0 2
+                    // gAlgTempY.subRoot = 0; //0 纵向逻辑假root是0
+                    // gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                } else if (isSameXAxis && !isRoot) { 
                 HCCL_INFO("[%s][isSameXAxis] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
-                    gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
+                    // gAlgTempX.subRoot = 0; //0 横向逻辑假root是0
+                    // gAlgTempY.subRoot = 0;      //0 纵向逻辑假root是0
 
                 } else if (isSameYAxis && !isRoot) {
                     HCCL_INFO("[%s][isSameYAxis] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = 0;//TODO:root的地方待修改
+                    // gAlgTempX.subRoot = 0;//TODO:root的地方待修改
                     gAlgTempY.subRoot = 999;
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    gAlgTempX.subRoot = 0;
+                    // gAlgTempX.subRoot = 0;
                     gAlgTempY.subRoot = 999;
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
