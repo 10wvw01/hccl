@@ -76,6 +76,15 @@ HcclResult InsTempReduceScatterMesh1D::KernelRun(const OpParam& param,
     count_ = tempAlgParams.sliceSize / DATATYPE_SIZE_TABLE[dataType_];
     HCCL_INFO("[InsTempReduceScatterMesh1D] Run Start");
     HCCL_INFO("[InsTempReduceScatterMesh1D] KernelRun threadNum_[%u], templateResource.threads.size()[%u]", threadNum_, templateResource.threads.size());
+    // [DEBUG-RS-4LEVEL] buffer 边界: 判断 tx/rx/copy 的 off+size 是否越界 HCCL/INPUT/OUTPUT 的唯一依据
+    HCCL_INFO("[DEBUG-RS-BUF] myRank[%u] inBuffType[%u] outBuffType[%u] "
+        "inputPtr[%p] outputPtr[%p] | hcclBuff.addr[%p] hcclBuff.size[%llu] | "
+        "sliceSize[%llu] count[%llu] repeatNum[%llu]",
+        myRank_, static_cast<u32>(tempAlgParams.buffInfo.inBuffType),
+        static_cast<u32>(tempAlgParams.buffInfo.outBuffType),
+        tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.outputPtr,
+        tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuff.size,
+        tempAlgParams.sliceSize, tempAlgParams.count, tempAlgParams.repeatNum);
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
@@ -126,6 +135,20 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
         buffSliceStride = tempAlgParams.sliceSize;
     }
 
+    // [DEBUG-RS-4LEVEL] PostCopy 入口: 记录本 rank 在 copy/reduce 阶段的关键寻址参数,
+    // 用于判断 level0(INPUT->HCCL) 与 level3(HCCL->OUTPUT) 两次 PostCopy 的写入落点是否冲突。
+    HCCL_INFO("[DEBUG-RS-POST] myRank[%u] enter PostCopy inBuffType[%u] outBuffType[%u] "
+        "templateRankSize_[%u] myAlgRank[%u] rankIdx[%u] processSize_[%llu] count_[%llu] "
+        "sliceSize[%llu] tailSize[%llu] buffSliceStride[%llu] repeatNum[%llu] "
+        "inBuffBaseOff[%llu] outBuffBaseOff[%llu] hcclBuffBaseOff[%llu] "
+        "inputSliceStride[%llu] outputSliceStride[%llu] inputRepeatStride[%llu] outputRepeatStride[%llu]",
+        myRank_, static_cast<u32>(tempAlgParams.buffInfo.inBuffType), static_cast<u32>(tempAlgParams.buffInfo.outBuffType),
+        templateRankSize_, myAlgRank, rankIdx, processSize_, count_,
+        tempAlgParams.sliceSize, tempAlgParams.tailSize, buffSliceStride, tempAlgParams.repeatNum,
+        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff, tempAlgParams.buffInfo.hcclBuffBaseOff,
+        tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride,
+        tempAlgParams.inputRepeatStride, tempAlgParams.outputRepeatStride);
+
     for (u32 repeatIdx = 0; repeatIdx < tempAlgParams.repeatNum; repeatIdx++) {
         if (tempAlgParams.buffInfo.inBuffType != tempAlgParams.buffInfo.outBuffType ||
             tempAlgParams.buffInfo.inBuffBaseOff != tempAlgParams.buffInfo.outBuffBaseOff) {
@@ -133,6 +156,11 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
                 repeatIdx * tempAlgParams.inputRepeatStride + myAlgRank * tempAlgParams.inputSliceStride, processSize_, count_);
             DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.outputPtr, tempAlgParams.buffInfo.outBuffBaseOff +
                 repeatIdx * tempAlgParams.outputRepeatStride + myAlgRank * tempAlgParams.outputSliceStride, processSize_, count_);
+            // [DEBUG-RS-4LEVEL] LocalCopy 实际字节落点 (本卡数据 userIn->userOut / HCCL)
+            HCCL_INFO("[DEBUG-RS-POST] myRank[%u] LocalCopy rep[%u] src ptr[%p] off[%llu] size[%llu] | "
+                "dst ptr[%p] off[%llu] size[%llu]",
+                myRank_, repeatIdx, srcSlice.addr_, srcSlice.offset_, srcSlice.size_,
+                dstSlice.addr_, dstSlice.offset_, dstSlice.size_);
             CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
         }
         if (dataType_ == HCCL_DATA_TYPE_INT64 || dataType_ == HCCL_DATA_TYPE_UINT64 || dataType_ == HCCL_DATA_TYPE_FP64
@@ -150,6 +178,11 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
                     + repeatIdx * tempAlgParams.outputRepeatStride + tmpRank * buffSliceStride, processSize_, count_);
                 DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.outputPtr, tempAlgParams.buffInfo.outBuffBaseOff
                     + repeatIdx * tempAlgParams.outputRepeatStride + rankIdx * tempAlgParams.outputSliceStride, processSize_, count_);
+                // [DEBUG-RS-4LEVEL] LocalReduce 实际字节落点 (跨卡累加: hcclBuff[tmpRank] -> out[rankIdx])
+                HCCL_INFO("[DEBUG-RS-POST] myRank[%u] LocalReduce rep[%u] tmpRank[%u] src hptr[%p] off[%llu] size[%llu] | "
+                    "dst ptr[%p] off[%llu] size[%llu]",
+                    myRank_, repeatIdx, tmpRank, srcSlice.addr_, srcSlice.offset_, srcSlice.size_,
+                    dstSlice.addr_, dstSlice.offset_, dstSlice.size_);
                 CHK_RET(static_cast<HcclResult>(LocalReduce(threads[0], srcSlice, dstSlice, dataType_, reduceOp_)));
             }
         }
@@ -180,6 +213,17 @@ HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
                    myRank_, remoteRank, remoteRank);
         const std::vector<ChannelInfo> &curChannels = channels.at(remoteRank);
         CHK_RET(CalcDataSplitByPortGroup(sliceCount, DATATYPE_SIZE_TABLE[dataType_], curChannels, elemCountOut_, sizeOut_, elemOffset_));
+        // [DEBUG-RS-4LEVEL] Z 轴/基类 split 全量: 对比 rank0 vs rank1 的 elemOffset/sizeOut 是否对称一致
+        // (不对称即为 Z 轴 split bug; 拼成串一行打印便于两 rank 日志横向比对)
+        {
+            std::string splitInfo = "[chIdx]elemCount@size(off); ";
+            for (u32 i = 0; i < elemOffset_.size(); i++) {
+                splitInfo += "[" + std::to_string(i) + "]" + std::to_string(elemCountOut_[i]) + "@" +
+                    std::to_string(sizeOut_[i]) + "(off" + std::to_string(elemOffset_[i]) + ") ";
+            }
+            HCCL_INFO("[DEBUG-RS-SPLIT] myRank[%u] toRank[%u] channelsPerRank_[%u] splitCount[%zu] | %s",
+                myRank_, remoteRank, channelsPerRank_, elemOffset_.size(), splitInfo.c_str());
+        }
         for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
             const ChannelInfo &linkSend = curChannels[channelIdx];
             const ChannelInfo &linkRecv = curChannels[channelIdx];
@@ -196,7 +240,7 @@ HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
                 // 在reduce_scatter_op.cc的创建channels的环节中获取到了remote的HcclBuff的地址
                 void* remoteCclBuffAddr = linkSend.remoteCclMem.addr;
                 // 在接收的时候接收源应该是远端地址，但是由于rs的mesh算法用的是write，所以rx不用care
-                DataSlice rxSrcSlice = DataSlice(remoteCclBuffAddr, tempAlgParam.buffInfo.inBuffBaseOff + 
+                DataSlice rxSrcSlice = DataSlice(remoteCclBuffAddr, tempAlgParam.buffInfo.inBuffBaseOff +
                     repeatIdx * tempAlgParam.inputRepeatStride + myAlgRank * tempAlgParam.inputSliceStride + elemOffset_[channelIdx],
                     sliceSize, sliceCount); // 接收源
                 DataSlice rxDstSlice = DataSlice(tempAlgParam.buffInfo.hcclBuff.addr,
@@ -208,6 +252,19 @@ HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
                 DataSlice txDstSlice = DataSlice(remoteCclBuffAddr, tempAlgParam.buffInfo.hcclBuffBaseOff +
                     repeatIdx * tempAlgParam.outputRepeatStride + myAlgRank * outputSliceStride + elemOffset_[channelIdx],
                     sliceSize, sliceCount);  // 发送目标
+
+                // [DEBUG-RS-4LEVEL] 每个 rank/channel/repeat 的实际 DataSlice(offset,size)
+                // 目的: 拿到真实字节落点, 手算 level0/level3 缓冲区占用是否越界/相互覆盖
+                HCCL_INFO("[DEBUG-RS-RS] myRank[%u] rankIdx[%u] chIdx[%u] rep[%u] nextRank[%u] "
+                    "sliceSize[%llu] elemOff[%llu] | "
+                    "txSrc ptr[%p] off[%llu] | txDst rptr[%p] off[%llu] | "
+                    "rxSrc rptr[%p] off[%llu] | rxDst hptr[%p] hcclBaseOff[%llu] off[%llu]",
+                    myRank_, rankIdx, channelIdx, repeatIdx, nextRank,
+                    sliceSize, elemOffset_[channelIdx],
+                    txSrcSlice.addr_, txSrcSlice.offset_,
+                    txDstSlice.addr_, txDstSlice.offset_,
+                    rxSrcSlice.addr_, rxSrcSlice.offset_,
+                    rxDstSlice.addr_, tempAlgParam.buffInfo.hcclBuffBaseOff, rxDstSlice.offset_);
 
                 rxSrcSlices.push_back(rxSrcSlice);
                 rxDstSlices.push_back(rxDstSlice);
