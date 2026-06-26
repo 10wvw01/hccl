@@ -13,213 +13,315 @@
 
 namespace ops_hccl {
 
-HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams,
-                            TemplateResource &templateResource, EngineType engineType)
+HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                            EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
     (void)engineType;
-    u32 rankSize = static_cast<u32>(tempAlgParams.allRankDispls.size());
-    u32 myRankIdx = 0;
-    if (rankSize <= 1) {
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
     }
-    bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
-    u64 sz = tempAlgParams.sliceSize;
-
-    for (u32 i = 1; i < rankSize; ++i) {
-        u32 peer = (myRankIdx + i) % rankSize;
-        const ChannelInfo &link = templateResource.channels.at(peer)[0];
-
-        u64 myOff = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * myRankIdx;
-        u64 peerOff = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * peer;
-        std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.hcclBuff.addr, myOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> txDst{{link.remoteCclMem.addr, myOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, peerOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.hcclBuff.addr, peerOff, sz, sz / dataTypeSize}};
-
-        SendRecvInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, tempAlgParams.dataType};
-        if (isDmaRead) {
-            CHK_RET(SendRecvRead(info, templateResource.threads[i - 1]));
-        } else {
-            CHK_RET(SendRecvBatchWrite(info, templateResource.threads[i - 1]));
+    u32 myRankIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+            break;
         }
     }
-    return HCCL_SUCCESS;
-}
-
-HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams,
-                                TemplateResource &templateResource, EngineType engineType)
-{
-    (void)engineType;
-    u32 rankSize = static_cast<u32>(tempAlgParams.allRankDispls.size());
-    u32 myRankIdx = 0;
-    if (rankSize <= 1) {
-        return HCCL_SUCCESS;
-    }
+    HcclDataType dataType = tempAlgParams.dataType;
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 sliceSize = tempAlgParams.sliceSize;
+    u64 tailSize = tempAlgParams.tailSize;
     bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
-    u64 sz = tempAlgParams.sliceSize;
+    u64 base = tempAlgParams.buffInfo.hcclBuffBaseOff;
 
+    const std::vector<ChannelInfo> &portGroup = templateResource.channels.begin()->second;
+    u32 channelsPerRank = static_cast<u32>(portGroup.size());
+    std::vector<u64> ec, sizeOut, elemOffset;
+    CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, portGroup, ec, sizeOut, elemOffset, channelsPerRank));
+    std::vector<u64> ecT, sizeTail, elemOffsetTail;
+    if (tailSize > 0) {
+        CHK_RET(CalcDataSplitByPortGroupCommon(tailSize / dataTypeSize, dataTypeSize, portGroup, ecT, sizeTail, elemOffsetTail, channelsPerRank));
+    }
+
+    u32 t = 0;
     for (u32 i = 1; i < rankSize; ++i) {
-        u32 peer = (myRankIdx + i) % rankSize;
-        const ChannelInfo &link = templateResource.channels.at(peer)[0];
-
-        u64 peerOff = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * peer;
-        u64 myOff = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * myRankIdx;
-        std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, peerOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> txDst{{link.remoteCclMem.addr, myOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, myOff, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.hcclBuff.addr, myOff, sz, sz / dataTypeSize}};
-
-        SendRecvReduceInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, tempAlgParams.dataType, {}};
-        if (isDmaRead) {
-            CHK_RET(SendRecvReadReduce(info, templateResource.threads[i - 1]));
-        } else {
-            CHK_RET(SendRecvBatchWriteReduce(info, templateResource.threads[i - 1]));
-        }
-    }
-    return HCCL_SUCCESS;
-}
-
-HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams,
-                          TemplateResource &templateResource, EngineType engineType)
-{
-    (void)engineType;
-    u32 rankSize = static_cast<u32>(tempAlgParams.allRankDispls.size());
-    u32 myRankIdx = 0;
-    u32 root = tempAlgParams.root;
-    if (rankSize <= 1) {
-        return HCCL_SUCCESS;
-    }
-    bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
-    u64 sz = tempAlgParams.sliceSize;
-
-    if (myRankIdx == root) {
-        u32 t = 0;
-        for (u32 r = 0; r < rankSize; ++r) {
-            if (r == root) { continue; }
-            const ChannelInfo &link = templateResource.channels.at(r)[0];
-            u64 off = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * r;
-            std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, off, sz, sz / dataTypeSize}};
-            std::vector<DataSlice> txDst{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
-            std::vector<DataSlice> empty;
-            SendRecvInfo info{{link, link}, {{txSrc, txDst}, {empty, empty}}, tempAlgParams.dataType};
+        u32 peerIdx = (myRankIdx + i) % rankSize;
+        bool peerTail = (peerIdx == rankSize - 1 && tailSize > 0);
+        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+            const ChannelInfo &link = templateResource.channels.at(ranks[peerIdx])[ch];
+            u64 mySz = sizeOut[ch];
+            u64 myOff = base + sliceSize * myRankIdx + elemOffset[ch];
+            u64 peerSz = peerTail ? sizeTail[ch] : sizeOut[ch];
+            u64 peerOff = base + sliceSize * peerIdx + (peerTail ? elemOffsetTail[ch] : elemOffset[ch]);
+            std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.hcclBuff.addr, myOff, mySz, mySz / dataTypeSize}};
+            std::vector<DataSlice> txDst{{link.remoteCclMem.addr, myOff, mySz, mySz / dataTypeSize}};
+            std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, peerOff, peerSz, peerSz / dataTypeSize}};
+            std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.hcclBuff.addr, peerOff, peerSz, peerSz / dataTypeSize}};
+            SendRecvInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, dataType};
             CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
                                 SendRecvBatchWrite(info, templateResource.threads[t]));
             t++;
         }
-    } else {
-        const ChannelInfo &link = templateResource.channels.at(root)[0];
-        u64 off = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * myRankIdx;
-        std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.outputPtr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> empty;
-        SendRecvInfo info{{link, link}, {{empty, empty}, {rxSrc, rxDst}}, tempAlgParams.dataType};
-        CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[0]) :
-                            SendRecvBatchWrite(info, templateResource.threads[0]));
     }
     return HCCL_SUCCESS;
 }
 
-HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams,
-                         TemplateResource &templateResource, EngineType engineType)
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
     (void)engineType;
-    u32 rankSize = static_cast<u32>(tempAlgParams.allRankDispls.size());
-    u32 myRankIdx = 0;
-    u32 root = tempAlgParams.root;
-    if (rankSize <= 1) {
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
     }
+    u32 myRankIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+            break;
+        }
+    }
+    HcclDataType dataType = tempAlgParams.dataType;
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 sliceSize = tempAlgParams.sliceSize;
+    u64 tailSize = tempAlgParams.tailSize;
     bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
-    u64 sz = tempAlgParams.sliceSize;
+    u64 base = tempAlgParams.buffInfo.hcclBuffBaseOff;
 
-    if (myRankIdx == root) {
-        u32 t = 0;
+    const std::vector<ChannelInfo> &portGroup = templateResource.channels.begin()->second;
+    u32 channelsPerRank = static_cast<u32>(portGroup.size());
+    std::vector<u64> ec, sizeOut, elemOffset;
+    CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, portGroup, ec, sizeOut, elemOffset, channelsPerRank));
+    std::vector<u64> ecT, sizeTail, elemOffsetTail;
+    if (tailSize > 0) {
+        CHK_RET(CalcDataSplitByPortGroupCommon(tailSize / dataTypeSize, dataTypeSize, portGroup, ecT, sizeTail, elemOffsetTail, channelsPerRank));
+    }
+
+    u32 t = 0;
+    for (u32 i = 1; i < rankSize; ++i) {
+        u32 peerIdx = (myRankIdx + i) % rankSize;
+        bool peerTail = (peerIdx == rankSize - 1 && tailSize > 0);
+        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+            const ChannelInfo &link = templateResource.channels.at(ranks[peerIdx])[ch];
+            u64 peerSz = peerTail ? sizeTail[ch] : sizeOut[ch];
+            u64 peerOff = base + sliceSize * peerIdx + (peerTail ? elemOffsetTail[ch] : elemOffset[ch]);
+            u64 mySz = sizeOut[ch];
+            u64 myOff = base + sliceSize * myRankIdx + elemOffset[ch];
+            std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, peerOff, peerSz, peerSz / dataTypeSize}};
+            std::vector<DataSlice> txDst{{link.remoteCclMem.addr, myOff, mySz, mySz / dataTypeSize}};
+            std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, myOff, mySz, mySz / dataTypeSize}};
+            std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.hcclBuff.addr, myOff, mySz, mySz / dataTypeSize}};
+            SendRecvReduceInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, dataType, {}};
+            CHK_RET(isDmaRead ? SendRecvReadReduce(info, templateResource.threads[t]) :
+                                SendRecvBatchWriteReduce(info, templateResource.threads[t]));
+            t++;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
+{
+    (void)engineType;
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
+        return HCCL_SUCCESS;
+    }
+    u32 myRankIdx = 0;
+    u32 rootIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+        }
+        if (ranks[i] == tempAlgParams.root) {
+            rootIdx = i;
+        }
+    }
+    HcclDataType dataType = tempAlgParams.dataType;
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 sliceSize = tempAlgParams.sliceSize;
+    bool isDmaRead = IsPcieProtocol(templateResource.channels);
+    u64 base = tempAlgParams.buffInfo.hcclBuffBaseOff;
+
+    const std::vector<ChannelInfo> &portGroup = templateResource.channels.begin()->second;
+    u32 channelsPerRank = static_cast<u32>(portGroup.size());
+    std::vector<u64> ec, sizeOut, elemOffset;
+    CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, portGroup, ec, sizeOut, elemOffset, channelsPerRank));
+
+    u32 t = 0;
+    if (myRankIdx == rootIdx) {
         for (u32 r = 0; r < rankSize; ++r) {
-            if (r == root) { continue; }
-            const ChannelInfo &link = templateResource.channels.at(r)[0];
-            u64 off = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * r;
+            if (r == rootIdx) {
+                continue;
+            }
+            for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+                const ChannelInfo &link = templateResource.channels.at(ranks[r])[ch];
+                u64 off = base + sliceSize * r + elemOffset[ch];
+                u64 sz = sizeOut[ch];
+                std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, off, sz, sz / dataTypeSize}};
+                std::vector<DataSlice> txDst{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
+                std::vector<DataSlice> empty;
+                SendRecvInfo info{{link, link}, {{txSrc, txDst}, {empty, empty}}, dataType};
+                CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
+                                    SendRecvBatchWrite(info, templateResource.threads[t]));
+                t++;
+            }
+        }
+    } else {
+        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+            const ChannelInfo &link = templateResource.channels.at(ranks[rootIdx])[ch];
+            u64 off = base + sliceSize * myRankIdx + elemOffset[ch];
+            u64 sz = sizeOut[ch];
             std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
             std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.outputPtr, off, sz, sz / dataTypeSize}};
             std::vector<DataSlice> empty;
-            SendRecvInfo info{{link, link}, {{empty, empty}, {rxSrc, rxDst}}, tempAlgParams.dataType};
+            SendRecvInfo info{{link, link}, {{empty, empty}, {rxSrc, rxDst}}, dataType};
             CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
                                 SendRecvBatchWrite(info, templateResource.threads[t]));
             t++;
         }
-    } else {
-        const ChannelInfo &link = templateResource.channels.at(root)[0];
-        u64 off = tempAlgParams.buffInfo.hcclBuffBaseOff + sz * myRankIdx;
-        std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> txDst{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> empty;
-        SendRecvInfo info{{link, link}, {{txSrc, txDst}, {empty, empty}}, tempAlgParams.dataType};
-        CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[0]) :
-                            SendRecvBatchWrite(info, templateResource.threads[0]));
     }
     return HCCL_SUCCESS;
 }
 
-HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams,
-                           TemplateResource &templateResource, EngineType engineType)
+HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                         EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
     (void)engineType;
-    u32 rankSize = static_cast<u32>(tempAlgParams.sendCounts.size());
-    u32 myRankIdx = 0;
-    if (rankSize <= 1) {
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
     }
+    u32 myRankIdx = 0;
+    u32 rootIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+        }
+        if (ranks[i] == tempAlgParams.root) {
+            rootIdx = i;
+        }
+    }
+    HcclDataType dataType = tempAlgParams.dataType;
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    u64 sliceSize = tempAlgParams.sliceSize;
     bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    u64 base = tempAlgParams.buffInfo.hcclBuffBaseOff;
 
-    for (u32 i = 1; i < rankSize; ++i) {
-        u32 peer = (myRankIdx + i) % rankSize;
-        const ChannelInfo &link = templateResource.channels.at(peer)[0];
+    const std::vector<ChannelInfo> &portGroup = templateResource.channels.begin()->second;
+    u32 channelsPerRank = static_cast<u32>(portGroup.size());
+    std::vector<u64> ec, sizeOut, elemOffset;
+    CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, portGroup, ec, sizeOut, elemOffset, channelsPerRank));
 
-        u64 txSz = tempAlgParams.sendCounts[peer] * dataTypeSize;
-        u64 txOff = tempAlgParams.sdispls[peer] * dataTypeSize;
-        u64 rxSz = tempAlgParams.recvCounts[peer] * dataTypeSize;
-        u64 rxOff = tempAlgParams.rdispls[peer] * dataTypeSize;
-
-        std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, txOff, txSz, tempAlgParams.sendCounts[peer]}};
-        std::vector<DataSlice> txDst{{link.remoteCclMem.addr, txOff, txSz, tempAlgParams.sendCounts[peer]}};
-        std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, rxOff, rxSz, tempAlgParams.recvCounts[peer]}};
-        std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.outputPtr, rxOff, rxSz, tempAlgParams.recvCounts[peer]}};
-
-        SendRecvInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, tempAlgParams.dataType};
-        if (isDmaRead) {
-            CHK_RET(SendRecvRead(info, templateResource.threads[i - 1]));
-        } else {
-            CHK_RET(SendRecvBatchWrite(info, templateResource.threads[i - 1]));
+    u32 t = 0;
+    if (myRankIdx == rootIdx) {
+        for (u32 r = 0; r < rankSize; ++r) {
+            if (r == rootIdx) {
+                continue;
+            }
+            for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+                const ChannelInfo &link = templateResource.channels.at(ranks[r])[ch];
+                u64 off = base + sliceSize * r + elemOffset[ch];
+                u64 sz = sizeOut[ch];
+                std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
+                std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.outputPtr, off, sz, sz / dataTypeSize}};
+                std::vector<DataSlice> empty;
+                SendRecvInfo info{{link, link}, {{empty, empty}, {rxSrc, rxDst}}, dataType};
+                CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
+                                    SendRecvBatchWrite(info, templateResource.threads[t]));
+                t++;
+            }
+        }
+    } else {
+        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+            const ChannelInfo &link = templateResource.channels.at(ranks[rootIdx])[ch];
+            u64 off = base + sliceSize * myRankIdx + elemOffset[ch];
+            u64 sz = sizeOut[ch];
+            std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, off, sz, sz / dataTypeSize}};
+            std::vector<DataSlice> txDst{{link.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
+            std::vector<DataSlice> empty;
+            SendRecvInfo info{{link, link}, {{txSrc, txDst}, {empty, empty}}, dataType};
+            CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
+                                SendRecvBatchWrite(info, templateResource.threads[t]));
+            t++;
         }
     }
     return HCCL_SUCCESS;
 }
 
-HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams,
-                          TemplateResource &templateResource, EngineType engineType)
+HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
     (void)engineType;
-    u32 rankSize = static_cast<u32>(templateResource.channels.size()) + 1;
-    u32 myRankIdx = 0;
-    if (rankSize <= 1) {
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
+    }
+    u32 myRankIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+            break;
+        }
+    }
+    HcclDataType dataType = tempAlgParams.dataType;
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    bool isDmaRead = IsPcieProtocol(templateResource.channels);
+    u32 channelsPerRank = static_cast<u32>(templateResource.channels.begin()->second.size());
+
+    u32 t = 0;
+    for (u32 i = 1; i < rankSize; ++i) {
+        u32 peer = ranks[(myRankIdx + i) % rankSize];
+        std::vector<u64> sendEc, sendSz, sendOff;
+        std::vector<u64> recvEc, recvSz, recvOff;
+        const std::vector<ChannelInfo> &peerCh = templateResource.channels.at(peer);
+        CHK_RET(CalcDataSplitByPortGroupCommon(tempAlgParams.sendCounts[peer], dataTypeSize, peerCh, sendEc, sendSz, sendOff, channelsPerRank));
+        CHK_RET(CalcDataSplitByPortGroupCommon(tempAlgParams.recvCounts[peer], dataTypeSize, peerCh, recvEc, recvSz, recvOff, channelsPerRank));
+        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
+            const ChannelInfo &link = peerCh[ch];
+            u64 txOff = tempAlgParams.sdispls[peer] * dataTypeSize + sendOff[ch];
+            u64 rxOff = tempAlgParams.rdispls[peer] * dataTypeSize + recvOff[ch];
+            std::vector<DataSlice> txSrc{{tempAlgParams.buffInfo.inputPtr, txOff, sendSz[ch], sendEc[ch]}};
+            std::vector<DataSlice> txDst{{link.remoteCclMem.addr, txOff, sendSz[ch], sendEc[ch]}};
+            std::vector<DataSlice> rxSrc{{link.remoteCclMem.addr, rxOff, recvSz[ch], recvEc[ch]}};
+            std::vector<DataSlice> rxDst{{tempAlgParams.buffInfo.outputPtr, rxOff, recvSz[ch], recvEc[ch]}};
+            SendRecvInfo info{{link, link}, {{txSrc, txDst}, {rxSrc, rxDst}}, dataType};
+            CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
+                                SendRecvBatchWrite(info, templateResource.threads[t]));
+            t++;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
+{
+    (void)engineType;
+    u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
+        return HCCL_SUCCESS;
+    }
+    u32 myRankIdx = 0;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myRankIdx = i;
+            break;
+        }
     }
     bool isDmaRead = IsPcieProtocol(templateResource.channels);
     std::vector<DataSlice> empty;
 
+    u32 t = 0;
     for (u32 i = 1; i < rankSize; ++i) {
-        u32 peer = (myRankIdx + i) % rankSize;
-        const ChannelInfo &link = templateResource.channels.at(peer)[0];
+        u32 peerIdx = (myRankIdx + i) % rankSize;
+        const ChannelInfo &link = templateResource.channels.at(ranks[peerIdx])[0];
         SendRecvInfo info{{link, link}, {{empty, empty}, {empty, empty}}, tempAlgParams.dataType};
-        if (isDmaRead) {
-            CHK_RET(SendRecvRead(info, templateResource.threads[i - 1]));
-        } else {
-            CHK_RET(SendRecvBatchWrite(info, templateResource.threads[i - 1]));
-        }
+        CHK_RET(isDmaRead ? SendRecvRead(info, templateResource.threads[t]) :
+                            SendRecvBatchWrite(info, templateResource.threads[t]));
+        t++;
     }
     return HCCL_SUCCESS;
 }

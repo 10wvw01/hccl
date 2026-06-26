@@ -16,23 +16,23 @@
 
 namespace ops_hccl {
 
-HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams,
-                            TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                            EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams,
-                                TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams,
-                          TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams,
-                         TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                         EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams,
-                           TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams,
-                          TemplateResource &templateResource, EngineType engineType);
+HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
 }
 

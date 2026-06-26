@@ -16,17 +16,17 @@
 
 namespace ops_hccl {
 
-HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams,
-                               TemplateResource &templateResource, EngineType engineType);
+HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                               EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams,
-                           TemplateResource &templateResource, EngineType engineType);
+HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams,
-                         TemplateResource &templateResource, EngineType engineType);
+HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                         EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
-HcclResult RunNhrBarrier(const TemplateDataParams &tempAlgParams,
-                         TemplateResource &templateResource, EngineType engineType);
+HcclResult RunNhrBarrier(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                         EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
 }
 
