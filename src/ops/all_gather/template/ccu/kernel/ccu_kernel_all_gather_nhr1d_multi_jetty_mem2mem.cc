@@ -73,10 +73,6 @@ static CcuResult LoadArgs(AllGatherNHR1DMultiJettyMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.inputRepeatStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.outputRepeatStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isInputOutputEqual, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.groupOpSize.addrOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.groupOpSize.loopParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.groupOpSize.parallelParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.groupOpSize.residual, argId++));
 
     HCCL_DEBUG("[CcuKernelAllGatherNHR1DMultiJettyMem2Mem] LoadArgs run finished");
     return CCU_SUCCESS;
