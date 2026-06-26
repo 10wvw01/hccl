@@ -692,6 +692,15 @@ static HcclResult CalcLevel3Ocs(const HcclComm comm, TopoInfoWithNetLayerDetails
     if (topoInfo->topoLevelNums < NET_LAYER_NUM_FOUR) {
         return HCCL_SUCCESS;
     }
+    if (topoInfo->topoInstDetailsOfLayerSize < NET_LAYER_NUM_FOUR) {
+        return HCCL_SUCCESS;
+    }
+    // 当前OCS MESH算法限定在4层，且最后一层是OCS_MESH
+    if (topoInfo->topoInstDetailsOfLayer[NET_LAYER_NUM_FOUR - 1].typeOfTopo.size() != 1 || 
+        topoInfo->topoInstDetailsOfLayer[NET_LAYER_NUM_FOUR - 1].typeOfTopo[0] != CommTopo::COMM_TOPO_OCS_MESH) {
+        return HCCL_SUCCESS;
+    }
+
     topoInfo->level3Ocs = true;
     HCCL_INFO("[TopoHost][CalcLevel3Ocs] topoLevelNums[%u] >= 4, set level3Ocs to true", topoInfo->topoLevelNums);
     return HCCL_SUCCESS;
