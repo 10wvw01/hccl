@@ -147,6 +147,19 @@ HcclResult CcuTempAlltoAllVMesh1D::FastLaunch(const OpParam& param, const Templa
     uint32_t myRank = static_cast<uint32_t>(args[6]);
     HcclDataType dataType = param.all2AllVDataDes.sendType;
     uint64_t dataTypeSize =  SIZE_TABLE[dataType];
+
+    uint64_t freshToken = 0;
+    CcuResult tokenRet = HcommCcuGetMemToken(PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr),
+                                             static_cast<uint64_t>(param.inputSize), &freshToken);
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][CACHE_READ] cachedToken(args[2])[%llu], freshToken[%llu], "
+              "cachedInputAddr(args[0])[%llu], currentInputPtr[%llu], currentInputSize[%llu], "
+              "cachedOutputAddr(args[1])[%llu], currentOutputPtr[%llu], currentOutputSize[%llu], tokenRet[%d]",
+              args[2], freshToken, args[0], PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr), param.inputSize,
+              args[1], PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr), param.outputSize, tokenRet);
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][CACHE_READ_ALL] args[0]=%llu, args[1]=%llu, args[2]=%llu(token), "
+              "args[3]=%llu(srcOff), args[4]=%llu(dstOff), args[5]=%llu(rankSize), args[6]=%llu(myRank), "
+              "args[7]=%llu(inBuffBaseOff), args[8]=%llu(outBuffBaseOff)",
+              args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
     CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64),
     HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][OrchestrateLoop] param.varMemSize [%llu] is invalid", param.varMemSize), HCCL_E_PARA);
     
@@ -228,6 +241,21 @@ HcclResult CcuTempAlltoAllVMesh1D::FastLaunch(const OpParam& param, const Templa
         " dstOffset[%llu], rankSize[%llu], myRank[%lu]", PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr),
         PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr), args[3], args[4], args[5], myRank);
 
+    std::string taskArgsStr;
+    for (uint64_t i = 0; i < argSize; i++) {
+        taskArgsStr += "args[" + std::to_string(i) + "]=" + std::to_string(taskArgs[i]) + " ";
+    }
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][TASK_ARGS] argSize[%llu], %s", argSize, taskArgsStr.c_str());
+
+    for (uint64_t i = 0; i < rankSize; i++) {
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][SENDRECV] rank[%llu], sendLength[%llu], sendOffset[%llu], "
+                  "recvOffset[%llu], tailSize[%llu], loopNum[%llu]",
+                  i, localSendRecvInfo.sendLength[i], localSendRecvInfo.sendOffset[i],
+                  localSendRecvInfo.recvOffset[i],
+                  localSendRecvInfo.sendLength[i] % UB_MAX_TRANS_SIZE,
+                  UINT64_MAX - 1 - (localSendRecvInfo.sendLength[i] / UB_MAX_TRANS_SIZE));
+    }
+
     CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[0],
                                         tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle,
                                         taskArgs.data(), argSize);
@@ -288,9 +316,11 @@ HcclResult CcuTempAlltoAllVMesh1D::KernelRun(const OpParam& param,
 
     uint32_t rankSize = tempRankSize_;
 
-    HCCL_INFO("[CcuTempAllToAllVMesh1D] Run Init: myRank_[%d], dimSize[%llu], inputAddr[%llu],"\
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D] Run Init: myRank_[%d], dimSize[%llu], inputAddr[%llu],"\
         "outputAddr[%llu], sliceSize[%llu], srcOffset[%llu], dstOffset[%llu]",
         myRank_, tempRankSize_, inputAddr, outputAddr, sliceSize, srcOffset, dstOffset);
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::KernelRun][CACHE_WRITE] token[%llu], inputAddr[%llu], inputSize[%llu], outputAddr[%llu], outputSize[%llu]",
+        token, inputAddr, buffInfo_.inputSize, outputAddr, buffInfo_.outputSize);
     std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, srcOffset, dstOffset};
 
     LoopGroupConfig  config{};
@@ -333,6 +363,21 @@ HcclResult CcuTempAlltoAllVMesh1D::KernelRun(const OpParam& param,
     }
 
     uint64_t argSize = taskArgs.size();
+
+    std::string krnTaskArgsStr;
+    for (uint64_t i = 0; i < argSize; i++) {
+        krnTaskArgsStr += "args[" + std::to_string(i) + "]=" + std::to_string(taskArgs[i]) + " ";
+    }
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::KernelRun][TASK_ARGS] argSize[%llu], %s", argSize, krnTaskArgsStr.c_str());
+
+    for (uint32_t i = 0; i < rankSize; i++) {
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D::KernelRun][SENDRECV] rank[%u], sendLength[%llu], sendOffset[%llu], "
+                  "recvOffset[%llu], tailSize[%llu], loopNum[%llu]",
+                  i, localSendRecvInfo_.sendLength[i], localSendRecvInfo_.sendOffset[i],
+                  localSendRecvInfo_.recvOffset[i],
+                  localSendRecvInfo_.sendLength[i] % UB_MAX_TRANS_SIZE,
+                  UINT64_MAX - 1 - (localSendRecvInfo_.sendLength[i] / UB_MAX_TRANS_SIZE));
+    }
 
     CcuResult launchRet =  HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
     if (launchRet != CCU_SUCCESS) {
