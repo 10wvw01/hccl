@@ -192,18 +192,18 @@ HcclResult CcuTempAllToAllVMesh1DMultiJetty::FastLaunch(const OpParam& param,
     HCCL_INFO("[CcuTempAllToAllVMesh1DMultiJetty::FastLaunch] start");
     uint64_t *args = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
     uint64_t argSize = 9;
-    constexpr u32 inputIdx = 1;
-    constexpr u32 outputIdx = 2;
-    constexpr u32 inputOffsetIdx = 1;
-    constexpr u32 outputOffsetIdx = 2;
+    constexpr u32 inputIdx = 0;
+    constexpr u32 outputIdx = 1;
+    constexpr u32 inputOffsetIdx = 0;
+    constexpr u32 outputOffsetIdx = 1;
     args[inputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
     args[outputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
     HCCL_INFO("[CcuTempAlltoAllVMesh1DMultiJetty::FastLaunch]: inputAddr[%llu], outputAddr[%llu], ",
-        "srcOffset[%llu], dstOffset[%llu]", args[1], args[2], args[4], args[5]);
+        "srcOffset[%llu], dstOffset[%llu]", args[0], args[1], args[3], args[4]);
     A2ASendRecvInfo localSendRecvInfo;
     HcclDataType dataType = param.all2AllVDataDes.sendType;
     uint64_t dataTypeSize = SIZE_TABLE[dataType];
-    uint64_t rankSize = args[10];
+    uint64_t rankSize = args[9];
     localSendRecvInfo.sendCounts.resize(rankSize, 0);
     localSendRecvInfo.sendDispls.resize(rankSize, 0);
     localSendRecvInfo.sendLength.resize(rankSize, 0);
