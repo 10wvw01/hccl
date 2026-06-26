@@ -27,13 +27,6 @@ InsTempReduceScatterMesh1DOcs::~InsTempReduceScatterMesh1DOcs()
 HcclResult InsTempReduceScatterMesh1DOcs::CalcRes(HcclComm comm, const OpParam& param,
     const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
-    u32 threadNum = templateRankSize_ > 1 ? templateRankSize_ : 1;
-    resourceRequest.slaveThreadNum = threadNum - 1;
-    for (u32 index = 0; index < threadNum - 1; index++) {
-        resourceRequest.notifyNumPerThread.push_back(1);
-    }
-    resourceRequest.notifyNumOnMainThread = threadNum - 1;
-
     CHK_PRT_RET(topoInfo == nullptr,
         HCCL_ERROR("[InsTempReduceScatterMesh1DOcs][CalcRes] topoInfo is nullptr"), HCCL_E_PARA);
 
@@ -42,11 +35,32 @@ HcclResult InsTempReduceScatterMesh1DOcs::CalcRes(HcclComm comm, const OpParam& 
     CHK_RET(CalcChannelRequestMesh1DByLayer(comm, param, topoInfo, subCommRanks_, ocsChannels, ocsNetLayer_));
     resourceRequest.channels.push_back(ocsChannels);
 
-    HCCL_DEBUG("[InsTempReduceScatterMesh1DOcs][CalcRes] myRank[%u], ocsNetLayer_[%u], channels[%zu], "
-        "notifyNumOnMainThread[%u], slaveThreadNum[%u]",
-        myRank_, ocsNetLayer_, ocsChannels.size(),
+    // 关键: channelsPerRank_ 必须在 GetRes 之前算出。父类 GetRes 会通过(被本类 override 的)
+    // GetThreadNum() 读取 channelsPerRank_，以 (templateRankSize_-1) * channelsPerRank_ 口径
+    // 申请从线程数。RunReduceScatter 内部按同样口径通过 threads[queIdx] 分发每条 channel 的收发，
+    // 若此处漏算将导致从线程数不足、threads[queIdx] 越界取到空 handle(thread[0x0] is nullptr)。
+    // 与 InsTempReduceScatterMesh1DZAxisDetour::CalcRes 同样的时序约定。
+    channelsPerRank_ = CalcChannelsPerRank(ocsChannels);
+
+    // GetRes 为虚函数分发: 这里调用本类 override 的 GetThreadNum()，保证 slaveThreadNum 与
+    // RunReduceScatter 的实际线程访问上界一致。
+    CHK_RET(GetRes(resourceRequest));
+
+    HCCL_INFO("[InsTempReduceScatterMesh1DOcs][CalcRes] myRank[%u], ocsNetLayer_[%u], channels[%zu], "
+        "channelsPerRank_[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u]",
+        myRank_, ocsNetLayer_, ocsChannels.size(), channelsPerRank_,
         resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
     return HCCL_SUCCESS;
+}
+
+u64 InsTempReduceScatterMesh1DOcs::GetThreadNum() const
+{
+    // 单 rank 时 RunReduceScatter 的循环不会执行(queIdx 不增长)，1 个主线程即可;
+    // 多 rank 时每条 channel 各占一个从线程: (templateRankSize_-1) * channelsPerRank_ + 1。
+    u32 threadNum = templateRankSize_ > 1 ? ((templateRankSize_ - 1) * channelsPerRank_ + 1) : 1;
+    HCCL_INFO("[InsTempReduceScatterMesh1DOcs][GetThreadNum] templateRankSize_[%u] channelsPerRank_[%u] threadNum[%u]",
+        templateRankSize_, channelsPerRank_, threadNum);
+    return threadNum;
 }
 
 } // namespace ops_hccl
