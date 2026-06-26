@@ -44,6 +44,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
     
     ctx.input.resize(ctx.localSize + 1);
+    ctx.scratch.resize(ctx.localSize + 1);
     ctx.token.resize(ctx.localSize + 1);
     
     for (uint64_t channelIdx = 0; channelIdx < ctx.localSize; channelIdx++) {
