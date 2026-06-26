@@ -23,7 +23,7 @@ TopoMatch1D::~TopoMatch1D()
 HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfoExector)
 {
 #ifndef AICPU_COMPILE
-    CHK_PRT_RET(topoInfo->topoLevelNums == 0 || topoInfo->topoLevelNums > COMM_LAYER_SIZE_3,
+    CHK_PRT_RET(topoInfo->topoLevelNums == 0 || topoInfo->topoLevelNums > COMM_LAYER_SIZE_4,
         HCCL_ERROR("[CalcTopoLevelNums] topoLevelNum[%u] is invalid.",
             topoInfo->topoLevelNums),
         HCCL_E_INTERNAL);
@@ -51,7 +51,7 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
         const auto netLayerIdx = netLayers[layerIdx];
         CommTopo topoType = CommTopo::COMM_TOPO_RESERVED;
         CHK_RET(HcclRankGraphGetTopoTypeByLayer(comm, netLayerIdx, &topoType));
-        CHK_PRT_RET((topoType != COMM_TOPO_CUSTOM && topoType != CommTopo::COMM_TOPO_CLOS),
+        CHK_PRT_RET((topoType != COMM_TOPO_CUSTOM && topoType != CommTopo::COMM_TOPO_CLOS && topoType != CommTopo::COMM_TOPO_OCS_MESH),
                 HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] active netLayer [%u], topoType [%d] not "
                     "COMM_TOPO_CUSTOM or COMM_TOPO_CLOS.",
                     netLayerIdx, topoType),
