@@ -114,31 +114,31 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 {
     ccu::RemoteAddr src;
     ccu::LocalAddr dst;
+    u32                    &toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+    u32                    &fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+    ChannelHandle          &sendChannel      = ctx.arg->channels[toRankIdx];
+    ChannelHandle          &recvChannel      = ctx.arg->channels[fromRankIdx];
+    const std::vector<u32> &sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
+    const std::vector<u32> &recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
-    const auto &sendSliceIdxList = nhrStepInfo.txSliceIdxs;
-    const auto &recvSliceIdxList = nhrStepInfo.rxSliceIdxs;
-    u32 toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
-    u32 fromRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
     // 发送端：先通知接收方可以读取自己的数据
     if (sendSliceIdxList.size() != 0) {
-        if (ctx.rank2ChannelIdx.count(nhrStepInfo.toRank) == 0) {
-            return CCU_E_INTERNAL;
-        }
-        if (toRankIdx >= ctx.arg->channelCount) {
-            return CCU_E_INTERNAL;
-        }
-        ccu::NotifyRecord(ctx.arg->channels[toRankIdx], CKE_IDX_0, 1 << STEP_SYNC_ID);
-        ccu::NotifyWait(ctx.arg->channels[fromRankIdx], CKE_IDX_0, 1 << STEP_SYNC_ID);
+        u32& toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+        ChannelHandle sendChannel = ctx.arg->channels[toRankIdx];
+        ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
     if (recvSliceIdxList.size() != 0) {
+        u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+        u32  recvSliceIdx = 0;
         ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
         src.token                        = ctx.token[ctx.myRankIdx];
         dst.token                        = ctx.token[fromRankIdx];
 
+        ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
         u32 recvSliceIdxSize = recvSliceIdxList.size();
         for (u32 i = 0; i < recvSliceIdxSize; i++) {
-            u32 recvSliceIdx = recvSliceIdxList[i];
+            recvSliceIdx = recvSliceIdxList[i];
             if (nhrStepInfo.fromRank == recvSliceIdx) {
                 src.addr = ctx.input[fromRankIdx];
             } else {
@@ -150,7 +150,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
             dst.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
 
             CCU_IF(ctx.sliceSize != 0) {
-                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event, 1 << i);
+                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
             }
             CCU_IF(ctx.sliceSize == 0) {
                 ccu::EventRecord(ctx.event, 1 << i);
