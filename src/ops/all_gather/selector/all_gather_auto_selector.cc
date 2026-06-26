@@ -179,6 +179,11 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
+        constexpr u64 AG_CCU_SCHEDULE_2D_MAX_DATA_SIZE = 256ULL * 1024 * 1024;
+        if (dataSize > AG_CCU_SCHEDULE_2D_MAX_DATA_SIZE) {
+            HCCL_INFO("[AllGatherAutoSelector] 2D topo dataSize[%llu] exceeds limit, fallback to aicpu.", dataSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
