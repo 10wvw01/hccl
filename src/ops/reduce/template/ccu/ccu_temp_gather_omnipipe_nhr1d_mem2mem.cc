@@ -33,6 +33,7 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     if (rootIt != ranks.end()) {
         subCommRootId_ = std::distance(ranks.begin(), rootIt);
     }
+    rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
 }
 
