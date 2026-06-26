@@ -109,8 +109,8 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
     //   0 = 不跑 PostCopy, 把阶段A(RunReduceScatter)cclBuffer 直接搬到 output(对照基准)
     //   1 = 只跑 LocalCopy(注释 LocalReduce)
     //   2 = LocalCopy + LocalReduce 都跑(=完整 PostCopy, 还原 bug 现场)
-    // 当前: 1 (下一刀二分点: 看 LocalCopy 后 buf[2] 是否已异常)
-    constexpr u32 POSTCOPY_BISECT_MODE = 1;
+    // 当前: 2 (还原完整 PostCopy, 验证 LocalReduce 后 buf[2] 是否异常)
+    constexpr u32 POSTCOPY_BISECT_MODE = 2;
 
     if (POSTCOPY_BISECT_MODE == 0) {
         u64 dumpCount = count_ * templateRankSize_;      // 8 * 2 = 16
