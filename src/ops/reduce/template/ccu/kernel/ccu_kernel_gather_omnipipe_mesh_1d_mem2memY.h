@@ -42,9 +42,9 @@ struct GatherOmniPipeMesh1DMem2MemContextY {
     std::vector<ccu::Variable> input;
     ccu::Variable output;
     std::vector<ccu::Variable> token;
-    ccu::Variable sliceSize;
-    ccu::Variable inputSliceStride;
-    ccu::Variable outputSliceStride;
+    std::vector<ccu::Variable> sliceSize;
+    std::vector<ccu::Variable> inputSliceStride;
+    std::vector<ccu::Variable> outputSliceStride;
     ccu::Variable inputOmniPipeSliceStride;
     ccu::Variable outputOmniPipeSliceStride;
     ccu::Variable localCopyFlag;
