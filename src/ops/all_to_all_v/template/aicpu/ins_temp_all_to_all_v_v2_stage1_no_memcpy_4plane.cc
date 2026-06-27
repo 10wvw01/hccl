@@ -34,26 +34,57 @@ struct PeerSendPlan4Plane {
     std::vector<DataSlice> extraDstSlices;
 };
 
-u32 GetK4EdgeColor(u32 a, u32 b)
+u32 GetCompleteGraphEdgeColor(u32 a, u32 b, u32 vertexNum)
 {
-    static constexpr u32 K4_EDGE_COLOR[4][4] = {
-        {0, 0, 1, 2},
-        {0, 0, 2, 1},
-        {1, 2, 0, 0},
-        {2, 1, 0, 0},
-    };
-    return K4_EDGE_COLOR[a][b];
+    if (vertexNum <= 1 || a == b || a >= vertexNum || b >= vertexNum) {
+        return 0;
+    }
+
+    const u32 roundNum = vertexNum % 2 == 0 ? vertexNum - 1 : vertexNum;
+    const u32 scheduleVertexNum = vertexNum % 2 == 0 ? vertexNum : vertexNum + 1;
+    const u32 dummyVertex = vertexNum;
+    std::vector<u32> vertices(scheduleVertexNum, 0);
+    for (u32 idx = 0; idx < scheduleVertexNum; ++idx) {
+        vertices[idx] = idx < vertexNum ? idx : dummyVertex;
+    }
+
+    for (u32 round = 0; round < roundNum; ++round) {
+        for (u32 idx = 0; idx < scheduleVertexNum / 2; ++idx) {
+            u32 left = vertices[idx];
+            u32 right = vertices[scheduleVertexNum - 1 - idx];
+            if (left == dummyVertex || right == dummyVertex) {
+                continue;
+            }
+            if ((left == a && right == b) || (left == b && right == a)) {
+                return round;
+            }
+        }
+
+        u32 last = vertices.back();
+        for (u32 idx = scheduleVertexNum - 1; idx > 1; --idx) {
+            vertices[idx] = vertices[idx - 1];
+        }
+        vertices[1] = last;
+    }
+    return 0;
+}
+
+u32 GetCompleteGraphEdgeColorNum(u32 vertexNum)
+{
+    if (vertexNum <= 1) {
+        return 0;
+    }
+    return vertexNum % 2 == 0 ? vertexNum - 1 : vertexNum;
 }
 
 std::vector<std::vector<u32>> BuildExtraPeerRounds(u32 myRank, u32 rankSize, u32 meshSize,
     const std::map<u32, PeerSendPlan4Plane> &plans)
 {
-    constexpr u32 UBX_4X4_RANK_SIZE = 16;
-    constexpr u32 UBX_4X4_MESH_SIZE = 4;
-    constexpr u32 UBX_4X4_ROUND_NUM = 6;
-
-    if (rankSize == UBX_4X4_RANK_SIZE && meshSize == UBX_4X4_MESH_SIZE) {
-        std::vector<std::vector<u32>> rounds(UBX_4X4_ROUND_NUM);
+    if (meshSize > 0 && rankSize % meshSize == 0) {
+        const u32 groupNum = rankSize / meshSize;
+        const u32 meshRoundNum = GetCompleteGraphEdgeColorNum(meshSize);
+        const u32 groupRoundNum = GetCompleteGraphEdgeColorNum(groupNum);
+        std::vector<std::vector<u32>> rounds(meshRoundNum + groupRoundNum);
         u32 myGroup = myRank / meshSize;
         u32 myLocal = myRank % meshSize;
         for (const auto &item : plans) {
@@ -61,9 +92,9 @@ std::vector<std::vector<u32>> BuildExtraPeerRounds(u32 myRank, u32 rankSize, u32
             u32 peerGroup = peer / meshSize;
             u32 peerLocal = peer % meshSize;
             if (peerGroup == myGroup && peerLocal != myLocal) {
-                rounds[GetK4EdgeColor(myLocal, peerLocal)].push_back(peer);
+                rounds[GetCompleteGraphEdgeColor(myLocal, peerLocal, meshSize)].push_back(peer);
             } else if (peerLocal == myLocal && peerGroup != myGroup) {
-                rounds[3 + GetK4EdgeColor(myGroup, peerGroup)].push_back(peer);
+                rounds[meshRoundNum + GetCompleteGraphEdgeColor(myGroup, peerGroup, groupNum)].push_back(peer);
             } else {
                 HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][ExtraRounds] rank=%u peer=%u not rook-edge, skip extra.",
                              myRank, peer);
@@ -322,18 +353,68 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::SplitSlicesForExtraLane(
                 HCCL_ERROR("[A2AV_V2_STAGE1_4P_NM][SplitExtra] slice size mismatch rank=%u src=%zu dst=%zu",
                            myRank_, inSrcSlices.size(), inDstSlices.size()),
                 HcclResult::HCCL_E_INTERNAL);
-    u64 remainExtraBytes = extraQuotaBytes;
+
+    if (extraQuotaBytes == 0 || inSrcSlices.empty()) {
+        mainSrcSlices = inSrcSlices;
+        mainDstSlices = inDstSlices;
+        return HCCL_SUCCESS;
+    }
+
+    const u64 alignedQuotaBytes = extraQuotaBytes / dataTypeSize_ * dataTypeSize_;
+    if (alignedQuotaBytes == 0) {
+        mainSrcSlices = inSrcSlices;
+        mainDstSlices = inDstSlices;
+        return HCCL_SUCCESS;
+    }
+
+    constexpr u64 MIN_WHOLE_SLICE_NUMERATOR = 8;
+    constexpr u64 MIN_WHOLE_SLICE_DENOMINATOR = 10;
+    const u64 wholeSliceLowerBound =
+        alignedQuotaBytes * MIN_WHOLE_SLICE_NUMERATOR / MIN_WHOLE_SLICE_DENOMINATOR / dataTypeSize_ * dataTypeSize_;
+    size_t selectedIdx = inSrcSlices.size();
+    bool useWholeSlice = false;
+    u64 maxSliceBytes = 0;
+    size_t maxSliceIdx = inSrcSlices.size();
+
+    for (size_t i = 0; i < inSrcSlices.size(); ++i) {
+        const u64 sliceBytes = inSrcSlices[i].size_ / dataTypeSize_ * dataTypeSize_;
+        if (sliceBytes > maxSliceBytes) {
+            maxSliceBytes = sliceBytes;
+            maxSliceIdx = i;
+        }
+        if (sliceBytes >= wholeSliceLowerBound && sliceBytes <= alignedQuotaBytes &&
+            (selectedIdx == inSrcSlices.size() || sliceBytes > inSrcSlices[selectedIdx].size_)) {
+            selectedIdx = i;
+            useWholeSlice = true;
+        }
+    }
+
+    if (!useWholeSlice) {
+        selectedIdx = maxSliceIdx;
+    }
+
     for (size_t i = 0; i < inSrcSlices.size(); ++i) {
         const DataSlice &src = inSrcSlices[i];
         const DataSlice &dst = inDstSlices[i];
-        u64 extraBytes = std::min(remainExtraBytes, src.size_);
-        extraBytes = extraBytes / dataTypeSize_ * dataTypeSize_;
-        if (extraBytes > 0) {
-            u64 extraCount = extraBytes / dataTypeSize_;
-            extraSrcSlices.emplace_back(src.addr_, src.offset_, extraBytes, extraCount);
-            extraDstSlices.emplace_back(dst.addr_, dst.offset_, extraBytes, extraCount);
-            remainExtraBytes -= extraBytes;
+        if (i != selectedIdx) {
+            mainSrcSlices.push_back(src);
+            mainDstSlices.push_back(dst);
+            continue;
         }
+
+        const u64 alignedSliceBytes = src.size_ / dataTypeSize_ * dataTypeSize_;
+        u64 extraBytes = useWholeSlice ? alignedSliceBytes : std::min(alignedQuotaBytes, alignedSliceBytes);
+        extraBytes = extraBytes / dataTypeSize_ * dataTypeSize_;
+        if (extraBytes == 0) {
+            mainSrcSlices.push_back(src);
+            mainDstSlices.push_back(dst);
+            continue;
+        }
+
+        u64 extraCount = extraBytes / dataTypeSize_;
+        extraSrcSlices.emplace_back(src.addr_, src.offset_, extraBytes, extraCount);
+        extraDstSlices.emplace_back(dst.addr_, dst.offset_, extraBytes, extraCount);
+
         u64 mainBytes = src.size_ - extraBytes;
         if (mainBytes > 0) {
             u64 mainCount = mainBytes / dataTypeSize_;
@@ -341,6 +422,10 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::SplitSlicesForExtraLane(
             mainDstSlices.emplace_back(dst.addr_, dst.offset_ + extraBytes, mainBytes, mainCount);
         }
     }
+    HCCL_WARNING("[A2AV_V2_STAGE1_4P_NM][SplitExtra] rank=%u quota=%llu selectedIdx=%zu useWhole=%u "
+                 "extraBytes=%llu inputSlices=%zu mainSlices=%zu extraSlices=%zu",
+                 myRank_, alignedQuotaBytes, selectedIdx, useWholeSlice ? 1 : 0, SumSliceBytes(extraSrcSlices),
+                 inSrcSlices.size(), mainSrcSlices.size(), extraSrcSlices.size());
     return HCCL_SUCCESS;
 }
 
@@ -504,7 +589,6 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::BuildStage1Slices(u32 finalDs
 HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::RunStage0ToRelay(
     const TemplateDataParams &params, const TemplateResource &resource) const
 {
-    CHK_RET(CopySelfToOutput(params, resource.threads[0]));
     std::map<u32, PeerSendPlan4Plane> plans;
     u64 totalStageBytes = 0;
     u64 activePeerNum = 0;
@@ -667,6 +751,7 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::RunStage1ToOutput(
         CHK_RET(RunPeerSendRecv(*plan.mainChannel, plan.mainSrcSlices, plan.mainDstSlices, thread));
         ++threadIdx;
     }
+    CHK_RET(CopySelfToOutput(params, resource.threads[0]));
     return HCCL_SUCCESS;
 }
 
