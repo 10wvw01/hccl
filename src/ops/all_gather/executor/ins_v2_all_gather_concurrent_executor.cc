@@ -17,6 +17,7 @@
 // AICPU template 头文件
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_nhr.h"
+#include "ins_temp_all_gather_mesh_clos_v2.h"
 
 #ifndef AICPU_COMPILE
 // CCU template 头文件
@@ -94,7 +95,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               temp1ResReq.notifyNumPerThread.begin(),
                                               temp1ResReq.notifyNumPerThread.end());
-    
+
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         resourceRequest.ccuKernelNum.emplace_back(temp0ResReq.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(temp1ResReq.ccuKernelNum[0]);
@@ -208,7 +209,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-     
+
     // 拆分algHierarchyInfo
     std::vector<std::vector<u32>> temp0HierarchyInfo = {algHierarchyInfo_.infos[0][0]};
     std::vector<std::vector<u32>> temp1HierarchyInfo = {algHierarchyInfo_.infos[0][1]};
@@ -324,7 +325,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     // 前同步
     CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
-     
+
     // 交替下发两个template的任务
     for (u32 loopIndex = 0; loopIndex < loopTimesforTemp0 || loopIndex < loopTimesforTemp1; loopIndex++) {
         if (loopIndex < loopTimesforTemp0) {
@@ -374,7 +375,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     }
     HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
 
-    std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()), 
+    std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()),
                                          static_cast<u32>(templateAlgRes1.submitInfos.size())};
     std::vector<std::vector<CcuKernelSubmitInfo>> submitInfosList = {templateAlgRes0.submitInfos, templateAlgRes1.submitInfos};
     return FastLaunchSaveCtxTwoTemplate(param, threadNum, ccuKernelNum, threads_, ccuKernelNumList, submitInfosList, notifyNumOnMainThread);
@@ -387,7 +388,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunch] Start");
     InsAlgTemplate0 tempAlg0{};
     InsAlgTemplate1 tempAlg1{};
-    
+
     TemplateFastLaunchCtx tempFastLaunchCtx0, tempFastLaunchCtx1;
 
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
@@ -398,7 +399,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     // 前同步
     CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
-    
+
     // 执行第一个模板算法
     HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunch] temp0 ccuKernelNum[%llu]", ctx->ccuKernelNum[0]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtx0, param.inputPtr, param.outputPtr, param.hcclBuff));
@@ -408,7 +409,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     if (ctx->ccuKernelNum[0] > 0) {
         CHK_RET(tempAlg0.FastLaunch(param, tempFastLaunchCtx0));
     }
-    
+
     // 执行第二个模板算法
     HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunch] temp1 ccuKernelNum[%llu]", ctx->ccuKernelNum[1]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtx1, param.inputPtr, param.outputPtr, param.hcclBuff));
@@ -418,7 +419,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     if (ctx->ccuKernelNum[1] > 0) {
         CHK_RET(tempAlg1.FastLaunch(param, tempFastLaunchCtx1));
     }
-    
+
     // 后同步
     CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 
@@ -443,5 +444,9 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConc
                                CcuTempAllGatherNHR1DMultiJettyMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
+
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherConcurrentMesh1DMeshClosV2,
+                               InsV2AllGatherConcurrentExecutor, TopoMatchUBX,
+                               InsTempAllGatherMesh1D, InsTempAllGatherMeshClosV2);
 
 }  // namespace

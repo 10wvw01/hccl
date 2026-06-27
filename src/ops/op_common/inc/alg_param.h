@@ -220,7 +220,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream.Dump(result);
         return result;
     }
- 
+
     void DeSerialize(std::vector<char> &data)
     {
         BinaryStream binaryStream(data);
@@ -325,7 +325,7 @@ struct CcuFastLaunchCtx {
     CcuKernelSubmitInfo *GetCcuKernelSubmitInfoPtr() const
     {
         size_t offset = offsetof(CcuFastLaunchCtx, ccuKernelNum)
-                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO 
+                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO
                         + sizeof(ThreadHandle) * threadNum;
         return reinterpret_cast<CcuKernelSubmitInfo*>(
                     reinterpret_cast<char*>(const_cast<CcuFastLaunchCtx*>(this)) + offset
@@ -334,8 +334,8 @@ struct CcuFastLaunchCtx {
 
     static u64 GetCtxSize(u32 threadNum, u32 totalCcuKernelNum)
     {
-        return sizeof(CcuFastLaunchCtx) 
-               + sizeof(ThreadHandle) * threadNum 
+        return sizeof(CcuFastLaunchCtx)
+               + sizeof(ThreadHandle) * threadNum
                + sizeof(CcuKernelSubmitInfo) * totalCcuKernelNum;
     }
 };
@@ -373,8 +373,86 @@ struct ChannelInfo {
     HcclMem remoteCclMem; // A5用的
     HcclMem remoteInputGraphMode;   // A5用的, 图模式下远端sendBuf地址
     HcclMem remoteOutputGraphMode;  // A5用的，图模式下远端recvBuf地址
+    bool hasRemoteAlltoAllVInfo = false;
+    u64 remoteAlltoAllVRdisplForLocalRank = 0;
+    u64 remoteAlltoAllVRecvCountForLocalRank = 0;
+    u64 remoteAlltoAllVTotalSendCountWithoutSelf = 0;
+    u64 remoteAlltoAllVMaxSendCountWithoutSelf = 0;
+    std::vector<u64> remoteAlltoAllVRecvCounts;
+    std::vector<u64> remoteAlltoAllVRdispls;
     HcclMem remoteInput;  // A3用的，cclIn
     HcclMem remoteOutput; // A3用的, cclOut
+
+    std::vector<char> Serialize() const
+    {
+        BinaryStream binaryStream;
+        binaryStream << isValid;
+        binaryStream << remoteRank;
+        binaryStream << protocol;
+        binaryStream << locationType;
+        binaryStream << notifyNum;
+        binaryStream << portGroupSize;
+        binaryStream << handle;
+        binaryStream << remoteCclMem.type;
+        binaryStream << remoteCclMem.addr;
+        binaryStream << remoteCclMem.size;
+        binaryStream << remoteInputGraphMode.type;
+        binaryStream << remoteInputGraphMode.addr;
+        binaryStream << remoteInputGraphMode.size;
+        binaryStream << remoteOutputGraphMode.type;
+        binaryStream << remoteOutputGraphMode.addr;
+        binaryStream << remoteOutputGraphMode.size;
+        binaryStream << hasRemoteAlltoAllVInfo;
+        binaryStream << remoteAlltoAllVRdisplForLocalRank;
+        binaryStream << remoteAlltoAllVRecvCountForLocalRank;
+        binaryStream << remoteAlltoAllVTotalSendCountWithoutSelf;
+        binaryStream << remoteAlltoAllVMaxSendCountWithoutSelf;
+        binaryStream << remoteAlltoAllVRecvCounts;
+        binaryStream << remoteAlltoAllVRdispls;
+        binaryStream << remoteInput.type;
+        binaryStream << remoteInput.addr;
+        binaryStream << remoteInput.size;
+        binaryStream << remoteOutput.type;
+        binaryStream << remoteOutput.addr;
+        binaryStream << remoteOutput.size;
+        std::vector<char> result;
+        binaryStream.Dump(result);
+        return result;
+    }
+
+    void DeSerialize(std::vector<char> &data)
+    {
+        BinaryStream binaryStream(data);
+        binaryStream >> isValid;
+        binaryStream >> remoteRank;
+        binaryStream >> protocol;
+        binaryStream >> locationType;
+        binaryStream >> notifyNum;
+        binaryStream >> portGroupSize;
+        binaryStream >> handle;
+        binaryStream >> remoteCclMem.type;
+        binaryStream >> remoteCclMem.addr;
+        binaryStream >> remoteCclMem.size;
+        binaryStream >> remoteInputGraphMode.type;
+        binaryStream >> remoteInputGraphMode.addr;
+        binaryStream >> remoteInputGraphMode.size;
+        binaryStream >> remoteOutputGraphMode.type;
+        binaryStream >> remoteOutputGraphMode.addr;
+        binaryStream >> remoteOutputGraphMode.size;
+        binaryStream >> hasRemoteAlltoAllVInfo;
+        binaryStream >> remoteAlltoAllVRdisplForLocalRank;
+        binaryStream >> remoteAlltoAllVRecvCountForLocalRank;
+        binaryStream >> remoteAlltoAllVTotalSendCountWithoutSelf;
+        binaryStream >> remoteAlltoAllVMaxSendCountWithoutSelf;
+        binaryStream >> remoteAlltoAllVRecvCounts;
+        binaryStream >> remoteAlltoAllVRdispls;
+        binaryStream >> remoteInput.type;
+        binaryStream >> remoteInput.addr;
+        binaryStream >> remoteInput.size;
+        binaryStream >> remoteOutput.type;
+        binaryStream >> remoteOutput.addr;
+        binaryStream >> remoteOutput.size;
+    }
 };
 
 // 算法ctx，key为通信域id+算法名，提前在device上
@@ -442,7 +520,14 @@ struct AlgResourceCtxSerializable {
         binaryStream << commInfoPtr;
         binaryStream << threads;
         binaryStream << unfoldThread;
-        binaryStream << channels;
+        binaryStream << channels.size();
+        for (const auto &level : channels) {
+            binaryStream << level.size();
+            for (const auto &channel : level) {
+                std::vector<char> channelSeq = channel.Serialize();
+                binaryStream << channelSeq;
+            }
+        }
         binaryStream << isHcommBatchTransferOnThreadSupported;
         binaryStream << isHcclThreadAcquireWithConfigSupported;
 
@@ -476,7 +561,21 @@ struct AlgResourceCtxSerializable {
         binaryStream >> commInfoPtr;
         binaryStream >> threads;
         binaryStream >> unfoldThread;
-        binaryStream >> channels;
+        {
+            size_t levelNum;
+            binaryStream >> levelNum;
+            channels.resize(levelNum);
+            for (size_t i = 0; i < levelNum; ++i) {
+                size_t channelNum;
+                binaryStream >> channelNum;
+                channels[i].resize(channelNum);
+                for (size_t j = 0; j < channelNum; ++j) {
+                    std::vector<char> channelSeq;
+                    binaryStream >> channelSeq;
+                    channels[i][j].DeSerialize(channelSeq);
+                }
+            }
+        }
         binaryStream >> isHcommBatchTransferOnThreadSupported;
         binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
@@ -681,5 +780,23 @@ struct OpExchangeInfo {
     char tag[TAG_LENGTH] = {0};
 };
 
-} 
+constexpr u32 A2AV_EXCHANGE_MAGIC = 0x41325658; // "A2VX"
+constexpr u32 A2AV_EXCHANGE_VERSION = 3;
+constexpr u32 A2AV_EXCHANGE_MAX_RANK_SIZE = 64;
+
+struct A2AVNoMemcpyExchangeInfo {
+    OpExchangeInfo base;
+    u32 magic = A2AV_EXCHANGE_MAGIC;
+    u32 version = A2AV_EXCHANGE_VERSION;
+    u32 rankSize = 0;
+    u32 userRank = INVALID_VALUE_RANKID;
+    u64 totalSendCountWithoutSelf = 0;
+    u64 maxSendCountWithoutSelf = 0;
+    u64 sendCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 recvCounts[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 sdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+    u64 rdispls[A2AV_EXCHANGE_MAX_RANK_SIZE] = {0};
+};
+
+}
 #endif

@@ -254,6 +254,11 @@ struct TemplateDataParams {
     std::vector<u64> recvCounts;
     std::vector<u64> sdispls;
     std::vector<u64> rdispls;
+    std::vector<u64> remoteRdispls;
+    std::vector<u64> remoteRecvCounts;
+    u64 alltoAllVABThreshold{0};
+    u64 alltoAllVABMeshSize{0};
+    std::vector<u64> alltoAllVV2SlotOffsets;
     StepSliceInfo stepSliceInfo;
     BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
 
@@ -276,6 +281,11 @@ struct TemplateDataParams {
         binaryStream << recvCounts;
         binaryStream << sdispls;
         binaryStream << rdispls;
+        binaryStream << remoteRdispls;
+        binaryStream << remoteRecvCounts;
+        binaryStream << alltoAllVABThreshold;
+        binaryStream << alltoAllVABMeshSize;
+        binaryStream << alltoAllVV2SlotOffsets;
         binaryStream << allRankProcessedDataCount;
         binaryStream << root;
         binaryStream << dataType;
@@ -305,6 +315,11 @@ struct TemplateDataParams {
         binaryStream >> recvCounts;
         binaryStream >> sdispls;
         binaryStream >> rdispls;
+        binaryStream >> remoteRdispls;
+        binaryStream >> remoteRecvCounts;
+        binaryStream >> alltoAllVABThreshold;
+        binaryStream >> alltoAllVABMeshSize;
+        binaryStream >> alltoAllVV2SlotOffsets;
         binaryStream >> allRankProcessedDataCount;
         binaryStream >> root;
         binaryStream >> dataType;
@@ -338,7 +353,15 @@ struct DPURunInfo { // AICPU构造信息，写入共享内存
         BinaryStream binaryStream;
         binaryStream << templateName;
         binaryStream << tempAlgParams.Serialize();
-        binaryStream << channels;
+        binaryStream << channels.size();
+        for (const auto &entry : channels) {
+            binaryStream << entry.first;
+            binaryStream << entry.second.size();
+            for (const auto &channel : entry.second) {
+                std::vector<char> channelSeq = channel.Serialize();
+                binaryStream << channelSeq;
+            }
+        }
         binaryStream << myRank;
         binaryStream << subCommRanks;
 
@@ -354,7 +377,23 @@ struct DPURunInfo { // AICPU构造信息，写入共享内存
         std::vector<char> tempAlgParamsData;
         binaryStream >> tempAlgParamsData;
         tempAlgParams.DeSerialize(tempAlgParamsData);
-        binaryStream >> channels;
+        {
+            size_t mapSize;
+            binaryStream >> mapSize;
+            for (size_t i = 0; i < mapSize; ++i) {
+                uint32_t key;
+                binaryStream >> key;
+                size_t channelNum;
+                binaryStream >> channelNum;
+                std::vector<ChannelInfo> &channelVec = channels[key];
+                channelVec.resize(channelNum);
+                for (size_t j = 0; j < channelNum; ++j) {
+                    std::vector<char> channelSeq;
+                    binaryStream >> channelSeq;
+                    channelVec[j].DeSerialize(channelSeq);
+                }
+            }
+        }
         binaryStream >> myRank;
         binaryStream >> subCommRanks;
     }
