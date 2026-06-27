@@ -72,6 +72,7 @@ struct TemplateDesc {
     HcclAlgJettyMode jettyMode;
 };
 
+/* This HcclExecDomainInstance should be moved to execturor_base.h */
 struct HcclExecDomainInstance {
     std::shared_ptr<RankGroup> rankGroup;   /**< The rank group in this logic domain, which should be filterd
                                                  by algorithm's topoMatcher. */
