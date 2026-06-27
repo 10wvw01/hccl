@@ -27,7 +27,6 @@ struct CcuKernelArgGatherOmniPipeMesh1DMem2MemY : CcuKernelArgBase {
     OpParam opParam;
     std::vector<std::vector<uint32_t>> subCommRanks;
     std::map<uint32_t, uint32_t> subRankIdx2RankIdx;
-    bool ifRealRoot; 
     uint32_t myrealrank;
 };
 
