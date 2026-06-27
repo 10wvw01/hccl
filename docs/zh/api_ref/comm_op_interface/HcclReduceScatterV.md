@@ -46,7 +46,7 @@ HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, const void 
 
 ### dataType说明
 
-- 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、int16、int32、float16、float32、bfp16。
+- 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、int16、int32、int64、float16、float32、bfp16。
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、int16、int32、int64、float16、float32、bfp16。
 - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、int16、int32、float16、float32、bfp16。
 - 针对Atlas 300I Duo 推理卡，支持数据类型：int16、float16、float32。
