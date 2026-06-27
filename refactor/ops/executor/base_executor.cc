@@ -1,14 +1,12 @@
 #include "base_executor.h"
 
-BaseExecutor::BaseExecutor(HcclAlgorithm &algo)
-    : algo_(algo) {}
-
-BaseExecutor::BaseExecutor(HcclAlgorithm &algo, BaseOpParam &param)
+BaseExecutor::BaseExecutor(HcclAlgorithm &algo, OpParam &param)
     : algo_(algo), myRank_(param.myRank), rankSize_(param.rankSize),
       dataType_(param.dataType), dataCount_(param.dataCount), reduceOp_(param.reduceOp), root_(param.root)
 {
     dataTypeSize_ = DATATYPE_SIZE_TABLE[baseOpParam.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
+    // 提取一个BaseOpParam
 }
 
 BaseExecutor::~BaseExecutor() {}
@@ -54,15 +52,17 @@ HcclResult BaseExecutor::CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchy
 HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
     const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
 {
-    // TODO：子类自行实现，以下只是示例
-    // 初始化资源
-    InitRes();
-    // 切分资源给每个Template
-    SplitRes();
-    // 切分数据循环
-    SplitDataLoop();
-    // 循环展开
-    OrchestrateLoop();
+    // 初始化资源信息
+    InitRes(resCtx);
+    // 切分资源阶段（Sole不需要，跳过）
+    // 切分数据阶段（子类实现）
+    SplitData();
+    // 循环下发阶段（按照每轮最大处理数据量，循环展开）
+    u64 loopTimes = RoundUp(dataCount_, maxProcessCount);
+    for (u64 loop = 0; loop < loopTimes; ++loop) {
+        // 子类实现
+        OrchestrateLoop(maxProcessCount);
+    }
     // TODO：储存队列和任务信息，用于FastLauch
     SaveCtx();
 }
@@ -98,6 +98,8 @@ HcclResult BaseExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     // TODO：考虑不同Executor
     // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
     channelTable_ = RestoreChannelMap();
+
+    // TODO：加rankSize数组初始化
 }
 
 std::vector<std::map<u32, std::vector<ChannelInfo>> BaseExecutor::RestoreChannelMap(

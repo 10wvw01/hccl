@@ -2,9 +2,7 @@
 
 class BaseExecutor {
 public:
-    BaseExecutor(HcclAlgorithm &algo);
-    // TODO：是否需要2种构造函数，一种用于CalcRes，另一种用于Orchestrate
-    BaseExecutor(HcclAlgorithm &algo, BaseOpParam &param);
+    BaseExecutor(HcclAlgorithm &algo, OpParam &param);
     ~BaseExecutor();
 
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
@@ -34,17 +32,9 @@ protected:
     // rankInfo
     u32 myRank_ = INVALID_VALUE_RANKID;
     u32 rankSize_ = 0;
-    // dataInfo
-    HcclDataType dataType_;
-    u64 dataTypeSize_ = 0;
-    u64 dataCount_ = 0;
-    u64 dataSize_ = 0;
-    // opInfo
-    HcclReduceOp reduceOp_;
     u32 root_ = INVALID_VALUE_RANKID;
-    
-    // TODO：分析下使用场合
-    DevType devType_ = DevType::DEV_TYPE_COUNT;
+    // dataInfo
+    DataInfo dataInfo_;
 
     // 拓扑分级信息
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
@@ -105,5 +95,51 @@ struct Buffer {
     void* ptr;
     u64 size;
     BufferType bufferType;
+};
+
+struct DataInfo {
+    void* inputPtr = nullptr;
+    u64 inputSize = 0;
+    void* outputPtr = nullptr;
+    u64 outputSize = 0;
+    DataDesUnion dataDesUnion;
+    HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
+};
+
+union DataDesUnion {
+    struct {
+        u64 count;
+        HcclDataType dataType;
+        HcclDataType outputType;
+        u64 strideCount;
+    } DataDes = {0, HCCL_DATA_TYPE_RESERVED, HCCL_DATA_TYPE_RESERVED, 0};
+    struct {
+        HcclDataType sendType;
+        HcclDataType recvType;
+        u64 sendCount;
+        u64 recvCount;
+    } all2AllDataDes;
+    struct {
+        void* counts;
+        void* displs;
+        HcclDataType dataType;
+    } vDataDes;
+    struct {
+        HcclDataType sendType;
+        HcclDataType recvType;
+        void* sendCounts;
+        void* recvCounts;
+        void* sdispls;
+        void* rdispls; // 指向变长区指针
+    } all2AllVDataDes;
+    struct {
+        HcclDataType sendType;
+        HcclDataType recvType;
+        void* sendCountMatrix;
+    } all2AllVCDataDes;
+    struct {
+        HcclSendRecvItem* sendRecvItemsPtr;
+        u32 itemNum;
+    } batchSendRecvDataDes;
 };
 

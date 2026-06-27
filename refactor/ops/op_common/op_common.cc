@@ -4,7 +4,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     // Todo： Kernel缓存
 
      engineType = alg.GetEngine()
-     executor = alg.GetExecutor()
+     executor = alg.GetExecutor(param)
      AlgHierarchyInfoForAllLevel algHierarchyInfo = executor.CalcAlgHierarchyInfo(alg.topoMatch)
      executor.Init(algHierarchyInfo)  // executor.Plan -> template1: BaseTemplate.Plan + template2: BaseTemplate.Plan
      vector<Res> res = executor.CalcRes(algHierarchyInfo)  // executor.CalcRes -> template1: BaseTemplate.CalcRes + template2: BaseTemplate.CalcRes

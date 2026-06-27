@@ -14,10 +14,10 @@ class HcclAlgorithm {
         }
     }
 
-    GetExecutor() {
+    GetExecutor(OpParam &param) {
         switch (op, executorType) {
             case AllGather, PARALLEL:
-                new AllGatherParallelExecutor(alg)
+                new AllGatherParallelExecutor(alg, param)
                 break;
             default:
                 statements3
