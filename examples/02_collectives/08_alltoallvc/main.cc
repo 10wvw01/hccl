@@ -111,6 +111,7 @@ int Sample(void *arg)
     ACLCHECK(aclrtFree(sendBuf));          // 释放 Device 侧内存
     ACLCHECK(aclrtFree(recvBuf));          // 释放 Device 侧内存
     ACLCHECK(aclrtDestroyStream(stream));  // 销毁任务流
+    ACLCHECK(aclrtResetDevice(device));    // 重置设备
     return 0;
 }
 
