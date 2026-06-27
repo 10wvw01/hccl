@@ -425,6 +425,8 @@ if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_ubx.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_ubx_1d.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_pcie_mix.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_3_level.cc
+            ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/topo/topo_match_squeeze_2d.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_reduce_scatter_concurrent_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_gather/executor/ins_v2_all_gather_concurrent_executor.cc
             ${CMAKE_CURRENT_SOURCE_DIR}/ops/all_to_all_v/executor/ins_v2_all_to_all_concurrent_executor.cc
@@ -817,7 +819,7 @@ if(BUILD_OPEN_PROJECT)
     list(APPEND CMAKE_MODULE_PATH "${ASCEND_CANN_PACKAGE_PATH}/include/ge/cmake")
     find_package(GenerateEsPackage REQUIRED)
 
-    add_es_library(
+    add_es_library_and_whl(
         ES_LINKABLE_AND_ALL_TARGET es_hccl
         OPP_PROTO_TARGET opgraph_hccl
         OUTPUT_PATH ${CMAKE_BINARY_DIR}/es_output
@@ -827,6 +829,12 @@ if(BUILD_OPEN_PROJECT)
 
     install(DIRECTORY ${CMAKE_BINARY_DIR}/es_output/include/es_hccl
         DESTINATION ${INSTALL_INCLUDE_DIR}/es/
+        ${INSTALL_OPTIONAL}
+        COMPONENT hccl
+    )
+
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/es_output/whl/
+        DESTINATION ${WHL_INSTALL_DIR}/es_packages/whl
         ${INSTALL_OPTIONAL}
         COMPONENT hccl
     )

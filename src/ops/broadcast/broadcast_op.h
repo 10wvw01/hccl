@@ -43,7 +43,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
 
 HcclResult CheckBroadcastInputPara(const HcclComm comm, const void *buf, const aclrtStream stream);
 HcclResult BroadcastEntryLog(const void *buf, uint64_t count, HcclDataType dataType, uint32_t root,
-                             aclrtStream stream, const char *tag, const std::string &opName);
+                             aclrtStream stream, const char *tag, const std::string &opName, bool forceLog = false);
 }
 
 #endif

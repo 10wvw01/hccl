@@ -358,37 +358,34 @@ static HcclResult GetMinAndMaxNpuSchedTimeOut(u64 &minNpuSchedTimeout, u64 &maxN
 
 static u32 GetAivTimeout()
 {
-    double execTimeOut = 0;
-    if (!GetExternalInputExecTimeout(execTimeOut)) {
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
-    }
-    
-    u32 timeout = CUSTOM_TIMEOUT * TIME_S_TO_US;
-    double timeoutUs = execTimeOut * TIME_S_TO_US;
-    if (timeoutUs > static_cast<double>(std::numeric_limits<s32>::max())) {
-        HCCL_WARNING("[GetAivTimeout]Get input timeout[%.2f] is out of valid range.", timeoutUs);
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
-    }
+    constexpr u32 AIV_TIMEOUT_DEFAULT = 1091;
+    constexpr u32 AIV_TIMEOUT_DEFAULT_US = AIV_TIMEOUT_DEFAULT * TIME_S_TO_US;
 
-    u32 timeoutUsInt = static_cast<u32>(timeoutUs);
-    if (timeoutUsInt == 0) {
-        timeoutUsInt = CUSTOM_TIMEOUT * TIME_S_TO_US;
+    u32 timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+    double execTimeOut = AIV_TIMEOUT_DEFAULT;
+    if (GetExternalInputExecTimeout(execTimeOut)) {
+        timeoutUs = execTimeOut * TIME_S_TO_US;
+        if (timeoutUs > static_cast<double>(std::numeric_limits<u32>::max())) {
+            HCCL_WARNING("[GetAivTimeout]Get input timeout[%.2f] is out of valid range.", timeoutUs);
+            timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+        } else if (static_cast<u32>(timeoutUs) == 0) {
+            timeoutUs = AIV_TIMEOUT_DEFAULT_US;
+        }
     }
 
     u64 minNpuSchedTimeout = 0;
     u64 maxNpuSchedTimeout = 0;
     if (GetMinAndMaxNpuSchedTimeOut(minNpuSchedTimeout, maxNpuSchedTimeout) != HCCL_SUCCESS) {
-        HCCL_WARNING("[GetAivTimeout] get npu sched timeout range failed, use default[%u]us.", CUSTOM_TIMEOUT * TIME_S_TO_US);
-        return CUSTOM_TIMEOUT * TIME_S_TO_US;
+        HCCL_WARNING("[GetAivTimeout] get npu sched timeout range failed, use default[%u]us.", AIV_TIMEOUT_DEFAULT_US);
+        return AIV_TIMEOUT_DEFAULT_US;
     }
-
-    timeout = (timeoutUsInt < minNpuSchedTimeout) ? minNpuSchedTimeout
-                : (timeoutUsInt > maxNpuSchedTimeout) ? maxNpuSchedTimeout
-                : timeoutUsInt;
+    u32 finalTimeout = (timeoutUs < minNpuSchedTimeout) ? minNpuSchedTimeout
+            : (timeoutUs > maxNpuSchedTimeout) ? maxNpuSchedTimeout
+            : timeoutUs;
     HCCL_INFO("[GetAivTimeout]timeout[%u]us, execTimeOut[%.2f]s, minNpuSchedTimeout[%u]us, maxNpuSchedTimeout[%u]us.",
-        timeout, execTimeOut, minNpuSchedTimeout, maxNpuSchedTimeout);
+        finalTimeout, execTimeOut, minNpuSchedTimeout, maxNpuSchedTimeout);
 
-    return timeout;
+    return finalTimeout;
 }
 
 using AivKernelArgs = struct AivKernelArgsDef {
@@ -878,10 +875,8 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
 
     HCCL_INFO("[ExecuteKernelLaunchInner] sendbuff [%p] recvbuff [%p] rank [%u] sendRecvRemoteRank [%u] rankSize [%u] count [%llu] "
         "dataType [%d] reduceOp [%d] root [%u] tag [%u] isOpBase [%d] "
-        "extraArgsPtr [%p] argsSize [%u]", opArgs.input,
-        opArgs.output, opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.count,
-        opArgs.dataType, opArgs.op, opArgs.root,
-        opArgs.sliceId, opArgs.isOpBase, args, argsSize);
+        "extraArgsPtr [%p] argsSize [%u]", opArgs.input, opArgs.output, opArgs.rank, opArgs.sendRecvRemoteRank, opArgs.rankSize, opArgs.count,
+        opArgs.dataType, opArgs.op, opArgs.root, opArgs.sliceId, opArgs.isOpBase, args, argsSize);
 
     aclrtLaunchKernelCfg cfg;
     aclrtLaunchKernelAttr attr[AIV_ATTRNUM_THREE];
@@ -911,13 +906,11 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
         &cfg, args, argsSize, nullptr, 0);
     if (aclRet == ACL_ERROR_RT_INVALID_HANDLE) {
         HCCL_WARNING("[ExecuteKernelLaunchInner] handle invalid, retry to get function");
-        aclRet = aclrtBinaryGetFunction(kernelLookupResult.entry.binHandle,
-            kernelLookupResult.entry.kernelName.c_str(), &funcHandle);
+        aclRet = aclrtBinaryGetFunction(kernelLookupResult.entry.binHandle, kernelLookupResult.entry.kernelName.c_str(), &funcHandle);
         CHK_PRT_RET(aclRet != ACL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner] retry get function failed, error[%d]", aclRet), HCCL_E_RUNTIME);
         ret = UpdateKernelFunc(kernelLookupResult.deviceId, funcKey, funcHandle);
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner] update function handle failed, ret[%d]", ret), HCCL_E_RUNTIME);
-        aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream,
-            &cfg, args, argsSize, nullptr, 0);
+        aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream, &cfg, args, argsSize, nullptr, 0);
     }
     CHK_PRT_RET(aclRet != ACL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner]errNo[0x%016llx] aclrtLaunchKernelWithHostArgs error[%d].",
         HCCL_ERROR_CODE(HCCL_E_RUNTIME), aclRet), HCCL_E_RUNTIME);

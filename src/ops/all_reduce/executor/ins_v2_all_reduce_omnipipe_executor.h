@@ -65,8 +65,8 @@ protected:
         const std::vector<double>& endpointAttrBwNew,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap, u64 maxCountPerLoop) const;
 
-    HcclResult CalcResLevel(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
+    HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+        const std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest, bool addChannel) const;
 
     HcclResult PrepareResForTemplateLevelRS(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
     HcclResult PrepareResForTemplateLevelAG(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
@@ -132,6 +132,22 @@ protected:
         OMNIPIPE_AG_LEVEL2 = 5,
         OMNIPIPE_AR_LEVEL_NUM = 6
     };
+
+    enum class TopoType { UBX_2LEVEL, THREE_LEVEL };
+    TopoType topoType_ = TopoType::UBX_2LEVEL;
+
+    HcclResult BuildSubCommAndTempMap(
+        const OpParam& param,
+        const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+        std::vector<std::vector<u32>>& subCommRanks0,
+        std::vector<std::vector<u32>>& subCommRanks1,
+        std::vector<std::vector<u32>>& subCommRanks2,
+        std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
+        const TopoInfoWithNetLayerDetails* topoInfo);
+
+    std::vector<std::vector<u32>> subCommRanks0_;
+    std::vector<std::vector<u32>> subCommRanks1_;
+    std::vector<std::vector<u32>> subCommRanks2_;
 };
 }  // namespace ops_hccl
 
