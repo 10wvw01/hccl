@@ -88,10 +88,20 @@ if(ENABLE_BUILD_AARCH)
     endforeach()
 elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
     # Device aicpu 构建：8.5.0 CANN 下 devlib/device/libccl_kernel.so 不存在，需要生成桩库
+    # 解析 CANN 安装路径（与下方 ASCEND_CANN_PACKAGE_PATH 解析一致）。
+    # 此处 ASCEND_CANN_PACKAGE_PATH 尚未赋值，需补充 env 兜底，否则无法探测
+    # devlib/device/libccl_kernel.so 是否存在，导致缺该库的版本（如 9.0.0）漏生成桩库。
     if(CUSTOM_ASCEND_CANN_PACKAGE_PATH)
-        set(_hccl_devlib_dir ${CUSTOM_ASCEND_CANN_PACKAGE_PATH}/devlib/device)
+        set(_hccl_cann_path ${CUSTOM_ASCEND_CANN_PACKAGE_PATH})
     elseif(DEFINED ASCEND_CANN_PACKAGE_PATH)
-        set(_hccl_devlib_dir ${ASCEND_CANN_PACKAGE_PATH}/devlib/device)
+        set(_hccl_cann_path ${ASCEND_CANN_PACKAGE_PATH})
+    elseif(DEFINED ENV{ASCEND_HOME_PATH})
+        set(_hccl_cann_path $ENV{ASCEND_HOME_PATH})
+    elseif(DEFINED ENV{ASCEND_OPP_PATH})
+        get_filename_component(_hccl_cann_path "$ENV{ASCEND_OPP_PATH}/.." ABSOLUTE)
+    endif()
+    if(DEFINED _hccl_cann_path)
+        set(_hccl_devlib_dir ${_hccl_cann_path}/devlib/device)
     endif()
     if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libccl_kernel.so)
         if(NOT TARGET ccl_kernel)
