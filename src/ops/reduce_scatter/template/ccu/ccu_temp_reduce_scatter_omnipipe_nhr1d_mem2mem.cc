@@ -54,12 +54,7 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, cons
     kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuReduceScatterOmniPipeNHR1DMem2MemKernel);
 
     std::vector<HcclChannelDesc> channelDescs;
-<<<<<<< HEAD
     CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs)); 
-=======
-    CHK_RET(CalcChannelRequestNHRWithPriorityTopo(
-        comm, param, topoInfo, subCommRanks_, channelDescs, CommTopo::COMM_TOPO_CLOS));
->>>>>>> 58f399c7 (reduce)
     std::vector<HcclChannelDesc> myChannelDescs;
     for(auto channel : channelDescs) {
         if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
@@ -69,13 +64,8 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, cons
     HCCL_DEBUG("[%s] Get Clos Channel Success!", __func__);
 
     std::map<u32, u32> rank2ChannelIdx;   // rankId和channel匹配
-<<<<<<< HEAD
     for (u32 i = 0; i < myChannelDescs.size(); ++i) {
         u32 remoteRank = myChannelDescs[i].remoteRank;
-=======
-    for (u32 i = 0; i < channelDescs.size(); ++i) {
-        u32 remoteRank = channelDescs[i].remoteRank;
->>>>>>> 58f399c7 (reduce)
         u32 subRankIdx = RemoteRankId2RankId(remoteRank);
         rank2ChannelIdx[subRankIdx] = i;
     }
@@ -92,19 +82,11 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, cons
     kernelArg->subCommRanks = subCommRanks_;
     kernelInfo.setKernelArg(kernelArg);
 
-<<<<<<< HEAD
     kernelInfo.channels = myChannelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
     HCCL_DEBUG("[%s] myRank[%u] mySubCommRank[%u] channelSize[%u] dimsize[%u] ccuKernelInfos.size[%u]", __func__,
         myRank_, mySubCommRank_, myChannelDescs.size(), subCommRanks_[0].size(), resourceRequest.ccuKernelInfos.size());   
-=======
-    kernelInfo.channels = channelDescs;
-    resourceRequest.ccuKernelInfos.push_back(kernelInfo);
-
-    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank[%u] channelSize[%u] dimsize[%u] ccuKernelInfos.size[%u]", __func__,
-        myRank_, mySubCommRank_, channelDescs.size(), subCommRanks_[0].size(), resourceRequest.ccuKernelInfos.size());   
->>>>>>> 58f399c7 (reduce)
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -180,10 +162,6 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& pa
                                                         const TemplateDataParams& templateDataParams,
                                                         TemplateResource& templateResource)
 {
-<<<<<<< HEAD
-=======
-    HCCL_DEBUG("[%s] start", __func__);
->>>>>>> 58f399c7 (reduce)
     buffInfo_ = templateDataParams.buffInfo;
     uint64_t localCopyFlag = templateDataParams.localCopyFlag;
     auto stepSliceInfo = templateDataParams.stepSliceInfo;
@@ -202,15 +180,10 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& pa
     if (localCopyFlag == 0) {
         uint64_t sliceStride = stepSliceInfo.stepInputSliceStride[mySubCommRank_];
         uint32_t repeatNum = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_].size();
-<<<<<<< HEAD
-=======
-        HCCL_DEBUG("[%s] myRank[%u] mySubCommRank[%u] repeatNum[%u]", __func__, myRank_, mySubCommRank_, repeatNum);
->>>>>>> 58f399c7 (reduce)
         for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
             uint64_t sliceSize = stepSliceInfo.stepSliceSize[mySubCommRank_][rpt];
             uint64_t inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_][rpt];
             std::vector<uint64_t> inputOmniSliceStrideVec;
-<<<<<<< HEAD
             std::vector<uint64_t> inputOmniSliceSizeVec;
             for (uint32_t ridx = 0; ridx < stepSliceInfo.inputOmniPipeSliceStride.size(); ridx++) {
                 inputOmniSliceStrideVec.push_back(stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
@@ -226,24 +199,6 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& pa
             taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
             taskArgs.push_back(inputSliceStride);
             taskArgs.insert(taskArgs.end(), inputOmniSliceSizeVec.begin(), inputOmniSliceSizeVec.end());
-=======
-            for (uint32_t ridx = 0; ridx < stepSliceInfo.inputOmniPipeSliceStride.size(); ridx++) {
-                inputOmniSliceStrideVec.push_back(stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
-            }
-            uint64_t inputSliceStride = templateDataParams.inputSliceStride;
-
-            std::vector<uint64_t> taskArgs = {
-                inputAddr,
-                outputAddr,
-                token,
-                sliceSize,
-                sliceStride,
-                localCopyFlag,
-                inputOmniPipeSliceStride
-            };
-            taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
-            taskArgs.push_back(inputSliceStride);
->>>>>>> 58f399c7 (reduce)
             HCCL_INFO("[%s] myRank[%u] mySubCommRank[%u] rpt[%u] inputAddrBase[%llu] outputAddrBase[%llu] "
                        "inBuffBaseOff[%llu] outBuffBaseOff[%llu] inputAddr[%llu] "
                        "outputAddr[%llu] sliceSize[%llu] sliceStride[%llu] inputOmniPipeSliceStride[%llu] inputSliceStride[%llu]",
@@ -257,10 +212,6 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& pa
             }
         }
     }
-<<<<<<< HEAD
-=======
-    HCCL_DEBUG("[%s] end", __func__);
->>>>>>> 58f399c7 (reduce)
     return HcclResult::HCCL_SUCCESS;
 }
 
