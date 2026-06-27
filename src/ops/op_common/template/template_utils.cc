@@ -81,14 +81,14 @@ HcclResult CalcDataSplitByPortGroupCommon(const u64 totalDataCount,
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels, const uint32_t &kernelNum, std::vector<u8> &diePortGroupSize){
-    CHK_PRT_RET(kernelNum != DIE_NUM_1 && kernelNum != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] Kernelnum is %u, which is wrong.",
-                kernelNum), HcclResult::HCCL_E_INTERNAL);
-    if(kernelNum == DIE_NUM_1){
+HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels,  std::vector<u8> &diePortGroupSize){
+    CHK_PRT_RET(channels.size() != DIE_NUM_1 && channels.size() != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] channels.size is %u, which is wrong.",
+                channels.size()), HcclResult::HCCL_E_INTERNAL);
+    if(channels.size() == DIE_NUM_1){
         CHK_PRT_RET(channels.size() != DIE_NUM_1, HCCL_ERROR("[CalcPortNum] channels.size %u, which is not equal to 1.",
-            channels.size()), HcclResult::HCCL_E_INTERNAL);
+            channels.size), HcclResult::HCCL_E_INTERNAL);
         diePortGroupSize = {1, 0};
-    } else if (kernelNum == DIE_NUM_2) {
+    } else if (channels.size() == DIE_NUM_2) {
          CHK_PRT_RET(channels.size() != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] channels.size %u, which is not equal to 2.",
             channels.size()), HcclResult::HCCL_E_INTERNAL);
         for (u32 i = 0; i < DIE_NUM_2; i++) {

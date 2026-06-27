@@ -29,37 +29,24 @@ public:
     {
         return StringFormat("Template of alltoall ccu mesh 2Die with rankSize[%u]", templateRankSize_);
     }
-
     HcclResult CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
         AlgResourceRequest &resourceRequest) override;
-
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource& templateResource) override;
+    HcclResult FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx) override;
+
 private:
-    HcclResult PartitionChannels(HcclComm comm, const std::vector<std::vector<HcclChannelDesc>> &channelDescs, uint32_t &meshDieId,
-        std::map<u32, std::vector<std::vector<HcclChannelDesc>>>& rankIdToChannelDesc);
-    HcclResult CalcChannelRequest(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        const std::vector<std::vector<u32>>& subcommInfo, std::vector<std::vector<HcclChannelDesc>> &channels);
-    HcclResult ProcessLinkForProtocol(const HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName) const;
-    HcclResult CreateChannelFromLink(const HcclComm comm, u32 myRank, u32 rank, uint32_t netLayer, u32 idx,
-        const CommLink& link, const std::string& funcName, std::vector<HcclChannelDesc>& channels) const;
-    HcclResult ProcessLinkForProtocolNhr(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound) const;
-    HcclResult CalcNHRChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks) const;
-    HcclResult SplitDataFor2Dies(const OpParam& param, const TemplateDataParams& templateDataParams,
-                                 uint64_t& sliceSizeMesh2die, uint64_t& sliceSizeMesh1d) const;
-    HcclResult RestoreChannelMap(const std::vector<std::vector<HcclChannelDesc>>& channelDescs,
-                                std::map<u32, std::vector<std::vector<HcclChannelDesc>>>& rankIdToChannelDesc);
+    HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
+    HcclResult CalcFillArgsInfo(uint32_t kernelIdx, const Mesh2DieCacheCtx &cacheCtx, uint64_t &sliceSize, uint64_t &sliceOffset);
 
     const uint32_t DIE_NUM = 2; // 2Die
-
-    std::map<uint32_t, std::vector<HcclChannelDesc>> meshChannels_; // key is DieId
-    std::map<uint32_t, std::vector<HcclChannelDesc>> closChannels_;
-    std::map<uint32_t, RankGroup> rankGroup_;
-    std::map<u32, std::vector<std::vector<HcclChannelDesc>>> rankIdToChannelDesc_;
+    bool is2Plus6_ = false;
+    uint32_t kernelCount_ = 2;
+    uint32_t fullmeshDieId_ = 0;
+    std::vector<u8> diePortGroupSize_{1, 0};
+    std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
+    std::vector<HcclChannelDesc> kernelChannels_[MAX_KERNEL_NUM_2DIE];
+    std::vector<RankId> kernelRankGroup_[MAX_KERNEL_NUM_2DIE];
     
 };
 

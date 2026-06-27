@@ -236,7 +236,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::KernelRun(const OpParam& param,
 
     std::vector<uint64_t> taskArgs;
     uint64_t argSize = 0;
-    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, kernelNum, diePortGroupSize_));
+    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, diePortGroupSize_));
     CHK_RET(PrepareLaunchArgs(param, templateDataParams, kernelNum, taskArgs, argSize));
 
     uint64_t die0Size = taskArgs[3];

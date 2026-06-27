@@ -245,6 +245,7 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::KernelRun(const OpParam& param,
     uint64_t die0LastSliceSize = 0;
     uint64_t die1LastSliceSize = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
+    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, diePortGroupSize_));
     SplitDataFor2Dies(param, templateDataParams.sliceSize, die0Size, die1Size);
     SplitDataFor2Dies(param, templateDataParams.tailSize, die0LastSliceSize, die1LastSliceSize);
     uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;

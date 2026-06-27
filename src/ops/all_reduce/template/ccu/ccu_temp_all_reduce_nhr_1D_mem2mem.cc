@@ -289,7 +289,7 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::KernelRun(const OpParam& param, const T
     const u32 kernelNum = templateResource.ccuKernels.size();
     uint64_t die0Size = 0, die1Size = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, kernelNum, diePortGroupSize_));
+    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, diePortGroupSize_));
     SplitDataFor2Dies(dataCount, die0Size, die1Size);
 
     buffInfo_ = templateDataParams.buffInfo;
