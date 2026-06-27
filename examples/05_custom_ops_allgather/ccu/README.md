@@ -138,7 +138,7 @@ bash build.sh --vendor=cust --ops=allgather_ccu --custom_ops_path=./examples/05_
 在 `examples/05_custom_ops_allgather/ccu/testcase` 代码目录下执行如下命令：
 
 ```bash
-# 编译样例
+# 编译测试样例
 make
 ```
 
@@ -147,7 +147,7 @@ make
 在 `examples/05_custom_ops_allgather/ccu/testcase` 代码目录下执行如下命令：
  	 
 ```bash
-# 运行样例
+# 运行测试样例
 make test
 
 # 或直接执行样例二进制
