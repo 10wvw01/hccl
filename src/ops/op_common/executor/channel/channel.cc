@@ -818,6 +818,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
                   myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
         }
     }
+#endif 
 #endif
     return HCCL_SUCCESS;
 }
