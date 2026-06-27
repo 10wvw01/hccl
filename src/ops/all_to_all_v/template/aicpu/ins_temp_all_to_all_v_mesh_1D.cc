@@ -255,12 +255,12 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
         }
     }
     if (threadNum_ > 1) {
-        if (enableAlltoAllDetour) {
-            CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
-        }
         // 只做一次全量的后同步
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
+    }
+    if (enableAlltoAllDetour) {
+        CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
     }
     return HCCL_SUCCESS;
 }
@@ -411,79 +411,11 @@ HcclResult InsTempAlltoAllVMesh1D::RunDetourForward(
     const TemplateDataParams &tempAlgParams) const
 {
     if (myRank_ == ALLTOALL_DETOUR_RELAY_RANK) {
-        CHK_RET(SyncDetourPreStageToForward(channels, threads));
         for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
             CHK_RET(RunDetourForwardForDst(channels, threads, tempAlgParams, dstRank));
         }
     } else if (IsAlltoAllDetourDstRank(myRank_)) {
         CHK_RET(RunDetourForwardForDst(channels, threads, tempAlgParams, myRank_));
-    }
-    return HCCL_SUCCESS;
-}
-
-
-HcclResult InsTempAlltoAllVMesh1D::SyncDetourPreStageToForward(
-    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads) const
-{
-    if (myRank_ != ALLTOALL_DETOUR_RELAY_RANK) {
-        return HCCL_SUCCESS;
-    }
-
-    auto preStageIt = channels.find(ALLTOALL_DETOUR_SRC_RANK);
-    if (preStageIt == channels.end()) {
-        HCCL_ERROR("[InsTempAlltoAllVMesh1D][SyncDetourPreStageToForward] preStage remoteRank[%u] "
-            "does not exist in channels map!", ALLTOALL_DETOUR_SRC_RANK);
-        return HCCL_E_PARA;
-    }
-
-    const std::vector<ChannelInfo> &preStageChannels = preStageIt->second;
-    u32 preStageValidChannelsSize = std::min(static_cast<u32>(preStageChannels.size()), channelsPerRank_);
-    u32 preStageCclBuffIdx = 0;
-    u32 remoteCclBuffIdx = 0;
-    CalcCclBuffIdx(ALLTOALL_DETOUR_SRC_RANK, preStageCclBuffIdx, remoteCclBuffIdx);
-    (void)remoteCclBuffIdx;
-    u32 preStageQueIdx = preStageCclBuffIdx * channelsPerRank_ + 1;
-    const ThreadHandle &preStageMainThread = threads[preStageQueIdx];
-
-    if (preStageValidChannelsSize > 1) {
-        std::vector<ThreadHandle> preStageSubThreads;
-        preStageSubThreads.assign(threads.begin() + preStageQueIdx + 1,
-            threads.begin() + preStageQueIdx + preStageValidChannelsSize);
-        CHK_RET(PostSyncInterThreadsPerRank(preStageMainThread, preStageSubThreads));
-    }
-
-    std::vector<u32> forwardThreadIdxs;
-    for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
-        auto forwardIt = channels.find(dstRank);
-        if (forwardIt == channels.end()) {
-            HCCL_ERROR("[InsTempAlltoAllVMesh1D][SyncDetourPreStageToForward] forward dstRank[%u] "
-                "does not exist in channels map!", dstRank);
-            return HCCL_E_PARA;
-        }
-        const std::vector<ChannelInfo> &forwardChannels = forwardIt->second;
-        u32 forwardValidChannelsSize = std::min(static_cast<u32>(forwardChannels.size()), channelsPerRank_);
-        u32 forwardCclBuffIdx = 0;
-        CalcCclBuffIdx(dstRank, forwardCclBuffIdx, remoteCclBuffIdx);
-        u32 forwardQueIdx = forwardCclBuffIdx * channelsPerRank_ + 1;
-        for (u32 channelId = 0; channelId < forwardValidChannelsSize; channelId++) {
-            u32 threadIdx = forwardQueIdx + channelId;
-            if (threadIdx == preStageQueIdx) {
-                continue;
-            }
-            if (std::find(forwardThreadIdxs.begin(), forwardThreadIdxs.end(), threadIdx) == forwardThreadIdxs.end()) {
-                forwardThreadIdxs.push_back(threadIdx);
-            }
-        }
-    }
-
-    std::vector<ThreadHandle> forwardThreads;
-    std::vector<u32> notifyIdxMainToForward;
-    for (u32 threadIdx : forwardThreadIdxs) {
-        forwardThreads.push_back(threads[threadIdx]);
-        notifyIdxMainToForward.push_back(0);
-    }
-    if (!forwardThreads.empty()) {
-        CHK_RET(PreSyncInterThreads(preStageMainThread, forwardThreads, notifyIdxMainToForward));
     }
     return HCCL_SUCCESS;
 }
