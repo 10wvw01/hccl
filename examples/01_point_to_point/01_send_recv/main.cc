@@ -91,7 +91,7 @@ int Sample(void *arg)
     // 将 Device 侧集合通信任务结果拷贝到 Host，并打印结果
     if (device % 2 != 0) {
         std::this_thread::sleep_for(std::chrono::seconds(device));
-        void *resultHostBuf;
+        void *resultHostBuf = nullptr;
         ACLCHECK(aclrtMallocHost(&resultHostBuf, mallocSize));
         ACLCHECK(aclrtMemcpy(resultHostBuf, mallocSize, recvBuf, mallocSize, ACL_MEMCPY_DEVICE_TO_HOST));
         float *tmpResultBuf = static_cast<float *>(resultHostBuf);
