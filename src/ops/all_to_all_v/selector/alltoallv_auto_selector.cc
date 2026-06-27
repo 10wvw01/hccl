@@ -64,6 +64,18 @@ bool IsAlltoAllVV2Stage1NoMemcpy4PlaneEnabled()
     return env != nullptr && std::strcmp(env, "1") == 0;
 }
 
+bool IsAlltoAllVV2AB4PSprayNoMemcpyEnabled()
+{
+    const char *env = std::getenv("HCCL_ENABLE_A2AV_V2_AB_4P_SPRAY_NO_MEMCPY");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
+bool IsAlltoAllVV2AB4PColorNoMemcpyEnabled()
+{
+    const char *env = std::getenv("HCCL_ENABLE_A2AV_V2_AB_4P_COLOR_NO_MEMCPY");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
 const char *GetAlltoAllVOptTopoMode()
 {
     return std::getenv("HCCL_A2A_OPT_TOPO");
@@ -161,6 +173,31 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)opParam;
     (void)configAlgMap;
+    if (IsAlltoAllVV2AB4PSprayNoMemcpyEnabled() || IsAlltoAllVV2AB4PColorNoMemcpyEnabled()) {
+        const char *topoMode = GetAlltoAllVOptTopoMode();
+        bool colorMode = IsAlltoAllVV2AB4PColorNoMemcpyEnabled();
+        if (IsAlltoAllVClosMesh2DTopoSupported(topoInfo)) {
+            if (topoMode != nullptr && std::strcmp(topoMode, "pod_ubx_v2") == 0) {
+                selectAlgName = colorMode ? "InsAlltoAllVParallelMesh2DClosV2AB4PlaneColorNoMemcpyPodUbxV2" :
+                    "InsAlltoAllVParallelMesh2DClosV2AB4PlaneSprayNoMemcpyPodUbxV2";
+            } else if (topoMode != nullptr && std::strcmp(topoMode, "pod_direct") == 0) {
+                selectAlgName = colorMode ? "InsAlltoAllVParallelMesh2DClosV2AB4PlaneColorNoMemcpyPodDirect" :
+                    "InsAlltoAllVParallelMesh2DClosV2AB4PlaneSprayNoMemcpyPodDirect";
+            } else {
+                selectAlgName = colorMode ? "InsAlltoAllVParallelMesh2DClosV2AB4PlaneColorNoMemcpy" :
+                    "InsAlltoAllVParallelMesh2DClosV2AB4PlaneSprayNoMemcpy";
+            }
+            HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2AV V2 AB fourth-plane no-memcpy opt match[%s] "
+                         "topoMode[%s]",
+                         __func__, selectAlgName.c_str(), topoMode == nullptr ? "(unset)" : topoMode);
+            return SelectorStatus::MATCH;
+        }
+        HCCL_WARNING("[AlltoAllVAutoSelector][%s] A2AV V2 AB fourth-plane no-memcpy opt skipped. "
+                     "unsupported topo=%d pcieMix=%d topoMode[%s]",
+                     __func__, static_cast<int>(topoInfo->level0Topo), static_cast<int>(topoInfo->level0PcieMix),
+                     topoMode == nullptr ? "(unset)" : topoMode);
+    }
+
     if (IsAlltoAllVV2Stage1NoMemcpy4PlaneEnabled()) {
         const char *topoMode = GetAlltoAllVOptTopoMode();
         if (IsAlltoAllVClosMesh2DTopoSupported(topoInfo)) {

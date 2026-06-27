@@ -24,6 +24,7 @@ if(NOT HCCL_CANN_COMPAT_850)
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_ab_inline_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_v2_stage1_no_memcpy_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_v2_stage1_no_memcpy_4plane_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_alltoallv_parallel_v2_ab_4p_no_memcpy_executor.cc
     )
 endif()
 

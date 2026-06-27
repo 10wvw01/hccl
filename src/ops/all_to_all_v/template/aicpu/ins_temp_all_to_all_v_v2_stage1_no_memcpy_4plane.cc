@@ -186,6 +186,9 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::KernelRun(
             ret = postRet;
         }
     }
+    if (ret == HCCL_SUCCESS && phase_ == A2AVV2Stage1NoMemcpy4PlanePhase::STAGE1_TO_OUTPUT) {
+        ret = CopySelfToOutput(tempAlgParams, templateResource.threads[0]);
+    }
     return ret;
 }
 
@@ -751,7 +754,6 @@ HcclResult InsTempAlltoAllVV2Stage1NoMemcpy4Plane::RunStage1ToOutput(
         CHK_RET(RunPeerSendRecv(*plan.mainChannel, plan.mainSrcSlices, plan.mainDstSlices, thread));
         ++threadIdx;
     }
-    CHK_RET(CopySelfToOutput(params, resource.threads[0]));
     return HCCL_SUCCESS;
 }
 
