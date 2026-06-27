@@ -1,10 +1,10 @@
 #include <cstdint>
 
 namespace ops_hccl {
-class Parallel2OpsExecutor : public BaseExecutor {
+class ParallelExecutor : public BaseExecutor {
 public:
-    explicit Parallel2OpsExecutor(HcclAlgorithm &alg);
-    ~Parallel2OpsExecutor() override = default;
+    explicit ParallelExecutor(HcclAlgorithm &alg);
+    ~ParallelExecutor() override = default;
     HcclResult CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest) = 0;
     HcclResult Orchestrate(const AlgResourceCtxSerializable &resCtx) = 0;

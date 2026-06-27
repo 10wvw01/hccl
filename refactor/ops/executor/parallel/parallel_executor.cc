@@ -1,7 +1,7 @@
 #include "parallel_2ops_executor.h"
 
 namespace ops_hccl {
-HcclResult Parallel2OpsExecutor::CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
+HcclResult ParallelExecutor::CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
     const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
 {
     // 根据基类中的alg算法信息计算所需资源
@@ -11,25 +11,10 @@ HcclResult Parallel2OpsExecutor::CalcRes(HcclComm comm, const TopoInfoWithNetLay
     // 最后根据2ops资源相加返回
 }
 
-HcclResult Parallel2OpsExecutor::Orchestrate(const AlgResourceCtxSerializable &resCtx)
-{
-    // 下面的成员变量在基类的成员函数中初始化，避免每个子类操作
-    // maxTmpMemSize_ = resCtx.cclMem.size;
-    // myRank_ = resCtx.topoInfo.userRank;
-    // dataCount_ = param.DataDes.count;
-    // dataType_ = param.DataDes.dataType;
-    // dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
-    // dataSize_ = dataCount_ * dataTypeSize_;
-
-    // 将计算资源分配个每个算法
-
-    // 算法展开
-}
-
-HcclResult Parallel2OpsExecutor::GenerateTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource)
+HcclResult ParallelExecutor::GenerateTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource)
 {
 }
-HcclResult Parallel2OpsExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, TemplateDataParams &templateDataParams)
+HcclResult ParallelExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, TemplateDataParams &templateDataParams)
 {
     // Allgather算子的输出目前是用的output，统一调整为scratch内存，对应的地址/类型/size统一调整
 
@@ -43,7 +28,7 @@ HcclResult Parallel2OpsExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, 
         // outBuffBaseOff/inputSliceStride/outputSliceStride/repeatNum/InputRepeatStride/OutputRepeatStride
     }    
 }
-HcclResult Parallel2OpsExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx)
+HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx)
 {
     // 参考现有的allGather算子实现
     uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
@@ -75,7 +60,7 @@ HcclResult Parallel2OpsExecutor::OrchestrateLoop(const AlgResourceCtxSerializabl
     }
 }
 
-HcclResult Parallel2OpsExecutor::PrepareResForTemplate()
+HcclResult ParallelExecutor::PrepareResForTemplate()
 {
     uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
     uint32_t dataPartNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
