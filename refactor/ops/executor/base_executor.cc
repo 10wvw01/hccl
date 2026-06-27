@@ -55,13 +55,21 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
     // 初始化资源信息
     InitRes(resCtx);
     // 切分资源阶段（Sole不需要，跳过）
-    // 切分数据阶段（子类实现）
-    SplitData();
+    // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
+    // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
+    GetMaxProCntPerLoop(dataCount_, maxProCntPerLoop);
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
-    u64 loopTimes = RoundUp(dataCount_, maxProcessCount);
-    for (u64 loop = 0; loop < loopTimes; ++loop) {
+    u64 loopTimes = RoundUp(dataCount_, maxProCntPerLoop);
+    u64 processCount = maxProCntPerLoop;
+    u64 tailCount = maxProCntPerLoop;
+    if (dataCount_ % maxProCntPerLoop != 0) {
+        tailCount = dataCount_ % maxProCntPerLoop;
+    }
+    for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
+        TemplateDataParams dataParams;
+        GenTemplateDataParams(loopIdx, maxProCntPerLoop, dataParams);
         // 子类实现
-        OrchestrateLoop(maxProcessCount);
+        OrchestrateLoop(maxProCntPerLoop, dataParams);
     }
     // TODO：储存队列和任务信息，用于FastLauch
     SaveCtx();
@@ -107,4 +115,36 @@ std::vector<std::map<u32, std::vector<ChannelInfo>> BaseExecutor::RestoreChannel
 {
     // 桥接用函数，理论上直接resCtx直接用该结构表即可
     // 使用原函数，略做改造，直接返回结构表（是否有性能问题？）
+}
+
+HcclResult SoleExecutor::GenTemplateDataParams(u64 processCount, TemplateDataParams &dataParams)
+{
+    // 1.处理数据片大小
+    u64 sliceCount = processCount;
+    u64 sliceSize = sliceCount * dataTypeSize_;
+
+    // 2.计算输入Buffer偏移和参数
+    void* inBufferPtr;
+    BufferType inBufferType;
+    u64 inBufferOffset;
+    // u64 inBufferStride;
+
+    // 3.计算输出Buffer偏移和参数
+    void* outBufferPtr;
+    BufferType outBufferType;
+    u64 outBufferOffset;
+    // u64 outBufferStride;
+
+    // 4.计算cclBuffer偏移和参数
+    void* cclBufferPtr;
+    BufferType cclBufferType;
+    u64 cclBufferOffset;
+
+    // 5.计算其他参数
+    // u64 repeatNum;
+
+    // TODO：
+    // root/dataType放Template构造里传入
+    // enableRemoteMemAccess，区分单算子还是图模式，放Template构造里传入
+    // 带V算子的参数传入
 }
