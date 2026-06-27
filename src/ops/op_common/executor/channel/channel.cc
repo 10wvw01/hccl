@@ -787,7 +787,13 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         // 兼容性适配
         isIsolation = false;
     }
-
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+    // 9.1.0 之前不使用 ProcessLinksForChannelMutiJetty 等新 API，
+    // 且 CommAddr.eid 字段也不存在；整函数在 8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用，
+    // 入口版本号守护后 8.5.0 永远走不到这里）。
+    (void)comm; (void)netLayer; (void)linkList;
+    return HcclResult::HCCL_E_NOT_SUPPORT;
+#else
     for (u32 idx = 0; idx < linkList.size(); idx++) {
         if (linkList[idx].linkAttr.linkProtocol != expectedProtocol) {
             continue;
@@ -812,6 +818,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
                   myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
         }
     }
+#endif 
 #endif
     return HCCL_SUCCESS;
 }
