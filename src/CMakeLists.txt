@@ -298,6 +298,12 @@ endif()
 add_subdirectory(common)
 add_subdirectory(ops)
 
+# refactor 路径接入（由顶层 REFACTOR_OPS 开关控制）
+# 必须在 include(hccl.cmake) 之后，因为下面的 CMakeLists 会 target_sources(hccl ...)
+if(REFACTOR_OPS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../refactor/CMakeLists.txt)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../refactor/CMakeLists.txt)
+endif()
+
 
 # 定义AIV算子聚合目标
 set(AIV_TARGETS
