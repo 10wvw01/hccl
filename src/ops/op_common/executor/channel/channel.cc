@@ -793,7 +793,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
     // 入口版本号守护后 8.5.0 永远走不到这里）。
     (void)comm; (void)netLayer; (void)linkList;
     return HCCL_SUCCESS;
-
+#else
     for (u32 idx = 0; idx < linkList.size(); idx++) {
         if (linkList[idx].linkAttr.linkProtocol != expectedProtocol) {
             continue;
