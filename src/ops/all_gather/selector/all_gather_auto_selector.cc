@@ -79,7 +79,7 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         if (dataSize > SMALL_COUNT_512KB) {
             // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
             if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-                selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
+                selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
                 return SelectorStatus::MATCH;
             } else {
                 HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
