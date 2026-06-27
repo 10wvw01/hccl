@@ -347,6 +347,87 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
     return HCCL_SUCCESS;
 }
 
+bool IsStreamInCaptureMode(aclrtStream stream)
+{
+    aclmdlRICaptureStatus captureStatus = aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_NONE;
+    aclmdlRI rtModel = nullptr;
+    aclError aclRet = aclmdlRICaptureGetInfo(stream, &captureStatus, &rtModel);
+    if (aclRet == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+        return false;
+    }
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("[%s] aclmdlRICaptureGetInfo fail, ret[%d]", __func__, aclRet);
+        return false;
+    }
+    return captureStatus == aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_ACTIVE;
+}
+
+bool IsAivCacheSupported(const OpParam &param)
+{
+    return (param.opType == HCCL_CMD_ALLGATHER || param.opType == HCCL_CMD_ALLREDUCE ||
+            param.opType == HCCL_CMD_REDUCE_SCATTER || param.opType == HCCL_CMD_BROADCAST ||
+            param.opType == HCCL_CMD_REDUCE || param.opType == HCCL_CMD_ALLTOALL ||
+            param.opType == HCCL_CMD_SCATTER) &&
+           param.opMode == OpMode::OPBASE && !IsStreamInCaptureMode(param.stream);
+}
+
+HcclResult HcclAivCacheCheckAndReplay(HcclComm comm, OpParam &param, bool &cacheHit)
+{
+    cacheHit = false;
+    if (!IsAivCacheSupported(param)) {
+        return HCCL_SUCCESS;
+    }
+
+    AivOpCacheArgs cacheKey = {};
+    cacheKey.commName = param.commName;
+    cacheKey.opType = param.opType;
+    cacheKey.root = param.root;
+    cacheKey.reduceOp = param.reduceType;
+    if (param.opType == HCCL_CMD_ALLTOALL) {
+        cacheKey.dataType = param.all2AllVDataDes.sendType;
+        cacheKey.count = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
+    } else {
+        cacheKey.count = param.DataDes.count;
+        cacheKey.dataType = param.DataDes.dataType;
+    }
+
+    u64 keyHash = CalcAivCacheKeyHash(cacheKey);
+    std::string ctxTag;
+    CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
+
+    std::string cachedAlgName;
+    AivInstruction *instructions = nullptr;
+    u32 insCount = 0;
+    CHK_RET(LookupAivCacheCtx(comm, ctxTag, keyHash, cacheHit, cachedAlgName, instructions, insCount));
+    if (!cacheHit) {
+        return HCCL_SUCCESS;
+    }
+
+    HCCL_INFO("[HcclAivCacheCheckAndReplay] cache hit, algName[%s], insCount[%u]", cachedAlgName.c_str(), insCount);
+
+    int result = sprintf_s(param.algName, sizeof(param.algName), "%s", cachedAlgName.c_str());
+    CHK_PRT_RET(result <= 0, HCCL_ERROR("[%s] failed to fill param.algName", __func__), HCCL_E_INTERNAL);
+    CHK_RET(SetOpParamAlgTag(param, cachedAlgName));
+    param.hcclComm = comm;
+
+    uint64_t beginTime = HcommGetProfilingSysCycleTime();
+
+    HcclDfxOpInfoCompat hcclDfxOpInfo{};
+    CHK_RET(ConstructHcclDfxOpInfo(param, param.algTag, ALG_TAG_LENGTH, hcclDfxOpInfo, 0));
+    param.dataCount = hcclDfxOpInfo.dataCount;
+    CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
+
+    u32 numBlocksLimit = MAX_NUM_BLOCKS;
+    ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
+    param.numBlocksLimit = numBlocksLimit;
+
+    CHK_RET(ReplayAivInstructions(instructions, insCount, param));
+
+    CHK_RET(HcclReportAivKernel(comm, beginTime));
+    CHK_RET(HcclProfilingReportOp(comm, beginTime));
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclExecOpCcuFastLaunch(HcclComm comm, OpParam &param, const CcuFastLaunchCtx *ccuFastLaunchCtx)
 {
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
@@ -392,42 +473,25 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
                                 std::unique_ptr<InsCollAlgBase> &executor,
                                 AlgResourceCtxSerializable &resCtxHost)
 {
-    // Cache Logic
-    bool useCache = (param.opType != HCCL_CMD_ALLTOALLV && param.opType != HCCL_CMD_ALLTOALLVC &&
-                     param.opType != HCCL_CMD_ALLGATHER_V && param.opType != HCCL_CMD_REDUCE_SCATTER_V);
-
-    AivOpCacheArgs cacheKey = {};
-    if (useCache) {
-        cacheKey.commName = param.commName;
-        cacheKey.algName = algName;
-        cacheKey.opType = param.opType;
-        cacheKey.root = param.root;
-        cacheKey.reduceOp = param.reduceType;
-
-        if (param.opType == HCCL_CMD_ALLTOALL) {
-            cacheKey.sendType = param.all2AllVDataDes.sendType;
-            cacheKey.recvType = param.all2AllVDataDes.recvType;
-            cacheKey.sendCount = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
-            cacheKey.recvCount = static_cast<const u64 *>(param.all2AllVDataDes.recvCounts)[0];
-        } else {
-            cacheKey.count = param.DataDes.count;
-            cacheKey.dataType = param.DataDes.dataType;
-        }
-    }
+    bool useCache = IsAivCacheSupported(param);
 
     std::string ctxTag;
     u64 keyHash = 0;
     if (useCache) {
+        AivOpCacheArgs cacheKey = {};
+        cacheKey.commName = param.commName;
+        cacheKey.opType = param.opType;
+        cacheKey.root = param.root;
+        cacheKey.reduceOp = param.reduceType;
+        if (param.opType == HCCL_CMD_ALLTOALL) {
+            cacheKey.dataType = param.all2AllVDataDes.sendType;
+            cacheKey.count = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
+        } else {
+            cacheKey.count = param.DataDes.count;
+            cacheKey.dataType = param.DataDes.dataType;
+        }
         keyHash = CalcAivCacheKeyHash(cacheKey);
         CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
-        bool cacheHit = false;
-        CHK_RET(ReplayAivCacheCtx(comm, ctxTag, keyHash, param, cacheHit));
-
-        // Hit, return
-        if (cacheHit) {
-            return HCCL_SUCCESS;
-        }
-        // Miss, continue start recording
         g_recordingQueue = std::make_shared<InsQueue>();
         g_baseInputAddr = reinterpret_cast<u64>(param.inputPtr);
         g_baseOutputAddr = reinterpret_cast<u64>(param.outputPtr);
@@ -435,12 +499,11 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 
     CHK_RET(executor->Orchestrate(param, resCtxHost));
 
-    // 插入cache
     if (useCache && g_recordingQueue) {
         AivCacheIndexCtx *indexCtx = nullptr;
         CHK_RET(GetOrCreateAivCacheIndexCtx(comm, &indexCtx));
         CHK_RET(EvictAivCacheIfNeeded(comm, indexCtx));
-        CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, indexCtx));
+        CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, algName, indexCtx));
         g_recordingQueue = nullptr;
         g_baseInputAddr = 0;
         g_baseOutputAddr = 0;
@@ -558,7 +621,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     ThreadHandle cpuTsThread{0};
     ThreadHandle exportedAicpuTsThread{0};
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
-        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
+        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 3, &cpuTsThread));
         // Export cpuTsThread
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
     }
@@ -667,6 +730,26 @@ HcclResult GeReuseResource(HcclComm comm, OpParam &param, std::unique_ptr<InsCol
     return HCCL_SUCCESS;
 }
 
+static HcclResult GetUnfoldStream(HcclComm comm, OpParam &param, ThreadHandle unfoldThread, aclrtStream &resolvedStream)
+{
+    void *unfoldStream = nullptr;
+    auto &HcclThreadResGetInfoFunc = ops_hccl::DlHcommFunction::GetInstance();
+    HcclResult ret;
+    if (!HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo || param.opMode == OpMode::OFFLOAD) { // 不走提前展开
+        resolvedStream = param.stream;
+    } else {
+        ret = HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo(comm, unfoldThread, 0, sizeof(void *), &unfoldStream);
+        if (ret == HCCL_E_NOT_SUPPORT) {
+            resolvedStream = param.stream;
+        } else if (ret != HCCL_SUCCESS) {
+            return ret;
+        } else {
+            resolvedStream = unfoldStream;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHandle cpuTsThread,
     ThreadHandle exportedCpuTsThread, u32 notifyNumOnMainThread, void *resCtxSequence, std::string &algName, ThreadHandle unfoldThread)
 {
@@ -678,6 +761,65 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     if (param.engine == COMM_ENGINE_CPU) {
         // 注册dpu回调函数
         CHK_RET(static_cast<HcclResult>(HcclTaskRegister(comm, param.algTag, HcclLaunchDPUKernel)));
+    }
+
+    if (HcommIsSupportHcclAicpuKernelLaunch() && 
+        (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE)) {
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch",
+            static_cast<int>(param.opType));
+ 
+        // 构造 HcclOpDesc
+        HcclOpDesc opInfo;
+        
+        (void)memset_s(&opInfo, sizeof(HcclOpDesc), 0, sizeof(HcclOpDesc));
+        opInfo.opDescType = 1;  // 1: P2P
+
+        std::string opNameStr = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? "HcclSend" : "HcclRecv";
+        (void)strncpy_s(opInfo.opName, HCCL_OP_DESC_OP_NAME_MAX_LEN, opNameStr.c_str(), opNameStr.size());
+
+        opInfo.p2p.buffer = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? 
+                            param.inputPtr : param.outputPtr;
+        opInfo.p2p.cmdType = param.opType;
+        opInfo.p2p.dataType = param.DataDes.dataType;
+        opInfo.p2p.count = param.DataDes.count;
+        opInfo.p2p.remoteRank = param.sendRecvRemoteRank;
+        aclrtStream resolvedStream;
+        (void)GetUnfoldStream(comm, param, unfoldThread, resolvedStream);
+        HCCL_INFO("unfoldThread[%llu]", unfoldThread);
+
+        opInfo.p2p.unfoldStream = resolvedStream;
+        // 构造 HcclKernelFuncInfo
+        HcclKernelFuncInfo funcInfo;
+        (void)memset_s(&funcInfo, sizeof(HcclKernelFuncInfo), 0, sizeof(HcclKernelFuncInfo));
+        
+        (void)sprintf_s(funcInfo.kernelSoName, sizeof(funcInfo.kernelSoName), 
+                          "libscatter_aicpu_kernel.so");
+
+        (void)sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName), 
+                          "HcclLaunchP2pAicpuKernel");
+  
+        // 获取 aicpuThreadHandle
+        ThreadHandle aicpuThreadHandle;
+        u32 mainNotifyNum;
+        CHK_RET(GetMainThreadInfo(comm, param, aicpuThreadHandle, mainNotifyNum));
+        
+        // 调用 HcclAicpuKernelLaunch
+        void* args = &param;
+        uint32_t argSize = sizeof(OpParam) + param.varMemSize;
+ 
+        funcInfo.args = args;
+        funcInfo.argSize = argSize;
+        
+        HcclKernelLaunchCfg kernelLaunchCfg;
+        AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+        u16 kernelLaunchTimeout = IsHcommDefaultTimeoutSupported() ? timeout.kernelLaunchTimeout :
+        ToKernelLaunchTimeout(AddAicpuTimeoutOffset(param.opConfig.execTimeout, KERNEL_TIMEOUT_OFFSET));
+        kernelLaunchCfg.timeOut = kernelLaunchTimeout;
+
+        CHK_RET(HcclAicpuKernelLaunch(comm, &opInfo, &funcInfo, aicpuThreadHandle, param.stream, &kernelLaunchCfg));
+
+        HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P launch success, algTag[%s]", param.algTag);
+        return HCCL_SUCCESS;
     }
 
     // Host stream通知Device主thread，使用主流上idx最大的notify
@@ -958,6 +1100,8 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
         if (ret == HCCL_SUCCESS && aivParam != nullptr) {
             exchangeInfo.aivCoreLimit = aivParam->aivCoreLimit;
         }
+    } else {
+        ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &exchangeInfo.aivCoreLimit));
     }
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
@@ -1213,24 +1357,54 @@ HcclResult HcclAllocAlgResourceAICPU(
     return HCCL_SUCCESS;
 }
 
+static HcclResult HcclGetThreadWithConfig(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
+    u32 threadNum, std::vector<ThreadHandle> &threads, std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
+{
+    std::vector<ThreadConfig> threadConfigs(threadNum);
+    CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+    threadConfigs[0].notifyNumPerThread = resRequest.notifyNumOnMainThread + 1; // 主流上多一个用于host-device同步
+    HCCL_DEBUG("[HcclGetThread] AICPU thread[0] notify num[%u].", threadConfigs[0].notifyNumPerThread);
+    CHK_PRT_RET(resRequest.notifyNumPerThread.size() < threadNum - 1,
+        HCCL_ERROR("[HcclGetThread] notifyNumPerThread size[%zu] is less than slaveThreadNum[%u].",
+            resRequest.notifyNumPerThread.size(), threadNum - 1), HCCL_E_INTERNAL);
+    for (u32 i = 1; i < threadNum; i++) {
+        threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i - 1];
+        HCCL_DEBUG("[HcclGetThread] AICPU thread[%u] notify num[%u].", i, threadConfigs[i].notifyNumPerThread);
+    }
+    CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
+        threadConfigs.data(), threads.data()));
+    // 申请展开流对应的Thread
+    ThreadConfig unfoldThreadConfig;
+    CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
+    unfoldThreadConfig.notifyNumPerThread = 0;
+    CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
+        &unfoldThreadConfig, &resCtxHost->unfoldThread));
+    CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclGetThread(
     HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
 {
+    resCtxHost->isHcclThreadAcquireWithConfigSupported = HcommIsSupportHcclThreadAcquireWithConfig();
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
-        u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
-        for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
-            if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
-                maxNotifyNum = resRequest.notifyNumPerThread[i];
-            }
-        }
         u32 threadNum = resRequest.slaveThreadNum + 1;
         std::vector<ThreadHandle> threads(threadNum);
-        // maxNotifyNum需要再增加一个用于host-device同步
-        CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
-        CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
-        // 申请展开流对应的Thread
-        CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
+        if (HcommIsSupportHcclThreadAcquireWithConfig()) {
+            CHK_RET(HcclGetThreadWithConfig(comm, param, resRequest, threadNum, threads, resCtxHost));
+        } else {
+            u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
+            for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
+                if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
+                    maxNotifyNum = resRequest.notifyNumPerThread[i];
+                }
+            }
+            HCCL_DEBUG("[HcclGetThread] require maxNotifyNum[%u] for all AICPU threads.", maxNotifyNum);
+            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
+            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
+            CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
+        }
         CHK_RET(SaveUnfoldThreadInfo(comm, param, resCtxHost->unfoldThread));
         HCCL_INFO("[HcclGetThread] unfoldThread [%lu]", resCtxHost->unfoldThread);
         HCCL_DEBUG("threads ptr is %p\n", threads.data());
@@ -1240,16 +1414,15 @@ HcclResult HcclGetThread(
     } else {
         // host模式下，将主流封装为thread，并创建主流上的notify
         ThreadHandle thread;
-        CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream,
-            resRequest.notifyNumOnMainThread, &thread));
+        CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream, resRequest.notifyNumOnMainThread, &thread));
         resCtxHost->threads.push_back(thread);
+
         u32 maxNotifyNum = 0;
         for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
             if (resRequest.notifyNumPerThread[i] > maxNotifyNum) {
                 maxNotifyNum = resRequest.notifyNumPerThread[i];
             }
         }
-
         CHK_RET(GeGetThread(comm, param, resRequest, resCtxHost, resPack, maxNotifyNum));
     }
 
@@ -1269,7 +1442,20 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
         u32 threadNum = resRequest.slaveThreadNum;
         if (threadNum > 0) {
             std::vector<ThreadHandle> threads(threadNum);
-            CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, maxNotifyNum, threads.data()));
+            if (HcommIsSupportHcclThreadAcquireWithConfig()) {
+                std::vector<ThreadConfig> threadConfigs(threadNum);
+                CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
+                CHK_PRT_RET(resRequest.notifyNumPerThread.size() < threadNum,
+                    HCCL_ERROR("[GeGetThread] notifyNumPerThread size[%zu] is less than slaveThreadNum[%u].",
+                        resRequest.notifyNumPerThread.size(), threadNum), HCCL_E_INTERNAL);
+                for (u32 i = 0; i < threadNum; i++) {
+                    threadConfigs[i].notifyNumPerThread = resRequest.notifyNumPerThread[i];
+                }
+                CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, threadNum, THREAD_TYPE_TS,
+                    threadConfigs.data(), threads.data()));
+            } else {
+                CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, maxNotifyNum, threads.data()));
+            }
             for (u32 i = 0; i < threadNum; i++) {
                 resCtxHost->threads.push_back(threads[i]);
             }
