@@ -429,19 +429,20 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
     // 2.2 计算loop次数
 #if T_DESC("looptimes实现1", true)
-    // 计算loop相关信息 dataSize_= dataCount * dataTypeSize = 640*4 = 2560
-    maxTmpMemSize_ = resCtx.cclMem.size;
+    // 计算loop相关信息
+    u64 maxTmpMemSize = resCtx.cclMem.size;
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
-    u64 scratchBoundDataSize = maxTmpMemSize_;
-    u64 scratchPerRank = scratchBoundDataSize / rankSize_;
-    u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchPerRank) / dataTypeSize_;
-    // maxCountPerLoop = dataSize_ / dataTypeSize_ / 2;
+    HCCL_INFO("[%s] myRank[%u] maxTmpMemSize[%u] transportBoundDataSize[%u]", __func__,
+        myRank_, maxTmpMemSize, transportBoundDataSize);
+    u64 maxCountPerLoop = std::min(transportBoundDataSize, maxTmpMemSize) / HCCL_MIN_SLICE_ALIGN
+                          * HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / rankSize_;
+    CHK_PRT_RET(maxCountPerLoop == 0, "maxCountPerLoop is 0", HCCL_E_INTERNAL);
     HCCL_INFO("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
     HCCL_INFO("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
-    // u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
-    // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    // HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
+    u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
+    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    HCCL_INFO("[%s] perLoopSize[%u]", __func__, perLoopSize);
 #endif
 
 #if T_DESC("looptimes实现2", false)
@@ -488,8 +489,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
 
     // 3.1 计算n-1次loop的slice信息
-    u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
-    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    // u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
+    // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
     HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
     // std::vector<u64> dataWholeSize(rankSize_, perLoopSize);
