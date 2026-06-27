@@ -143,18 +143,24 @@ HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, Hccl
         // 注意: 对于alltoall算子, inputSize和outputSize一定相同 (但不能直接使用param.input/outputSize,
         // alltoall算子不会设置这两个字段)
         inputSize = param.all2AllDataDes.sendCount * rankSize * SIZE_TABLE[sendType];
-        outputSize = inputSize; // 注意: 不能使用param.All2AllDataDes.recvCount * rankSize * SIZE_TABLE[recvType],
-                                // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
+
+        // 注意: 不能使用param.All2AllDataDes.recvCount * rankSize * SIZE_TABLE[recvType],
+        // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
+        outputSize = inputSize;
+                                
+        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
+            "inputSize[%llu] outputSize[%llu] sendCount[%llu] dataTypeSize[%u]",
+            opType, rankSize, sendType, recvType, inputSize, outputSize, param.all2AllDataDes.sendCount, SIZE_TABLE[sendType]);
     } else {
         sendType = param.DataDes.dataType;
         recvType = param.DataDes.dataType;
         inputSize = param.inputSize;
         outputSize = param.outputSize;
-    }
 
-    HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
-               "inputSize[%u] outputSize[%u]",
-        opType, rankSize, sendType, recvType, inputSize, outputSize);
+        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
+            "inputSize[%llu] outputSize[%llu]",
+            opType, rankSize, sendType, recvType, inputSize, outputSize);
+    }
 
     return HCCL_SUCCESS;
 }
