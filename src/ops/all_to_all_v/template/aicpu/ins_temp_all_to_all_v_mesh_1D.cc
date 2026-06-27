@@ -260,7 +260,9 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
         CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
     }
     if (enableAlltoAllDetour) {
+        CHK_RET(PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_));
         CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
+        CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
     }
     return HCCL_SUCCESS;
 }
@@ -324,7 +326,7 @@ bool InsTempAlltoAllVMesh1D::IsAlltoAllDetourCandidate() const
 
 bool InsTempAlltoAllVMesh1D::IsAlltoAllDetourEnabled() const
 {
-    return IsAlltoAllDetourCandidate() && !isDmaRead_ && threadNum_ > 1;
+    return IsAlltoAllDetourCandidate() && threadNum_ > 1;
 }
 
 bool InsTempAlltoAllVMesh1D::IsAlltoAllDetourDstRank(u32 rank) const
@@ -385,20 +387,39 @@ HcclResult InsTempAlltoAllVMesh1D::RunDetourPreStage(
             std::vector<DataSlice> dstSlices;
             if (myRank_ == ALLTOALL_DETOUR_SRC_RANK) {
                 u32 scratchBuffIdx = CalcDetourScratchBuffIdx(dstRank);
-                srcSlices.emplace_back(tempAlgParams.buffInfo.inputPtr,
-                    tempAlgParams.sdispls[dstRank] * dataTypeSize_ + detourOffsetSplit[channelId],
-                    detourSizeSplit[channelId], detourCountsSplit[channelId]);
-                dstSlices.emplace_back(channel.remoteCclMem.addr,
-                    scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
-                    detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                if (isDmaRead_) {
+                    CHK_RET(static_cast<HcclResult>(PreCopy(tempAlgParams, threads[queIdx + channelId],
+                        scratchBuffIdx, dstRank, detourSizeSplit[channelId], detourCountsSplit[channelId],
+                        detourOffsetSplit[channelId])));
+                } else {
+                    srcSlices.emplace_back(tempAlgParams.buffInfo.inputPtr,
+                        tempAlgParams.sdispls[dstRank] * dataTypeSize_ + detourOffsetSplit[channelId],
+                        detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                    dstSlices.emplace_back(channel.remoteCclMem.addr,
+                        scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                        detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                }
                 DataInfo sendInfo{channel, {srcSlices, dstSlices}, dataType_};
-                CHK_PRT_RET(SendWrite(sendInfo, threads[queIdx + channelId]),
-                    HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourPreStage] SendWrite failed"),
+                HcclResult ret = isDmaRead_ ? SendRead(sendInfo, threads[queIdx + channelId]) :
+                    SendWrite(sendInfo, threads[queIdx + channelId]);
+                CHK_PRT_RET(ret,
+                    HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourPreStage] Send failed"),
                     HcclResult::HCCL_E_INTERNAL);
             } else {
+                if (isDmaRead_) {
+                    u32 scratchBuffIdx = CalcDetourScratchBuffIdx(dstRank);
+                    srcSlices.emplace_back(channel.remoteCclMem.addr,
+                        scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                        detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                    dstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr,
+                        scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                        detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                }
                 DataInfo recvInfo{channel, {srcSlices, dstSlices}, dataType_};
-                CHK_PRT_RET(RecvWrite(recvInfo, threads[queIdx + channelId]),
-                    HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourPreStage] RecvWrite failed"),
+                HcclResult ret = isDmaRead_ ? RecvRead(recvInfo, threads[queIdx + channelId]) :
+                    RecvWrite(recvInfo, threads[queIdx + channelId]);
+                CHK_PRT_RET(ret,
+                    HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourPreStage] Recv failed"),
                     HcclResult::HCCL_E_INTERNAL);
             }
         }
@@ -461,22 +482,37 @@ HcclResult InsTempAlltoAllVMesh1D::RunDetourForwardForDst(
             srcSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr,
                 scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
                 detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
-            dstSlices.emplace_back(channel.remoteCclMem.addr,
-                dstCclBuffIdxForSrcRank * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
-                detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+            if (!isDmaRead_) {
+                dstSlices.emplace_back(channel.remoteCclMem.addr,
+                    dstCclBuffIdxForSrcRank * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                    detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+            }
             DataInfo sendInfo{channel, {srcSlices, dstSlices}, dataType_};
-            CHK_PRT_RET(SendWrite(sendInfo, threads[queIdx + channelId]),
-                HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardForDst] SendWrite failed"),
+            HcclResult ret = isDmaRead_ ? SendRead(sendInfo, threads[queIdx + channelId]) :
+                SendWrite(sendInfo, threads[queIdx + channelId]);
+            CHK_PRT_RET(ret,
+                HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardForDst] Send failed"),
                 HcclResult::HCCL_E_INTERNAL);
         } else {
+            if (isDmaRead_) {
+                u32 scratchBuffIdx = CalcDetourScratchBuffIdx(dstRank);
+                srcSlices.emplace_back(channel.remoteCclMem.addr,
+                    scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                    detourOffsetSplit[channelId], detourSizeSplit[channelId], detourCountsSplit[channelId]);
+                dstSlices.emplace_back(tempAlgParams.buffInfo.outputPtr,
+                    tempAlgParams.rdispls[ALLTOALL_DETOUR_SRC_RANK] * dataTypeSize_ + detourOffsetSplit[channelId],
+                    detourSizeSplit[channelId], detourCountsSplit[channelId]);
+            }
             DataInfo recvInfo{channel, {srcSlices, dstSlices}, dataType_};
-            CHK_PRT_RET(RecvWrite(recvInfo, threads[queIdx + channelId]),
-                HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardForDst] RecvWrite failed"),
+            HcclResult ret = isDmaRead_ ? RecvRead(recvInfo, threads[queIdx + channelId]) :
+                RecvWrite(recvInfo, threads[queIdx + channelId]);
+            CHK_PRT_RET(ret,
+                HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardForDst] Recv failed"),
                 HcclResult::HCCL_E_INTERNAL);
         }
     }
 
-    if (myRank_ == dstRank) {
+    if (myRank_ == dstRank && !isDmaRead_) {
         if (curValidChannelsSize > 1) {
             const ThreadHandle &mainThreadCurRank = threads[queIdx];
             std::vector<ThreadHandle> subThreadsCurRank;
@@ -632,7 +668,8 @@ HcclResult InsTempAlltoAllVMesh1D::PreCopyByLoop(const std::vector<u32> &commRan
         const std::vector<ChannelInfo> &curChannels = channels.at(remoteRank);
         u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
         // send数据按照channel分片
-        CHK_RET(CalcDataSplitByPortGroupCommon(tempAlgParams.sendCounts[remoteRank], dataTypeSize_, curChannels,
+        u64 sendCount = ShouldSkipDirectSend(remoteRank) ? 0 : tempAlgParams.sendCounts[remoteRank];
+        CHK_RET(CalcDataSplitByPortGroupCommon(sendCount, dataTypeSize_, curChannels,
             sendCountsSplit_, sendSizeSplit_, sendOffsetSplit_, curValidChannelsSize));
         for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
             if (sendSizeSplit_[channelId] > 0) {

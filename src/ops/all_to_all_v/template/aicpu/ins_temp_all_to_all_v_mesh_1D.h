@@ -86,8 +86,6 @@ private:
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
     HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
-    HcclResult SyncDetourPreStageToForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
-        const std::vector<ThreadHandle> &threads) const;
     HcclResult RunDetourForwardForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams, u32 dstRank) const;
     HcclResult PostCopyDetourFromSrcRank(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread) const;
