@@ -10,9 +10,9 @@
 
 namespace ops_hccl {
 
-HcclResult AllGatherMeshTemplate::kernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource, EngineType engineType) {
-    utils::PreCopy(tempAlgParams, templateResource)
-    nhr_primitivces::RunMeshAllGather(tempAlgParams, templateResource, engineType)
+HcclResult AllGatherMeshTemplate::kernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource, EngineType engineType, const std::vector<u32> ranks, u32 myRank) {
+    utils::PreCopy(tempAlgParams, templateResource, engineType, ranks, myRank)
+    nhr_primitivces::RunMeshAllGather(tempAlgParams, templateResource, engineType, ranks, myRank)
 }
 
 }  // namespace ops_hccl

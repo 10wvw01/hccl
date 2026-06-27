@@ -20,8 +20,8 @@ namespace ops_hccl {
  */
 class BaseTemplate {
 public:
-    BaseTemplate(vector<RankInfo> ranks_) = default;
-    virtual ~BaseTemplate() = default;
+    explicit BaseTemplate() {};
+    explicit BaseTemplate(const u32 myRank_, const std::vector<u32> &ranks, HcclAlgEngineType engineType, TemplateDesc templateDesc);
 
     /**
      * 根据算法层级信息与算法描述，规划参与通信的 rank 列表。
@@ -30,15 +30,12 @@ public:
      *   2. NHR 算法调用 getNhrRanks 获取Clos拓扑连接的 rank 列表；
      *   3. Mesh 算法调用 getMeshRanks 获取 Mesh 拓扑连接的 rank 列表；
      *   4. 将结果保存到 ranks_ 成员中供后续 CalcRes/Orchestrate 使用。
-     * 输入参数：
-     *   - ranks: rankid列表
-     *   - algType: 算法类型，Mesh/NHR等，用于决定 rank 获取策略
      * 返回值：
      *   - HCCL_SUCCESS: 规划成功
      *   - HCCL_E_PARA: 参数非法（如未知算法类型）
      *   - HCCL_E_INTERNAL: 获取 rank 列表失败
      */
-    HcclResult Init(const std::vector<u32> ranks, const AlgType algType) {
+    HcclResult Init() {
         // TODO： 实现
     }
 
@@ -48,15 +45,13 @@ public:
      *   1. 基于 ranks_ 中已规划的 rank 列表确定通信规模；
      *   2. 根据 AlgType 计算所需线程数与 notify 数；
      *   3. 生成资源请求列表返回给 executor 汇总。
-     * 输入参数：
-     *   - alg: 算法类型（NHR/Mesh）
      * 输出参数：
      *   - res: 资源请求列表，每项描述一个层级所需的 channel/notify/thread
      * 返回值：
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
-    HcclResult CalcRes(const AlgType alg, std::vector<AlgResourceRequest> &res) {
+    HcclResult CalcRes(std::vector<AlgResourceRequest> &res) {
         // TODO： 实现
     }
 
@@ -66,15 +61,18 @@ public:
      * 输入参数：
      *   - params: 模板算法参数，包含 buffer 信息、slice 大小、repeat 次数等
      *   - templateResource: 可用资源
-     *   - engineType: 引擎类型
      * 返回值：
      *   - HCCL_SUCCESS: 编排成功
      *   - 其他: 编排失败错误码
      */
-    virtual HcclResult KernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource, EngineType engineType) = 0;
+    virtual HcclResult KernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource) = 0;
 
 protected:
     std::vector<HcclChannelDesc> &channels;              // 参与通信的 rank 列表
+    u32 myRank_ = INVALID_VALUE_RANKID;
+    std::vector<u32> ranks;
+    HcclAlgEngineType engineType = HcclAlgEngineType::AICPU;
+    TemplateDesc templateDesc;
 };
 
 }  // namespace ops_hccl

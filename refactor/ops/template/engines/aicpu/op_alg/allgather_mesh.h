@@ -35,12 +35,11 @@ public:
      * 输入参数：
      *   - params: 模板算法参数，包含 buffer 信息、slice 大小、repeat 次数等
      *   - templateResource: 通信资源
-     *   - engineType： 引擎类型
      * 返回值：
      *   - HCCL_SUCCESS: 执行成功
      *   - HCCL_E_INTERNAL: 执行失败
      */
-    HcclResult KernelRun(const TemplateAlgParams &params, TemplateResource &templateResource, EngineType engineType) override;
+    HcclResult KernelRun(const TemplateAlgParams &params, TemplateResource &templateResource) override;
 };
 
 }  // namespace ops_hccl
