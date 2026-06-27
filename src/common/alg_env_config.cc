@@ -1137,6 +1137,7 @@ bool RunIndependentOpExpansion(DevType deviceType)
     if (deviceType == DevType::DEV_TYPE_910_95) {
     #endif
         return opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "AICPU_TS" ||
+               opExpansionModeEnv == "AICPU_CacheDisable" ||
                opExpansionModeEnv == "HOST_TS" ||
                opExpansionModeEnv == "EmptyString" || opExpansionModeEnv == "AIV" ||
                opExpansionModeEnv == "CCU_SCHED" ||
