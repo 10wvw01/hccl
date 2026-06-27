@@ -28,7 +28,6 @@ struct CcuKernelArgReduceScatterOmniPipeMesh1DMem2Mem: CcuKernelArgBase {
 struct ReduceScatterOmniPipeMesh1DMem2MemContext: CcuKernelCtxBase {
     const CcuKernelArgReduceScatterOmniPipeMesh1DMem2Mem *arg;
 
-<<<<<<< HEAD
     HcclDataType outputDataType;
     HcclDataType dataType;
     HcclReduceOp reduceOp;
@@ -46,32 +45,10 @@ struct ReduceScatterOmniPipeMesh1DMem2MemContext: CcuKernelCtxBase {
     GroupOpSizeVars goSize;
     ccu::Event event;
 
-=======
-    HcclDataType dataType;
-    HcclDataType outputDataType;
-    HcclReduceOp reduceOp;
-
->>>>>>> 58f399c7 (reduce)
     uint64_t rankSize; // templateRankSize_
     uint32_t rankId;
     uint32_t userRank;
 
-<<<<<<< HEAD
-=======
-    std::vector<ccu::Variable> input;
-    ccu::Variable output;
-    ccu::Variable scratch;
-    std::vector<ccu::Variable> token;
-    ccu::Variable offSet;
-    ccu::Variable sliceSize;
-    ccu::Variable inputSliceStride;
-    ccu::Variable outputSliceStride;
-    ccu::Variable localCopyFlag;
-    ccu::Variable inputOmniPipeSliceStride;
-    GroupOpSizeVars goSize;
-    ccu::Event event;
-
->>>>>>> 58f399c7 (reduce)
     // Loop机制相关变量
     std::array<std::vector<ccu::LocalAddr>, 2> loopScratch;
     ccu::LocalAddr loopDst[2];

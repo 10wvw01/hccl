@@ -44,7 +44,6 @@ struct CcuKernelArgGatherOmniPipeNHR1DMem2Mem : CcuKernelArgBase {
     uint32_t rootId;
     OpParam opParam;
     std::vector<std::vector<uint32_t>> subCommRanks;
-    bool ifRealRoot;
     uint32_t myrealrank;
     std::vector<NHRStepInfo> stepInfoVector;
     std::map<u32, u32> rank2ChannelIdx;
@@ -56,7 +55,6 @@ struct GatherOmniPipeNHR1DMem2MemContext {
     uint64_t rankSize{0};
     uint32_t rankId{0};
     uint32_t rootId{0};
-    bool ifRealRoot{false};
     uint32_t myrealrank{0};
     uint32_t myRankIdx{0};
     uint32_t localSize{0};
@@ -80,6 +78,7 @@ struct GatherOmniPipeNHR1DMem2MemContext {
     ccu::Variable ifNewRoot;
 
     std::vector<ccu::Variable> inputOmniSliceStrideVec;
+    std::vector<ccu::Variable> outputOmniSliceStrideVec;
     
     std::vector<ccu::RemoteAddr> inputMem;
     std::vector<ccu::LocalAddr> outputMem;
