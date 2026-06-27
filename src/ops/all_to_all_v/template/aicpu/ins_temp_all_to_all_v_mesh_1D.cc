@@ -37,8 +37,6 @@ HcclResult InsTempAlltoAllVMesh1D::CalcRes(HcclComm comm, const OpParam& param, 
     }
 
     std::vector<HcclChannelDesc> level0Channels;
-    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
-    u64 dataSize = param.DataDes.count * perDataSize;
     if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         std::vector<HcclChannelDesc> myChannelDescs;
         CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs)); 
