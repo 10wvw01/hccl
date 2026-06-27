@@ -52,6 +52,7 @@ enum class HcclAlgExecutorType {
     PARALLEL,
     CONCURRENT,
     OMINIPIPE,
+    SOLE,
 };
 
 enum class HcclAlgShotMode {
@@ -71,18 +72,52 @@ struct TemplateDesc {
     HcclAlgJettyMode jettyMode;
 };
 
+struct HcclExecDomainInstance {
+    std::shared_ptr<RankGroup> rankGroup;   /**< The rank group in this logic domain, which should be filterd
+                                                 by algorithm's topoMatcher. */
+    std::shared_ptr<DataGroup> dataGroup;   /**< The data group to be processed in this logic domain. */
+    /* Other sub-instances to be added. */
+}
+
+struct HcclAlgExecDomain {
+    TemplateDesc& templateDesc;             /**< The templated method to be executed on this logic domain. */
+    std::shared_ptr<HcclExecDomainInstance> execDomainInstance; /**< Executing domain instance, which should be
+                                                 instantiated by executor. */
+}
+
 class HcclAlgorithm {
 public:
+    BaseExecutor& GetExecutor();
+
+private:
     HcclCMDType hcclCmdType;
     HcclAlgEngineType engineType;
     HcclAlgExecutorType executorType;
-    std::vector<TemplateDesc> templates;
-    TopoMatchBase topoView;
-
-    HcclResult GetExecutor();
-    HcclResult GetTemplate();
-
-private:
+    TopoMatchBase topoMatcher;
+    std::vector<TemplateDesc> templateDescs;  /**< The TemplateDescs to be used by the executor in this algorithm. */
+    std::vector<std::vector<std::shared_ptr<HcclAlgExecDomain>>> execDomains; /**< The splited logic executing domains
+                                        in this algorithm applied to the collective communication doamin.
+                                        Currently, executing domains and their executing sequence are represent with
+                                        two-level vector. Executing domains in the same lower vector will be triggered 
+                                        in parellel (same stage). While vectors (domain groups) in the top vector will
+                                        be triggered in positive order. For examples:
+                                        1. [[stage0_domain1, stage0_domain2],[stage1_domain1, stage1_domain2]], in this
+                                        example, stage0_domain1 and stage0_domain2 will be triggered in parellel in the
+                                        first stage, stage1_domain1 and stage1_domain2 will be triggered in parellel in
+                                        the second stage. As to how the raw data will be sliced into different domains,
+                                        and which ranks each domain contains, it's up to the executor to calculate by
+                                        topoMatcher and corresponding data slicer. (Parellel)
+                                        2. [[stage0_domain1, stage0_domain2]], in this example, two domains will be
+                                        triggered in parellel within the only same stage. (Concurrent)
+                                        3. [[stage0_domain1], [stage1_domain2, stage1_domain2]], in this example, 
+                                        stage0 contains only one domain, stage2 contains two domains which will be
+                                        triggered in parellel. (Ominipipe)
+                                        4. [[stage0_domain1], [stage1_domain2], [stage2_domain3]], in this example,
+                                        there are three stages each contains only one executing domain. (Sequence)
+                                        5. [[stage0_doamin1, stage0_domain2], [stage1_domain3]], in this example, stage0
+                                        contains two domains which will be triggered in parallel, stage1 contains only
+                                        one domain. (PartConcurrent)
+                                        */
     std::shared_ptr<BaseExecutor> executor;
 };
 
