@@ -433,6 +433,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
         std::string cacheTag = "";
         bool isCacheMiss = true;
         if (enableCache) { // 如果使能aicpu task cache
+            MY_TIMER("HcommAicpuTsTaskCacheLookup");
             // 如果cache miss, 使用aicpu task cache前确保AicpuTsThread中无SQE
             if (isCacheMiss) {
                 // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
@@ -451,7 +452,6 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
-                MY_TIMER("HcclLaunchAicpuKernel_HcommIsSupportHcommAicpuTsTaskCacheLookup");
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
             }
         }
@@ -467,6 +467,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
         }
 
         if (enableCache) { // 如果使能aicpu task cache
+            MY_TIMER("HcommAicpuTsTaskCacheSubmit");
             // 如果cache miss, 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存
             if (isCacheMiss) {
                 // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
@@ -484,7 +485,6 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
             // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
             // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
             if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
-                MY_TIMER("HcommAicpuTsTaskCacheSubmit");
                 // 准备地址信息 (当前rank的userIn和userOut)
                 constexpr uint32_t ADDRS_COUNT = 2;
                 void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
