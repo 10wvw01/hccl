@@ -86,6 +86,8 @@ struct HcclAlgExecDomain {
                                                  instantiated by executor. */
 }
 
+/* Single instance or multiple instance? 
+ * If the execDomains could be different, it should be multiple instance. */
 class HcclAlgorithm {
 public:
     BaseExecutor& GetExecutor();
