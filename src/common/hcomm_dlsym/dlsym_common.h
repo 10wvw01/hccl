@@ -29,16 +29,18 @@
 #include "hccl/hccl_comm.h"
 
 /* beta.1 起 hccl_types.h 已提供 HcclCommStatus，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
-#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
 typedef enum {
     HCCL_COMM_STATUS_READY = 0,
     HCCL_COMM_STATUS_SUSPENDING = 1,
     HCCL_COMM_STATUS_INVALID = 254,
     HCCL_COMM_STATUS_RESERVED = 255
 } HcclCommStatus;
+#endif
 
+/* 9.0.0 起 hccl_types.h 已提供 ThreadHandle，仅 < 9.0.0 (8.5.x) 需要桩 */
+#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0)
 typedef uint64_t ThreadHandle;
-
 #endif
 
 #ifndef HCCL_GROUP_FEATURE_SUPPORT
