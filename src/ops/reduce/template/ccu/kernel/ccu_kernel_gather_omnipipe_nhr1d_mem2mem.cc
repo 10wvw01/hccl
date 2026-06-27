@@ -53,6 +53,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
         ctx.token[channelIdx] = ccu::GetResByChannel<ccu::Variable>(ctx.arg->channels[channelIdx], TOKEN_XN_ID);
     }
     ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
     return CCU_SUCCESS;
 }
 
@@ -73,6 +74,9 @@ static CcuResult LoadArgs(GatherOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
+    }
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));
     }
     return CCU_SUCCESS;
 }
@@ -147,7 +151,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
             src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
 
             dst.addr = ctx.output;
-            dst.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+            dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
 
             CCU_IF(ctx.sliceSize != 0) {
                 ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);

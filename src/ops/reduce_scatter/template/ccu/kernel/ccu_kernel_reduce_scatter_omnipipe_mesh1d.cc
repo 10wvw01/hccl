@@ -13,10 +13,6 @@
 
 
 namespace ops_hccl {
-<<<<<<< HEAD
-=======
-// using namespace hcomm;
->>>>>>> 58f399c7 (reduce)
 
 constexpr int CKE_IDX_0   = 0;
 constexpr int INPUT_XN_ID = 1;
@@ -72,13 +68,6 @@ static CcuResult InitResource(ReduceScatterOmniPipeMesh1DContext &ctx)
         }
     }
 
-<<<<<<< HEAD
-=======
-    // ctx.moConfig.msInterleave = 8;
-    // ctx.moConfig.loopCount = 8;
-    // ctx.moConfig.memSlice = CCU_MS_SIZE;
-
->>>>>>> 58f399c7 (reduce)
     ctx.resourceAllocated = false;
 
     return CCU_SUCCESS;
@@ -105,7 +94,6 @@ static CcuResult LoadArgs(ReduceScatterOmniPipeMesh1DContext &ctx)
     return CCU_SUCCESS;
 }
 
-<<<<<<< HEAD
 static CcuResult PreSync(ReduceScatterOmniPipeMesh1DContext &ctx)
 {
     const auto *arg = ctx.arg;
@@ -114,19 +102,10 @@ static CcuResult PreSync(ReduceScatterOmniPipeMesh1DContext &ctx)
                         INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID));
         CCU_CHK_RET(ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[arg->rankId],
                         TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID));
-=======
-static void PreSync(ReduceScatterOmniPipeMesh1DContext &ctx)
-{
-    const auto *arg = ctx.arg;
-    for (uint32_t i = 0; i < arg->channelCount; i++) {
-        ccu::WriteVariableWithNotify(arg->channels[i], ctx.input[arg->rankId], INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
-        ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[arg->rankId], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
->>>>>>> 58f399c7 (reduce)
     }
 
     uint32_t allBit = (1 << INPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < arg->channelCount; i++) {
-<<<<<<< HEAD
         CCU_CHK_RET(ccu::NotifyWait(arg->channels[i], CKE_IDX_0, allBit));
     }
     return CcuResult::CCU_SUCCESS;
@@ -143,21 +122,6 @@ static CcuResult PostSync(ReduceScatterOmniPipeMesh1DContext &ctx)
     }
     HCCL_DEBUG("[%s] end", __func__);
     return CcuResult::CCU_SUCCESS;
-=======
-        ccu::NotifyWait(arg->channels[i], CKE_IDX_0, allBit);
-    }
-}
-
-static void PostSync(ReduceScatterOmniPipeMesh1DContext &ctx)
-{
-    const auto *arg = ctx.arg;
-    for (uint32_t i = 0; i < arg->channelCount; i++) {
-        ccu::NotifyRecord(arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID);
-    }
-    for (uint32_t i = 0; i < arg->channelCount; i++) {
-        ccu::NotifyWait(arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID);
-    }
->>>>>>> 58f399c7 (reduce)
 }
 
 static CcuResult DoRepeatReduceScatter(ReduceScatterOmniPipeMesh1DContext &ctx)
@@ -173,11 +137,6 @@ static CcuResult DoRepeatReduceScatter(ReduceScatterOmniPipeMesh1DContext &ctx)
     dst.addr += ctx.inputSliceStride;
     dst.addr += ctx.inputOmniPipeSliceStride;
     dst.token = ctx.token[arg->rankId];
-<<<<<<< HEAD
-=======
-    // src[arg->rankSize - 1].addr = dst.addr;
-    // src[arg->rankSize - 1].token = dst.token;
->>>>>>> 58f399c7 (reduce)
 
     // 准备源地址
     uint32_t idx = 0;
@@ -192,70 +151,11 @@ static CcuResult DoRepeatReduceScatter(ReduceScatterOmniPipeMesh1DContext &ctx)
         src[idx].token = ctx.token[i];
         idx++;
     }
-<<<<<<< HEAD
     ccu::LocalAddr tmp;
     tmp.addr = dst.addr;
     tmp.token = dst.token;
     CCU_CHK_RET(GroupReduce(ctx, arg->channels, arg->channelCount, dst, src, tmp, ctx.goSize, ctx.dataType, ctx.outputDataType, ctx.reduceOp));
 
-=======
-    // 使用groupreduce
-    // CCU_CHK_RET(GroupReduce(ctx, arg->channels, arg->channelCount, dst, src, dst, ctx.goSize, ctx.dataType, ctx.outputDataType, ctx.reduceOp));
-    uint32_t idx1 = 0;
-    for(auto i = 0; i < ctx.rankSize; ++i){
-        if (i == arg->rankId) {
-            continue;
-        }
-        CCU_IF(ctx.sliceSize != 0) {
-            ccu::ReadReduce(arg->channels[idx1], dst, src[idx1], ctx.sliceSize, ctx.dataType, ctx.reduceOp, ctx.event, 1);
-        }
-        CCU_IF(ctx.sliceSize == 0) {
-            ccu::EventRecord(ctx.event, 1);
-        }
-        ccu::EventWait(ctx.event, 1);
-        idx1++;
-    }
-
-
-    // // 准备目的地址
-    // std::vector<ccu::LocalAddr> scratchMem;
-    // scratchMem.resize(arg->rankSize);
-    // ccu::Variable scratchOffset;
-    // scratchOffset = 0;
-    // for (auto i = 0; i < ctx.rankSize; ++i) {
-    //     scratchMem[i].addr = ctx.scratch;
-    //     scratchMem[i].addr += scratchOffset;
-    //     scratchMem[i].token = ctx.token[arg->rankId];
-    //     scratchOffset += ctx.sliceSize;
-    // }
-    
-    // // 从远端读
-    // uint32_t channelId = 0;
-    // for (auto i = 0; i < ctx.rankSize; ++i) {
-    //     uint32_t rankMask = 1 << i;
-    //     if (i == ctx.rankId) {
-    //         ccu::EventRecord(ctx.event, rankMask);
-    //         continue;
-    //     }
-    //     CCU_IF(ctx.sliceSize != 0) {
-    //         ccu::Read(arg->channels[channelId], scratchMem[i], src[channelId], ctx.sliceSize, ctx.event, rankMask);
-    //     }
-    //     CCU_IF(ctx.sliceSize == 0) {
-    //         ccu::EventRecord(ctx.event, rankMask);
-    //     }
-    //     channelId++;
-    // }
-    // // 等读完所有对端
-    // uint32_t allBit = (1 << ctx.rankSize) - 1;
-    // ccu::EventWait(ctx.event, allBit);
-
-    // // 做reduce
-    // scratchMem[ctx.rankId].addr = dst.addr;
-    // scratchMem[ctx.rankId].token = dst.token;
-    // CCU_IF(ctx.sliceSize != 0) {
-    //     ReduceLoopGroup(ctx, dst, scratchMem);
-    // }
->>>>>>> 58f399c7 (reduce)
     HCCL_INFO("[DoRepeatReduceScatter] userRank[%u] rankId[%u] do repeat ReduceScatter success", ctx.userRank, ctx.rankId);
 
     return CCU_SUCCESS;

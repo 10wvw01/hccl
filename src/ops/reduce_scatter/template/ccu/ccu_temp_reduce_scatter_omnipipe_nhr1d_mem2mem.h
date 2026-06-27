@@ -32,11 +32,8 @@ public:
                             subCommRanks_[0].size());
     }
 
-<<<<<<< HEAD
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
-=======
->>>>>>> 58f399c7 (reduce)
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
 
@@ -44,11 +41,6 @@ public:
                          const TemplateDataParams& templateDataParams,
                          TemplateResource& templateResource) override;
 
-<<<<<<< HEAD
-=======
-    u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
-
->>>>>>> 58f399c7 (reduce)
     HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
 
     u64 GetThreadNum() const override;
