@@ -148,13 +148,14 @@ HcclResult InsTempReduceScatterNHR::KernelRun(const OpParam& param,
  	        }
  	        return HcclResult::HCCL_SUCCESS;
  	}
+    // 适配并发场景
  	for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         CHK_RET(RunNHR(templateResource.threads, channelIdx));
     }
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         CHK_RET(PostLocalCopy(templateResource.threads, channelIdx));
     }
-
+    // 后同步
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
