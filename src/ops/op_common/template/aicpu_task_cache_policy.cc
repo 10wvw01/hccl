@@ -49,7 +49,7 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
 
     // 屏蔽inplace场景
     bool isInplace = false;
-    CHK_RET(IsInplace(param, isInplace, topoInfo));
+    CHK_RET(IsInplaceForCache(param, isInplace, topoInfo));
     if (isInplace) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] inplace case is not supported for operator unfolding "
                   "cache");
@@ -65,7 +65,7 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     return HCCL_SUCCESS;
 }
 
-HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace,
+HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &isInplace,
     const TopoInfoWithNetLayerDetails &topoInfo)
 {
     // 准备input/output size
@@ -77,20 +77,22 @@ HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace
     UNUSED_PARAM(sendType);
     UNUSED_PARAM(recvType);
 
-    // 注意: alltoall/alltoallv/alltoallvc可能存在inputSize/outputSize为0的情况, 导致不分配user input/output
-    // 但会使用tinySendRecvMem_更新algResource.paramInput/OutputMem用于建链, 导致cache无法区分给定地址字段的地址类型
-    // 参考aicpu_communicator.cc中的SetAlltoAllInputAndOutPutMem
+    // 注意: A3下alltoall/alltoallv/alltoallvc可能存在inputSize/outputSize为0的情况, 导致不分配user input/output
+    //     但会使用tinySendRecvMem_更新algResource.paramInput/OutputMem用于建链, 导致cache无法区分给定地址字段的地址类型
+    //     参考aicpu_communicator.cc中的SetAlltoAllInputAndOutPutMem
+    // 注意: 这里继承A3, 不支持同时为0的场景
     if (inputSize == 0 && outputSize == 0) {
         isInplace = true;
-        HCCL_INFO(
-            "[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is overlapping with outputSize[%u]", inputSize, outputSize);
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is overlapping with outputSize[%u] -> isInplace[%d]",
+            inputSize, outputSize, isInplace);
         return HCCL_SUCCESS;
     }
 
+    // 注意: 如果inputSize和outputSize只有一个为0, 则一定是outplace场景
     if (inputSize == 0 || outputSize == 0) {
         isInplace = false;
-        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is not overlapping with outputSize[%u]", inputSize,
-            outputSize);
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is not overlapping with outputSize[%u] -> isInplace[%d]",
+            inputSize, outputSize, isInplace);
         return HCCL_SUCCESS;
     }
 
@@ -99,16 +101,24 @@ HcclResult AicpuTaskCachePolicy::IsInplace(const OpParam &param, bool &isInplace
     const uint64_t outputStart = reinterpret_cast<uint64_t>(param.outputPtr);
     const uint64_t outputEnd = outputStart + outputSize - 1;
 
+    // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按照outplace场景特殊处理, 正常使能cache
+    if (inputStart == outputStart && inputEnd == outputEnd && param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
+        isInplace = false;
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] input==output[0x%016llx, 0x%016llx] for opType[%d] -> isInplace[%d]",
+            inputStart, inputEnd, param.opType, isInplace);
+        return HCCL_SUCCESS;
+    }
+
     if (inputStart <= outputEnd && outputStart <= inputEnd) {
         isInplace = true;
         HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] input[0x%016llx, 0x%016llx] is overlapping with output[0x%016llx, "
-                  "0x%016llx]",
-            inputStart, inputEnd, outputStart, outputEnd);
+                  "0x%016llx] -> isInplace[%d]",
+            inputStart, inputEnd, outputStart, outputEnd, isInplace);
     } else {
         isInplace = false;
         HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] input[0x%016llx, 0x%016llx] is not overlapping with "
-                  "output[0x%016llx, 0x%016llx]",
-            inputStart, inputEnd, outputStart, outputEnd);
+                  "output[0x%016llx, 0x%016llx] -> isInplace[%d]",
+            inputStart, inputEnd, outputStart, outputEnd, isInplace);
     }
 
     return HCCL_SUCCESS;
@@ -132,19 +142,26 @@ HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, Hccl
 
         // 注意: 对于alltoall算子, inputSize和outputSize一定相同 (但不能直接使用param.input/outputSize,
         // alltoall算子不会设置这两个字段)
-        inputSize = param.all2AllDataDes.sendCount * rankSize * SIZE_TABLE[sendType];
-        outputSize = inputSize; // 注意: 不能使用param.All2AllDataDes.recvCount * rankSize * SIZE_TABLE[recvType],
-                                // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
+        const uint64_t sendCount = *(reinterpret_cast<const uint64_t*>(param.all2AllVDataDes.sendCounts));
+        inputSize = sendCount * rankSize * SIZE_TABLE[sendType];
+
+        // 注意: 不能使用param.All2AllDataDes.recvCount * rankSize * SIZE_TABLE[recvType],
+        // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
+        outputSize = inputSize;
+                                
+        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
+            "inputSize[%llu] outputSize[%llu] sendCount[%llu] dataTypeSize[%u]",
+            opType, rankSize, sendType, recvType, inputSize, outputSize, sendCount, SIZE_TABLE[sendType]);
     } else {
         sendType = param.DataDes.dataType;
         recvType = param.DataDes.dataType;
         inputSize = param.inputSize;
         outputSize = param.outputSize;
-    }
 
-    HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
-               "inputSize[%u] outputSize[%u]",
-        opType, rankSize, sendType, recvType, inputSize, outputSize);
+        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
+            "inputSize[%llu] outputSize[%llu]",
+            opType, rankSize, sendType, recvType, inputSize, outputSize);
+    }
 
     return HCCL_SUCCESS;
 }
