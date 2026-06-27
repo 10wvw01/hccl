@@ -10,10 +10,10 @@
 
 namespace ops_hccl {
 
-HcclResult AllGatherNHRTemplate::kernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource, EngineType engineType) {
-    utils::PreCopy(tempAlgParams, templateResource)
-    nhr_primitivces::RunNhrAllGather(tempAlgParams, templateResource, engineType)
-    utils::PostCopy(tempAlgParams, templateResource)
+HcclResult AllGatherNHRTemplate::kernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource) {
+    utils::PreCopy(tempAlgParams, templateResource, engineType, ranks, myRank)
+    nhr_primitivces::RunNhrAllGather(tempAlgParams, templateResource, engineType, ranks, myRank)
+    utils::PostCopy(tempAlgParams, templateResource, engineType, ranks, myRank)
 }
 
 }  // namespace ops_hccl
