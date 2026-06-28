@@ -21,7 +21,7 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 ((used, section (".ascend.meta." #kernel_name))) \
 = {{F_TYPE_KTYPE, sizeof(unsigned int), K_TYPE_AIV}}
 
-constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡�?
 constexpr uint32_t MAX_RANK_SIZE_V = 64;
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
@@ -40,7 +40,7 @@ struct ExtraArgs {
 };
 
 using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
-    GM_ADDR buffersIn = nullptr; // 注册的CCLIN地址，所有卡可访问
+    GM_ADDR buffersIn = nullptr; // 注册的CCLIN地址，所有卡可访�?
     uint64_t rank;
     uint64_t rankSize;
     uint64_t len;
@@ -48,7 +48,7 @@ using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
     uint64_t unitSize;
     uint64_t reduceOp;
     uint64_t numBlocks;
-    uint64_t tag; // 第几次调用，定时重置成1
+    uint64_t tag; // 第几次调用，定时重置�?
     uint64_t clearEnable;
     uint64_t inputSliceStride;
     uint64_t outputSliceStride;
@@ -67,9 +67,9 @@ enum class AivNotifyType {
 };
 
 enum class CommPattern {
-    //server间
+    //server�?
     interRank,
-    //server内
+    //server�?
     intraRank
 };
 
@@ -120,7 +120,7 @@ hiddenInput, input, output
 hiddenInput, input, output
 
 constexpr uint64_t AIV_FLAG_BUFFER_SIZE = 3 * 1024 * 1024; // aiv算子的flag区域大小
-constexpr uint64_t SYNC_BUFFER_OFFSET = 2 * 1024 * 1024; // 用于sync的aiv buffer的偏移
+constexpr uint64_t SYNC_BUFFER_OFFSET = 2 * 1024 * 1024; // 用于sync的aiv buffer的偏�?
 constexpr uint64_t BUFFER_AREA = 1024 * 1024; // aiv算子的单独功能flag区域大小
 
 constexpr uint64_t AIV_PING_PONG_FACTOR_TWO = 2;
@@ -151,7 +151,7 @@ constexpr uint64_t CHUNK_SIZE = 2048;
 constexpr int32_t TAG_INIT_VALUE = 1;
 constexpr int32_t TAG_RESET_COUNT = 1000;
 constexpr uint32_t AIV_FLAG_CLEAR_OFFSET = 512 * 1024;
-// 相对于GM_OUT，前同步、尾同步使用的同步标记区的偏移，也是普通标记区的大小
+// 相对于GM_OUT，前同步、尾同步使用的同步标记区的偏移，也是普通标记区的大�?
 constexpr uint32_t FLAG1_OFFSET = 1 * 1024 * 1024;
 constexpr uint32_t FLAG2_OFFSET = 5 * 1024 * 1024;
 constexpr uint32_t BASE_FLAG_OFFSET = 9 * 1024 * 1024;
@@ -204,7 +204,7 @@ public:
         multiOffset = MAX_NUM_BLOCKS * DOUBLE * FLAG_SIZE+ localOffset;
         pingpongOffset = multiOffset + DOUBLE * DOUBLE * NUM_BLOCKS_FOUR_PER_RANK_A3 * ATOMIC_FLAG_SIZE * DOUBLE;
         countOffset = DOUBLE * pingpongOffset;
-        seperateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
+        separateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
 
         pipe.InitBuffer(localFlagBuf, LOCAL_FLAG_BUF_LEN);
         localSetTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_ONE_OFFSET);
@@ -250,7 +250,7 @@ public:
         multiOffset = MAX_NUM_BLOCKS * DOUBLE * FLAG_SIZE+ localOffset;
         pingpongOffset = multiOffset + DOUBLE * DOUBLE * NUM_BLOCKS_FOUR_PER_RANK_A3 * ATOMIC_FLAG_SIZE * DOUBLE;
         countOffset = DOUBLE * pingpongOffset;
-        seperateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
+        separateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
 
         pipe.InitBuffer(localFlagBuf, LOCAL_FLAG_BUF_LEN);
         localSetTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_ONE_OFFSET);
@@ -436,7 +436,7 @@ public:
     uint32_t multiOffset;
     uint32_t pingpongOffset;
     uint32_t countOffset;
-    uint32_t seperateOffset;
+    uint32_t separateOffset;
 };
 
 
@@ -451,7 +451,7 @@ __aicore__ inline void AivCommBase::Record(uint32_t targetRank, uint64_t flag_of
 
 __aicore__ inline void AivCommBase::ClearSyncBuf()
 {
-    // 用10个flag
+    // �?0个flag
     Barrier(1);
     ClearFlag();
     Barrier(DOUBLE);
@@ -460,7 +460,7 @@ __aicore__ inline void AivCommBase::ClearSyncBuf()
 
 __aicore__ inline void AivCommBase::Barrier(uint32_t step)
 {
-    // 用10个flag
+    // �?0个flag
     uint32_t flagOffset = AIV_FLAG_EMPTY_OFFSET - gmOutOffset - (step % 2 + 1) * FLAG_SIZE * rankSize_;
     __gm__ int32_t *ctrlFlagsGM;
     if (blockIdx_ == 0) {
@@ -487,7 +487,7 @@ __aicore__ inline void AivCommBase::Barrier(uint32_t step)
 
 __aicore__ inline void AivCommBase::ClearFlag()
 {
-    // 用10个flag
+    // �?0个flag
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_]);
     __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + AIV_FLAG_EMPTY_OFFSET - gmOutOffset);
     if (blockIdx_ == 0) {
@@ -523,7 +523,7 @@ __aicore__ inline void AivCommBase::ClearGM()
 // 为sendRecv单独设计
 __aicore__ inline void AivCommBase::SendRecvBarrierForFirstOP(uint32_t myRank, uint32_t remoteRank)
 {
-    // 清零标记区
+    // 清零标记�?
     ClearGM();
     SyncAll<true>();
 
@@ -699,7 +699,7 @@ __aicore__ inline void AivCommBase::CpGM2GM(__gm__ T *outputGM, __gm__ T *inputG
 template<typename T>
 __aicore__ inline void AivCommBase::Reduce64(__gm__ T *outputGM, __gm__ T *inputGM, uint64_t count, uint32_t reduceOp)
 {
-    GlobalTensor<T> xGm;  // xGm, yGm为输入，zGm为输出
+    GlobalTensor<T> xGm;  // xGm, yGm为输入，zGm为输�?
     GlobalTensor<T> yGm;
     GlobalTensor<T> zGm;
 
@@ -707,7 +707,7 @@ __aicore__ inline void AivCommBase::Reduce64(__gm__ T *outputGM, __gm__ T *input
     yGm.SetGlobalBuffer(outputGM, count);
     zGm.SetGlobalBuffer(outputGM, count);
 
-    // 单核Add/Max/Min数据量限制
+    // 单核Add/Max/Min数据量限�?
     uint64_t curOffset = 0;
     while (count > 0) {
         uint64_t curCount = count > CHUNK_SIZE ? CHUNK_SIZE : count;
