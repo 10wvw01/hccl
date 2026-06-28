@@ -20,7 +20,7 @@
 
 ## 功能说明
 
-集合通信算子ReduceScatterV的操作接口，与ReduceScatter操作类似，不同点是支持为通信域内不同的节点配置不同大小的数据量（同一rank不同编号的数据大小可设置，但不同rank间相同编号的数据大小需保持一致），取每个rank对应编号的数据进行归约操作后（支持sum、prod、max、min）后，再把结果按照编号分散到各个rank的输出buffer。
+集合通信算子ReduceScatterV的操作接口，与ReduceScatter操作类似，不同点是支持为通信域内不同的节点配置不同大小的数据量（同一rank不同编号的数据大小可设置，但不同rank间相同编号的数据大小需保持一致），取每个rank对应编号的数据进行归约操作后（支持sum、max、min）后，再把结果按照编号分散到各个rank的输出buffer。
 
 ![reducescatterv](figures/reducescatterv.png)
 
