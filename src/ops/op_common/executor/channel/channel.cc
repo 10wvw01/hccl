@@ -657,6 +657,8 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 
 static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool isIsolation)
 {
+    HCCL_INFO("[IsPortEqual] eidEndPoint0[%d], eidEndPoint1[%d], isIsolation[%d]",
+              endPoint0.commAddr.eid[PORT_IDX], endPoint1.commAddr.eid[PORT_IDX], isIsolation);
     const u32 PORTVAL = 127;
     if (isIsolation) {
         return ((endPoint0.commAddr.eid[PORT_IDX] == endPoint1.commAddr.eid[PORT_IDX]) 
@@ -787,6 +789,8 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         // 兼容性适配
         isIsolation = false;
     }
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%zu, isMesh=%d, isClos=%d, isIsolation=%d",
+ 	  	         myRank, remoteRank, netLayer, linkList.size(), isMesh, isClos, isIsolation);
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
     // 9.1.0 之前不使用 ProcessLinksForChannelMutiJetty 等新 API，
     // 且 CommAddr.eid 字段也不存在；整函数在 8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用，
