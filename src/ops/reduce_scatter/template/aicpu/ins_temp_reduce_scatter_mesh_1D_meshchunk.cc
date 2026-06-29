@@ -44,7 +44,7 @@ u64 InsTempReduceScatterMesh1DMeshChunk::CalcScratchMultiple(BufferType inBuffTy
 {
     (void)inBuffType;
     (void)outBuffType;
-    u64 scratchMultiple = templateRankSize_ - 1;
+    u64 scratchMultiple = templateRankSize_;
     return scratchMultiple;
 }
 
@@ -106,7 +106,8 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::PreCopy(
     for (u32 repeatIdx = 0; repeatIdx < tempAlgParams.repeatNum; repeatIdx++) {
         DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff +
             repeatIdx * tempAlgParams.inputRepeatStride + rankIdx_ * tempAlgParams.inputSliceStride, processSize_);
-        DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff,
+        DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff +
+            repeatIdx * tempAlgParams.outputRepeatStride,
                                        processSize_);
         CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
     }
@@ -199,12 +200,12 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
                     repeatIdx * tempAlgParams.inputRepeatStride + myAlgRank * tempAlgParams.inputSliceStride + sliceRecvOffset_,
                     sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收源
                 DataSlice rxDstSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff + 
-                    sliceRecvOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收目标
+                    repeatIdx * tempAlgParams.outputRepeatStride + sliceRecvOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收目标
                 DataSlice txSrcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff + 
                     repeatIdx * tempAlgParams.inputRepeatStride + frontRank * tempAlgParams.inputSliceStride + sliceSendOffset_,
                     sliceSize[i], sliceSize[i] / dataTypeSize_); // 发送源
                 DataSlice txDstSlice = DataSlice(remoteCclBuffAddr, tempAlgParams.buffInfo.hcclBuffBaseOff + 
-                    sliceSendOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_);  // 发送目标
+                    repeatIdx * tempAlgParams.outputRepeatStride + sliceSendOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_);  // 发送目标
 
                 rxSrcSlices.push_back(rxSrcSlice);
                 rxDstSlices.push_back(rxDstSlice);
@@ -249,9 +250,9 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::PostCopy(
     // 先把本卡的数据从input搬运到output
     for (u32 repeatIdx = 0; repeatIdx < tempAlgParams.repeatNum; repeatIdx++) {
         DataSlice myRankSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
-            tempAlgParams.buffInfo.hcclBuffBaseOff, processSize_);
+            tempAlgParams.buffInfo.hcclBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride, processSize_);
         DataSlice outputSlice = DataSlice(tempAlgParams.buffInfo.outputPtr,
-            tempAlgParams.buffInfo.outBuffBaseOff, processSize_);
+            tempAlgParams.buffInfo.outBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride, processSize_);
         CHK_RET(LocalCopy(threads[0], myRankSlice, outputSlice));
     }
     return HcclResult::HCCL_SUCCESS;
