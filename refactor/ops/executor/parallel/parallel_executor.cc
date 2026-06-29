@@ -14,7 +14,7 @@ namespace ops_hccl {
 // notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
 // notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
 
-HcclResult ParallelExecutor::CalcResforNode(AlgoExecDesc nodeAloExecDesc, AlgResourceRequest &resourceRequest)
+HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc nodeAloExecDesc)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
     std::vector<AlgResourceRequest> tempRequest(childrenSize);
@@ -26,113 +26,51 @@ HcclResult ParallelExecutor::CalcResforNode(AlgoExecDesc nodeAloExecDesc, AlgRes
             BaseTemplate baseTemplate
                 = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
             CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest.at(i)));
+            maxSlaveThreadNum_.at(templateTopoIndex)
+                = max(maxSlaveThreadNum_.at(templateTopoIndex), tempRequest.slaveThreadNum);
+            maxNotifyNumOnMainThread_.at(templateTopoIndex)
+                = max(maxNotifyNumOnMainThread_.at(templateTopoIndex), tempRequest.notifyNumOnMainThread);            
+            auto it = std::max_element(
+                tempRequest.at(i).notifyNumPerThread.begin(), tempRequest.at(i).notifyNumPerThread.end());
+            maxNotifyNumPerThread_.at(templateExeDes->subCommIndex)
+                = max(maxNotifyNumPerThread_.at(templateExeDes->subCommIndex), *it);
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
             // 注意：*algoDescPtr 是 std::shared_ptr<AlgoExecDesc>
             // 使用 **algoDescPtr 或 algoDescPtr->get() 解引用 shared_ptr
-            CHK_RET(CalcResforNode(**algoDescPtr, tempRequest.at(i)));
+            CHK_RET(CalcResRecursion(**algoDescPtr));
         } else {
             // 不应该到达这里，说明 variant 包含了未预期的类型
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
     }
-    CHK_RET(MergeResRequest(tempRequest, nodeAloExecDesc.execPolicy, resourceRequest));
     return HCCL_SUCCESS;
-}
-
-HcclResult ParallelExecutor::MergeResRequest(
-    std::vector<AlgResourceRequest> &tempRequest, ExecPolicy execPolicy, AlgResourceRequest &resourceRequest)
-{
-    u32 notifyNumOnMainThread = 0;
-    u32 slaveThreadNum = 0;
-    std::vector<u32> notifyNumPerThread;
-    size_t vectorSize = tempRequest.size();
-    // 并行notifyNumOnMainThread等于vectorSize，slaveThreadNum求和
-    // 串行notifyNumOnMainThread和slaveThreadNum都取最大值
-    if (nodeAloExecDesc.execPolicy == ExecPolicy::PARALLEL) {
-        notifyNumOnMainThread = vectorSize;
-        slaveThreadNum += tempRequest.slaveThreadNum;
-    } else if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-        for (size_t i = 0; i < vectorSize; ++i) {
-            slaveThreadNum = max(slaveThreadNum, tempRequest.at(i).slaveThreadNum);
-            notifyNumOnMainThread = max(notifyNumOnMainThread, tempRequest.at(i).notifyNumOnMainThread);
-        }
-        notifyNumOnMainThread = max(notifyNumOnMainThread, tempRequest.notifyNumOnMainThread);
-    }
-    resourceRequest.notifyNumOnMainThread = notifyNumOnMainThread;
-    resourceRequest.slaveThreadNum = slaveThreadNum;
 }
 
 HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
 {
-    CHK_RET(CalcResforNode(comm, topoInfo, algo_.algoExecDesc, resourceRequest));
-}
+    // 递归的时候先无法生成notifyNumPerThread，只能先计算maxNotifyNumPerThread_
+    auto topoLevelNum = algHierarchyInfo_.infos.size();
+    maxSlaveThreadNum_.assign(topoLevelNum, 0);
+    maxNotifyNumOnMainThread_.assign(topoLevelNum, 0);
+    maxNotifyNumPerThread_.assign(topoLevelNum, 0);        
 
-HcclResult ParallelExecutor::CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
-    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
-{
-    uint32_t parallelNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
-    // 第一个元素表示maxIntra，第二个元素表示maxInter，后续待扩展
-    std::vector<u32> maxSlaveThreadNum(parallelNum);
-    std::vector<u32> maxNotifyNumOnMainThread(parallelNum);
-    std::vector<u32> maxNotifyNumPerThread(parallelNum);
-    CHK_RET(CalcSubTopoMaxRes(
-        comm, topoInfo, algHierarchyInfo, maxSlaveThreadNum, maxNotifyNumOnMainThread, maxNotifyNumPerThread));
-    resourceRequest.notifyNumOnMainThread = parallelNum;
-    resourceRequest.slaveThreadNum = 0;
-    mainThread_ = threads_.at(0);
+    CHK_RET(CalcResRecursion(algo_.algoExecDesc));
     auto subThreadBegin = threads_.begin;
     auto subThreadEnd = threads_.begin;
-    for (auto templateTopoIndex = 0; templateTopoIndex < parallelNum; templateTopoIndex++) {
-        // 所有通信维度(intra/inter)maxSlaveThreadNum求和
-        resourceRequest.slaveThreadNum += maxSlaveThreadNum.at(templateTopoIndex);
-        // 先插入NotifyNumOnMainThread
-        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread.at(templateTopoIndex) + 1);
+    resourceRequest.notifyNumOnMainThread = topoLevelNum;
+    resourceRequest.slaveThreadNum = 0;
+    for (auto templateTopoIndex = 0; templateTopoIndex < topoLevelNum; templateTopoIndex++) {
+        // 每个通信子域还需要一条主流，所以求和还需要+1
+        resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(templateTopoIndex) + 1;
+        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(templateTopoIndex) + 1);
         // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-            maxSlaveThreadNum.at(templateTopoIndex), maxNotifyNumPerThread.at(templateTopoIndex));
+            maxSlaveThreadNum_.at(templateTopoIndex), maxNotifyNumPerThread_.at(templateTopoIndex));
         subThreadBegin = (templateTopoIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
-        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum(templateTopoIndex);
+        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_(templateTopoIndex);
         subThreads_.at(templateTopoIndex).assign(subThreadBegin, subThreadEnd);
-    }
-
-    HCCL_DEBUG("[ParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
-               "channels[%u]",
-        myRank_, resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
-        resourceRequest.channels.size());
-    for (auto i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
-        HCCL_DEBUG("[ParallelExecutor][CalcRes] myRank[%u], notifyNumPerThread[%u]=[%u]", myRank_, i,
-            resourceRequest.notifyNumPerThread[i]);
-    }
-
-    return HCCL_SUCCESS;
-}
-
-HcclResult ParallelExecutor::CalcSubTopoMaxRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
-    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, std::vector<u32> maxSlaveThreadNum,
-    std::vector<u32> maxNotifyNumOnMainThread, std::vector<u32> maxNotifyNumPerThread);
-{
-    uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
-    uint32_t parallelNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
-
-    for (auto stage = 0; stage < stageNum; stage++) {
-        for (auto dataPart = 0; dataPart < parallelNum; dataPart++) {
-            // 根据TemplateDescrb获取实例化生成算法的template
-            auto templateTopoIndex = algo_.templateTopoIndex.at(stage).at(dataPart);
-            vector<RankInfo> templateRanks = algHierarchyInfo.infos[templateTopoIndex];
-            BaseTemplate template = Func(algo_.templates.at(stage).at(dataPart), templateRanks);
-
-            AlgResourceRequest tempRequest;
-            CHK_RET(template.CalcRes(comm, param, topoInfo, tempRequest));
-            maxSlaveThreadNum.at(templateTopoIndex)
-                = max(maxSlaveThreadNum.at(templateTopoIndex), tempRequest.slaveThreadNum);
-            maxNotifyNumOnMainThread.at(templateTopoIndex)
-                = max(maxNotifyNumOnMainThread.at(templateTopoIndex), tempRequest.notifyNumOnMainThread);
-            // 为了保险起见每个通信维度(intra/inter)的notifyNum取最大值
-            auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
-            maxNotifyNumPerThread.at(templateTopoIndex) = max(maxNotifyNumPerThread.at(templateTopoIndex), *it);
-        }
     }
     return HCCL_SUCCESS;
 }

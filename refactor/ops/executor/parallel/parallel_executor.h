@@ -8,7 +8,7 @@ public:
     HcclResult CalcRes(AlgResourceRequest &resourceRequest);
 
 private:
-    HcclResult CalcResforNode(AlgoExecDesc nodeAloExecDesc, AlgResourceRequest &resourceRequest);
+    HcclResult CalcResRecursion(AlgoExecDesc nodeAloExecDesc);
     HcclResult MergeResRequest(
         std::vector<AlgResourceRequest> &tempRequest, ExecPolicy execPolicy, AlgResourceRequest &resourceRequest);
     HcclResult PrepareResForTemplate();
@@ -16,8 +16,8 @@ private:
     HcclResult GenTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource);
     HcclResult GenTemplateDataParams(u32 stage, u32 dataPart, TemplateDataParams &templateDataParams);
 
-    HcclResult CalcSubTopoMaxRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, std::vector<u32> maxSlaveThreadNum,
-        std::vector<u32> maxNotifyNumOnMainThread, std::vector<u32> maxNotifyNumPerThread) = 0;
+    std::vector<u32> maxSlaveThreadNum_;
+    std::vector<u32> maxNotifyNumOnMainThread_;
+    std::vector<u32> maxNotifyNumPerThread_;
 }
 } // namespace ops_hccl
