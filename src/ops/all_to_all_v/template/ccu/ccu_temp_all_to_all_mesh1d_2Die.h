@@ -10,12 +10,12 @@
 
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_
-
+#include <array>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
 
 namespace ops_hccl {
-
+constexpr u32 MAX_KERNEL_NUM_2DIE = 3;
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
@@ -37,7 +37,7 @@ public:
 
 private:
     HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
-    HcclResult CalcFillArgsInfo(uint32_t kernelIdx, const Mesh2DieCacheCtx &cacheCtx, uint64_t &sliceSize, uint64_t &sliceOffset);
+    HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
 
     const uint32_t DIE_NUM = 2; // 2Die
     bool is2Plus6_ = false;
@@ -47,8 +47,9 @@ private:
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
     std::vector<HcclChannelDesc> kernelChannels_[MAX_KERNEL_NUM_2DIE];
     std::vector<RankId> kernelRankGroup_[MAX_KERNEL_NUM_2DIE];
+    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 #endif // HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_

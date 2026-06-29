@@ -20,11 +20,9 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
-constexpr uint32_t CACHED_IN_BUFF_OFF  = 0;
-constexpr uint32_t CACHED_OUT_BUFF_OFF = 1;
-constexpr uint32_t CACHED_TOKEN        = 2;
-constexpr uint32_t CACHED_GO_SIZE_BASE = 3;
-constexpr uint32_t CACHED_GO_SIZE_NUM  = 4;
+constexpr u32 KERNEL_FULLMESH=0; 
+constexpr u32 KERNEL_CLOS_MAJOR=1; 
+constexpr u32 KERNEL_CLOS_MINOR=2;
 
 CcuTempAllToAllMesh1D2Die::CcuTempAllToAllMesh1D2Die(const OpParam &param, RankId rankId,
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -151,8 +149,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllToAllMesh1D2Die::CalcFillArgsInfo(uint32_t kernelIdx, const Mesh2DieCacheCtx &cacheCtx,
-    uint64_t &sliceSize, uint64_t &sliceOffset)
+HcclResult CcuTempAllToAllMesh1D2Die::CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset)
 {
     const uint64_t full = sliceSize;
     const uint64_t majorPorts = diePortGroupSize_[0];   
@@ -218,7 +215,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     config.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
     config.memSlice = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
 
-    for (uint32_t KernelIdx = 0; i < kernelCount; i++) {
+    for (uint32_t i = 0; i < kernelCount; i++) {
         uint64_t sliceSize = templateDataParams.sliceSize;
         uint64_t sliceOffset = 0;
         CHK_RET(CalcFillArgsInfo(i, cacheCtx, sliceSize, sliceOffset));
@@ -248,18 +245,14 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
         }
 
         CcuKernelSubmitInfo submitInfo;
-        submitInfo.kernelHandle = templateResource.ccuKernels[i];
-        submitInfo.cachedArgs[ARG_IN_IDX]         = baseIn + sliceOffset;              // 预填，FastLaunch 会覆盖
-        submitInfo.cachedArgs[ARG_OUT_IDX]        = baseOut;
-        submitInfo.cachedArgs[ARG_TOKEN_IDX]      = token;
-        submitInfo.cachedArgs[ARG_SLICE_SIZE_IDX] = sliceSize;
-        submitInfo.cachedArgs[ARG_STRIDE_IDX]     = stride;
-        submitInfo.cachedArgs[ARG_OUT_OFFSET_IDX] = stride * myRank_ + sliceOffset;
-        for (u32 j = 0; j < ARG_GO_SIZE_NUM; j++) { submitInfo.cachedArgs[ARG_GO_SIZE_BASE + j] = goSize[j]; }
-        submitInfo.cachedArgs[META_IN_BASE_OFF_IDX]  = buffInfo_.inBuffBaseOff;        // 供 FastLaunch 回填 arg0
-        submitInfo.cachedArgs[META_OUT_BASE_OFF_IDX] = buffInfo_.outBuffBaseOff;       // 供回填 arg1
-        submitInfo.cachedArgs[META_SLICE_OFFSET_IDX] = sliceOffset;                    // 供回填 arg0/arg5
-        templateResource.submitInfos.push_back(submitInfo);
+        CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4], taskArgs[5],
+                           taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9], buffInfo_.outBuffBaseOff));
+        submitInfo.cachedArgs[11] = buffInfo_.inBuffBaseOff + sliceOffset;                   
+        for (u32 i = 0; i < kernelCount; i++) {
+            // 2个kernel的TaskArg相同
+            submitInfo.kernelHandle = templateResource.ccuKernels[i];
+            templateResource.submitInfos.push_back(submitInfo);
+        }
     }
 
     std::vector<u32> notifyIdxSubToMain(subThreadCount);
@@ -273,9 +266,15 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam ¶m, const TemplateFastLaunchCtx &tempFastLaunchCtx)
+HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
 {
     (void)param;
+    constexpr u32 argInIdx            = 0;
+    constexpr u32 argOutIdx           = 1;
+    constexpr u32 metaOutBaseOffIdx   = 10;   // outBuffBaseOff
+    constexpr u32 metaInCombineOffIdx = 11;   // inBuffBaseOff + sliceOffset
+
+
     u32 kernelCount = static_cast<u32>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
     if (kernelCount == 0) {
         HCCL_INFO("[CcuTempAllToAllMesh1D2Die][FastLaunch] ccu kernel num is 0, just success.");
@@ -283,7 +282,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam ¶m, const Templa
     }
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][FastLaunch] start, kernelCount[%u]", kernelCount);
 
-    // 只有地址依赖运行时 buffInfo 指针；sliceSize/sliceOffset/stride/token/goSize 都已在 cachedArgs 里
     uint64_t baseIn  = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr);
     uint64_t baseOut = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr);
 
@@ -295,17 +293,14 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam ¶m, const Templa
 
     for (u32 i = 0; i < kernelCount; i++) {
         uint64_t *args = const_cast<uint64_t *>(tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs);
-        uint64_t sliceOffset = args[META_SLICE_OFFSET_IDX];
-        uint64_t stride      = args[ARG_STRIDE_IDX];
-        // in-place 回填地址相关 slot（参考 AllGather FastLaunch）
-        args[ARG_IN_IDX]         = baseIn  + args[META_IN_BASE_OFF_IDX]  + sliceOffset;
-        args[ARG_OUT_IDX]        = baseOut + args[META_OUT_BASE_OFF_IDX];
-        args[ARG_OUT_OFFSET_IDX] = stride * myRank_ + sliceOffset;
+        args[argInIdx]  = baseIn  + args[metaInCombineOffIdx];   // newBaseIn + (inBuffBaseOff+sliceOffset)
+        args[argOutIdx] = baseOut + args[metaOutBaseOffIdx];     // newBaseOut + outBuffBaseOff
+        // arg5(outputoffset)=stride*myRank+sliceOffset 不含 baseIn，保留不动
 
         CcuResult launchRet = HcommCcuKernelLaunch(
             tempFastLaunchCtx.threads[i],
             tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle,
-            reinterpret_cast<void *>(args), TASK_ARG_SIZE);
+            reinterpret_cast<void *>(args), taskArgSize);
         if (launchRet != CCU_SUCCESS) {
             HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);
