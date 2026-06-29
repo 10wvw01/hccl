@@ -657,7 +657,7 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
 
 static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool isIsolation)
 {
-    HCCL_INFO("IsPortEqual eidEndPoint0[%d], eidEndPoint1[%d], isIsolation[%d]",
+    HCCL_INFO("[IsPortEqual] eidEndPoint0[%d], eidEndPoint1[%d], isIsolation[%d]",
               endPoint0.commAddr.eid[PORT_IDX], endPoint1.commAddr.eid[PORT_IDX], isIsolation);
     const u32 PORTVAL = 127;
     if (isIsolation) {
