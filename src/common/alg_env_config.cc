@@ -965,10 +965,12 @@ HcclResult ParseDeterministic()
         // 规约保序支持A2 A3 A5场景
         bool supportedDevice = false;
         #ifdef MACRO_DEV_TYPE_NEW
+        HCCL_INFO("MACRO_DEV_TYPE_NEW defined")
         supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
                           deviceType == DevType::DEV_TYPE_910_93 || 
                           deviceType == DevType::DEV_TYPE_950);
         #else
+        HCCL_INFO("MACRO_DEV_TYPE_NEW not defined")
         supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
                           deviceType == DevType::DEV_TYPE_910_93 || 
                           deviceType == DevType::DEV_TYPE_910_95);
