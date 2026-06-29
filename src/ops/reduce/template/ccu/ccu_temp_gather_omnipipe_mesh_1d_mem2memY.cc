@@ -36,12 +36,33 @@ CcuTempGatherOmniPipeMesh1DMem2MemY::CcuTempGatherOmniPipeMesh1DMem2MemY(const O
     }
     rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
-    // HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] mySubCommRank_=%u, subCommRootId_=%u, rankId=%u",
-    //            mySubCommRank_, subCommRootId_, rankId);
 }
 
 CcuTempGatherOmniPipeMesh1DMem2MemY::~CcuTempGatherOmniPipeMesh1DMem2MemY()
 {
+}
+
+void CcuTempGatherOmniPipeMesh1DMem2MemY::SetRoot(u32 root)
+{
+    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2MemY][SetRoot] myRank_ [%u], set root [%u] ", myRank_, root);
+    std::string ranksStr = "";
+    std::vector<u32> ranks = subCommRanks_[0];
+    auto itRoot = std::find(ranks.begin(), ranks.end(), root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_  = std::distance(ranks.begin(), itRoot);
+    }
+    for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
+    HCCL_DEBUG(
+        "[%s] myRank[%u] mySubCommRank[%u] subCommRanks[%s] subCommRootId_[%d]",
+        __func__, myRank_, mySubCommRank_,  ranksStr.c_str(), subCommRootId_);
+}
+
+void CcuTempGatherOmniPipeMesh1DMem2MemY::UnsetRoot(u32 rank)
+{
+    HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2MemY][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
+    if (!ifRealRoot_) {
+        subCommRootId_ = 1000;
+    }
 }
 
 u64 CcuTempGatherOmniPipeMesh1DMem2MemY::GetThreadNum() const
@@ -112,17 +133,13 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::CalcRes(HcclComm comm, const OpP
     auto kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2MemY>();
     kernelArg->rankSize = subCommRanks_[0].size();
     kernelArg->rankId = mySubCommRank_;
-    kernelArg->rootId = subRoot;
+    kernelArg->rootId = subCommRootId_;
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
     kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
-    kernelArg->ifRealRoot = ifRealRoot_;
     kernelArg->myrealrank = myRank_;
 
     kernelInfo.setKernelArg(kernelArg);
-
-    // kernelInfo.kernelArg = std::make_shared<CcuKernelArgGatherOmniPipeMesh1DMem2MemY>(subCommRanks_[0].size(),
-    //     mySubCommRank_, subCommRootId_, param, subCommRanks_, subRankIdx2RankIdx, ifRealRoot_, myRank_);
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
@@ -171,15 +188,8 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
         uint64_t sliceSize;
         uint64_t inputOmniPipeSliceStride;
         uint64_t outputOmniPipeSliceStride;
-        HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] subRoot=%u mySubCommRank_=%u", subRoot,  mySubCommRank_);
+        HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] subRoot=%u mySubCommRank_=%u", subCommRootId_,  mySubCommRank_);
         auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
-        // if (isStepOne_==false && isLastStep_==false) {
-        //     for(int i=0;i<stepSliceInfo.inputOmniPipeSliceStride.size();i++){
-        //         for(int j=0;j<stepSliceInfo.inputOmniPipeSliceStride[i].size();j++){
-        //             HCCL_INFO("[zq][dataSliceLevel1]  myRank[%d][inputOmniPipeSliceStride][omniPipeSliceInfoG][%d][%d]:%d SliceSize[%d] subroot[%d] mySubCommRank_[%d]",myRank_,i,j,stepSliceInfo.inputOmniPipeSliceStride[i][j] , stepSliceInfo.inputOmniPipeSliceStride[i][j], subRoot, mySubCommRank_);
-        //         } 
-        //     }
-        // }
         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] peerIdSize=%u", inputOmniPipeSliceStrides.size());
         for (uint32_t peerId = 0; peerId < inputOmniPipeSliceStrides.size(); ++peerId) {
             HCCL_DEBUG("[----------------] a=%lu b=%lu c=%lu d=%lu", buffInfo_.inBuffBaseOff,  buffInfo_.outBuffBaseOff, templateDataParams.stepSliceInfo.buffInfo.inBuffBaseOff, templateDataParams.stepSliceInfo.buffInfo.outBuffBaseOff);
@@ -198,10 +208,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                 inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt];
                 outputOmniPipeSliceStride= stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt];
                 
-                bool ifNewRoot = (subRoot == mySubCommRank_ && peerId != subRoot); //是不是能read的卡
+                bool ifNewRoot = (subCommRootId_ == mySubCommRank_ && peerId != subCommRootId_); //是不是能read的卡
 
                 if (ifNewRoot && sliceSize!=0 ) { // 0 和 1
-                    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] subRoot[%u] mySubCommRank_[%u] peerId[%u] ifNewRoot[%u]  myRank_[%d] isStepOne[%d] rpt[%d]", subRoot, mySubCommRank_, peerId, ifNewRoot, myRank_, isStepOne_, rpt);
+                    HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY] subRoot[%u] mySubCommRank_[%u] peerId[%u] ifNewRoot[%u]  myRank_[%d] isStepOne[%d] rpt[%d]", subCommRootId_, mySubCommRank_, peerId, ifNewRoot, myRank_, isStepOne_, rpt);
                     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
                             " sliceSize=%llu  localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_[%d] isLastStep_[%d] ",
                             rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_,isLastStep_);
@@ -223,7 +233,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun(const OpParam& param,
                 // if (ifNewRoot && sliceSize!=0) {
                     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2MemY::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
                                 " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu myRank[%u]  subRoot[%d] peerId[%d]",
-                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subRoot, peerId);
+                                rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_, peerId);
                 
                 // }
                 uint64_t argSize = taskArgs.size();
