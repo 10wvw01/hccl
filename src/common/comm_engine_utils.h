@@ -25,23 +25,14 @@ inline std::string GetEnumToString(const MapType& mappingMap, typename MapType::
     return "Unknown";
 }
 
-inline const std::unordered_map<CommEngine, std::string>& GetCommEngineStrMap()
-{
-    static const std::unordered_map<CommEngine, std::string> commEngineStrMap {
-        {COMM_ENGINE_RESERVED, "RESERVED"},
-        {COMM_ENGINE_CPU, "CPU"},
-        {COMM_ENGINE_CPU_TS, "CPU_TS"},
-        {COMM_ENGINE_AICPU, "AICPU"},
-        {COMM_ENGINE_AICPU_TS, "AICPU_TS"},
-        {COMM_ENGINE_AIV, "AIV"},
-        {COMM_ENGINE_CCU, "CCU"}
-    };
-    return commEngineStrMap;
-}
-
-inline std::string GetCommEngineStr(CommEngine engine)
-{
-    return GetEnumToString(GetCommEngineStrMap(), engine);
-}
+inline const std::unordered_map<CommEngine, std::string> COMMENGINE_STATUS_STR_MAP {
+    {COMM_ENGINE_RESERVED, "RESERVED"},
+    {COMM_ENGINE_CPU, "CPU"},
+    {COMM_ENGINE_CPU_TS, "CPU_TS"},
+    {COMM_ENGINE_AICPU, "AICPU"},
+    {COMM_ENGINE_AICPU_TS, "AICPU_TS"},
+    {COMM_ENGINE_AIV, "AIV"},
+    {COMM_ENGINE_CCU, "CCU"}
+};
 
 #endif

@@ -101,7 +101,7 @@ HcclResult ConvertToHcclDfxOpInfo(OpParam *param, HcclDfxOpInfoCompat *hcclDfxOp
         "root[%u], engine[%s], cpuTsThread[%u], cpuWaitAicpuNotifyIdx[%u], "
         "inputMemAddr[0x%llx], inputMemSize[%llu], outputMemAddr[0x%llx], outputMemSize[%llu]",
         __func__, hcclDfxOpInfo->algTag, hcclDfxOpInfo->opMode, hcclDfxOpInfo->opType, hcclDfxOpInfo->reduceOp,
-        hcclDfxOpInfo->dataType, hcclDfxOpInfo->dataCount, hcclDfxOpInfo->root, GetCommEngineStr(hcclDfxOpInfo->engine).c_str(),
+        hcclDfxOpInfo->dataType, hcclDfxOpInfo->dataCount, hcclDfxOpInfo->root, GetEnumToString(COMMENGINE_STATUS_STR_MAP, hcclDfxOpInfo->engine).c_str(),
         hcclDfxOpInfo->cpuTsThread, hcclDfxOpInfo->cpuWaitAicpuNotifyIdx, hcclDfxOpInfo->inputMemAddr,
         hcclDfxOpInfo->inputMemSize, hcclDfxOpInfo->outputMemAddr, hcclDfxOpInfo->outputMemSize);
     return HCCL_SUCCESS;
