@@ -225,7 +225,7 @@ HcclResult GetProtocolByEngine(const OpParam& param, std::vector<CommProtocol> &
             break;
         default:
             HCCL_WARNING("[GetProtocolByEngine] Unknown engine[%s], set protocol to RESERVED",
-                         GetCommEngineStr(param.engine).c_str());
+                         GetEnumToString(COMMENGINE_STATUS_STR_MAP, param.engine).c_str());
             break;
     }
 #else

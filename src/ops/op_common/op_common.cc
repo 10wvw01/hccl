@@ -342,7 +342,7 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
         "root[%u], engine[%s], inputMemAddr[0x%llx], inputMemSize[%llu], outputMemAddr[0x%llx], outputMemSize[%llu], "
         "cpuTsThread[0x%llu], cpuWaitAicpuNotifyIdx[%u]",
         __func__, hcclDfxOpInfo.algTag, hcclDfxOpInfo.opMode, hcclDfxOpInfo.opType, hcclDfxOpInfo.reduceOp,
-        hcclDfxOpInfo.dataType, hcclDfxOpInfo.dataCount, hcclDfxOpInfo.root, GetCommEngineStr(hcclDfxOpInfo.engine).c_str(),
+        hcclDfxOpInfo.dataType, hcclDfxOpInfo.dataCount, hcclDfxOpInfo.root, GetEnumToString(COMMENGINE_STATUS_STR_MAP, hcclDfxOpInfo.engine).c_str(),
         hcclDfxOpInfo.inputMemAddr, hcclDfxOpInfo.inputMemSize, hcclDfxOpInfo.outputMemAddr,
         hcclDfxOpInfo.outputMemSize, hcclDfxOpInfo.cpuTsThread, hcclDfxOpInfo.cpuWaitAicpuNotifyIdx);
     return HCCL_SUCCESS;
@@ -929,7 +929,7 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
             channelNumInfo += "level" + std::to_string(i) + "[" + std::to_string(resCtxHost->channels[i].size()) + "]";
         }
         HCCL_RUN_INFO("[HcclGetAlgRes] engine[%s], algTag[%s], resource allocated: thread num[%u], "
-            "channel num per level[%s], ccu kernel num[%u].", GetCommEngineStr(param.engine).c_str(), param.algTag,
+            "channel num per level[%s], ccu kernel num[%u].", GetEnumToString(COMMENGINE_STATUS_STR_MAP, param.engine).c_str(), param.algTag,
             resCtxHost->threads.size(), channelNumInfo.c_str(), resCtxHost->ccuKernels.size());
     }
 
@@ -1040,7 +1040,7 @@ HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest
         }
         CHK_RET(ret);
     } else {
-        HCCL_ERROR("fail to get engine, invalid engine type[%s].", GetCommEngineStr(param.engine).c_str());
+        HCCL_ERROR("fail to get engine, invalid engine type[%s].", GetEnumToString(COMMENGINE_STATUS_STR_MAP, param.engine).c_str());
         return HCCL_E_PARA;
     }
     param.ctxSize = size;
