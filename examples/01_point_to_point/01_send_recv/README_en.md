@@ -24,7 +24,7 @@ This sample demonstrates how to use the `HcclSend()` and `HcclRecv()` APIs to im
 
 ### Prerequisites
 
-This sample supports the following products in a single-node N-card configuration (N ≥ 2):
+This sample supports the following products in a single-node N-card configuration (N ≥ 2 and even):
 
 - <term>Ascend 950PR</term> / <term>Ascend 950DT</term>
 - <term>Atlas A3 training products </term> / <term>Atlas A3 inference products</term>

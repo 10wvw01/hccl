@@ -1,11 +1,11 @@
 # RFC Document Directory
 
-This directory stores the technical solution design documents (RFC - Request for Comments) of the HCOMM repository.
+This directory stores the technical solution design documents (RFC - Request for Comments) of the HCCL repository.
 
 ## RFC Lifecycle
 
 1. **Drafting**: Developers write RFC documents using [the RFC template](./0000-template.md).
-2. **Submiting a PR**: Developers submit the RFC as a pull request (PR) to this repository.
+2. **Submitting a PR**: Developers submit the RFC as a pull request (PR) to this repository.
 3. **Review**: Maintainers review the RFC, which may involve multiple iterations.
 4. **Decision-making**
    - **Accepted**: The RFC is approved and can be implemented.
