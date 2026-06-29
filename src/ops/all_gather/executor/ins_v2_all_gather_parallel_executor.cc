@@ -109,6 +109,8 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
                                             interTempRequest.ccuKernelInfos.begin(),
                                             interTempRequest.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(interTempRequest.ccuKernelNum[0]);
+        resourceRequest.channels.emplace_back(intraTempRequest.channels[0]);
+        resourceRequest.channels.emplace_back(interTempRequest.channels[0]);
     }
     HCCL_DEBUG("[InsV2AllGatherParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
                "channels[%u]",
