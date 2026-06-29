@@ -95,6 +95,7 @@ HcclResult ParallelExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, Temp
 HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
+    //todo 需要先刷新templateMainThreads_和syncNotifyOnTemplates_
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
@@ -107,15 +108,15 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
             std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
             BaseTemplate baseTemplate
                 = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
-            AlgResourceRequest tempRequest;
-            CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest));
-            maxSlaveThreadNum_.at(templateTopoIndex)
-                = max(maxSlaveThreadNum_.at(templateTopoIndex), tempRequest.slaveThreadNum);
-            maxNotifyNumOnMainThread_.at(templateTopoIndex)
-                = max(maxNotifyNumOnMainThread_.at(templateTopoIndex), tempRequest.notifyNumOnMainThread);
-            auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
-            maxNotifyNumPerThread_.at(templateExeDes->subCommIndex)
-                = max(maxNotifyNumPerThread_.at(templateExeDes->subCommIndex), *it);
+            // 根据阶段生成template的资源参数
+            TemplateResource templateResource;
+            CHK_RET(GenTemplateRes(stage, dataPart, templateResource));
+
+            // 根据阶段生成template的数据参数
+            TemplateDataParams templateDataParams;
+            CHK_RET(GenTemplateDataParams(stage, dataPart, templateDataParams));
+
+            CHK_RET(template.KernelRun(templateDataParams, templateResource, algo_.engineType));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
@@ -130,35 +131,6 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
             CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
         }
-    }
-
-    // 参考现有的allGather算子实现
-    uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
-    uint32_t dataPartNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
-    std::vector<ThreadHandle> templateMainThreads_;
-    // templateMainThreads_第一个元素是intra的主线程位, 第二个元素是inter的主线程
-    templateMainThreads_.emplace_back(subThreads_.at(0).at(0));
-    templateMainThreads_.emplace_back(subThreads_.at(1).at(0));
-
-    for (auto stage = 0; stage < stageNum; stage++) {
-        // 第一步开始前同步
-        CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_.at(stage)));
-        for (auto dataPart = 0; stage < dataPartNum; dataPart++) {
-            // 根据TemplateDescrb获取实例化生成算法的template
-            BaseTemplate template = Func(algo_.templates.at(stage).at(dataPart));
-
-            // 根据阶段生成template的资源参数
-            TemplateResource templateResource;
-            CHK_RET(GenTemplateRes(stage, dataPart, templateResource));
-
-            // 根据阶段生成template的数据参数
-            TemplateDataParams templateDataParams;
-            CHK_RET(GenTemplateDataParams(stage, dataPart, templateDataParams));
-
-            CHK_RET(template.KernelRun(templateDataParams, templateResource, algo_.engineType));
-        }
-        // 第一步做完后回到主流做尾同步
-        CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
     }
 }
 
