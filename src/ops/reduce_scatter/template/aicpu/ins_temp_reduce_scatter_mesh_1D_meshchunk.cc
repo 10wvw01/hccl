@@ -252,7 +252,7 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::PostCopy(
         DataSlice myRankSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
             tempAlgParams.buffInfo.hcclBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride, processSize_);
         DataSlice outputSlice = DataSlice(tempAlgParams.buffInfo.outputPtr,
-            tempAlgParams.buffInfo.outBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride, processSize_);
+            tempAlgParams.buffInfo.outBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride + myAlgRank * tempAlgParams.outputSliceStride, processSize_);
         CHK_RET(LocalCopy(threads[0], myRankSlice, outputSlice));
     }
     return HcclResult::HCCL_SUCCESS;
