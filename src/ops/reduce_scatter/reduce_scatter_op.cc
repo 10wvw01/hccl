@@ -26,6 +26,7 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
     HCCL_INFO("Start to run execute HcclReduceScatter");
     u32 versionHandle = 90000000;
     if (GetHcommVersion() < versionHandle) { // compat handle
+        HCCL_WARNING("Go the old function, in GetHcommVersion.");
         return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
     }
     DevType deviceType = DevType::DEV_TYPE_COUNT;
@@ -35,6 +36,7 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
 #else
     if (deviceType != DevType::DEV_TYPE_910_95) {
 #endif
+        HCCL_WARNING("Go the old function, in deviceType.");
         return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
@@ -191,6 +193,7 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(Selector(comm, param, topoInfo, algName));
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
+        HCCL_WARNING("Go the old function, in ShouldUseInnerOp.");
         return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
     }
     if (userRankSize == 1) {

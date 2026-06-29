@@ -27,6 +27,7 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
     HCCL_INFO("Start to run execute HcclAllGather");
     u32 versionHandle = 90000000;
     if (GetHcommVersion() < versionHandle) { // compat handle
+        HCCL_WARNING("Go the old function, in GetHcommVersion.");
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
 
@@ -37,6 +38,7 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
     #else
     if (deviceType != DevType::DEV_TYPE_910_95) {
     #endif
+        HCCL_WARNING("Go the old function, in deviceType.");
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
     CHK_PRT_RET(sendCount == 0, HCCL_WARNING("input sendCount is 0, return all gather success"), HCCL_SUCCESS);
@@ -192,6 +194,7 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(Selector(comm, param, topoInfo, algName));
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
+        HCCL_WARNING("Go the old function, in ShouldUseInnerOp.");
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
     if (userRankSize == 1) {
