@@ -148,16 +148,11 @@ HcclResult CcuTempAlltoAllVMesh1D::FastLaunch(const OpParam& param, const Templa
     HcclDataType dataType = param.all2AllVDataDes.sendType;
     uint64_t dataTypeSize =  SIZE_TABLE[dataType];
 
-    uint64_t freshToken = 0;
-    BuffInfo freshBuffInfo = tempFastLaunchCtx.buffInfo;
-    freshBuffInfo.inputSize = param.inputSize;
-    freshBuffInfo.outputSize = param.outputSize;
-    HcclResult tokenRet = GetToken(freshBuffInfo, freshToken);
-    HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][CACHE_READ] cachedToken(args[2])[%llu], freshToken[%llu], "
+    HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][CACHE_READ] cachedToken(args[2])[%llu], "
               "cachedInputAddr(args[0])[%llu], currentInputPtr[%llu], currentInputSize[%llu], "
-              "cachedOutputAddr(args[1])[%llu], currentOutputPtr[%llu], currentOutputSize[%llu], tokenRet[%d]",
-              args[2], freshToken, args[0], PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr), param.inputSize,
-              args[1], PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr), param.outputSize, tokenRet);
+              "cachedOutputAddr(args[1])[%llu], currentOutputPtr[%llu], currentOutputSize[%llu]",
+              args[2], args[0], PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr), param.inputSize,
+              args[1], PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr), param.outputSize);
     HCCL_INFO("[CcuTempAlltoAllVMesh1D::FastLaunch][CACHE_READ_ALL] args[0]=%llu, args[1]=%llu, args[2]=%llu(token), "
               "args[3]=%llu(srcOff), args[4]=%llu(dstOff), args[5]=%llu(rankSize), args[6]=%llu(myRank), "
               "args[7]=%llu(inBuffBaseOff), args[8]=%llu(outBuffBaseOff)",
