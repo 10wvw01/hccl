@@ -196,6 +196,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
                                                       std::string &selectAlgName) const
 {
     (void)configAlgMap;
+    if (Is64BitDataType(opParam.vDataDes.dataType) && opParam.vDataDes.dataType != HcclDataType::HCCL_DATA_TYPE_INT64) {
+        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] UINT64 or FP64 are not yet supported for aicpu mode.");
+        return SelectorStatus::NOT_MATCH;
+    }
 
     if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
         selectAlgName = "InsReduceScatterVMesh1D";
