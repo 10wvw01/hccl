@@ -80,8 +80,6 @@ protected:
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable& resCtx);
     HcclResult CalcSliceInfoReduce(u64 dataCount);
     u64 RoundUp(const u64 dividend, const u64 divisor) const;
-    u64 GetXRoot();
-    u64 GetYRoot();
 
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;  // 相当于之前的std::vector<InsQuePtr> tempInsQue_;

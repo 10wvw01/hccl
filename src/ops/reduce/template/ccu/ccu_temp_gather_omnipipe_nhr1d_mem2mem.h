@@ -40,6 +40,8 @@ public:
                           TemplateResource& templateResource) override;
     u64 GetThreadNum() const override;
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
+    void SetRoot(u32 root);
+    void UnsetRoot(u32 rank);
     
     uint32_t mySubCommRank_ = 0;
     uint32_t rankId_ = 0;
