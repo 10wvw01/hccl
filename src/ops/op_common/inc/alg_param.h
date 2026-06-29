@@ -606,7 +606,7 @@ struct HcomProInfo {
     uint32_t rankSize;
     uint32_t userRank;
     uint32_t blockDim = 0;
-    uint64_t beginTime;
+    uint64_t beginTime; 
     uint32_t root;
     uint32_t slaveThreadNum;
     uint64_t commNameLen;
