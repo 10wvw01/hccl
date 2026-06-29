@@ -72,22 +72,66 @@ struct TemplateDesc {
     HcclAlgJettyMode jettyMode;
 };
 
-/* This HcclExecDomainInstance should be moved to execturor_base.h */
-struct HcclExecDomainInstance {
-    std::shared_ptr<RankGroup> rankGroup;   /**< The rank group in this logic domain, which should be filterd
-                                                 by algorithm's topoMatcher. */
-    std::shared_ptr<DataGroup> dataGroup;   /**< The data group to be processed in this logic domain. */
-    /* Other sub-instances to be added. */
+struct TemplateExecDesc {
+    TemplateDesc templateDesc;
+    int subCommIndex;
 }
 
-struct HcclAlgExecDomain {
-    TemplateDesc& templateDesc;             /**< The templated method to be executed on this logic domain. */
-    std::shared_ptr<HcclExecDomainInstance> execDomainInstance; /**< Executing domain instance, which should be
-                                                 instantiated by executor. */
+using VariantType = std::variant<TemplateExecDesc, std::shared_ptr<AlgoExecDesc>>;
+
+enum ExecPolicy {
+    PARALLEL,
+    SEQUENCE,
 }
 
-/* Single instance or multiple instance? 
- * If the execDomains could be different, it should be multiple instance. */
+// SEQUENCE:   [[MESH], [NHR]]
+// {
+//     executeType: SEQ,
+//     children = [MESH, NHR]
+// }
+
+// CONCURRENT: [[MESH, NHR]]
+// {
+//     executeType: PARALLEL,
+//     children = [MESH, NHR]
+// }
+
+// PARALLEL: [[MESH, NHR, [NHR, MESH]]
+// ROOT: {
+//     executeType: SEQ,
+//     templates = [NODE1, NODE2],
+// }
+
+// NODE1: {
+//     executeType: PARALLEL,
+//     templates = [MESH, NHR]
+// }
+
+// NODE2: {
+//     executeType: PARALLEL,
+//     templates = [NHR, MESH]
+// }
+
+
+struct AlgoExecDesc {
+    ExecPolicy execPolicy;    // 描述children的并行策略：串行/并行
+    std::vector<VariantType> children;
+};
+
+// /* This HcclExecDomainInstance should be moved to execturor_base.h */
+// struct HcclExecDomainInstance {
+//     std::shared_ptr<RankGroup> rankGroup;   /**< The rank group in this logic domain, which should be filterd
+//                                                  by algorithm's topoMatcher. */
+//     std::shared_ptr<DataGroup> dataGroup;   /**< The data group to be processed in this logic domain. */
+//     /* Other sub-instances to be added. */
+// }
+
+// struct HcclAlgExecDomain {
+//     TemplateDesc& templateDesc;             /**< The templated method to be executed on this logic domain. */
+//     std::shared_ptr<HcclExecDomainInstance> execDomainInstance; /**< Executing domain instance, which should be
+//                                                  instantiated by executor. */
+// }
+
 class HcclAlgorithm {
 public:
     BaseExecutor& GetExecutor();
@@ -97,84 +141,35 @@ private:
     HcclAlgEngineType engineType;
     HcclAlgExecutorType executorType;
     TopoMatchBase topoMatcher;
-    std::vector<TemplateDesc> templateDescs;  /**< The TemplateDescs to be used by the executor in this algorithm. */
-    std::vector<std::vector<std::shared_ptr<HcclAlgExecDomain>>> execDomains; /**< The splited logic executing domains
-                                        in this algorithm applied to the collective communication doamin.
-                                        Currently, executing domains and their executing sequence are represent with
-                                        two-level vector. Executing domains in the same lower vector will be triggered 
-                                        in parellel (same stage). While vectors (domain groups) in the top vector will
-                                        be triggered in positive order. For examples:
-                                        1. [[stage0_domain1, stage0_domain2],[stage1_domain1, stage1_domain2]], in this
-                                        example, stage0_domain1 and stage0_domain2 will be triggered in parellel in the
-                                        first stage, stage1_domain1 and stage1_domain2 will be triggered in parellel in
-                                        the second stage. As to how the raw data will be sliced into different domains,
-                                        and which ranks each domain contains, it's up to the executor to calculate by
-                                        topoMatcher and corresponding data slicer. (Parellel)
-                                        2. [[stage0_domain1, stage0_domain2]], in this example, two domains will be
-                                        triggered in parellel within the only same stage. (Concurrent)
-                                        3. [[stage0_domain1], [stage1_domain2, stage1_domain2]], in this example, 
-                                        stage0 contains only one domain, stage2 contains two domains which will be
-                                        triggered in parellel. (Ominipipe)
-                                        4. [[stage0_domain1], [stage1_domain2], [stage2_domain3]], in this example,
-                                        there are three stages each contains only one executing domain. (Sequence)
-                                        5. [[stage0_doamin1, stage0_domain2], [stage1_domain3]], in this example, stage0
-                                        contains two domains which will be triggered in parallel, stage1 contains only
-                                        one domain. (PartConcurrent)
-                                        */
-    std::shared_ptr<BaseExecutor> executor;
+    AlgoExecDesc algoExecDesc;
+
+    // std::vector<TemplateDesc> templateDescs;  /**< The TemplateDescs to be used by the executor in this algorithm. */
+    // std::vector<std::vector<std::shared_ptr<HcclAlgExecDomain>>> execDomains; /**< The splited logic executing domains
+    //                                     in this algorithm applied to the collective communication doamin.
+    //                                     Currently, executing domains and their executing sequence are represent with
+    //                                     two-level vector. Executing domains in the same lower vector will be triggered 
+    //                                     in parellel (same stage). While vectors (domain groups) in the top vector will
+    //                                     be triggered in positive order. For examples:
+    //                                     1. [[stage0_domain1, stage0_domain2],[stage1_domain1, stage1_domain2]], in this
+    //                                     example, stage0_domain1 and stage0_domain2 will be triggered in parellel in the
+    //                                     first stage, stage1_domain1 and stage1_domain2 will be triggered in parellel in
+    //                                     the second stage. As to how the raw data will be sliced into different domains,
+    //                                     and which ranks each domain contains, it's up to the executor to calculate by
+    //                                     topoMatcher and corresponding data slicer. (Parellel)
+    //                                     2. [[stage0_domain1, stage0_domain2]], in this example, two domains will be
+    //                                     triggered in parellel within the only same stage. (Concurrent)
+    //                                     3. [[stage0_domain1], [stage1_domain2, stage1_domain2]], in this example, 
+    //                                     stage0 contains only one domain, stage2 contains two domains which will be
+    //                                     triggered in parellel. (Ominipipe)
+    //                                     4. [[stage0_domain1], [stage1_domain2], [stage2_domain3]], in this example,
+    //                                     there are three stages each contains only one executing domain. (Sequence)
+    //                                     5. [[stage0_doamin1, stage0_domain2], [stage1_domain3]], in this example, stage0
+    //                                     contains two domains which will be triggered in parallel, stage1 contains only
+    //                                     one domain. (PartConcurrent)
+    //                                     */
+    // std::shared_ptr<BaseExecutor> executor;
 };
 
 } // namespace ops_hccl
 
 #endif
-
-
-    // vector<vector<TemplateDesc>> templateDescs;   // 第一层表示stage，第二层表示数据part, 
-    //                                               //  parallel: [[stage0_part0, stage0_part1],[stage1_part0, stage1_part1]] 
-    //                                               //  concurrent: [[stage0_part0, stage0_part1]]
-    //                                               //  omnipipe: [[stage0_part], [stage1_part0, stage1_part1]]
-    //                                               //  sequece: [[stage0_part], [stage1_part], [stage2_part]]
-    //                                               //  partConcurrent: [[stage0_part0, stage0_part1], [stage1_part0]]
-
-    //                             Orch {
-    //                                 thread (stage0_part0, stage0_part1)
-    //                                 thread (stage1_part0)
-    //                                 sync
-    //                             }
-
-    // vector<vector<int>> templateTopoIndex;        // 当前：topoIndex0表示板内的通信子域，1表示框内的通信子域，2表示超节点间的通信子域
-                                                
-    // 3: 
-    // 串行Executor: 2 -> 1 -> 0  templateDescs: [[NHR], [NHR], [MESH]]    templateTopoIndex :[[2],[1],[0]]
-    // OmniPipe 2 -> 1,0  templateDescs: [[NHR], [NHR, MESH]]    templateTopoIndex:[[2], [1, 0]]
-
-
-    // [[NHR], [NHR]]
-
-
-    // REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHR,
-//                                InsV2AllGatherParallelExecutor, TopoMatchMultilevel, InsTempAllGatherMesh1D,
-//                                InsTempAllGatherNHR);
-
-
-// HcclAlgorithm { hcclCmdType = HCCL_CMD_ALLGATHER, engineType = AICPU, executorType = PARALLEL, templates = 
-//     [[{hcclCmdType = HCCL_CMD_ALLGATHER, alg = mesh, ShotType = DEFAULT, JetttyType = DEFAULT}, 
-//             {hcclCmdType = HCCL_CMD_ALLGATHER, alg = nhr, ShotType = DEFAULT, JetttyType = DEFAULT}],
-//         [{hcclCmdType = HCCL_CMD_ALLGATHER, alg = nhr, ShotType = DEFAULT, JetttyType = DEFAULT}, 
-//         {hcclCmdType = HCCL_CMD_ALLGATHER, alg = mesh, ShotType = DEFAULT, JetttyType = DEFAULT}]]
-// }
-
-// templateTopoIndex[[0, 1], [1, 0]]  // topoIndex0表示板内的通信子域，1表示框内的通信子域，2表示超节点间的通信子域
-// template[[0, 1, 2]]  [1][3]
-
-
-
-
-//REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceMesh1DTwoShotMeshChunk, InsV2AllReduceSoleExecutor, 
-//    TopoMatch1D, InsTempAllReduceMesh1DTwoShotMeshChunk);
-// HcclAlgorithm {op = AllReduce, engine = aicpu, executor = Sole, templates = [[
-//     {op = AllReduce, alg = mesh, CustomFeatures= {ShotType: TwoShotMeshChunk}},
-// ],
-
-// ]
-// }
