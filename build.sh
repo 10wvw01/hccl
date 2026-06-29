@@ -45,7 +45,7 @@ function clean()
         rm -rf ${BUILD_DIR}
     fi
 
-    if [ -z "${TEST}" ] && [ -z "${KERNEL}" ];then
+    if [ -z "${TEST}" ] && [ "${KERNEL}" != "true" ];then
         if [ -n "${OUTPUT_DIR}" ];then
             rm -rf ${OUTPUT_DIR}
         fi
@@ -223,7 +223,17 @@ if [ -n "${third_party_nlohmann_path}" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DTHIRD_PARTY_NLOHMANN_PATH=${third_party_nlohmann_path}"
 fi
 
+if [ -n "${CCACHE_PROGRAM}" ];then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_PROGRAM} -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
+fi
+
 CUSTOM_OPTION="${CUSTOM_OPTION} -DCUSTOM_ASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}"
+
+if [ -n "${TEST}" ] && [ ! -f "${CURRENT_DIR}/test/CMakeLists.txt" ]; then
+    log "Error: test/CMakeLists.txt does not exist, cannot configure UT targets."
+    log "Error: Please add the UT CMake project or run package build without --test."
+    exit 1
+fi
 
 set_env
 
