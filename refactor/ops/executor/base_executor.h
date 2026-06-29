@@ -5,26 +5,25 @@ public:
     BaseExecutor(HcclAlgorithm &algo, OpParam &param);
     ~BaseExecutor();
 
-    HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
-        AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo);
 
-    HcclResult Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    virtual HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
-
-    virtual HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
+    HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
-    // TODO: 目前仅用于CCU，理论上可扩展至所有模式
-    HcclResult FastLaunch();
-
 protected:
-    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
-    
-    std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList);
-    
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
+
+    std::vector<std::map<u32, std::vector<ChannelInfo>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
+
+    virtual u64 GetMaxProcCntPerLoop();
+
+    virtual HcclResult OrchestrateLoop(const BaseExecutorParam &baseExecutorParam,
+        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
+
+    // 通信域指针
+    HcclComm hcclComm_;
 
     // algo
     HcclAlgorithm algo_;
