@@ -1,0 +1,7 @@
+## 代理设置
+proxy:
+  tunnel:
+    # 映射服务域名
+    domain-name: net.jumper.huawei.com
+    # 用户工号（必须是带首字母工号，例：z00123456）
+    username: c00956184
