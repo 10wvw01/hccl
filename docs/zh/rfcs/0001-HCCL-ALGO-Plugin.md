@@ -33,7 +33,7 @@
 
 - **解决代码侵入问题**：用户开发新算法只需实现标准接口并打包为动态库，**无需修改任何HCCL源码**。
 - **解决构建耦合问题**：自定义算法以独立动态库（`.so`）形式交付，通过 `dlopen` 在运行时加载，**与HCCL主库完全解耦编译**，用户可使用独立的构建脚本单独编译算法包。
-- **解决发布依赖问题**：HCCL-ALGO-Plugin动态库和自定义算法动态库均可独立安装到指定目录下，**更新算法只需替换对应`.so`文件**，无需重新编译或发布整个HCCL。
+- **解决发布依赖问题**：PluginBroker动态库和自定义算法动态库均可独立安装到指定目录下，**更新算法只需替换对应`.so`文件**，无需重新编译或发布整个HCCL。
 - **解决选择逻辑封闭问题**：HCCL-ALGO-Plugin在HCCL原有算法选择流程的入口处插入优先匹配逻辑，**自定义算法可无缝参与现有的选择流程**，未命中时自动回退到原有逻辑，两套机制互不干扰。
 
 ### 2.2 支持的场景
@@ -117,7 +117,7 @@
 
 　　HCCL-ALGO-Plugin的总体架构如图1所示：
 <div style="text-align: center;">
-  <img src="https://gitee.com/huzhouwy/hccl-algo-plugin/raw/master/总体架构图.png" alt="总体架构图">
+  <img src="./总体架构图.png" alt="总体架构图">
   <p><b>图1 总体架构图</b></p>
 </div>
 
@@ -125,18 +125,19 @@
 
 　　**(1) Plugin管理器**
 
-　　Plugin管理器(`HcclAlgoPluginMgr`)内嵌在HCCL代码仓中，其作用是：获取并保存Plugin动态库的句柄，在HCCL代码仓中进行Plugin生命周期的管理以及自定义算法的选择和执行调用。
+　　Plugin管理器(`HcclAlgoPluginMgr`)内嵌在HCCL代码仓中，其作用是：获取并保存PluginBroker动态库的句柄，在HCCL代码仓中进行PluginBroker生命周期的管理以及自定义算法的选择和执行调用。
 
-　　**(2) Plugin动态库**
+　　**(2) PluginBroker动态库**
 
-　　Plugin动态库（`libhccl_algo_pluginImpl.so`）为独立于HCCL的模块，作为HCCL与自定义算法之间的桥梁，它定义并实现`HcclPlugin_t`函数表中的全部接口：
+　　PluginBroker动态库（`libhccl_algo_PluginBroker.so`）为独立于HCCL的模块，作为HCCL与自定义算法之间的桥梁，它定义并实现`HcclAlgoPlugin_t`函数表中的全部接口：
+
 - **`Init()`接口**：负责扫描自定义算法根目录、构建自定义算法注册表；
 
-- **`Destroy()`接口**：负责释放注册表及所有已加载的集合通信算法实现动态库（`lib{AlgName}.so`）句柄；
+- **`Destroy()`接口**：负责释放注册表及所有已加载的集合通信算法实现动态库（`lib{Name}Impl.so`）句柄；
 
 - **`SelectAlg()`接口**：负责加载对应算子的自定义算法选择动态库（`libhccl_plugin_{op}_selector.so`）进行选择决策；
 
-- **`ExecuteAlg()`接口**：负责根据自定义算法名定位集合通信算法实现动态库（`lib{AlgName}.so`），懒加载后调用对应执行入口完成通信；
+- **`ExecuteAlg()`接口**：负责根据自定义算法名定位集合通信算法实现动态库（`lib{Name}Impl.so`），懒加载后调用其对应算法执行函数完成通信；
 
 - **`QueryAlgs()`接口**：负责查询已注册的自定义算法列表。
 
@@ -144,36 +145,39 @@
 
 - **自定义算法选择动态库（`libhccl_plugin_{op}_selector.so`）**：每个算子对应一个独立的算法选择库，须导出两个标准C接口：
   
-  - `GetAlgNames()`：返回该算子下所有自定义算法名称及其集合通信算法实现动态库路径的JSON数组，供Plugin初始化时注册算法使用。
+  - `GetAlgNames()`：返回该算子下所有自定义算法的名称、其集合通信算法实现动态库路径及执行函数符号名，供PluginBroker初始化时注册算法使用。
+
   - `Select()`：根据传入的本次通信操作的参数，结合内部策略逻辑（如拓扑信息、数据量、Rank规模等）动态决策，选中算法后将算法名返回。
   
-- **自定义集合通信算法实现动态库（`lib{AlgName}.so`）**：每个自定义算法对应一个独立的动态库，须导出与算子类型对应的标准执行入口（如`HcclPluginAllReduce()`、`HcclPluginBroadcast()`等）。以AICPU算子开发为例，算法实现中需包含host侧算法编排逻辑和device侧Kernel执行逻辑，并被预编译为动态库。
-
+- **自定义集合通信算法实现动态库（`lib{Name}Impl.so`）**：每个算子目录下的集合通信算法实现.so数量由用户自行决定，一个算子的所有算法可以打包为一个so，也可以将一个算子的所有算法分组，每组算法打包进一个so，还可以每个算法各自独占一个so。每个算法须在其所在的.so中导出一个算法执行函数，执行函数符号名由用户自定义，通过GetAlgNames()返回的的fnSymbol字段告知PluginBroker；执行函数签名须与该算子对应的标准签名严格一致（参数列表与返回类型固定，见4.2.3节）。
 
 #### 4.1.2 自定义算法调用时序
 
 　　如图2所示，自定义算法的调用时序分为四个阶段：
-- **初始化阶段**：HCCL在初始化集合通信操作环境时触发`HcclAlgoPluginMgr::Init()`，加载Plugin动态库并调用Plugin动态库的plugin->Init()，Plugin动态库扫描算子目录，调用各算子算法选择动态库提供的`GetAlgNames()`接口构建算法注册表。
-- **算法选择阶段**：每次集合通信调用时，HCCL优先调用`plugin->SelectAlg()`进行算法选择，Plugin加载对应算子的算法选择动态库并调用其`Select()`接口进行决策。命中则返回算法名并设置Plugin算法选中即`pluginSelected=true`；未命中则回退到原有HCCL算法选择逻辑。
-- **算法执行阶段**：若Plugin算法选中，HCCL调用`plugin->ExecuteAlg()`执行自定义集合通信算法，Plugin从算法注册表定位集合通信算法实现动态库，首次执行时懒加载并解析执行函数指针，然后调用对应执行入口完成通信；调用失败或执行出错时返回HCCL_E_INTERNAL，不回退至HCCL原有算法执行逻辑。若Plugin算法未选中则执行HCCL原有逻辑。
-- **销毁阶段**：通信域销毁函数`HcclCommDestroy()`触发`HcclAlgoPluginMgr::Destroy()`，通过调用Plugin动态库的plugin->Destroy()释放所有已加载的集合通信算法实现动态库句柄及注册表，最后卸载Plugin动态库本身。
 
+- **初始化阶段**：HCCL在初始化集合通信操作环境时触发`HcclAlgoPluginMgr::Init()`，加载PluginBroker动态库并调用PluginBroker动态库的plugin->Init()，PluginBroker动态库扫描算子目录，调用各算子算法选择动态库提供的`GetAlgNames()`接口构建算法注册表。
+
+- **算法选择阶段**：每次集合通信调用时，HCCL优先调用`plugin->SelectAlg()`进行算法选择，PluginBroker加载对应算子的算法选择动态库并调用其`Select()`接口进行决策。命中则返回算法名并设置Plugin算法选中即`pluginSelected=true`；未命中则回退到原有HCCL算法选择逻辑。
+
+- **算法执行阶段**：若Plugin算法选中，HCCL调用`plugin->ExecuteAlg()`执行自定义集合通信算法，PluginBroker从算法注册表定位集合通信算法实现动态库，首次执行时懒加载并通过dlsym解析算法执行函数指针，然后调用对应算法执行函数完成通信；调用失败或执行出错时返回HCCL_E_INTERNAL，不回退至HCCL原有算法执行逻辑。若Plugin算法未选中则执行HCCL原有逻辑。
+
+- **销毁阶段**：通信域销毁函数`HcclCommDestroy()`触发`HcclAlgoPluginMgr::Destroy()`，通过调用PluginBroker动态库的plugin->Destroy()释放所有已加载的集合通信算法实现动态库句柄及注册表，最后卸载PluginBroker动态库本身。
 
 ```mermaid
 sequenceDiagram
     participant App as 用户应用
     participant HCCL as HCCL
     participant Mgr as HcclAlgoPluginMgr
-    participant Plugin as libhccl_algo_pluginImpl.so
+    participant Plugin as libhccl_algo_PluginBroker.so
     participant Selector as libhccl_plugin_{op}_selector.so
-    participant AlgLib as lib{AlgName}.so
+    participant AlgLib as lib{Name}Impl.so
 
     Note over App,AlgLib: 【初始化阶段】
     App->>HCCL: Hccl{op}()
     HCCL->>Mgr: Init()
-    Mgr->>Plugin: dlopen加载，GetHcclPlugin()获取函数表
+    Mgr->>Plugin: dlopen加载，GetHcclAlgoPlugin()获取函数表
     Mgr->>Plugin: plugin->Init(算子目录, 算法注册表)
-    Plugin->>Selector: dlopen → GetAlgNames()获取算法名+集合通信算法实现动态库路径列表 → dlclose
+    Plugin->>Selector: dlopen → GetAlgNames()获取算法条目数组(algName/soPath/fnSymbol) → dlclose
     Plugin->>Plugin: 写入算法注册表
     Plugin-->>Mgr: Init()返回
     Mgr-->>HCCL: 初始化完成
@@ -194,8 +198,8 @@ sequenceDiagram
     alt pluginSelected==true
         HCCL->>Plugin: ExecuteAlg(算法注册表, 算法名称, 算子类型, 通信参数, 通信域)
         Plugin->>Plugin: 定位算法条目，获取集合通信算法实现动态库路径
-        Plugin->>AlgLib: （首次）dlopen → dlsym(HcclPlugin{op})
-        Plugin->>AlgLib: HcclPlugin{op}(sendBuf, recvBuf, ..., comm, stream)
+        Plugin->>AlgLib: （首次）dlopen → dlsym(fnSymbol)
+        Plugin->>AlgLib: <fnSymbol>(sendBuf, recvBuf, ..., comm, stream)
         AlgLib-->>HCCL: 返回执行结果（失败→HCCL_E_INTERNAL）
     else pluginSelected==false
         HCCL->>HCCL: 原有执行逻辑
@@ -206,7 +210,7 @@ sequenceDiagram
     App->>HCCL: HcclCommDestroy()
     HCCL->>Mgr: Destroy()
     Mgr->>Plugin: plugin->Destroy(算法注册表)，释放注册表及动态库句柄
-    Mgr->>Mgr: dlclose(libhccl_algo_pluginImpl.so)
+    Mgr->>Mgr: dlclose(libhccl_algo_PluginBroker.so)
 ```
 <div style="text-align: center;">
   <b>图2 自定义算法调用时序图</b>
@@ -220,41 +224,37 @@ sequenceDiagram
 
 　　`HcclAlgoPluginMgr`是内嵌在HCCL代码仓中的组件，其源码可设计位于HCCL代码仓的`src/`目录下，随HCCL主库`libhccl.so`一同编译与发布。
 
-　　**(2) Plugin动态库（libhccl_algo_pluginImpl.so）**
+　　**(2) PluginBroker动态库（libhccl_algo_PluginBroker.so）**
 
-　　Plugin动态库是独立于HCCL主库的模块，通过环境变量`HCCL_PLUGIN_PATH`指定Plugin动态库路径，HCCL在初始化时通过`dlopen`动态加载，不配置则不加载，HCCL行为与原有完全一致。可部署在CANN安装目录下：
+　　PluginBroker动态库是独立于HCCL主库的模块，通过环境变量`HCCL_PLUGIN_PATH`指定PluginBroker动态库路径，HCCL在初始化时通过`dlopen`动态加载，不配置则不加载，HCCL行为与原有完全一致。可部署在CANN安装目录下：
 ```
 ${ASCEND_HOME}/
 └── opp/
     └── vendors/
         └── cust/
             └── lib64/
-                └── libhccl_algo_pluginImpl.so   ← Plugin动态库
+                └── libhccl_algo_PluginBroker.so   ← PluginBroker动态库
 ```
-　　
 
 　　**(3) 自定义算法实现动态库**
 
-　　自定义算法实现动态库由用户独立编译后安装，部署在`HCCL_PLUGIN_ALG_DIR`环境变量指定的算法根目录下，按**算子→算法**两级目录组织：
+　　自定义算法实现动态库由用户独立编译后安装，部署在`HCCL_PLUGIN_ALG_DIR`环境变量指定的算法根目录下，每个算子一个目录，每个算子目录下，算法的.so文件数量和分组方式由用户自行决定——多个算法可以打包进同一个so，也可以每个算法独占一个so；PluginBroker通过算法选择动态库的`GetAlgNames()`获取每个算法的so路径和对应的执行函数符号名，无需感知打包方式：
 
 ```
 ${HCCL_PLUGIN_ALG_DIR}/                               ← 根目录
 ├── AllReduce/                                        ← 算子子目录（按算子类型命名）
 │   ├── libhccl_plugin_allreduce_selector.so          ← AllReduce自定义算法选择动态库
-│   ├── MyRingAlg/                                    ← 算法子目录
-│   │   └── libMyRingAlg.so                           ← 自定义集合通信算法实现动态库（实现HcclPluginAllReduce()）
-│   └── MyTreeAlg/
-│       └── libMyTreeAlg.so
+│   ├── libRingAndTreeAlgsImpl.so                     ← 自定义集合通信算法实现动态库，可将多个算法打包进同一so
+│   └── libMeshAlgImpl.so                             ← 自定义集合通信算法实现动态库，也可使每个算法独占一个so
 ├── AllGather/
 │   ├── libhccl_plugin_allgather_selector.so
-│   └── MyMeshAlg/
-│       └── libMyMeshAlg.so
+│   └── libGatherAlgsImpl.so
 └── Broadcast/
     ├── libhccl_plugin_broadcast_selector.so
-    └── MyBcastAlg/
-        └── libMyBcastAlg.so
+    └── libBroadcastAlgsImpl.so
 ```
-　　每个算子目录下有且只有一个算法选择动态库（`libhccl_plugin_{op}_selector.so`），负责存储该算子所有自定义算法的名称和实现动态库的路径，并负责该算子所有自定义算法的选择决策；每个算法独占一个子目录，其中存放集合通信算法实现动态库（`lib{AlgName}.so`）及相关文件（例如AICPU算法开发，还需AICPU Kernel相关文件）。Plugin初始化时自动扫描此目录结构，用户需按规范部署。
+
+　　每个算子目录下有且只有一个算法选择动态库（`libhccl_plugin_{op}_selector.so`），负责存储该算子所有自定义算法的名称、集合通信算法实现动态库的路径和执行函数符号名，并负责该算子所有自定义算法的选择决策；算法.so文件与目录结构无强制约束，PluginBroker依赖`GetAlgNames()`返回的`soPath`和`fnSymbol`定位和调用每个算法，用户只需确保.so文件在`GetAlgNames()`返回的路径下可访问。
 
 　　以AICPU算法开发为例，其算法实现的源码目录结构示例如下：
 
@@ -262,25 +262,25 @@ ${HCCL_PLUGIN_ALG_DIR}/                               ← 根目录
 MyRingAlg/
 ├── CMakeLists.txt
 ├── op_host/
-│   └── my_ring_alg.cc          ← Host侧算法编排，须导出HcclPluginAllReduce
+│   └── my_ring_alg.cc          ← Host侧算法编排，须导出算法执行函数，例如HcclAlgoPluginMyRingAllReduce()
 ├── op_kernel_aicpu/
 │   ├── my_ring_alg_kernel.cc   ← Device侧Kernel
 │   └── libmy_ring_alg.json     ← AICPU Kernel算子描述文件
 └── inc/
     └── my_ring_alg.h
 ```
-　　`op_host/my_ring_alg.cc`实现host侧算法编排逻辑，负责任务下发和资源调度；`op_kernel_aicpu/my_ring_alg_kernel.cc`实现device侧Kernel，完成实际的数据通信操作。`op_host/my_ring_alg.cc`须导出标准执行入口`HcclPluginAllReduce()`。
+　　`op_host/my_ring_alg.cc`实现host侧算法编排逻辑，负责任务下发和资源调度；`op_kernel_aicpu/my_ring_alg_kernel.cc`实现device侧Kernel，完成实际的数据通信操作。`op_host/my_ring_alg.cc`须导出与选择动态库存储的执行函数符号名一致的算法执行函数，例如`HcclAlgoPluginMyRingAllReduce()`。
 
 ### 4.2 接口设计
 
 #### 4.2.1 HcclAlgoPluginMgr（集成于HCCL内部）
 
-　　`HcclAlgoPluginMgr`以单例模式实现，负责Plugin动态库的生命周期管理和其函数表指针的持有。HCCL在算法选择与执行路径中通过`HcclAlgoPluginMgr`获取HcclPlugin_t函数表，直接调用其`SelectAlg()`和`ExecuteAlg()`等接口与Plugin动态库交互。`HcclAlgoPluginMgr`中主要包含以下接口：
-- `Init()`：加载Plugin动态库，获取函数表指针，并调用Plugin动态库的初始化；多次调用安全。
-- `Destroy()`：调用Plugin动态库的销毁，释放Plugin动态库句柄。
-- `GetPlugin()`：返回`HcclPlugin_t`函数表指针，供HCCL调用Plugin动态库提供的接口。
+　　`HcclAlgoPluginMgr`以单例模式实现，负责PluginBroker动态库的生命周期管理和其函数表指针的持有。HCCL在算法选择与执行路径中通过`HcclAlgoPluginMgr`获取HcclAlgoPlugin_t函数表，直接调用其`SelectAlg()`和`ExecuteAlg()`等接口与PluginBroker动态库交互。`HcclAlgoPluginMgr`中主要包含以下接口：
+- `Init()`：加载PluginBroker动态库，获取函数表指针，并调用PluginBroker动态库的初始化；多次调用安全。
+- `Destroy()`：调用PluginBroker动态库的销毁，释放PluginBroker动态库句柄。
+- `GetPlugin()`：返回`HcclAlgoPlugin_t`函数表指针，供HCCL调用PluginBroker动态库提供的接口。
 - `GetContext()`：返回初始化时注册的算法注册表。
-- `IsLoaded()`：检查Plugin动态库是否已成功加载。
+- `IsLoaded()`：检查PluginBroker动态库是否已成功加载。
 
 ```cpp
 class HcclAlgoPluginMgr {
@@ -290,13 +290,13 @@ public:
     /** 初始化阶段调用，多次调用安全 */
     HcclResult Init();
     
-    /** 通信域销毁时调用，销毁Plugin动态库，释放Plugin动态库句柄 */
+    /** 通信域销毁时调用，销毁PluginBroker动态库，释放PluginBroker动态库句柄 */
     void Destroy();
 
-    /** 获取HcclPlugin_t函数表指针 */
-    HcclPlugin_t* GetPlugin();
+    /** 获取HcclAlgoPlugin_t函数表指针 */
+    HcclAlgoPlugin_t* GetPlugin();
 
-    /** 获取Plugin动态库的算法注册表 */
+    /** 获取PluginBroker动态库的算法注册表 */
     void* GetContext();
     
     /** 查询Plugin是否已成功加载，调用GetPlugin()前须先检查 */
@@ -306,51 +306,69 @@ public:
 };
 ```
 
-#### 4.2.2 Plugin动态库接口（`HcclPlugin_t`）
+#### 4.2.2 PluginBroker动态库接口（`HcclAlgoPlugin_t`）
 
-　　Plugin动态库通过`HcclPlugin_t`函数表对外暴露C接口，由`HcclAlgoPluginMgr::GetPlugin()`获取后直接调用。Plugin动态库包含的接口如下：
-- `Init()`：接收算法根目录路径，完成Plugin侧的算法注册表构建。
+　　PluginBroker动态库通过`HcclAlgoPlugin_t`函数表对外暴露C接口，由`HcclAlgoPluginMgr::GetPlugin()`获取后直接调用。PluginBroker动态库包含的接口如下：
+- `Init()`：接收算法根目录路径，完成PluginBroker侧的算法注册表构建。
 - `Destroy()`：释放算法注册表，关闭所有已加载的算法动态库句柄。
 - `SelectAlg()`：调用对应算子的选择动态库，命中时填入算法名并返回`true`，未命中返回`false`。
-- `ExecuteAlg()`：根据算法名定位注册条目，懒加载算法动态库并调用其执行入口执行自定义算法。
+- `ExecuteAlg()`：根据算法名定位注册条目，懒加载集合通信算法实现动态库并调用其算法执行函数执行自定义算法。
 - `QueryAlgs()`：查询已注册的算法列表。
 
 ```cpp
-/*  HCCL侧期望的Plugin版本号，用于校验Plugin合法性 */
+/*  HCCL侧期望的PluginBroker版本号，用于校验PluginBroker合法性 */
 #define HCCL_PLUGIN_API_VERSION  1U
 
-struct HcclPlugin_t {
-    uint32_t version; /*  Plugin版本号 */
+struct HcclAlgoPlugin_t {
+    uint32_t version; /*  PluginBroker版本号 */
 
-    /* Plugin初始化：扫描algDir下的算子子目录，构建算法注册表context */
+    /*
+    * `HcclAlgoPluginParam`是自定义算法选择与执行所需的参数，由HCCL从内部的`OpParam`和
+    * `TopoInfoWithNetLayerDetails`结构体中提取，随后以`const`指针形式传入Plugin侧。
+    */
+    typedef struct {
+        uint32_t     structSize;    /* sizeof(HcclAlgoPluginParam) */
+        int          opType;        /* 算子类型 */
+        uint64_t     count;         /* 元素个数 */
+        uint32_t     root;          /* 根节点Rank（仅Broadcast/Reduce等算子有效） */
+        int          topoType;      /* 拓扑类型 */
+        uint32_t     rankNum;       /* 通信域总Rank数 */
+        uint32_t     serverNum;     /* server数量 */
+        void*        sendBuf;       /* 发送缓冲区 */
+        void*        recvBuf;       /* 接收缓冲区 */
+        aclrtStream  stream;        /* 执行流 */
+        /* ...... 此处省略其余相关参数*/
+    } HcclAlgoPluginParam;
+
+    /* 初始化：扫描algDir下的算子子目录，构建算法注册表context */
     int (*Init)(const char* algDir, void** context);
 
-    /* 销毁Plugin：释放注册表，关闭所有已加载的算法动态库句柄 */
+    /* 销毁PluginBroker：释放注册表，关闭所有已加载的算法动态库句柄 */
     int (*Destroy)(void* ctx);
 
     /*
      * 算法选择：调用对应算子的选择动态库Select()，返回true表示命中，algName填入选中算法名；返回false表示未命中，HCCL走原有逻辑。param为从HCCL侧提取的算法选择所需关键参数
      */
     bool (*SelectAlg)(void*                   ctx,
-                      const HcclPluginParam*  param,
+                      const HcclAlgoPluginParam*  param,
                       char*                   algName,
                       size_t                  algNameLen);
 
     /*
-     * 算法执行：根据algName定位集合通信算法实现动态库，调用对应算子的执行接口
+     * 算法执行：根据algName定位集合通信算法实现动态库，调用对应算子的算法执行函数
      */
     int (*ExecuteAlg)(void*                   ctx,
                       const char*             algName,
                       int                     opType,
-                      const HcclPluginParam*  param,
+                      const HcclAlgoPluginParam*  param,
                       void*                   comm); 
     
     /* 算法查询：查询已注册的算法名列表，输出写入buf */
     int (*QueryAlgs)(void* ctx, int opType, char* buf, size_t bufLen);
 };
 
-// libhccl_algo_pluginImpl.so 须导出此符号
-extern "C" HcclPlugin_t* GetHcclPlugin(void);
+// libhccl_algo_PluginBroker.so 须导出此符号
+extern "C" HcclAlgoPlugin_t* GetHcclAlgoPlugin(void);
 
 ```
 
@@ -362,60 +380,69 @@ extern "C" HcclPlugin_t* GetHcclPlugin(void);
 /*
  * 算法选择入口：根据param中的通信参数和拓扑信息选择合适的算法名。返回true表示命中，algName填入选中算法名
  */
-extern "C" bool Select(const HcclPluginParam*  param,
-                        char*                        algName,
-                        size_t                       algNameLen);
+extern "C" bool Select(const HcclAlgoPluginParam*  param,
+                        char*                  algName,
+                        size_t                 algNameLen);
 
 /*
- * 获取该算法选择动态库管理的所有自定义算法名及其实现库路径，供Plugin初始化时注册使用。输出格式为JSON数组字符串，写入buf。
- * 输出示例：
- * [
- *   {"algName": "MyRingAlg",  "soPath": "MyRingAlg/libMyRingAlg.so"},
- *   {"algName": "MyTreeAlg",  "soPath": "MyTreeAlg/libMyTreeAlg.so"}
- * ]
+ * 获取该算法选择动态库管理的所有自定义算法条目，供PluginBroker初始化时注册使用。
+ * 调用方传入algEntries数组和容量maxCount，函数填充每个条目，返回实际条目数。
+ *
+ * 算法条目：描述一个自定义算法的.so路径和执行函数符号名。
+ * - soPath：集合通信算法实现动态库路径
+ * - fnSymbol：该算法在soPath对应的.so中导出的执行函数符号名，PluginBroker通过dlsym(fnSymbol)解析
+ * - algName：算法名，用于SelectAlg()命中时填入algName字段，也用于ExecuteAlg()定位条目
+ * 
+ * typedef struct {
+ *   char algName[128];
+ *   char soPath[512];
+ *   char fnSymbol[128];
+ * } HcclAlgoPluginAlgEntry;
  */
-extern "C" int GetAlgNames(char* buf, size_t bufLen);
+extern "C" int GetAlgNames(HcclAlgoPluginAlgEntry* algEntries, int maxCount);
 ```
 
-　　自定义集合通信算法实现动态库（`lib{AlgName}.so`）须按算子类型导出对应的执行入口，各算子执行入口示例如下：
+　　每个集合通信算法的实现中须导出`GetAlgNames()`中`fnSymbol`字段对应的**算法执行函数**。**执行函数符号名（即`fnSymbol`）由用户自定义，但执行函数签名（参数列表与返回类型）须与该算子的标准签名严格一致**，PluginBroker通过`dlsym(handle, fnSymbol)`解析后按标准签名调用。一个.so中可同时导出多个算法的**算法执行函数**，自定义算法各自在`GetAlgNames()`中以不同的`fnSymbol`和`algName`注册即可。
+　　
+　　各算子的标准签名定义如下(本文档仅列举出AllReduce、AllGather、Broadcast和Reduce算子的标准签名定义，其余算子类似，实现时需给出所有算子的标准签名定义)：
 
 ```cpp
-/* AllReduce算法实现入口 */
-extern "C" HcclResult HcclPluginAllReduce(void*        sendBuf,
-                              void*        recvBuf,
-                              uint64_t     count,
-                              HcclDataType dataType,
-                              HcclReduceOp op,
-                              HcclComm     comm,
-                              aclrtStream  stream);
+/* AllReduce */
+extern "C" HcclResult <fnSymbol>(void*        sendBuf,
+                                 void*        recvBuf,
+                                 uint64_t     count,
+                                 HcclDataType dataType,
+                                 HcclReduceOp op,
+                                 HcclComm     comm,
+                                 aclrtStream  stream);
 
-/* AllGather算法实现入口 */
-extern "C" HcclResult HcclPluginAllGather(void*        sendBuf,
-                              void*        recvBuf,
-                              uint64_t     sendCount,
-                              HcclDataType dataType,
-                              HcclComm     comm,
-                              aclrtStream  stream);
+/* AllGather */
+extern "C" HcclResult <fnSymbol>(void*        sendBuf,
+                                 void*        recvBuf,
+                                 uint64_t     sendCount,
+                                 HcclDataType dataType,
+                                 HcclComm     comm,
+                                 aclrtStream  stream);
 
-/* Broadcast算法实现入口 */
-extern "C" HcclResult HcclPluginBroadcast(void*        buf,
-                              uint64_t     count,
-                              HcclDataType dataType,
-                              uint32_t     root,
-                              HcclComm     comm,
-                              aclrtStream  stream);
+/* Broadcast */
+extern "C" HcclResult <fnSymbol>(void*        buf,
+                                 uint64_t     count,
+                                 HcclDataType dataType,
+                                 uint32_t     root,
+                                 HcclComm     comm,
+                                 aclrtStream  stream);
 
-/* Reduce算法实现入口 */
-extern "C" HcclResult HcclPluginReduce(void*        sendBuf,
-                           void*        recvBuf,
-                           uint64_t     count,
-                           HcclDataType dataType,
-                           HcclReduceOp op,
-                           uint32_t     root,
-                           HcclComm     comm,
-                           aclrtStream  stream);
+/* Reduce */
+extern "C" HcclResult <fnSymbol>(void*        sendBuf,
+                                 void*        recvBuf,
+                                 uint64_t     count,
+                                 HcclDataType dataType,
+                                 HcclReduceOp op,
+                                 uint32_t     root,
+                                 HcclComm     comm,
+                                 aclrtStream  stream);
 
-/* 其他算子同理 */
+/* 其余算子标准签名定义类似，实现时需给出所有算子的标准签名定义 */
 ```
 ---
 
@@ -424,11 +451,11 @@ extern "C" HcclResult HcclPluginReduce(void*        sendBuf,
 
 - **向后兼容性**：本方案仅在HCCL原有算法选择与执行流程中新增可选分支。当`HCCL_PLUGIN_PATH`未配置时，`HcclAlgoPluginMgr::IsLoaded()`返回false，所有新增分支直接跳过，HCCL行为与原有完全一致。
 
-- **接口版本管理**：`HcclPlugin_t`函数表设计`version`字段，用于HCCL侧校验所加载的Plugin是否合法,若拒绝加载，则降级为原有选择逻辑，防止加载到非法或损坏的Plugin动态库。
+- **接口版本管理**：`HcclAlgoPlugin_t`函数表设计`version`字段，用于HCCL侧校验所加载的PluginBroker是否合法,若拒绝加载，则降级为原有选择逻辑，防止加载到非法或损坏的PluginBroker动态库。
 
-- **数据结构兼容性**：HCCL从内部的`OpParam`和`TopoInfoWithNetLayerDetails`中提取并填充本次通信参数，并传入Plugin侧，Plugin侧不直接依赖HCCL内部结构体。
+- **数据结构兼容性**：HCCL从内部的`OpParam`和`TopoInfoWithNetLayerDetails`中提取并填充本次通信参数，HCCL-ALGO-Plugin不直接依赖HCCL内部结构体。
 
-- **线程模型假设**：本方案假设不存在'通信域正在执行通信操作的同时，另一线程销毁该Plugin'的场景，这是由HCCL上层调用约定保证的（HcclCommDestroy需要等待该通信域所有通信操作完成后才能调用）。
+- **线程模型假设**：本方案假设不存在'通信域正在执行通信操作的同时，另一线程销毁该PluginBroker'的场景，这是由HCCL上层调用约定保证的（HcclCommDestroy需要等待该通信域所有通信操作完成后才能调用）。
 
 ## 6. 测试场景
 
@@ -442,13 +469,13 @@ extern "C" HcclResult HcclPluginReduce(void*        sendBuf,
 
 　　**(2) 集成测试**：
 - 正常场景：配置Plugin后`Hccl{Op}()`能选中并执行自定义算法
-- 回退场景：Plugin未命中时回退到原有HCCL算法，结果和HCCL原有算法执行一致
+- 回退场景：Plugin算法未命中时回退到原有HCCL算法，结果和HCCL原有算法执行一致
 - 禁用场景：不设置`HCCL_PLUGIN_PATH`时，HCCL行为与原有完全相同
 - Plugin执行失败测试：`ExecuteAlg`返回错误时，验证HCCL返回`HCCL_E_INTERNAL`，不再回退到原有执行逻辑，执行退出
 
 　　**(3) 端到端验证**：
 - 算法执行正确性验证：编译示例自定义算法（如 MyRingAlg），按完整流程安装并执行，验证通信结果正确性
 - 算法选择逻辑验证：多个自定义算法并存时的选择逻辑验证
-- 算法安全校验测试：HCCL_PLUGIN_ALG_DIR指向符号链接或不受信任目录时，Plugin安全拒绝加载
+- 算法安全校验测试：HCCL_PLUGIN_ALG_DIR指向符号链接或不受信任目录时，PluginBroker安全拒绝加载
 
 ---
