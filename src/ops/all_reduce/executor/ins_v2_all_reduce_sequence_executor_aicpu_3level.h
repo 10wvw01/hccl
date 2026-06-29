@@ -76,9 +76,8 @@ protected:
 
     bool skipLevel1_{false};
 
-    uint64_t cclBuffSliceSize_{0};        // CCL buffer每份slice大小（切分为scratchMultiplier+1份）
-    uint64_t rsResultBuffSize_{0};       // ReduceScatter归约结果存储区大小（第1份）
-    uint64_t meshCommBuffSize_{0};       // Mesh1D通信交换区大小（后scratchMultiplier份）
+    uint64_t rsResultBuffSize_{0};       // ReduceScatter归约结果存储区大小（CCL buffer前1块）
+    uint64_t meshCommBuffSize_{0};       // CCL buffer接收其他卡数据的通信区大小（CCL buffer后1块）
     uint64_t rsResultBuffOffset_{0};     // RS归约结果存储区起始offset
     uint64_t meshCommBuffOffset_{0};     // Mesh1D通信交换区起始offset
 
