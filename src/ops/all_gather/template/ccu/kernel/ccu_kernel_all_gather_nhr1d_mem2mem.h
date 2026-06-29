@@ -23,9 +23,9 @@ namespace ops_hccl {
 using NHRStepInfo = struct NHRStepInfoDef {
     u32 step = 0;
     u32 myRank = 0;
-    u32 nSlices;
-    u32 toRank = 0;
     u32 fromRank = 0;
+    u32 toRank = 0;
+    u32 nSlices;
     std::vector<u32> txSliceIdxs;
     std::vector<u32> rxSliceIdxs;
 
