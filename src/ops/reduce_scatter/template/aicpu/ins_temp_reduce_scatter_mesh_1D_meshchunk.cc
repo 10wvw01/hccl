@@ -196,7 +196,7 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
             std::vector<DataSlice> rxSrcSlices;
             std::vector<DataSlice> rxDstSlices;
             for (u32 repeatIdx = 0; repeatIdx < repeatNum; repeatIdx++) {
-                DataSlice rxSrcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff + 
+                DataSlice rxSrcSlice = DataSlice(remoteCclBuffAddr, tempAlgParams.buffInfo.inBuffBaseOff + 
                     repeatIdx * tempAlgParams.inputRepeatStride + myAlgRank * tempAlgParams.inputSliceStride + sliceRecvOffset_,
                     sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收源
                 DataSlice rxDstSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff + 
