@@ -103,7 +103,8 @@ HcclResult InsTempReduceScatterVMesh1D::PostCopy(const OpParam& param,
                                        repeatIdx * tempAlgParams.outputRepeatStride,
                                        allRankProcessSize_[myAlgRank], allRankCounts_[myAlgRank]);
         CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
-        if (dataType_ == HCCL_DATA_TYPE_INT64 || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
+        if (dataType_ == HCCL_DATA_TYPE_INT64 || dataType_ == HCCL_DATA_TYPE_UINT64 || dataType_ == HCCL_DATA_TYPE_FP64
+            || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
             CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
             CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
             for (const auto &thread : threads) {
