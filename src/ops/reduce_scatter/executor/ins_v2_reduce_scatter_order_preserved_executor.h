@@ -41,10 +41,10 @@ struct MemBlockInfo {
 constexpr u64 HCCL_MIN_SLICE_ALIGN_ORDER_PRESERVED = 128;
 
 struct OrderPreservedReduceScatterMemInfo {
-    u64 sizePerBlock{0};
+    u64 sizePerBlock;
     std::vector<u64> groupSize;
     bool scratchMemFlag;
-    u64 totalSize{0};
+    u64 totalSize;
 };
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>

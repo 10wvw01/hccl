@@ -114,27 +114,37 @@ struct AivOpArgs {
 // AIV Cache Definitions
 struct AivOpCacheArgs {
     std::string commName;
+    std::string algName;
     u64 count;
     HcclDataType dataType;
     HcclCMDType opType;
     HcclReduceOp reduceOp;
     u32 root;
+    // For AlltoAll
+    HcclDataType sendType;
+    HcclDataType recvType;
+    u64 sendCount;
+    u64 recvCount;
 
     bool operator<(const AivOpCacheArgs& other) const {
         if (commName != other.commName) return commName < other.commName;
+        if (algName != other.algName) return algName < other.algName;
         if (count != other.count) return count < other.count;
         if (dataType != other.dataType) return dataType < other.dataType;
         if (opType != other.opType) return opType < other.opType;
         if (reduceOp != other.reduceOp) return reduceOp < other.reduceOp;
-        return root < other.root;
+        if (root != other.root) return root < other.root;
+        if (sendType != other.sendType) return sendType < other.sendType;
+        if (recvType != other.recvType) return recvType < other.recvType;
+        if (sendCount != other.sendCount) return sendCount < other.sendCount;
+        return recvCount < other.recvCount;
     }
 };
 
 struct AivCacheCtxHeader {
     u64 keyHash;
     u32 insCount;
-    u32 algNameLen;
-    // 后续内存布局: char algName[algNameLen] + AivInstruction[insCount]
+    // insCount个instruction
 };
 
 struct AivCacheIndexCtx {
@@ -210,13 +220,9 @@ HcclResult GetOrCreateAivCacheIndexCtx(HcclComm comm, AivCacheIndexCtx **indexCt
 
 HcclResult EvictAivCacheIfNeeded(HcclComm comm, AivCacheIndexCtx *indexCtx);
 
-HcclResult LookupAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, bool &cacheHit,
-                             std::string &algName, AivInstruction *&instructions, u32 &insCount);
+HcclResult ReplayAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, OpParam &param, bool &cacheHit);
 
-HcclResult ReplayAivInstructions(const AivInstruction *instructions, u32 insCount, OpParam &param);
-
-HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, const std::string &algName,
-                            AivCacheIndexCtx *indexCtx);
+HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, AivCacheIndexCtx *indexCtx);
 }
  
 #endif // HCCL_AIV_UTILS_H

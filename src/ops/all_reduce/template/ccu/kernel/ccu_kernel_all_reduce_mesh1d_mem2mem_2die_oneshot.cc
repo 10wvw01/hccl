@@ -312,8 +312,8 @@ static CcuResult RmtReduce(AllReduceMesh1DMem2Mem2DieOneShotContext &ctx)
     }
 
     std::vector<ccu::LocalAddr> scratchDst;
-    ccu::Variable scratchOffset;
     scratchDst.resize(ctx.rmtReduceRankNum);
+    ccu::Variable scratchOffset;
     scratchOffset = 0;
     for (uint32_t rankIdx = 0; rankIdx < ctx.rmtReduceRankNum; rankIdx++) {
         scratchDst[rankIdx].addr = ctx.myScratch;

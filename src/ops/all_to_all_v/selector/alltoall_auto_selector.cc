@@ -38,12 +38,9 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
-    (void)configAlgMap;
     HCCL_DEBUG("[AlltoAllAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
-    // ccu schedule 模式不支持 inplace 场景
-    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
-        HCCL_WARNING("[Algo][AlltoAllAutoSelector] ccu schedule does not support inplace alltoall."),
-        SelectorStatus::NOT_MATCH);
+    (void)opParam;
+    (void)configAlgMap;
     uint32_t ccuSize = 64;
     uint32_t dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllDataDes.sendType];
     uint64_t* sendCountPtr = (uint64_t*)opParam.all2AllVDataDes.sendCounts;
@@ -157,22 +154,23 @@ SelectorStatus AlltoAllAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDet
                                                    std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AlltoAllAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    (void)opParam;
     (void)configAlgMap;
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        HCCL_DEBUG("[AlltoAllAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
         return SelectorStatus::NOT_MATCH;
     }
 
     void *cclBufferAddr;
     uint64_t cclBufferSize;
     CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[AlltoAllAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
+        HCCL_WARNING("[AlltoAllAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllVDataDes.sendType];
     u64* sendCounts = reinterpret_cast<u64*>(opParam.all2AllVDataDes.sendCounts);
     u64 totalSize = sendCounts[0] * dataTypeSize * topoInfo->userRankSize;
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
+        HCCL_DEBUG("[AlltoAllAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
     }
     selectAlgName = "AivAlltoAllMesh1D";

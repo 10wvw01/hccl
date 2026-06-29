@@ -19,8 +19,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_all_gather_nhr_1D_multi_jetty_mem2mem.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

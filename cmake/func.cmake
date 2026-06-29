@@ -7,7 +7,7 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
-set(ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/..")
+
 # =============================================================================
 # Function: pack_targets_and_files
 #
@@ -149,7 +149,7 @@ function(sign_file)
     cmake_parse_arguments(
         ARG
         ""
-        "OUTPUT_TARGET;INPUT;CONFIG;RESULT_VAR"
+        "INPUT;CONFIG;RESULT_VAR"
         "DEPENDS"
         ${ARGN}
     )
@@ -193,8 +193,9 @@ function(sign_file)
         if(${EXT} STREQUAL ".sh")
             set(sign_cmd bash ${SIGN_SCRIPT} ${output_sig} ${ARG_CONFIG} ${sign_flag})
         elseif(${EXT} STREQUAL ".py")
+            set(root_dir ${CMAKE_SOURCE_DIR})
             message(STATUS "Detected +++VERSION_INFO: ${VERSION_INFO}")
-            set(sign_cmd python3 ${ROOT_DIR}/scripts/sign/add_header_sign.py ${signatures_dir} ${sign_flag} --bios_check_cfg=${ARG_CONFIG} --sign_script=${SIGN_SCRIPT} --version=${VERSION_INFO})
+            set(sign_cmd python3 ${root_dir}/scripts/sign/add_header_sign.py ${signatures_dir} ${sign_flag} --bios_check_cfg=${ARG_CONFIG} --sign_script=${SIGN_SCRIPT} --version=${VERSION_INFO})
         endif()
     else()
         set(sign_cmd )
@@ -206,12 +207,7 @@ function(sign_file)
     # Target name
     get_filename_component(sign_basename "${ARG_INPUT}" NAME_WE)
     string(MAKE_C_IDENTIFIER "${sign_basename}" safe_name)
-    
-    if(ARG_OUTPUT_TARGET)
-        set(sign_target "${ARG_OUTPUT_TARGET}")
-    else()
-        set(sign_target "sign_${safe_name}")
-    endif()
+    set(sign_target "sign_${safe_name}")
 
     add_custom_command(
         OUTPUT "${output_sig}"
@@ -257,17 +253,14 @@ function(check_pkg_build_deps pkg_name)
     endif()
 endfunction()
 
-
+set(HOST_ONLY "false")
+if (NOT FULL_MODE)
+    set(HOST_ONLY "true")
+endif()
 
 # 添加生成version.info的目标
 # 目标名格式为：version_${包名}_info
 function(add_version_info_targets)
-    if(ENABLE_DEVICE)
-        set(HOST_ONLY "false")
-    else()
-        set(HOST_ONLY "true")
-    endif()
-    
     foreach(pkg_name ${CANN_VERSION_PACKAGES})
         add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/version.${pkg_name}.info
             COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_version_info.py --output ${CMAKE_BINARY_DIR}/version.${pkg_name}.info

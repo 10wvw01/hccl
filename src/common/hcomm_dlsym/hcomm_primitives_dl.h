@@ -86,17 +86,8 @@ DECL_WEAK_FUNC(int32_t, HcommThreadSynchronize, ThreadHandle thread);
 DECL_WEAK_FUNC(int32_t, HcommSendRequest, uint64_t handle, const char* msgTag, const void* src, size_t sizeByte, uint32_t* msgId);
 DECL_WEAK_FUNC(int32_t, HcommWaitResponse, uint64_t handle, void* dst, size_t sizeByte, uint32_t* msgId);
 DECL_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
-DECL_WEAK_FUNC(HcclResult, HcclSymWinGetPeerPointer, HcclCommSymWindow winHandle,
-    size_t offset, uint32_t peerRank, void** ptr);
-DECL_WEAK_FUNC(HcclResult, HcclCommSymWinGet, HcclComm comm, void *ptr, size_t size,
-    HcclCommSymWindow *winHandle, size_t *offset);
-#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
-DECL_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, float timeOut);
-DECL_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, float timeOut);
-#else
 DECL_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, uint32_t timeOut);
 DECL_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, uint32_t timeOut);
-#endif
 DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread, uint32_t notifyIdx);
 DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
     ChannelHandle channel, uint32_t localNotifyIdx);

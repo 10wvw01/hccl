@@ -14,8 +14,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/execute_selector.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

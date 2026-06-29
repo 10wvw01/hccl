@@ -13,8 +13,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_scatter_nhr.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

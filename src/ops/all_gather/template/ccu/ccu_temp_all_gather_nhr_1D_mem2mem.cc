@@ -81,7 +81,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
     std::vector<HcclChannelDesc> channelDescs;
     std::vector<HcclChannelDesc> myChannelDescs;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs)); 
+        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
         for(auto channel : myChannelDescs) {
             if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
                 channelDescs.push_back(channel);
@@ -211,9 +211,9 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::PrepareLaunchArgs(const OpParam& param,
     bool inputOutputEqual = (inputAddr + inputSliceStride * mySubCommRank_ == outputAddr + outputSliceStride * mySubCommRank_);
     uint64_t isInputOutputEqual = static_cast<uint64_t>(inputOutputEqual);
     
-    HCCL_INFO("[CcuTempAllGatherNHR1DMem2Mem] dimSize[%llu], die0Size[%llu], die1Size[%llu], inputAddr[%llu], "\
-        "outputAddr[%llu], repeatNum[%llu], inputSliceStride[%llu], outputSliceStride[%llu], "\
-        "inputRepeatStride[%llu], outputRepeatStride[%llu]",
+    HCCL_INFO("[CcuTempAllGatherNHR1DMem2Mem] dimSize[%llu], die0Size[%llu], die1Size[%llu], inputAddr[%llu],\
+        outputAddr[%llu], repeatNum[%llu], inputSliceStride[%llu], outputSliceStride[%llu],\
+        inputRepeatStride[%llu], outputRepeatStride[%llu]",
         templateRankSize_, die0Size, die1Size, inputAddr, outputAddr, repeatNum, inputSliceStride,
         outputSliceStride, inputRepeatStride, outputRepeatStride);
 

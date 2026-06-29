@@ -64,6 +64,10 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcums(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+        if (IsInputOutputOverlap(opParam) == true) { // 不支持 inplace 场景
+            HCCL_WARNING("[ReduceAutoSelector] ccu_ms mode not support inplace.");
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[ReduceAutoSelector] 2DieFullMesh is not supported yet for ccu_ms mode.");
             return SelectorStatus::NOT_MATCH;
@@ -110,6 +114,9 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_WARNING( "[ReduceAutoSelector] ReduceOp[%d] is not supported yet for ccu schedule mode.",
             opParam.reduceType), SelectorStatus::NOT_MATCH);
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceAutoSelector] ccu schedule does not support inplace allreduce."),
+        SelectorStatus::NOT_MATCH);
     if (Is64BitDataType(opParam.DataDes.dataType)) {
         HCCL_WARNING("[ReduceAutoSelector] ccu_schedule mode not support INT64, UINT64, FP64.");
         return SelectorStatus::NOT_MATCH;
@@ -171,9 +178,6 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
             HCCL_WARNING("[ReduceAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
-            HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet "
-            "for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
             selectAlgName = "CcuReduceParallelMesh1DNHRUBX";
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
@@ -285,28 +289,28 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
     (void)configAlgMap;
     // aiv 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] ReduceOp[%d] is not supported yet for aiv mode.", opParam.reduceType),
+        HCCL_WARNING("[ReduceAutoSelector] ReduceOp[%d] is not supported yet for aiv mode.", opParam.reduceType),
         SelectorStatus::NOT_MATCH);
 
     if (opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_UINT64 ||
         opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_FP64) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] aiv mode not support UINT64, FP64.");
+        HCCL_WARNING("[ReduceAutoSelector] aiv mode not support UINT64, FP64.");
         return SelectorStatus::NOT_MATCH;
     }
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        HCCL_DEBUG("[ReduceAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
         return SelectorStatus::NOT_MATCH;
     }
 
     void *cclBufferAddr;
     uint64_t cclBufferSize;
     CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
+        HCCL_WARNING("[ReduceAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (dataSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] dataSize[%llu] too large for cclBufferSize [%llu]", __func__, dataSize, cclBufferSize);
+        HCCL_DEBUG("[ReduceAutoSelector][%s] dataSize[%llu] too large for cclBufferSize [%llu]", __func__, dataSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
     }
 

@@ -37,12 +37,15 @@ public:
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
 
         PublishLocalShard();
+        SyncAll<true>();
+
         FetchPeerShardToLocalStage();
         SyncAll<true>();
 
         LocalTreeReduce();
+        SyncAll<true>();
+
         StoreResult();
-        WaitAllFetchDone();
     }
 
 private:
@@ -59,16 +62,6 @@ private:
     __aicore__ inline uint64_t LocalStageOffset(uint32_t peerRank)
     {
         return static_cast<uint64_t>(rankSizeU32_ + peerRank) * lenPerRank_ * sizeof(T);
-    }
-
-    __aicore__ inline uint64_t FetchDoneFlagOffset(uint32_t peerRank)
-    {
-        return static_cast<uint64_t>(rankSizeU32_ + peerRank);
-    }
-
-    __aicore__ inline uint64_t ReduceReadyFlagOffset(uint32_t offset)
-    {
-        return static_cast<uint64_t>(DOUBLE * rankSizeU32_ + offset);
     }
 
     __aicore__ inline uint32_t CeilLog2(uint32_t n)
@@ -125,14 +118,6 @@ private:
         const uint64_t stageOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + LocalStageOffset(peerRank);
         CpGM2GM(reinterpret_cast<__gm__ T *>(stageOffset), reinterpret_cast<__gm__ T *>(peerOffset), lenPerRank_);
         pipe_barrier(PIPE_ALL);
-        Record(peerRank, FetchDoneFlagOffset(rank_), curTag_);
-    }
-
-    __aicore__ inline void WaitAllFetchDone()
-    {
-        for (uint32_t peerRank = blockIdx_; peerRank < rankSizeU32_; peerRank += numBlocks_) {
-            WaitFlag(rank_, FetchDoneFlagOffset(peerRank), curTag_);
-        }
     }
 
     __aicore__ inline void LocalTreeReduce()
@@ -150,21 +135,17 @@ private:
                 for (uint32_t offset = blockIdx_; offset < powerOf2; offset += rankSizeU32_) {
                     const uint32_t backIdx = powerOf2 + offset;
                     if (backIdx < curBlocks) {
-                        if (round > 0) {
-                            WaitFlag(rank_, ReduceReadyFlagOffset(offset), static_cast<int32_t>(curTag_ + round));
-                            WaitFlag(rank_, ReduceReadyFlagOffset(backIdx), static_cast<int32_t>(curTag_ + round));
-                        }
                         const uint64_t frontOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + LocalStageOffset(offset);
                         const uint64_t backOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + LocalStageOffset(backIdx);
                         CpGM2GM(reinterpret_cast<__gm__ T *>(frontOffset), reinterpret_cast<__gm__ T *>(backOffset),
                                 lenPerRank_, reduceOp_);
                         pipe_barrier(PIPE_ALL);
                     }
-                    Record(rank_, ReduceReadyFlagOffset(offset), static_cast<int32_t>(curTag_ + round + 1));
                 }
             }
 
             curBlocks = powerOf2;
+            SyncAll<true>();
         }
     }
 
@@ -184,19 +165,13 @@ template<typename T>
 __aicore__ inline void AivReduceScatterV2LocalTree(KERNEL_ARGS_DEF)
 {
     AivReduceScatterLocalTree<T> op;
-    bool pingpong = false;
-    if (len * sizeof(T) <= DATA_LIMIT) {
-        pingpong = true;
-    }
-    op.Init(KERNEL_CLASS_INIT, true, pingpong);
+    op.Init(KERNEL_CLASS_INIT, true);
     op.InitCoreInfo(len, inputSliceStride);
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
     op.Process(sliceId);
-    if (!pingpong) {
-        op.BarrierAll();
-    }
+    op.BarrierAll();
 }
 
 #endif // AIV_REDUCE_SCATTER_LOCAL_TREE_H

@@ -298,7 +298,7 @@ public:
 };
 
 // 算法taskArg入参最大个数，用于快速下发缓存
-#define CCU_MAX_TASK_ARG_NUM 48
+#define CCU_MAX_TASK_ARG_NUM 30
 
 struct CcuKernelSubmitInfo {
     CcuKernelHandle kernelHandle;
@@ -416,7 +416,6 @@ struct AlgResourceCtxSerializable {
     ThreadHandle unfoldThread = 0; // 展开流thread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
-    bool isHcclThreadAcquireWithConfigSupported = false;
     void* commInfoPtr = nullptr;
     // hostdpu
     void *npu2DpuShmemPtr = nullptr;
@@ -444,7 +443,6 @@ struct AlgResourceCtxSerializable {
         binaryStream << unfoldThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
-        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -478,7 +476,6 @@ struct AlgResourceCtxSerializable {
         binaryStream >> unfoldThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
-        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;
@@ -513,11 +510,6 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u64 inputSize = 0;
     void* outputPtr = nullptr;
     u64 outputSize = 0;
-    void* inputSymWindow = nullptr;
-    void* outputSymWindow = nullptr;
-    bool supportSymmetricMemory{false};
-    u64 inputOffset = 0;
-    u64 outputOffset = 0;
     HcclMem hcclBuff;   // 当前仅快速下发时使用此处的地址
     HcclReduceOp reduceType = HcclReduceOp::HCCL_REDUCE_RESERVED;
     u32 root = INVALID_VALUE_RANKID;
@@ -571,7 +563,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     bool isZeroCopy = false;
     char algName[OP_ALG_LENGTH] = "";
     HcclOpExpansionMode commOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
-    OpExecuteConfig opExecuteConfig{OpExecuteConfig::DEFAULT};
+    OpExecuteConfig opExecuteConfig;
     u32 numBlocksLimit = 0;
     bool isAivClearEnable = false;
     u64 ctxSize = 0;

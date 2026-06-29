@@ -17,8 +17,6 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_all_gather_2dies_mesh_1D.cc
 )
 
-if(TARGET hccl)
-    target_sources(hccl PRIVATE
-        ${src_list}
-    )
-endif()
+target_sources(hccl PRIVATE
+    ${src_list}
+)

@@ -78,8 +78,8 @@ static CcuResult LoadArgs(BroadcastNhr1DMem2MemContext &ctx)
 
 static CcuResult CalcSliceOffset(BroadcastNhr1DMem2MemContext &ctx)
 {
-    ccu::Variable tmpSliceOffset;
     const auto *arg = ctx.arg;
+    ccu::Variable tmpSliceOffset;
     tmpSliceOffset = 0;
     for (uint64_t i = 0; i < arg->dimSize; i++) {
         ctx.sliceOffset[i] = tmpSliceOffset;

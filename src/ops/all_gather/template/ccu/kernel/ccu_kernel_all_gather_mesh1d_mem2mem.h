@@ -25,8 +25,6 @@ struct CcuKernelArgAllGatherMesh1DMem2Mem : CcuKernelArgBase {
     std::vector<std::vector<uint32_t>>      subCommRanks;
 };
 
-constexpr uint32_t AG_UNROLL_NUM = 16; // 最多支持8 * 16 = 128个rank
-
 struct AllGatherMesh1DMem2MemContext : CcuKernelCtxBase {
     const CcuKernelArgAllGatherMesh1DMem2Mem *arg;
 
@@ -45,15 +43,6 @@ struct AllGatherMesh1DMem2MemContext : CcuKernelCtxBase {
     ccu::LocalAddr src_loccopy;
     ccu::LocalAddr localDst;
     std::vector<ccu::Event> events;
-
-    // 3阶段设计新增变量
-    ccu::Variable constVar1;
-    ccu::Variable repeatTimeflag;
-    ccu::Variable waitRepeatNum;
-    ccu::Variable groupCopyRepeatNum;
-    ccu::Variable sliceSize;
-    ccu::LocalAddr src;
-    std::vector<ccu::RemoteAddr> dst;
 };
 
 CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg);

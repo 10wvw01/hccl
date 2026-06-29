@@ -21,7 +21,7 @@ public:
     explicit InsAlgTemplateBase(const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
                                 const std::vector<std::vector<u32>> &subCommRanks);
 
-    ~InsAlgTemplateBase() override;
+    ~InsAlgTemplateBase();
 
     std::string Describe() const override = 0;
 
@@ -71,8 +71,6 @@ protected:
     std::vector<u32>                 notifyIdxSubToMain_;
     // 是否可以直接访问对端input/output memory
     bool                             enableRemoteMemAccess_ = false;
-    // 是否启用对称内存
-    bool                             supportSymmetricMemory_ = false;
 };
 } // namespace Hccl
 

@@ -252,6 +252,8 @@ public:
         countOffset = DOUBLE * pingpongOffset;
         seperateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
 
+        InitBuffArray(args->buffersIn, pingpong);
+
         pipe.InitBuffer(localFlagBuf, LOCAL_FLAG_BUF_LEN);
         localSetTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_ONE_OFFSET);
         localCheckTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_TWO_OFFSET);
@@ -269,7 +271,6 @@ public:
             ClearSyncBuf();
         }
         GetTag(args->buffersIn);
-        InitBuffArray(args->buffersIn, pingpong);
     }
 
     __aicore__ inline void InitBuffArray(GM_ADDR buffIn, bool pingpong = false)
@@ -351,7 +352,7 @@ public:
         uint64_t flag_offset = BASE_FLAG_OFFSET - gmOutOffset + rank_ * FLAG_SIZE + barrierStage * rankSize_ * FLAG_SIZE;
         for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
             WaitFlag(rank, flag_offset / FLAG_SIZE, DOUBLE);
-            Record(rank, flag_offset / FLAG_SIZE, 0);
+            Record(rank_, flag_offset / FLAG_SIZE, 0);
         }
     }
 

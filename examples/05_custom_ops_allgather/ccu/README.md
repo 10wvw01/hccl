@@ -38,14 +38,9 @@
 
 ### 1. 环境要求
 
-本样例支持以下昇腾产品，组网为单机N卡（N>=2）：
+本样例支持以下昇腾产品：
 
 - <term>Ascend 950PR</term> / <term>Ascend 950DT</term>
-
-本样例编译用到的软件依赖如下，注意满足版本号要求：
-
-- gcc & g++ : 7.3.0 至 13.3.x
-- cmake >= 3.16.0
 
 ### 2. 安装 CANN Toolkit 开发套件包
 
@@ -86,7 +81,6 @@ hccl代码仓提供了自定义算子编译打包工程，该工程依赖代码�
 git clone https://gitcode.com/cann/hccl.git
 
 # 编译自定义算子包
-cd hccl
 bash build.sh --vendor=cust --ops=allgather_ccu --custom_ops_path=./examples/05_custom_ops_allgather/ccu
 ```
 
@@ -101,7 +95,7 @@ bash build.sh --vendor=cust --ops=allgather_ccu --custom_ops_path=./examples/05_
 自定义算子安装包在 `./build_out` 目录下，通过 `--install` 参数进行安装：
 
 ```bash
-./build_out/cann-hccl_custom_allgather_ccu_linux-<arch>.run --install --install-path=<ascend_cann_path>
+./build_out/cann-hccl_custom_allgather_linux-<arch>.run --install --install-path=<ascend_cann_path>
 ```
 
 > 其中：
@@ -113,8 +107,6 @@ bash build.sh --vendor=cust --ops=allgather_ccu --custom_ops_path=./examples/05_
 
 - 头文件：`${ASCEND_HOME_PATH}/opp/vendors/cust/include/hccl_custom_allgather.h`
 - 动态库：`${ASCEND_HOME_PATH}/opp/vendors/cust/lib64/libhccl_custom_allgather.so`
-
-> 其中：`${ASCEND_HOME_PATH}`为CANN-Toolkit安装路径
 
 ## 四、执行自定义算子
 

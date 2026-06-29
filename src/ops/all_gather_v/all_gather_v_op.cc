@@ -46,7 +46,7 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
     // 参数校验等工作
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     u32 userRank = INVALID_VALUE_RANKID;
     bool allRecvCountsZero = false;
@@ -85,7 +85,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
  	// 检查入参指针有效性
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
  	// tag有效性,是否过长
  	char commName[COMM_INDENTIFIER_MAX_LENGTH];
  	CHK_RET(HcclGetCommName(comm, commName));
@@ -109,10 +109,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 拼装ResPackGraphMode
  	ResPackGraphMode resPack;
  	// 设置tag
-    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
-        HCCL_ERROR("failed to fill all_gather_v resPack.tag");
-        return HCCL_E_INTERNAL;
-    }
+ 	strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
  	// 设置streams
  	if (streams != nullptr && streamCount > 0) {
  	  	for (size_t i = 0; i < streamCount; i++) {
@@ -132,8 +129,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
 }
  	
 namespace ops_hccl {
-HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls,
-    const aclrtStream stream, void *sendBuf, uint64_t sendCount)
+HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls, const aclrtStream stream)
 {
     // 入参合法性校验
     RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
@@ -148,11 +144,6 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
     RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclAllGatherV", "nullptr", "stream", "non-null pointer"}));
     CHK_PTR_NULL(stream);
-    if (sendCount > 0) {
-        RPT_INPUT_ERR(sendBuf == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
-            std::vector<std::string>({"HcclAllGatherV", "nullptr", "sendBuf", "non-null pointer"}));
-        CHK_PTR_NULL(sendBuf);
-    }
     return HCCL_SUCCESS;
 }
 
@@ -269,12 +260,14 @@ HcclResult AllGatherVEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, 
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
-        HCCL_RUN_INFO("Entry-%s: tag[%s], sendBuf[%p], recvBuf[%p], sendCount[%llu], dataType[%s], streamId[%d], deviceLogicId[%d]",
-            opName.c_str(), tag.c_str(), sendBuf, recvBuf, sendCount,
-            GetDataTypeEnumStr(dataType).c_str(), streamId, deviceLogicId);
+        char stackLogBuffer[LOG_TMPBUF_SIZE];
+        s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
+            "tag[%s], sendBuf[%p], recvBuf[%p], sendCount[%llu], recvCounts[%s], recvDispls[%s], dataType[%s], streamId[%d], deviceLogicId[%d]",
+            tag.c_str(), sendBuf, recvBuf, sendCount, GetDataStr(recvCounts,totalRanks).c_str(), GetDataStr(recvDispls,totalRanks).c_str(), GetDataTypeEnumStr(dataType).c_str(), streamId, deviceLogicId);
 
-        PrintEntryArrayLog(opName, tag, "recvCounts", recvCounts, totalRanks);
-        PrintEntryArrayLog(opName, tag, "recvDispls", recvDispls, totalRanks);
+        CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
+        std::string logInfo = "Entry-" + opName + ":" + std::string(stackLogBuffer);
+        HCCL_RUN_INFO("%s", logInfo.c_str());
     }
     return HCCL_SUCCESS;
 }

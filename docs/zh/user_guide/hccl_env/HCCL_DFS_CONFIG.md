@@ -20,6 +20,8 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
 
     **说明**：关闭集群心跳监测开关后，通信操作执行超时的异常情况无法探测，集群故障扩散能力丢失，且根节点故障信息不会记录到运行日志中。
 
+    **当前版本Ascend 950PR/Ascend 950DT仅支持配置cluster_heartbeat字段。**
+
 - **stuck_detection**：进程卡死检测开关。
 
     该参数支持两种取值：on（开启进程卡死检测能力）、off（关闭进程卡死检测能力），默认值为on。
@@ -60,7 +62,7 @@ export HCCL_DFS_CONFIG="connection_fault_detection_time:30,cluster_heartbeat:on,
 
 ## 使用约束
 
-**当前版本Ascend 950PR/Ascend 950DT仅支持配置cluster_heartbeat字段。**
+无
 
 ## 支持的型号
 

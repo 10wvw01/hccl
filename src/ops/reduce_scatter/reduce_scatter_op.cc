@@ -111,10 +111,7 @@ HcclResult HcclReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t rec
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), opTag.c_str());
 
     ResPackGraphMode resPack;
-    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
-        HCCL_ERROR("failed to fill resPack.tag");
-        return HCCL_E_INTERNAL;
-    }
+    strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
 
     if (streams != nullptr && streamCount > 0) {
         for (size_t i = 0; i < streamCount; i++) {
@@ -197,15 +194,7 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
     if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
         return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
     }
-
-    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
-        bool aivCacheHit = false;
-        CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
-        if (aivCacheHit) {
-            return HCCL_SUCCESS;
-        }
-    }
-
+    
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(Selector(comm, param, topoInfo, algName));

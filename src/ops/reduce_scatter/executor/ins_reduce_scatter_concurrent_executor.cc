@@ -18,7 +18,7 @@
 #include "ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D.h"
-#endif //CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#endif // #if !defined(HCCL_CANN_COMPAT_850)
 #endif
 namespace ops_hccl {
 
@@ -95,7 +95,9 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     std::vector<HcclChannelDesc> channelDescs1;
     std::vector<HcclChannelDesc> channelDescsTemp1;
 
-    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1)); 
+    CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1,
+                                               CommTopo::COMM_TOPO_CLOS));
+
     for (auto channel : channelDescsTemp1) {
         if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
             channelDescs1.push_back(channel);
