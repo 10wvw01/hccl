@@ -3,7 +3,10 @@
 namespace ops_hccl {
 class SoleExecutor : public BaseExecutor {
 public:
-    HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) override;
+    SoleExecutor(HcclAlgorithm &algo, OpParam &param);
+    ~SoleExecutor();
+
+    HcclResult CalcRes(AlgResourceRequest &resReq) override;
 
 private:
     u64 SoleExecutor::GetMaxProcCntPerLoop() override;

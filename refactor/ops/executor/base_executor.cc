@@ -49,7 +49,6 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
 {
     // 初始化资源信息
     InitRes(resCtx);
-    // 切分资源阶段（Sole不需要，跳过）
     // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
     GetMaxProcCntPerLoop(dataCount_, maxProcCntPerLoop);
@@ -62,9 +61,7 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
     }
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
         // 子类实现
-        // TemplateDataParams dataParams;
-        // GenTemplateDataParams(loopIdx, maxProcCntPerLoop, dataParams);
-        // OrchestrateLoop(maxProcCntPerLoop, dataParams);
+        OrchestrateLoop(maxProcCntPerLoop, dataParams);
     }
     // TODO：储存队列和任务信息，用于FastLauch
     SaveCtx();

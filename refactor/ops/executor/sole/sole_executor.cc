@@ -1,21 +1,67 @@
+#include "template_factory.h"
 #include "sole_executor.h"
 
 namespace ops_hccl {
-
-SoleExecutor::SoleExecutor(HcclAlgorithm &algo)
-    : BaseExecutor(algo) {}
 
 SoleExecutor::SoleExecutor(HcclAlgorithm &algo, BaseOpParam &param)
     : BaseExecutor(algo, param) {}
 
 SoleExecutor::~SoleExecutor() {}
 
-HcclResult SoleExecutor::CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
+HcclResult SoleExecutor::CalcRes(AlgResourceRequest &resReq)
 {
-    auto allTemplates = GenAllTemplates(algHierarchyInfo);
-    // TODO：待确认template需要什么参数
-    HcclResult res = allTemplates.at(0).at(0).CalcRes(resReq);
+    HcclResult res = CalcResRecursive(algo_.algoExecDesc, resReq);
     return res;
+}
+
+HcclResult SoleExecutor::CalcResRecursive(AlgoExecDesc &algoExecDesc, AlgResourceRequest &mergedResReq)
+{
+    std::vector<AlgResourceRequest> resReqList;
+    for (auto &desc : algoExecDesc.children) {
+        AlgResourceRequest resReqTmp;
+        // 如果子节点是执行器描述，则递归生成资源请求
+        if (VariantType == AlgoExecDesc) {
+            CalcResRecursive(desc, resReqTmp);
+        // 如果子节点是算法模板描述，则直接调用算法的CalcRes
+        } else if (VariantType == TemplateExecDesc) {
+            BaseTemplate tmp = GetTemplate(algo_.engineType, algo_.algoExecDesc.at(desc.subCommIndex),
+                algHierarchyInfo_.at(desc.subCommIndex), myRank_);
+            tmp.CalcRes(resReqTmp);
+        }
+        resReqList.push_back(resReqTmp);
+    }
+
+    // 按照并行或者串行逻辑合并资源
+    if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
+        MergeResReqParallel(resReqList, mergedResReq);
+    } else if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+        MergeResReqSequence(resReqList, mergedResReq);
+    }
+}
+
+HcclResult SoleExecutor::MergeResReqParallel()
+{
+    resReq.clear();  // TODO：实现清零操作
+    for (auto &resReq : resReqList) {
+        // 合并Thread
+        mergedResReq.slaveThreadNum += resReq.slaveThreadNum + 1;
+        // TODO：合并Notify
+        // TODO：合并Channels
+    }
+}
+
+HcclResult SoleExecutor::MergeResReqSequence(std::vector<AlgResourceRequest> &resReqList,
+    AlgResourceRequest &mergedResReq)
+{
+    resReq.clear();  // TODO：实现清零操作
+    for (auto &resReq : resReqList) {
+        // 合并Thread
+        if (resReq.slaveThreadNum > mergedResReq.slaveThreadNum) {
+            mergedResReq.slaveThreadNum = resReq.slaveThreadNum;
+        }
+        // TODO：合并Notify
+        // TODO：合并Channels
+    }
 }
 
 u64 SoleExecutor::GetMaxProcCntPerLoop()

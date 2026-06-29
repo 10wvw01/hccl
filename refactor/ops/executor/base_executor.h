@@ -53,6 +53,18 @@ protected:
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
     std::vector<std::map<u32, std::vector<ChannelInfo>> channelTable_;
+
+    std::vector<u32> maxSlaveThreadNum_;
+    std::vector<u32> maxNotifyNumOnMainThread_;
+    std::vector<u32> maxNotifyNumPerThread_;
+
+    // 递归后用于保存算法执行所需要的流同步信息
+    std::map<AlgoExecDesc, AlgoExecRes> resTable_;
+    struct AlgoExecRes {
+        // 数组下表表示templateTopoIndex
+        std::vector<ThreadHandle> syncInterThreads_;
+        std::vector<u32> syncNotifyOnAlgoExec_;
+    };
 };
 
 
