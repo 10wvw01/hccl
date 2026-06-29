@@ -286,7 +286,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     myRank_ = resCtx.topoInfo.userRank;
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
-    if (param.engine != CommEngine::COMM_ENGINE_AIV && param.engine != CommEngine::COMM_ENGINE_CCU) {
+    if (param.engine != CommEngine::COMM_ENGINE_AIV) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
         intraLinkMap_ = remoteRankToChannelInfo_[0];
         interLinkMap_ = remoteRankToChannelInfo_[1];
@@ -318,7 +318,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     // 构建template
     InsAlgTemplate0 intraTempAlg(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
     InsAlgTemplate1 interTempAlg(param, resCtx.topoInfo.userRank, interHierarchyInfo_);
-    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS || param.engine == CommEngine::COMM_ENGINE_CCU) {
         interTempAlg.SetchannelsPerRank(interLinkMap_);
     }
     // 将计算资源分配个每个算法
@@ -433,10 +433,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         interTempAlgRes.ccuKernels.insert(interTempAlgRes.ccuKernels.end(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
-    } else {
-        intraTempAlgRes.channels = intraLinkMap_;
-        interTempAlgRes.channels = interLinkMap_;
-    }
+    } 
     
     u64 processedCount = 0;
     u32 loopIndex = 0;

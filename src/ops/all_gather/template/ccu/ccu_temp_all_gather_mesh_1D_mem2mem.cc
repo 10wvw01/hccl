@@ -68,6 +68,7 @@ HcclResult CcuTempAllGatherMesh1DMem2Mem::CalcRes(HcclComm comm, const OpParam& 
     kernelArg->subCommRanks = subCommRanks_;
     kernelInfo.setKernelArg(kernelArg);
     kernelInfo.channels = channelDescs;
+    resourceRequest.channels.push_back(channelDescs);
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
     HCCL_DEBUG("[CcuTempAllGatherMesh1DMem2Mem::CalcRes] channelDescs.size()=%llu, dimsize=%llu, "
