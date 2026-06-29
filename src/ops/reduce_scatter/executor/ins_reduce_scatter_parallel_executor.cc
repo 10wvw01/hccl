@@ -10,6 +10,7 @@
 
 #include "ins_reduce_scatter_parallel_executor.h"
 #include <cmath>
+#include "ins_temp_reduce_scatter_mesh_1D.h"
 #include "ins_temp_reduce_scatter_mesh_1D_meshchunk.h"
 #include "ins_temp_reduce_scatter_mesh_1d_dpu.h"
 #include "ins_temp_reduce_scatter_nhr.h"
