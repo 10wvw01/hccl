@@ -159,6 +159,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::BuildCcuKernelInfos(const OpParam& para
         kernelArg->axisSize = dieNum;
         kernelInfo.setKernelArg(kernelArg);
         kernelInfo.channels = channelsPerDie[kernelIdx];
+        resourceRequest.channels.push_back(channelsPerDie[kernelIdx]);
         resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     }
     return HcclResult::HCCL_SUCCESS;
