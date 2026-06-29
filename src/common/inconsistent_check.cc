@@ -22,11 +22,11 @@ bool NeedInconsistentCheck(const OpParam& param)
         // inconsistentCheckSwitch 为 off
         // inconsistentCheckSwitch 为 first 或空，单算子模式下非首次下发且非增量建链模式
         std::string tagStr = param.algTag;
-        bool isChecked = (GetInconsistentCheckSwitch() == 0) && (param.opMode == OpMode::OPBASE) &&
+        bool noCheck = (GetInconsistentCheckSwitch() == 0) && (param.opMode == OpMode::OPBASE) &&
             (g_inconsistentCheckedList.find(tagStr) != g_inconsistentCheckedList.end());
         bool increCreateChannelFlag = (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) &&
             (param.opMode == OpMode::OPBASE);
-        if (GetInconsistentCheckSwitch() == -1 || (isChecked && !increCreateChannelFlag)) {
+        if (GetInconsistentCheckSwitch() == -1 || (noCheck && !increCreateChannelFlag)) {
             return false;
         } else {
             return true;
