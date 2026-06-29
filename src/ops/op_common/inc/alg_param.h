@@ -600,15 +600,15 @@ struct Slice {
 };
 
 struct HcomProInfo {
+    uint32_t root;
     uint8_t dataType;
     uint8_t cmdType;
     uint64_t dataCount;
     uint32_t rankSize;
     uint32_t userRank;
     uint32_t blockDim = 0;
-    uint64_t beginTime;
-    uint32_t root;
     uint32_t slaveThreadNum;
+    uint64_t beginTime;
     uint64_t commNameLen;
     uint64_t algTypeLen;
     char tag[MAX_LENGTH];

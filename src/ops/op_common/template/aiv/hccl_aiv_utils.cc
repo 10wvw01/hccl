@@ -390,31 +390,31 @@ static u32 GetAivTimeout()
 
 using AivKernelArgs = struct AivKernelArgsDef {
     const void* buffersIn; // 注册的CCLIN地址，所有卡可访问
-    u64 input;
     u64 output;
+    u64 input;
     u32 rank;
     u32 sendRecvRemoteRank;
     u32 rankSize;
     u64 xRankSize;
     u64 yRankSize;
     u64 zRankSize;
-    u64 len;
-    u32 dataType;
-    u32 reduceOp;
-    u32 root;
-    u32 tag; // 第几次调用，定时重置成1
     u64 inputSliceStride;
     u64 outputSliceStride;
+    u64 len;
+    u32 root;
+    u32 dataType;
+    u32 reduceOp;
+    u32 tag; // 第几次调用，定时重置成1
     u64 repeatNum;
     u64 inputRepeatStride;
     u64 outputRepeatStride;
     u32 numBlocks;
     bool isOpBase;
+    bool isEnableCounter;
     const void* headCountMem;
     const void* tailCountMem;
     const void* addOneMem;
     u32 counterMemSize;
-    bool isEnableCounter;
 
     AivKernelArgsDef(const void* buffIn, u64 input, u64 output, u32 rank, u32 sendRecvRemoteRank,
         u32 rankSize, u64 xRankSize, u64 yRankSize, u64 zRankSize,

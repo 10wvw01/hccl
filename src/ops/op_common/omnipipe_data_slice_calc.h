@@ -77,8 +77,8 @@ struct OmniPipeSliceParam {
         0};  // 如果是aicpu的单算子模式，和dataSize一样，每次都在ccl做。其他模式都是总数据量。
     std::vector<u64> levelRankId;  // 依次为本rank在三个维度的rankID
     std::vector<u64> levelAlgType;  // 依次为三个维度的算法类型，MESH是1 or NHR是0
-    OpMode opMode;
     CommEngine engine;
+    OpMode opMode;
     OmniNeedSetStepNum needSetStepNum = OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
     std::string toString()
     {
