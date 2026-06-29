@@ -222,15 +222,14 @@ HcclResult InsTempUBXAlltoAllVMesh1D::RunFullMesh(const TemplateDataParams& temp
             CHK_RET(LocalCopy(threads[fullMeshThreadId], usrInSlices, usrOutSlices));
         } else {
             // 和板内其他卡去收发
-            const ChannelInfo &channelSend = channels.at(targetRank)[0]; // 发给哪个rank
-            const ChannelInfo &channelRecv = channels.at(targetRank)[0]; // 收哪个rank的数据
+            const ChannelInfo &channelSendRecv = channels.at(targetRank)[0]; // 和对端收发
 
             std::vector<DataSlice> txSrcSlices;
             std::vector<DataSlice> txDstSlices;
             DataSlice txSrcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr,
                 tempAlgParams.sdispls[targetRank] * dataTypeSize_,
                 tempAlgParams.sendCounts[targetRank] * dataTypeSize_, tempAlgParams.sendCounts[targetRank]);
-            DataSlice txDstSlice = DataSlice(channelSend.remoteCclMem.addr,
+            DataSlice txDstSlice = DataSlice(channelSendRecv.remoteCclMem.addr,
                 myAlgRank_ * scratchBufferSizePerRank_,
                 tempAlgParams.sendCounts[targetRank] * dataTypeSize_, tempAlgParams.sendCounts[targetRank]);
             txSrcSlices.push_back(txSrcSlice);
@@ -247,7 +246,7 @@ HcclResult InsTempUBXAlltoAllVMesh1D::RunFullMesh(const TemplateDataParams& temp
             rxSrcSlices.push_back(rxSrcSlice);
             rxDstSlices.push_back(rxDstSlice);
 
-            SendRecvInfo sendRecvInfo{{channelSend, channelRecv},
+            SendRecvInfo sendRecvInfo{{channelSendRecv, channelSendRecv},
                 {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
 
             CHK_RET(SendRecvWrite(sendRecvInfo, threads[fullMeshThreadId]));
@@ -267,8 +266,6 @@ HcclResult InsTempUBXAlltoAllVMesh1D::RunFullMesh(const TemplateDataParams& temp
 HcclResult InsTempUBXAlltoAllVMesh1D::RunPairwise(const TemplateDataParams& tempAlgParams,
     TemplateResource& templateResource, u32 targetBoard)
 {
-    HCCL_INFO("[InsTempUBXAlltoAllVMesh1D] myRank is [%u], currBoard is[%u], targetBoard is [%u]",
-        myAlgRank_, currBoard_, targetBoard);
     std::map<u32, std::vector<ChannelInfo>> &channels = templateResource.channels;
     std::vector<ThreadHandle> &threads = templateResource.threads;
 
@@ -278,7 +275,6 @@ HcclResult InsTempUBXAlltoAllVMesh1D::RunPairwise(const TemplateDataParams& temp
     // 按照一定的顺序，遍历board内的卡
     for (u32 step = 0; step < rankNumPerBoard_; step++) {
         u32 targetRank = rankSendRecvMatrix[myAlgRank_][step];
-        HCCL_INFO("[InsTempUBXAlltoAllVMesh1D] myRank is [%u], targetRank is[%u]", myAlgRank_, targetRank);
 
         // 跳过虚拟board 的收发
         if (targetRank >= templateRankSize_) {
