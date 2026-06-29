@@ -664,7 +664,7 @@ static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool i
 
 
     const u32 PORTVAL = 127;	 
-    HCCL_INFO("zjy test eidRank[%d], eidRemoteRank[%d], isIsolation[%d]", eidRank[PORT_IDX], eidRemoteRank[PORT_IDX], isIsolation);
+    HCCL_INFO("IsPortEqual eidRank[%d], eidRemoteRank[%d], isIsolation[%d]", eidRank[PORT_IDX], eidRemoteRank[PORT_IDX], isIsolation);
 
     if (isIsolation) {	 
         return ((eidRank[PORT_IDX] == eidRemoteRank[PORT_IDX]) && (eidRank[PORT_IDX] != PORTVAL));	 
