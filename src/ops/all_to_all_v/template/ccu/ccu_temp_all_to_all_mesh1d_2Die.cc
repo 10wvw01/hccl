@@ -267,7 +267,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam ¶m, const TemplateFastLaunchCtx &tempFastLaunchCtx)
+HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
 {
     (void)param;
     constexpr u32 argInIdx            = 0;
