@@ -296,4 +296,23 @@ void InsTempReduceScatterMesh1DMeshChunk::NotifyIdxSubToMainInMeshChunk(std::vec
         notifyIdxSubToMain.push_back(notifyIdx + threadNum);
     }
 }
+
+u64 InsTempReduceScatterMesh1DMeshChunk::GetThreadNum() const
+{
+    u32 threadNum = templateRankSize_ > 1 ? templateRankSize_ - 1 : 1;
+    return threadNum;
+}
+
+HcclResult InsTempReduceScatterMesh1DMeshChunk::GetRes(AlgResourceRequest& resourceRequest) const
+{
+    u32 threadNum = GetThreadNum();
+    resourceRequest.slaveThreadNum = threadNum - 1;
+    const u32 NOTIFY_NUM_PER_SLAVE_THREAD = 2;
+    for (u32 index = 0; index < threadNum - 1; index++) {
+        resourceRequest.notifyNumPerThread.push_back(NOTIFY_NUM_PER_SLAVE_THREAD);
+    }
+    resourceRequest.notifyNumOnMainThread = (threadNum - 1) * NOTIFY_NUM_PER_SLAVE_THREAD;
+
+    return HCCL_SUCCESS;
+}
 } // namespace Hccl
