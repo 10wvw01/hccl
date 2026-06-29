@@ -1,14 +1,140 @@
 #include "parallel_2ops_executor.h"
 
 namespace ops_hccl {
+
+// 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
+// thread[0]                                = main thread
+// thread[1]                                = intra main → notifyNumPerThread[0]
+// threads[2..maxIntra+1]                   = intra slaves → notifyNumPerThread[1..maxIntra+1]
+// thread[maxIntra+2]                       = inter main → notifyNumPerThread[maxIntra+2]
+// threads[maxIntra+3..maxIntra+maxInter+2] = inter slaves → notifyNumPerThread[maxIntra+3..]
+// resourceRequest.notifyNumPerThread布局如下所示，notifyNumPerThread需要多预留1个用于和main thread同步
+// notifyNumPerThread[0]                    = intra NotifyNumOnMainThread + 1
+// notifyNumPerThread[1..maxIntra]          = intra notifyNumPerThread[...]必须预留每个阶段的最大值
+// notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
+// notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
+
+HcclResult ParallelExecutor::CalcResforNode(AlgoExecDesc nodeAloExecDesc, AlgResourceRequest &resourceRequest)
+{
+    size_t childrenSize = nodeAloExecDesc.children.size();
+    std::vector<AlgResourceRequest> tempRequest(childrenSize);
+    for (size_t i = 0; i < childrenSize; ++i) {
+        VariantType &v = nodeAloExecDesc.children[i];
+        // 处理 TemplateExecDesc
+        if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
+            std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
+            BaseTemplate baseTemplate
+                = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
+            CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest.at(i)));
+        }
+        // 处理 AlgoExecDesc（递归）
+        else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
+            // 注意：*algoDescPtr 是 std::shared_ptr<AlgoExecDesc>
+            // 使用 **algoDescPtr 或 algoDescPtr->get() 解引用 shared_ptr
+            CHK_RET(CalcResforNode(**algoDescPtr, tempRequest.at(i)));
+        } else {
+            // 不应该到达这里，说明 variant 包含了未预期的类型
+            return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
+        }
+    }
+    CHK_RET(MergeResRequest(tempRequest, nodeAloExecDesc.execPolicy, resourceRequest));
+    return HCCL_SUCCESS;
+}
+
+HcclResult ParallelExecutor::MergeResRequest(
+    std::vector<AlgResourceRequest> &tempRequest, ExecPolicy execPolicy, AlgResourceRequest &resourceRequest)
+{
+    u32 notifyNumOnMainThread = 0;
+    u32 slaveThreadNum = 0;
+    std::vector<u32> notifyNumPerThread;
+    size_t vectorSize = tempRequest.size();
+    // 并行notifyNumOnMainThread等于vectorSize，slaveThreadNum求和
+    // 串行notifyNumOnMainThread和slaveThreadNum都取最大值
+    if (nodeAloExecDesc.execPolicy == ExecPolicy::PARALLEL) {
+        notifyNumOnMainThread = vectorSize;
+        slaveThreadNum += tempRequest.slaveThreadNum;
+    } else if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+        for (size_t i = 0; i < vectorSize; ++i) {
+            slaveThreadNum = max(slaveThreadNum, tempRequest.at(i).slaveThreadNum);
+            notifyNumOnMainThread = max(notifyNumOnMainThread, tempRequest.at(i).notifyNumOnMainThread);
+        }
+        notifyNumOnMainThread = max(notifyNumOnMainThread, tempRequest.notifyNumOnMainThread);
+    }
+    resourceRequest.notifyNumOnMainThread = notifyNumOnMainThread;
+    resourceRequest.slaveThreadNum = slaveThreadNum;
+}
+
+HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
+{
+    CHK_RET(CalcResforNode(comm, topoInfo, algo_.algoExecDesc, resourceRequest));
+}
+
 HcclResult ParallelExecutor::CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
     const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
 {
-    // 根据基类中的alg算法信息计算所需资源
+    uint32_t parallelNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
+    // 第一个元素表示maxIntra，第二个元素表示maxInter，后续待扩展
+    std::vector<u32> maxSlaveThreadNum(parallelNum);
+    std::vector<u32> maxNotifyNumOnMainThread(parallelNum);
+    std::vector<u32> maxNotifyNumPerThread(parallelNum);
+    CHK_RET(CalcSubTopoMaxRes(
+        comm, topoInfo, algHierarchyInfo, maxSlaveThreadNum, maxNotifyNumOnMainThread, maxNotifyNumPerThread));
+    resourceRequest.notifyNumOnMainThread = parallelNum;
+    resourceRequest.slaveThreadNum = 0;
+    mainThread_ = threads_.at(0);
+    auto subThreadBegin = threads_.begin;
+    auto subThreadEnd = threads_.begin;
+    for (auto templateTopoIndex = 0; templateTopoIndex < parallelNum; templateTopoIndex++) {
+        // 所有通信维度(intra/inter)maxSlaveThreadNum求和
+        resourceRequest.slaveThreadNum += maxSlaveThreadNum.at(templateTopoIndex);
+        // 先插入NotifyNumOnMainThread
+        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread.at(templateTopoIndex) + 1);
+        // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
+        resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
+            maxSlaveThreadNum.at(templateTopoIndex), maxNotifyNumPerThread.at(templateTopoIndex));
+        subThreadBegin = (templateTopoIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum(templateTopoIndex);
+        subThreads_.at(templateTopoIndex).assign(subThreadBegin, subThreadEnd);
+    }
 
-    // 根据基类中的alg算法信息构建template
-    // 根据template计算CalcRes
-    // 最后根据2ops资源相加返回
+    HCCL_DEBUG("[ParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
+               "channels[%u]",
+        myRank_, resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
+        resourceRequest.channels.size());
+    for (auto i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
+        HCCL_DEBUG("[ParallelExecutor][CalcRes] myRank[%u], notifyNumPerThread[%u]=[%u]", myRank_, i,
+            resourceRequest.notifyNumPerThread[i]);
+    }
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult ParallelExecutor::CalcSubTopoMaxRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo,
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, std::vector<u32> maxSlaveThreadNum,
+    std::vector<u32> maxNotifyNumOnMainThread, std::vector<u32> maxNotifyNumPerThread);
+{
+    uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
+    uint32_t parallelNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
+
+    for (auto stage = 0; stage < stageNum; stage++) {
+        for (auto dataPart = 0; dataPart < parallelNum; dataPart++) {
+            // 根据TemplateDescrb获取实例化生成算法的template
+            auto templateTopoIndex = algo_.templateTopoIndex.at(stage).at(dataPart);
+            vector<RankInfo> templateRanks = algHierarchyInfo.infos[templateTopoIndex];
+            BaseTemplate template = Func(algo_.templates.at(stage).at(dataPart), templateRanks);
+
+            AlgResourceRequest tempRequest;
+            CHK_RET(template.CalcRes(comm, param, topoInfo, tempRequest));
+            maxSlaveThreadNum.at(templateTopoIndex)
+                = max(maxSlaveThreadNum.at(templateTopoIndex), tempRequest.slaveThreadNum);
+            maxNotifyNumOnMainThread.at(templateTopoIndex)
+                = max(maxNotifyNumOnMainThread.at(templateTopoIndex), tempRequest.notifyNumOnMainThread);
+            // 为了保险起见每个通信维度(intra/inter)的notifyNum取最大值
+            auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
+            maxNotifyNumPerThread.at(templateTopoIndex) = max(maxNotifyNumPerThread.at(templateTopoIndex), *it);
+        }
+    }
+    return HCCL_SUCCESS;
 }
 
 HcclResult ParallelExecutor::GenerateTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource)
@@ -26,7 +152,7 @@ HcclResult ParallelExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, Temp
     } else if {
     } else {
         // outBuffBaseOff/inputSliceStride/outputSliceStride/repeatNum/InputRepeatStride/OutputRepeatStride
-    }    
+    }
 }
 HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx)
 {
@@ -85,11 +211,6 @@ HcclResult ParallelExecutor::PrepareResForTemplate()
         }
         syncNotifyOnTemplates_.at(stage) = {intraNotifyOnMainThread, interNotifyOnMainThread};
     }
-
-    subThreads_.at(0).assign(threads_.begin() + 1, threads_.begin() + intraThreadsNum + 1);
-    subThreads_.at(1).assign(threads_.begin() + intraThreadsNum + 1, threads_.end());
-    // 用于两个算法同步
-    mainThread_ = threads_.at(0);
 
     syncNotifyOnMain_.clear();
     for (auto dataPart = 0; stage < dataPartNum; dataPart++) {
