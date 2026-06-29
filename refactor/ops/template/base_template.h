@@ -35,14 +35,13 @@ public:
      *   7. 生成资源请求列表返回给 executor 汇总。
      * 输入参数：
      *   - comm：通信域上下文
-     *   - topoInfo: 拓扑结构信息
      * 输出参数：
      *   - res: 资源请求列表，每项描述一个层级所需的 channel/notify/thread
      * 返回值：
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
-    HcclResult CalcRes(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo, std::vector<AlgResourceRequest> &res) {
+    HcclResult CalcRes(HcclComm comm, std::vector<AlgResourceRequest> &res) {
         // TODO： 实现
     }
 
