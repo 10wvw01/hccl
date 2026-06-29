@@ -789,6 +789,8 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
 {
 #ifndef AICPU_COMPILE
     CommTopo topoType;
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%u, isMesh=%d, isClos=%d, isIsolation=%d",
+        myRank, remoteRank, netLayer, linkList.size(), isMesh, isClos, isIsolation);
     constexpr u32 MIN_PHY_COUNT = 8;
     if (linkList.size() < MIN_PHY_COUNT) {
         // 兼容性适配
