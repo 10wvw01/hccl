@@ -2,6 +2,30 @@
 
 namespace ops_hccl {
 
+// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PreSyncInterThreads
+// 仅在串行策略分支内使用，调用方需保证已开启对应的AlgoExecRes记录
+#define PRESYNC_BY_RESTABLE(EXEC_DESC)                                                                                  \
+    do {                                                                                                                \
+        auto _it = resTable_.find((EXEC_DESC));                                                                         \
+        if (_it == resTable_.end()) {                                                                                   \
+            HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");                                       \
+            return HCCL_E_INTERNAL;                                                                                     \
+        }                                                                                                               \
+        CHK_RET(PreSyncInterThreads(mainThread_, _it->second.syncInterThreads_, _it->second.syncNotifyOnAlgoExec_));   \
+    } while (0)
+
+// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PostSyncInterThreads
+// notify索引取自类成员syncNotifyOnMain_，因为收方向槽位由并行编排统一分配
+#define POSTSYNC_BY_RESTABLE(EXEC_DESC)                                                                                 \
+    do {                                                                                                                \
+        auto _it = resTable_.find((EXEC_DESC));                                                                         \
+        if (_it == resTable_.end()) {                                                                                   \
+            HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");                                       \
+            return HCCL_E_INTERNAL;                                                                                     \
+        }                                                                                                               \
+        CHK_RET(PostSyncInterThreads(mainThread_, _it->second.syncInterThreads_, syncNotifyOnMain_));                 \
+    } while (0)
+
 // 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
 // thread[0]                                = main thread
 // thread[1]                                = intra main → notifyNumPerThread[0]
@@ -16,6 +40,7 @@ namespace ops_hccl {
 
 HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc nodeAloExecDesc)
 {
+    // todo需要计算resTable_
     size_t childrenSize = nodeAloExecDesc.children.size();
     for (size_t i = 0; i < childrenSize; ++i) {
         VariantType &v = nodeAloExecDesc.children[i];
@@ -95,11 +120,10 @@ HcclResult ParallelExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, Temp
 HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
-    //todo 需要先刷新templateMainThreads_和syncNotifyOnTemplates_
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_.at(stage)));
+            PRESYNC_BY_RESTABLE(nodeAloExecDesc);
         }
 
         VariantType &v = nodeAloExecDesc.children[i];
@@ -111,25 +135,20 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
             // 根据阶段生成template的资源参数
             TemplateResource templateResource;
             CHK_RET(GenTemplateRes(stage, dataPart, templateResource));
-
             // 根据阶段生成template的数据参数
             TemplateDataParams templateDataParams;
             CHK_RET(GenTemplateDataParams(stage, dataPart, templateDataParams));
-
             CHK_RET(template.KernelRun(templateDataParams, templateResource, algo_.engineType));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            // 注意：*algoDescPtr 是 std::shared_ptr<AlgoExecDesc>
-            // 使用 **algoDescPtr 或 algoDescPtr->get() 解引用 shared_ptr
             CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr));
         } else {
-            // 不应该到达这里，说明 variant 包含了未预期的类型
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
         // 如果是串行需要回到主流做尾同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
+            POSTSYNC_BY_RESTABLE(nodeAloExecDesc);
         }
     }
 }
