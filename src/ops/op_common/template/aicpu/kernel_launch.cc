@@ -558,16 +558,16 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     return 0;
 }
 
-extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
+extern "C" unsigned int HcclLaunchP2pAicpuKernel(ThreadHandle *deviceThread, OpParam *param)
 {
-    if (args == nullptr) {
+    if (param == nullptr || deviceThread == nullptr) {
         HCCL_ERROR("%s args is nullptr", __func__);
         return 1;
     }
-    HcclP2pKernelParam *params = static_cast<HcclP2pKernelParam *>(args);
-    ThreadHandle sendRecvThread = params->sendRecvThread;
-    void *paramPtr = static_cast<void *>(&params->opParams[0]);
-    OpParam *param = static_cast<OpParam *>(paramPtr);
+    // HcclP2pKernelParam *params = static_cast<HcclP2pKernelParam *>(args);
+    ThreadHandle sendRecvThread = *deviceThread;
+    // void *paramPtr = static_cast<void *>(&params->opParams[0]);
+    // OpParam *param = static_cast<OpParam *>(paramPtr);
 
     if (param == nullptr) {
         HCCL_ERROR("%s param is nullptr", __func__);
