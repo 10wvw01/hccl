@@ -789,7 +789,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         // 兼容性适配
         isIsolation = false;
     }
-    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%u, isMesh=%d, isClos=%d, isIsolation=%d",
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%zu, isMesh=%d, isClos=%d, isIsolation=%d",
  	  	         myRank, remoteRank, netLayer, linkList.size(), isMesh, isClos, isIsolation);
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
     // 9.1.0 之前不使用 ProcessLinksForChannelMutiJetty 等新 API，
