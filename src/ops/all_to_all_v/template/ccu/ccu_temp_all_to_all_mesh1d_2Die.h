@@ -39,7 +39,6 @@ private:
     HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
     HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
 
-    const uint32_t DIE_NUM = 2; // 2Die
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;
     uint32_t fullmeshDieId_ = 0;
