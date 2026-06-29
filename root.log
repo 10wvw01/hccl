@@ -1,0 +1,43 @@
+2026-06-29 10:59:38,690 [main] INFO  UserConfigUtil:73 - ====application.yml======true
+2026-06-29 10:59:38,690 [main] INFO  UserConfigUtil:76 - application.yml
+2026-06-29 10:59:38,747 [main] INFO  UserConfigUtil:83 - load application.yml data=[{proxy={tunnel={domain-name=net.jumper.huawei.com, username=z00123456}}}]
+2026-06-29 10:59:39,087 [background-preinit] INFO  Version:21 - HV000001: Hibernate Validator 6.2.5.Final
+2026-06-29 10:59:39,128 [main] INFO  ProxyClient:55 - Starting ProxyClient v1.0.4.2 using Java 21.0.2 on DESKTOP-OCJ5TB4 with PID 3308 (D:\Jumper\clientV2\NetproxyClient\net-proxy-client.jar started by cs in D:\Jumper\clientV2\NetproxyClient)
+2026-06-29 10:59:39,133 [main] INFO  ProxyClient:632 - No active profile set, falling back to 1 default profile: "default"
+2026-06-29 10:59:40,108 [main] INFO  ClientPropertiesUtil:143 - The ProductSerialNumber is: 9EB84228-381E-999F-71BB-B7588A41623F
+2026-06-29 10:59:40,112 [main] INFO  ProxyClientService:144 - Please wait a moment. Trying get the server ip ... 
+2026-06-29 10:59:40,164 [main] INFO  AutowiredAnnotationBeanPostProcessor:485 - Autowired annotation is not supported on static fields: private static org.springframework.context.ApplicationContext com.huawei.it.netproxy.core.util.SpringBeanLoader.delegator
+2026-06-29 10:59:40,173 [main] INFO  DefaultDispatcher:75 - MessageDispatcher dispatcher init success
+2026-06-29 10:59:40,237 [main] INFO  AppLoadEndExecutor:27 - Net-Proxy Client 2.0.2 server started
+2026-06-29 10:59:40,243 [main] INFO  ProxyClient:61 - Started ProxyClient in 1.41 seconds (JVM running for 2.449)
+2026-06-29 10:59:40,248 [ClientReconnect-thread-1] INFO  ProxyClientService:173 - Getting DNS ip
+2026-06-29 10:59:40,705 [nioEventLoopGroup-2-1] INFO  ProxyMessageServerGetHandler:54 - Getting server ip. The port open status is true.
+2026-06-29 10:59:45,124 [ClientReconnect-thread-2] INFO  ProxyClientService:320 - Execute Reconnect Auth ...
+2026-06-29 10:59:45,140 [nioEventLoopGroup-2-2] INFO  ClientPropertiesUtil:125 - Getting client ips is 7.249.216.228,.
+2026-06-29 10:59:45,720 [nioEventLoopGroup-2-2] INFO  ProxyMessageAuthHandler:57 - Auth result code:0
+2026-06-29 10:59:45,720 [nioEventLoopGroup-2-2] INFO  ProxyMessageAuthHandler:59 - client auth success!
+2026-06-29 12:14:13,952 [main] INFO  UserConfigUtil:73 - ====application.yml======true
+2026-06-29 12:14:13,952 [main] INFO  UserConfigUtil:76 - application.yml
+2026-06-29 12:14:14,011 [main] INFO  UserConfigUtil:83 - load application.yml data=[{proxy={tunnel={domain-name=net.jumper.huawei.com, username=z00123456}}}]
+2026-06-29 12:14:14,339 [background-preinit] INFO  Version:21 - HV000001: Hibernate Validator 6.2.5.Final
+2026-06-29 12:14:14,390 [main] INFO  ProxyClient:55 - Starting ProxyClient v1.0.4.2 using Java 21.0.2 on DESKTOP-OCJ5TB4 with PID 2288 (D:\Jumper\clientV2\NetproxyClient\net-proxy-client.jar started by cs in D:\Jumper\clientV2\NetproxyClient)
+2026-06-29 12:14:14,390 [main] INFO  ProxyClient:632 - No active profile set, falling back to 1 default profile: "default"
+2026-06-29 12:14:15,373 [main] INFO  ClientPropertiesUtil:143 - The ProductSerialNumber is: 9EB84228-381E-999F-71BB-B7588A41623F
+2026-06-29 12:14:15,373 [main] INFO  ProxyClientService:144 - Please wait a moment. Trying get the server ip ... 
+2026-06-29 12:14:15,437 [main] INFO  AutowiredAnnotationBeanPostProcessor:485 - Autowired annotation is not supported on static fields: private static org.springframework.context.ApplicationContext com.huawei.it.netproxy.core.util.SpringBeanLoader.delegator
+2026-06-29 12:14:15,446 [main] INFO  DefaultDispatcher:75 - MessageDispatcher dispatcher init success
+2026-06-29 12:14:15,523 [main] INFO  AppLoadEndExecutor:27 - Net-Proxy Client 2.0.2 server started
+2026-06-29 12:14:15,523 [main] INFO  ProxyClient:61 - Started ProxyClient in 1.422 seconds (JVM running for 2.673)
+2026-06-29 12:14:15,530 [ClientReconnect-thread-1] INFO  ProxyClientService:173 - Getting DNS ip
+2026-06-29 12:14:16,087 [nioEventLoopGroup-2-1] INFO  ProxyMessageServerGetHandler:54 - Getting server ip. The port open status is true.
+2026-06-29 12:14:20,389 [ClientReconnect-thread-2] INFO  ProxyClientService:320 - Execute Reconnect Auth ...
+2026-06-29 12:14:20,405 [nioEventLoopGroup-2-2] INFO  ClientPropertiesUtil:125 - Getting client ips is 7.249.216.228,.
+2026-06-29 12:14:20,739 [nioEventLoopGroup-2-2] INFO  ProxyMessageAuthHandler:57 - Auth result code:0
+2026-06-29 12:14:20,739 [nioEventLoopGroup-2-2] INFO  ProxyMessageAuthHandler:59 - client auth success!
+2026-06-29 14:16:47,886 [main] INFO  UserConfigUtil:73 - ====application.yml======true
+2026-06-29 14:16:47,886 [main] INFO  UserConfigUtil:76 - application.yml
+2026-06-29 14:16:47,933 [main] INFO  UserConfigUtil:83 - load application.yml data=[{proxy={tunnel={domain-name=net.jumper.huawei.com, username=z00123456}}}]
+2026-06-29 14:16:48,278 [background-preinit] INFO  Version:21 - HV000001: Hibernate Validator 6.2.5.Final
+2026-06-29 14:16:48,323 [main] INFO  ProxyClient:55 - Starting ProxyClient v1.0.4.2 using Java 21.0.2 on DESKTOP-OCJ5TB4 with PID 12344 (D:\Jumper\clientV2\NetproxyClient\net-proxy-client.jar started by cs in D:\Jumper\clientV2\NetproxyClient)
+2026-06-29 14:16:48,329 [main] INFO  ProxyClient:632 - No active profile set, falling back to 1 default profile: "default"
+2026-06-29 14:16:48,840 [main] WARN  ClientLock:56 - Client has been started. Don't start more client ...
