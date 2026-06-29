@@ -304,6 +304,12 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                 } else {
                     selectAlgName = "InsAllGatherNHRUBX";
                 }
+<<<<<<< HEAD
+=======
+            } else if(isClosNumMultipleOfMeshNum && dataSize > SMALL_COUNT_512KB) {
+                selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? "InsAllGatherParallelMesh1DNHRMultiJetty" :
+                                                                          "InsV2AllGatherOmniPipe";
+>>>>>>> 1ce99be8 (omnipipe ag 适配 mutijetty)
             } else {
                 selectAlgName = "InsAllGatherMesh1DUBX";
             }
