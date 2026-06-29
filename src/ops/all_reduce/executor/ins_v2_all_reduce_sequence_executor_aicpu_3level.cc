@@ -525,46 +525,20 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     TemplateResource templateResourceAGL0;
     CHK_RET(GenTempResource(resCtx, 0, algTemplateAGL0, templateResourceAGL0));
 
-    u64 scratchMultiplier = algTemplateRSL0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
-    u32 cclBuffSliceNum = scratchMultiplier + 1;
-    cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum;
-    rsResultBuffSize_ = cclBuffSliceSize_;
-    meshCommBuffSize_ = scratchMultiplier * cclBuffSliceSize_;
+    // CCL buffer切分为2块，前1块作为ReduceScatter归约操作的output，后1块作为ccl buffer接收其他卡的数据
+    rsResultBuffSize_ = resCtx.cclMem.size / 2;
+    meshCommBuffSize_ = resCtx.cclMem.size - rsResultBuffSize_;
     rsResultBuffOffset_ = 0;
     meshCommBuffOffset_ = rsResultBuffSize_;
+    // 最大搬运数据量向下对齐到rankSize的倍数，方便数据切分，只用最后一个loop处理尾块
     u32 totalRankAlign = rankSizeLevel0_ * rankSizeLevel1_ * rankSizeLevel2_;
-    u64 maxCountPerLoop = meshCommBuffSize_ / HCCL_MIN_SLICE_ALIGN *
+    u64 maxCountPerLoop = meshCommBuffOffset_ / HCCL_MIN_SLICE_ALIGN *
                           HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / totalRankAlign * totalRankAlign;
+    // 计算loopTimes
+    u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
     u64 processedDataCount = 0;
-    u64 loop = 0;
-    while (processedDataCount < dataCount_) {
-        u64 remaining = dataCount_ - processedDataCount;
-        u64 currDataCount;
-        if (remaining <= maxCountPerLoop) {
-            currDataCount = remaining;
-            u64 q = currDataCount / rankSizeLevel0_;
-            u64 r = currDataCount % rankSizeLevel0_;
-            u64 tailSize = (q + r) * dataTypeSize_;
-            if (tailSize > rsResultBuffSize_ && q > 0) {
-                u64 maxTailElements = rsResultBuffSize_ / dataTypeSize_;
-                if (maxTailElements == 0) {
-                    HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu3Level] rsResultBuffSize_[%llu] is smaller than "
-                        "dataTypeSize_[%llu], buffer too small", rsResultBuffSize_, dataTypeSize_);
-                    return HCCL_E_INTERNAL;
-                }
-                u64 newQ = q - 1;
-                u64 newR;
-                if (newQ >= maxTailElements) {
-                    newQ = maxTailElements;
-                    newR = 0;
-                } else {
-                    newR = std::min(static_cast<u64>(rankSizeLevel0_ - 1), maxTailElements - newQ);
-                }
-                currDataCount = newQ * rankSizeLevel0_ + newR;
-            }
-        } else {
-            currDataCount = maxCountPerLoop;
-        }
+    for (u64 loop = 0; loop < loopTimes; loop++) {
+        u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
 
         // ----------- RSL0: level0 ReduceScatter -----------
         GenTempAlgParamsRSL0(loop, currDataCount, processedDataCount, tempAlgParamsRSL0);
@@ -606,7 +580,6 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
         CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
 
         processedDataCount += currDataCount;
-        loop++;
     }
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level][OrchestrateLoop] End.");
     return HCCL_SUCCESS;
