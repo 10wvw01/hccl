@@ -19,5 +19,13 @@ private:
     std::vector<u32> maxSlaveThreadNum_;
     std::vector<u32> maxNotifyNumOnMainThread_;
     std::vector<u32> maxNotifyNumPerThread_;
+
+    // 递归后用于保存算法执行所需要的流同步信息
+    std::map<AlgoExecDesc, AlgoExecRes> SyncInterThreadsMap_;
+    struct AlgoExecRes {
+        // 数组下表表示templateTopoIndex
+        std::vector<ThreadHandle> templateMainThreads_;
+        std::vector<u32> syncNotifyOnTemplates_;
+    };
 }
 } // namespace ops_hccl
