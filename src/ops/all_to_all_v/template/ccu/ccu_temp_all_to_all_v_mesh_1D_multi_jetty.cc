@@ -241,7 +241,7 @@ HcclResult CcuTempAllToAllVMesh1DMultiJetty::FastLaunch(const OpParam& param,
                                                tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle,
                                                taskArgs, argSize);
     if (launchRet != CCU_SUCCESS) {
-        HCCL_ERROR("[CcuTempAllReduceMesh1D::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
+        HCCL_ERROR("[CcuTempAllToAllVMesh1DMultiJetty::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
         return ConvertCcuToHccl(launchRet);
     }
     HCCL_INFO("[CcuTempAllToAllVMesh1DMultiJetty::FastLaunch] end");
