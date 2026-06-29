@@ -27,15 +27,15 @@ typedef struct HcomProInfoTmp {
     uint32_t userRank;
     uint32_t blockDim = 0;
     uint64_t beginTime;
-    uint32_t root;
-    uint32_t slaveThreadNum;
     uint64_t commNameLen;
     uint64_t algTypeLen;
+    uint32_t root;
+    uint32_t slaveThreadNum;
     char tag[MAX_LENGTH];
     char commName[MAX_LENGTH];
     char algType[MAX_LENGTH];
-    bool isCapture = false;
     bool isAiv = false;
+    bool isCapture = false;
     uint8_t reserved[MAX_LENGTH];
 }HcomProInfoTmp;
 

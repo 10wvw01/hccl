@@ -398,10 +398,11 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 
     AivOpCacheArgs cacheKey = {};
     if (useCache) {
+        AivOpCacheArgs cacheKey = {};
+        cacheKey.root = param.root;
         cacheKey.commName = param.commName;
         cacheKey.algName = algName;
         cacheKey.opType = param.opType;
-        cacheKey.root = param.root;
         cacheKey.reduceOp = param.reduceType;
 
         if (param.opType == HCCL_CMD_ALLTOALL) {
