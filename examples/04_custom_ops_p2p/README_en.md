@@ -46,6 +46,9 @@ This sample supports the following products in a single-node N-card configuratio
 - <term>Atlas A3 training products </term> / <term>Atlas A3 inference products</term>
 - <term>Atlas A2 training products</term>
 
+- gcc & g++ : 7.3.0 - 13.3.x
+- cmake >= 3.16.0
+
 ### 2. Install the CANN Toolkit
 
 Install the CANN Toolkit of the latest version. For details, see [Ascend Documentation - CANN Software Installation](https://hiascend.com/document/redirect/CannCommercialInstSoftware).
