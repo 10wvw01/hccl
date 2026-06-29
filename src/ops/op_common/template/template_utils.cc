@@ -81,8 +81,8 @@ HcclResult CalcDataSplitByPortGroupCommon(const u64 totalDataCount,
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels,  std::vector<u8> &diePortGroupSize){
-    const chSize = channels.size();
+HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels,  std::vector<u8> &diePortGroupSize) {
+    const uint32_t chSize = channels.size();
     CHK_PRT_RET(chSize != DIE_NUM_1 && chSize != DIE_NUM_2, HCCL_ERROR("[CalcPortNum] channels.size is %u, which is wrong.",chSize), HcclResult::HCCL_E_INTERNAL);
     if(chSize == DIE_NUM_1){
         diePortGroupSize = {1, 0};
