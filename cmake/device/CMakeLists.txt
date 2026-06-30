@@ -32,6 +32,12 @@ find_cann_package(mmpa MODULE REQUIRED)
 find_cann_package(runtime MODULE REQUIRED)
 find_cann_package(hcomm MODULE REQUIRED)
 find_cann_package(asc_devkit MODULE REQUIRED)
+if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu)
+    get_target_property(_hcomm_inc hcomm_headers INTERFACE_INCLUDE_DIRECTORIES)
+    set_target_properties(hcomm_headers PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${_hcomm_inc};${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu"
+    )
+endif()
 
 # 添加子目录
 add_cann_subdirectories_relative(${HCCL_DIR}
