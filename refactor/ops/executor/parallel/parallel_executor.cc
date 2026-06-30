@@ -60,19 +60,18 @@ HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32
         VariantType &v = nodeAloExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-            subCommMask |= (1 << templateExeDes->subCommIndex);
-            std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
+            int subCommIndex = templateExeDes->subCommIndex;
+            subCommMask |= (1U << subCommIndex);
+            std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[subCommIndex];
             BaseTemplate baseTemplate
                 = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
             AlgResourceRequest tempRequest;
             CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest));
-            maxSlaveThreadNum_.at(templateTopoIndex)
-                = max(maxSlaveThreadNum_.at(templateTopoIndex), tempRequest.slaveThreadNum);
-            maxNotifyNumOnMainThread_.at(templateTopoIndex)
-                = max(maxNotifyNumOnMainThread_.at(templateTopoIndex), tempRequest.notifyNumOnMainThread);
+            maxSlaveThreadNum_.at(subCommIndex) = max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
+            maxNotifyNumOnMainThread_.at(subCommIndex)
+                = max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
             auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
-            maxNotifyNumPerThread_.at(templateExeDes->subCommIndex)
-                = max(maxNotifyNumPerThread_.at(templateExeDes->subCommIndex), *it);
+            maxNotifyNumPerThread_.at(subCommIndex) = max(maxNotifyNumPerThread_.at(subCommIndex), *it);
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
@@ -112,17 +111,17 @@ HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
     auto subThreadEnd = threads_.begin;
     resourceRequest.notifyNumOnMainThread = topoLevelNum;
     resourceRequest.slaveThreadNum = 0;
-    for (auto templateTopoIndex = 0; templateTopoIndex < topoLevelNum; templateTopoIndex++) {
+    for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
         // 每个通信子域还需要一条主流，所以求和还需要+1
-        resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(templateTopoIndex) + 1;
-        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(templateTopoIndex) + 1);
-        notifyNumOnSubMainThread_.emplace_back(maxNotifyNumOnMainThread_.at(templateTopoIndex) + 1);
+        resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(subCommIndex) + 1;
+        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
+        notifyNumOnSubMainThread_.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
         // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-            maxSlaveThreadNum_.at(templateTopoIndex), maxNotifyNumPerThread_.at(templateTopoIndex));
-        subThreadBegin = (templateTopoIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
-        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_(templateTopoIndex);
-        subThreads_.at(templateTopoIndex).assign(subThreadBegin, subThreadEnd);
+            maxSlaveThreadNum_.at(subCommIndex), maxNotifyNumPerThread_.at(subCommIndex));
+        subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
+        subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
     }
     return HCCL_SUCCESS;
 }
@@ -138,8 +137,8 @@ HcclResult ParallelExecutor::GenTemplateRes(
     // 其他参数待确认是否还需要保留
     return HCCL_SUCCESS;
 }
-HcclResult ParallelExecutor::GenTemplateDataParams(
-    const AlgResourceCtxSerializable &resCtx, TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount)
+HcclResult ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
+    TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount, u64 InputStride, u64 OutputStride)
 {
     templateDataParams.buffInfo.inputPtr = dataInfo_.inputPtr;
     templateDataParams.buffInfo.outputPtr = dataInfo_.outputPtr;
@@ -162,9 +161,12 @@ HcclResult ParallelExecutor::GenTemplateDataParams(
     return;
 }
 
-void ParallelExecutor::GetParallelDataSplit(
-    u64 offset, u64 count, u32 childrenSize, std::vector<u64> &childrenOffset, std::vector<u64> &childrenCount) const
+void ParallelExecutor::GetParallelDataSplit(AlgoExecDesc &nodeAloExecDesc, u64 offset, u64 count, u32 childrenSize,
+    std::vector<u64> &childrenOffset, std::vector<u64> &childrenCount) const
 {
+    if (nodeAloExecDesc.execPolicy != ExecPolicy::PARALLEL) {
+        return;
+    }
     // 先均分数据，后续再看看是否需要优化
     childrenOffset.clear();
     childrenCount.clear();
@@ -200,23 +202,20 @@ HcclResult ParallelExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &r
     return baseTemplate.KernelRun(templateDataParams, templateResource);
 }
 
-HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc,
+HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &nodeAloExecDesc,
     u64 offset, u64 count, u64 inputStride, u64 &outputStride)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
     std::vector<u64> childrenOffset(childrenSize, offset);
     std::vector<u64> childrenCount(childrenSize, count);
+    GetParallelDataSplit(nodeAloExecDesc, offset, count, childrenSize, childrenOffset, childrenCount);
     u64 childrenInputStride = inputStride;
-    u64 childrenOutputStride;
+    u64 childrenOutputStride = 0;
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
             CHK_RET(PreSyncByResTable(nodeAloExecDesc));
-        } else {
-            // 如果是并行需要切分数据
-            GetParallelDataSplit(offset, count, childrenSize, childrenOffset, childrenCount);
         }
-
         VariantType &v = nodeAloExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
@@ -226,7 +225,7 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
             CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr, childrenOffset.at(i), childrenCount.at(i),
-                childrenInputStride, &childrenOutputStride));
+                childrenInputStride, childrenOutputStride));
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
@@ -243,8 +242,8 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
 void ParallelExecutor::CalcOutputStride(u32 subCommIndex, u64 &outputStride)
 {
     outputStride = sliceCount;
-    for (u32 i = 1; i < subCommIndex; i++) {
-        outputStride *= subRankSize_.at(i - 1);
+    for (u32 i = 0; i < subCommIndex; i++) {
+        outputStride *= subRankSize_.at(i);
     }
     return;
 }
