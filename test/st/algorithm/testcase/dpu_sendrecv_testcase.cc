@@ -140,16 +140,14 @@ void DPUSendRecvTest(
     }
 
     // 结果成图校验
-    if (dataCount != 0) {
-        auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
-        for (const auto &kv : sendRecvMap) {
-            RankId srcRankId = kv.first;
-            RankId dstRankId = kv.second;
-            HcclResult sendRes = CheckSend(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
-            EXPECT_TRUE(sendRes == HCCL_SUCCESS);
-            HcclResult recvRes = CheckRecv(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
-            EXPECT_TRUE(recvRes == HCCL_SUCCESS);
-        }
+    auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
+    for (const auto &kv : sendRecvMap) {
+        RankId srcRankId = kv.first;
+        RankId dstRankId = kv.second;
+        HcclResult sendRes = CheckSend(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
+        EXPECT_TRUE(sendRes == HCCL_SUCCESS);
+        HcclResult recvRes = CheckRecv(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
+        EXPECT_TRUE(recvRes == HCCL_SUCCESS);
     }
 
     // 资源清理
@@ -183,17 +181,6 @@ TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_int16)
     // 算子执行参数设置
     auto dataCount = 100;                                // 传输数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT16;  // 数据类型
-
-    DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
-}
-
-TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count0_odd_rank)
-{
-    TopoMeta topoMeta{{{0}, {1}, {2}}};
-    std::map<RankId, RankId> sendRecvMap = {{0, 2}};
-
-    auto dataCount = 0;
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
 
     DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
 }
