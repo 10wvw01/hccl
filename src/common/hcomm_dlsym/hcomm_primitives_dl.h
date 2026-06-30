@@ -120,7 +120,7 @@ HcclResult HcclChannelNotifyWaitOnThreadDefault(ThreadHandle thread, ChannelHand
     uint32_t localNotifyIdx, uint32_t fallbackTimeout);
 HcclResult HcclChannelNotifyWaitDefault(ChannelHandle channel, uint32_t localNotifyIdx, uint32_t fallbackTimeout);
 
-DECL_WEAK_FUNC(HcclResult, HcommTimerStartTrack);
+DECL_WEAK_FUNC(int32_t, HcommTimerStartTrack, bool startTrack);
 DECL_SUPPORT_FLAG(HcommTimerStartTrack);
 DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheLookup);
