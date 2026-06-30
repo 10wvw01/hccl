@@ -47,9 +47,11 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::CalcRes(
     // 将通道请求添加到资源请求中
     resourceRequest.channels.push_back(level0Channels);
 
-    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][CalcRes] myRank[%u], threadNum[%u], "
+    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][CalcRes] myRank[%u], templateRankSize[%u], "
+        "ORDER_PRESERVED_MAX_THREADS[%u], threadNum[%u] (decoupled: rankSize-1 vs cap, took min), "
         "notifyNumOnMainThread[%u], slaveThreadNum[%u]",
-        myRank_, threadNum, resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
+        myRank_, templateRankSize_, ORDER_PRESERVED_MAX_THREADS, threadNum,
+        resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
     return HCCL_SUCCESS;
 }
 
@@ -81,21 +83,8 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
     CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
 
-    // 多线程同步：如果线程数大于1，等待子线程就绪，为all2all做准备
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
-    }
-
-    // 步骤2: 执行AllToAll操作（每个rank将自己的数据发送给其他rank，并接收其他rank的数据）
+    // 步骤2: 执行AllToAll操作（内部包含批次同步，避免线程复用时的notify死锁）
     CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
-    // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
-        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
-    }
     if (dataType_ == HcclDataType::HCCL_DATA_TYPE_FP64) {
         // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
@@ -128,7 +117,11 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::GetRes(AlgResourceRequest &
 
 u64 InsTempReduceScatterOrderPreservedLevel1::GetThreadNum() const
 {
-    return CalcEffectiveThreadNum(templateRankSize_);
+    u32 threadNum = CalcEffectiveThreadNum(templateRankSize_);
+    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][GetThreadNum] templateRankSize[%u], "
+        "effectiveThreadNum[%u] (capped at ORDER_PRESERVED_MAX_THREADS[%u])",
+        templateRankSize_, threadNum, ORDER_PRESERVED_MAX_THREADS);
+    return threadNum;
 }
 
 void InsTempReduceScatterOrderPreservedLevel1::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
@@ -207,69 +200,108 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunAllToAll(
     const std::map<u32, std::vector<ChannelInfo>> &channels,
     const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams)
 {
-    HCCL_INFO("[OrderPreserved RunAllToAll] Start");
-
     const MemBlockInfo &memBlockInfo = memBlockInfo_;
-    // 获取本rank在算法中的编号
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
 
-    // queIdx用于选择线程（从线程1开始，子线程用于all2all）
-    u32 queIdx = 1;
-    // 遍历除自己外的所有rank（round 1 到 rankSize-1）
-    for (u32 rankIdx = 1; rankIdx < templateRankSize_; rankIdx++) {
-        // 计算下一个要通信的rank
-        u32 nextRank = (myAlgRank + rankIdx) % templateRankSize_;
-        // 获取远端rank的实际编号
-        u32 remoteRank = subCommRanks_[0][nextRank];
+    u32 slaveThreadNum = threadNum_ - 1;
+    u32 totalRanks = templateRankSize_ - 1; // 需要通信的rank数（排除自己）
 
-        // 在通道映射表中查找远端rank对应的通道
-        auto channelIter = channels.find(remoteRank);
-        CHK_PRT_RET(channelIter == channels.end(),
-            HCCL_ERROR("[RunAllToAll] channel not found for nextRank[%u], remoteRank[%u]", nextRank, remoteRank), HCCL_E_INTERNAL);
+    HCCL_INFO("[RunAllToAll] Start, templateRankSize[%u], threadNum[%u], slaveThreadNum[%u], "
+        "totalRanks[%u]", templateRankSize_, threadNum_, slaveThreadNum, totalRanks);
 
-        const std::vector<ChannelInfo> &curChannels = channelIter->second;
-        CHK_PRT_RET(curChannels.empty(),
-            HCCL_ERROR("[RunAllToAll] curChannels empty for nextRank[%u], channels size[%zu]", nextRank, curChannels.size()), HCCL_E_INTERNAL);
-
-        // 获取要发送的数据块大小
-        u64 sliceSize = memBlockInfo.size[nextRank];
-        HCCL_INFO("[RunAllToAll] nextRank[%u], sliceSize[%llu]", nextRank, sliceSize);
-
-        u32 channelIdx = 0;
-        const ChannelInfo &linkSend = curChannels[channelIdx];
-        const ChannelInfo &linkRecv = curChannels[channelIdx];
-        ThreadHandle thread = threads[queIdx];
-
-        // 获取远端rank的临时缓冲区地址
-        void* remoteCclBuffAddr = linkSend.remoteCclMem.addr;
-
-        // 计算发送时的输出索引，确定在远端rank的临时缓冲区中的位置
-        // 正常alltoall是每个rank的第i块数据发送到远端rank的第i块位置，但是为了支持偏移，需要加上本卡id myAlgRank
-        u32 txOutputIndex = CalcOutputIndex(nextRank, myAlgRank);
-        // 计算发送源偏移量（用户输入缓冲区）
-        u64 txSrcOffset = memBlockInfo.userInputOffsets[nextRank];
-        // 计算发送目标偏移量（远端临时缓冲区）
-        u64 txDstOffset = memBlockInfo.outputOffsets[txOutputIndex];
-
-        DataSlice txSrcSlice(tempAlgParams.buffInfo.inputPtr, txSrcOffset, sliceSize);
-        DataSlice txDstSlice(remoteCclBuffAddr, txDstOffset, sliceSize);
-
-        // 只发送数据
-        std::vector<DataSlice> txSrcSlices = {txSrcSlice};
-        std::vector<DataSlice> txDstSlices = {txDstSlice};
-        std::vector<DataSlice> rxSrcSlices = {};
-        std::vector<DataSlice> rxDstSlices = {};
-        SendRecvInfo sendRecvInfo{
-            TxRxChannels{linkSend, linkRecv},
-            TxRxSlicesList{SlicesList{txSrcSlices, txDstSlices}, SlicesList{rxSrcSlices, rxDstSlices}}
-        };
-        CHK_RET(SendRecvWrite(sendRecvInfo, thread));
-        queIdx++;
-        if (queIdx >= threadNum_) {
-            queIdx = 1;
+    // 单线程场景：主线程直接串行执行所有SendRecvWrite，无需批次同步
+    if (threadNum_ <= 1) {
+        for (u32 rankIdx = 1; rankIdx < templateRankSize_; rankIdx++) {
+            u32 nextRank = (myAlgRank + rankIdx) % templateRankSize_;
+            u32 remoteRank = subCommRanks_[0][nextRank];
+            auto channelIter = channels.find(remoteRank);
+            CHK_PRT_RET(channelIter == channels.end(),
+                HCCL_ERROR("[RunAllToAll] channel not found for nextRank[%u], remoteRank[%u]",
+                    nextRank, remoteRank), HCCL_E_INTERNAL);
+            const std::vector<ChannelInfo> &curChannels = channelIter->second;
+            CHK_PRT_RET(curChannels.empty(),
+                HCCL_ERROR("[RunAllToAll] curChannels empty for nextRank[%u]", nextRank), HCCL_E_INTERNAL);
+            u64 sliceSize = memBlockInfo.size[nextRank];
+            const ChannelInfo &linkSend = curChannels[0];
+            void *remoteCclBuffAddr = linkSend.remoteCclMem.addr;
+            u32 txOutputIndex = CalcOutputIndex(nextRank, myAlgRank);
+            u64 txSrcOffset = memBlockInfo.userInputOffsets[nextRank];
+            u64 txDstOffset = memBlockInfo.outputOffsets[txOutputIndex];
+            DataSlice txSrcSlice(tempAlgParams.buffInfo.inputPtr, txSrcOffset, sliceSize);
+            DataSlice txDstSlice(remoteCclBuffAddr, txDstOffset, sliceSize);
+            SendRecvInfo sendRecvInfo{
+                TxRxChannels{linkSend, linkSend},
+                TxRxSlicesList{SlicesList{{txSrcSlice}, {txDstSlice}}, SlicesList{{}, {}}}
+            };
+            CHK_RET(SendRecvWrite(sendRecvInfo, threads[0]));
+            HCCL_INFO("[RunAllToAll] single-thread, rankIdx[%u], nextRank[%u]", rankIdx, nextRank);
         }
-        HCCL_INFO("[RunAllToAll] queIdx[%u], threadNum_[%u]", queIdx, threadNum_);
+        HCCL_INFO("[RunAllToAll] End (single-thread)");
+        return HCCL_SUCCESS;
+    }
+
+    // 多线程场景：分批次派发，每批slaveThreadNum个操作并行执行
+    // SendRecvWrite是异步的（只向device下任务不阻塞），如果同一从线程排多个SendRecvWrite，
+    // 它们会串行执行，导致notify循环等待死锁。批次同步确保每批内操作并行执行。
+    u32 numBatches = (totalRanks + slaveThreadNum - 1) / slaveThreadNum; // 向上取整
+    std::vector<ThreadHandle> subThreads(threads.begin() + 1, threads.begin() + threadNum_);
+    GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+    GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+
+    HCCL_INFO("[RunAllToAll] multi-thread, numBatches[%u], notifyIdxMainToSub size[%zu], "
+        "notifyIdxSubToMain size[%zu]", numBatches, notifyIdxMainToSub_.size(),
+        notifyIdxSubToMain_.size());
+
+    u32 rankIdx = 1;
+    for (u32 batch = 0; batch < numBatches; batch++) {
+        // 唤醒从线程，开始本批次
+        CHK_RET(PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_));
+
+        // 每个从线程派发一个SendRecvWrite
+        u32 opsInBatch = std::min(slaveThreadNum, totalRanks - batch * slaveThreadNum);
+        for (u32 i = 0; i < opsInBatch; i++, rankIdx++) {
+            u32 nextRank = (myAlgRank + rankIdx) % templateRankSize_;
+            u32 remoteRank = subCommRanks_[0][nextRank];
+
+            auto channelIter = channels.find(remoteRank);
+            CHK_PRT_RET(channelIter == channels.end(),
+                HCCL_ERROR("[RunAllToAll] channel not found for nextRank[%u], remoteRank[%u]",
+                    nextRank, remoteRank), HCCL_E_INTERNAL);
+            const std::vector<ChannelInfo> &curChannels = channelIter->second;
+            CHK_PRT_RET(curChannels.empty(),
+                HCCL_ERROR("[RunAllToAll] curChannels empty for nextRank[%u]", nextRank), HCCL_E_INTERNAL);
+
+            u64 sliceSize = memBlockInfo.size[nextRank];
+            u32 channelIdx = 0;
+            const ChannelInfo &linkSend = curChannels[channelIdx];
+            const ChannelInfo &linkRecv = curChannels[channelIdx];
+            ThreadHandle thread = threads[i + 1]; // 从线程i+1
+
+            void *remoteCclBuffAddr = linkSend.remoteCclMem.addr;
+            u32 txOutputIndex = CalcOutputIndex(nextRank, myAlgRank);
+            u64 txSrcOffset = memBlockInfo.userInputOffsets[nextRank];
+            u64 txDstOffset = memBlockInfo.outputOffsets[txOutputIndex];
+
+            DataSlice txSrcSlice(tempAlgParams.buffInfo.inputPtr, txSrcOffset, sliceSize);
+            DataSlice txDstSlice(remoteCclBuffAddr, txDstOffset, sliceSize);
+
+            std::vector<DataSlice> txSrcSlices = {txSrcSlice};
+            std::vector<DataSlice> txDstSlices = {txDstSlice};
+            std::vector<DataSlice> rxSrcSlices = {};
+            std::vector<DataSlice> rxDstSlices = {};
+            SendRecvInfo sendRecvInfo{
+                TxRxChannels{linkSend, linkRecv},
+                TxRxSlicesList{SlicesList{txSrcSlices, txDstSlices}, SlicesList{rxSrcSlices, rxDstSlices}}
+            };
+            CHK_RET(SendRecvWrite(sendRecvInfo, thread));
+            HCCL_INFO("[RunAllToAll] batch[%u/%u], op[%u], threadIdx[%u], nextRank[%u], sliceSize[%llu]",
+                batch, numBatches, i, i + 1, nextRank, sliceSize);
+        }
+
+        // 等待本批次所有从线程完成，避免notify循环等待死锁
+        CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
+        HCCL_INFO("[RunAllToAll] batch[%u/%u] completed, opsInBatch[%u]", batch, numBatches, opsInBatch);
     }
 
     HCCL_INFO("[RunAllToAll] End");
