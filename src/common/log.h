@@ -157,7 +157,7 @@ struct TimerEntry {
  
 class HcclTimer {
   public:
-    static bool& stackTrack() {
+    static bool& startTrack() {
         static bool startTrack = false;
         return startTrack;
     }
@@ -182,7 +182,7 @@ class HcclTimer {
 
     explicit HcclTimer(const std::string &name)
     {
-        if (stackTrack()) {
+        if (startTrack()) {
             timerCounter()++;
             timerIdx = timerEntries().size();
             timerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter(), name);
