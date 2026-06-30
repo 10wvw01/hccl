@@ -259,13 +259,13 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
+extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 {
     static uint64_t opUnfoldIdx = 0;
     opUnfoldIdx++;
     constexpr uint64_t warmupOpCnt = 10;
     if (opUnfoldIdx > warmupOpCnt) {
-        HcclTimer::startTrack = true;
+        HcclTimer::startTrack() = true;
         if (HcommIsSupportHcommTimerStartTrack()) {
             CHK_RET(static_cast<HcclResult>(HcommTimerStartTrack(true)));
         }
@@ -645,13 +645,6 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
     return 0;
-}
-
-extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
-{
-    unsigned int ret = HcclLaunchAicpuKernel1(param);
-    HcclTimer::DumpTimerLogs();
-    return ret;
 }
 
 extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
