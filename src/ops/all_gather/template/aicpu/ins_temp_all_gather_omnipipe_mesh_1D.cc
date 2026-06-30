@@ -12,6 +12,9 @@
 #include <sstream>
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempAllGatherOmniPipeMesh1D::InsTempAllGatherOmniPipeMesh1D(const OpParam& param,
@@ -36,6 +39,11 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::KernelRun(const OpParam& param, const
     tempAlgParams_.buffInfo.outputPtr = param.outputPtr;
     omniLastStepRead_ = tempAlgParams.omniLastStepRead_;
     dataType_ = param.DataDes.dataType;
+    inputSymWindow_ = param.inputSymWindow;
+    outputSymWindow_ = param.outputSymWindow;
+    inputOffset_ = param.inputOffset;
+    outputOffset_ = param.outputOffset;
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
     HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D] Rank [%d], get threadNum_[%d].", myRank_, threadNum_);
 
     if (threadNum_ > 1) {
@@ -87,6 +95,23 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
 
         const ChannelInfo& linkRemote = channels.at(connectedRank)[0];
         void* remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
+        void* remoteIn = nullptr;
+        void* remoteOut = nullptr;
+        if (supportSymmetricMemory_) {
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, connectedRank, &remoteIn);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteIn == nullptr,
+                        HCCL_ERROR("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
+                            "remoteRank[%u] inputRet[%d] in[%p]", connectedRank, ret, remoteIn),
+                            HcclResult::HCCL_E_INTERNAL);
+
+            ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, connectedRank, &remoteOut);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteOut == nullptr,
+                        HCCL_ERROR("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
+                            "remoteRank[%u] outputRet[%d] out[%p]", connectedRank, ret, remoteOut),
+                            HcclResult::HCCL_E_INTERNAL);
+            HCCL_INFO("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
+                "remoteRank[%u] in[%p] out[%p]", connectedRank, remoteIn, remoteOut);
+        }
 
         void* txSrcPtr;
         void* txDstPtr = remoteCclBuffAddr;
