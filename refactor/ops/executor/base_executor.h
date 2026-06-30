@@ -59,11 +59,7 @@ protected:
     std::vector<u32> maxNotifyNumPerThread_;
 
     // 递归后用于保存算法执行所需要的流同步信息
-    std::map<AlgoExecDesc, AlgoExecRes> resTable_;
-    struct AlgoExecRes {
-        // 数组下表表示templateTopoIndex
-        u32 subCommMask;
-    };
+    std::map<AlgoExecDesc, u32> execDescSubCommMask_;
 };
 
 
