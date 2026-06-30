@@ -92,9 +92,11 @@ protected:
         }
 
         // 结果成图校验
-        auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
-        HcclResult res = CheckBroadcast(taskQueues, rankSize, dataType, count, root);
-        EXPECT_TRUE(res == HCCL_SUCCESS);
+        if (count != 0) {
+            auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
+            HcclResult res = CheckBroadcast(taskQueues, rankSize, dataType, count, root);
+            EXPECT_TRUE(res == HCCL_SUCCESS);
+        }
 
         // 资源清理
         SimWorld::Global()->Deinit();

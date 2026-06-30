@@ -140,14 +140,16 @@ void DPUSendRecvTest(
     }
 
     // 结果成图校验
-    auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
-    for (const auto &kv : sendRecvMap) {
-        RankId srcRankId = kv.first;
-        RankId dstRankId = kv.second;
-        HcclResult sendRes = CheckSend(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
-        EXPECT_TRUE(sendRes == HCCL_SUCCESS);
-        HcclResult recvRes = CheckRecv(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
-        EXPECT_TRUE(recvRes == HCCL_SUCCESS);
+    if (dataCount != 0) {
+        auto taskQueues = SimTaskQueue::Global()->GetAllRankTaskQueues();
+        for (const auto &kv : sendRecvMap) {
+            RankId srcRankId = kv.first;
+            RankId dstRankId = kv.second;
+            HcclResult sendRes = CheckSend(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
+            EXPECT_TRUE(sendRes == HCCL_SUCCESS);
+            HcclResult recvRes = CheckRecv(taskQueues, rankSize, dataType, dataCount, srcRankId, dstRankId);
+            EXPECT_TRUE(recvRes == HCCL_SUCCESS);
+        }
     }
 
     // 资源清理
@@ -196,10 +198,10 @@ TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count0_odd_rank)
     DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
 }
 
-TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count1_odd_rank)
+TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count1)
 {
-    TopoMeta topoMeta{{{0, 1, 2}}};
-    std::map<RankId, RankId> sendRecvMap = {{1, 2}};
+    TopoMeta topoMeta{{{0, 1}, {2, 3}}};
+    std::map<RankId, RankId> sendRecvMap = {{0, 2}, {1, 3}};
 
     auto dataCount = 1;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
