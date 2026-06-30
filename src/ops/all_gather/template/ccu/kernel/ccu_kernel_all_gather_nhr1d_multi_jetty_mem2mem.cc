@@ -187,8 +187,6 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherNHR1DMultiJettyMem2MemC
             ctx.srcMem.addr = ctx.output[ctx.myRankIdx];
             ctx.srcMem.addr += ctx.outputSliceOffset[sendSliceIdx];
  	    }
-        // ctx.srcMem.addr = ctx.output[ctx.myRankIdx];
-        // ctx.srcMem.addr += ctx.outputSliceOffset[sendSliceIdx];
         ctx.dstMem.addr = ctx.output[toRankIdx];
         ctx.dstMem.addr += ctx.outputSliceOffset[sendSliceIdx];
 
