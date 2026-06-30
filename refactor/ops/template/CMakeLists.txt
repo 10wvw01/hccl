@@ -8,21 +8,8 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-# refactor/ops/template/CMakeLists.txt
-# 通信模板：primitives（Mesh/NHR 算法实现）+ engines（AICPU/AIV launcher + op_alg）
-# 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/template) 拉进来
-#
-# 当前状态：
-#   ✅ primitives/mesh_primitives.cc                  - RunMeshAllGather/ReduceScatter 等（329 行）
-#   ✅ primitives/nhr_primitives.cc                   - RunNhrAllGather/ReduceScatter 等（263 行）
-#   ✅ engines/aicpu/launcher/load_kernel.cc          - LoadAICPUKernel（57 行）
-#   ✅ engines/aicpu/launcher/aicpu_launcher.cc      - LaunchKernel 真实，CreateRes 空
-#   ✅ engines/aicpu/launcher/kernel_launch.cc        - HcclLaunchAicpuKernel 真实（400 行）
-#   ❌ engines/aicpu/op_alg/allgather_mesh.cc         - 18 行伪代码（错别字 nhr_primitivces）
-#   ❌ engines/aicpu/op_alg/allgather_nhr.cc          - 19 行伪代码（类名大小写错乱）
-#   ❌ engines/aiv/launcher/load_kernel.cc            - 直接复制 aicpu 的，应重写
-#   ❌ engines/aiv/launcher/kernel_launch.cc          - 直接复制 aicpu 的，应重写
-
+# refactor/ops/template 主编译入口。
+# 这里放真正要进入 hccl target 的源码；临时验证、oracle 对比和单文件 check 放在 debug/CMakeLists.txt。
 target_sources(hccl PRIVATE
     primitives/mesh_allgather_planner.cc
     primitives/mesh_primitives.cc
@@ -39,40 +26,16 @@ target_sources(hccl PRIVATE
     # engines/aiv/launcher/kernel_launch.cc
 )
 
-option(REFACTOR_TEMPLATE_PLAN_DEBUG "Build refactor template planner debug tools" OFF)
+# template 层 debug/check 总开关。默认关闭。
+# 具体编译哪个单文件验证目标，由 debug/CMakeLists.txt 中的 REFACTOR_TEMPLATE_DEBUG_* 控制。
+option(REFACTOR_TEMPLATE_DEBUG "Enable refactor/ops/template debug/check targets" OFF)
+option(REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN "Build mesh allgather plan check target" OFF)
 
-if(REFACTOR_TEMPLATE_PLAN_DEBUG)
-    add_executable(mesh_allgather_plan_dump
-        debug/mesh_allgather_plan_dump.cc
-        primitives/mesh_allgather_planner.cc
-        debug/mesh_allgather_plan_debug_template_utils.cc
-        debug/mesh_allgather_plan_debug_log_stubs.cc
-    )
+if(REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN)
+    set(REFACTOR_TEMPLATE_DEBUG ON CACHE BOOL "Enable refactor/ops/template debug/check targets" FORCE)
+endif()
 
-    target_include_directories(mesh_allgather_plan_dump PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/debug/stubs
-        ${CMAKE_CURRENT_SOURCE_DIR}/../op_common
-        ${INCLUDE_LIST}
-        ${CMAKE_CURRENT_SOURCE_DIR}/primitives
-    )
-
-    target_compile_definitions(mesh_allgather_plan_dump PRIVATE
-        HOST_COMPILE
-        CANN_VERSION_NUM=${HCCL_CANN_VERSION_NUM}
-        $<$<BOOL:${BUILD_OPEN_PROJECT}>:OPEN_BUILD_PROJECT>
-        $<$<STREQUAL:${PRODUCT_SIDE},host>:_GLIBCXX_USE_CXX11_ABI=0>
-    )
-
-    target_compile_options(mesh_allgather_plan_dump PRIVATE
-        -fno-common
-        -fno-strict-aliasing
-        -pipe
-        -ffunction-sections
-        -fdata-sections
-        $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
-    )
-
-    target_link_options(mesh_allgather_plan_dump PRIVATE
-        -Wl,--gc-sections
-    )
+if(REFACTOR_DEBUG AND REFACTOR_TEMPLATE_DEBUG AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/debug/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/debug
+                     ${CMAKE_CURRENT_BINARY_DIR}/debug)
 endif()
