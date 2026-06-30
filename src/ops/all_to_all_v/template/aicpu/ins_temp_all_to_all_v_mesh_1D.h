@@ -46,7 +46,18 @@ private:
     HcclResult RunALLtoALL(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams);
     HcclResult PostCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const;
+    bool IsAlltoAllDetourCandidate() const;
+    bool IsAlltoAllDetourEnabled() const;
+    bool IsAlltoAllDetourDstRank(const u32 algRank) const;
+    bool ShouldSkipDirectSend(const u32 myAlgRank, const u32 remoteAlgRank) const;
+    bool ShouldSkipDirectRecv(const u32 myAlgRank, const u32 remoteAlgRank) const;
+    u32 CalcDetourScratchRank(const u32 dstAlgRank) const;
+    HcclResult RunDetourPreStage(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams, const u32 myAlgRank) const;
+    HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams, const u32 myAlgRank) const;
 
+    HcclCMDType opType_{HcclCMDType::HCCL_CMD_INVALID};
     u64 count_{0};
     u64 processSize_{0};
     std::vector<u64> sendCounts_;
