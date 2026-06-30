@@ -104,7 +104,10 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         resourceRequest.channels.push_back(resReqAG.channels[0]);
     }
 
-    HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][CalcRes] slaveThreadNum[%u], notifyNumOnMainThread[%u]",
+    HCCL_INFO("[InsV2AllReduceOrderPreservedExecutor][CalcRes] rankSize[%u], "
+        "RS slaveThreadNum[%u], AG slaveThreadNum[%u], merged slaveThreadNum[%u] (took max), "
+        "notifyNumOnMainThread[%u]",
+        rankSize_, resReqRS.slaveThreadNum, resReqAG.slaveThreadNum,
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
     return HCCL_SUCCESS;
 }
@@ -154,7 +157,12 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];
     tempResource.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
     tempResource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
-    
+
+    HCCL_INFO("[GenTempResource] channelLevelIdx[%u], allocatedThreads[%u] (1 main + %u slave), "
+        "totalThreadsAvailable[%u]",
+        channelLevelIdx, 1 + req.slaveThreadNum, req.slaveThreadNum,
+        static_cast<u32>(resCtx.threads.size()));
+
     return HCCL_SUCCESS;
 }
 
@@ -192,6 +200,14 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
         std::make_shared<InsAlgTemplateAG>(param, myRank_, resCtx.algHierarchyInfo.infos[0]);
     // 设置AllGather模板的通道映射
     agTempAlg->SetchannelsPerRank(remoteRankToChannelInfo_[0]);
+
+    // 日志：验证AG算法类型和线程解耦配置
+    AlgResourceRequest reqRSLog, reqAGLog;
+    rsTempAlg->GetRes(reqRSLog);
+    agTempAlg->GetRes(reqAGLog);
+    HCCL_INFO("[OrchestrateLoop] AG algorithm type[NHR], RS slaveThreadNum[%u], AG slaveThreadNum[%u], "
+        "AG threadNum formula[channelsPerRank_*2], RS threadNum formula[min(rankSize-1, MAX_THREADS=%u)]",
+        reqRSLog.slaveThreadNum, reqAGLog.slaveThreadNum, ORDER_PRESERVED_MAX_THREADS);
 
     TemplateResource rsTemplateAlgRes;
     CHK_RET(GenTempResource(resCtx, 0, rsTempAlg, rsTemplateAlgRes));
