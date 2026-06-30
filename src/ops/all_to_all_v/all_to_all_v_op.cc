@@ -490,7 +490,8 @@ HcclResult CheckAlltoAllVInputPara(const HcclComm comm, const void *sendBuf, con
     RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclAlltoAllV", "nullptr", "stream", "non-null pointer"}));
     CHK_PTR_NULL(stream);
-    CHK_PRT_RET(sendBuf == recvBuf,
+    // 空tensor场景下sendBuf/recvBuf可能都为nullptr，不能误判为inplace
+    CHK_PRT_RET(sendBuf != nullptr && recvBuf != nullptr && sendBuf == recvBuf,
         HCCL_ERROR("[HcclAlltoAllV] sendBuf and recvBuf cannot be the same, AlltoAllV does not support in-place operation."),
         HCCL_E_PARA);
 
