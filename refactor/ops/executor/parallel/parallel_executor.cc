@@ -170,7 +170,7 @@ HcclResult ParallelExecutor::GenTemplateDataParams(
 }
 
 void ParallelExecutor::GetParallelDataSplit(
-    u64 offset, u64 count, u32 childrenSize, vector<u64> childrenOffset, vector<u64> childrenCount)
+    u64 offset, u64 count, u32 childrenSize, std::vector<u64> &childrenOffset, std::vector<u64> &childrenCount) const
 {
     // 先均分数据，后续再看看是否需要优化
     childrenOffset.clear();
@@ -195,14 +195,14 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
     u64 offset, u64 count, u64 inputStride, u64 &outputStride)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
-    vector<u64> childrenOffset(childrenSize, offset);
-    vector<u64> childrenCount(childrenSize, count);
+    std::vector<u64> childrenOffset(childrenSize, offset);
+    std::vector<u64> childrenCount(childrenSize, count);
     u64 childrenInputStride = inputStride;
     u64 childrenOutputStride;
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PresyncByResTable(nodeAloExecDesc));
+            CHK_RET(PreSyncByResTable(nodeAloExecDesc));
         } else {
             // 如果是并行需要切分数据
             GetParallelDataSplit(offset, count, childrenSize, childrenOffset, childrenCount);

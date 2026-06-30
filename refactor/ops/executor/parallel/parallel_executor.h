@@ -19,6 +19,7 @@ private:
     HcclResult PreSyncByResTable(const AlgoExecDesc &execDesc);
     HcclResult PostSyncByResTable(const AlgoExecDesc &execDesc);
     void GetParallelDataSplit(
-        u64 offset, u64 count, u32 childrenSize, vector<u64> childrenOffset, vector<u64> childrenCount) const;
+        u64 offset, u64 count, u32 childrenSize, std::vector<u64> &childrenOffset,
+        std::vector<u64> &childrenCount) const;
 }
 } // namespace ops_hccl
