@@ -141,13 +141,6 @@ HcclResult ParallelExecutor::GenTemplateRes(
 HcclResult ParallelExecutor::GenTemplateDataParams(
     const AlgResourceCtxSerializable &resCtx, TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount)
 {
-    void *inputPtr = nullptr;
-    u64 inputSize = 0;
-    void *outputPtr = nullptr;
-    u64 outputSize = 0;
-    DataDesUnion dataDesUnion;
-    HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
-
     templateDataParams.buffInfo.inputPtr = dataInfo_.inputPtr;
     templateDataParams.buffInfo.outputPtr = dataInfo_.outputPtr;
     templateDataParams.buffInfo.hcclBuff = resCtx.cclMem;
