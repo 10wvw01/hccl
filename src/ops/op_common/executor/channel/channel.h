@@ -24,6 +24,12 @@ enum CommPlane {
 };
 constexpr u32 NORMAL_NOTIFY_NUM = 3;
 
+enum class CcuAllGatherChannelMode : u32 {
+    ORIGINAL = 0,
+    CLOS_V2 = 2,
+    CLOS_V3 = 3
+};
+
 HcclResult CalcLevel0ChannelRequest(const OpParam& param, const TopoInfo* topoInfo, AlgHierarchyInfo& algHierarchyInfo,
     const AlgType& algType, std::vector<HcclChannelDesc> &channels);
 HcclResult CalcLevel1ChannelRequest(const OpParam& param, const TopoInfo* topoInfo, AlgHierarchyInfo& algHierarchyInfo,
@@ -47,13 +53,19 @@ HcclResult CreateChannelRequestByRankId(HcclComm comm, const OpParam& param, u32
     std::vector<HcclChannelDesc> &channels, u32 channelRepeatNum = 1);
 HcclResult CalcChannelRequestMesh1DWithPriorityTopo(HcclComm comm, const OpParam &param, const TopoInfo *topoInfo,
                                                     const std::vector<std::vector<u32>> &subcommInfo,
-                                                    std::vector<HcclChannelDesc> &channels, CommTopo priorityTopo);
+                                                    std::vector<HcclChannelDesc> &channels, CommTopo priorityTopo,
+                                                    CcuAllGatherChannelMode channelMode =
+                                                        CcuAllGatherChannelMode::ORIGINAL,
+                                                    std::vector<u32> *mainChannelIdxByRank = nullptr,
+                                                    std::vector<u32> *sharedChannelIdxByRank = nullptr);
 HcclResult CalcChannelRequestNHRWithPriorityTopo(HcclComm comm, const OpParam &param, const TopoInfo *topoInfo,
                                                  const std::vector<std::vector<u32>> &subcommInfo,
                                                  std::vector<HcclChannelDesc> &channels, CommTopo priorityTopo);
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType);
 HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vector<HcclChannelDesc> &channels,
-                                  CommTopo priorityTopo);
+                                  CommTopo priorityTopo, CcuAllGatherChannelMode channelMode =
+                                      CcuAllGatherChannelMode::ORIGINAL,
+                                  u32 *mainChannelIdx = nullptr, u32 *sharedChannelIdx = nullptr);
 HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expectedProtocol, std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, 
                                                uint32_t netLayer, std::vector<HcclChannelDesc>& channels, bool isMesh, bool isClos, bool isIsolation = false);
 HcclResult GetProtocolByEngine(const OpParam& param, std::vector<CommProtocol> &protocols);

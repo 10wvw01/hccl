@@ -44,8 +44,53 @@ public:
     HcclResult PrepareLaunchArgs(const OpParam& param, const TemplateDataParams& templateDataParams,
                                  std::vector<uint64_t>& taskArgs, uint64_t& argSize);
 
+protected:
+    virtual bool UseClosV2ChannelSelection() const
+    {
+        return false;
+    }
+
+    virtual bool UseClosV3ChannelSelection() const
+    {
+        return false;
+    }
+
 private:
     uint32_t mySubCommRank_ = 0;
+};
+
+// CLOS v2 reuses the existing template and kernel; only its channel-selection policy differs.
+class CcuTempAllGatherMesh1DMem2MemClosV2 final : public CcuTempAllGatherMesh1DMem2Mem {
+public:
+    CcuTempAllGatherMesh1DMem2MemClosV2() = default;
+    explicit CcuTempAllGatherMesh1DMem2MemClosV2(const OpParam& param, const u32 rankId,
+        const std::vector<std::vector<u32>> &subCommRanks)
+        : CcuTempAllGatherMesh1DMem2Mem(param, rankId, subCommRanks)
+    {
+    }
+
+protected:
+    bool UseClosV2ChannelSelection() const override
+    {
+        return true;
+    }
+};
+
+// CLOS v3 also reuses the existing template and kernel, adding a shared-channel policy.
+class CcuTempAllGatherMesh1DMem2MemClosV3 final : public CcuTempAllGatherMesh1DMem2Mem {
+public:
+    CcuTempAllGatherMesh1DMem2MemClosV3() = default;
+    explicit CcuTempAllGatherMesh1DMem2MemClosV3(const OpParam& param, const u32 rankId,
+        const std::vector<std::vector<u32>> &subCommRanks)
+        : CcuTempAllGatherMesh1DMem2Mem(param, rankId, subCommRanks)
+    {
+    }
+
+protected:
+    bool UseClosV3ChannelSelection() const override
+    {
+        return true;
+    }
 };
 
 }// namespace ops_hccl

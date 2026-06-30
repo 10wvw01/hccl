@@ -43,6 +43,8 @@ struct AlgEnvConfig {
     u8 hcclDeterministic;
     bool aicpuUnfold; 
     uint8_t aicpuCacheEnable;
+    u32 ccuSelectMode; // 0: original, 1: CLOS v2, 2: CLOS v2 fixed link, 3: CLOS v3 shared link
+    u32 ccuMainSharedRatio;
     bool aivMode;
     bool aivOnlyMode;
     bool ccuMSMode;
@@ -71,6 +73,8 @@ struct AlgEnvConfig {
         enableFfts = true;
         taskExceptionEnable = true;
         aicpuCacheEnable = 1; // 默认开启aicpu cache (只有当aicpuUnfold为true时才生效)
+        ccuSelectMode = 3;
+        ccuMainSharedRatio = 80;
         aivOnlyMode = false;
         execTimeOutSet = false;
         execTimeout = 0;
@@ -147,6 +151,14 @@ HcclResult ParseDfsConfig();
 std::vector<std::string> SplitDfsConfig(const std::string &str, char delimiter);
 
 HcclResult ParseInconsistentCheckSwitch(const std::string &inconsistentCheckSwitch);
+
+HcclResult ParseCcuSelectMode();
+
+HcclResult ParseCcuMainSharedRatio();
+
+const u32& GetExternalInputCcuSelectMode();
+
+const u32& GetExternalInputCcuMainSharedRatio();
 
 const u32& GetExternalInputIntraRoceSwitch();
 

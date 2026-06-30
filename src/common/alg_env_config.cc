@@ -310,6 +310,18 @@ HcclResult InitEnvConfig()
             ret),
         ret);
 
+    ret = ParseCcuSelectMode();
+    CHK_PRT_RET(ret != HCCL_SUCCESS,
+        HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] parse CCU_SELECT_MODE failed. errorno[%d]",
+            HCCL_ERROR_CODE(ret), ret),
+        ret);
+
+    ret = ParseCcuMainSharedRatio();
+    CHK_PRT_RET(ret != HCCL_SUCCESS,
+        HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] parse CCU_MAIN_SHARED_RATIO failed. errorno[%d]",
+            HCCL_ERROR_CODE(ret), ret),
+        ret);
+
     g_algEnvConfig.initialized = true;
 
     return HCCL_SUCCESS;
@@ -1062,6 +1074,60 @@ HcclResult ParseInconsistentCheckSwitch(const std::string &inconsistentCheckSwit
     HCCL_INFO("[ParseInconsistentCheckSwitch] set by environment to [%s], inconsistentCheckSwitch[%d]",
         inconsistentCheckSwitch.c_str(), g_algEnvConfig.inconsistentCheckSwitch);
     return HCCL_SUCCESS;
+}
+
+HcclResult ParseCcuSelectMode()
+{
+    std::string ccuSelectMode = GetEnv("CCU_SELECT_MODE");
+    if (ccuSelectMode == "EmptyString") {
+        HCCL_INFO("CCU_SELECT_MODE is not set, default value is [%u].", g_algEnvConfig.ccuSelectMode);
+        return HCCL_SUCCESS;
+    }
+    if (ccuSelectMode == "0") {
+        g_algEnvConfig.ccuSelectMode = 0;
+    } else if (ccuSelectMode == "1") {
+        g_algEnvConfig.ccuSelectMode = 1;
+    } else if (ccuSelectMode == "2") {
+        g_algEnvConfig.ccuSelectMode = 2;
+    } else if (ccuSelectMode == "3") {
+        g_algEnvConfig.ccuSelectMode = 3;
+    } else {
+        HCCL_ERROR("CCU_SELECT_MODE[%s] is invalid, expect 0, 1, 2 or 3.", ccuSelectMode.c_str());
+        return HCCL_E_PARA;
+    }
+    HCCL_INFO("CCU_SELECT_MODE set by environment to [%u].", g_algEnvConfig.ccuSelectMode);
+    return HCCL_SUCCESS;
+}
+
+HcclResult ParseCcuMainSharedRatio()
+{
+    constexpr u32 ccuMainSharedRatioMinValue = 1;
+    constexpr u32 ccuMainSharedRatioMaxValue = 99;
+    std::string ccuMainSharedRatio = GetEnv("CCU_MAIN_SHARED_RATIO");
+    if (ccuMainSharedRatio == "EmptyString") {
+        HCCL_INFO("CCU_MAIN_SHARED_RATIO is not set, default value is [%u].", g_algEnvConfig.ccuMainSharedRatio);
+        return HCCL_SUCCESS;
+    }
+
+    u32 ratio = 0;
+    if (SalStrToULong(ccuMainSharedRatio, HCCL_BASE_DECIMAL, ratio) != HCCL_SUCCESS ||
+        ratio < ccuMainSharedRatioMinValue || ratio > ccuMainSharedRatioMaxValue) {
+        HCCL_ERROR("CCU_MAIN_SHARED_RATIO[%s] is invalid, expect 1-99.", ccuMainSharedRatio.c_str());
+        return HCCL_E_PARA;
+    }
+    g_algEnvConfig.ccuMainSharedRatio = ratio;
+    HCCL_INFO("CCU_MAIN_SHARED_RATIO set by environment to [%u].", g_algEnvConfig.ccuMainSharedRatio);
+    return HCCL_SUCCESS;
+}
+
+const u32 &GetExternalInputCcuSelectMode()
+{
+    return g_algEnvConfig.ccuSelectMode;
+}
+
+const u32 &GetExternalInputCcuMainSharedRatio()
+{
+    return g_algEnvConfig.ccuMainSharedRatio;
 }
 
 const u32 &GetExternalInputIntraRoceSwitch()
