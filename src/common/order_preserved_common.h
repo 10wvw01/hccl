@@ -47,26 +47,33 @@ inline OrderPreservedBaseParams InitOrderPreservedBaseParams(
     return params;
 }
 
-inline bool IsNeedStrictModeForOrderPreserved(const OpParam& opParam, u32 rankSize)
+// 规约保序支持的算子与数据类型组合：sum 支持 fp16/fp32/bfp16/fp64，prod 仅支持 fp64
+inline bool IsOrderPreservedCombinationSupported(HcclDataType dataType, HcclReduceOp reduceType)
 {
-    u8 deterministicLevel = GetExternalInputHcclDeterministic();
-    HcclDataType dataType = opParam.DataDes.dataType;
-    HcclReduceOp reduceType = opParam.reduceType;
-
-    // 规约保序支持的算子与数据类型组合：sum 支持 fp16/fp32/bfp16/fp64，prod 仅支持 fp64
-    bool isSupportedCombination = false;
     if (reduceType == HcclReduceOp::HCCL_REDUCE_SUM) {
-        isSupportedCombination = (dataType == HcclDataType::HCCL_DATA_TYPE_FP16 ||
+        return dataType == HcclDataType::HCCL_DATA_TYPE_FP16 ||
             dataType == HcclDataType::HCCL_DATA_TYPE_FP32 ||
             dataType == HcclDataType::HCCL_DATA_TYPE_BFP16 ||
-            dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
-    } else if (reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
-        isSupportedCombination = (dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
+            dataType == HcclDataType::HCCL_DATA_TYPE_FP64;
     }
+    if (reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
+        return dataType == HcclDataType::HCCL_DATA_TYPE_FP64;
+    }
+    return false;
+}
 
-    return (deterministicLevel == static_cast<u8>(DeterministicEnableLevel::DETERMINISTIC_STRICT))
-        && isSupportedCombination
-        && rankSize > MIN_STRICT_RANK_NUM_ORDER_PRESERVED;
+// 是否处于保序意图：strict 已开启且 rankSize 超过触发阈值
+inline bool IsOrderPreserveIntentActive(u32 rankSize)
+{
+    return (GetExternalInputHcclDeterministic() == static_cast<u8>(DeterministicEnableLevel::DETERMINISTIC_STRICT))
+        && (rankSize > MIN_STRICT_RANK_NUM_ORDER_PRESERVED);
+}
+
+// 是否需要保序模式：保序意图且组合支持。CCU_MS/CCU_SCHED/AIV 等 guard 复用，命中即回退到 AICPU
+inline bool IsNeedStrictModeForOrderPreserved(const OpParam& opParam, u32 rankSize)
+{
+    return IsOrderPreserveIntentActive(rankSize)
+        && IsOrderPreservedCombinationSupported(opParam.DataDes.dataType, opParam.reduceType);
 }
 
 } // namespace ops_hccl
