@@ -55,13 +55,15 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = RoundUp(dataCount_, maxProcCntPerLoop);
     u64 processCount = maxProCntPerLoop;
-    u64 tailCount = maxProCntPerLoop;
-    if (dataCount_ % maxProCntPerLoop != 0) {
-        tailCount = dataCount_ % maxProcCntPerLoop;
-    }
+    u64 offsetCount = 0;
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
+        if (dataCount_ % maxProCntPerLoop != 0) {
+            processCount = dataCount_ % maxProcCntPerLoop;
+        }
         // 子类实现
-        OrchestrateLoop(maxProcCntPerLoop, dataParams);
+        OrchestrateLoop(processCount, offsetCount);
+        // 偏移增加
+        offsetCount += processCount;
     }
     // TODO：储存队列和任务信息，用于FastLauch
     SaveCtx();

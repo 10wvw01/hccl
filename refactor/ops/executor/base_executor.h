@@ -19,8 +19,7 @@ protected:
 
     virtual u64 GetMaxProcCntPerLoop();
 
-    virtual HcclResult OrchestrateLoop(const BaseExecutorParam &baseExecutorParam,
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
+    virtual HcclResult OrchestrateLoop(u64 processCount, u64 offsetCount);
 
     // 通信域指针
     HcclComm hcclComm_;
@@ -34,6 +33,9 @@ protected:
     u32 root_ = INVALID_VALUE_RANKID;
     // dataInfo
     DataInfo dataInfo_;
+
+    // config
+    OpMode opMode_;
 
     // 拓扑分级信息
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
