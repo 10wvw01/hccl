@@ -18,11 +18,11 @@ private:
     inline void UpdateResTable(AlgoExecDesc &nodeAloExecDesc, const u32 subCommMask);
     HcclResult PreSyncByResTable(const AlgoExecDesc &execDesc);
     HcclResult PostSyncByResTable(const AlgoExecDesc &execDesc);
-    void GetParallelDataSplit(
-        u64 offset, u64 count, u32 childrenSize, std::vector<u64> &childrenOffset,
+    void GetParallelDataSplit(u64 offset, u64 count, u32 childrenSize, std::vector<u64> &childrenOffset,
         std::vector<u64> &childrenCount) const;
     // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
     HcclResult RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
         u64 sliceOffset, u64 sliceCount, u64 inputStride, u64 &outputStride);
+    void CalcOutputStride(u32 subCommIndex, u64 &outputStride);
 }
 } // namespace ops_hccl

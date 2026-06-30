@@ -188,13 +188,12 @@ HcclResult ParallelExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &r
     u64 sliceOffset, u64 sliceCount, u64 inputStride, u64 &outputStride)
 {
     std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
-    BaseTemplate baseTemplate
-        = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
+    BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
     CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
     // 根据inputStride和Topo信息计算outputStride;
-    CHK_RET(CalOutputStride(inputStride, outputStride));
+    CHK_RET(CalcOutputStride(templateExeDes->subCommIndex, outputStride));
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
     CHK_RET(GenTemplateDataParams(resCtx, templateDataParams, sliceOffset, sliceCount), inputStride, outputStride);
@@ -241,8 +240,13 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
     return HCCL_SUCCESS;
 }
 
-HcclResult ParallelExecutor::CalOutputStride(u64 inputStride, u64 &outputStride)
+void ParallelExecutor::CalcOutputStride(u32 subCommIndex, u64 &outputStride)
 {
+    outputStride = sliceCount;
+    for (u32 i = 1; i < subCommIndex; i++) {
+        outputStride *= subRankSize_.at(i - 1);
+    }
+    return;
 }
 
 } // namespace ops_hccl
