@@ -109,8 +109,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
                                             interTempRequest.ccuKernelInfos.begin(),
                                             interTempRequest.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(interTempRequest.ccuKernelNum[0]);
-        resourceRequest.channels.emplace_back(intraTempRequest.channels[0]);
-        resourceRequest.channels.emplace_back(interTempRequest.channels[0]);
+        resourceRequest.dieSplitRatio = interTempRequest.dieSplitRatio;
     }
     HCCL_DEBUG("[InsV2AllGatherParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
                "channels[%u]",
@@ -286,7 +285,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     myRank_ = resCtx.topoInfo.userRank;
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
-    if (param.engine != CommEngine::COMM_ENGINE_AIV) {
+    if (param.engine != CommEngine::COMM_ENGINE_AIV && param.engine != CommEngine::COMM_ENGINE_CCU) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
         intraLinkMap_ = remoteRankToChannelInfo_[0];
         interLinkMap_ = remoteRankToChannelInfo_[1];
@@ -318,7 +317,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     // 构建template
     InsAlgTemplate0 intraTempAlg(param, resCtx.topoInfo.userRank, intraHierarchyInfo_);
     InsAlgTemplate1 interTempAlg(param, resCtx.topoInfo.userRank, interHierarchyInfo_);
-    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS || param.engine == CommEngine::COMM_ENGINE_CCU) {
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
         interTempAlg.SetchannelsPerRank(interLinkMap_);
     }
     // 将计算资源分配个每个算法
@@ -433,7 +432,11 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         interTempAlgRes.ccuKernels.insert(interTempAlgRes.ccuKernels.end(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
-    } 
+        interTempAlgRes.dieSplitRatio = resCtx.dieSplitRatio;
+    } else {
+        intraTempAlgRes.channels = intraLinkMap_;
+        interTempAlgRes.channels = interLinkMap_;
+    }
     
     u64 processedCount = 0;
     u32 loopIndex = 0;
