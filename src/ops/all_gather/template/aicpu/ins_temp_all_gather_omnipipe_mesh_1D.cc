@@ -112,7 +112,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
             HCCL_INFO("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
                 "remoteRank[%u] in[%p] out[%p]", connectedRank, remoteIn, remoteOut);
         }
-
+        if (!supportSymmetricMemory_) {
         void* txSrcPtr;
         void* txDstPtr = remoteCclBuffAddr;
         void* rxSrcPtr = remoteCclBuffAddr;
@@ -229,7 +229,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
                         tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
             }
         }
-
+        }
         TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
