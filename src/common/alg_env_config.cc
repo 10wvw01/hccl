@@ -159,6 +159,13 @@ bool GetExternalInputMultipleDimensionSplitRatio(double &multipleDimensionSplitR
     return true;
 }
 
+ bool GetExternalInputTaskExceptionEnable() 
+ { 
+     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex); 
+     return g_algEnvConfig.taskExceptionEnable; 
+ } 
+ 
+ 
 /* 入口 */
 HcclResult InitEnvConfig()
 {

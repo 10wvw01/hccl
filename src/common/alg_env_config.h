@@ -53,6 +53,7 @@ struct AlgEnvConfig {
     double execTimeout;
     bool multipleDimensionSplitRatioSet;
     double multipleDimensionSplitRatio;
+     bool taskExceptionEnable;
     bool hcclRetryConfig[HCCL_RETRY_ENABLE_LEVEL_NUM];
     std::map<HcclCMDType, std::vector<HcclAlgoType>> hcclAlgoConfig;
     double hccl_rs_x_bw;
@@ -185,6 +186,7 @@ bool RunIndependentOpExpansion(DevType deviceType);
 
 bool GetExternalInputMultipleDimensionSplitRatio(double &multipleDimensionSplitRatio);
 
+bool GetExternalInputTaskExceptionEnable();
 HcclResult ParseBandWidthRSX(int flag=0);
 HcclResult ParseBandWidthRSY(int flag=0);
 HcclResult ParseBandWidthAGX(int flag=0);
