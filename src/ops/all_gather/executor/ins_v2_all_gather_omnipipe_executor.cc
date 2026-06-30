@@ -492,11 +492,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             }
         }
 
-        if (omniUbxLastStepRead_) {
-            CHK_RET(UbxLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo, 
-                        tempAlgParamMap, processedDataCount, level0StepCount));
-        }
-        else if (!param.supportSymmetricMemory) {
+        if (!param.supportSymmetricMemory) {
             for (u32 rank = 0; rank < rankSize_; rank++) {
                 DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
                                 currDataCount * dataTypeSize_, currDataCount);
@@ -506,6 +502,10 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             }
         }
         processedDataCount += currDataCount;
+        else if (omniUbxLastStepRead_) {
+            CHK_RET(UbxLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo, 
+                        tempAlgParamMap, processedDataCount, level0StepCount));
+        }
     }
     return HCCL_SUCCESS;
 }
