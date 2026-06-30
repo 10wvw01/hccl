@@ -5,26 +5,24 @@ public:
     BaseExecutor(HcclAlgorithm &algo, OpParam &param);
     ~BaseExecutor();
 
-    HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo,
-        AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo);
 
-    HcclResult Init(AlgHierarchyInfoForAllLevel &algHierarchyInfo);
+    virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    virtual HcclResult CalcRes(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
-
-    virtual HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
+    HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
-    // TODO: 目前仅用于CCU，理论上可扩展至所有模式
-    HcclResult FastLaunch();
-
 protected:
-    std::vector<std::vector<std::shared_ptr<BaseTemplate>>> GenAllTemplates(
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
-    
-    std::shared_ptr<BaseTemplate> GenTemplate(TemplateDesc templateDesc, std::vector<u32> &rankList);
-    
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
+
+    std::vector<std::map<u32, std::vector<ChannelInfo>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
+
+    virtual u64 GetMaxProcCntPerLoop();
+
+    virtual HcclResult OrchestrateLoop(u64 processCount, u64 offsetCount);
+
+    // 通信域指针
+    HcclComm hcclComm_;
 
     // algo
     HcclAlgorithm algo_;
@@ -35,6 +33,9 @@ protected:
     u32 root_ = INVALID_VALUE_RANKID;
     // dataInfo
     DataInfo dataInfo_;
+
+    // config
+    OpMode opMode_;
 
     // 拓扑分级信息
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
@@ -48,12 +49,21 @@ protected:
     std::vector<ThreadHandle> threads_;
     std::vector<std::vector<ThreadHandle>> subThreads_;
     // [Notify资源]
-    std::vector<u32> syncNotifyOnMain_;
-    // vector外层表示stage，内层第一个元素表示intra的最后一个notifyid，第二个元素表示inter的最后一个notifyid，内层可扩展
-    std::vector<std::vector<u32>> syncNotifyOnTemplates_;
+    std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
     std::vector<std::map<u32, std::vector<ChannelInfo>> channelTable_;
+
+    std::vector<u32> maxSlaveThreadNum_;
+    std::vector<u32> maxNotifyNumOnMainThread_;
+    std::vector<u32> maxNotifyNumPerThread_;
+
+    // 递归后用于保存算法执行所需要的流同步信息
+    std::map<AlgoExecDesc, AlgoExecRes> resTable_;
+    struct AlgoExecRes {
+        // 数组下表表示templateTopoIndex
+        u32 subCommMask;
+    };
 };
 
 

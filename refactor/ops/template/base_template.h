@@ -24,35 +24,26 @@ public:
     explicit BaseTemplate(const u32 myRank_, const std::vector<u32> &ranks, HcclAlgEngineType engineType, TemplateDesc templateDesc);
 
     /**
-     * 根据算法层级信息与算法描述，规划参与通信的 rank 列表。
+     * 计算算法所需的资源请求（notify、channel、thread 等）。
      * 工作流程：
      *   1. 依据 alg 的算法类型（NHR/Mesh）选择对应的 rank 获取方式；
      *   2. NHR 算法调用 getNhrRanks 获取Clos拓扑连接的 rank 列表；
      *   3. Mesh 算法调用 getMeshRanks 获取 Mesh 拓扑连接的 rank 列表；
      *   4. 将结果保存到 ranks_ 成员中供后续 CalcRes/Orchestrate 使用。
-     * 返回值：
-     *   - HCCL_SUCCESS: 规划成功
-     *   - HCCL_E_PARA: 参数非法（如未知算法类型）
-     *   - HCCL_E_INTERNAL: 获取 rank 列表失败
-     */
-    HcclResult Init() {
-        // TODO： 实现
-    }
-
-    /**
-     * 计算算法所需的资源请求（notify、channel、thread 等）。
-     * 工作流程：
-     *   1. 基于 ranks_ 中已规划的 rank 列表确定通信规模；
-     *   2. 根据 AlgType 计算所需线程数与 notify 数；
-     *   3. 生成资源请求列表返回给 executor 汇总。
+     *   5. 基于 ranks_ 中已规划的 rank 列表确定通信规模；
+     *   6. 根据 AlgType 计算所需线程数与 notify 数；
+     *   7. 生成资源请求列表返回给 executor 汇总。
+     * 输入参数：
+     *   - comm：通信域上下文
      * 输出参数：
      *   - res: 资源请求列表，每项描述一个层级所需的 channel/notify/thread
      * 返回值：
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
-    HcclResult CalcRes(std::vector<AlgResourceRequest> &res) {
+    HcclResult CalcRes(HcclComm comm, std::vector<AlgResourceRequest> &res) {
         // TODO： 实现
+        // 把Init放在CalcRes里面实现
     }
 
     /**

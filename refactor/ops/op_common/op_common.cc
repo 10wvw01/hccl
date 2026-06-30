@@ -5,9 +5,9 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
 
      engineType = alg.GetEngine()
      executor = alg.GetExecutor(param)
-     AlgHierarchyInfoForAllLevel algHierarchyInfo = executor.CalcAlgHierarchyInfo(alg.topoMatch)
-     executor.Init(algHierarchyInfo)  // executor.Plan -> template1: BaseTemplate.Plan + template2: BaseTemplate.Plan
-     vector<Res> res = executor.CalcRes(algHierarchyInfo)  // executor.CalcRes -> template1: BaseTemplate.CalcRes + template2: BaseTemplate.CalcRes
-     engine.CreateRes(res)  // 不同引擎创建资源的方式不同 aicpu -> Channel、notify、 thread  ;  aiv -> channel 、共享内存;   ccu -> cclMem 、notify、thread、channel
+     executor.CalcAlgHierarchyInfo(comm, topoInfo)
+     AlgResourceRequest resReq;
+     executor.CalcRes(resReq)  // executor.CalcRes -> template1: BaseTemplate.CalcRes + template2: BaseTemplate.CalcRes
+     engine.CreateRes(resReq)  // 不同引擎创建资源的方式不同 aicpu -> Channel、notify、 thread  ;  aiv -> channel 、共享内存;   ccu -> cclMem 、notify、thread、channel
      engine.LaunchKernel(param, executor)  //aicpuEngine.LaunchKernel()
 }
