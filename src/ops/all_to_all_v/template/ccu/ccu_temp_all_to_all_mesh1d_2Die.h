@@ -42,7 +42,7 @@ private:
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;
     uint32_t fullmeshDieId_ = 0;
-    std::vector<u8> diePortGroupSize_{1, 0};
+    double dieSplitRatio_ = 1.0;
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
     std::vector<HcclChannelDesc> kernelChannels_[MAX_KERNEL_NUM_2DIE];
     std::vector<RankId> kernelRankGroup_[MAX_KERNEL_NUM_2DIE];

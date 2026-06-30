@@ -120,6 +120,17 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPara
         CHK_RET(ReverseChannelPerDieIfNeed(comm, myRank_, channelsPerDie));
     }
 
+    double ratio = 1.0;
+    if (dieNum == 2) {
+        uint32_t p0 = 0, p1 = 0;
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, channelsPerDie[0][0], p0));
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, channelsPerDie[1][0], p1));
+        if (p0 + p1 > 0) {
+            ratio = static_cast<double>(p0) / (p0 + p1);
+        }
+    }
+    resourceRequest.dieSplitRatio = ratio;
+
     // 3.构造kernelInfo
     for (uint32_t kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
         // 创建每个kernel的ctxArg，放入kernelInfo, 然后将kernelinfo放入resourceRequest.ccuKernelInfos
@@ -221,7 +232,7 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& pa
         return HcclResult::HCCL_SUCCESS;
     }
 
-    die0Size = (dataCount * diePortGroupSize_[0] / (diePortGroupSize_[0] + diePortGroupSize_[1])) * typeSize;
+    die0Size = static_cast<uint64_t>(dataCount * dieSplitRatio_) * typeSize;
     die1Size = sliceSize - die0Size;
     HCCL_INFO("[CcuTempReduceScatterNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
@@ -245,7 +256,9 @@ HcclResult CcuTempReduceScatterNHR1DMem2Mem::KernelRun(const OpParam& param,
     uint64_t die0LastSliceSize = 0;
     uint64_t die1LastSliceSize = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, diePortGroupSize_));
+    if (templateResource.dieSplitRatio > 0.0) {
+        dieSplitRatio_ = templateResource.dieSplitRatio;
+    }
     SplitDataFor2Dies(param, templateDataParams.sliceSize, die0Size, die1Size);
     SplitDataFor2Dies(param, templateDataParams.tailSize, die0LastSliceSize, die1LastSliceSize);
     uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
