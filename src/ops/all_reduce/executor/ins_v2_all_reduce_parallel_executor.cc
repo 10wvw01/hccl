@@ -1073,7 +1073,7 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReducePar
     InsAllReduceParallelExecutor, TopoMatchPcieMix, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR,
     InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceParallelRSAGUBX, InsAllReduceParallelExecutor,
-    TopoMatchUBX, InsTempReduceScatterMesh1DChunk, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
+    TopoMatchUBX, InsTempReduceScatterMesh1DMeshChunk, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReduceParallelRSAGDpu, InsAllReduceParallelExecutor,
     TopoMatchSqueeze2D, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
