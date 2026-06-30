@@ -415,7 +415,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpuUBX(const TopoInfoWithN
         selectAlgName = "InsAllReduceParallelRSAGUBX";
     } else {
         // 其他场景，用1d NHR算法
-        selectAlgName = "InsAllReduceNHR";
+        selectAlgName = "InsAllReduceParallelRSAGUBX";
     }
 
     HCCL_DEBUG("[AllReduceAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());

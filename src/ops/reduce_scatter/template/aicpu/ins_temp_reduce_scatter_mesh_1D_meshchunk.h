@@ -1,4 +1,4 @@
-/**
+﻿/**
 * Copyright (c) 2025 Huawei Technologies Co., Ltd.
 * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -54,8 +54,8 @@ private:
     HcclResult DoMeshChunk(
         const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads,
-        const TemplateDataParams &tempAlgParams, const std::vector<uint64_t> &sliceSize, const u32 &repeatNum,
-        const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_, const uint64_t &sliceRecvBaseOffset);
+        const TemplateDataParams &tempAlgParams, const std::vector<uint64_t> &sliceSize, const uint64_t &mySliceSize, const u32 &repeatNum,
+        const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_);
     void NotifyIdxMainToSubInMeshChunk(std::vector<u32> &notifyIdxMainToSub);
     void NotifyIdxSubToMainInMeshChunk(std::vector<u32> &notifyIdxSubToMain);
     u64 processSize_{0};
