@@ -43,6 +43,7 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     if (tailSize > 0) {
         CHK_RET(CalcDataSplitByPortGroupCommon(tailSize / dataTypeSize, dataTypeSize, portGroup, ecT, sizeTail, elemOffsetTail, channelsPerRank));
     }
+    // TODO: 1. 数据分片放在sendrecv做； 2. 场景兼容： omnipipe、meshchunk等算法变体分析是否能兼容到当前框架，可以提struct、新的primitives.cc/h
 
     u32 t = 0;
     for (u32 i = 1; i < rankSize; ++i) {
@@ -67,6 +68,7 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     return HCCL_SUCCESS;
 }
 
+    // TODO: 数据分片放在sendrecv做； 场景兼容； omnipipe、meshchunk算法变体分析是否能兼容到当前框架
 HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                                 EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {

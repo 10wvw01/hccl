@@ -58,6 +58,20 @@ u64 InsTempAllGatherMesh1D::CalcScratchMultiple(BufferType inBuffType, BufferTyp
     return scratchMultiple;
 }
 
+// template编排入口
+// 内部核心动作：
+// LocalDataCopy(...) --准备数据
+// RunAllGatherMesh(...) --真正和其他rank交换数据
+// PostLocalCopy(...) -- 必要时做收尾拷贝
+// 流程：
+// 1. 保存参数
+// 2. 如果数据大小为 0，直接成功返回
+// 3. 本地拷贝自己的数据
+// 4. 如果只有 1 个 rank，不需要通信
+// 5. 多线程场景下，通信前先同步
+// 6. 调 RunAllGatherMesh 做真正通信
+// 7. 多线程场景下，通信后同步
+// 8. 返回成功
 HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
                                              TemplateResource &templateResource)
 {
@@ -76,6 +90,7 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
     tempAlgParams_ = tempAlgParams;
     dataType_ = param.DataDes.dataType;
     HCCL_DEBUG("[InsTempAllGatherMesh1D] Rank [%d], get threadNum_[%d].", myRank_, threadNum_);
+    // 把用户输入整理成模板内部期望的标准布局
     CHK_RET(LocalDataCopy(templateResource.threads));
     if (templateRankSize_ == 1) {
         return HcclResult::HCCL_SUCCESS;
@@ -97,33 +112,41 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
     return HcclResult::HCCL_SUCCESS;
 }
 
+// 入参：用什么执行线程发任务、某个rank的通信通道
+// 返回：执行状态成功、失败
+// allgather目标：所有rank拿到所有结果
+// mesh方式：每个 rank 和其他所有 rank 各通信一次
 HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHandle> &threads,
                                                     const std::map<u32, std::vector<ChannelInfo>> &channels)
 {
     HCCL_INFO("[InsTempAllGatherMesh1D] RunAllGatherMesh RankIDs[%d].", myRank_);
+    
+    // myranks_是哪里传进来的，是指全局通信域下的randid吗
 
     u32 myAlgRank = 0;
+    // 计算子通信域下的myalgrank：myRank_ -> subCommRanks_[0]:myAlgRank
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     for (u32 threadIdx = 0; threadIdx < subCommRanks_[0].size() - 1; threadIdx++) {
+        //计算通信对端的全局通信域的rankid
         u32 connectedRank = subCommRanks_[0][(myAlgRank + 1 + threadIdx) % subCommRanks_[0].size()];
-
+        // 计算通信对短的子通信域的rankid
         u32 connectedAlgRank = 0;
         CHK_RET(GetAlgRank(connectedRank, subCommRanks_[0], connectedAlgRank));
         HCCL_INFO("[InsTempAllGatherMesh1D] RunAllGatherMesh RankIDs[%d], connectedRank[%d], connectedAlgRank[%d].",
                     myRank_, connectedRank, connectedAlgRank);
-
+        //HCCL_ERROR 防御条件 略
         CHK_PRT_RET(threadIdx >= threads.size() || channels.count(connectedRank) == 0 ||
                     channels.at(connectedRank).empty(),
                     HCCL_ERROR("[InsTempAllGatherMesh1D][RankID]=%u threadIdx=%u, threads.size=%u, "
                                 "connectedRank=%d, channels.size=%u",
                                 myRank_, threadIdx, threads.size(), connectedRank, channels.size()),
                     HcclResult::HCCL_E_INTERNAL);
-
+        // 拿到对端通信通道第一条和对端CCL buffer地址
         const ChannelInfo &linkRemote = channels.at(connectedRank)[0];
         void *remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
         
-        // 对称内存下，远端地址需要通过HcclSymWinGetPeerPointer获取
+        // 对称内存下，远端地址不能直接用channel地址，需要通过HcclSymWinGetPeerPointer获取
         void *remoteIn = nullptr;
         void *remoteOut = nullptr;
         if (supportSymmetricMemory_) {
@@ -141,12 +164,18 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
             HCCL_INFO("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
                 "remoteRank[%u] in[%p] out[%p]", connectedRank, remoteIn, remoteOut);
         }
-
+        // txSrcSlicesAll：我要发送的数据，从我本地哪里读
+        // txDstSlicesAll：我要把数据写到对端哪里
+        // rxSrcSlicesAll：我要从对端哪里读
+        // rxDstSlicesAll：收到的数据放到我本地哪里
         std::vector<DataSlice> txSrcSlicesAll;
         std::vector<DataSlice> txDstSlicesAll;
         std::vector<DataSlice> rxDstSlicesAll;
         std::vector<DataSlice> rxSrcSlicesAll;
-
+        
+        // 注意 scratch 用的是 sliceSize 当 stride，而 output 用的是 outputSliceStride
+        // output 可能有自己的 stride
+        // scratch 通常紧密排列，用 sliceSize * rank
         for (u32 rpt = 0; rpt < tempAlgParams_.repeatNum; ++rpt) {
             const u64 outBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff + rpt * tempAlgParams_.outputRepeatStride;
             const u64 scratchRepeatStride = tempAlgParams_.sliceSize * templateRankSize_;
@@ -156,6 +185,10 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
             if (tempAlgParams_.tailSize != 0 && connectedAlgRank == templateRankSize_ - 1) {
                 sliceSize = tempAlgParams_.tailSize;
             }
+            // txSrcPtr + txOutOffset 本地
+            // txDstPtr + txDstOffset 对端
+            // rxSrcPtr + rxSrcOffset 对端
+            // rxDstPtr + rxOutOffset 本地
             u64 txOutOffset = tempAlgParams_.outputSliceStride * myAlgRank + outBaseOff;
             u64 rxOutOffset = tempAlgParams_.outputSliceStride * connectedAlgRank + outBaseOff;
             u64 txDstOffset = 0;
@@ -179,7 +212,9 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
                 rxSrcPtr = remoteOut;
             }
             u64 sliceCount = sliceSize / dataTypeSize;
-
+            // 构造并追加到vector里一个dataslice
+            // 意味着：和某个 connectedRank 通信时，所有 repeat 的 slice 都攒到一个 vector 里，一次性交给 SendRecv。
+            // 有几个repeat最后这四个数组里就有几个dataslice
             txSrcSlicesAll.emplace_back(txSrcPtr, txOutOffset, sliceSize, sliceCount);
             txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, sliceSize, sliceCount);
             rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, sliceSize, sliceCount);
@@ -201,10 +236,17 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
                         "offset[%d] sliceSize[%d] count[%d].",
                         myRank_, connectedRank, rpt, rxSrcOffset, sliceSize, sliceCount);
         }
-
+        // 告诉wrapper发送、接收方向怎么搬运
+        // 用什么channel 本地与对端建立的是同一条linkRemote链接
+        // 合并channel和slice信息
+        // 怎么知道和谁通信：
+        // 算法层：connectedRank 决定和谁通信
+        // 资源层：channels.at(connectedRank) 给出怎么通信
+        // 执行层：SendRecvInfo 把 channel + slice 打包后执行
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
+        // 在 threads[threadIdx] 这条执行队列上，按 sendRecvInfo 描述执行一次双向通信（消费sendRecvInfo
         CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[threadIdx]),
                     HCCL_ERROR("[InsTempAllGatherMesh1D] RunAllGather Send failed"), HcclResult::HCCL_E_INTERNAL);
         }
