@@ -31,8 +31,10 @@ VERSION_INFO="8.5.0"
 ENABLE_EXPERIMENTAL="false"
 ENABLE_UT="off"
 ENABLE_ST="off"
+ENABLE_GCOV="off"
 CMAKE_BUILD_TYPE="Debug"
 BUILD_CB_TEST="false"
+BUILD_ST_DIR=${CURRENT_DIR}/test/st/algorithm/build
 
 # 自定义算子工程
 ENABLE_CUSTOM="off"
@@ -472,12 +474,61 @@ function run_st() {
     echo "st_build_shell = ${st_build_shell}"
     if [ -e ${st_build_shell} ]; then
       echo "开始执行st..."
+      export ENABLE_GCOV=${ENABLE_GCOV}
       bash ${st_build_shell}
     else
       echo "${st_build_shell} 文件不存在!"
     fi
   else
     echo "System tests is not enabled, sh build.sh with parameter -s or --st to enable it"
+  fi
+}
+
+function make_st_gov() {
+    # 生成 ST 覆盖率报告
+    if [[ "X$ENABLE_ST" = "Xon" && "X$ENABLE_GCOV" = "Xon" ]]; then
+        log "Info: Generating ST coverage statistics, please wait..."
+        rm -rf ${CURRENT_DIR}/cov
+        mk_dir ${CURRENT_DIR}/cov
+        cd ${CURRENT_DIR}/cov
+
+        # 解析 lcov 版本号
+        local major_version
+        if ! major_version=$(set -o pipefail; lcov --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)*' | head -1 | cut -d. -f1); then
+            log "Error: Failed to parse lcov major version number, please check 'lcov --version'" >&2
+            exit 1
+        fi
+
+        # 适配 lcov 2.x 版本，支持并行处理覆盖率报告
+        if [[ "${major_version}" -ge 2 ]]; then
+            log "Info: Detected lcov version 2.x, running with ${CPU_NUM} parallel jobs"
+            LCOV_IGNORE_ERRORS="mismatch,corrupt,empty,inconsistent,negative,unused"
+            LCOV_RC_PARAM=""
+            LCOV_PARALLEL="-j ${CPU_NUM}"
+            GENHTML_IGNORE_ERRORS="inconsistent,corrupt"
+        else
+            LCOV_IGNORE_ERRORS=""
+            LCOV_RC_PARAM=""
+            LCOV_PARALLEL=""
+            GENHTML_IGNORE_ERRORS=""
+        fi
+
+        # 捕获覆盖率数据
+        lcov -c \
+             ${LCOV_PARALLEL} \
+             -d ${BUILD_ST_DIR}/ \
+             --ignore-errors "${LCOV_IGNORE_ERRORS}" "${LCOV_RC_PARAM}" \
+             -o coverage.info
+
+        # 提取目标路径
+        lcov -e coverage.info \
+                */src/* \
+             ${LCOV_PARALLEL} \
+             --ignore-errors "${LCOV_IGNORE_ERRORS}" \
+             -o coverage.info
+
+        genhtml coverage.info ${LCOV_PARALLEL} --ignore-errors "${GENHTML_IGNORE_ERRORS}"
+        log "Info: ST coverage statistics generated successfully"
   fi
 }
 
@@ -670,6 +721,7 @@ while [[ $# -gt 0 ]]; do
         ;;
     --cov)
         COV="true"
+        ENABLE_GCOV="on"
         shift
         ;;
     --sign-script=*)
@@ -736,11 +788,11 @@ if [ "${ENABLE_EXPERIMENTAL}" == "true" ];then
 fi
 
 if [ "${ASAN}" == "true" ];then
-    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_ASAN=true"
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_ASAN=ON"
 fi
 
 if [ "${COV}" == "true" ];then
-    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=true"
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=ON"
 fi
 
 if [ -n "${ascend_package_path}" ];then
@@ -784,7 +836,13 @@ if [ "${ENABLE_UT}" == "on" ]; then
     build_ut
     run_ut
 elif [ "${ENABLE_ST}" == "on" ]; then
-    run_st
+    ST_RET=0
+    run_st || ST_RET=$?
+    make_st_gov
+    if [ "${ST_RET}" -ne 0 ]; then
+        log "Error: ST tests failed"
+        exit ${ST_RET}
+    fi
 elif [ -n "${TEST}" ];then
     build_test
 elif [ "${ENABLE_CUSTOM}" == "on" ]; then
