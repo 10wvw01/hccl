@@ -157,6 +157,7 @@ struct TimerEntry {
  
 class HcclTimer {
   public:
+    static bool startTrack;
     static uint64_t timerCounter;
     static std::vector<TimerEntry> timerEntries;
     u64 GetCurAicpuTimestamp()
@@ -167,15 +168,19 @@ class HcclTimer {
     }
     explicit HcclTimer(const std::string &name)
     {
-        timerCounter++;
-        timerIdx = timerEntries.size();
-        timerEntries.emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+        if (startTrack) {
+            timerCounter++;
+            timerIdx = timerEntries.size();
+            timerEntries.emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+        }
     }
  
     ~HcclTimer()
     {
-        timerEntries[timerIdx].endTime = GetCurAicpuTimestamp();
-        timerCounter--;
+        if (timerIdx < timerEntries.size()) {
+            timerEntries[timerIdx].endTime = GetCurAicpuTimestamp();
+            timerCounter--;
+        }
     }
  
     static void DumpTimerLogs() {
@@ -186,7 +191,7 @@ class HcclTimer {
     }
  
   private:
-    size_t timerIdx;
+    size_t timerIdx = 0;
 };
  
 class HcclTimerDumper {
