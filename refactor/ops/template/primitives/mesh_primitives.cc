@@ -15,9 +15,8 @@ namespace ops_hccl {
 
 namespace {
 
-// Direct-call primitives receive a flat rank list instead of the old template's
-// cached subCommRanks_. Keep the conversion local so every planner path can use
-// the same "algorithm rank" index in offset formulas.
+// 直接函数调用的 primitive 收到的是扁平 ranks 列表，不再持有旧 template 缓存的 subCommRanks_。
+// 这里统一完成 rank 到算法内 rank index 的转换，保证各 planner 分支使用同一套 offset 下标语义。
 HcclResult GetRankIndex(const std::vector<u32> &ranks, u32 rank, u32 &rankIdx)
 {
     const u32 rankSize = static_cast<u32>(ranks.size());
@@ -35,17 +34,16 @@ MeshAllGatherSendRecvMode ResolveMeshAllGatherSendRecvMode(const TemplateDataPar
                                                            const TemplateResource &templateResource,
                                                            const MeshAllGatherPrimitiveOptions &options)
 {
-    // Z-axis old code switches read/write from buffer types. Other variants will
-    // be moved here as they are ported, keeping SendRecv selection out of the
-    // execution loop.
+    // Z-axis 旧代码会根据 buffer 类型切换 read/write 模式。
+    // 其他变体在迁移时也应把 SendRecv 模式选择收敛到这里，避免执行循环里夹杂变体判断。
     if (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) {
         bool dmaRead = (tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
                         tempAlgParams.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
         return dmaRead ? MeshAllGatherSendRecvMode::DMA_READ : MeshAllGatherSendRecvMode::BATCH_WRITE;
     }
 
-    // Ordinary AICPU Mesh AllGather uses SendRecvRead; the current extracted common split kept
-    // the old IsPcieProtocol branch. Keep that behavior until each variant is wired explicitly.
+    // 普通 AICPU Mesh AllGather 使用 SendRecvRead；当前已抽取的 common split 保留了旧的 IsPcieProtocol 分支。
+    // 在各变体显式接入之前，兼容入口继续保留这个行为。
     return IsPcieProtocol(templateResource.channels) ?
         MeshAllGatherSendRecvMode::DMA_READ : MeshAllGatherSendRecvMode::BATCH_WRITE;
 }
@@ -55,10 +53,9 @@ HcclResult BuildMeshAllGatherCommonChannelSplitPlan(const TemplateDataParams &te
                                                     const std::vector<u32> &ranks, u32 myRank,
                                                     MeshAllGatherSlicePlan &plan)
 {
-    // This mirrors the currently extracted RunMeshAllGather behavior: split one
-    // peer's slice across all channels in the peer's port group, then emit one
-    // task per peer/channel. It is intentionally separate from NORMAL_FIXED
-    // because old ordinary Mesh AllGather used channel[0] and did not do this.
+    // 这里复刻当前已抽取 RunMeshAllGather 的行为：把一个 peer 的 slice 切到该 peer port group 的所有
+    // channel 上，然后每个 peer/channel 生成一个 task。
+    // 它必须和 NORMAL_FIXED 分开，因为旧普通 Mesh AllGather 只用 channel[0]，没有这层 channel 再切片。
     const u32 rankSize = static_cast<u32>(ranks.size());
     u32 myRankIdx = 0;
     CHK_RET(GetRankIndex(ranks, myRank, myRankIdx));
@@ -95,9 +92,9 @@ HcclResult BuildMeshAllGatherCommonChannelSplitPlan(const TemplateDataParams &te
             task.channelIdx = ch;
             task.threadIdx = t++;
             task.link = &link;
-            // These four slices are the executable boundary of the planner:
-            // txSrc/txDst describe the local data this rank exposes to peer;
-            // rxSrc/rxDst describe where this rank reads peer data from and stores it.
+            // 这四组 slice 是 planner 输出给执行层的边界：
+            // txSrc/txDst 描述本 rank 暴露给 peer 的本地数据；
+            // rxSrc/rxDst 描述本 rank 从哪里读取 peer 数据，以及最终写到哪里。
             task.txSrcSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, myOff, mySz, mySz / dataTypeSize);
             task.txDstSlices.emplace_back(link.remoteCclMem.addr, myOff, mySz, mySz / dataTypeSize);
             task.rxSrcSlices.emplace_back(link.remoteCclMem.addr, peerOff, peerSz, peerSz / dataTypeSize);
@@ -113,13 +110,12 @@ HcclResult BuildMeshAllGatherNormalFixedPlan(const TemplateDataParams &tempAlgPa
                                              const std::vector<u32> &ranks, u32 myRank,
                                              MeshAllGatherSlicePlan &plan)
 {
-    // TODO: port old InsTempAllGatherMesh1D::RunAllGatherMesh exactly:
-    // 1. use one channel per peer: channels.at(peerRank)[0]
-    // 2. build one DataSlice per repeat
-    // 3. preserve outputPtr/remoteCclMem/remoteOutputGraphMode/symmetric-memory address selection
-    // 4. preserve tail handling: connectedAlgRank == rankSize - 1
-    // The current common split path intentionally remains separate because it is not equivalent
-    // to ordinary Mesh AllGather when channelsPerRank > 1.
+    // TODO: 精确迁移旧 InsTempAllGatherMesh1D::RunAllGatherMesh：
+    // 1. 每个 peer 只使用一个 channel：channels.at(peerRank)[0]
+    // 2. 每个 repeat 构造一个 DataSlice
+    // 3. 保留 outputPtr/remoteCclMem/remoteOutputGraphMode/symmetric-memory 的地址选择逻辑
+    // 4. 保留 tail 处理：connectedAlgRank == rankSize - 1
+    // 当前 common split 路径故意单独保留，因为 channelsPerRank > 1 时它与普通 Mesh AllGather 不等价。
     (void)tempAlgParams;
     (void)templateResource;
     (void)ranks;
@@ -133,8 +129,8 @@ HcclResult BuildMeshAllGatherVariableCountPlan(const TemplateDataParams &tempAlg
                                                const std::vector<u32> &ranks, u32 myRank,
                                                MeshAllGatherSlicePlan &plan)
 {
-    // TODO: port old InsTempAllGatherVMesh1D::RunAllGatherVMesh:
-    // allRankSliceSize/allRankDispls/allRankProcessedDataCount decide per-rank offset/size.
+    // TODO: 迁移旧 InsTempAllGatherVMesh1D::RunAllGatherVMesh：
+    // allRankSliceSize/allRankDispls/allRankProcessedDataCount 决定每个 rank 的 offset/size。
     (void)tempAlgParams;
     (void)templateResource;
     (void)ranks;
@@ -148,9 +144,9 @@ HcclResult BuildMeshAllGatherOmniPipeStepPlan(const TemplateDataParams &tempAlgP
                                               const std::vector<u32> &ranks, u32 myRank,
                                               MeshAllGatherSlicePlan &plan)
 {
-    // TODO: port old InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh:
+    // TODO: 迁移旧 InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh：
     // stepSliceInfo.{stepSliceSize,stepCount,stepInputSliceStride,stepOutputSliceStride,
-    // inputOmniPipeSliceStride,outputOmniPipeSliceStride} decide each step slice.
+    // inputOmniPipeSliceStride,outputOmniPipeSliceStride} 决定每个 step 的 slice。
     (void)tempAlgParams;
     (void)templateResource;
     (void)ranks;
@@ -165,11 +161,11 @@ HcclResult BuildMeshAllGatherZAxisDetourPlan(const TemplateDataParams &tempAlgPa
                                              const ZAxisDetourConfig &zAxis,
                                              MeshAllGatherSlicePlan &plan)
 {
-    // TODO: port old InsTempAllGatherMesh1D1DZAxisDetour:
-    // 1. resource planner must preserve level0/level1 channel boundary in zAxis
-    // 2. call CalcDataSplitByPortGroupZAxisDetour(totalCount, dataTypeSize, peerChannels, ...)
-    // 3. build DataSlice with elemOffset/sizeOut per channel
-    // 4. use the same dmaRead tail rule as CalcSliceSizeForChannel
+    // TODO: 迁移旧 InsTempAllGatherMesh1D1DZAxisDetour：
+    // 1. resource planner 必须把 level0/level1 channel 边界保存在 zAxis 中
+    // 2. 调用 CalcDataSplitByPortGroupZAxisDetour(totalCount, dataTypeSize, peerChannels, ...)
+    // 3. 基于每个 channel 的 elemOffset/sizeOut 构造 DataSlice
+    // 4. 使用与 CalcSliceSizeForChannel 一致的 dmaRead tail 规则
     (void)tempAlgParams;
     (void)templateResource;
     (void)ranks;
@@ -184,8 +180,8 @@ HcclResult BuildMeshAllGatherMeshChunkPlan(const TemplateDataParams &tempAlgPara
                                            const std::vector<u32> &ranks, u32 myRank,
                                            MeshAllGatherSlicePlan &plan)
 {
-    // TODO: meshchunk is an AllReduce two-shot variant, not an ordinary AllGather template.
-    // Add RankSliceInfo/chunk metadata to PrimitiveOptions before wiring this mode.
+    // TODO: meshchunk 是 AllReduce two-shot 里的变体，不是普通 AllGather template。
+    // 接入这个 mode 之前，需要先把 RankSliceInfo/chunk 元数据补进 PrimitiveOptions。
     (void)tempAlgParams;
     (void)templateResource;
     (void)ranks;
@@ -202,9 +198,8 @@ HcclResult BuildMeshAllGatherSlicePlan(const TemplateDataParams &tempAlgParams,
                                        const MeshAllGatherPrimitiveOptions &options,
                                        MeshAllGatherSlicePlan &plan)
 {
-    // Planner dispatch is the only place that should branch on algorithm
-    // variants. RunMeshAllGather below only consumes the resulting DataSlice
-    // tasks, which keeps the communication trunk independent from layout rules.
+    // planner dispatch 是唯一应该按算法变体分支的地方。
+    // 下面的 RunMeshAllGather 只消费生成后的 DataSlice task，让通信主干不依赖具体布局规则。
     plan.tasks.clear();
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
@@ -238,10 +233,10 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
                             const MeshAllGatherPrimitiveOptions &options)
 {
     (void)engineType;
-    // Workflow:
-    // 1. Convert params/resource/options into a variant-specific slice plan.
-    // 2. Execute every planned peer/channel task with a uniform SendRecvInfo.
-    // This is the target shape for removing old template class state.
+    // 工作流：
+    // 1. 把 params/resource/options 转换成变体专属的 slice plan。
+    // 2. 用统一的 SendRecvInfo 执行每个已规划的 peer/channel task。
+    // 这是去掉旧 template 类成员状态后的目标形态。
     MeshAllGatherSlicePlan plan;
     CHK_RET(BuildMeshAllGatherSlicePlan(tempAlgParams, templateResource, ranks, myRank, options, plan));
 
@@ -263,8 +258,8 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
     MeshAllGatherPrimitiveOptions options;
-    // Preserve the current extracted primitive behavior. Future callers should pass an explicit
-    // mode from TemplateDesc.variant instead of relying on this compatibility overload.
+    // 保留当前已抽取 primitive 的行为。
+    // 后续调用者应从 TemplateDesc.variant 显式传入 mode，而不是依赖这个兼容重载。
     options.sliceMode = MeshAllGatherSliceMode::COMMON_CHANNEL_SPLIT;
     return RunMeshAllGather(tempAlgParams, templateResource, engineType, ranks, myRank, options);
 }

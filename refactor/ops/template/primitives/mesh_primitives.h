@@ -16,9 +16,9 @@
 
 namespace ops_hccl {
 
-// Describes the data slicing semantics selected by the upper algorithm description.
-// This is intentionally finer-grained than Mesh/NHR or EngineType: different Mesh
-// AllGather variants use different offset formulas even when they run on the same engine.
+// 描述上层算法描述选中的数据切分语义。
+// 这个维度故意比 Mesh/NHR 或 EngineType 更细：不同 Mesh AllGather 变体即使运行在同一类
+// engine 上，也可能使用不同的 offset 计算公式。
 enum class MeshAllGatherSliceMode {
     NORMAL_FIXED,
     VARIABLE_COUNT,
@@ -28,36 +28,31 @@ enum class MeshAllGatherSliceMode {
     MESH_CHUNK,
 };
 
-// Z-axis detour splits one peer's data across level0 and level1 channels with
-// a fixed boundary/ratio. The boundary is known while planning channel resources;
-// it cannot be recovered reliably after level0/level1 channels are merged.
+// Z-axis detour 会按固定边界/比例，把同一个 peer 的数据切到 level0 和 level1 两组 channel 上。
+// 这个边界只在规划 channel 资源时明确；level0/level1 channel 合并后，不能再可靠地反推出原始边界。
 struct ZAxisDetourConfig {
     u32 level0ChannelNumPerRank{0};
     u32 level1ChannelNumPerRank{0};
     double level0DataRatio{0.0};
 };
 
-// Primitive options carry only the slicing information that cannot be derived
-// from TemplateDataParams or TemplateResource. In the final direct-call flow,
-// sliceMode should come from TemplateDesc.variant and zAxis should come from
-// resource-planning metadata.
+// Primitive options 只携带无法从 TemplateDataParams 或 TemplateResource 推导出的切分信息。
+// 在最终的直接函数调用链路中，sliceMode 应来自 TemplateDesc.variant，zAxis 应来自资源规划阶段记录的元数据。
 struct MeshAllGatherPrimitiveOptions {
     MeshAllGatherSliceMode sliceMode{MeshAllGatherSliceMode::NORMAL_FIXED};
     bool hasZAxisDetourConfig{false};
     ZAxisDetourConfig zAxis;
 };
 
-// SendRecv mode is part of the executable plan so RunMeshAllGather does not
-// need to inspect the variant-specific rules while executing each task.
+// SendRecv mode 是可执行计划的一部分，这样 RunMeshAllGather 执行每个 task 时不需要再检查各变体规则。
 enum class MeshAllGatherSendRecvMode {
     DMA_READ,
     BATCH_WRITE,
 };
 
-// One executable communication task for a peer/channel pair. The planner emits
-// concrete DataSlice lists so the execution path does not need to know whether
-// offsets came from fixed slices, variable-count displacements, OmniPipe steps,
-// or Z-axis channel splitting.
+// 一个 peer/channel 对应一个可执行通信 task。
+// planner 直接产出具体 DataSlice 列表，执行路径不需要关心 offset 来自固定切片、变长位移、
+// OmniPipe step，还是 Z-axis channel 切分。
 struct MeshAllGatherPeerChannelPlan {
     u32 peerRank{0};
     u32 peerAlgRank{0};
@@ -70,31 +65,29 @@ struct MeshAllGatherPeerChannelPlan {
     std::vector<DataSlice> rxDstSlices;
 };
 
-// Complete plan consumed by RunMeshAllGather. This is the boundary between
-// variant-specific data layout logic and the common SendRecv execution loop.
+// RunMeshAllGather 消费的完整计划。
+// 这里是“变体相关的数据布局逻辑”和“公共 SendRecv 执行循环”的边界。
 struct MeshAllGatherSlicePlan {
     MeshAllGatherSendRecvMode sendRecvMode{MeshAllGatherSendRecvMode::DMA_READ};
     std::vector<MeshAllGatherPeerChannelPlan> tasks;
 };
 
-// Build a slice plan without launching communication. This function is the
-// intended extraction point for old template-specific offset/channel logic.
+// 只构造切片计划，不发起通信。
+// 这个函数是旧 template 中 offset/channel 相关逻辑的预期抽取点。
 HcclResult BuildMeshAllGatherSlicePlan(const TemplateDataParams &tempAlgParams,
                                        const TemplateResource &templateResource,
                                        const std::vector<u32> &ranks, u32 myRank,
                                        const MeshAllGatherPrimitiveOptions &options,
                                        MeshAllGatherSlicePlan &plan);
 
-// New explicit entry point. Callers that know the algorithm variant should use
-// this overload so the primitive never guesses slicing semantics from EngineType
-// or channel count.
+// 新的显式入口。
+// 已知算法变体的调用者应使用这个重载，避免 primitive 从 EngineType 或 channel 数量反推切分语义。
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
                             const MeshAllGatherPrimitiveOptions &options);
 
-// Compatibility overload for the current refactor call sites. It preserves the
-// existing extracted behavior until TemplateDesc.variant and metadata plumbing
-// are wired through the executor.
+// 当前 refactor 调用点的兼容入口。
+// 在 TemplateDesc.variant 和元数据链路接入 executor 之前，先保留现有已抽取行为。
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
