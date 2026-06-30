@@ -13,52 +13,6 @@
 
 namespace ops_hccl {
 
-namespace {
-
-const char *MeshAllGatherSendRecvModeName(MeshAllGatherSendRecvMode mode)
-{
-    switch (mode) {
-        case MeshAllGatherSendRecvMode::DMA_READ:
-            return "DMA_READ";
-        case MeshAllGatherSendRecvMode::WRITE:
-            return "WRITE";
-        case MeshAllGatherSendRecvMode::BATCH_WRITE:
-            return "BATCH_WRITE";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-void DumpMeshAllGatherDataSlices(const char *tag, const std::vector<DataSlice> &slices)
-{
-    for (u32 sliceIdx = 0; sliceIdx < slices.size(); ++sliceIdx) {
-        const DataSlice &slice = slices[sliceIdx];
-        HCCL_DEBUG("[RunMeshAllGather][PlanDump][%s] sliceIdx[%u], base[%p], offset[%llu], "
-                   "size[%llu], count[%llu].",
-                   tag, sliceIdx, slice.addr_, static_cast<unsigned long long>(slice.offset_),
-                   static_cast<unsigned long long>(slice.size_), static_cast<unsigned long long>(slice.count_));
-    }
-}
-
-void DumpMeshAllGatherSlicePlan(const MeshAllGatherSlicePlan &plan)
-{
-    HCCL_DEBUG("[RunMeshAllGather][PlanDump] sendRecvMode[%s], taskNum[%u].",
-               MeshAllGatherSendRecvModeName(plan.sendRecvMode), static_cast<u32>(plan.tasks.size()));
-    for (u32 taskIdx = 0; taskIdx < plan.tasks.size(); ++taskIdx) {
-        const MeshAllGatherPeerChannelPlan &task = plan.tasks[taskIdx];
-        HCCL_DEBUG("[RunMeshAllGather][PlanDump] taskIdx[%u], threadIdx[%u], connectedRank[%u], "
-                   "connectedAlgRank[%u], channelIdx[%u], linkRemote[%p].",
-                   taskIdx, task.threadIdx, task.connectedRank, task.connectedAlgRank, task.channelIdx,
-                   task.linkRemote);
-        DumpMeshAllGatherDataSlices("txSrc", task.txSrcSlices);
-        DumpMeshAllGatherDataSlices("txDst", task.txDstSlices);
-        DumpMeshAllGatherDataSlices("rxSrc", task.rxSrcSlices);
-        DumpMeshAllGatherDataSlices("rxDst", task.rxDstSlices);
-    }
-}
-
-}  // namespace
-
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
                             const MeshAllGatherPrimitiveOptions &options)
@@ -67,9 +21,9 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     // plan 是 planner 和执行层之间的边界：上面负责算清楚 DataSlice，下面只负责发起通信。
     MeshAllGatherSlicePlan plan;
     CHK_RET(BuildMeshAllGatherSlicePlan(tempAlgParams, templateResource, ranks, myRank, options, plan));
-    DumpMeshAllGatherSlicePlan(plan);
-
     const HcclDataType dataType = tempAlgParams.dataType;
+    // 这里假设上层 executor/resource planning 已经申请好 threads/channels/notify/sync。
+    // 当前 primitive 只消费 plan 并校验 threadIdx 边界，不负责补齐资源规划。
     for (const auto &task : plan.tasks) {
         CHK_PRT_RET(task.linkRemote == nullptr || task.threadIdx >= templateResource.threads.size(),
                     HCCL_ERROR("[RunMeshAllGather] invalid slice plan task."), HCCL_E_PARA);
