@@ -11,6 +11,9 @@
 #include "ins_temp_all_gather_omnipipe_nhr.h"
 #include "alg_data_trans_wrapper.h"
 #include "omnipipe_template_utils.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempAllGatherOmniPipeNHR::InsTempAllGatherOmniPipeNHR(const OpParam& param,
@@ -38,7 +41,13 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
     tempAlgParams_ = tempAlgParams;
     dataType_ = param.DataDes.dataType;
     tempAlgParams_.buffInfo.outputPtr = param.outputPtr;
-    omniLastStepRead_ = tempAlgParams.omniLastStepRead_;
+    omniLastStepRead_ = param.supportSymmetricMemory ? false : tempAlgParams.omniLastStepRead_;
+    lastStepNhrCopy_ = false;
+    inputSymWindow_ = param.inputSymWindow;
+    outputSymWindow_ = param.outputSymWindow;
+    inputOffset_ = param.inputOffset;
+    outputOffset_ = param.outputOffset;
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
     
     CHK_RET(PrepareOmniPipeDataSplitForMultiChannel(static_cast<CommonAlgTemplateBase*>(this), tempAlgParams_, dataType_, templateResource, 
         dataSplitVec_, dataOffsetVec_));
@@ -76,6 +85,20 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     HCCL_INFO("[InsTempAllGatherOmniPipeNHR] Run End");
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult InsTempAllGatherOmniPipeNHR::GetRemoteOutputPtr(u32 remoteRank, void **remoteOutput) const
+{
+    CHK_PTR_NULL(remoteOutput);
+    *remoteOutput = nullptr;
+    HcclResult ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, remoteRank, remoteOutput);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || *remoteOutput == nullptr,
+                HCCL_ERROR("[InsTempAllGatherOmniPipeNHR] HcclSymWinGetPeerPointer output failed, "
+                    "remoteRank[%u] ret[%d] output[%p]", remoteRank, ret, *remoteOutput),
+                HcclResult::HCCL_E_INTERNAL);
+    HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR] HcclSymWinGetPeerPointer output success, "
+               "remoteRank[%u] output[%p]", remoteRank, *remoteOutput);
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -136,8 +159,10 @@ HcclResult InsTempAllGatherOmniPipeNHR::RunAllGatherNHR(const std::vector<Thread
         AicpuNHRStepInfo stepInfo;
         CHK_RET(GetStepInfo(step, nSteps, stepInfo));  // 计算当前step要通信的卡，数据
 
-        const ChannelInfo& channelRecv = channels.at(GetRankFromMap(stepInfo.fromRank))[channelIdx];
-        const ChannelInfo& channelSend = channels.at(GetRankFromMap(stepInfo.toRank))[channelIdx];
+        u32 recvRank = GetRankFromMap(stepInfo.fromRank);
+        u32 sendRank = GetRankFromMap(stepInfo.toRank);
+        const ChannelInfo& channelRecv = channels.at(recvRank)[channelIdx];
+        const ChannelInfo& channelSend = channels.at(sendRank)[channelIdx];
         // 构造SendRecv， 都是Scratch到Scratch的传输，没有DMA消减
 
         std::vector<DataSlice> txSrcSlices;
@@ -147,6 +172,12 @@ HcclResult InsTempAllGatherOmniPipeNHR::RunAllGatherNHR(const std::vector<Thread
 
         void* sendCclBuffAddr = channelSend.remoteCclMem.addr;
         void* recvCclBuffAddr = channelRecv.remoteCclMem.addr;
+        void* sendRemoteOutput = nullptr;
+        void* recvRemoteOutput = nullptr;
+        if (supportSymmetricMemory_) {
+            CHK_RET(GetRemoteOutputPtr(sendRank, &sendRemoteOutput));
+            CHK_RET(GetRemoteOutputPtr(recvRank, &recvRemoteOutput));
+        }
 
         if (omniLastStepRead_ && (step == nSteps - 1)) {
             lastStepNhrCopy_ = true;
@@ -175,7 +206,31 @@ HcclResult InsTempAllGatherOmniPipeNHR::RunAllGatherNHR(const std::vector<Thread
                 const u64 txScratchOff = txScratchBase + tempAlgParams_.stepSliceInfo.stepInputSliceStride[txIdx];
                 const u64 rxScratchOff = rxScratchBase + tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
 
-                if (!omniLastStepRead_ || step != nSteps - 1){
+                if (supportSymmetricMemory_) {
+                    u64 txOutBase = tempAlgParams_.buffInfo.inBuffBaseOff +
+                                    tempAlgParams_.omniReadDstStepSliceInfo.inputOmniPipeSliceStride[txIdx][rpt];
+                    txOutBase += dataOffsetVec_[txIdx][rpt][channelIdx];
+                    u64 rxOutBase = tempAlgParams_.buffInfo.outBuffBaseOff +
+                                    tempAlgParams_.omniReadDstStepSliceInfo.outputOmniPipeSliceStride[rxIdx][rpt];
+                    rxOutBase += dataOffsetVec_[rxIdx][rpt][channelIdx];
+                    const u64 txOutOff = txOutBase + tempAlgParams_.omniReadDstStepSliceInfo.stepInputSliceStride[txIdx] +
+                                         tempAlgParams_.processedDataCount * dataTypeSize;
+                    const u64 rxOutOff = rxOutBase + tempAlgParams_.omniReadDstStepSliceInfo.stepOutputSliceStride[rxIdx] +
+                                         tempAlgParams_.processedDataCount * dataTypeSize;
+
+                    txSrcSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, txOutOff,
+                                            dataSplitVec_[txIdx][rpt][channelIdx],
+                                            dataSplitVec_[txIdx][rpt][channelIdx] / dataTypeSize);
+                    txDstSlices.emplace_back(sendRemoteOutput, txOutOff,
+                                            dataSplitVec_[txIdx][rpt][channelIdx],
+                                            dataSplitVec_[txIdx][rpt][channelIdx] / dataTypeSize);
+                    rxSrcSlices.emplace_back(recvRemoteOutput, rxOutOff,
+                                            dataSplitVec_[rxIdx][rpt][channelIdx],
+                                            dataSplitVec_[rxIdx][rpt][channelIdx] / dataTypeSize);
+                    rxDstSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, rxOutOff,
+                                            dataSplitVec_[rxIdx][rpt][channelIdx],
+                                            dataSplitVec_[rxIdx][rpt][channelIdx] / dataTypeSize);
+                } else if (!omniLastStepRead_ || step != nSteps - 1){
                     txSrcSlices.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, txScratchOff,
                                             dataSplitVec_[txIdx][rpt][channelIdx],
                                             dataSplitVec_[txIdx][rpt][channelIdx]/ dataTypeSize);
