@@ -175,9 +175,6 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherNHR1DMultiJettyMem2MemC
     ctx.srcMem.token = ctx.token[ctx.myRankIdx];
     ctx.dstMem.token = ctx.token[toRankIdx];
 
-    CCU_CHK_RET(ccu::NotifyRecord(recvChannel, CKE_IDX_0, 1 << STEP_PRE_SYNC_ID)); // 待修改
-    CCU_CHK_RET(ccu::NotifyWait(sendChannel, CKE_IDX_0, 1 << STEP_PRE_SYNC_ID));
-
     for (u32 i = 0; i < sendSliceIdxList.size(); i++) {
         sendSliceIdx = sendSliceIdxList[i];
         if (sendSliceIdx == arg->rankId) {
@@ -205,8 +202,11 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherNHR1DMultiJettyMem2MemC
             ctx.repeatTimeflag = 1;
         }
     }
-    CCU_CHK_RET(ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_POST_SYNC_ID));
-    CCU_CHK_RET(ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_POST_SYNC_ID));
+
+    if (nhrStepInfo.step + 1 != arg->stepInfoVector.size()) {
+        CCU_CHK_RET(ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_POST_SYNC_ID));
+        CCU_CHK_RET(ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_POST_SYNC_ID));
+    }
 
     return CCU_SUCCESS;
 }
