@@ -190,8 +190,8 @@ HcclResult InsTempUBXAllToAllVMesh1D::GetRankNumPerBoard(TemplateResource& templ
     }
     // rankSize要是rankNumPerBoard_的整数倍
     if (templateRankSize_ % rankNumPerBoard_ != 0) {
-        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] templateRankSize_ is [%u], rankNumPerBoard_ is [%u]",
-            templateRankSize_, rankNumPerBoard_);
+        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] rankNumPerBoard_ is [%u], "
+            "templateRankSize_ is [%u]", rankNumPerBoard_, templateRankSize_);
         return HcclResult::HCCL_E_NOT_SUPPORT;
     }
 
