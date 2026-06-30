@@ -15,6 +15,9 @@ namespace ops_hccl {
 
 namespace {
 
+// Direct-call primitives receive a flat rank list instead of the old template's
+// cached subCommRanks_. Keep the conversion local so every planner path can use
+// the same "algorithm rank" index in offset formulas.
 HcclResult GetRankIndex(const std::vector<u32> &ranks, u32 rank, u32 &rankIdx)
 {
     const u32 rankSize = static_cast<u32>(ranks.size());
@@ -32,6 +35,9 @@ MeshAllGatherSendRecvMode ResolveMeshAllGatherSendRecvMode(const TemplateDataPar
                                                            const TemplateResource &templateResource,
                                                            const MeshAllGatherPrimitiveOptions &options)
 {
+    // Z-axis old code switches read/write from buffer types. Other variants will
+    // be moved here as they are ported, keeping SendRecv selection out of the
+    // execution loop.
     if (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) {
         bool dmaRead = (tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
                         tempAlgParams.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
@@ -49,6 +55,10 @@ HcclResult BuildMeshAllGatherCommonChannelSplitPlan(const TemplateDataParams &te
                                                     const std::vector<u32> &ranks, u32 myRank,
                                                     MeshAllGatherSlicePlan &plan)
 {
+    // This mirrors the currently extracted RunMeshAllGather behavior: split one
+    // peer's slice across all channels in the peer's port group, then emit one
+    // task per peer/channel. It is intentionally separate from NORMAL_FIXED
+    // because old ordinary Mesh AllGather used channel[0] and did not do this.
     const u32 rankSize = static_cast<u32>(ranks.size());
     u32 myRankIdx = 0;
     CHK_RET(GetRankIndex(ranks, myRank, myRankIdx));
@@ -85,6 +95,9 @@ HcclResult BuildMeshAllGatherCommonChannelSplitPlan(const TemplateDataParams &te
             task.channelIdx = ch;
             task.threadIdx = t++;
             task.link = &link;
+            // These four slices are the executable boundary of the planner:
+            // txSrc/txDst describe the local data this rank exposes to peer;
+            // rxSrc/rxDst describe where this rank reads peer data from and stores it.
             task.txSrcSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, myOff, mySz, mySz / dataTypeSize);
             task.txDstSlices.emplace_back(link.remoteCclMem.addr, myOff, mySz, mySz / dataTypeSize);
             task.rxSrcSlices.emplace_back(link.remoteCclMem.addr, peerOff, peerSz, peerSz / dataTypeSize);
@@ -189,6 +202,9 @@ HcclResult BuildMeshAllGatherSlicePlan(const TemplateDataParams &tempAlgParams,
                                        const MeshAllGatherPrimitiveOptions &options,
                                        MeshAllGatherSlicePlan &plan)
 {
+    // Planner dispatch is the only place that should branch on algorithm
+    // variants. RunMeshAllGather below only consumes the resulting DataSlice
+    // tasks, which keeps the communication trunk independent from layout rules.
     plan.tasks.clear();
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
@@ -222,6 +238,10 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
                             const MeshAllGatherPrimitiveOptions &options)
 {
     (void)engineType;
+    // Workflow:
+    // 1. Convert params/resource/options into a variant-specific slice plan.
+    // 2. Execute every planned peer/channel task with a uniform SendRecvInfo.
+    // This is the target shape for removing old template class state.
     MeshAllGatherSlicePlan plan;
     CHK_RET(BuildMeshAllGatherSlicePlan(tempAlgParams, templateResource, ranks, myRank, options, plan));
 
