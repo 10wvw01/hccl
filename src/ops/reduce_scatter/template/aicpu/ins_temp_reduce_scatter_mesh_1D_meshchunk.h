@@ -41,6 +41,11 @@ public:
     u64 GetThreadNum() const override;
     
     HcclResult PreCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const;
+    HcclResult FullExchangeReduceScatter(const std::map<u32, std::vector<ChannelInfo>> &channels,
+                                        const std::vector<ThreadHandle> &threads,
+                                        const TemplateDataParams &tempAlgParams,
+                                        const u32 &myAlgRank);
+
     HcclResult PostCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads);
     HcclResult CalcSliceInfoVec(const u64 &dataSize, RankSliceInfo &sliceInfoVec);
 
@@ -55,7 +60,8 @@ private:
         const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads,
         const TemplateDataParams &tempAlgParams, const std::vector<uint64_t> &sliceSize, const u32 &repeatNum,
-        const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_, const uint64_t &sliceRecvBaseOffset);
+        const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_, const uint64_t &sliceRecvBaseOffset,
+        const bool &isSmallData, const uint64_t &mySliceCount);
     void NotifyIdxMainToSubInMeshChunk(std::vector<u32> &notifyIdxMainToSub);
     void NotifyIdxSubToMainInMeshChunk(std::vector<u32> &notifyIdxSubToMain);
     u64 processSize_{0};

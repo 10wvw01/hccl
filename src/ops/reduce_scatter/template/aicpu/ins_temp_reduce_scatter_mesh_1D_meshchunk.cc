@@ -150,15 +150,20 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::RunReduceScatter(
             sliceSize.push_back(smallDataSliceSize);
         }
     }
+    bool isSmallData = (alignSliceSize == 0);
     uint64_t sliceRecvBaseOffset = 0;
     uint16_t rankNum = 2;
-    for (uint16_t i = 0; i < (templateRankSize_ - rankNum); i++) {
-        sliceRecvBaseOffset += sliceSize[i];
+    if (isSmallData && mySliceCount > 0) {
+        sliceRecvBaseOffset = mySliceSize - sliceSize[mySliceCount - 1];
+    } else {
+        for (uint16_t jj = 0; jj < (templateRankSize_ - rankNum); jj++) {
+            sliceRecvBaseOffset += sliceSize[jj];
+        }
     }
     uint64_t sliceSendOffset_;
     uint64_t sliceRecvOffset_;
     DoMeshChunk(channels, threads, tempAlgParams, sliceSize, tempAlgParams.repeatNum, myAlgRank, sliceSendOffset_, sliceRecvOffset_,
-                sliceRecvBaseOffset);
+                sliceRecvBaseOffset, isSmallData, mySliceCount);
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -166,13 +171,15 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
     const std::map<u32, std::vector<ChannelInfo>> &channels,
     const std::vector<ThreadHandle> &threads,
     const TemplateDataParams &tempAlgParams, const std::vector<uint64_t> &sliceSize, const u32 &repeatNum,
-    const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_, const uint64_t &sliceRecvBaseOffset)
+    const u32 &myAlgRank, uint64_t &sliceSendOffset_, uint64_t &sliceRecvOffset_, const uint64_t &sliceRecvBaseOffset,
+    const bool &isSmallData, const uint64_t &mySliceCount)
 {
     for (uint16_t stepIdx = 0; stepIdx < (templateRankSize_ - 1); stepIdx++) {
         sliceSendOffset_ = 0;
         uint16_t rankNum = 2;
+        sliceRecvOffset_ = sliceRecvBaseOffset;
+        uint16_t tempNum = 3;
         for (uint16_t i = 0; i < (templateRankSize_ - 1); i++) {
-            sliceRecvOffset_ = (sliceRecvBaseOffset + processSize_ - sliceSendOffset_) % processSize_;
             uint16_t nextNum = stepIdx + i + 1;
             if (nextNum >= templateRankSize_) {
                 nextNum += 1;
@@ -221,6 +228,15 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
                 HcclResult::HCCL_E_INTERNAL);
 
             sliceSendOffset_ += sliceSize[i];
+            if (isSmallData) {
+                if (i < mySliceCount - 1) {
+                    sliceRecvOffset_ -= sliceSize[mySliceCount - 1 - i];
+                }
+            } else {
+                if (templateRankSize_ > rankNum && i < (templateRankSize_ - rankNum)) {
+                    sliceRecvOffset_ -= sliceSize[templateRankSize_ - tempNum - i];
+                }
+            }
         }
         if (threadNum_ > 1 && stepIdx < (templateRankSize_ - rankNum)) {
             std::vector<ThreadHandle> subThreads(threads.begin() + 1, threads.end());
