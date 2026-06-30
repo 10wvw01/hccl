@@ -446,13 +446,15 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             if (rankSizeLevel_[OMNIPIPE_LEVEL2] > 1) {
                 CHK_RET(GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2],
                                                       omniPipeSliceInfo.dataSliceLevel2[i]));
+                tempAlgParamMap[OMNIPIPE_LEVEL2].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel2[i * level2StepCount + j];
+                tempAlgParamMap[OMNIPIPE_LEVEL2].processedDataCount=processedDataCount;
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsZ_, ntfIdxCtrlToTempZ_));
                 CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2],
                                                              tempResMap[OMNIPIPE_LEVEL2]));
             }
             for (int j = 0; j < level0StepCount; j++) {
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsXY_, ntfIdxCtrlToTempXY_));
-                if (omniUbxLastStepRead_ == true && j == level0StepCount - 1) {
+                if (omniUbxLastStepRead_ == true && j == level0StepCount - 1 && !param.supportSymmetricMemory) {
                     tempAlgParamMap[OMNIPIPE_LEVEL0].omniLastStepRead_=true;
                     tempAlgParamMap[OMNIPIPE_LEVEL0].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel0[i * level0StepCount + j];
                     tempAlgParamMap[OMNIPIPE_LEVEL0].processedDataCount=processedDataCount;
@@ -481,7 +483,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
                 }
                 // -----------------------------UBX才做这个-------------------------
                 // 从第二次开始做localcopy，上一步接受的数据是这一步需要做本地拷贝的数据
-                if (omniUbxLastStepRead_ && j != 0) {
+                if (omniUbxLastStepRead_ && j != 0 && !param.supportSymmetricMemory) {
                     CHK_RET(UbxLastStepLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo, 
                         tempAlgParamMap, processedDataCount, j));
                 }
@@ -491,21 +493,22 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
                 CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsZ_, ntfIdxTempToCtrlZ_));
             }
         }
-
-        if (!param.supportSymmetricMemory) {
-            for (u32 rank = 0; rank < rankSize_; rank++) {
-                DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
-                                currDataCount * dataTypeSize_, currDataCount);
-                DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
-                                currDataCount);
-                CHK_RET(LocalCopy(controlThread_, src, dst));
+        
+        if (!param.supportSymmetricMemory){
+            if (omniUbxLastStepRead_) {
+                CHK_RET(UbxLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo, 
+                        tempAlgParamMap, processedDataCount, level0StepCount));
+            }else {
+                for (u32 rank = 0; rank < rankSize_; rank++) {
+                    DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
+                                    currDataCount * dataTypeSize_, currDataCount);
+                    DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
+                                    currDataCount);
+                    CHK_RET(LocalCopy(controlThread_, src, dst));
+                }
             }
         }
         processedDataCount += currDataCount;
-        else if (omniUbxLastStepRead_) {
-            CHK_RET(UbxLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo, 
-                        tempAlgParamMap, processedDataCount, level0StepCount));
-        }
     }
     return HCCL_SUCCESS;
 }
