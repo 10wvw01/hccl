@@ -57,7 +57,7 @@ private:
                         TemplateResource& templateResource) const;
     uint32_t mySubCommRank_ = 0;
     std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
-    std::vector<u8> diePortGroupSize_ {1,0};
+    double dieSplitRatio_ = 1.0;
 };
 
 } // namespace ops_hccl
