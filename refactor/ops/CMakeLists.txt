@@ -9,29 +9,13 @@
 # -----------------------------------------------------------------------------------------------------------
 
 # refactor/ops 模块分发层。
-# 模块默认都关闭；需要验证哪个模块，就显式打开对应 REFACTOR_<MODULE> 开关。
-# 单文件 debug/check 目标也保持默认关闭，避免把临时验证程序混进主编译。
+# 模块默认都关闭；需要把哪个重构模块接入主构建，就显式打开对应 REFACTOR_<MODULE> 开关。
 option(REFACTOR_API       "Build refactor/ops/api"       OFF)
 option(REFACTOR_EXECUTOR  "Build refactor/ops/executor"  OFF)
 option(REFACTOR_OP_COMMON "Build refactor/ops/op_common" OFF)
 option(REFACTOR_SELECTOR  "Build refactor/ops/selector"  OFF)
 option(REFACTOR_TEMPLATE  "Build refactor/ops/template"  OFF)
 option(REFACTOR_UTILS     "Build refactor/ops/utils"     OFF)
-option(REFACTOR_TEMPLATE_DEBUG "Enable refactor/ops/template debug/check targets" OFF)
-option(REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN "Build mesh allgather plan check target" OFF)
-
-# 兼容之前的验证命令：打开旧开关时自动进入 template/debug 的 mesh allgather plan check。
-option(REFACTOR_TEMPLATE_PLAN_DEBUG "Deprecated: use REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN" OFF)
-if(REFACTOR_TEMPLATE_PLAN_DEBUG)
-    set(REFACTOR_DEBUG ON CACHE BOOL "Enable refactor standalone debug/check targets" FORCE)
-    set(REFACTOR_TEMPLATE_DEBUG ON CACHE BOOL "Enable refactor/ops/template debug/check targets" FORCE)
-    set(REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN ON CACHE BOOL "Build mesh allgather plan check target" FORCE)
-endif()
-
-if(REFACTOR_TEMPLATE_DEBUG OR REFACTOR_TEMPLATE_DEBUG_MESH_ALLGATHER_PLAN)
-    set(REFACTOR_DEBUG ON CACHE BOOL "Enable refactor standalone debug/check targets" FORCE)
-    set(REFACTOR_TEMPLATE ON CACHE BOOL "Build refactor/ops/template" FORCE)
-endif()
 
 # c_adaptor/common 是主工程 common 代码的早期接入点。
 # 当主工程已经创建 hccl_compat 时，这里不能重复 add_subdirectory，否则会重复定义 target。

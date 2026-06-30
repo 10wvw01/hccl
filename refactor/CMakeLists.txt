@@ -10,8 +10,7 @@
 
 # refactor 总入口。
 # src/CMakeLists.txt 只有在 REFACTOR_OPS=ON 时才 include 本文件，所以这里默认不影响主工程。
-# 本层只负责进入 refactor/ops，具体模块和单文件验证目标由下一层 CMakeLists 控制。
-option(REFACTOR_DEBUG "Enable refactor standalone debug/check targets" OFF)
+# 本层只负责把 refactor/ops 接入 CMake build tree，具体源码由下一层按模块开关控制。
 
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/CMakeLists.txt)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops
