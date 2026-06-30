@@ -206,7 +206,7 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
                     repeatIdx * tempAlgParams.inputRepeatStride + myAlgRank * tempAlgParams.inputSliceStride + sliceRecvOffset_,
                     sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收源
                 DataSlice rxDstSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff + 
-                    repeatIdx * tempAlgParams.outputRepeatStride + sliceRecvOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收目标
+                    repeatIdx * tempAlgParams.outputRepeatStride + processSize_ + sliceRecvOffset_, sliceSize[i], sliceSize[i] / dataTypeSize_); // 接收目标
                 DataSlice txSrcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff + 
                     repeatIdx * tempAlgParams.inputRepeatStride + frontRank * tempAlgParams.inputSliceStride + sliceSendOffset_,
                     sliceSize[i], sliceSize[i] / dataTypeSize_); // 发送源
@@ -218,13 +218,13 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
                 txSrcSlices.push_back(txSrcSlice);
                 txDstSlices.push_back(txDstSlice);
             }
-            SendRecvReduceInfo sendRecvReduceInfo{
+            SendRecvInfo sendRecvInfo{
                 {linkSend,linkRecv},
-                {{txSrcSlices, txDstSlices},{rxSrcSlices, rxDstSlices}}, dataType_, reduceOp_
+                {{txSrcSlices, txDstSlices},{rxSrcSlices, rxDstSlices}}, dataType_
             };
 
-            CHK_PRT_RET(SendRecvBatchWriteReduce(sendRecvReduceInfo, threads[queIdx]),
-                HCCL_ERROR("[InsTempReduceScatterMesh1DMeshChunk] RunReduceScatter SendRecvReduce failed"),
+            CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[queIdx]),
+                HCCL_ERROR("[InsTempReduceScatterMesh1DMeshChunk] RunReduceScatter SendRecv failed"),
                 HcclResult::HCCL_E_INTERNAL);
 
             sliceSendOffset_ += sliceSize[i];
