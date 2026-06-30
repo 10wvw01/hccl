@@ -186,9 +186,9 @@ HcclResult ReduceConstructOpParam(void *sendBuf, void *recvBuf, uint64_t count, 
     u64 totalSize = count * perDataSize;
 
     CHK_RET(HcclGetCommName(comm, param.commName));
-    param.stream = stream;
     param.reduceType = op;
     param.opMode = opMode;
+    param.stream = stream;
 
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
