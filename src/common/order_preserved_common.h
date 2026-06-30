@@ -14,10 +14,24 @@
 #include "alg_param.h"
 #include "alg_env_config.h"
 
+#include <algorithm>
+
 namespace ops_hccl {
 
 constexpr u32 MIN_STRICT_RANK_NUM_ORDER_PRESERVED = 2;
 constexpr u32 MAX_RANK_NUM_FOR_ORDER_PRESERVED = 32;
+
+// 保序算子线程数上限，解耦线程数与rank数的强相关关系
+constexpr u32 ORDER_PRESERVED_MAX_THREADS = 4; // 测试用：8p环境验证轮转逻辑，验证通过后改回16
+
+// 线程数 = min(rankSize-1, 最大线程数)，不低于1
+inline u32 CalcEffectiveThreadNum(u32 rankSize)
+{
+    if (rankSize <= 1) {
+        return 1;
+    }
+    return std::min(rankSize - 1, ORDER_PRESERVED_MAX_THREADS);
+}
 
 struct OrderPreservedBaseParams {
     u32 myRank;

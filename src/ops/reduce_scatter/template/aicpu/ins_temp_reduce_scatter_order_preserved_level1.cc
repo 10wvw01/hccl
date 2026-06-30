@@ -11,6 +11,7 @@
 // 包含本类的头文件声明
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
 #include "alg_env_config.h"
+#include "order_preserved_common.h"
 
 namespace ops_hccl {
 
@@ -33,7 +34,7 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::CalcRes(
     HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
     AlgResourceRequest &resourceRequest)
 {
-    u32 threadNum = templateRankSize_ > 1 ? templateRankSize_ : 1;
+    u32 threadNum = CalcEffectiveThreadNum(templateRankSize_);
     resourceRequest.slaveThreadNum = threadNum - 1;
 
     for (u32 index = 0; index < threadNum - 1; index++) {
@@ -127,7 +128,7 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::GetRes(AlgResourceRequest &
 
 u64 InsTempReduceScatterOrderPreservedLevel1::GetThreadNum() const
 {
-    return templateRankSize_ > 1 ? templateRankSize_ : 1;
+    return CalcEffectiveThreadNum(templateRankSize_);
 }
 
 void InsTempReduceScatterOrderPreservedLevel1::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
