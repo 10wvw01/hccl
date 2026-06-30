@@ -2,7 +2,7 @@
 
 namespace ops_hccl {
 
-HcclResult ParallelExecutor::PresyncByResTable(const AlgoExecDesc &execDesc)
+HcclResult ParallelExecutor::PreSyncByResTable(const AlgoExecDesc &execDesc)
 {
     auto it = resTable_.find(execDesc);
     if (it == resTable_.end()) {
@@ -127,22 +127,45 @@ HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
     return HCCL_SUCCESS;
 }
 
-HcclResult ParallelExecutor::GenerateTemplateRes(u32 stage, u32 dataPart, TemplateResource templateResource)
+HcclResult ParallelExecutor::GenTemplateRes(
+    const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource)
 {
+    std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo;
+    CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo));
+    templateResource.channels = remoteRankToChannelInfo.at(subCommIndex);
+    templateResource.threads = subThreads_.at(subCommIndex);
+    templateResource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
+    // 其他参数待确认是否还需要保留
+    return HCCL_SUCCESS;
 }
-HcclResult ParallelExecutor::GenTemplateDataParams(u32 stage, u32 dataPart, TemplateDataParams &templateDataParams)
+HcclResult ParallelExecutor::GenTemplateDataParams(
+    const AlgResourceCtxSerializable &resCtx, TemplateDataParams &templateDataParams)
 {
-    // Allgather算子的输出目前是用的output，统一调整为scratch内存，对应的地址/类型/size统一调整
+    void *inputPtr = nullptr;
+    u64 inputSize = 0;
+    void *outputPtr = nullptr;
+    u64 outputSize = 0;
+    DataDesUnion dataDesUnion;
+    HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
 
-    // HcclBuffBaseOff待分析是否可以归一
+    templateDataParams.buffInfo.inputPtr = dataInfo_.inputPtr;
+    templateDataParams.buffInfo.outputPtr = dataInfo_.outputPtr;
+    templateDataParams.buffInfo.hcclBuff = resCtx.cclMem;
+    templateDataParams.buffInfo.inBuffType = BufferType::INPUT;
+    templateDataParams.buffInfo.outBuffType = BufferType::OUTPUT;
+    templateDataParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
+    templateDataParams.buffInfo.inputSize = dataInfo_.inputSize;
+    templateDataParams.buffInfo.outputSize = dataInfo_.outputSize;
 
-    // 按照数据类型是分拆/还是聚合的/还是原位拷贝三种不一样计算下面的参数
-    if (OP == allgather) {
-        // outBuffBaseOff/inputSliceStride/outputSliceStride/repeatNum/InputRepeatStride/OutputRepeatStride
-    } else if {
-    } else {
-        // outBuffBaseOff/inputSliceStride/outputSliceStride/repeatNum/InputRepeatStride/OutputRepeatStride
-    }
+    templateDataParams.buffInfo.inBuffBaseOff = dataOffset;
+    templateDataParams.buffInfo.outBuffBaseOff = rankIdxLevel1_ * rankSizeLevel0_ * dataSize_ + dataOffset;
+    templateDataParams.buffInfo.hcclBuffBaseOff = scratchOffset;
+    templateDataParams.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
+    templateDataParams.count = dataCountPerLoopAixs0;
+    templateDataParams.tailSize = tempAlgParamsIntra0.sliceSize;
+
+    templateDataParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
+    return;
 }
 HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc)
 {
@@ -161,11 +184,11 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
                 = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
             // 根据阶段生成template的资源参数
             TemplateResource templateResource;
-            CHK_RET(GenTemplateRes(stage, dataPart, templateResource));
+            CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
             // 根据阶段生成template的数据参数
             TemplateDataParams templateDataParams;
             CHK_RET(GenTemplateDataParams(stage, dataPart, templateDataParams));
-            CHK_RET(template.KernelRun(templateDataParams, templateResource, algo_.engineType));
+            CHK_RET(template.KernelRun(templateDataParams, templateResource));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
@@ -178,39 +201,6 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
             CHK_RET(PostSyncByResTable(nodeAloExecDesc));
         }
     }
-}
-
-HcclResult ParallelExecutor::PrepareResForTemplate()
-{
-    uint32_t stageNum = algo_.templateDescs.size();          // 并行计算的步骤
-    uint32_t dataPartNum = algo_.templateDescs.at(0).size(); // 每一步计算的数据部分数
-    uint32_t intraThreadsNum = 0;
-    uint32_t interThreadsNum = 0;
-    uint32_t intraNotifyOnMainThread = 0;
-    uint32_t interNotifyOnMainThread = 0;
-    for (auto stage = 0; stage < stageNum; stage++) {
-        for (auto dataPart = 0; stage < dataPartNum; dataPart++) {
-            // 根据TemplateDescrb获取实例化生成算法的template
-            BaseTemplate template = Func(algo_.templates.at(stage).at(dataPart));
-            AlgResourceRequest TempRequest;
-            template.GetRes(TempRequest);
-            // 判断这个Template到底是在intra方向还是inter方向
-            if () {
-                intraThreadsNum = max(intraThreadsNum, template.slaveThreadNum + 1);
-                intraNotifyOnMainThread = template.notifyNumOnMainThread;
-            } else {
-                interThreadsNum = max(interThreadsNum, template.slaveThreadNum + 1);
-                interNotifyOnMainThread = template.notifyNumOnMainThread;
-            }
-        }
-        syncNotifyOnTemplates_.at(stage) = {intraNotifyOnMainThread, interNotifyOnMainThread};
-    }
-
-    syncNotifyOnMain_.clear();
-    for (auto dataPart = 0; stage < dataPartNum; dataPart++) {
-        syncNotifyOnMain_.emplace_back(dataPart);
-    }
-    return HCCL_SUCCESS;
 }
 
 } // namespace ops_hccl
