@@ -75,8 +75,9 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
         (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR &&
          sendRecvMode == MeshAllGatherSendRecvMode::WRITE &&
          myAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
-    const bool connectedRankHasTail =
-        (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0) || zAxisWriteTail;
+    const bool connectedRankHasTail = (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR &&
+        sendRecvMode == MeshAllGatherSendRecvMode::WRITE) ?
+        zAxisWriteTail : (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
     const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
 
     if (options.sliceMode == MeshAllGatherSliceMode::NORMAL_FIXED) {
