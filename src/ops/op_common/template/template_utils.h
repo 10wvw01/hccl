@@ -330,6 +330,7 @@ struct TemplateResource {
     std::vector<ThreadHandle> threads;
     std::vector<CcuKernelHandle> ccuKernels;
     std::vector<CcuKernelSubmitInfo> submitInfos;
+    double dieSplitRatio = 0.0;
     void *npu2DpuShmemPtr;
     void *dpu2NpuShmemPtr;
     void* aivCommInfoPtr = nullptr;
@@ -392,6 +393,7 @@ struct AicpuNHRStepInfo {
 };
 
 HcclResult GetAlgRank(const u32 virtRank, const std::vector<u32> &rankIds, u32 &algRank);
+HcclResult CalcPortNum(const std::vector<ChannelInfo>&channels, std::vector<u8> &diePortGroupSize);
 
 u32 GetNHRStepNum(u32 rankSize);
 
