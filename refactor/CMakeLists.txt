@@ -29,31 +29,42 @@ option(REFACTOR_SELECTOR  "Build refactor/ops/selector (EngineSelector)"  OFF)
 option(REFACTOR_TEMPLATE  "Build refactor/ops/template (primitives + engines)" OFF)
 option(REFACTOR_UTILS     "Build refactor/ops/utils (PreCopy/PostCopy)"  OFF)
 
-# c_adaptor/common 是"直接拷贝"的稳定代码，不需要 option，默认编入
-add_subdirectory(ops/c_adaptor/common)
+# c_adaptor/common 是早期直接拷贝的 common/hcomm_dlsym 代码。
+# 当前 refactor 通过 src/CMakeLists.txt include 进主工程时，主工程已经创建了 hccl_compat
+# 并编入 common 源文件；这里再次 add_subdirectory 会重复定义 target 和符号。
+if(NOT TARGET hccl_compat)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/c_adaptor/common
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/c_adaptor/common)
+endif()
 
 # 各模块：仅当 option=ON 且对应 CMakeLists.txt 存在时才进入
 # EXISTS 检查兼容 main 分支（没有 refactor/ 目录时不会报错）
-if(REFACTOR_API AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/api/CMakeLists.txt)
-    add_subdirectory(ops/api)
+if(REFACTOR_API AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/api/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/api
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/api)
 endif()
 
-if(REFACTOR_EXECUTOR AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/executor/CMakeLists.txt)
-    add_subdirectory(ops/executor)
+if(REFACTOR_EXECUTOR AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/executor/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/executor
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/executor)
 endif()
 
-if(REFACTOR_OP_COMMON AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/CMakeLists.txt)
-    add_subdirectory(ops/op_common)
+if(REFACTOR_OP_COMMON AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/op_common/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/op_common
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/op_common)
 endif()
 
-if(REFACTOR_SELECTOR AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/selector/CMakeLists.txt)
-    add_subdirectory(ops/selector)
+if(REFACTOR_SELECTOR AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/selector/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/selector
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/selector)
 endif()
 
-if(REFACTOR_TEMPLATE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/template/CMakeLists.txt)
-    add_subdirectory(ops/template)
+if(REFACTOR_TEMPLATE AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/template/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/template
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/template)
 endif()
 
-if(REFACTOR_UTILS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ops/utils/CMakeLists.txt)
-    add_subdirectory(ops/utils)
+if(REFACTOR_UTILS AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/utils/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/ops/utils
+                     ${CMAKE_CURRENT_BINARY_DIR}/refactor/ops/utils)
 endif()

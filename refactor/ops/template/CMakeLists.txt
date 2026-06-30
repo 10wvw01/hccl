@@ -24,6 +24,7 @@
 #   ❌ engines/aiv/launcher/kernel_launch.cc          - 直接复制 aicpu 的，应重写
 
 target_sources(hccl PRIVATE
+    primitives/mesh_allgather_planner.cc
     primitives/mesh_primitives.cc
     primitives/nhr_primitives.cc
 
@@ -43,15 +44,21 @@ option(REFACTOR_TEMPLATE_PLAN_DEBUG "Build refactor template planner debug tools
 if(REFACTOR_TEMPLATE_PLAN_DEBUG)
     add_executable(mesh_allgather_plan_dump
         debug/mesh_allgather_plan_dump.cc
+        primitives/mesh_allgather_planner.cc
+        debug/mesh_allgather_plan_debug_template_utils.cc
+        debug/mesh_allgather_plan_debug_log_stubs.cc
     )
 
     target_include_directories(mesh_allgather_plan_dump PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/debug/stubs
+        ${CMAKE_CURRENT_SOURCE_DIR}/../op_common
         ${INCLUDE_LIST}
         ${CMAKE_CURRENT_SOURCE_DIR}/primitives
     )
 
     target_compile_definitions(mesh_allgather_plan_dump PRIVATE
         HOST_COMPILE
+        CANN_VERSION_NUM=${HCCL_CANN_VERSION_NUM}
         $<$<BOOL:${BUILD_OPEN_PROJECT}>:OPEN_BUILD_PROJECT>
         $<$<STREQUAL:${PRODUCT_SIDE},host>:_GLIBCXX_USE_CXX11_ABI=0>
     )
@@ -60,9 +67,12 @@ if(REFACTOR_TEMPLATE_PLAN_DEBUG)
         -fno-common
         -fno-strict-aliasing
         -pipe
+        -ffunction-sections
+        -fdata-sections
         $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
     )
 
-    # 这个工具只验证 BuildMeshAllGatherSlicePlan 的输出，不进入默认构建，也不触发真实 SendRecv。
-    target_link_libraries(mesh_allgather_plan_dump PRIVATE hccl)
+    target_link_options(mesh_allgather_plan_dump PRIVATE
+        -Wl,--gc-sections
+    )
 endif()
