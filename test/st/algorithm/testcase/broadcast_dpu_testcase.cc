@@ -201,6 +201,23 @@ TEST_F(DPU_BROADCAST_TEST, st_broadcast_a5_aicpu_1DTwoShot_count1_test)
 
 }
 
+TEST_F(DPU_BROADCAST_TEST, st_broadcast_a5_aicpu_1DTwoShot_count0_odd_rank_test)
+{
+    TopoMeta topoMeta {{{0}, {1}, {2}}};
+
+    uint32_t rankSize = 0;
+    for (auto &&topo0 : topoMeta) {
+        for (auto &&topo1 : topo0) {
+            rankSize += topo1.size();
+        }
+    }
+    uint64_t count = 0;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    auto root = 2;
+    auto dataTypeSize = sizeof(int32_t);
+    RunBroadcastTest(topoMeta, rankSize, count, dataType, root, dataTypeSize);
+}
+
 TEST_F(DPU_BROADCAST_TEST, st_broadcast_a5_aicpu_1DTwoShot_root1_test)
 {
     // 仿真模型初始化
