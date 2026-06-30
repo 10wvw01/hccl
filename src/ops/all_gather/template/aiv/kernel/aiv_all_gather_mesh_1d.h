@@ -226,6 +226,7 @@ __aicore__ inline void AivAllGatherV2Mesh1D(KERNEL_ARGS_DEF)
     if (len * sizeof(T) <= DATA_LIMIT) {
         pingpong = true;
     }
+    pingpong = false;
     op.Init(KERNEL_CLASS_INIT, true, pingpong);
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
@@ -245,6 +246,7 @@ __aicore__ inline void AivAllGatherV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
     if (args->len * sizeof(T) <= DATA_LIMIT) {
         pingpong = true;
     }
+    pingpong = false;
     op.Init(SUPERKERNEL_CLASS_INIT, pingpong);
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;
