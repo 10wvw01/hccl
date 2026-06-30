@@ -258,6 +258,7 @@ struct TemplateDataParams {
     BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
     StepSliceInfo omniReadDstStepSliceInfo;
     bool omniLastStepRead_ = false;
+    u64 localCopyFlag{0};
 
     std::vector<char> Serialize() const
     {
@@ -287,6 +288,7 @@ struct TemplateDataParams {
         binaryStream << omniLastStepRead_;
         std::vector<char> result;
         binaryStream.Dump(result);
+        binaryStream << localCopyFlag;
         return result;
     }
 
@@ -316,7 +318,8 @@ struct TemplateDataParams {
         binaryStream >> stepSliceInfoData;
         stepSliceInfo.DeSerialize(stepSliceInfoData);
         binaryStream >> opType;
-        
+        binaryStream >> localCopyFlag;
+
         std::vector<char> omniReadDstStepSliceInfoData;
         binaryStream >> omniReadDstStepSliceInfoData;
         omniReadDstStepSliceInfo.DeSerialize(omniReadDstStepSliceInfoData);
