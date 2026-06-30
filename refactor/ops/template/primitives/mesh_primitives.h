@@ -16,6 +16,59 @@
 
 namespace ops_hccl {
 
+enum class MeshAllGatherSliceMode {
+    NORMAL_FIXED,
+    VARIABLE_COUNT,
+    OMNIPIPE_STEP,
+    COMMON_CHANNEL_SPLIT,
+    Z_AXIS_DETOUR,
+    MESH_CHUNK,
+};
+
+struct ZAxisDetourConfig {
+    u32 level0ChannelNumPerRank{0};
+    u32 level1ChannelNumPerRank{0};
+    double level0DataRatio{0.0};
+};
+
+struct MeshAllGatherPrimitiveOptions {
+    MeshAllGatherSliceMode sliceMode{MeshAllGatherSliceMode::NORMAL_FIXED};
+    bool hasZAxisDetourConfig{false};
+    ZAxisDetourConfig zAxis;
+};
+
+enum class MeshAllGatherSendRecvMode {
+    DMA_READ,
+    BATCH_WRITE,
+};
+
+struct MeshAllGatherPeerChannelPlan {
+    u32 peerRank{0};
+    u32 peerAlgRank{0};
+    u32 channelIdx{0};
+    u32 threadIdx{0};
+    const ChannelInfo *link{nullptr};
+    std::vector<DataSlice> txSrcSlices;
+    std::vector<DataSlice> txDstSlices;
+    std::vector<DataSlice> rxSrcSlices;
+    std::vector<DataSlice> rxDstSlices;
+};
+
+struct MeshAllGatherSlicePlan {
+    MeshAllGatherSendRecvMode sendRecvMode{MeshAllGatherSendRecvMode::DMA_READ};
+    std::vector<MeshAllGatherPeerChannelPlan> tasks;
+};
+
+HcclResult BuildMeshAllGatherSlicePlan(const TemplateDataParams &tempAlgParams,
+                                       const TemplateResource &templateResource,
+                                       const std::vector<u32> &ranks, u32 myRank,
+                                       const MeshAllGatherPrimitiveOptions &options,
+                                       MeshAllGatherSlicePlan &plan);
+
+HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                            EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
+                            const MeshAllGatherPrimitiveOptions &options);
+
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 
