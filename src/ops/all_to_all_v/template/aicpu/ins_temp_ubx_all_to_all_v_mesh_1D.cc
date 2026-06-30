@@ -427,8 +427,9 @@ HcclResult InsTempUBXAlltoAllVMesh1D::InitParam(const OpParam& param,
     curDataCount_ = tempAlgParams.count;
     curDataSize_ = curDataCount_ * dataTypeSize_;
     threadNum_ = templateResource.threads.size();
-    if (threadNum_ == 0) {
-        HCCL_ERROR("[InsTempUBXAlltoAllVMesh1D] tempInsQues.size() is zero.");
+    if (threadNum_ != maxPathNum_ + maxRankNumPerBoard_ + 1) {
+        HCCL_ERROR("[InsTempUBXAlltoAllVMesh1D] tempInsQues.size() is [%u], but it should be [%u]",
+            threadNum_, maxPathNum_ + maxRankNumPerBoard_ + 1);
         return HcclResult::HCCL_E_PARA;
     }
 
