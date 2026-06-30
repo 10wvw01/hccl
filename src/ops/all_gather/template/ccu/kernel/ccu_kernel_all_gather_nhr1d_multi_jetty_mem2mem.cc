@@ -175,7 +175,7 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherNHR1DMultiJettyMem2MemC
     ctx.srcMem.token = ctx.token[ctx.myRankIdx];
     ctx.dstMem.token = ctx.token[toRankIdx];
 
-    CCU_CHK_RET(ccu::NotifyRecord(recvChannel, CKE_IDX_0, 1 << STEP_PRE_SYNC_ID)); // 待修改
+    CCU_CHK_RET(ccu::NotifyRecord(recvChannel, CKE_IDX_0, 1 << STEP_PRE_SYNC_ID));
     CCU_CHK_RET(ccu::NotifyWait(sendChannel, CKE_IDX_0, 1 << STEP_PRE_SYNC_ID));
 
     for (u32 i = 0; i < sendSliceIdxList.size(); i++) {
@@ -254,7 +254,7 @@ static CcuResult DoRepeatAllGatherNHR(AllGatherNHR1DMultiJettyMem2MemContext &ct
         CCU_IF(ctx.isInputOutputEqual == 0)
         {
             CCU_CHK_RET(GroupCopy(ctx, ctx.myDstMem, ctx.srcMem, ctx.groupOpSize));
-            CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask)); // 待修改
+            CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         } CCU_ELSE {
             CCU_CHK_RET(ccu::EventRecord(ctx.event, rankMask));
         }
