@@ -11,7 +11,7 @@
 // 包含本类的头文件声明
 #include "ins_v2_all_reduce_order_preserved_executor.h"
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
-#include "ins_temp_all_gather_mesh_1D.h"
+#include "ins_temp_all_gather_nhr.h"
 #include "alg_env_config.h"
 #include "order_preserved_common.h"
 #include <cmath>
@@ -410,6 +410,6 @@ HcclResult InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
 
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, AllReduceOrderPreserved,
     InsV2AllReduceOrderPreservedExecutor, TopoMatch1D,
-    InsTempReduceScatterOrderPreservedLevel1, InsTempAllGatherMesh1D);
+    InsTempReduceScatterOrderPreservedLevel1, InsTempAllGatherNHR);
 
 }
