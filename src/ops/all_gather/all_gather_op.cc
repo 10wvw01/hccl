@@ -85,10 +85,10 @@ HcclResult HcclAllGatherGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCou
             resPack.streams.push_back(static_cast<aclrtStream>(streams[i]));
         }
     }
+    std::string tagStr = tag;
     // 设置scratchMem
     resPack.scratchMemAddr = scratchMemAddr;
     resPack.scratchMemSize = scratchMemSize;
-    std::string tagStr = tag;
 
     CHK_RET(AllGatherEntryLog(sendBuf, recvBuf, sendCount, dataType, stream, opTag, "HcclAllGatherGraphMode", true));
 
