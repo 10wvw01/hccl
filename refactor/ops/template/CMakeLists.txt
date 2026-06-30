@@ -37,3 +37,32 @@ target_sources(hccl PRIVATE
     # engines/aiv/launcher/load_kernel.cc
     # engines/aiv/launcher/kernel_launch.cc
 )
+
+option(REFACTOR_TEMPLATE_PLAN_DEBUG "Build refactor template planner debug tools" OFF)
+
+if(REFACTOR_TEMPLATE_PLAN_DEBUG)
+    add_executable(mesh_allgather_plan_dump
+        debug/mesh_allgather_plan_dump.cc
+    )
+
+    target_include_directories(mesh_allgather_plan_dump PRIVATE
+        ${INCLUDE_LIST}
+        ${CMAKE_CURRENT_SOURCE_DIR}/primitives
+    )
+
+    target_compile_definitions(mesh_allgather_plan_dump PRIVATE
+        HOST_COMPILE
+        $<$<BOOL:${BUILD_OPEN_PROJECT}>:OPEN_BUILD_PROJECT>
+        $<$<STREQUAL:${PRODUCT_SIDE},host>:_GLIBCXX_USE_CXX11_ABI=0>
+    )
+
+    target_compile_options(mesh_allgather_plan_dump PRIVATE
+        -fno-common
+        -fno-strict-aliasing
+        -pipe
+        $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
+    )
+
+    # 这个工具只验证 BuildMeshAllGatherSlicePlan 的输出，不进入默认构建，也不触发真实 SendRecv。
+    target_link_libraries(mesh_allgather_plan_dump PRIVATE hccl)
+endif()
