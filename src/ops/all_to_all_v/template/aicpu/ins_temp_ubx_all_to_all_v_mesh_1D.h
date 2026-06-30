@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #ifndef INS_TEMP_UBX_ALL_TO_ALL_V_MESH_1D_H
 #define INS_TEMP_UBX_ALL_TO_ALL_V_MESH_1D_H
@@ -17,13 +17,13 @@
 
 namespace ops_hccl {
 
-class InsTempUBXAlltoAllVMesh1D : public InsAlgTemplateBase {
+class InsTempUBXAllToAllVMesh1D : public InsAlgTemplateBase {
 public:
-    InsTempUBXAlltoAllVMesh1D() = default;
-    explicit InsTempUBXAlltoAllVMesh1D(const OpParam& param, const u32 rankId,
+    InsTempUBXAllToAllVMesh1D() = default;
+    explicit InsTempUBXAllToAllVMesh1D(const OpParam& param, const u32 rankId,
         const std::vector<std::vector<u32>> &subCommRanks);
 
-    ~InsTempUBXAlltoAllVMesh1D() override;
+    ~InsTempUBXAllToAllVMesh1D() override;
 
     std::string Describe() const override
     {
@@ -48,13 +48,15 @@ private:
     void GetNotifyIdxClosToMain(std::vector<u32> &notifyIdxSubToMain);
     void GetNotifyIdxMainToFullMesh(std::vector<u32> &notifyIdxMianToSub);
     void GetNotifyIdxFullMeshToMain(std::vector<u32> &notifyIdxSubToMain);
-    HcclResult InitParam(const OpParam& param, const TemplateDataParams& tempAlgParams, TemplateResource& templateResource);
+    HcclResult InitParam(const OpParam& param, const TemplateDataParams& tempAlgParams,
+        TemplateResource& templateResource);
     HcclResult GetBoardSendRecvMatrix(u32 n, std::vector<std::vector<u32>>& sendRecvMatrix);
     HcclResult GetRankSendRecvMatrix(u32 board1, u32 board2, std::vector<std::vector<u32>>& rankSendRecvMatrix);
     u32 GetRankNumPerBoard(TemplateResource& templateResource);
     HcclResult CheckPathNum(TemplateResource& templateResource);
     HcclResult RunFullMesh(const TemplateDataParams& tempAlgParams, TemplateResource& templateResource);
-    HcclResult RunPairwise(const TemplateDataParams& tempAlgParams, TemplateResource& templateResource, u32 targetBoard);
+    HcclResult RunPairwise(const TemplateDataParams& tempAlgParams, TemplateResource& templateResource,
+        u32 targetBoard);
 
     u64 dataTypeSize_{0};
     bool isDmaRead_{false};
@@ -90,4 +92,4 @@ private:
 
 } // namespace Hccl
 
-#endif //INS_TEMP_UBX_ALL_TO_ALL_V_MESH_1D_H
+#endif // INS_TEMP_UBX_ALL_TO_ALL_V_MESH_1D_H
