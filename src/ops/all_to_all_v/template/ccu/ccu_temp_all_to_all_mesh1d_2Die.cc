@@ -63,6 +63,16 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
  	HCCL_INFO("channelDescs size[%u]", channelDescs.size());
  	 
  	CHK_RET(PartitionChannels(comm, rankIdToChannelDesc_));
+    double ratio = 1.0;
+    if (is2Plus6_ && !kernelChannels_[KERNEL_CLOS_MAJOR].empty() && !kernelChannels_[KERNEL_CLOS_MINOR].empty()) {
+        uint32_t majorBw = 0, minorBw = 0;
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MAJOR][0], majorBw));
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MINOR][0], minorBw));
+        if (majorBw + minorBw > 0) {
+            ratio = static_cast<double>(majorBw) / (majorBw + minorBw);
+        }
+    }
+    resourceRequest.dieSplitRatio = ratio;
     uint32_t slaveThreadNum = kernelCount_ - 1;
     resourceRequest.notifyNumOnMainThread = slaveThreadNum;
     resourceRequest.slaveThreadNum = slaveThreadNum;
@@ -153,22 +163,18 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
 HcclResult CcuTempAllToAllMesh1D2Die::CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset)
 {
     const uint64_t full = sliceSize;
-    const uint64_t majorPorts = diePortGroupSize_[0];   
-    const uint64_t minorPorts = diePortGroupSize_[1];
     if (kernelIdx == KERNEL_FULLMESH) {
         sliceSize = full;
         sliceOffset = 0;
     } else if (is2Plus6_ && kernelIdx == KERNEL_CLOS_MAJOR) {
-        uint64_t total = majorPorts + minorPorts;
-        sliceSize = (total == 0) ? full : full * majorPorts / total;  
-        sliceOffset = 0;                                                
+        sliceSize = static_cast<uint64_t>(full * dieSplitRatio_);
+        sliceOffset = 0;
     } else if (is2Plus6_ && kernelIdx == KERNEL_CLOS_MINOR) {
-        uint64_t total = majorPorts + minorPorts;
-        uint64_t majorSize = (total == 0) ? full : full * majorPorts / total;
-        sliceSize = full - majorSize;     
-        sliceOffset = majorSize;          
+        uint64_t majorSize = static_cast<uint64_t>(full * dieSplitRatio_);
+        sliceSize = full - majorSize;
+        sliceOffset = majorSize;
     } else {
-        sliceSize = full;                  
+        sliceSize = full;
         sliceOffset = 0;
     }
     return HCCL_SUCCESS;
@@ -200,13 +206,9 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
 
     uint32_t kernelCount = templateResource.ccuKernels.size();
     is2Plus6_ = (kernelCount == MAX_KERNEL_NUM_2DIE) ? true : false;
-    auto maxIt = templateResource.channels.begin();
-    for (auto it = templateResource.channels.begin(); it != templateResource.channels.end(); ++it) {
-        if (it->second.size() > maxIt->second.size()) {
-            maxIt = it;
-        }
+    if (templateResource.dieSplitRatio > 0.0) {
+        dieSplitRatio_ = templateResource.dieSplitRatio;
     }
-    CHK_RET(CalcPortNum(maxIt->second, diePortGroupSize_));
     uint32_t subThreadCount = kernelCount - 1;
 
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,

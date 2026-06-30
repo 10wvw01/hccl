@@ -190,6 +190,7 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     }
     if (param.engine == COMM_ENGINE_CCU) {
         templateAlgRes.ccuKernels = resCtx.ccuKernels;
+        templateAlgRes.dieSplitRatio = resCtx.dieSplitRatio;
     }
 
     templateAlgRes.threads = resCtx.threads;
