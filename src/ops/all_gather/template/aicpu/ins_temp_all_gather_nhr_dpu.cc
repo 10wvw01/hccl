@@ -39,7 +39,12 @@ u64 InsTempAllGatherNHRDPU::CalcScratchMultiple(BufferType inBufferType, BufferT
 {
     (void) inBufferType;
     (void) outBufferType;
-    u64 scratchMultiple = templateRankSize_;
+    // OFFLOAD模式下DPU的txSrc/rxDst均使用user output, LocalDataCopy也写output,
+    // 全程不需要scratch buffer
+    u64 scratchMultiple = 0;
+    if (opMode_ == OpMode::OPBASE) {
+        scratchMultiple = templateRankSize_;
+    }
     HCCL_INFO(
         "[InsTempAllGatherNHRDPU][CalcScratchMultiple] templateScratchMultiplier[%llu]", scratchMultiple);
     return scratchMultiple;
@@ -56,6 +61,10 @@ HcclResult InsTempAllGatherNHRDPU::KernelRun(const OpParam& param,
         return HCCL_E_INTERNAL;
     }
 
+    enableRemoteMemAccess_ = tempAlgParams.enableRemoteMemAccess;
+    if (enableRemoteMemAccess_) {
+        HCCL_INFO("[InsTempAllGatherNHRDPU][KernelRun] enableRemoteMemAccess is ON, using direct remote memory access mode.");
+    }
     CHK_RET(LocalDataCopy(tempAlgParams, templateResource));
 
     // 转换成eager-mode，保障AICPU指令下发执行完成
@@ -173,16 +182,29 @@ HcclResult InsTempAllGatherNHRDPU::LocalDataCopy(const TemplateDataParams& tempA
 
     for (uint64_t rpt = 0; rpt < tempAlgParams.repeatNum; ++rpt) {
         const u64 inBaseOff = tempAlgParams.buffInfo.inBuffBaseOff + rpt * tempAlgParams.inputRepeatStride;
-        const u64 scratchRepeatStride = tempAlgParams.sliceSize * templateRankSize_;
-        const u64 scratchBaseoff = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
 
         const u64 inOff = tempAlgParams.inputSliceStride * algRankIdx + inBaseOff;
-        const u64 scOff = tempAlgParams.sliceSize * algRankIdx + scratchBaseoff;
-
         DataSlice srcSlices(tempAlgParams.buffInfo.inputPtr, inOff, tempAlgParams.sliceSize, tempAlgParams.count);
-        DataSlice dstSlice(tempAlgParams.buffInfo.hcclBuff.addr, scOff, tempAlgParams.sliceSize,
-                           tempAlgParams.count);
-        LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
+
+        if (enableRemoteMemAccess_) {
+            // OFFLOAD: 直接将自身数据拷贝到user output(DPU txSrc从output读取),
+            //          使用outputSliceStride对齐输出布局, 无需scratch
+            HCCL_INFO("[InsTempAllGatherNHRDPU][LocalDataCopy] enableRemoteMemAccess is ON, copy local data directly to user output buffer.");
+            const u64 outOff = tempAlgParams.buffInfo.outBuffBaseOff +
+                rpt * tempAlgParams.outputRepeatStride +
+                tempAlgParams.outputSliceStride * algRankIdx;
+            DataSlice dstSlice(tempAlgParams.buffInfo.outputPtr, outOff, tempAlgParams.sliceSize,
+                               tempAlgParams.count);
+            LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
+        } else {
+            // OPBASE: 拷贝到scratch, DPU的txSrc从scratch读取
+            const u64 scratchRepeatStride = tempAlgParams.sliceSize * templateRankSize_;
+            const u64 scratchBaseoff = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
+            const u64 scOff = tempAlgParams.sliceSize * algRankIdx + scratchBaseoff;
+            DataSlice dstSlice(tempAlgParams.buffInfo.hcclBuff.addr, scOff, tempAlgParams.sliceSize,
+                               tempAlgParams.count);
+            LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
+        }
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -215,6 +237,13 @@ HcclResult InsTempAllGatherNHRDPU::RunNHR(const TemplateDataParams& tempAlgParam
 HcclResult InsTempAllGatherNHRDPU::PostLocalCopy(const TemplateDataParams& tempAlgParams,
                                                  const TemplateResource& templateResource)
 {
+    // OFFLOAD模式下DPU的rxDst直接写入user output(使用outputSliceStride对齐),
+    // 无需再从scratch拷贝到output
+    if (enableRemoteMemAccess_) {
+        HCCL_INFO("[InsTempAllGatherNHRDPU][PostLocalCopy] enableRemoteMemAccess is ON, DPU rxDst writes to output directly, skipping scratch-to-output copy.");
+        return HcclResult::HCCL_SUCCESS;
+    }
+
     for (u32 rpt = 0; rpt < tempAlgParams.repeatNum; ++rpt) {
         const u64 outBaseOff = tempAlgParams.buffInfo.outBuffBaseOff + rpt * tempAlgParams.outputRepeatStride;
         const u64 scratchRepeatStride = tempAlgParams.sliceSize * templateRankSize_;

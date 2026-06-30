@@ -22,18 +22,38 @@ void BuildTxSlices(
     u32 repeat,
     u32 templateRankSize,
     void *sendCclBuffAddr,
+    const ChannelInfo *txCh,
     std::vector<DataSlice> &txSrcSlices,
     std::vector<DataSlice> &txDstSlices)
 {
+    bool offload = tempAlgParam.enableRemoteMemAccess;
     for (u32 i = 0; i < stepInfo.txSliceIdxs.size(); i++) {
         u32 txId = stepInfo.txSliceIdxs.at(i);
         u64 sliceSize = tempAlgParam.allRankSliceSize.at(txId);
         u64 sliceCount = tempAlgParam.allRankProcessedDataCount.at(txId);
         u64 sliceOffset = tempAlgParam.allRankDispls.at(txId);
-        u64 srcDstOffset = repeat * templateRankSize * sliceSize +
-            tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
 
-        if (sliceSize != 0) {
+        if (sliceSize == 0) {
+            continue;
+        }
+
+        if (offload && txCh != nullptr) {
+            // OFFLOAD: txSrc从本地user output读取(前步rxDst写入此处, 首步由LocalDataCopy写入),
+            //          txDst直接写到远端user output, 使用outputSliceStride对齐输出布局
+            u64 srcOff = repeat * tempAlgParam.outputRepeatStride +
+                tempAlgParam.buffInfo.outBuffBaseOff +
+                tempAlgParam.outputSliceStride * txId;
+            u64 dstOff = repeat * tempAlgParam.outputRepeatStride +
+                tempAlgParam.buffInfo.outBuffBaseOff +
+                tempAlgParam.outputSliceStride * txId;
+            txSrcSlices.push_back(
+                DataSlice(tempAlgParam.buffInfo.outputPtr, srcOff, sliceSize, sliceCount));
+            txDstSlices.push_back(
+                DataSlice(txCh->remoteOutputGraphMode.addr, dstOff, sliceSize, sliceCount));
+        } else {
+            // OPBASE: 从本地scratch读取，写到远端scratch
+            u64 srcDstOffset = repeat * templateRankSize * sliceSize +
+                tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
             txSrcSlices.push_back(
                 DataSlice(tempAlgParam.buffInfo.hcclBuff.addr, srcDstOffset, sliceSize, sliceCount));
             txDstSlices.push_back(
@@ -48,18 +68,38 @@ void BuildRxSlices(
     u32 repeat,
     u32 templateRankSize,
     void *recvCclBuffAddr,
+    const ChannelInfo *rxCh,
     std::vector<DataSlice> &rxSrcSlices,
     std::vector<DataSlice> &rxDstSlices)
 {
+    bool offload = tempAlgParam.enableRemoteMemAccess;
     for (u32 i = 0; i < stepInfo.rxSliceIdxs.size(); i++) {
         u32 rxId = stepInfo.rxSliceIdxs.at(i);
         u64 sliceSize = tempAlgParam.allRankSliceSize.at(rxId);
         u64 sliceCount = tempAlgParam.allRankProcessedDataCount.at(rxId);
         u64 sliceOffset = tempAlgParam.allRankDispls.at(rxId);
-        u64 srcDstOffset = repeat * templateRankSize * sliceSize +
-            tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
 
-        if (sliceSize != 0) {
+        if (sliceSize == 0) {
+            continue;
+        }
+
+        if (offload && rxCh != nullptr) {
+            // OFFLOAD: rxSrc从远端user output读取, rxDst直接写到本地user output,
+            //         使用outputSliceStride对齐输出布局, 可跳过PostLocalCopy
+            u64 srcOff = repeat * tempAlgParam.outputRepeatStride +
+                tempAlgParam.buffInfo.outBuffBaseOff +
+                tempAlgParam.outputSliceStride * rxId;
+            u64 dstOff = repeat * tempAlgParam.outputRepeatStride +
+                tempAlgParam.buffInfo.outBuffBaseOff +
+                tempAlgParam.outputSliceStride * rxId;
+            rxSrcSlices.push_back(
+                DataSlice(rxCh->remoteOutputGraphMode.addr, srcOff, sliceSize, sliceCount));
+            rxDstSlices.push_back(
+                DataSlice(tempAlgParam.buffInfo.outputPtr, dstOff, sliceSize, sliceCount));
+        } else {
+            // OPBASE: 从远端scratch读取，写到本地scratch
+            u64 srcDstOffset = repeat * templateRankSize * sliceSize +
+                tempAlgParam.buffInfo.hcclBuffBaseOff + sliceOffset;
             rxSrcSlices.push_back(
                 DataSlice(recvCclBuffAddr, srcDstOffset, sliceSize, sliceCount));
             rxDstSlices.push_back(
@@ -113,7 +153,7 @@ HcclResult BatchTransferNHR(
     ctx.rxCh = rxCh;
     if (hasTx) {
         BuildTxSlices(stepInfo, tempAlgParam, repeat, templateRankSize,
-            sendCclBuffAddr, ctx.txSrcSlices, ctx.txDstSlices);
+            sendCclBuffAddr, txCh, ctx.txSrcSlices, ctx.txDstSlices);
         for (u32 i = 0; i < ctx.txSrcSlices.size(); i++) {
             HCCL_INFO("[BatchTransferNHR][Tx] toRank=%u slice=%u/%zu size=%llu",
                 stepInfo.toRank, i, ctx.txSrcSlices.size(), ctx.txSrcSlices[i].size_);
@@ -121,7 +161,7 @@ HcclResult BatchTransferNHR(
     }
     if (hasRx) {
         BuildRxSlices(stepInfo, tempAlgParam, repeat, templateRankSize,
-            recvCclBuffAddr, ctx.rxSrcSlices, ctx.rxDstSlices);
+            recvCclBuffAddr, rxCh, ctx.rxSrcSlices, ctx.rxDstSlices);
     }
     std::vector<DpuTransferCtx> pairs = {ctx};
     CHK_RET(DpuBatchTransfer(pairs));
