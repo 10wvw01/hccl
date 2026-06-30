@@ -47,9 +47,7 @@ protected:
     std::vector<ThreadHandle> threads_;
     std::vector<std::vector<ThreadHandle>> subThreads_;
     // [Notify资源]
-    std::vector<u32> syncNotifyOnMain_;
-    // vector外层表示stage，内层第一个元素表示intra的最后一个notifyid，第二个元素表示inter的最后一个notifyid，内层可扩展
-    std::vector<std::vector<u32>> syncNotifyOnTemplates_;
+    std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
     std::vector<std::map<u32, std::vector<ChannelInfo>> channelTable_;
@@ -62,8 +60,7 @@ protected:
     std::map<AlgoExecDesc, AlgoExecRes> resTable_;
     struct AlgoExecRes {
         // 数组下表表示templateTopoIndex
-        std::vector<ThreadHandle> syncInterThreads_;
-        std::vector<u32> syncNotifyOnAlgoExec_;
+        u32 subCommMask;
     };
 };
 

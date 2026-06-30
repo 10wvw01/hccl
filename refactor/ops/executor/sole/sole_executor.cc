@@ -10,6 +10,7 @@ SoleExecutor::~SoleExecutor() {}
 
 HcclResult SoleExecutor::CalcRes(AlgResourceRequest &resReq)
 {
+    // TODO：直接分配是否可行
     HcclResult res = CalcResRecursive(algo_.algoExecDesc, resReq);
     return res;
 }

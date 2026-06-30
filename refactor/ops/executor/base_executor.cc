@@ -87,3 +87,15 @@ std::vector<std::map<u32, std::vector<ChannelInfo>> BaseExecutor::RestoreChannel
     // 桥接用函数，理论上直接resCtx直接用该结构表即可
     // 使用原函数，略做改造，直接返回结构表（是否有性能问题？）
 }
+
+HcclResult BaseExecutor::SplitRes()
+{
+    // 需要切分的资源
+    // algHierarchyInfo：根据TemplateExecDesc.subCommIndex切分
+    // Thread: slaveThreadNum：需要算法提供GetRes
+    // Notify: notifyNumOnMainThread, notifyNumPerThread：需要算法提供GetRes
+    // Channel: 当前直接按照level切分，后续根据TemplateExecDesc.subCommIndex切分
+
+    // 从map表里获取资源，相当于GetRes
+    // map需要提供：节点数量和ID（ranks），thread数量和ID，Notify数量和ID，Channel数量和ID
+}
