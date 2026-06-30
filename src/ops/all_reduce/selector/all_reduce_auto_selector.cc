@@ -166,6 +166,8 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
+        selectAlgName = "CcuAllReduceParallelMesh1DNHR";
+        return SelectorStatus::MATCH;
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
                 HCCL_WARNING("[Algo][AllReduceAutoSelector] ccu_sched does not support inplace allreduce."),
