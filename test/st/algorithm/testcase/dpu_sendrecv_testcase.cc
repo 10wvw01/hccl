@@ -185,6 +185,28 @@ TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_int16)
     DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
 }
 
+TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count0_odd_rank)
+{
+    TopoMeta topoMeta{{{0}, {1}, {2}}};
+    std::map<RankId, RankId> sendRecvMap = {{0, 2}};
+
+    auto dataCount = 0;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+
+    DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_count1_odd_rank)
+{
+    TopoMeta topoMeta{{{0, 1, 2}}};
+    std::map<RankId, RankId> sendRecvMap = {{1, 2}};
+
+    auto dataCount = 1;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
+
+    DPUSendRecvTest(topoMeta, sendRecvMap, dataCount, dataType);
+}
+
 // 单卡单机两超节点100个int32
 TEST_F(DPU_SEND_RECV_TEST, dpu_send_recv_test_uint16)
 {
