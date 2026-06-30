@@ -2,8 +2,6 @@
 
 namespace ops_hccl {
 
-// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PreSyncInterThreads
-// 仅在串行策略分支内使用，调用方需保证已开启对应的AlgoExecRes记录
 HcclResult ParallelExecutor::PresyncByResTable(const AlgoExecDesc &execDesc)
 {
     auto it = resTable_.find(execDesc);
@@ -11,11 +9,18 @@ HcclResult ParallelExecutor::PresyncByResTable(const AlgoExecDesc &execDesc)
         HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
         return HCCL_E_INTERNAL;
     }
-    return PreSyncInterThreads(mainThread_, it->second.syncInterThreads_, it->second.syncNotifyOnAlgoExec_);
+    std::vector<ThreadHandle> syncInterThreads;
+    std::vector<u32> syncNotifyOnAlgoExec;
+    for (int i = 0; i < sizeof(it->second.subCommMask) * CHAR_BIT; i++) {
+        if (it->second.subCommMask & (1u << i)) {
+            syncInterThreads.emplace_back(subThreads_.at(i).at(0));
+            // 每个通信子域维度主线程notify - 1才是需要同步的notify数量
+            syncNotifyOnAlgoExec.emplace_back(notifyNumOnSubMainThread_.at(i) - 1);
+        }
+    }
+    return PreSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnAlgoExec);
 }
 
-// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PostSyncInterThreads
-// notify索引取自类成员syncNotifyOnMain_，因为收方向槽位由并行编排统一分配
 HcclResult ParallelExecutor::PostSyncByResTable(const AlgoExecDesc &execDesc)
 {
     auto it = resTable_.find(execDesc);
@@ -23,7 +28,15 @@ HcclResult ParallelExecutor::PostSyncByResTable(const AlgoExecDesc &execDesc)
         HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
         return HCCL_E_INTERNAL;
     }
-    return PostSyncInterThreads(mainThread_, it->second.syncInterThreads_, syncNotifyOnMain_);
+    std::vector<ThreadHandle> syncInterThreads;
+    std::vector<u32> syncNotifyOnMain;
+    for (int i = 0; i < sizeof(it->second.subCommMask) * CHAR_BIT; i++) {
+        if (it->second.subCommMask & (1u << i)) {
+            syncInterThreads.emplace_back(subThreads_.at(i).at(0));
+            syncNotifyOnMain.emplace_back(i);
+        }
+    }
+    return PostSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnMain);
 }
 
 // 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
@@ -103,6 +116,7 @@ HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
         // 每个通信子域还需要一条主流，所以求和还需要+1
         resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(templateTopoIndex) + 1;
         resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(templateTopoIndex) + 1);
+        notifyNumOnSubMainThread_.emplace_back(maxNotifyNumOnMainThread_.at(templateTopoIndex) + 1);
         // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
             maxSlaveThreadNum_.at(templateTopoIndex), maxNotifyNumPerThread_.at(templateTopoIndex));

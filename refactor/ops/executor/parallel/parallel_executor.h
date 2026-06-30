@@ -22,6 +22,7 @@ private:
     // 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PostSyncInterThreads
     // notify索引取自类成员syncNotifyOnMain_，因为收方向槽位由并行编排统一分配
     HcclResult PostSyncByResTable(const AlgoExecDesc &execDesc);
+    std::vector<u32> notifyNumOnSubMainThread_;    
     std::map<AlgoExecDesc, AlgoExecRes> resTable_;
     struct AlgoExecRes {
         // 数组下表表示templateTopoIndex
