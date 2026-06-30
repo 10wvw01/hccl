@@ -781,7 +781,7 @@ HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vect
 }
 
 HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expectedProtocol, std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, 
-                                               uint32_t netLayer, std::vector<HcclChannelDesc>& channels, bool isMesh, bool isClos, bool isIsolation)
+                                               uint32_t netLayer, std::vector<HcclChannelDesc>& channels, bool execptMesh, bool isIsolation)
 {
 #ifndef AICPU_COMPILE
     CommTopo topoType;
@@ -799,29 +799,37 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
     (void)comm; (void)netLayer; (void)linkList;
     return HcclResult::HCCL_E_NOT_SUPPORT;
 #else
+    std::vector<HcclChannelDesc> meshChannels;
+    std::vector<HcclChannelDesc> closChannels;
     for (u32 idx = 0; idx < linkList.size(); idx++) {
         if (linkList[idx].linkAttr.linkProtocol != expectedProtocol) {
             continue;
         }
         CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[idx], topoType));
-        if ((isClos && topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc, isIsolation)) || 
-            (isMesh && topoType == CommTopo::COMM_TOPO_1DMESH)) {
-            HcclChannelDesc channelDesc;
-            HcclChannelDescInit(&channelDesc, 1);
-            channelDesc.remoteRank = remoteRank;
-            channelDesc.localEndpoint.protocol = linkList[idx].srcEndpointDesc.protocol;
-            channelDesc.localEndpoint.commAddr = linkList[idx].srcEndpointDesc.commAddr;
-            channelDesc.localEndpoint.loc = linkList[idx].srcEndpointDesc.loc;
-            channelDesc.remoteEndpoint.protocol = linkList[idx].dstEndpointDesc.protocol;
-            channelDesc.remoteEndpoint.commAddr = linkList[idx].dstEndpointDesc.commAddr;
-            channelDesc.remoteEndpoint.loc = linkList[idx].dstEndpointDesc.loc;
-            channelDesc.channelProtocol = linkList[idx].srcEndpointDesc.protocol;
-            channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
-            channels.push_back(channelDesc);
-            HCCL_INFO("[CalcChannelRequestMeshClos]Add channel request between %u and %u with protocol %u "
-                  "and topoType %u.",
-                  myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
+        HcclChannelDesc channelDesc;
+        HcclChannelDescInit(&channelDesc, 1);
+        channelDesc.remoteRank = remoteRank;
+        channelDesc.localEndpoint.protocol = linkList[idx].srcEndpointDesc.protocol;
+        channelDesc.localEndpoint.commAddr = linkList[idx].srcEndpointDesc.commAddr;
+        channelDesc.localEndpoint.loc = linkList[idx].srcEndpointDesc.loc;
+        channelDesc.remoteEndpoint.protocol = linkList[idx].dstEndpointDesc.protocol;
+        channelDesc.remoteEndpoint.commAddr = linkList[idx].dstEndpointDesc.commAddr;
+        channelDesc.remoteEndpoint.loc = linkList[idx].dstEndpointDesc.loc;
+        channelDesc.channelProtocol = linkList[idx].srcEndpointDesc.protocol;
+        channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
+        if (topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc, isIsolation)) {
+            closChannels.push_back(channelDesc);
+        } else if (topoType == CommTopo::COMM_TOPO_1DMESH) {
+            meshChannels.push_back(channelDesc);
         }
+        HCCL_INFO("[CalcChannelRequestMeshClos]Get channel request between %u and %u with protocol %u "
+        "and topoType %u.",
+        myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
+    }
+    if (execptMesh && !meshChannels.empty()) {
+        channels.insert(channels.end(), meshChannels.begin(), meshChannels.end());
+    } else {
+        channels.insert(channels.end(), closChannels.begin(), closChannels.end());
     }
 #endif 
 #endif
@@ -914,7 +922,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
             }
             std::vector<CommLink> links(linkList, linkList + listSize);
             if (rankIdx != localRank) {
-                CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, subcommInfo[0][rankIdx], netLayer, channels, false, true, isIsolation));
+                CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, subcommInfo[0][rankIdx], netLayer, channels, false, isIsolation));
             }
             if (channels.size() > channelCountBefore) {
                 break;
@@ -942,7 +950,6 @@ HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& pa
     u32 myRank = topoInfo->userRank;
     CommProtocol expectedProtocol = param.engine == CommEngine::COMM_ENGINE_AIV ? 
                        CommProtocol::COMM_PROTOCOL_UB_MEM : CommProtocol::COMM_PROTOCOL_UBC_CTP;
-    const u32 CONST4P = 4;
     for (u32 rank: subcommInfo[COMM_LEVEL0]) {
         if (rank == topoInfo->userRank) {
             continue;
@@ -960,11 +967,7 @@ HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& pa
                 continue;
             }
             std::vector<CommLink> links(linkList, linkList + listSize);
-            if (rank / CONST4P == topoInfo->userRank / CONST4P && execptMesh) {
-                CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, rank, netLayer, channels, true, false));
-            } else {
-                CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, rank, netLayer, channels, false, true, isIsolation));
-            }
+            CHK_RET(ProcessLinksForChannelMutiJetty(comm, expectedProtocol, links, myRank, rank, netLayer, channels, execptMesh, isIsolation));
             if (channels.size() > channelCountBefore) {
                 break;
             }
