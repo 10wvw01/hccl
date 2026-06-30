@@ -52,7 +52,7 @@ private:
         TemplateResource& templateResource);
     HcclResult GetBoardSendRecvMatrix(u32 n, std::vector<std::vector<u32>>& sendRecvMatrix);
     HcclResult GetRankSendRecvMatrix(u32 board1, u32 board2, std::vector<std::vector<u32>>& rankSendRecvMatrix);
-    u32 GetRankNumPerBoard(TemplateResource& templateResource);
+    HcclResult GetRankNumPerBoard(TemplateResource& templateResource);
     HcclResult CheckPathNum(TemplateResource& templateResource);
     HcclResult RunFullMesh(const TemplateDataParams& tempAlgParams, TemplateResource& templateResource);
     HcclResult RunPairwise(const TemplateDataParams& tempAlgParams, TemplateResource& templateResource,

@@ -153,7 +153,7 @@ HcclResult InsTempUBXAllToAllVMesh1D::GetRankSendRecvMatrix(u32 board1, u32 boar
     return HcclResult::HCCL_SUCCESS;
 }
 
-u32 InsTempUBXAllToAllVMesh1D::GetRankNumPerBoard(TemplateResource& templateResource)
+HcclResult InsTempUBXAllToAllVMesh1D::GetRankNumPerBoard(TemplateResource& templateResource)
 {
     // 根据channel，和远端rank只有一条链路的，说明是fullmesh内的
     // 遍历所有卡
@@ -169,7 +169,33 @@ u32 InsTempUBXAllToAllVMesh1D::GetRankNumPerBoard(TemplateResource& templateReso
             fullMeshRankNum++;
         }
     }
-    return fullMeshRankNum;
+
+    rankNumPerBoard_ = fullMeshRankNum;
+    if (rankNumPerBoard_ > maxRankNumPerBoard_) {
+        // fullmesh 内最多4P
+        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] rankNumPerBoard_[%u] is more than [%u]",
+            rankNumPerBoard_, maxRankNumPerBoard_);
+        return HcclResult::HCCL_E_NOT_SUPPORT;
+    }
+    // 纯clos不支持
+    if (rankNumPerBoard_ == 1) {
+        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] rankNumPerBoard_ is [%u], "
+            "templateRankSize_ is [%u], only clos is not support", rankNumPerBoard_, templateRankSize_);
+        return HcclResult::HCCL_E_NOT_SUPPORT;
+    }
+    // 纯fullmesh暂时先支持
+    if (rankNumPerBoard_ == templateRankSize_) {
+        HCCL_WARNING("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] rankNumPerBoard_ is [%u], "
+            "templateRankSize_ is [%u], here is only fullmesh", rankNumPerBoard_, templateRankSize_);
+    }
+    // rankSize要是rankNumPerBoard_的整数倍
+    if (templateRankSize_ % rankNumPerBoard_ != 0) {
+        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][GetRankNumPerBoard] templateRankSize_ is [%u], rankNumPerBoard_ is [%u]",
+            templateRankSize_, rankNumPerBoard_);
+        return HcclResult::HCCL_E_NOT_SUPPORT;
+    }
+
+    return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult InsTempUBXAllToAllVMesh1D::CheckPathNum(TemplateResource& templateResource)
@@ -383,27 +409,7 @@ HcclResult InsTempUBXAllToAllVMesh1D::InitParam(const OpParam& param,
         return HCCL_E_INTERNAL;
     }
 
-    rankNumPerBoard_ = GetRankNumPerBoard(templateResource);
-    if (rankNumPerBoard_ > maxRankNumPerBoard_) {
-        // fullmesh 内最多4P
-        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][InitParam] rankNumPerBoard_[%u] is more than [%u]",
-            rankNumPerBoard_, maxRankNumPerBoard_);
-        return HCCL_E_NOT_SUPPORT;
-    }
-    // 纯fullmesh 和 纯 clos 都是不支持的
-    if (rankNumPerBoard_ == templateRankSize_ || rankNumPerBoard_ == 1) {
-        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D][InitParam] rankNumPerBoard_ is [%u], templateRankSize_ is [%u], "
-            "only fullmesh or only clos is not support", rankNumPerBoard_, templateRankSize_);
-        return HCCL_E_NOT_SUPPORT;
-    }
-    // rankSize要是rankNumPerBoard_的整数倍
-    if (templateRankSize_ % rankNumPerBoard_ != 0) {
-        HCCL_ERROR("[InsTempUBXAllToAllVMesh1D] templateRankSize_ is [%u], rankNumPerBoard_ is [%u]",
-            templateRankSize_, rankNumPerBoard_);
-        return HCCL_E_NOT_SUPPORT;
-    }
-
-    // 校验maxPathNum_
+    CHK_RET(GetRankNumPerBoard(templateResource));
     CHK_RET(CheckPathNum(templateResource));
 
     currBoard_ = myAlgRank_ / rankNumPerBoard_;
