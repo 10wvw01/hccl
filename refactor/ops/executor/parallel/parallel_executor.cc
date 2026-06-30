@@ -139,7 +139,7 @@ HcclResult ParallelExecutor::GenTemplateRes(
     return HCCL_SUCCESS;
 }
 HcclResult ParallelExecutor::GenTemplateDataParams(
-    const AlgResourceCtxSerializable &resCtx, TemplateDataParams &templateDataParams)
+    const AlgResourceCtxSerializable &resCtx, TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount)
 {
     void *inputPtr = nullptr;
     u64 inputSize = 0;
@@ -154,26 +154,58 @@ HcclResult ParallelExecutor::GenTemplateDataParams(
     templateDataParams.buffInfo.inBuffType = BufferType::INPUT;
     templateDataParams.buffInfo.outBuffType = BufferType::OUTPUT;
     templateDataParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
+
     templateDataParams.buffInfo.inputSize = dataInfo_.inputSize;
     templateDataParams.buffInfo.outputSize = dataInfo_.outputSize;
+    templateDataParams.dataType = dataInfo_.dataDesUnion.dataType;
 
-    templateDataParams.buffInfo.inBuffBaseOff = dataOffset;
-    templateDataParams.buffInfo.outBuffBaseOff = rankIdxLevel1_ * rankSizeLevel0_ * dataSize_ + dataOffset;
+    templateDataParams.buffInfo.inBuffBaseOff = sliceOffset;
     templateDataParams.buffInfo.hcclBuffBaseOff = scratchOffset;
-    templateDataParams.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
-    templateDataParams.count = dataCountPerLoopAixs0;
-    templateDataParams.tailSize = tempAlgParamsIntra0.sliceSize;
+    templateDataParams.count = sliceCount;
+    templateDataParams.tailCout = sliceCount % ;
+    // todo ,待计算应该只有部分源语需要计算填充，例如scatter/allgather等
 
-    templateDataParams.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
+    templateDataParams.enableRemoteMemAccess = opMode_ == OpMode::OFFLOAD;
     return;
 }
-HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc)
+
+void ParallelExecutor::GetParallelDataSplit(
+    u64 offset, u64 count, u32 childrenSize, vector<u64> childrenOffset, vector<u64> childrenCount)
+{
+    // 先均分数据，后续再看看是否需要优化
+    childrenOffset.clear();
+    childrenCount.clear();
+    if (childrenSize == 0 || count == 0) {
+        return;
+    }
+    childrenOffset.reserve(childrenSize);
+    childrenCount.reserve(childrenSize);
+    u64 childrenCountFloor = count / childrenSize;
+    u32 lastIndex = childrenSize - 1;
+    for (u32 i = 0; i < lastIndex; ++i) {
+        childrenCount.push_back(childrenCountFloor);
+        childrenOffset.push_back(offset + i * childrenCountFloor * dataTypeSize_);
+    }
+    childrenCount.push_back(count - childrenCountFloor * lastIndex);
+    childrenOffset.push_back(offset + lastIndex * childrenCountFloor * dataTypeSize_);
+    return;
+}
+
+HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc,
+    u64 offset, u64 count, u64 inputStride, u64 &outputStride)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
+    vector<u64> childrenOffset(childrenSize, offset);
+    vector<u64> childrenCount(childrenSize, count);
+    u64 childrenInputStride = inputStride;
+    u64 childrenOutputStride;
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
             CHK_RET(PresyncByResTable(nodeAloExecDesc));
+        } else {
+            // 如果是并行需要切分数据
+            GetParallelDataSplit(offset, count, childrenSize, childrenOffset, childrenCount);
         }
 
         VariantType &v = nodeAloExecDesc.children[i];
@@ -185,22 +217,33 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
             // 根据阶段生成template的资源参数
             TemplateResource templateResource;
             CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
+            // 根据inputStride和Topo信息计算outputStride;
+            CHK_RET(CalOutputStride(childrenInputStride, childrenOutputStride));
             // 根据阶段生成template的数据参数
             TemplateDataParams templateDataParams;
-            CHK_RET(GenTemplateDataParams(stage, dataPart, templateDataParams));
+            CHK_RET(GenTemplateDataParams(resCtx, templateDataParams, childrenOffset.at(i), childrenCount.at(i)),
+                childrenInputStride, childrenOutputStride);
             CHK_RET(template.KernelRun(templateDataParams, templateResource));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr));
+            CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr, childrenOffset.at(i), childrenCount.at(i),
+                childrenInputStride, &childrenOutputStride));
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
         // 如果是串行需要回到主流做尾同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
             CHK_RET(PostSyncByResTable(nodeAloExecDesc));
+            childrenInputStride = childrenOutputStride;
         }
     }
+    outputStride = childrenOutputStride;
+    return HCCL_SUCCESS;
+}
+
+HcclResult ParallelExecutor::CalOutputStride(u64 inputStride, u64 &outputStride)
+{
 }
 
 } // namespace ops_hccl
