@@ -343,6 +343,9 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     u64 scratchBoundDataSize = maxTmpMemSize_ / rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
     u64 maxCountPerLoop = std::min(scratchBoundDataSize, transportBoundDataSize);
+    if (param.supportSymmetricMemory && dataCount_ > 0) {
+        maxCountPerLoop = dataCount_;
+    }
     u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
 
     u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
@@ -389,13 +392,19 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
         tempResMap[temp.first].channels = remoteRankToChannelInfo_[temp.first];
         tempResMap[temp.first].threads = levelThreads_[temp.first];
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
+        tempAlgParamMap[temp.first].buffInfo.inputPtr = param.inputPtr;
+        tempAlgParamMap[temp.first].buffInfo.outputPtr = param.outputPtr;
+        tempAlgParamMap[temp.first].enableRemoteMemAccess = param.supportSymmetricMemory;
     }
     
     for (u64 loop = 0; loop < loopTimes; loop++) {
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
         DataSlice src(param.inputPtr, processedDataCount * dataTypeSize_, currDataCount * dataTypeSize_, currDataCount);
-        DataSlice dst(resCtx.cclMem.addr, myRank_ * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
-                        currDataCount);
+        void* initDstPtr = param.supportSymmetricMemory ? param.outputPtr : resCtx.cclMem.addr;
+        u64 initDstOffset = param.supportSymmetricMemory ?
+                            (myRank_ * dataCount_ + processedDataCount) * dataTypeSize_ :
+                            myRank_ * currDataCount * dataTypeSize_;
+        DataSlice dst(initDstPtr, initDstOffset, currDataCount * dataTypeSize_, currDataCount);
         CHK_RET(LocalCopy(controlThread_, src, dst));
 
         if (loop == loopTimes - 1 && dataCount_ % maxCountPerLoop != 0) {
@@ -440,12 +449,14 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             }
         }
 
-        for (u32 rank = 0; rank < rankSize_; rank++) {
-            DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
-                            currDataCount * dataTypeSize_, currDataCount);
-            DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
-                            currDataCount);
-            CHK_RET(LocalCopy(controlThread_, src, dst));
+        if (!param.supportSymmetricMemory) {
+            for (u32 rank = 0; rank < rankSize_; rank++) {
+                DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
+                                currDataCount * dataTypeSize_, currDataCount);
+                DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
+                                currDataCount);
+                CHK_RET(LocalCopy(controlThread_, src, dst));
+            }
         }
         processedDataCount += currDataCount;
     }
