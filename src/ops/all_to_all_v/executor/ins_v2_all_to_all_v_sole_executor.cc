@@ -408,7 +408,33 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
 	    kernels[i] = templateAlgRes.submitInfos[i];
 	}
 	return HCCL_SUCCESS;
+
+    template <typename AlgTopoMatch, typename InsAlgTemplate> 
+    HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch( 
+            const OpParam &param, const CcuFastLaunchCtx *fastLaunchCtx) 
+    { 
+        HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] Start."); 
+        TemplateFastLaunchCtx tempFastLaunchCtx; 
+        // 1 取线程 
+        ThreadHandle *threads = fastLaunchCtx->GetThreadHandlePtr(); 
+        tempFastLaunchCtx.threads.assign(threads, threads + fastLaunchCtx->threadNum); 
+        HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] threadNum[%llu]", fastLaunchCtx->threadNum); 
+         
+        // 2 取arg 
+        CcuKernelSubmitInfo *ccuKernelSubmitInfos = fastLaunchCtx->GetCcuKernelSubmitInfoPtr(); 
+        tempFastLaunchCtx.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + fastLaunchCtx->ccuKernelNum[0]); 
+        HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] ccuKernelNum[%llu]", fastLaunchCtx->ccuKernelNum[0]); 
+        tempFastLaunchCtx.buffInfo.inputPtr = param.inputPtr; 
+        tempFastLaunchCtx.buffInfo.outputPtr = param.outputPtr; 
+         
+        // 3 调template 
+        std::unique_ptr<InsAlgTemplate> algTemplate = std::make_unique<InsAlgTemplate>(); 
+        CHK_RET(algTemplate->FastLaunch(param, tempFastLaunchCtx)); 
+        HCCL_INFO("[InsV2AlltoAllVSoleExecutor][FastLaunch] End."); 
+        return HCCL_SUCCESS; 
+    }
 }
+
 #endif
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
