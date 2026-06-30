@@ -2,6 +2,30 @@
 
 namespace ops_hccl {
 
+// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PreSyncInterThreads
+// 仅在串行策略分支内使用，调用方需保证已开启对应的AlgoExecRes记录
+HcclResult ParallelExecutor::PresyncByResTable(const AlgoExecDesc &execDesc)
+{
+    auto it = resTable_.find(execDesc);
+    if (it == resTable_.end()) {
+        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
+        return HCCL_E_INTERNAL;
+    }
+    return PreSyncInterThreads(mainThread_, it->second.syncInterThreads_, it->second.syncNotifyOnAlgoExec_);
+}
+
+// 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PostSyncInterThreads
+// notify索引取自类成员syncNotifyOnMain_，因为收方向槽位由并行编排统一分配
+HcclResult ParallelExecutor::PostSyncByResTable(const AlgoExecDesc &execDesc)
+{
+    auto it = resTable_.find(execDesc);
+    if (it == resTable_.end()) {
+        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
+        return HCCL_E_INTERNAL;
+    }
+    return PostSyncInterThreads(mainThread_, it->second.syncInterThreads_, syncNotifyOnMain_);
+}
+
 // 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
 // thread[0]                                = main thread
 // thread[1]                                = intra main → notifyNumPerThread[0]
@@ -112,7 +136,7 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            PresyncByResTable(nodeAloExecDesc);
+            CHK_RET(PresyncByResTable(nodeAloExecDesc));
         }
 
         VariantType &v = nodeAloExecDesc.children[i];
@@ -137,7 +161,7 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
         }
         // 如果是串行需要回到主流做尾同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            PostSyncByResTable(nodeAloExecDesc);
+            CHK_RET(PostSyncByResTable(nodeAloExecDesc));
         }
     }
 }

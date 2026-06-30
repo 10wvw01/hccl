@@ -17,27 +17,11 @@ private:
 
     // 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PreSyncInterThreads
     // 仅在串行策略分支内使用，调用方需保证已开启对应的AlgoExecRes记录
-    inline void PresyncByResTable(const AlgoExecDesc &execDesc)
-    {
-        auto it = resTable_.find(execDesc);
-        if (it == resTable_.end()) {
-            HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
-            return;
-        }
-        PreSyncInterThreads(mainThread_, it->second.syncInterThreads_, it->second.syncNotifyOnAlgoExec_);
-    }
+    HcclResult PresyncByResTable(const AlgoExecDesc &execDesc);
 
     // 从resTable_中按AlgoExecDesc查找AlgoExecRes，并触发PostSyncInterThreads
     // notify索引取自类成员syncNotifyOnMain_，因为收方向槽位由并行编排统一分配
-    inline void PostSyncByResTable(const AlgoExecDesc &execDesc)
-    {
-        auto it = resTable_.find(execDesc);
-        if (it == resTable_.end()) {
-            HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
-            return;
-        }
-        PostSyncInterThreads(mainThread_, it->second.syncInterThreads_, syncNotifyOnMain_);
-    }
+    HcclResult PostSyncByResTable(const AlgoExecDesc &execDesc);
     std::map<AlgoExecDesc, AlgoExecRes> resTable_;
     struct AlgoExecRes {
         // 数组下表表示templateTopoIndex
