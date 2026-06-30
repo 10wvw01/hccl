@@ -82,8 +82,8 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
         }
     }
     // 设置scratchMem
-    resPack.scratchMemAddr = scratchMemAddr;
     resPack.scratchMemSize = scratchMemSize;
+    resPack.scratchMemAddr = scratchMemAddr;
     std::string tagStr = tag;
 
     CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode", true));
@@ -150,8 +150,8 @@ HcclResult BroadcastOutPlaceCommon(void *buf, uint64_t count, HcclDataType dataT
 
     OpParam param;
     CHK_RET(HcclGetCommName(comm, param.commName));
-    param.stream = stream;
     param.opMode = opMode;
+    param.stream = stream;
 
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
@@ -165,8 +165,8 @@ HcclResult BroadcastOutPlaceCommon(void *buf, uint64_t count, HcclDataType dataT
 
     // 参数准备
     param.inputPtr = buf;
-    param.inputSize = inputSize;
     param.outputPtr = buf;
+    param.inputSize = inputSize;
     param.outputSize = outputSize;
     param.DataDes.count = count;
     param.DataDes.dataType = dataType;
