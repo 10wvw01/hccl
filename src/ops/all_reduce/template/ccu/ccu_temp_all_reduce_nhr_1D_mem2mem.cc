@@ -68,6 +68,17 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::CalcRes(HcclComm comm, const OpParam& p
     if (dieNum > 1) { // 通过端口数划分channel，适配跨框die0连die1的场景，避免建链失败
         CHK_RET(ReverseChannelPerDieIfNeed(comm, myRank_, channelsPerDie));
     }
+
+    double ratio = 1.0;
+    if (dieNum == 2) {
+        uint32_t p0 = 0, p1 = 0;
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, channelsPerDie[0][0], p0));
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, channelsPerDie[1][0], p1));
+        if (p0 + p1 > 0) {
+            ratio = static_cast<double>(p0) / (p0 + p1);
+        }
+    }
+    resourceRequest.dieSplitRatio = ratio;
     for (uint32_t kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
         CcuKernelInfo kernelInfo;
         strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuKernelAllReduceNHR1D");
@@ -98,7 +109,7 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::SplitDataFor2Dies(uint64_t dataCount, u
         return HcclResult::HCCL_SUCCESS;
     }
 
-    die0Size = (dataCount * diePortGroupSize_[0] / (diePortGroupSize_[0] + diePortGroupSize_[1])) * DataTypeSizeGet(dataType_);
+    die0Size = static_cast<uint64_t>(dataCount * dieSplitRatio_) * DataTypeSizeGet(dataType_);
     die1Size = dataCount * DataTypeSizeGet(dataType_) - die0Size;
     HCCL_INFO("[CcuTempAllReduceNHRMem2Mem1D::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size ,die1Size);
     return HcclResult::HCCL_SUCCESS;
@@ -289,7 +300,9 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::KernelRun(const OpParam& param, const T
     const u32 kernelNum = templateResource.ccuKernels.size();
     uint64_t die0Size = 0, die1Size = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    CHK_RET(CalcPortNum(templateResource.channels.begin()->second, diePortGroupSize_));
+    if (templateResource.dieSplitRatio > 0.0) {
+        dieSplitRatio_ = templateResource.dieSplitRatio;
+    }
     SplitDataFor2Dies(dataCount, die0Size, die1Size);
 
     buffInfo_ = templateDataParams.buffInfo;
