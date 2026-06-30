@@ -1,12 +1,12 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
- */
+聽* Copyright (c) 2025 Huawei Technologies Co., Ltd.
+聽* This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+聽* CANN Open Software License Agreement Version 2.0 (the "License").
+聽* Please refer to the License for details. You may not use this file except in compliance with the License.
+聽* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+聽* INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+聽* See LICENSE in the root of the software repository for the full text of the License.
+聽*/
 
 #include "ins_temp_reduce_scatter_mesh_1D_meshchunk.h"
 
@@ -170,10 +170,9 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
 {
     for (uint16_t stepIdx = 0; stepIdx < (templateRankSize_ - 1); stepIdx++) {
         sliceSendOffset_ = 0;
-        sliceRecvOffset_ = sliceRecvBaseOffset;
         uint16_t rankNum = 2;
-        uint16_t tempNum = 3;
         for (uint16_t i = 0; i < (templateRankSize_ - 1); i++) {
+            sliceRecvOffset_ = (sliceRecvBaseOffset + processSize_ - sliceSendOffset_) % processSize_;
             uint16_t nextNum = stepIdx + i + 1;
             if (nextNum >= templateRankSize_) {
                 nextNum += 1;
@@ -222,9 +221,6 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::DoMeshChunk(
                 HcclResult::HCCL_E_INTERNAL);
 
             sliceSendOffset_ += sliceSize[i];
-            if (templateRankSize_ > rankNum && i < (templateRankSize_ - rankNum)) {
-                sliceRecvOffset_ -= sliceSize[templateRankSize_ - tempNum - i];
-            }
         }
         if (threadNum_ > 1 && stepIdx < (templateRankSize_ - rankNum)) {
             std::vector<ThreadHandle> subThreads(threads.begin() + 1, threads.end());
@@ -247,7 +243,7 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::PostCopy(
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
     CHK_PRT_RET(threads.empty(),
         HCCL_ERROR("[InsTempReduceScatterMesh1DMeshChunk][PostCopy] threads is empty"), HCCL_E_PARA);
-    // 先把本卡的数据从input搬运到output
+    // 鍏堟妸鏈崱鐨勬暟鎹粠input鎼繍鍒皁utput
     for (u32 repeatIdx = 0; repeatIdx < tempAlgParams.repeatNum; repeatIdx++) {
         DataSlice myRankSlice = DataSlice(tempAlgParams.buffInfo.hcclBuff.addr,
             tempAlgParams.buffInfo.hcclBuffBaseOff + repeatIdx * tempAlgParams.outputRepeatStride, processSize_);
