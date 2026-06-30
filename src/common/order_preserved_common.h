@@ -52,14 +52,20 @@ inline bool IsNeedStrictModeForOrderPreserved(const OpParam& opParam, u32 rankSi
     u8 deterministicLevel = GetExternalInputHcclDeterministic();
     HcclDataType dataType = opParam.DataDes.dataType;
     HcclReduceOp reduceType = opParam.reduceType;
-    
-    return (deterministicLevel == static_cast<u8>(DeterministicEnableLevel::DETERMINISTIC_STRICT))
-        && (dataType == HcclDataType::HCCL_DATA_TYPE_FP16 ||
+
+    // 规约保序支持的算子与数据类型组合：sum 支持 fp16/fp32/bfp16/fp64，prod 仅支持 fp64
+    bool isSupportedCombination = false;
+    if (reduceType == HcclReduceOp::HCCL_REDUCE_SUM) {
+        isSupportedCombination = (dataType == HcclDataType::HCCL_DATA_TYPE_FP16 ||
             dataType == HcclDataType::HCCL_DATA_TYPE_FP32 ||
             dataType == HcclDataType::HCCL_DATA_TYPE_BFP16 ||
-            dataType == HcclDataType::HCCL_DATA_TYPE_FP64)
-        && (reduceType == HcclReduceOp::HCCL_REDUCE_SUM ||
-            reduceType == HcclReduceOp::HCCL_REDUCE_PROD)
+            dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
+    } else if (reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
+        isSupportedCombination = (dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
+    }
+
+    return (deterministicLevel == static_cast<u8>(DeterministicEnableLevel::DETERMINISTIC_STRICT))
+        && isSupportedCombination
         && rankSize > MIN_STRICT_RANK_NUM_ORDER_PRESERVED;
 }
 
