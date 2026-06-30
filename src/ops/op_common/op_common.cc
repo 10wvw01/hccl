@@ -53,6 +53,7 @@
 #include "hccl_res_expt_dl.h"
 #include "ccu_launch_dl.h"
 #include "hccl_ccu_res_dl.h"
+#include "comm_engine_utils.h"
 
 namespace ops_hccl {
 // 用于维护增量建链算子的host ctx信息
@@ -338,12 +339,93 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
     CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, tag:%s, tagSize:%u, sRet:%d.",
         __func__, tag, tagSize, sRet), HCCL_E_MEMORY);
     HCCL_INFO("[%s]HcclDfxOpInfo param: algTag[%s], opMode[%u], opType[%u], reduceOp[%u], dataType[%u], dataCount[%llu], "
-        "root[%u], engine[%u], inputMemAddr[0x%llx], inputMemSize[%llu], outputMemAddr[0x%llx], outputMemSize[%llu], "
+        "root[%u], engine[%s], inputMemAddr[0x%llx], inputMemSize[%llu], outputMemAddr[0x%llx], outputMemSize[%llu], "
         "cpuTsThread[0x%llu], cpuWaitAicpuNotifyIdx[%u]",
         __func__, hcclDfxOpInfo.algTag, hcclDfxOpInfo.opMode, hcclDfxOpInfo.opType, hcclDfxOpInfo.reduceOp,
-        hcclDfxOpInfo.dataType, hcclDfxOpInfo.dataCount, hcclDfxOpInfo.root, hcclDfxOpInfo.engine,
+        hcclDfxOpInfo.dataType, hcclDfxOpInfo.dataCount, hcclDfxOpInfo.root, GetEnumToString(GetCommEngineStatusStrMap(), hcclDfxOpInfo.engine).c_str(),
         hcclDfxOpInfo.inputMemAddr, hcclDfxOpInfo.inputMemSize, hcclDfxOpInfo.outputMemAddr,
         hcclDfxOpInfo.outputMemSize, hcclDfxOpInfo.cpuTsThread, hcclDfxOpInfo.cpuWaitAicpuNotifyIdx);
+    return HCCL_SUCCESS;
+}
+
+bool IsStreamInCaptureMode(aclrtStream stream)
+{
+    aclmdlRICaptureStatus captureStatus = aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_NONE;
+    aclmdlRI rtModel = nullptr;
+    aclError aclRet = aclmdlRICaptureGetInfo(stream, &captureStatus, &rtModel);
+    if (aclRet == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+        return false;
+    }
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("[%s] aclmdlRICaptureGetInfo fail, ret[%d]", __func__, aclRet);
+        return false;
+    }
+    return captureStatus == aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_ACTIVE;
+}
+
+bool IsAivCacheSupported(const OpParam &param)
+{
+    return (param.opType == HCCL_CMD_ALLGATHER || param.opType == HCCL_CMD_ALLREDUCE ||
+            param.opType == HCCL_CMD_REDUCE_SCATTER || param.opType == HCCL_CMD_BROADCAST ||
+            param.opType == HCCL_CMD_REDUCE || param.opType == HCCL_CMD_ALLTOALL ||
+            param.opType == HCCL_CMD_SCATTER) &&
+           param.opMode == OpMode::OPBASE && !IsStreamInCaptureMode(param.stream);
+}
+
+HcclResult HcclAivCacheCheckAndReplay(HcclComm comm, OpParam &param, bool &cacheHit)
+{
+    cacheHit = false;
+    if (!IsAivCacheSupported(param)) {
+        return HCCL_SUCCESS;
+    }
+
+    AivOpCacheArgs cacheKey = {};
+    cacheKey.commName = param.commName;
+    cacheKey.opType = param.opType;
+    cacheKey.root = param.root;
+    cacheKey.reduceOp = param.reduceType;
+    if (param.opType == HCCL_CMD_ALLTOALL) {
+        cacheKey.dataType = param.all2AllVDataDes.sendType;
+        cacheKey.count = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
+    } else {
+        cacheKey.count = param.DataDes.count;
+        cacheKey.dataType = param.DataDes.dataType;
+    }
+
+    u64 keyHash = CalcAivCacheKeyHash(cacheKey);
+    std::string ctxTag;
+    CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
+
+    std::string cachedAlgName;
+    AivInstruction *instructions = nullptr;
+    u32 insCount = 0;
+    CHK_RET(LookupAivCacheCtx(comm, ctxTag, keyHash, cacheHit, cachedAlgName, instructions, insCount));
+    if (!cacheHit) {
+        return HCCL_SUCCESS;
+    }
+
+    HCCL_INFO("[HcclAivCacheCheckAndReplay] cache hit, algName[%s], insCount[%u]", cachedAlgName.c_str(), insCount);
+
+    int result = sprintf_s(param.algName, sizeof(param.algName), "%s", cachedAlgName.c_str());
+    CHK_PRT_RET(result <= 0, HCCL_ERROR("[%s] failed to fill param.algName", __func__), HCCL_E_INTERNAL);
+    CHK_RET(SetOpParamAlgTag(param, cachedAlgName));
+    param.hcclComm = comm;
+
+    uint64_t beginTime = HcommGetProfilingSysCycleTime();
+
+    HcclDfxOpInfoCompat hcclDfxOpInfo{};
+    CHK_RET(ConstructHcclDfxOpInfo(param, param.algTag, ALG_TAG_LENGTH, hcclDfxOpInfo, 0));
+    param.dataCount = hcclDfxOpInfo.dataCount;
+    CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
+
+    u32 numBlocksLimit = MAX_NUM_BLOCKS;
+    ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
+    param.numBlocksLimit = numBlocksLimit;
+
+    CHK_RET(ReplayAivInstructions(instructions, insCount, param));
+
+    CHK_RET(HcclReportAivKernel(comm, beginTime));
+    CHK_RET(HcclProfilingReportOp(comm, beginTime));
     return HCCL_SUCCESS;
 }
 
@@ -392,42 +474,25 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
                                 std::unique_ptr<InsCollAlgBase> &executor,
                                 AlgResourceCtxSerializable &resCtxHost)
 {
-    // Cache Logic
-    bool useCache = (param.opType != HCCL_CMD_ALLTOALLV && param.opType != HCCL_CMD_ALLTOALLVC &&
-                     param.opType != HCCL_CMD_ALLGATHER_V && param.opType != HCCL_CMD_REDUCE_SCATTER_V);
-
-    AivOpCacheArgs cacheKey = {};
-    if (useCache) {
-        cacheKey.commName = param.commName;
-        cacheKey.algName = algName;
-        cacheKey.opType = param.opType;
-        cacheKey.root = param.root;
-        cacheKey.reduceOp = param.reduceType;
-
-        if (param.opType == HCCL_CMD_ALLTOALL) {
-            cacheKey.sendType = param.all2AllVDataDes.sendType;
-            cacheKey.recvType = param.all2AllVDataDes.recvType;
-            cacheKey.sendCount = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
-            cacheKey.recvCount = static_cast<const u64 *>(param.all2AllVDataDes.recvCounts)[0];
-        } else {
-            cacheKey.count = param.DataDes.count;
-            cacheKey.dataType = param.DataDes.dataType;
-        }
-    }
+    bool useCache = IsAivCacheSupported(param);
 
     std::string ctxTag;
     u64 keyHash = 0;
     if (useCache) {
+        AivOpCacheArgs cacheKey = {};
+        cacheKey.commName = param.commName;
+        cacheKey.opType = param.opType;
+        cacheKey.root = param.root;
+        cacheKey.reduceOp = param.reduceType;
+        if (param.opType == HCCL_CMD_ALLTOALL) {
+            cacheKey.dataType = param.all2AllVDataDes.sendType;
+            cacheKey.count = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts)[0];
+        } else {
+            cacheKey.count = param.DataDes.count;
+            cacheKey.dataType = param.DataDes.dataType;
+        }
         keyHash = CalcAivCacheKeyHash(cacheKey);
         CHK_RET(BuildAivCacheCtxTag(keyHash, ctxTag));
-        bool cacheHit = false;
-        CHK_RET(ReplayAivCacheCtx(comm, ctxTag, keyHash, param, cacheHit));
-
-        // Hit, return
-        if (cacheHit) {
-            return HCCL_SUCCESS;
-        }
-        // Miss, continue start recording
         g_recordingQueue = std::make_shared<InsQueue>();
         g_baseInputAddr = reinterpret_cast<u64>(param.inputPtr);
         g_baseOutputAddr = reinterpret_cast<u64>(param.outputPtr);
@@ -435,12 +500,11 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
 
     CHK_RET(executor->Orchestrate(param, resCtxHost));
 
-    // 插入cache
     if (useCache && g_recordingQueue) {
         AivCacheIndexCtx *indexCtx = nullptr;
         CHK_RET(GetOrCreateAivCacheIndexCtx(comm, &indexCtx));
         CHK_RET(EvictAivCacheIfNeeded(comm, indexCtx));
-        CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, indexCtx));
+        CHK_RET(StoreAivCacheCtx(comm, ctxTag, keyHash, algName, indexCtx));
         g_recordingQueue = nullptr;
         g_baseInputAddr = 0;
         g_baseOutputAddr = 0;
@@ -1006,8 +1070,8 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
             if (i > 0) channelNumInfo += ", ";
             channelNumInfo += "level" + std::to_string(i) + "[" + std::to_string(resCtxHost->channels[i].size()) + "]";
         }
-        HCCL_RUN_INFO("[HcclGetAlgRes] engine[%d], algTag[%s], resource allocated: thread num[%u], "
-            "channel num per level[%s], ccu kernel num[%u].", static_cast<int>(param.engine), param.algTag,
+        HCCL_RUN_INFO("[HcclGetAlgRes] engine[%s], algTag[%s], resource allocated: thread num[%u], "
+            "channel num per level[%s], ccu kernel num[%u].", GetEnumToString(GetCommEngineStatusStrMap(), param.engine).c_str(), param.algTag,
             resCtxHost->threads.size(), channelNumInfo.c_str(), resCtxHost->ccuKernels.size());
     }
 
@@ -1120,7 +1184,7 @@ HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest
         }
         CHK_RET(ret);
     } else {
-        HCCL_ERROR("fail to get engine, invalid engine type[%d].", param.engine);
+        HCCL_ERROR("fail to get engine, invalid engine type[%s].", GetEnumToString(GetCommEngineStatusStrMap(), param.engine).c_str());
         return HCCL_E_PARA;
     }
     param.ctxSize = size;
