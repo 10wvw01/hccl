@@ -191,6 +191,23 @@ void ParallelExecutor::GetParallelDataSplit(
     return;
 }
 
+HcclResult ParallelExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
+    u64 sliceOffset, u64 sliceCount, u64 inputStride, u64 &outputStride)
+{
+    std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
+    BaseTemplate baseTemplate
+        = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
+    // 根据阶段生成template的资源参数
+    TemplateResource templateResource;
+    CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
+    // 根据inputStride和Topo信息计算outputStride;
+    CHK_RET(CalOutputStride(inputStride, outputStride));
+    // 根据阶段生成template的数据参数
+    TemplateDataParams templateDataParams;
+    CHK_RET(GenTemplateDataParams(resCtx, templateDataParams, sliceOffset, sliceCount), inputStride, outputStride);
+    return baseTemplate.KernelRun(templateDataParams, templateResource);
+}
+
 HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc nodeAloExecDesc,
     u64 offset, u64 count, u64 inputStride, u64 &outputStride)
 {
@@ -211,19 +228,8 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
         VariantType &v = nodeAloExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-            std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
-            BaseTemplate baseTemplate
-                = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
-            // 根据阶段生成template的资源参数
-            TemplateResource templateResource;
-            CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
-            // 根据inputStride和Topo信息计算outputStride;
-            CHK_RET(CalOutputStride(childrenInputStride, childrenOutputStride));
-            // 根据阶段生成template的数据参数
-            TemplateDataParams templateDataParams;
-            CHK_RET(GenTemplateDataParams(resCtx, templateDataParams, childrenOffset.at(i), childrenCount.at(i)),
-                childrenInputStride, childrenOutputStride);
-            CHK_RET(template.KernelRun(templateDataParams, templateResource));
+            CHK_RET(RunTemplateDesc(resCtx, templateExeDes, childrenOffset.at(i), childrenCount.at(i),
+                childrenInputStride, childrenOutputStride));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
