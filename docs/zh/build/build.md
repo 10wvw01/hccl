@@ -194,7 +194,7 @@ bash build.sh --ut
 
 4. 查看结果
 
-   执行完HCCL Test工具后，回显示例如下：
+   执行完HCCL Test工具后，回显例如下：
 
    ![hccltest_result](./figures/hccl_test_result.png)
 
