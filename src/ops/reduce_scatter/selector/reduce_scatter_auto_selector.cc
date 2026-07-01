@@ -438,7 +438,13 @@ SelectorStatus ReduceScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLay
     CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceScatterAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
-    u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
+    u64 perRankDataSize = opParam.DataDes.count * perDataSize;
+    u64 totalSize = perRankDataSize * topoInfo->userRankSize;
+    if (totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
+            __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
