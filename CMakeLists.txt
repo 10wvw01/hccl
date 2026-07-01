@@ -134,11 +134,6 @@ elseif(BUILD_OPEN_PROJECT)
     find_cann_package(asc_devkit MODULE REQUIRED)
     find_cann_package(tsdclient MODULE REQUIRED)
     find_cann_package(hcomm MODULE REQUIRED)
-    if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu)
-    get_target_property(_hcomm_inc hcomm_headers INTERFACE_INCLUDE_DIRECTORIES)
-    set_target_properties(hcomm_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${_hcomm_inc};${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu"
-    )
     endif()
 
     # 检查构建依赖
