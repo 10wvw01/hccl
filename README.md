@@ -3,7 +3,7 @@
 ## 🔥Latest News
 
 - [2026/05] Ascend950 通信算子支持静态库，详见[Issue#90](https://gitcode.com/cann/hccl/issues/90)，[Issue#105](https://gitcode.com/cann/hccl/issues/105)
-- [2026/04] Ascend950 通信算子支持图模式，详见[PR#613](https://gitcode.com/cann/hccl/pull/613), [PR#613](https://gitcode.com/cann/hccl/pull/613), [PR#340](https://gitcode.com/cann/hccl/pull/340), [PR#296](https://gitcode.com/cann/hccl/pull/296), [GE PR#1620](https://gitcode.com/cann/ge/pull/1620)
+- [2026/04] Ascend950 通信算子支持图模式，详见[PR#613](https://gitcode.com/cann/hccl/pull/613), [PR#340](https://gitcode.com/cann/hccl/pull/340), [PR#296](https://gitcode.com/cann/hccl/pull/296), [GE PR#1620](https://gitcode.com/cann/ge/pull/1620)
 - [2026/03] Ascend950 通信算子支持AIV&AICPU通信引擎（单算子）
 - [2025/11/30] HCCL项目正式开源。
 
