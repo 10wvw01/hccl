@@ -19,6 +19,7 @@
 #include "alg_template_base.h"
 namespace ops_hccl {
 constexpr u64 HCCL_MIN_SLICE_ALIGN_OMNIPIPE=512;
+constexpr u64 HCCL_MIN_SLICE_ALIGN_OMNIPIPE_CCU = 128;
 constexpr u64 MAX_STEP_NUM = 5;
 constexpr u64 OMNIPIPE_UBX_16P_MAX_STEP_NUM = 5;
 
@@ -30,6 +31,13 @@ constexpr double BW_OMNI_PCIE_SIXTEEN_AG_CLOS = 35;
 
 constexpr double BW_OMNI_UBX_AG_CLOS = 191;
 constexpr double BW_OMNI_UBX_RS_CLOS = 225;
+
+constexpr double BW_OMNI_UBX_CCU_SCHED_RS_MESH = 25;
+constexpr double BW_OMNI_UBX_CCU_SCHED_RS_CLOS = 200;
+constexpr double BW_OMNI_UBX_CCU_MS_RS_MESH = 47;
+constexpr double BW_OMNI_UBX_CCU_MS_RS_CLOS = 170;
+constexpr double BW_OMNI_UBX_CCU_SCHED_AG_MESH = 47;
+constexpr double BW_OMNI_UBX_CCU_SCHED_AG_CLOS = 180;
 
 enum OmniPipeLevel{
     OMNIPIPE_LEVEL0 = 0,
@@ -219,7 +227,7 @@ void CalAllgather2DOffset(u64* xAGOffset, u64* yAGOffset, u64 stepNum, u64 xRank
 u64 CalAllgatherDataSizeRatio2D(double* xStepP2pDataSize, double* yStepP2pDataSize, double xB, double yB, u64 xRankSize,
                                 u64 yRankSize, double dataSize, u64 maxStep);
 u64 CalAllgatherDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, double xB, double yB, u64 xRankSize,
-                           u64 yRankSize, u64 dataSizeEachRank, u64 maxStep);
+                           u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 OmniPipeSliceInfo CalcAGOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 
 std::vector<u64> CalScratchSize(u64* xRSDataSize, u64* yRSDataSize, u64* zRSDataSize, std::vector<u64> levelRankSize,
@@ -231,7 +239,7 @@ std::vector<std::vector<u64>> CalRSDataSizeStep(u64* xRSDataSize, u64* yRSDataSi
 void CalReducescatter2DOffset(u64* xRSOffset, u64* yRSOffset, u64 stepNum, u64 xRankSize, u64 yRankSize,
                               u64* xRSDataSize, u64* yRSDataSize);
 u64 CalReducescatterDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, double xB, double yB, u64 xRankSize,
-                               u64 yRankSize, u64 dataSizeEachRank, u64 maxStep);
+                               u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam& omniPipeScratchParam);
 OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std::vector<u64>& allRankSplitData,
