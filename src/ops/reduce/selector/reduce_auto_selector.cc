@@ -126,7 +126,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                 HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet"
                 " for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
-                selectAlgName = "CcuReduceParallelMesh1DNHR";
+                selectAlgName = "CcuReduceNHR1DMem2Mem";
             }
         } else {
             HCCL_WARNING("[SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
