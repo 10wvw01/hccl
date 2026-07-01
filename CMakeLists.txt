@@ -135,7 +135,6 @@ elseif(BUILD_OPEN_PROJECT)
     find_cann_package(asc_devkit MODULE REQUIRED)
     find_cann_package(tsdclient MODULE REQUIRED)
     find_cann_package(hcomm MODULE REQUIRED)
-    endif()
 
     # 检查构建依赖
     check_pkg_build_deps("hccl")
