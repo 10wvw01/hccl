@@ -829,7 +829,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         }
     }
     channels.insert(channels.end(), tempChannels.begin(), tempChannels.end());
-    HCCL_INFO("ProcessLinksForChannelMutiJetty,myRank=%u, remoteRank=%u, channel.size=%zu, ", myRank, remoteRank, channels.size());
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, channel.size=%zu, ", myRank, remoteRank, channels.size());
 #endif 
 #endif
     return HCCL_SUCCESS;
