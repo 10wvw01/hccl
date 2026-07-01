@@ -26,7 +26,7 @@ constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
 constexpr u64 AR_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_CCU_CLOS_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
-constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
+constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 2ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_AR_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AIV_SMALL_DATA_SIZE_IN_BOARD = 128 * 1024;
 constexpr u64 AR_AIV_BOARD_SIZE = 8;
@@ -40,6 +40,16 @@ SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayer
     (void)configAlgMap;
     HCCL_DEBUG("[AllReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
+
+    // 2P场景且数据量大于2GB时回退到AICPU
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
+    if (topoInfo->userRanksizr == 2 && dataSize > (2ULL * 1024 * 1024 * 1024)) {
+        HCCL_DEBUG("[AllReduceAutoSelector] 2P scenario with data size[%llu] > 2GB, "
+            "not supported for ccu_ms, fallback to AICPU.", dataSize);
+        return SelectorStatus::NOT_MATCH;
+    }
+    
     // 保序模式不支持CCU_MS，需要回退到AICPU
     CHK_PRT_RET(IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize),
         HCCL_DEBUG("[AllReduceAutoSelector] DETERMINISTIC_STRICT mode not supported for CCU_MS, fallback to AICPU."),
