@@ -33,6 +33,7 @@ target_link_options(hccl_kernel_compat PRIVATE
     -Wl,-z,now
     -Wl,-z,noexecstack
     $<$<CONFIG:Release>:-s>
+    
 )
 
 target_link_directories(hccl_kernel_compat PRIVATE
