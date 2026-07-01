@@ -260,8 +260,18 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
+extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 {
+    static uint64_t opUnfoldIdx = 0;
+    opUnfoldIdx++;
+    constexpr uint64_t warmupOpCnt = 10;
+    if (opUnfoldIdx > warmupOpCnt) {
+        HcclTimer::startTrack() = true;
+        if (HcommIsSupportHcommTimerStartTrack()) {
+            CHK_RET(static_cast<HcclResult>(HcommTimerStartTrack(true)));
+        }
+    }
+
     FUNCTION_TRACE;
     // 修改当前进程的调度策略和优先级
     struct sched_param schedParam;
@@ -433,10 +443,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
         bool enableCache = param->aicpuCacheEnable;
 
         // 打印算子信息用于调试
-        static uint64_t opUnfoldIdx = 0;
         HCCL_INFO("[HcclLaunchAicpuKernel] opUnfoldIdx[%llu] commName[%s] opType[%u] inputPtr[0x%016llx] inputSize[%llu] "
             "outputPtr[0x%016llx] outputSize[%llu] opMode[%u] algName[%s] isZeroCopy[%d] opExpanMode[%u] enableCache[%d]",
-            opUnfoldIdx++, param->commName, static_cast<uint32_t>(param->opType),
+            opUnfoldIdx, param->commName, static_cast<uint32_t>(param->opType),
             param->inputPtr, param->inputSize, param->outputPtr, param->outputSize,
             static_cast<uint32_t>(param->opMode), param->algName, param->isZeroCopy,
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
@@ -641,13 +650,6 @@ extern "C" unsigned int HcclLaunchAicpuKernel1(OpParam *param)
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
     return 0;
-}
-
-extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
-{
-    unsigned int ret = HcclLaunchAicpuKernel1(param);
-    HcclTimer::DumpTimerLogs();
-    return ret;
 }
 
 extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)

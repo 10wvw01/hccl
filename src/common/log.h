@@ -157,46 +157,65 @@ struct TimerEntry {
  
 class HcclTimer {
   public:
-    static uint64_t timerCounter;
-    static std::vector<TimerEntry> timerEntries;
+    static bool& startTrack() {
+        static bool startTrack = false;
+        return startTrack;
+    }
+
+    static uint64_t& timerCounter() {
+        static uint64_t timerCounter = 0;
+        return timerCounter;
+    }
+
+    // 注意: 局部静态变量一定在全局静态变量析构后再析构
+    static std::vector<TimerEntry>& timerEntries() {
+        static std::vector<TimerEntry> timerEntries;
+        return timerEntries;
+    }
+
     u64 GetCurAicpuTimestamp()
     {
         struct timespec timestamp;
         (void)clock_gettime(1, &timestamp);
         return static_cast<u64>((timestamp.tv_sec * 1000000000U) + (timestamp.tv_nsec));
     }
+
     explicit HcclTimer(const std::string &name)
     {
-        timerCounter++;
-        timerIdx = timerEntries.size();
-        timerEntries.emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+        if (startTrack()) {
+            timerCounter()++;
+            timerIdx = timerEntries().size();
+            timerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter(), name);
+        }
     }
  
     ~HcclTimer()
     {
-        timerEntries[timerIdx].endTime = GetCurAicpuTimestamp();
-        timerCounter--;
+        if (timerIdx < timerEntries().size()) {
+            timerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
+            timerCounter()--;
+        }
     }
  
     static void DumpTimerLogs() {
-        for (auto &entry : timerEntries) {
+        for (auto &entry : timerEntries()) {
             entry.PrintLog();
         }
-        timerEntries.clear();
+        timerEntries().clear();
     }
  
   private:
-    size_t timerIdx;
+    size_t timerIdx = 0;
 };
  
 class HcclTimerDumper {
   public:
     HcclTimerDumper() {
-        HcclTimer::timerEntries.reserve(20000);
+        HcclTimer::timerEntries().reserve(20000);
     };
     ~HcclTimerDumper()
     {
-        HCCL_ERROR("~HcclTimerDumper: timerEntries.size=%d", HcclTimer::timerEntries.size());
+        HCCL_ERROR("~HcclTimerDumper: timerEntries.size=%d", HcclTimer::timerEntries().size());
         HcclTimer::DumpTimerLogs();
     }
 };
