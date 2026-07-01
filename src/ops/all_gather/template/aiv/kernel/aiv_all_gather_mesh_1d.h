@@ -7,8 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
- 
+
 #include "aiv_communication_base_v2.h"
  
 using namespace AscendC;
@@ -117,9 +116,7 @@ public:
     {
         uint32_t rankMultiple = 2;
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
-        if (count * sizeof(T) <= DATA_LIMIT) {
-            RunCtrlCoreSmallCount(count, stride);
-        } else if (count * sizeof(T) >= DATA_LIMIT && numBlocks_ >= rankMultiple * rankSize_) {
+        if (count * sizeof(T) >= DATA_LIMIT && numBlocks_ >= rankMultiple * rankSize_) {
             // 核数大于等于2倍ranksize
             curStageCoreNum = numBlocks_ / rankSize_ * rankSize_; // 总的核数
             coreNumStage1 = rankSize_;
@@ -179,33 +176,6 @@ public:
             WaitFlag(rank_, rank + rankSize_, curTag_);
         }
     }
-
-    __aicore__ inline void RunCtrlCoreSmallCount(uint64_t count, uint64_t stride)
-    {
-        int32_t curNumBlocks = numBlocks_;
-        auto input = reinterpret_cast<__gm__ T *>(input_);
-        uint32_t perCoreRankNum = rankSize_ / curNumBlocks;
-        uint32_t remainRankNum = rankSize_ % curNumBlocks;
-        uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-        uint32_t startRank = blockIdx_ < remainRankNum
-                           ? (perCoreRankNum + 1) * blockIdx_
-                           : perCoreRankNum * blockIdx_ + remainRankNum;
-
-        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
-            auto gmOthers = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank_]) + rank * (count * sizeof(T) + 64 - 1) / 64 * 64);
-            CpGM2GM(gmOthers, input, count);
-            PipeBarrier<PIPE_ALL>();
-            Record(rank, rank_, curTag_);
-        }
-
-        for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
-            auto gmOthers = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank]) + rank_ * (count * sizeof(T) + 64 - 1) / 64 * 64);
-            auto output = reinterpret_cast<__gm__ T *>(output_ + rank * stride);
-            WaitFlag(rank_, rank, curTag_);
-            CpGM2GM(output, gmOthers, count);
-            PipeBarrier<PIPE_ALL>();
-        }
-    }
     uint64_t coreOffset;
     uint64_t curCount;
     uint64_t coreNumStage1;
@@ -218,31 +188,21 @@ template<typename T>
 __aicore__ inline void AivAllGatherV2Mesh1D(KERNEL_ARGS_DEF)
 {
     AivAllGatherMesh1D<T> op;
-    bool pingpong = false;
-    if (len * sizeof(T) <= DATA_LIMIT) {
-        pingpong = true;
-    }
-    op.Init(KERNEL_CLASS_INIT, true, pingpong);
+    op.Init(KERNEL_CLASS_INIT, true);
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
 
     op.Process(len, sliceId, outputSliceStride);
-    if (!pingpong) {
-        op.BarrierAll();
-    }
+    // 执行barrier全同步
+    op.BarrierAll();
 }
 
 template<typename T>
 __aicore__ inline void AivAllGatherV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     AivAllGatherMesh1D<T> op;
-    __gm__ AivSuperKernelArgs* args = reinterpret_cast<__gm__ AivSuperKernelArgs*>(hiddenInput);
-    bool pingpong = false;
-    if (args->len * sizeof(T) <= DATA_LIMIT) {
-        pingpong = true;
-    }
-    op.Init(SUPERKERNEL_CLASS_INIT, pingpong);
+    op.Init(SUPERKERNEL_CLASS_INIT);
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;
 
@@ -253,9 +213,7 @@ __aicore__ inline void AivAllGatherV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
         uint64_t curSize = curCount * sizeof(T);
 
         op.Process(curCount, loopTag, op.outputSliceStride_);
-        if (!pingpong) {
-            op.BarrierAll();
-        }
+        op.BarrierAll();
 
         countLeft -= curCount;
         op.input_ += curSize;
