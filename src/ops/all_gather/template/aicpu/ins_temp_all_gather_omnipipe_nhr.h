@@ -35,7 +35,6 @@ private:
 
     HcclResult DoLastStepCopyNhr(const std::vector<ThreadHandle>& threads,
                                const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
-    HcclResult GetRemoteOutputPtr(u32 remoteRank, void **remoteOutput) const;
 
     u64 dataTypeSize_{0};
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
