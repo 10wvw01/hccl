@@ -15,6 +15,7 @@ BUILD_DIR=${CURRENT_DIR}/build
 OUTPUT_DIR=${CURRENT_DIR}/build_out
 BUILD_DEVICE_DIR="${CURRENT_DIR}/build_device"
 OUTPUT_PATH=${CURRENT_DIR}/output
+LOGS_PATH="${CURRENT_DIR}/logs"
 USER_ID=$(id -u)
 CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
@@ -32,6 +33,8 @@ ENABLE_EXPERIMENTAL="false"
 ENABLE_UT="off"
 ENABLE_ST="off"
 ENABLE_GCOV="off"
+ENABLE_NO_EXEC="off"
+ST_TASKS=""
 CMAKE_BUILD_TYPE="Debug"
 BUILD_CB_TEST="false"
 BUILD_ST_DIR=${CURRENT_DIR}/test/st/algorithm/build
@@ -421,6 +424,38 @@ function mk_dir() {
   log "Info: Created ${create_dir}"
 }
 
+function run_ctest() {
+    # 设置 --noexec 选项，则跳过执行测试用例
+    if [[ "$ENABLE_NO_EXEC" = "on" ]]; then
+        log "Info: Skip executing tests"
+        return 0
+    fi
+
+    local suite_name="$1"   # "ut" or "st"
+    local log_dir="${LOGS_PATH}/${suite_name}"
+    local ctest_log="${log_dir}/run.log"
+
+    # 创建日志目录
+    mk_dir "${log_dir}"
+
+    # CTest 执行用例（超时时间：300s）
+    log "Info: Running ${suite_name} testcases with ${CPU_NUM} parallel jobs"
+    ctest -j ${CPU_NUM} \
+          --verbose \
+          --build-nocmake \
+          --timeout 300 \
+          --output-on-failure \
+          --stop-on-failure \
+          --test-output-size-failed 10000000 \
+          2>&1 | tee "${ctest_log}"
+
+    local ctest_ret=${PIPESTATUS[0]}
+    if [ "${ctest_ret}" -ne 0 ]; then
+        log "Error: Testcases failed"
+    fi
+    return ${ctest_ret}
+}
+
 # create build path
 function build_ut() {
   echo "create build directory and build";
@@ -471,14 +506,31 @@ function run_ut() {
 function run_st() {
   if [[ "X$ENABLE_ST" = "Xon" ]]; then
     local st_build_shell="${CURRENT_DIR}/test/st/algorithm/build.sh"
-    echo "st_build_shell = ${st_build_shell}"
-    if [ -e ${st_build_shell} ]; then
-      echo "开始执行st..."
-      export ENABLE_GCOV=${ENABLE_GCOV}
-      bash ${st_build_shell}
-    else
-      echo "${st_build_shell} 文件不存在!"
+    log "Info: st_build_shell = ${st_build_shell}"
+    if [ ! -e ${st_build_shell} ]; then
+      log "Error: ${st_build_shell} not found"
+      return 1
     fi
+    log "Info: run_st ST_TASKS=${ST_TASKS}"
+    export ENABLE_GCOV=${ENABLE_GCOV}
+    export ST_TASKS=${ST_TASKS}
+    # 编译 ST 用例
+    bash ${st_build_shell}
+    local build_ret=$?
+    if [ ${build_ret} -ne 0 ]; then
+      log "Error: ST build failed"
+      return ${build_ret}
+    fi
+    # 设置运行时库搜索路径
+    local LIBRARY_PATHS="${BUILD_ST_DIR}/utils/src"
+    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/hccl_verifier"
+    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/hccl_depends_stub"
+    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/aicpu"
+    export LD_LIBRARY_PATH="${LIBRARY_PATHS}:${LD_LIBRARY_PATH}"
+    # CTest 并发执行用例
+    cd "${BUILD_ST_DIR}"
+    run_ctest "st"
+    return $?
   else
     echo "System tests is not enabled, sh build.sh with parameter -s or --st to enable it"
   fi
@@ -514,20 +566,43 @@ function make_st_gov() {
         fi
 
         # 捕获覆盖率数据
-        lcov -c \
-             ${LCOV_PARALLEL} \
-             -d ${BUILD_ST_DIR}/ \
-             --ignore-errors "${LCOV_IGNORE_ERRORS}" "${LCOV_RC_PARAM}" \
-             -o coverage.info
+        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
+            lcov -c \
+                ${LCOV_PARALLEL} \
+                -d ${BUILD_ST_DIR}/ \
+                -d ${BUILD_ST_DIR}/testcase/ \
+                -d ${BUILD_ST_DIR}/utils/ \
+                --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} \
+                -o coverage.info
+        else
+            lcov -c \
+                ${LCOV_PARALLEL} \
+                -d ${BUILD_ST_DIR}/ \
+                -d ${BUILD_ST_DIR}/testcase/ \
+                -d ${BUILD_ST_DIR}/utils/ \
+                -o coverage.info
+        fi
 
         # 提取目标路径
-        lcov -e coverage.info \
-                */src/* \
-             ${LCOV_PARALLEL} \
-             --ignore-errors "${LCOV_IGNORE_ERRORS}" \
-             -o coverage.info
+        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
+            lcov -e coverage.info \
+                    */src/* \
+                ${LCOV_PARALLEL} \
+                --ignore-errors "${LCOV_IGNORE_ERRORS}" \
+                -o coverage.info
+        else
+            lcov -e coverage.info \
+                    */src/* \
+                ${LCOV_PARALLEL} \
+                -o coverage.info
+        fi
 
-        genhtml coverage.info ${LCOV_PARALLEL} --ignore-errors "${GENHTML_IGNORE_ERRORS}"
+        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
+            genhtml coverage.info ${LCOV_PARALLEL} --ignore-errors ${GENHTML_IGNORE_ERRORS}
+        else
+            genhtml coverage.info ${LCOV_PARALLEL}
+        fi
+        
         log "Info: ST coverage statistics generated successfully"
   fi
 }
@@ -626,6 +701,16 @@ function usage() {
   echo "                   Enable experimental features"
   echo "    --static"
   echo "                   Enable static library build mode"
+  echo "    -s, --st       Run all system tests (ST) with parallel execution"
+  echo "    --st_ops=<OPS1,OPS2,...>"
+  echo "                   Run specific ST operators (comma-separated)"
+  echo "                   Available: scatter,all_reduce,all_reduce_parallel,all_reduce_dpu,"
+  echo "                              all_gather_aicpu,all_gather_dpu,all_gather_v,"
+  echo "                              dpu_sendrecv,reduce_scatter_aicpu,reduce_scatter_v,"
+  echo "                              reduce_scatter,reduce,broadcast_dpu,"
+  echo "                              alltoall,alltoallv,alltoallvc"
+  echo "    --cov          Enable code coverage instrumentation"
+  echo "    --noexec       Build tests but skip executing them"
   echo ""
 }
 
@@ -673,6 +758,20 @@ while [[ $# -gt 0 ]]; do
     -s|--st)
         ENABLE_TEST="on"
         ENABLE_ST="on"
+        if [ -z "${ST_TASKS}" ]; then
+            ST_TASKS="all"
+        fi
+        shift
+        ;;
+    --st_ops=*)
+        OPTARG=$1
+        ST_TASKS=$(echo "${OPTARG#*=}" | tr ',' ';')
+        ENABLE_TEST="on"
+        ENABLE_ST="on"
+        shift
+        ;;
+    --noexec)
+        ENABLE_NO_EXEC="on"
         shift
         ;;
     -t|--test)
