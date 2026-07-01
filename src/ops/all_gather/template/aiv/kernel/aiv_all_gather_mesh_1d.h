@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
- 
 #include "aiv_communication_base_v2.h"
  
 using namespace AscendC;
