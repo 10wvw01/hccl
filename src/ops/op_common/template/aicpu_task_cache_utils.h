@@ -12,12 +12,15 @@
 #define OPS_HCCL_AICPU_TASK_CACHE_UTILS_H
 
 #include "hccl_types.h"
+#include "alg_param.h"
 
 namespace ops_hccl {
 
 class AicpuTaskCacheUtils {
 public:
     static bool IsNonVariableOpType(HcclCMDType opType);
+    static HcclResult GetInputOutputInfoForCache(
+        const OpParam &param, uint32_t rankSize, uint64_t &inputSize, uint64_t &outputSize);
 };
 
 } // namespace ops_hccl
