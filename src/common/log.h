@@ -159,7 +159,9 @@ class HcclTimerEntries {
 public:
     std::vector<TimerEntry> timerEntries;
 
-    HcclTimerEntries() {};
+    HcclTimerEntries() {
+        timerEntries.reserve(20000);
+    };
     ~HcclTimerEntries() {
         HCCL_ERROR("~HcclTimerEntries: timerEntries.size=%d", timerEntries.size());
         for (auto &entry : timerEntries) {
