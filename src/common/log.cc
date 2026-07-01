@@ -11,9 +11,9 @@
 
 thread_local bool g_hcclErrToWarn = false;
 
-HcclTimer::startTrack = false;
-HcclTimer::timerCounter = 0;
-HcclTimer::timerEntries;
+bool HcclTimer::startTrack = false;
+uint64_t HcclTimer::timerCounter = 0;
+HcclTimerEntries HcclTimer::timerEntries;
 
 constexpr int32_t HCCL_LOG_LEVEL_INVALID = -1;
 static int32_t g_logLevelCache = -1;
