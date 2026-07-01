@@ -12,6 +12,9 @@
 #include <sstream>
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempAllGatherOmniPipeMesh1D::InsTempAllGatherOmniPipeMesh1D(const OpParam& param,
@@ -36,6 +39,11 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::KernelRun(const OpParam& param, const
     tempAlgParams_.buffInfo.outputPtr = param.outputPtr;
     omniLastStepRead_ = tempAlgParams.omniLastStepRead_;
     dataType_ = param.DataDes.dataType;
+    inputSymWindow_ = param.inputSymWindow;
+    outputSymWindow_ = param.outputSymWindow;
+    inputOffset_ = param.inputOffset;
+    outputOffset_ = param.outputOffset;
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
     HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D] Rank [%d], get threadNum_[%d].", myRank_, threadNum_);
 
     if (threadNum_ > 1) {
@@ -73,7 +81,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
         HCCL_INFO("[InsTempAllGatherOmniPipeMesh1D] RunAllGatherMesh RankIDs[%d], connectedRank[%d], "
                     "connectedAlgRank[%d].",
                     myRank_, connectedRank, connectedAlgRank);
-        
+
         // 异常检查
         CHK_PRT_RET(threadIdx >= threads.size() || !channels.count(connectedRank),
                     HCCL_ERROR("[InsTempAllGatherOmniPipeMesh1D][RankID]=%u threadIdx=%u, threads.size=%u, "
@@ -87,93 +95,61 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
 
         const ChannelInfo& linkRemote = channels.at(connectedRank)[0];
         void* remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
+        void* remoteIn = nullptr;
+        void* remoteOut = nullptr;
+        if (supportSymmetricMemory_) {
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, connectedRank, &remoteIn);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteIn == nullptr,
+                        HCCL_ERROR("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
+                            "remoteRank[%u] inputRet[%d] in[%p]", connectedRank, ret, remoteIn),
+                            HcclResult::HCCL_E_INTERNAL);
 
-        void* txSrcPtr;
-        void* txDstPtr = remoteCclBuffAddr;
-        void* rxSrcPtr = remoteCclBuffAddr;
-        void* rxDstPtr;
+            ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, connectedRank, &remoteOut);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteOut == nullptr,
+                        HCCL_ERROR("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
+                            "remoteRank[%u] outputRet[%d] out[%p]", connectedRank, ret, remoteOut),
+                            HcclResult::HCCL_E_INTERNAL);
+            HCCL_INFO("[InsTempAllGatherOmniSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
+                "remoteRank[%u] in[%p] out[%p]", connectedRank, remoteIn, remoteOut);
+        }
+        if (supportSymmetricMemory_) {
+            void* txSrcPtr = tempAlgParams_.buffInfo.outputPtr;
+            void* txDstPtr = remoteOut;
+            void* rxSrcPtr = remoteOut;
+            void* rxDstPtr = tempAlgParams_.buffInfo.outputPtr;
 
-        // write模式使用tx,rx地址不生效，仅使用对端link做Post/Wait
-        // read 模式使用rx, tx地址不生效，仅使用对端link做Post/Wait
-
-        for (u32 rpt = 0; rpt < tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++rpt) {
-            
-            u64 txBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
-                            tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
-            u64 rxBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
-                            tempAlgParams_.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
-            u64 txOffset = tempAlgParams_.stepSliceInfo.stepInputSliceStride[myAlgRank] + txBaseOff;
-            u64 rxOffset = tempAlgParams_.stepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxBaseOff;
-
-            if (!omniLastStepRead_) {
-
-                txSrcPtr = tempAlgParams_.buffInfo.hcclBuff.addr;
-                rxDstPtr = tempAlgParams_.buffInfo.hcclBuff.addr;
-
-                DataSlice txSrcSlice =
-                    DataSlice(txSrcPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
-                            tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 本地(send)
-                DataSlice txDstSlice =
-                    DataSlice(txDstPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
-                            tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 远程(send)
-                // read模式使用rx
-                DataSlice rxDstSlice =
-                    DataSlice(rxDstPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 本地(recv)
-                DataSlice rxSrcSlice =
-                    DataSlice(rxSrcPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 远程(recv)
-
-                rxSrcSlices.push_back(rxSrcSlice);
-                rxDstSlices.push_back(rxDstSlice);
-                txSrcSlices.push_back(txSrcSlice);
-                txDstSlices.push_back(txDstSlice);
-
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] txSrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
-                        tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
-
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] txDstSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
-                        tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
-
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxSrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rxOffset,
-                        tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                        tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
-
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxDrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rxOffset,
-                        tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                        tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
-            }
-            else {
-                txSrcPtr = tempAlgParams_.buffInfo.outputPtr;
-                rxDstPtr = tempAlgParams_.buffInfo.outputPtr;
+            for (u32 rpt = 0; rpt < tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++rpt) {
 
                 u64 txWriteSrcBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
                                 tempAlgParams_.omniReadDstStepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
                 u64 rxReadDstBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
                                 tempAlgParams_.omniReadDstStepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
-                u64 txWriteSrcOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepInputSliceStride[myAlgRank] + txWriteSrcBaseOff + tempAlgParams_.processedDataCount*dataTypeSize;
-                u64 rxReadDstOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxReadDstBaseOff + tempAlgParams_.processedDataCount*dataTypeSize;
+                u64 txWriteSrcOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepInputSliceStride[myAlgRank] +
+                                       txWriteSrcBaseOff + tempAlgParams_.processedDataCount * dataTypeSize;
+                u64 rxReadDstOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepOutputSliceStride[connectedAlgRank] +
+                                      rxReadDstBaseOff + tempAlgParams_.processedDataCount * dataTypeSize;
+
+                u64 rxDstCount = omniLastStepRead_ ?
+                    tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt] :
+                    tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt];
+                const char* logTag = omniLastStepRead_ ? "omniLastStepRead_" : "RunAllGatherMesh";
 
                 DataSlice txSrcSlice =
-                    DataSlice(txSrcPtr, txWriteSrcBaseOff, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                    DataSlice(txSrcPtr, txWriteSrcOffset,
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
                             tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 本地(send)
                 DataSlice txDstSlice =
-                    DataSlice(txDstPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                    DataSlice(txDstPtr, txWriteSrcOffset,
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
                             tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 远程(send)
                 // read模式使用rx
                 DataSlice rxDstSlice =
-                    DataSlice(rxDstPtr, rxReadDstOffset, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 本地(recv)
+                    DataSlice(rxDstPtr, rxReadDstOffset,
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                            rxDstCount);  // 本地(recv)
                 DataSlice rxSrcSlice =
-                    DataSlice(rxSrcPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                    DataSlice(rxSrcPtr, rxReadDstOffset,
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
                             tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 远程(recv)
 
                 rxSrcSlices.push_back(rxSrcSlice);
@@ -181,34 +157,153 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
                 txSrcSlices.push_back(txSrcSlice);
                 txDstSlices.push_back(txDstSlice);
 
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] txSrcSlices: "
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][%s] rankId [%d] connectedRank [%d] txSrcSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, txWriteSrcBaseOff, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
-                        tempAlgParams_.omniReadDstStepSliceInfo.stepCount[myAlgRank][rpt]);
-
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] txDstSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                        logTag, myRank_, connectedRank, txWriteSrcOffset,
+                        tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
                         tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
 
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxSrcSlices: "
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][%s] rankId [%d] connectedRank [%d] txDstSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rxOffset,
-                        tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                        logTag, myRank_, connectedRank, txWriteSrcOffset,
+                        tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                        tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
+
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][%s] rankId [%d] connectedRank [%d] rxSrcSlices: "
+                        "offset[%d] sliceSize[%d] count[%d].",
+                        logTag, myRank_, connectedRank, rxReadDstOffset,
+                        tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
 
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxDrcSlices: "
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][%s] rankId [%d] connectedRank [%d] rxDrcSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rxReadDstOffset,
+                        logTag, myRank_, connectedRank, rxReadDstOffset,
                         tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
-                        tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
+                        rxDstCount);
             }
         }
+        else if (!supportSymmetricMemory_) {
+            void* txSrcPtr;
+            void* txDstPtr = remoteCclBuffAddr;
+            void* rxSrcPtr = remoteCclBuffAddr;
+            void* rxDstPtr;
 
+            // write模式使用tx,rx地址不生效，仅使用对端link做Post/Wait
+            // read 模式使用rx, tx地址不生效，仅使用对端link做Post/Wait
+
+            for (u32 rpt = 0; rpt < tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++rpt) {
+
+                u64 txBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
+                                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
+                u64 rxBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
+                                tempAlgParams_.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
+                u64 txOffset = tempAlgParams_.stepSliceInfo.stepInputSliceStride[myAlgRank] + txBaseOff;
+                u64 rxOffset = tempAlgParams_.stepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxBaseOff;
+
+                if (!omniLastStepRead_) {
+
+                    txSrcPtr = tempAlgParams_.buffInfo.hcclBuff.addr;
+                    rxDstPtr = tempAlgParams_.buffInfo.hcclBuff.addr;
+
+                    DataSlice txSrcSlice =
+                        DataSlice(txSrcPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 本地(send)
+                    DataSlice txDstSlice =
+                        DataSlice(txDstPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 远程(send)
+                    // read模式使用rx
+                    DataSlice rxDstSlice =
+                        DataSlice(rxDstPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 本地(recv)
+                    DataSlice rxSrcSlice =
+                        DataSlice(rxSrcPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 远程(recv)
+
+                    rxSrcSlices.push_back(rxSrcSlice);
+                    rxDstSlices.push_back(rxDstSlice);
+                    txSrcSlices.push_back(txSrcSlice);
+                    txDstSlices.push_back(txDstSlice);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] txSrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] txDstSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxSrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, rxOffset,
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxDrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, rxOffset,
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
+                }
+                else {
+                    txSrcPtr = tempAlgParams_.buffInfo.outputPtr;
+                    rxDstPtr = tempAlgParams_.buffInfo.outputPtr;
+
+                    u64 txWriteSrcBaseOff = tempAlgParams_.buffInfo.inBuffBaseOff +
+                                    tempAlgParams_.omniReadDstStepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
+                    u64 rxReadDstBaseOff = tempAlgParams_.buffInfo.outBuffBaseOff +
+                                    tempAlgParams_.omniReadDstStepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
+                    u64 txWriteSrcOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepInputSliceStride[myAlgRank] + txWriteSrcBaseOff + tempAlgParams_.processedDataCount*dataTypeSize;
+                    u64 rxReadDstOffset = tempAlgParams_.omniReadDstStepSliceInfo.stepOutputSliceStride[connectedAlgRank] + rxReadDstBaseOff + tempAlgParams_.processedDataCount*dataTypeSize;
+
+                    DataSlice txSrcSlice =
+                        DataSlice(txSrcPtr, txWriteSrcBaseOff, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 本地(send)
+                    DataSlice txDstSlice =
+                        DataSlice(txDstPtr, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);  // 远程(send)
+                    // read模式使用rx
+                    DataSlice rxDstSlice =
+                        DataSlice(rxDstPtr, rxReadDstOffset, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 本地(recv)
+                    DataSlice rxSrcSlice =
+                        DataSlice(rxSrcPtr, rxOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);  // 远程(recv)
+
+                    rxSrcSlices.push_back(rxSrcSlice);
+                    rxDstSlices.push_back(rxDstSlice);
+                    txSrcSlices.push_back(txSrcSlice);
+                    txDstSlices.push_back(txDstSlice);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] txSrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, txWriteSrcBaseOff, tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepCount[myAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] txDstSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, txOffset, tempAlgParams_.stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepCount[myAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxSrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, rxOffset,
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                            tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
+
+                    HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxDrcSlices: "
+                            "offset[%d] sliceSize[%d] count[%d].",
+                            myRank_, connectedRank, rxReadDstOffset,
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                            tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
+                }
+            }
+        }
         TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-        
+
         if (!omniLastStepRead_) {
             CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[threadIdx]),
                         HCCL_ERROR("[InsTempAllGatherOmniPipeMesh1D] RunAllGather Send failed"),
@@ -217,7 +312,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
         else {
             CHK_PRT_RET(SendRecvBatchRead(sendRecvInfo, threads[threadIdx]),
                         HCCL_ERROR("[InsTempAllGatherOmniPipeMesh1D]omniLastStepRead_ RunAllGather SendRecvBatchRead failed"),
-                        HcclResult::HCCL_E_INTERNAL);               
+                        HcclResult::HCCL_E_INTERNAL);
         }
     }
     return HcclResult::HCCL_SUCCESS;
