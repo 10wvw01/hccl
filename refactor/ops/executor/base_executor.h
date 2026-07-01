@@ -44,6 +44,8 @@ protected:
     std::vector<u32> subRankIdx_;
     
     // 资源信息
+    // [Buffer资源]
+    BufferInfo bufferInfo_;
     // [线程资源]
     ThreadHandle mainThread_;
     std::vector<ThreadHandle> threads_;
@@ -88,7 +90,7 @@ struct ConfigParam {
     // TODO：绕路参数
 };
 
-struct BufferParam {
+struct BufferInfo {
     Buffer inputBuffer;
     Buffer outputBuffer;
     Buffer cclBuffer;
@@ -149,3 +151,34 @@ union DataDesUnion {
     } batchSendRecvDataDes;
 };
 
+struct AlgoExecDataDesc {
+    std::vector<u32> ranksForInputData;
+    std::vector<u32> ranksForOutputData; // Template输出ranksForOutputData
+    BufferType inputBufferType;
+    BufferType outputBufferType;
+}
+
+struct TemplateDataParam {
+    void* inputBufferPtr;
+    void* outputBufferPtr;
+    void* cclBufferPtr;
+    BufferType inputBufferType;
+    BufferType outputBufferType;
+    BufferType cclBufferType;
+
+    HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
+    u64 sliceCount{0};  // 传入根节点的每个loop的count，后续不变
+    u64 tailCount{0};
+
+    u64 dataOffset{0};
+    u64 cclBufferOffset{0};
+
+    HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};  // reduce类型，搬运类算子使用默认值
+    u32 root{INVALID_VALUE_RANKID};  // root节点所在rank，不涉及root算子使用默认值
+
+    bool enableRemoteMemAccess{false};
+
+    std::vector<u32> ranksForInputData;
+
+    // TODO：变长
+};

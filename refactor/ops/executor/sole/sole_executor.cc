@@ -73,33 +73,26 @@ u64 SoleExecutor::GetMaxProcCntPerLoop()
     return maxProCntPerLoop;
 }
 
-HcclResult SoleExecutor::GenTemplateDataParams(u64 processCount, TemplateDataParams &dataParams)
+HcclResult SoleExecutor::GenTemplateDataParams(u64 processCount, u64 offsetCount, TemplateDataParams &dataParams)
 {
-    dataCount = 
-    dataSize = 
     // 1.处理数据片大小
-    u64 sliceCount = processCount;
-    u64 sliceSize = sliceCount * dataTypeSize_;
+    dataParams.count = processCount;
+    dataParams.sliceSize = sliceCount * dataTypeSize_;
 
     // 2.计算输入Buffer偏移和参数
-    void* inBufferPtr;
+    dataParams.inBufferPtr;
     BufferType inBufferType;
     u64 inBufferOffset;
-    // u64 inBufferStride;
 
     // 3.计算输出Buffer偏移和参数
     void* outBufferPtr;
     BufferType outBufferType;
     u64 outBufferOffset;
-    // u64 outBufferStride;
 
     // 4.计算cclBuffer偏移和参数
     void* cclBufferPtr;
     BufferType cclBufferType;
     u64 cclBufferOffset;
-
-    // 5.计算其他参数
-    // u64 repeatNum;
 
     // TODO：
     // root/dataType放Template构造里传入
@@ -107,11 +100,11 @@ HcclResult SoleExecutor::GenTemplateDataParams(u64 processCount, TemplateDataPar
     // 带V算子的参数传入
 }
 
-HcclResult SoleExecutor::OrchestrateLoop(const u64 maxProCntPerLoop, TemplateDataParams dataParams)
+HcclResult SoleExecutor::OrchestrateLoop(u64 processCount, u64 offsetCount)
 {
     // 按照每轮最大处理数据量，计算每轮处理的数据信息
     TemplateDataParams dataParams;
-    GenTemplateDataParams(dataParams);
+    GenTemplateDataParams(processCount, offsetCount, dataParams);
     
     // 调用算法模板的展开
     algTemplate.KernelRun(dataParams, algRes);
