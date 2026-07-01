@@ -66,7 +66,7 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
-        if (topoInfo->level0PcieMix && !IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+        if (topoInfo->level0PcieMix && !IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
             HCCL_WARNING("[AllGatherAutoSelector] pcie mixed topo is not supported yet for ccu ms mode.");
             return SelectorStatus::NOT_MATCH;
         }
@@ -146,7 +146,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0Algo(
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
         if (topoInfo->level0PcieMix) {
-            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                 return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, selectAlgName, dataSize);
             } else {
                 HCCL_WARNING("[AllGatherAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
@@ -289,7 +289,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，选择适配算法
             if (topoInfo->level0PcieMix) {
-                if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+                if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                     selectAlgName = "InsAllGatherMesh1D";
                 } else {
                     selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? "InsAllGatherParallelMesh1DNHRPcie" :
