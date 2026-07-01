@@ -154,24 +154,30 @@ struct TimerEntry {
             timerLevel, name.c_str(), startTime, endTime, elapsedNano);
     }
 };
+
+class HcclTimerEntries {
+public:
+    std::vector<TimerEntry> timerEntries;
+
+    HcclTimerEntries() {};
+    ~HcclTimerEntries() {
+        HCCL_ERROR("~HcclTimerEntries: timerEntries.size=%d", timerEntries.size());
+        for (auto &entry : timerEntries) {
+            entry.PrintLog();
+        }
+        timerEntries.clear();
+    }
+
+    std::vector<TimerEntry>& GetTimerEntries() {
+        return timerEntries;
+    }
+};
  
 class HcclTimer {
   public:
-    static bool& startTrack() {
-        static bool startTrack = false;
-        return startTrack;
-    }
-
-    static uint64_t& timerCounter() {
-        static uint64_t timerCounter = 0;
-        return timerCounter;
-    }
-
-    // 注意: 局部静态变量一定在全局静态变量析构后再析构
-    static std::vector<TimerEntry>& timerEntries() {
-        static std::vector<TimerEntry> timerEntries;
-        return timerEntries;
-    }
+    static bool startTrack;
+    static uint64_t timerCounter;
+    static HcclTimerEntries timerEntries;
 
     u64 GetCurAicpuTimestamp()
     {
@@ -182,42 +188,22 @@ class HcclTimer {
 
     explicit HcclTimer(const std::string &name)
     {
-        if (startTrack()) {
-            timerCounter()++;
-            timerIdx = timerEntries().size();
-            timerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter(), name);
+        if (startTrack) {
+            timerCounter++;
+            timerIdx = timerEntries.GetTimerEntries().size();
+            timerEntries.GetTimerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
         }
     }
  
     ~HcclTimer()
     {
-        if (timerIdx < timerEntries().size()) {
-            timerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
-            timerCounter()--;
+        if (timerIdx < timerEntries.GetTimerEntries().size()) {
+            timerEntries.GetTimerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
+            timerCounter--;
         }
     }
- 
-    static void DumpTimerLogs() {
-        for (auto &entry : timerEntries()) {
-            entry.PrintLog();
-        }
-        timerEntries().clear();
-    }
- 
   private:
     size_t timerIdx = 0;
-};
- 
-class HcclTimerDumper {
-  public:
-    HcclTimerDumper() {
-        HcclTimer::timerEntries().reserve(20000);
-    };
-    ~HcclTimerDumper()
-    {
-        HCCL_ERROR("~HcclTimerDumper: timerEntries.size=%d", HcclTimer::timerEntries().size());
-        HcclTimer::DumpTimerLogs();
-    }
 };
  
 #define CURRENT_FUNCTION_LOCATION std::string(__FILE__) + ":" + std::string(__func__)

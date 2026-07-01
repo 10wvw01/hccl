@@ -265,7 +265,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     opUnfoldIdx++;
     constexpr uint64_t warmupOpCnt = 10;
     if (opUnfoldIdx > warmupOpCnt) {
-        HcclTimer::startTrack() = true;
+        HcclTimer::startTrack = true;
         if (HcommIsSupportHcommTimerStartTrack()) {
             CHK_RET(static_cast<HcclResult>(HcommTimerStartTrack(true)));
         }
