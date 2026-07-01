@@ -12,7 +12,7 @@
 #include "hcomm_primitives.h"
 
 namespace ops_hccl {
-constexpr u32 DPU_TIMEOUT = 180000;
+constexpr u32 DPU_TIMEOUT = 180;
 
 HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo)
 {
