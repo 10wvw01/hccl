@@ -32,6 +32,7 @@ ENABLE_EXPERIMENTAL="false"
 ENABLE_UT="off"
 ENABLE_ST="off"
 ENABLE_GCOV="off"
+ST_TASKS=""
 CMAKE_BUILD_TYPE="Debug"
 BUILD_CB_TEST="false"
 BUILD_ST_DIR=${CURRENT_DIR}/test/st/algorithm/build
@@ -473,8 +474,9 @@ function run_st() {
     local st_build_shell="${CURRENT_DIR}/test/st/algorithm/build.sh"
     echo "st_build_shell = ${st_build_shell}"
     if [ -e ${st_build_shell} ]; then
-      echo "开始执行st..."
+      echo "开始执行st... ST_TASKS=${ST_TASKS}"
       export ENABLE_GCOV=${ENABLE_GCOV}
+      export ST_TASKS=${ST_TASKS}
       bash ${st_build_shell}
     else
       echo "${st_build_shell} 文件不存在!"
@@ -517,6 +519,8 @@ function make_st_gov() {
         lcov -c \
              ${LCOV_PARALLEL} \
              -d ${BUILD_ST_DIR}/ \
+             -d ${BUILD_ST_DIR}/testcase/ \
+             -d ${BUILD_ST_DIR}/utils/ \
              --ignore-errors "${LCOV_IGNORE_ERRORS}" "${LCOV_RC_PARAM}" \
              -o coverage.info
 
@@ -626,6 +630,15 @@ function usage() {
   echo "                   Enable experimental features"
   echo "    --static"
   echo "                   Enable static library build mode"
+  echo "    -s, --st       Run all system tests (ST) with parallel execution"
+  echo "    --st_ops=<OPS1,OPS2,...>"
+  echo "                   Run specific ST operators (comma-separated)"
+  echo "                   Available: scatter,all_reduce,all_reduce_parallel,all_reduce_dpu,"
+  echo "                              all_gather_aicpu,all_gather_dpu,all_gather_v,"
+  echo "                              dpu_sendrecv,reduce_scatter_aicpu,reduce_scatter_v,"
+  echo "                              reduce_scatter,reduce,broadcast_dpu,"
+  echo "                              alltoall,alltoallv,alltoallvc"
+  echo "    --cov          Enable code coverage instrumentation"
   echo ""
 }
 
@@ -671,6 +684,16 @@ while [[ $# -gt 0 ]]; do
         shift
         ;;
     -s|--st)
+        ENABLE_TEST="on"
+        ENABLE_ST="on"
+        if [ -z "${ST_TASKS}" ]; then
+            ST_TASKS="all"
+        fi
+        shift
+        ;;
+    --st_ops=*)
+        OPTARG=$1
+        ST_TASKS=$(echo "${OPTARG#*=}" | tr ',' ';')
         ENABLE_TEST="on"
         ENABLE_ST="on"
         shift
