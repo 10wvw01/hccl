@@ -89,6 +89,10 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     CHK_RET(intraTempAlg1->CalcRes(comm, param, topoInfo, resReq1));
     // temp0的主流负责和temp1主流同步
     resourceRequest.slaveThreadNum = resReq0.slaveThreadNum + resReq1.slaveThreadNum + 1;   // +1用于temp0和temp1主流之间的同步流
+    HCCL_DEBUG("[InsV2AllToAllConcurrentExecutor][CalcRes] resReq0.slaveThreadNum=%u, resReq1.slaveThreadNum=%u, "
+               "resourceRequest.slaveThreadNum=%u",
+               resReq0.slaveThreadNum, resReq1.slaveThreadNum, resourceRequest.slaveThreadNum);
+
     resourceRequest.notifyNumOnMainThread = resReq0.notifyNumOnMainThread + 1;              // +1用于2个template间同步
     resourceRequest.notifyNumPerThread.reserve(resReq0.notifyNumPerThread.size() +
                                                resReq1.notifyNumPerThread.size() + 1);
@@ -99,6 +103,13 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                             resReq1.notifyNumPerThread.begin(),
                                             resReq1.notifyNumPerThread.end());
+    HCCL_DEBUG("[InsV2AllToAllConcurrentExecutor][CalcRes] notifyNumOnMainThread=%u",
+               resourceRequest.notifyNumOnMainThread);
+    for (size_t i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
+        HCCL_DEBUG("[InsV2AllToAllConcurrentExecutor][CalcRes] notifyNumPerThread[%zu]=%u",
+                   i, resourceRequest.notifyNumPerThread[i]);
+    }
+
 
     std::vector<HcclChannelDesc> channelDescs0, channelDescs1;
     CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0,
@@ -144,7 +155,22 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
     if (param.engine == CommEngine::COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-        CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+        if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+            CHK_PRT_RET(resCtx.channels.size() != CONST_1,
+                        HCCL_ERROR("[InsV2AllToAllConcurrentExecutor][Orchestrate] resCtx.channels.size[%zu] is not [%u]",
+                                   resCtx.channels.size(), CONST_1),
+                        HCCL_E_PARA);
+            remoteRankToChannelInfo_.resize(CONCURRENT_NUM);
+            size_t sizePerTemplate = resCtx.channels[0].size() / CONCURRENT_NUM;
+            for (size_t i = 0; i < resCtx.channels[0].size(); i++) {
+                auto &channel = resCtx.channels[0][i];
+                u32 remoteRank = channel.remoteRank;
+                u32 idx = (i < sizePerTemplate) ? CONST_0 : CONST_1;
+                remoteRankToChannelInfo_[idx][remoteRank].push_back(channel);
+            }
+        } else {
+            CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+        }
     }
 
     dataType_ = param.all2AllVDataDes.sendType;
@@ -163,15 +189,17 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FillTemplateResource(
     const OpParam &param, const AlgResourceCtxSerializable& resCtx, TemplateResource& templateAlgRes, uint32_t index)
 {
-    templateAlgRes.threads = {resCtx.threads[index]};
-    templateAlgRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
-    if (param.engine == COMM_ENGINE_CCU) {
-        templateAlgRes.ccuKernels = {resCtx.ccuKernels[index]};
-    }
-    if (param.engine == COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-        CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+        // AICPU/AICPU_TS场景下threads按rankSize_对半分给两个并发template：temp0取前rankSize_个，temp1取剩下
+        templateAlgRes.threads = {resCtx.threads.begin() + index * rankSize_,
+                                 resCtx.threads.begin() + (index + 1) * rankSize_};
         templateAlgRes.channels = remoteRankToChannelInfo_[index];
+    } else {
+        templateAlgRes.threads = {resCtx.threads[index]};
+        templateAlgRes.ccuKernels = {resCtx.ccuKernels[index]};
+        templateAlgRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     }
+
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -338,7 +366,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     std::vector<u64> processedDataCount = {0, 0};
     std::vector<u32> notify = {0};
     u64 loop = 0;
-    CHK_RET(PreSyncInterThreads(resCtx.threads[0], {resCtx.threads[1]}, notify));
+    CHK_RET(PreSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notify));
     while (loop < loopTimes0 || loop < loopTimes1) {
         if (loop < loopTimes0) {
             u64 currDataCount = (loop == loopTimes0 - 1) ?
@@ -359,7 +387,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         }
         loop++;
     }
-    CHK_RET(PostSyncInterThreads(resCtx.threads[0], {resCtx.threads[1]}, notify));
+    CHK_RET(PostSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notify));
 #ifndef AICPU_COMPILE
     if (loopTimes0 == 1 && loopTimes1 == 1 && param.engine == CommEngine::COMM_ENGINE_CCU && param.opMode != OpMode::OFFLOAD) {
         CHK_RET(FastLaunchSaveCtx(param, templateAlgRes0, templateAlgRes1, resCtx.notifyNumOnMainThread));
