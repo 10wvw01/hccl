@@ -17,7 +17,7 @@ constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u64 AG_CCU_SMALL_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 AG_FLATTEN_MAX_DATA_SIZE = 64 * 1024;
-constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
@@ -181,8 +181,6 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
-        selectAlgName = "CcuAllGatherParallelMesh1DNHR";
-        return SelectorStatus::MATCH;
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
