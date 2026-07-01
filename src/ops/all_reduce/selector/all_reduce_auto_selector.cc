@@ -32,6 +32,7 @@ constexpr u64 AR_AIV_SMALL_DATA_SIZE_IN_BOARD = 128 * 1024;
 constexpr u64 AR_AIV_BOARD_SIZE = 8;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
+constexpr u64 CCU_MS_2P_DATA_SIZE = 6 * 1024 * 1024;
 
 SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -49,6 +50,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayer
         HCCL_DEBUG("[AllReduceAutoSelector] levelNum > 1 is not supported yet for ccu_ms mode.");
         return SelectorStatus::NOT_MATCH;
     }
+
     // MS 模式不支持 int8
     CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
         HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu_ms mode.",
@@ -107,6 +109,12 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
 {
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+    // 2P场景且数据量大于8MB时回退到AICPU
+    if (IsTwoLevelNetLayer(topoInfo) && topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 2 && dataSize > (CCU_MS_2P_DATA_SIZE)) {
+        HCCL_DEBUG("[AllReduceAutoSelector] 2P scenario with data size[%llu] > 8MB, "
+            "not supported for ccu_ms, fallback to AICPU.", dataSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         if (IsInputOutputOverlap(opParam) == true) {// 不支持 inplace 场景
             return SelectorStatus::NOT_MATCH;
@@ -444,7 +452,10 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetL
     bool isTwoLevelFlag = IsTwoLevelNetLayer(topoInfo);
     bool overSequenceDataThreshold = dataSize > AR_AICPU_SEQUENCE_DATA_SIZE;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-        if (isDataTypeOrReduceTypeSpecial) {
+        // 两p条件下生效
+        if (IsTwoLevelNetLayer(topoInfo) && topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 2 && dataSize > (CCU_MS_2P_DATA_SIZE)) {
+            selectAlgName = "InsAllReduceMesh1DTwoShotZAxisDetour";
+        } else if (isDataTypeOrReduceTypeSpecial) {
             selectAlgName = dataSize <= AR_AICPU_1D_64DATATYPE_DATA_SIZE ?
                             "InsAllReduceMesh1DOneShot" :
                             "InsAllReduceMesh1DTwoShot";
