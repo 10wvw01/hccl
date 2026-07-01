@@ -142,15 +142,15 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
 
     return HcclResult::HCCL_SUCCESS;
 }
-bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType)
+bool IsAllConnectedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType)
 {
     CHK_PRT_RET(topoInfo->netLayerDetails.localNetInsSizeOfLayer.size() <= netLayer,
-        HCCL_WARNING("[BaseSelector][IsLayerAllConnetedWithTopo] localNetInsSizeOfLayer size[%u] <= netLayer[%u]",
+        HCCL_WARNING("[BaseSelector][IsLayerAllConnectedWithTopo] localNetInsSizeOfLayer size[%u] <= netLayer[%u]",
         topoInfo->netLayerDetails.localNetInsSizeOfLayer.size(), netLayer), false);
     u32 localRankSize = topoInfo->netLayerDetails.localNetInsSizeOfLayer[netLayer];
 
     CHK_PRT_RET(topoInfo->topoInstDetailsOfLayer.size() <= netLayer,
-        HCCL_WARNING("[BaseSelector][IsLayerAllConnetedWithTopo] topoInstDetailsOfLayer size[%u] <= netLayer[%u]",
+        HCCL_WARNING("[BaseSelector][IsLayerAllConnectedWithTopo] topoInstDetailsOfLayer size[%u] <= netLayer[%u]",
         topoInfo->topoInstDetailsOfLayer.size(), netLayer), false);
 
     auto rankNumForTopoTypeItr = topoInfo->topoInstDetailsOfLayer[netLayer].rankNumForTopoType.find(topoType);
