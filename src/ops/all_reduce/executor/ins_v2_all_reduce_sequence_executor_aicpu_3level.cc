@@ -163,11 +163,11 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     myRank_ = resCtx.topoInfo.userRank;
     rankSize_ = resCtx.topoInfo.userRankSize;
 
-    dataCount_ = param.DataDes.count;
-    dataSize_ = dataCount_ * dataTypeSize_;
+    reduceOp_ = param.reduceType;
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
-    reduceOp_ = param.reduceType;
+    dataCount_ = param.DataDes.count;
+    dataSize_ = dataCount_ * dataTypeSize_;
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
 
