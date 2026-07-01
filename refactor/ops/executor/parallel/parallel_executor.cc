@@ -2,17 +2,18 @@
 
 namespace ops_hccl {
 
-HcclResult ParallelExecutor::PreSyncByResTable(const AlgoExecDesc &execDesc)
+HcclResult ParallelExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
-    auto it = resTable_.find(execDesc);
-    if (it == resTable_.end()) {
-        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
-        return HCCL_E_INTERNAL;
+    auto it = execDescSubCommMask.find(execDesc);
+    if (it == execDescSubCommMask.end()) {
+        //temlate类型的节点可能不存在execDescSubCommMask
+        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
+        return HCCL_SUCCESS;
     }
     std::vector<ThreadHandle> syncInterThreads;
     std::vector<u32> syncNotifyOnAlgoExec;
-    for (int i = 0; i < sizeof(it->second.subCommMask) * CHAR_BIT; i++) {
-        if (it->second.subCommMask & (1u << i)) {
+    for (int i = 0; i < sizeof(it->second) * CHAR_BIT; i++) {
+        if (it->second & (1u << i)) {
             syncInterThreads.emplace_back(subThreads_.at(i).at(0));
             // 每个通信子域维度主线程notify - 1才是需要同步的notify数量
             syncNotifyOnAlgoExec.emplace_back(notifyNumOnSubMainThread_.at(i) - 1);
@@ -21,17 +22,18 @@ HcclResult ParallelExecutor::PreSyncByResTable(const AlgoExecDesc &execDesc)
     return PreSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnAlgoExec);
 }
 
-HcclResult ParallelExecutor::PostSyncByResTable(const AlgoExecDesc &execDesc)
+HcclResult ParallelExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
-    auto it = resTable_.find(execDesc);
-    if (it == resTable_.end()) {
-        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in resTable_");
-        return HCCL_E_INTERNAL;
+    auto it = execDescSubCommMask.find(execDesc);
+    if (it == execDescSubCommMask.end()) {
+        //temlate类型的节点可能不存在execDescSubCommMask
+        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
+        return HCCL_SUCCESS;
     }
     std::vector<ThreadHandle> syncInterThreads;
     std::vector<u32> syncNotifyOnMain;
-    for (int i = 0; i < sizeof(it->second.subCommMask) * CHAR_BIT; i++) {
-        if (it->second.subCommMask & (1u << i)) {
+    for (int i = 0; i < sizeof(it->second) * CHAR_BIT; i++) {
+        if (it->second & (1u << i)) {
             syncInterThreads.emplace_back(subThreads_.at(i).at(0));
             syncNotifyOnMain.emplace_back(i);
         }
@@ -53,15 +55,15 @@ HcclResult ParallelExecutor::PostSyncByResTable(const AlgoExecDesc &execDesc)
 
 HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32 &subCommMask)
 {
-    // todo需要计算resTable_
     size_t childrenSize = nodeAloExecDesc.children.size();
-    u32 childrenSubCommMask = 0;
+    u32 subCommMask = 0;
     for (size_t i = 0; i < childrenSize; ++i) {
+        u32 childrenSubCommMask = 0;
         VariantType &v = nodeAloExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
             int subCommIndex = templateExeDes->subCommIndex;
-            subCommMask |= (1U << subCommIndex);
+            childrenSubCommMask |= (1U << subCommIndex);
             std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[subCommIndex];
             BaseTemplate baseTemplate
                 = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
@@ -81,20 +83,20 @@ HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
+        subCommMask |= childrenSubCommMask;        
     }
-    subCommMask |= childrenSubCommMask;
     // 需要将本节点的subCommMask插入到map表中
-    UpdateResTable(nodeAloExecDesc, subCommMask);
+    UpdateSubCommMask(nodeAloExecDesc, subCommMask);
     return HCCL_SUCCESS;
 }
 
-inline void ParallelExecutor::UpdateResTable(AlgoExecDesc &nodeAloExecDesc, const u32 subCommMask)
+inline void ParallelExecutor::UpdateSubCommMask(AlgoExecDesc &nodeAloExecDesc, const u32 subCommMask)
 {
-    auto it = resTable_.find(nodeAloExecDesc);
-    if (it != resTable_.end()) {
-        it->second.subCommMask = subCommMask;
+    auto it = execDescSubCommMask_.find(nodeAloExecDesc);
+    if (it != execDescSubCommMask_.end()) {
+        it->second = subCommMask;
     } else {
-        resTable_.emplace(nodeAloExecDesc, AlgoExecRes{subCommMask});
+        execDescSubCommMask_.emplace(nodeAloExecDesc, subCommMask);
     }
 }
 
@@ -214,7 +216,7 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PreSyncByResTable(nodeAloExecDesc));
+            CHK_RET(PreSyncBySubCommMask(nodeAloExecDesc));
         }
         VariantType &v = nodeAloExecDesc.children[i];
         // 处理 TemplateExecDesc
@@ -231,7 +233,7 @@ HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &r
         }
         // 如果是串行需要回到主流做尾同步
         if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PostSyncByResTable(nodeAloExecDesc));
+            CHK_RET(PostSyncBySubCommMask(nodeAloExecDesc));
             childrenInputStride = childrenOutputStride;
         }
     }

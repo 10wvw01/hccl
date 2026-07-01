@@ -61,7 +61,8 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
             processCount = dataCount_ % maxProcCntPerLoop;
         }
         // 子类实现
-        OrchestrateLoop(processCount, offsetCount);
+        u64 outputStride;
+        OrchestrateLoop(resCtx, algo_.algoExecDesc, offsetCount * dataTypeSize_, processCount, 0, outputStride);
         // 偏移增加
         offsetCount += processCount;
     }
@@ -73,6 +74,12 @@ HcclResult BaseExecutor::Orchestrate(const BaseExecutorParam &baseExecutorParam,
 
 HcclResult BaseExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
 {
+    bufferInfo_.cclBuffer = Buffer{
+        resCtx.cclMem.addr;
+        resCtx.cclMem.size;
+        BufferType::HCCL_BUFFER;
+    }
+
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
     mainThread_ = threads_.at(0);
