@@ -6,7 +6,7 @@ HcclResult ParallelExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
     auto it = execDescSubCommMask.find(execDesc);
     if (it == execDescSubCommMask.end()) {
-        //temlate类型的节点可能不存在execDescSubCommMask
+        // temlate类型的节点可能不存在execDescSubCommMask
         HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
         return HCCL_SUCCESS;
     }
@@ -26,7 +26,7 @@ HcclResult ParallelExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
     auto it = execDescSubCommMask.find(execDesc);
     if (it == execDescSubCommMask.end()) {
-        //temlate类型的节点可能不存在execDescSubCommMask
+        // temlate类型的节点可能不存在execDescSubCommMask
         HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
         return HCCL_SUCCESS;
     }
@@ -83,7 +83,7 @@ HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
-        subCommMask |= childrenSubCommMask;        
+        subCommMask |= childrenSubCommMask;
     }
     // 需要将本节点的subCommMask插入到map表中
     UpdateSubCommMask(nodeAloExecDesc, subCommMask);
@@ -139,115 +139,108 @@ HcclResult ParallelExecutor::GenTemplateRes(
     // 其他参数待确认是否还需要保留
     return HCCL_SUCCESS;
 }
-HcclResult ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
+
+inline void ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
     TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount, u64 InputStride, u64 OutputStride)
 {
-    templateDataParams.buffInfo.inputPtr = dataInfo_.inputPtr;
-    templateDataParams.buffInfo.outputPtr = dataInfo_.outputPtr;
-    templateDataParams.buffInfo.hcclBuff = resCtx.cclMem;
-    templateDataParams.buffInfo.inBuffType = BufferType::INPUT;
-    templateDataParams.buffInfo.outBuffType = BufferType::OUTPUT;
+    templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
+    templateDataParams.outputBufferPtr = dataInfo_.outputPtr;
+    templateDataParams.cclBufferPtr = resCtx.cclMem;
+    templateDataParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+    templateDataParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
     templateDataParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
-
-    templateDataParams.buffInfo.inputSize = dataInfo_.inputSize;
-    templateDataParams.buffInfo.outputSize = dataInfo_.outputSize;
     templateDataParams.dataType = dataInfo_.dataDesUnion.dataType;
-
-    templateDataParams.buffInfo.inBuffBaseOff = sliceOffset;
-    templateDataParams.buffInfo.hcclBuffBaseOff = scratchOffset;
-    templateDataParams.count = sliceCount;
-    templateDataParams.tailCout = sliceCount % ;
-    // todo ,待计算应该只有部分源语需要计算填充，例如scatter/allgather等
-
+    templateDataParams.sliceCount = sliceCount;
+    templateDataParams.tailCount = tailCount;
+    templateDataParams.dataOffset = sliceOffset;
+    templateDataParams.cclBufferOffset = cclBufferOffset;
+    templateDataParams.reduceOp = dataInfo_.reduceOp;
+    templateDataParams.root = root_;
     templateDataParams.enableRemoteMemAccess = opMode_ == OpMode::OFFLOAD;
     return;
 }
 
-void ParallelExecutor::GetParallelDataSplit(AlgoExecDesc &nodeAloExecDesc, u64 offset, u64 count, u32 childrenSize,
-    std::vector<u64> &childrenOffset, std::vector<u64> &childrenCount) const
+inline void ParallelExecutor::GetDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+    std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
 {
-    if (nodeAloExecDesc.execPolicy != ExecPolicy::PARALLEL) {
+    size_t childrenSize = algoExecDesc.children.size();
+    for (size_t i = 0; i < childrenSize; ++i) {
+    }
+
+    if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
+    } else {
+    }
+    size_t childrenSize = algoExecDesc.children.size();
+    u64 dataCount = algoExecDataDesc.dataCount;
+    if (childrenSize == 0 || dataCount == 0) {
         return;
     }
     // 先均分数据，后续再看看是否需要优化
-    childrenOffset.clear();
-    childrenCount.clear();
-    if (childrenSize == 0 || count == 0) {
-        return;
-    }
-    childrenOffset.reserve(childrenSize);
-    childrenCount.reserve(childrenSize);
+    childrenDataOffset.clear();
+    childrenDataCount.clear();
+    childrenDataOffset.reserve(childrenSize);
+    childrenDataCount.reserve(childrenSize);
     u64 childrenCountFloor = count / childrenSize;
-    u32 lastIndex = childrenSize - 1;
-    for (u32 i = 0; i < lastIndex; ++i) {
-        childrenCount.push_back(childrenCountFloor);
-        childrenOffset.push_back(offset + i * childrenCountFloor * dataTypeSize_);
+    size_t lastIndex = childrenSize - 1;
+    for (size_t i = 0; i < lastIndex; ++i) {
+        childrenDataCount.push_back(childrenCountFloor);
+        childrenDataOffset.push_back(offset + i * childrenCountFloor * dataTypeSize_);
     }
-    childrenCount.push_back(count - childrenCountFloor * lastIndex);
-    childrenOffset.push_back(offset + lastIndex * childrenCountFloor * dataTypeSize_);
+    childrenDataCount.push_back(count - childrenCountFloor * lastIndex);
+    childrenDataOffset.push_back(offset + lastIndex * childrenCountFloor * dataTypeSize_);
     return;
 }
 
-HcclResult ParallelExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
-    u64 sliceOffset, u64 sliceCount, u64 inputStride, u64 &outputStride)
+HcclResult ParallelExecutor::RunTemplateDesc(
+    const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
     std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
     CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
-    // 根据inputStride和Topo信息计算outputStride;
-    CHK_RET(CalcOutputStride(templateExeDes->subCommIndex, outputStride));
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
-    CHK_RET(GenTemplateDataParams(resCtx, templateDataParams, sliceOffset, sliceCount), inputStride, outputStride);
-    return baseTemplate.KernelRun(templateDataParams, templateResource);
+    GenTemplateDataParams(resCtx, algoExecDataDesc, templateDataParams);
+    std::vector<u32> ranksForOutputData;
+    CHK_RET(baseTemplate.KernelRun(templateDataParams, templateResource, ranksForOutputData));
+    algoExecDataDesc.ranksForOutputData = ranksForOutputData;
 }
 
-HcclResult ParallelExecutor::OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &nodeAloExecDesc,
-    u64 offset, u64 count, u64 inputStride, u64 &outputStride)
+HcclResult ParallelExecutor::OrchestrateLoop(
+    const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
-    size_t childrenSize = nodeAloExecDesc.children.size();
-    std::vector<u64> childrenOffset(childrenSize, offset);
-    std::vector<u64> childrenCount(childrenSize, count);
-    GetParallelDataSplit(nodeAloExecDesc, offset, count, childrenSize, childrenOffset, childrenCount);
-    u64 childrenInputStride = inputStride;
-    u64 childrenOutputStride = 0;
+    vector<AlgoExecDataDesc> childrenAlgoExecDataDesc;
+    GetDataSplit(algoExecDesc, algoExecDataDesc, childrenAlgoExecDataDesc);
+    size_t childrenSize = algoExecDesc.children.size();
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
-        if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PreSyncBySubCommMask(nodeAloExecDesc));
+        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+            if (i == 0 && algoExecDataDesc.ranksForOutputData.size() == 0){
+                childrenAlgoExecDataDesc.ranksForInputData = algoExecDataDesc.ranksForOutputData;
+            }else{
+                childrenAlgoExecDataDesc.ranksForInputData = childrenAlgoExecDataDesc.ranksForOutputData;
+            }
+            childrenAlgoExecDataDesc.at(i).ranksForInputData = childrenAlgoExecDataDesc.at(i - 1).ranksForOutputData;
+            CHK_RET(PreSyncBySubCommMask(algoExecDesc));
         }
-        VariantType &v = nodeAloExecDesc.children[i];
+        VariantType &v = algoExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-            CHK_RET(RunTemplateDesc(resCtx, templateExeDes, childrenOffset.at(i), childrenCount.at(i),
-                childrenInputStride, childrenOutputStride));
+            CHK_RET(RunTemplateDesc(resCtx, templateExeDes, childrenAlgoExecDataDesc.at(i)));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr, childrenOffset.at(i), childrenCount.at(i),
-                childrenInputStride, childrenOutputStride));
+            CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr, childrenAlgoExecDataDesc.at(i)));
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
         // 如果是串行需要回到主流做尾同步
-        if (nodeAloExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            CHK_RET(PostSyncBySubCommMask(nodeAloExecDesc));
-            childrenInputStride = childrenOutputStride;
+        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+            CHK_RET(PostSyncBySubCommMask(algoExecDesc));
         }
     }
-    outputStride = childrenOutputStride;
     return HCCL_SUCCESS;
-}
-
-void ParallelExecutor::CalcOutputStride(u32 subCommIndex, u64 &outputStride)
-{
-    outputStride = sliceCount;
-    for (u32 i = 0; i < subCommIndex; i++) {
-        outputStride *= subRankSize_.at(i);
-    }
-    return;
 }
 
 } // namespace ops_hccl
