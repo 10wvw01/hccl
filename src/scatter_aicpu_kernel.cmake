@@ -33,9 +33,10 @@ add_library(scatter_aicpu_kernel SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/template_utils.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu/kernel_launch.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu/dfx/task_exception_fun.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu_task_cache_utils.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu/task_cache/aicpu_task_cache_comm_manager.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu/task_cache/aicpu_task_cache_key.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/aicpu/task_cache/aicpu_task_cache_utils.cc
+    
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/registry/alg_template_register.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/wrapper/alg_data_trans_wrapper.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/template/dpu/kernel_launch.cc
