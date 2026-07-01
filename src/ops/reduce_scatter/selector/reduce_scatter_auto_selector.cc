@@ -298,12 +298,20 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
-    if (IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize)) {
+    // 保序模式：strict 开启且 rankSize 超过阈值
+    if (IsOrderPreserveIntentActive(topoInfo->userRankSize)) {
+        // 组合不支持保序：直接报错拒绝，避免静默回退破坏确定性
+        CHK_PRT_RET(!IsOrderPreservedCombinationSupported(opParam.DataDes.dataType, opParam.reduceType),
+            HCCL_ERROR("[ReduceScatterAutoSelector] DETERMINISTIC_STRICT enabled but reduceOp[%d]+dataType[%d] not supported "
+                "for order-preserve (supported: sum+fp16/fp32/bfp16/fp64, prod+fp64). Refuse to execute.",
+                opParam.reduceType, opParam.DataDes.dataType),
+            SelectorStatus::NOT_MATCH);
+
         CHK_PRT_RET(topoInfo->userRankSize > MAX_RANK_NUM_FOR_ORDER_PRESERVED,
             HCCL_ERROR("[ReduceScatterAutoSelector] OrderPreserved mode not supported for rankSize[%u] > %u, "
                 "too many ranks may cause resource exhaustion.", topoInfo->userRankSize, MAX_RANK_NUM_FOR_ORDER_PRESERVED),
             SelectorStatus::NOT_MATCH);
-        
+
         selectAlgName = "ReduceScatterOrderPreserved";
         HCCL_INFO("[ReduceScatterAutoSelector] DETERMINISTIC_STRICT mode, select [%s]", selectAlgName.c_str());
         return SelectorStatus::MATCH;
