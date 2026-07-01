@@ -74,7 +74,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoCcums(const TopoInfoWit
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-        if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+        if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
             // MESH_1D 即可链接所有卡， 使用 MESH_1D 算法
             selectAlgName = "CcuReduceScatterVMesh1D";
         } else { // MS 不支持
@@ -167,7 +167,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoCcuSchedule(const TopoI
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // MESH_1D 即可链接所有卡， 使用 MESH_1D 算法
-        if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+        if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
             if (inputDataSize < RSV_CCU_8P_MIN_DATA_SIZE) {
                 selectAlgName = "CcuReduceScatterVMesh1D";
             } else {
