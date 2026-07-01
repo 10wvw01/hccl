@@ -297,8 +297,8 @@ function build_static() {
          rm -f "${EXTRACT_DIR}/${AIV_STEM}.bin" 
          AIV_EMBED_COUNT=$((AIV_EMBED_COUNT + 1)) 
          log "Info: Embedded AIV kernel: ${AIV_BASENAME}" 
-     done < <(find "${BUILD_DIR}/src/ops" -type f \ 
-                 -name 'hccl_aiv_*_op_910_95.o' -print0) 
+      done < <(find "${BUILD_DIR}/src/ops" -type f \ 
+                  \( -name 'hccl_aiv_*_op_910_95.o' -o -name 'hccl_aiv_*_op_910_96.o' \) -print0) 
      log "Info: Total AIV kernels embedded: ${AIV_EMBED_COUNT}" 
  
  
