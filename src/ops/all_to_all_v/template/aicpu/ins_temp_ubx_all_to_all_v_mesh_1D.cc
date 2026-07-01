@@ -31,7 +31,7 @@ HcclResult InsTempUBXAllToAllVMesh1D::CalcRes(HcclComm comm, const OpParam& para
     std::vector<HcclChannelDesc> level0Channels;
     std::vector<HcclChannelDesc> myChannelDescs;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        bool isIsolation = !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH));
+        bool isIsolation = !(IsAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH));
         CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs,
             isIsolation));
         for (auto channel : myChannelDescs) {

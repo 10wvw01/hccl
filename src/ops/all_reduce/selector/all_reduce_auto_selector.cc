@@ -301,7 +301,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0Algo(const TopoInfo
         return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, opParam, selectAlgName, dataSize);
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (topoInfo->level0PcieMix) {
-            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                 return SelectCcuScheduleLevel0AlgoMesh1D(topoInfo, opParam, selectAlgName, dataSize);
             } else {
                 // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
@@ -483,7 +483,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetL
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (topoInfo->level0PcieMix) {
-            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            if (IsLayerAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
                 if (isDataTypeOrReduceTypeSpecial) {
                     selectAlgName = dataSize <= AR_AICPU_1D_64DATATYPE_DATA_SIZE ?
                                     "InsAllReduceMesh1DOneShot" :
