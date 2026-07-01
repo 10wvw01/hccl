@@ -24,6 +24,8 @@ namespace ops_hccl {
 
 # define UINT32_MAX     (4294967295U)
 constexpr u32 INVALID_U32 = UINT32_MAX;
+constexpr u32 MAX_JETTY_NUM = 4;
+constexpr u32 SMALL_SIZE_512KB = 512 * 1024;
 
 constexpr s32 INVALID_RANKID = INT32_MAX;
 
@@ -253,7 +255,9 @@ struct TemplateDataParams {
     std::vector<u64> sdispls;
     std::vector<u64> rdispls;
     StepSliceInfo stepSliceInfo;
-    BatchSendRecvOpType opType;
+    BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
+    StepSliceInfo omniReadDstStepSliceInfo;
+    bool omniLastStepRead_ = false;
 
     std::vector<char> Serialize() const
     {
@@ -279,6 +283,8 @@ struct TemplateDataParams {
         binaryStream << dataType;
         binaryStream << stepSliceInfo.Serialize();
         binaryStream << opType;
+        binaryStream << omniReadDstStepSliceInfo.Serialize();
+        binaryStream << omniLastStepRead_;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -310,6 +316,11 @@ struct TemplateDataParams {
         binaryStream >> stepSliceInfoData;
         stepSliceInfo.DeSerialize(stepSliceInfoData);
         binaryStream >> opType;
+        
+        std::vector<char> omniReadDstStepSliceInfoData;
+        binaryStream >> omniReadDstStepSliceInfoData;
+        omniReadDstStepSliceInfo.DeSerialize(omniReadDstStepSliceInfoData);
+        binaryStream >> omniLastStepRead_;
     }
 };
 
@@ -471,5 +482,8 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const u32 level0ChannelNumPerRank,
                                                 const u32 level1ChannelNumPerRank,
                                                 const float level0DataRatio = 0.5f);
+
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType);
+
 }
 #endif
