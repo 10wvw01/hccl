@@ -8,10 +8,12 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-# refactor/ops/template 主编译入口。
-# 这里放真正要进入 hccl target 的源码；临时验证和 oracle 对比只保留在重构文档中，不进入仓库构建目标。
+# Refactor template sources that should enter the hccl target.
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common
+)
+
 target_sources(hccl PRIVATE
-    primitives/mesh_allgather_planner.cc
     primitives/mesh_primitives.cc
     primitives/nhr_primitives.cc
 
