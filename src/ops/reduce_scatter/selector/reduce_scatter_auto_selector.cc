@@ -156,8 +156,6 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
     constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 32ULL * 1024 * 1024;
 
     if (topoInfo->topoLevelNums > 1) {
-        selectAlgName = "CcuReduceScatterParallelMesh1DNHR";
-        return SelectorStatus::MATCH;
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (dataSize * topoInfo->userRankSize >= CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
                 HCCL_INFO("[ReduceScatterAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
