@@ -49,6 +49,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayer
         HCCL_DEBUG("[AllReduceAutoSelector] levelNum > 1 is not supported yet for ccu_ms mode.");
         return SelectorStatus::NOT_MATCH;
     }
+
     // MS 模式不支持 int8
     CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
         HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu_ms mode.",
@@ -107,6 +108,12 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
 {
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+    // 2P场景且数据量大于8MB时回退到AICPU
+    if (IsTwoLevelNetLayer(topoInfo) && topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 2 && dataSize > (8 * 1024 * 1024)) {
+        HCCL_DEBUG("[AllReduceAutoSelector] 2P scenario with data size[%llu] > 8MB, "
+            "not supported for ccu_ms, fallback to AICPU.", dataSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         if (IsInputOutputOverlap(opParam) == true) {// 不支持 inplace 场景
             return SelectorStatus::NOT_MATCH;
@@ -351,8 +358,8 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD;
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == 3) {
-            if (topoInfo->deviceNumPerModule == 8) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+            if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllReduceOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
                 selectAlgName = "InsAllReduceNHR";
@@ -368,7 +375,10 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllReduceNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
+            // 两p条件下生效
+            if (IsTwoLevelNetLayer(topoInfo) && topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 2 && dataSize > (8 * 1024 * 1024)) {
+                selectAlgName = "InsAllReduceSequenceMesh1DNhr";
+            } else if (dataSize > AR_AICPU_1D_CROSS_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize > AR_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllReduceSequenceMesh1DNhr" : "InsAllReduceParallelRSAG";
             } else {
