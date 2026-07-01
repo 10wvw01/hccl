@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
@@ -12,6 +12,8 @@ cmake_minimum_required(VERSION 3.16.0)
 project(hccl_checker_ops_stest)
 set(TOP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
 
+enable_testing()
+
 option(ENABLE_GCOV "Enable gcov/lcov coverage instrumentation" OFF)
 if(ENABLE_GCOV)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
@@ -20,6 +22,11 @@ if(ENABLE_GCOV)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
     message(STATUS "ST: Coverage instrumentation enabled")
 endif()
+
+if(NOT DEFINED ST_TASKS)
+    set(ST_TASKS "all")
+endif()
+message(STATUS "ST_TASKS=${ST_TASKS}")
 
 if (BUILD_OPEN_PROJECT)
     set(UTILS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils/src)
