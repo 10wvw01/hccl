@@ -170,7 +170,13 @@ SelectorStatus AlltoAllAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDet
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[AlltoAllAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllVDataDes.sendType];
     u64* sendCounts = reinterpret_cast<u64*>(opParam.all2AllVDataDes.sendCounts);
-    u64 totalSize = sendCounts[0] * dataTypeSize * topoInfo->userRankSize;
+    u64 perRankDataSize = sendCounts[0] * dataTypeSize;
+    if (perRankDataSize > AIV_MAX_PER_RANK_DATA_SIZE) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] perRankDataSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu]",
+            __func__, perRankDataSize, AIV_MAX_PER_RANK_DATA_SIZE);
+        return SelectorStatus::NOT_MATCH;
+    }
+    u64 totalSize = perRankDataSize * topoInfo->userRankSize;
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
