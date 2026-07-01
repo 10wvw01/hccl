@@ -13,6 +13,7 @@
 
 namespace ops_hccl {
 constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 
 SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
@@ -137,7 +138,14 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                 HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet"
                 " for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
-                selectAlgName = "CcuReduceParallelMesh1DNHR";
+                u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+                u64 dataSize = opParam.DataDes.count * perDataSize;
+                u64 perRankSize = (topoInfo->userRankSize > 0) ? (dataSize / topoInfo->userRankSize) : dataSize;
+                if (perRankSize <= REDUCE_NHR_CCU_MAX_DATA_SIZE) {
+                    selectAlgName = "CcuReduceNHR1DMem2Mem";
+                } else {
+                    selectAlgName = "CcuReduceParallelMesh1DNHR";
+                }
             }
         } else {
             HCCL_WARNING("[SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
