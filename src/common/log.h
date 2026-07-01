@@ -190,15 +190,18 @@ class HcclTimer {
 
     explicit HcclTimer(const std::string &name)
     {
+        HCCL_INFO("[HcclTimer] startTrack[%d]", startTrack);
         if (startTrack) {
             timerCounter++;
             timerIdx = timerEntries.GetTimerEntries().size();
             timerEntries.GetTimerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+            HCCL_INFO("[HcclTimer] startTrack[%d] timerEntries.size[%llu]", startTrack, timerEntries.GetTimerEntries().size());
         }
     }
  
     ~HcclTimer()
     {
+        HCCL_INFO("[HcclTimer] timerIdx[%llu] timerEntries.size[%llu]", timerIdx, timerEntries.GetTimerEntries().size());
         if (timerIdx < timerEntries.GetTimerEntries().size()) {
             timerEntries.GetTimerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
             timerCounter--;
