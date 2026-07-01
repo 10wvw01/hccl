@@ -1,0 +1,71 @@
+# Collective Communication - Reduce
+
+## Sample Description
+
+This sample demonstrates how to perform a Reduce operation using the `HcclReduce()` interface. It covers the following features:
+
+- Device detection: Query the number of available devices using the `aclrtGetDeviceCount()` interface.
+- Use rank0 as the root node and generate rootinfo identification information using the `HcclGetRootInfo()` interface.
+
+  > The rootinfo identification information mainly includes the Device IP, Device ID, and so on. This information must be broadcast to all ranks in the cluster to initialize the communication domain.
+
+- In each thread, initialize the communication domain using the `HcclCommInitRootInfo()` interface based on the rootinfo identification information.
+- Call the `HcclReduce()` interface to add up the input data at corresponding positions of all ranks, send the result to the root node, and print the result.
+
+## Directory Structure
+
+```text
+|-- main.cc   # Sample source file
+|-- Makefile  # Compilation and build configuration file
+|-- reduce    # Compiled executable file
+```
+
+## Environment Preparation
+
+### Environment Requirements
+
+This sample supports the following products in a single-server N-card configuration (N >= 2):
+
+- <term>Ascend 950PR</term> / <term>Ascend 950DT</term>
+- <term>Atlas A3 Training Series Products</term> / <term>Atlas A3 Inference Series Products</term>
+- <term>Atlas A2 Training Series Products</term>
+- <term>Atlas Training Series Products</term>
+
+### Setting Environment Variables
+
+```bash
+# Set CANN environment variables. The following uses the root user default installation path as an example.
+source /usr/local/Ascend/cann/set_env.sh
+```
+
+## Compiling and Running the Sample
+
+Run the following commands in the sample code directory:
+
+```bash
+make
+make test
+```
+
+> Note: You can set the `HCCL_OP_EXPANSION_MODE` environment variable to configure the expansion mode of communication operators. For the supported ranges for different product models, see the usage instructions for this environment variable in the [Environment Variable List](https://hiascend.com/document/redirect/CannCommunityEnvRef).
+>
+> ```bash
+> # Set the communication operator expansion mode to the AI CPU communication engine
+> export HCCL_OP_EXPANSION_MODE=AI_CPU
+> ```
+
+## Sample Output
+
+The data of each rank is initialized to 0 through 7. After the Reduce operation, the result on the root node is the sum of the data at the corresponding positions of all ranks (the data of 8 ranks is added).
+
+```
+Found 8 NPU device(s) available
+rankId: 0, output: [ 0 8 16 24 32 40 48 56 ]
+rankId: 1, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 2, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 3, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 4, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 5, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 6, output: [ 0 0 0 0 0 0 0 0 ]
+rankId: 7, output: [ 0 0 0 0 0 0 0 0 ]
+```
