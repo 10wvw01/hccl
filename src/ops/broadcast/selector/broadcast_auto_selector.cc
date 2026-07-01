@@ -79,7 +79,7 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
             } else {
-                selectAlgName = "CcuBroadcastParallelMesh1DNHR";
+                selectAlgName = "CcuBroadcastNHR1DMem2Mem";
             }
         } else {
              HCCL_WARNING("[Algo][BroadcastAutoSelector] level0Shape[%d] is not supported yet for ccu schedule mode.",
