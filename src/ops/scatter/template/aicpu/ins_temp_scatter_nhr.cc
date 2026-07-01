@@ -42,7 +42,7 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
  	u64 dataSize = param.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         bool isIsolation =
-                !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize <= SMALL_SIZE_512KB);
+                !(IsAllConnectedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize <= SMALL_SIZE_512KB);
             CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation));
         for (auto channel : myChannelDescs) {
             if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
