@@ -499,7 +499,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 uint64_t inputSize = 0;
                 uint64_t outputSize = 0;
                 CHK_RET(static_cast<HcclResult>(AicpuTaskCacheUtils::GetInputOutputInfoForCache(
-                    *param, resCtx->topoInfo.userRankSize, inputSize, outputSize)));
+                    *param, resCtxPtr->topoInfo.userRankSize, inputSize, outputSize)));
                 uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
 
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
