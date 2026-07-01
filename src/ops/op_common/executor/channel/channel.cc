@@ -792,6 +792,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
     }
     HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%zu, execptMesh=%d, isIsolation=%d",
  	  	         myRank, remoteRank, netLayer, linkList.size(), execptMesh, isIsolation);
+    std::vector<HcclChannelDesc> tempChannels;
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
     // 9.1.0 之前不使用 ProcessLinksForChannelMutiJetty 等新 API，
     // 且 CommAddr.eid 字段也不存在；整函数在 8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用，
@@ -819,14 +820,16 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         "and topoType %u.",
         myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
         if (topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc, isIsolation)) {
-            channels.push_back(channelDesc);
+            tempChannels.push_back(channelDesc);
         } else if (topoType == CommTopo::COMM_TOPO_1DMESH && execptMesh) {
             HCCL_INFO("[CalcChannelRequestMeshClos] Clear clos channels and add mesh channel.");
-            channels.clear();
-            channels.push_back(channelDesc);
+            tempChannels.clear();
+            tempChannels.push_back(channelDesc);
             break;
         }
     }
+    channels.insert(channels.end(), tempChannels.begin(), tempChannels.end());
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, channel.size=%zu, ", myRank, remoteRank, channels.size());
 #endif 
 #endif
     return HCCL_SUCCESS;
