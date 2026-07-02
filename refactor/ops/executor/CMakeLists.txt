@@ -12,7 +12,7 @@
 # Executor 基类与子类实现
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/executor) 拉进来
 #
-# 当前状态（全部注释掉，蔡鑫补完后逐个打开）：
+# 当前状态（全部注释掉，补完后逐个打开）：
 #   ⚠️ base_executor.cc                - 主体代码（145+110 行），但 ctor 引用了未声明的 baseOpParam
 #   ⚠️ sole/sole_executor.cc           - h 是 7 行空类，cc 引用了未声明的 algTemplate/SaveCtx/dataTypeSize_
 #   ❌ parallel/parallel_executor.cc    - 含 if(){} 语法错误，无法编译
