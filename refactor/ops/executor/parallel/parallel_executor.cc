@@ -141,18 +141,18 @@ HcclResult ParallelExecutor::GenTemplateRes(
 }
 
 inline void ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
-    TemplateDataParams &templateDataParams, u64 sliceOffset, u64 sliceCount, u64 InputStride, u64 OutputStride)
+    AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams)
 {
     templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
     templateDataParams.outputBufferPtr = dataInfo_.outputPtr;
     templateDataParams.cclBufferPtr = resCtx.cclMem;
-    templateDataParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-    templateDataParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
-    templateDataParams.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
+    templateDataParams.buffInfo.inBuffType = algoExecDataDesc.inputBufferType;
+    templateDataParams.buffInfo.outBuffType = algoExecDataDesc.outputBufferType;
+    templateDataParams.buffInfo.hcclBuffType = algoExecDataDesc.cclBufferType;
     templateDataParams.dataType = dataInfo_.dataDesUnion.dataType;
-    templateDataParams.sliceCount = sliceCount;
+    templateDataParams.sliceCount = algoExecDataDesc.dataCount;
     templateDataParams.tailCount = tailCount;
-    templateDataParams.dataOffset = sliceOffset;
+    templateDataParams.dataOffset = algoExecDataDesc.dataOffset;
     templateDataParams.cclBufferOffset = cclBufferOffset;
     templateDataParams.reduceOp = dataInfo_.reduceOp;
     templateDataParams.root = root_;
@@ -160,34 +160,36 @@ inline void ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializ
     return;
 }
 
-inline void ParallelExecutor::GetDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
-    std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
+inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+    u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
-    for (size_t i = 0; i < childrenSize; ++i) {
-    }
-
+    childrenAlgoExecDataDesc.at(childrenId) = algoExecDataDesc;
+    // 先赋值父节点的信息，然后在根据并行/串行策略分开处理
     if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
+        // 并行数据先均分，后续再根据实际情况优化
+        childrenAlgoExecDataDesc.at(childrenId).dataCount = algoExecDataDesc.dataCount / childrenSize;
+        childrenAlgoExecDataDesc.at(childrenId).dataOffset
+            = algoExecDataDesc.dataOffset + childrenAlgoExecDataDesc.at(childrenId).dataCount * childrenId * dataTypeSize_;
+        if (childrenId == childrenSize - 1) {
+            // 如果是并行的最后一片数据，数据大小要取尾部
+            childrenAlgoExecDataDesc.at(childrenId).dataCount
+                = algoExecDataDesc.dataCount - childrenAlgoExecDataDesc.at(childrenId).dataCount * childrenId;
+        }
     } else {
+        if (childrenId > 0) {
+            // 如果是串行需要将当前节点的输入设置为上个子节点的输出
+            childrenAlgoExecDataDesc.at(childrenId).ranksForInputData
+                = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForOutputData;
+            childrenAlgoExecDataDesc.at(childrenId).inputBufferType
+                = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
+        } 
+        if (childrenId < childrenSize - 1) {
+            // 不是最后一个直接用cclBuff当输出减少内存搬运
+            childrenAlgoExecDataDesc.at(childrenId).outputBufferType
+                = childrenAlgoExecDataDesc.at(childrenId).cclBufferType;
+        }
     }
-    size_t childrenSize = algoExecDesc.children.size();
-    u64 dataCount = algoExecDataDesc.dataCount;
-    if (childrenSize == 0 || dataCount == 0) {
-        return;
-    }
-    // 先均分数据，后续再看看是否需要优化
-    childrenDataOffset.clear();
-    childrenDataCount.clear();
-    childrenDataOffset.reserve(childrenSize);
-    childrenDataCount.reserve(childrenSize);
-    u64 childrenCountFloor = count / childrenSize;
-    size_t lastIndex = childrenSize - 1;
-    for (size_t i = 0; i < lastIndex; ++i) {
-        childrenDataCount.push_back(childrenCountFloor);
-        childrenDataOffset.push_back(offset + i * childrenCountFloor * dataTypeSize_);
-    }
-    childrenDataCount.push_back(count - childrenCountFloor * lastIndex);
-    childrenDataOffset.push_back(offset + lastIndex * childrenCountFloor * dataTypeSize_);
     return;
 }
 
@@ -210,20 +212,15 @@ HcclResult ParallelExecutor::RunTemplateDesc(
 HcclResult ParallelExecutor::OrchestrateLoop(
     const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
-    vector<AlgoExecDataDesc> childrenAlgoExecDataDesc;
-    GetDataSplit(algoExecDesc, algoExecDataDesc, childrenAlgoExecDataDesc);
     size_t childrenSize = algoExecDesc.children.size();
+    std::vector<AlgoExecDataDesc> childrenAlgoExecDataDesc;
+    childrenAlgoExecDataDesc.resize(childrenSize);
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
-        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
-            if (i == 0 && algoExecDataDesc.ranksForOutputData.size() == 0){
-                childrenAlgoExecDataDesc.ranksForInputData = algoExecDataDesc.ranksForOutputData;
-            }else{
-                childrenAlgoExecDataDesc.ranksForInputData = childrenAlgoExecDataDesc.ranksForOutputData;
-            }
-            childrenAlgoExecDataDesc.at(i).ranksForInputData = childrenAlgoExecDataDesc.at(i - 1).ranksForOutputData;
+        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE && childrenSize > 1) {
             CHK_RET(PreSyncBySubCommMask(algoExecDesc));
         }
+        UpdateDataSplit(algoExecDesc, algoExecDataDesc, i, childrenAlgoExecDataDesc);
         VariantType &v = algoExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
@@ -236,10 +233,12 @@ HcclResult ParallelExecutor::OrchestrateLoop(
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }
         // 如果是串行需要回到主流做尾同步
-        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+        if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE && childrenSize > 1) {
             CHK_RET(PostSyncBySubCommMask(algoExecDesc));
         }
     }
+    // 整个执行器的数据输出直接用最后一个子节点的执行器的数据输出
+    algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.at(childrenSize - 1).ranksForOutputData;
     return HCCL_SUCCESS;
 }
 
