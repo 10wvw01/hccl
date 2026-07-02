@@ -248,6 +248,8 @@ public:
         countOffset = DOUBLE * pingpongOffset;
         seperateOffset = countOffset + NUM_BLOCKS_FOUR_PER_RANK_A3 * rankSize_ * FLAG_SIZE;
 
+        InitBuffArray(args->buffersIn, pingpong);
+
         pipe.InitBuffer(localFlagBuf, LOCAL_FLAG_BUF_LEN);
         localSetTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_ONE_OFFSET);
         localCheckTensor = localFlagBuf.GetWithOffset<int32_t>(UB_FLAG_PAD_COUNT, FLAG_TWO_OFFSET);
