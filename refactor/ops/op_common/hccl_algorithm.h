@@ -48,7 +48,7 @@ enum class HcclAlgEngineType {
     CCU_SCHED,
 };
 
-enum class HcclAlgExecutorType {
+enum class HcclAlgExecPolicy {
     PARALLEL,
     CONCURRENT,
     OMINIPIPE,
@@ -114,7 +114,7 @@ enum ExecPolicy {
 
 
 struct AlgoExecDesc {
-    ExecPolicy execPolicy;    // 描述children的并行策略：串行/并行
+    HcclAlgExecPolicy execPolicy;    // 描述children的并行策略：串行/并行
     std::vector<VariantType> children;
 };
 
@@ -139,7 +139,6 @@ public:
 private:
     HcclCMDType hcclCmdType;
     HcclAlgEngineType engineType;
-    HcclAlgExecutorType executorType;
     TopoMatchBase topoMatcher;
     AlgoExecDesc algoExecDesc;
 
