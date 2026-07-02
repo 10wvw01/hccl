@@ -110,12 +110,7 @@ template<typename T>
 __aicore__ inline void AivReduceScatterV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     AivReduceScatterMesh1D<T> op;
-    __gm__ AivSuperKernelArgs* args = reinterpret_cast<__gm__ AivSuperKernelArgs*>(hiddenInput);
-    bool pingpong = false;
-    if (args->len * sizeof(T) <= DATA_LIMIT) {
-        pingpong = true;
-    }
-    op.Init(SUPERKERNEL_CLASS_INIT, pingpong);
+    op.Init(SUPERKERNEL_CLASS_INIT);
 
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;
@@ -129,9 +124,7 @@ __aicore__ inline void AivReduceScatterV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
         op.len_ = curCount;
         op.InitCoreInfo(curCount, op.inputSliceStride_);
         op.Process(loopTag);
-        if (!pingpong) {
-            op.BarrierAll();
-        }
+        op.BarrierAll();
 
         countLeft -= curCount;
         op.input_ += curSize;
