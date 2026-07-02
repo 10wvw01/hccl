@@ -26,16 +26,13 @@ constexpr uint32_t MAX_KERNEL_NUM_2DIE = 3;
 constexpr uint32_t KERNEL_FULLMESH = 0;
 constexpr uint32_t KERNEL_CLOS_MAJOR = 1;
 constexpr uint32_t KERNEL_CLOS_MINOR = 2;
-constexpr uint32_t CLOS_RATIO_MINOR = 2;
-constexpr uint32_t CLOS_RATIO_MAJOR = 6;
-constexpr uint32_t CLOS_RATIO_TOTAL = 8;
-
 struct Mesh2DieCacheCtx {
     uint32_t dieNum;
     bool is2Plus6;
     uint32_t kernelCount;
     std::vector<RankId> rankGroup[MAX_KERNEL_NUM_2DIE];
     std::set<RankId> closPeers;
+    double dieSplitRatio = 1.0;
 
     std::vector<char> Serialize() const
     {
@@ -63,6 +60,7 @@ struct Mesh2DieCacheCtx {
             appendVec(rankGroup[i]);
         }
         appendSet(closPeers);
+        append(&dieSplitRatio, sizeof(double));
         return buf;
     }
 
@@ -107,6 +105,7 @@ struct Mesh2DieCacheCtx {
             CHK_SAFETY_FUNC_RET(readVec(rankGroup[i]));
         }
         CHK_SAFETY_FUNC_RET(readSet(closPeers));
+        CHK_SAFETY_FUNC_RET(read(&dieSplitRatio, sizeof(double)));
         return HcclResult::HCCL_SUCCESS;
     }
 };
@@ -146,6 +145,7 @@ private:
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;
     uint32_t fullmeshDieId_ = 0;
+    double dieSplitRatio_ = 1.0;
 
     std::vector<std::vector<HcclChannelDesc>> kernelChannels_{MAX_KERNEL_NUM_2DIE};
     std::array<RankGroup, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;

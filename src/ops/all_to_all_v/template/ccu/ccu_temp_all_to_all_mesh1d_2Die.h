@@ -16,6 +16,9 @@
 
 namespace ops_hccl {
 constexpr u32 MAX_KERNEL_NUM_2DIE = 3;
+constexpr u32 KERNEL_FULLMESH = 0;
+constexpr u32 KERNEL_CLOS_MAJOR = 1;
+constexpr u32 KERNEL_CLOS_MINOR = 2;
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
@@ -38,6 +41,9 @@ public:
 private:
     HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
     HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
+    HcclResult LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
+        uint64_t sliceStride, const LoopGroupConfig &config, const TemplateDataParams &templateDataParams,
+        TemplateResource& templateResource, bool skipFirstKernel);
 
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;
