@@ -45,6 +45,8 @@ HcclResult TopoMatchUBX::TopoForLayer0(const HcclComm comm, uint32_t &layer0Size
         layer0Size = 1;
     } else if (topoInstNum >= NET_INST_NUM_2) {
         HCCL_INFO("[CollAlgFactory] [TopoMatchUBX] layer0 topoInstNum [%d], Mesh 1D.", topoInstNum);
+        std::vector<std::vector<u32>> mesh1DRanks;
+        std::vector<std::vector<u32>> closRanks;
         for (uint32_t idx = 0; idx < topoInstNum; idx++) {
             CommTopo topoType;
             CHK_RET(HcclRankGraphGetTopoType(comm, 0, topoInsts[idx], &topoType));
@@ -53,12 +55,20 @@ HcclResult TopoMatchUBX::TopoForLayer0(const HcclComm comm, uint32_t &layer0Size
             CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 0, topoInsts[idx], &ranks, &rankNum));
             std::vector<u32> ranksVector;
             ranksVector.assign(ranks, ranks + rankNum);
-            algHierarchyInfo.infos[0].push_back(ranksVector);
-            if(idx == 0) {
-                layer0Size = ranksVector.size();
-            } else {
-                layer0Size = ranksVector.size() > layer0Size ? ranksVector.size() : layer0Size;
+            if (topoType == CommTopo::COMM_TOPO_1DMESH) {
+                mesh1DRanks.push_back(ranksVector);
+            } else if (topoType == CommTopo::COMM_TOPO_CLOS) {
+                closRanks.push_back(ranksVector);
             }
+            if (ranksVector.size() > layer0Size) {
+                layer0Size = ranksVector.size();
+            }
+        }
+        for (auto &ranksVec : mesh1DRanks) {
+            algHierarchyInfo.infos[0].push_back(ranksVec);
+        }
+        for (auto &ranksVec : closRanks) {
+            algHierarchyInfo.infos[0].push_back(ranksVec);
         }
     }
 #endif
