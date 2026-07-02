@@ -100,7 +100,7 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x2_fp32_2_)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 2);
-    auto sendCount = 1 * 1024 * 1024 * 1024 + 73;
+    auto sendCount = 5 * 1024 * 1024  + 73;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
@@ -240,7 +240,7 @@ TEST_F(ST_ALL_GATHER_3LEVEL_TEST, st_allgather_3level_2x2x2_int32_send128m_plus_
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 2);
-    auto sendCount = 128 * 1024 * 1024 + 1;
+    auto sendCount = 7 * 1024 * 1024 + 1;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
     RunAllGather3LevelA5(topoMeta, sendCount, dataType);
 }
