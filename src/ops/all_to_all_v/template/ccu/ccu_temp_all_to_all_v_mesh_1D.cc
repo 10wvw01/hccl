@@ -52,9 +52,10 @@ HcclResult CcuTempAlltoAllVMesh1D::CalcChannelRes(HcclComm comm, const OpParam& 
     } else {
         if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
             CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs));
+            HCCL_DEBUG("[CcuTempAlltoAllVMesh1D::CalcRes] Get Channels size [%u]", channelDescs.size());
         } else {
             CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
-    }
+        }
     }
     return HCCL_SUCCESS;
 }
