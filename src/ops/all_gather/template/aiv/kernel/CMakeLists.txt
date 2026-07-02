@@ -6,7 +6,7 @@ set(CCE_DIR ${ASCEND_CANN_PACKAGE_PATH}/tools/ccec_compiler/bin)
 add_custom_target(hccl_aiv_all_gather_op_910_95 ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_gather_op_910_95.o)
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_gather_op_910_95.o
-        COMMAND ${CCE_DIR}/ccec -c -x cce -O2 ${CMAKE_CURRENT_SOURCE_DIR}/aiv_all_gather_op.h -o ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_gather_op_910_95_tmp.o --cce-aicore-arch=dav-c310-vec
+        COMMAND ${CCE_DIR}/ccec -c -x cce -O2 ${CMAKE_CURRENT_SOURCE_DIR}/aiv_all_gather_op.h -o ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_gather_op_910_95_tmp.o --cce-aicore-arch=dav-920r1-vec
         --cce-aicore-input-parameter-size=28000 --cce-aicore-only -mllvm -cce-aicore-function-stack-size=0x8000 -mllvm -cce-aicore-stack-size=0x8000
         -I${ASCEND_CANN_PACKAGE_PATH}/tools/tikcpp/tikcfw/lib/
         -I${ASCEND_CANN_PACKAGE_PATH}/tools/tikcpp/tikcfw
