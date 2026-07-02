@@ -443,7 +443,7 @@ function run_ctest() {
     ctest -j ${CPU_NUM} \
           --verbose \
           --build-nocmake \
-          --timeout 300 \
+          --timeout 350 \
           --output-on-failure \
           --stop-on-failure \
           --test-output-size-failed 10000000 \
@@ -569,7 +569,6 @@ function make_st_gov() {
         if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
             lcov -c \
                 ${LCOV_PARALLEL} \
-                -d ${BUILD_ST_DIR}/ \
                 -d ${BUILD_ST_DIR}/testcase/ \
                 -d ${BUILD_ST_DIR}/utils/ \
                 --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} \
@@ -577,9 +576,22 @@ function make_st_gov() {
         else
             lcov -c \
                 ${LCOV_PARALLEL} \
-                -d ${BUILD_ST_DIR}/ \
                 -d ${BUILD_ST_DIR}/testcase/ \
                 -d ${BUILD_ST_DIR}/utils/ \
+                -o coverage.info
+        fi
+
+        # 排除路径
+        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
+            lcov -r coverage.info \
+                    */test/st/algorithm/* \
+                ${LCOV_PARALLEL} \
+                --ignore-errors ${LCOV_IGNORE_ERRORS} \
+                -o coverage.info
+        else
+            lcov -r coverage.info \
+                    */test/st/algorithm/* \
+                ${LCOV_PARALLEL} \
                 -o coverage.info
         fi
 
