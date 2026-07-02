@@ -125,15 +125,11 @@ HcclResult ReduceScatterBIRSInter::PreprocInterServer(const u32 rank, const u32 
             vec_offsets.push_back(((intraRankSize_ / rankSizeX_) + i) * localStrideSize * serverNum_);
         }
     }
-    auto ind = intraRankSize_ / rankSizeX_;;
-    for (u32 i = 1; i < ind; i+=2){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 1], localStrideSize * serverNum_, mainThread);
-    }
-    for (size_t i = 2; i < ind; i+=4){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 2], localStrideSize * serverNum_, mainThread);
-    }
-    for (size_t i = 4; i < ind; i+=8){
-        LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - 4], localStrideSize * serverNum_, mainThread);
+    auto ind = intraRankSize_ / rankSizeX_;   
+    for (u32 stride = 1; stride < ind; stride *= 2) {
+        for (u32 i = stride; i < ind; i += stride * 2) {
+            LocalReduceCCLToCCL(vec_offsets[i], vec_offsets[i - stride], localStrideSize * serverNum_, mainThread);
+        }
     }
 
     u64 remoteOffsetByte = localStrideSize * serverNum_;
@@ -210,6 +206,7 @@ HcclResult ReduceScatterBIRSInter::RunAsync(const u32 rank, const u32 rankSize, 
     LocalCopyPreproc(mainThread, rank, sliceSize, localStrideSize);
     
     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+    PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_);
     for (u32 round = 0; round < hccs_ranks.size() + 1; round++) {
         //MainRecordSub + SubWaitMain
         PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_);
