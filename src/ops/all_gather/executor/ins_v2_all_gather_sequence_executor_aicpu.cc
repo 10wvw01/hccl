@@ -123,6 +123,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     engine_ = param.engine;
+    param.supportSymmetricMemory = false;
     // ccu路径无channel数据，跳过RestoreChannelMap
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));

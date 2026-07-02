@@ -209,6 +209,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
+    param.supportSymmetricMemory = false;
      
     // 拆分algHierarchyInfo
     std::vector<std::vector<u32>> temp0HierarchyInfo = {algHierarchyInfo_.infos[0][0]};

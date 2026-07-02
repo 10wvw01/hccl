@@ -87,6 +87,7 @@ HcclResult InsV2AllGatherSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     threads_ = resCtx.threads;
     rankSizeLevel0_ = algHierarchyInfo_.infos[0][0].size();
     rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
+    param.supportSymmetricMemory = false;
     CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
 
     // 算法展开
