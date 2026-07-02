@@ -61,6 +61,7 @@ function(add_st_test OP_NAME OP_SRC)
             # 链接hccl库
             ${ASCEND_HOME_PATH}/lib64/libhccl.so
             -ldl
+            $<BUILD_INTERFACE:intf_pub>
         )
 
         target_compile_options(${target} PRIVATE

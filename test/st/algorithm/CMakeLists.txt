@@ -11,17 +11,12 @@
 cmake_minimum_required(VERSION 3.16.0)
 project(hccl_checker_ops_stest)
 set(TOP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
+set(HCCL_DEV_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 
 enable_testing()
 
 option(ENABLE_GCOV "Enable gcov/lcov coverage instrumentation" OFF)
-if(ENABLE_GCOV)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
-    message(STATUS "ST: Coverage instrumentation enabled")
-endif()
+include(${HCCL_DEV_BASE}/cmake/intf_pub_gccnative.cmake)
 
 if(NOT DEFINED ST_TASKS)
     set(ST_TASKS "all")
@@ -32,7 +27,6 @@ if (BUILD_OPEN_PROJECT)
     set(UTILS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils/src)
     set(TESTCASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/testcase)
     set(ASCEND_HOME_PATH $ENV{ASCEND_HOME_PATH})
-    set(HCCL_DEV_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
     set(THIRD_PARTH_PATH ${HCCL_DEV_BASE}/output/third_party)
 
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
