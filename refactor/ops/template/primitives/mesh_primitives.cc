@@ -15,7 +15,7 @@ namespace ops_hccl {
 
 namespace {
 
-enum class MeshAllGatherSendRecvMode {
+enum class MeshSendRecvMode {
     DMA_READ,
     WRITE,
     BATCH_WRITE,
@@ -26,7 +26,7 @@ enum class MeshPrimitiveOp {
     REDUCE_SCATTER,
 };
 
-struct MeshAllGatherChannelSlice {
+struct MeshChannelSlice {
     u32 channelIdx{0};
     const ChannelInfo *linkRemote{nullptr};
     u64 elemOffset{0};
@@ -51,7 +51,7 @@ struct MeshSliceBuildInfo {
     u32 rankSize{0};
     u32 repeatBegin{0};
     u32 repeatEnd{0};
-    const MeshAllGatherChannelSlice *channelSlice{nullptr};
+    const MeshChannelSlice *channelSlice{nullptr};
     const ChannelInfo *linkRemote{nullptr};
 };
 
@@ -95,32 +95,9 @@ HcclResult CheckStepRankSize(const StepSliceInfo &stepSliceInfo, u32 rankIdx)
     return HCCL_SUCCESS;
 }
 
-MeshAllGatherSendRecvMode ResolveMeshAllGatherSendRecvMode(const TemplateDataParams &tempAlgParams,
-                                                           const TemplateResource &templateResource,
-                                                           const MeshPrimitiveOptions &options)
-{
-    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
-        const bool dmaRead = (tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
-                              tempAlgParams.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
-        return dmaRead ? MeshAllGatherSendRecvMode::DMA_READ : MeshAllGatherSendRecvMode::WRITE;
-    }
-
-    if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT ||
-        options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
-        return MeshAllGatherSendRecvMode::WRITE;
-    }
-
-    if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
-        return MeshAllGatherSendRecvMode::DMA_READ;
-    }
-
-    return IsPcieProtocol(templateResource.channels) ?
-        MeshAllGatherSendRecvMode::DMA_READ : MeshAllGatherSendRecvMode::BATCH_WRITE;
-}
-
 HcclResult PushSingleChannelSlice(const std::vector<ChannelInfo> &channels, u64 txSliceSize, u64 rxSliceSize,
                                   u64 txSliceCount, u64 rxSliceCount,
-                                  std::vector<MeshAllGatherChannelSlice> &channelSlices)
+                                  std::vector<MeshChannelSlice> &channelSlices)
 {
     CHK_PRT_RET(channels.empty(), HCCL_ERROR("[MeshAllGatherPlan] empty channel."), HCCL_E_PARA);
     channelSlices.push_back({0, &channels[0], 0, txSliceSize, rxSliceSize, txSliceCount, rxSliceCount});
@@ -130,10 +107,11 @@ HcclResult PushSingleChannelSlice(const std::vector<ChannelInfo> &channels, u64 
 HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
                                     const TemplateResource &templateResource,
                                     const MeshPrimitiveOptions &options,
+                                    MeshPrimitiveOp opType,
                                     u32 myAlgRank, u32 connectedRank, u32 connectedAlgRank,
                                     u32 rankSize, u32 dataTypeSize,
-                                    MeshAllGatherSendRecvMode sendRecvMode,
-                                    std::vector<MeshAllGatherChannelSlice> &channelSlices)
+                                    MeshSendRecvMode sendRecvMode,
+                                    std::vector<MeshChannelSlice> &channelSlices)
 {
     CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
                     templateResource.channels.at(connectedRank).empty(),
@@ -141,9 +119,14 @@ HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
                 HCCL_E_PARA);
 
     const std::vector<ChannelInfo> &channels = templateResource.channels.at(connectedRank);
+    CHK_PRT_RET(options.sliceMode == MeshTransferSliceMode::MESH_CHUNK,
+                HCCL_ERROR("[MeshChannelSlices] MeshChunk is not a normal mesh channel slice mode."),
+                HCCL_E_NOT_SUPPORT);
 
     // ---- AllGather-only modes (early return) ----
     if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
+        CHK_PRT_RET(opType != MeshPrimitiveOp::ALL_GATHER,
+                    HCCL_ERROR("[MeshChannelSlices] NORMAL_FIXED is only supported by AllGather."), HCCL_E_NOT_SUPPORT);
         const bool hasTail = (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
         const u64 sliceSize = hasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
         return PushSingleChannelSlice(channels, sliceSize, sliceSize, sliceSize / dataTypeSize,
@@ -151,6 +134,8 @@ HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
     }
 
     if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT) {
+        CHK_PRT_RET(opType != MeshPrimitiveOp::ALL_GATHER,
+                    HCCL_ERROR("[MeshChannelSlices] VARIABLE_COUNT is only supported by AllGather."), HCCL_E_NOT_SUPPORT);
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, myAlgRank, "allRankSliceSize"));
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, connectedAlgRank, "allRankSliceSize"));
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankDispls, myAlgRank, "allRankDispls"));
@@ -166,7 +151,9 @@ HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
         CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, connectedAlgRank));
         const u32 stepNum = static_cast<u32>(
             tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size());
-        CHK_PRT_RET(tempAlgParams.stepSliceInfo.stepSliceSize[connectedAlgRank].size() < stepNum ||
+        CHK_PRT_RET(tempAlgParams.stepSliceInfo.stepCount[connectedAlgRank].size() < stepNum ||
+                        tempAlgParams.stepSliceInfo.stepSliceSize[connectedAlgRank].size() < stepNum ||
+                        tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[connectedAlgRank].size() < stepNum ||
                         tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank].size() < stepNum,
                     HCCL_ERROR("[MeshChannelSlices] omnipipe peer step size mismatch."), HCCL_E_PARA);
         return PushSingleChannelSlice(channels, 0, 0, 0, 0, channelSlices);
@@ -176,10 +163,10 @@ HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
     // Z-axis WRITE mode uses myAlgRank for tail; all other paths use connectedAlgRank.
     // ReduceScatter never passes WRITE, so it always takes the standard fallback.
     const bool zAxisWriteTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
-                                 sendRecvMode == MeshAllGatherSendRecvMode::WRITE &&
+                                 sendRecvMode == MeshSendRecvMode::WRITE &&
                                  myAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
     const bool connectedRankHasTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
-        sendRecvMode == MeshAllGatherSendRecvMode::WRITE) ?
+        sendRecvMode == MeshSendRecvMode::WRITE) ?
         zAxisWriteTail : (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
     const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
 
@@ -221,7 +208,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
     if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::COMMON_CHANNEL_SPLIT) {
         CHK_PRT_RET(sliceBuildInfo.channelSlice == nullptr,
                     HCCL_ERROR("[MeshTransferSlices] invalid build info."), HCCL_E_PARA);
-        const MeshAllGatherChannelSlice &cs = *sliceBuildInfo.channelSlice;
+        const MeshChannelSlice &cs = *sliceBuildInfo.channelSlice;
         if (sliceBuildInfo.opType == MeshPrimitiveOp::ALL_GATHER) {
             const u64 txOff = tempAlgParams.buffInfo.hcclBuffBaseOff +
                 tempAlgParams.sliceSize * sliceBuildInfo.myAlgRank + cs.elemOffset;
@@ -244,7 +231,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
     if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
         CHK_PRT_RET(sliceBuildInfo.channelSlice == nullptr,
                     HCCL_ERROR("[MeshTransferSlices] invalid build info."), HCCL_E_PARA);
-        const MeshAllGatherChannelSlice &cs = *sliceBuildInfo.channelSlice;
+        const MeshChannelSlice &cs = *sliceBuildInfo.channelSlice;
         const StepSliceInfo &step = tempAlgParams.stepSliceInfo;
         const u32 myAlgRank = sliceBuildInfo.myAlgRank;
         const u32 connectedAlgRank = sliceBuildInfo.connectedAlgRank;
@@ -306,7 +293,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
     //         AG NORMAL_FIXED / VARIABLE_COUNT / Z_AXIS_DETOUR
     CHK_PRT_RET(sliceBuildInfo.channelSlice == nullptr,
                 HCCL_ERROR("[MeshTransferSlices] invalid build info."), HCCL_E_PARA);
-    const MeshAllGatherChannelSlice &cs = *sliceBuildInfo.channelSlice;
+    const MeshChannelSlice &cs = *sliceBuildInfo.channelSlice;
 
     if (sliceBuildInfo.opType == MeshPrimitiveOp::REDUCE_SCATTER) {
         CHK_PRT_RET(sliceBuildInfo.linkRemote == nullptr,
@@ -417,8 +404,20 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
 
     const HcclDataType dataType = tempAlgParams.dataType;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    const MeshAllGatherSendRecvMode sendRecvMode =
-        ResolveMeshAllGatherSendRecvMode(tempAlgParams, templateResource, options);
+    MeshSendRecvMode sendRecvMode = MeshSendRecvMode::BATCH_WRITE;
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
+        const bool dmaRead = (tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
+                              tempAlgParams.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
+        sendRecvMode = dmaRead ? MeshSendRecvMode::DMA_READ : MeshSendRecvMode::WRITE;
+    } else if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT ||
+               options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+        sendRecvMode = MeshSendRecvMode::WRITE;
+    } else if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
+        sendRecvMode = MeshSendRecvMode::DMA_READ;
+    } else {
+        sendRecvMode = IsPcieProtocol(templateResource.channels) ?
+            MeshSendRecvMode::DMA_READ : MeshSendRecvMode::BATCH_WRITE;
+    }
     const bool variableCount = (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT);
     const u32 repeatTaskNum = variableCount ? tempAlgParams.repeatNum : 1;
     for (u32 repeatTaskIdx = 0; repeatTaskIdx < repeatTaskNum; ++repeatTaskIdx) {
@@ -430,8 +429,9 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
                 (i <= myAlgRank ? i - 1 : i) : (myAlgRank + i) % rankSize;
             const u32 connectedRank = ranks[connectedAlgRank];
 
-            std::vector<MeshAllGatherChannelSlice> channelSlices;
-            CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options, myAlgRank,
+            std::vector<MeshChannelSlice> channelSlices;
+            CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options,
+                                             MeshPrimitiveOp::ALL_GATHER, myAlgRank,
                                              connectedRank, connectedAlgRank, rankSize, dataTypeSize,
                                              sendRecvMode, channelSlices));
             for (const auto &channelSlice : channelSlices) {
@@ -453,9 +453,9 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
                                           {{slices.txSrcSlices, slices.txDstSlices},
                                            {slices.rxSrcSlices, slices.rxDstSlices}},
                                           dataType};
-                if (sendRecvMode == MeshAllGatherSendRecvMode::DMA_READ) {
+                if (sendRecvMode == MeshSendRecvMode::DMA_READ) {
                     CHK_RET(SendRecvRead(sendRecvInfo, templateResource.threads[threadIdx]));
-                } else if (sendRecvMode == MeshAllGatherSendRecvMode::WRITE) {
+                } else if (sendRecvMode == MeshSendRecvMode::WRITE) {
                     CHK_RET(SendRecvWrite(sendRecvInfo, templateResource.threads[threadIdx]));
                 } else {
                     CHK_RET(SendRecvBatchWrite(sendRecvInfo, templateResource.threads[threadIdx]));
@@ -519,12 +519,13 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, Templat
         const u32 connectedAlgRank = (myAlgRank + i) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
 
-        std::vector<MeshAllGatherChannelSlice> channelSlices;
+        std::vector<MeshChannelSlice> channelSlices;
         // RS never uses WRITE sendRecvMode, so the Z-axis tail logic in
         // ResolveMeshChannelSlices falls through to the standard connectedAlgRank path.
-        CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options, myAlgRank,
+        CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options,
+                                         MeshPrimitiveOp::REDUCE_SCATTER, myAlgRank,
                                          connectedRank, connectedAlgRank, rankSize, dataTypeSize,
-                                         MeshAllGatherSendRecvMode::BATCH_WRITE, channelSlices));
+                                         MeshSendRecvMode::BATCH_WRITE, channelSlices));
         for (const auto &channelSlice : channelSlices) {
             CHK_PRT_RET(channelSlice.linkRemote == nullptr || threadIdx >= templateResource.threads.size(),
                         HCCL_ERROR("[RunMeshReduceScatter] invalid transfer slice task."), HCCL_E_PARA);
