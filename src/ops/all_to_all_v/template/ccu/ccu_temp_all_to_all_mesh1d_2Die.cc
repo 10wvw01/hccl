@@ -58,16 +58,10 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
  	CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
  	HCCL_INFO("channelDescs size[%u]", channelDescs.size());
  	 
- 	CHK_RET(PartitionChannels(comm, rankIdToChannelDesc_));
+    CHK_RET(PartitionChannels(comm, rankIdToChannelDesc_));
     double ratio = 1.0;
-    if (is2Plus6_ && !kernelChannels_[KERNEL_CLOS_MAJOR].empty() && !kernelChannels_[KERNEL_CLOS_MINOR].empty()) {
-        uint32_t majorBw = 0, minorBw = 0;
-        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MAJOR][0], majorBw));
-        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MINOR][0], minorBw));
-        if (majorBw + minorBw > 0) {
-            ratio = static_cast<double>(majorBw) / (majorBw + minorBw);
-        }
-    }
+    CHK_RET(CalcDieSplitRatio(comm, myRank_, is2Plus6_,
+        kernelChannels_[KERNEL_CLOS_MAJOR], kernelChannels_[KERNEL_CLOS_MINOR], ratio));
     resourceRequest.dieSplitRatio = ratio;
     uint32_t slaveThreadNum = kernelCount_ - 1;
     resourceRequest.notifyNumOnMainThread = slaveThreadNum;
@@ -98,25 +92,9 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
 
 
 HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc)
-{   
-    using DieIdType = uint32_t;
-    const uint32_t dieIdTypeSize = sizeof(DieIdType);
+{
     std::map<uint32_t, std::vector<HcclChannelDesc>> singleChByDie, multiChByDie;
-    for (auto& rankToChannels : rankIdToChannelDesc) {
-        u32 remoteRank = rankToChannels.first;
-        std::vector<HcclChannelDesc>& channelList = rankToChannels.second;
-        bool isMulti = channelList.size() > 1;
-        if (isMulti) {
-            is2Plus6_ = true;
-        }
-        for (const auto& channel : channelList) {
-            DieIdType dieId = 0;
-            EndpointDesc localEndpoint = channel.localEndpoint;
-            CHK_RET(HcclRankGraphGetEndpointInfo(comm, myRank_, &localEndpoint, ENDPOINT_ATTR_DIE_ID,
-                dieIdTypeSize, static_cast<void*>(&dieId)));
-            (isMulti ? multiChByDie : singleChByDie)[dieId].emplace_back(channel);
-        }
-    }
+    CHK_RET(SplitChannelsByDie(comm, myRank_, rankIdToChannelDesc, singleChByDie, multiChByDie, is2Plus6_));
     auto fillKernel = [this](uint32_t kernelIdx, const std::vector<HcclChannelDesc>& channels) {
         for (const auto& ch : channels) {
             kernelChannels_[kernelIdx].emplace_back(ch);
