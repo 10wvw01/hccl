@@ -13,8 +13,8 @@
 #include <chrono>
 
 namespace ops_hccl {
-constexpr u32 DPU_TIMEOUT = 180;
 constexpr uint64_t MS_PER_SECOND = 1000;
+constexpr u32 DPU_TIMEOUT = 180 * MS_PER_SECOND;
 
 static uint64_t GetTimestampMs()
 {
@@ -26,20 +26,22 @@ static HcclResult WaitDpuNotify(
     const char *funcName, ChannelHandle channel, u32 notifyIdx, const char *notifyName)
 {
     uint64_t startMs = GetTimestampMs();
-    uint64_t timeoutMs = static_cast<uint64_t>(DPU_TIMEOUT) * MS_PER_SECOND;
+    uint64_t timeoutMs = DPU_TIMEOUT;
+    uint64_t timeoutSeconds = timeoutMs / MS_PER_SECOND;
     HCCL_INFO("[%s] DPU notify wait start, notify[%s], channel[%llu], notifyIdx[%u], "
-              "timeoutSeconds[%u], timeoutMs[%llu], startTimestampMs[%llu].",
-        funcName, notifyName, static_cast<unsigned long long>(channel), notifyIdx, DPU_TIMEOUT,
-        static_cast<unsigned long long>(timeoutMs), static_cast<unsigned long long>(startMs));
+              "timeoutMs[%llu], timeoutSeconds[%llu], startTimestampMs[%llu].",
+        funcName, notifyName, static_cast<unsigned long long>(channel), notifyIdx,
+        static_cast<unsigned long long>(timeoutMs), static_cast<unsigned long long>(timeoutSeconds),
+        static_cast<unsigned long long>(startMs));
 
     int32_t ret = HcommChannelNotifyWaitOnThread(0, channel, notifyIdx, DPU_TIMEOUT);
 
     uint64_t endMs = GetTimestampMs();
     HCCL_INFO("[%s] DPU notify wait end, notify[%s], channel[%llu], notifyIdx[%u], "
-              "timeoutSeconds[%u], timeoutMs[%llu], ret[%d], endTimestampMs[%llu], elapsedMs[%llu].",
-        funcName, notifyName, static_cast<unsigned long long>(channel), notifyIdx, DPU_TIMEOUT,
-        static_cast<unsigned long long>(timeoutMs), ret, static_cast<unsigned long long>(endMs),
-        static_cast<unsigned long long>(endMs - startMs));
+              "timeoutMs[%llu], timeoutSeconds[%llu], ret[%d], endTimestampMs[%llu], elapsedMs[%llu].",
+        funcName, notifyName, static_cast<unsigned long long>(channel), notifyIdx,
+        static_cast<unsigned long long>(timeoutMs), static_cast<unsigned long long>(timeoutSeconds), ret,
+        static_cast<unsigned long long>(endMs), static_cast<unsigned long long>(endMs - startMs));
     return static_cast<HcclResult>(ret);
 }
 
