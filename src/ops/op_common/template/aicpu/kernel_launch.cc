@@ -659,6 +659,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     constexpr uint64_t dumpOpCnt = 30;
     if (opUnfoldIdx == dumpOpCnt) { // End at op30
         HcclTimer::timerEntries.DumpTimerEntries();
+        if (HcommIsSupportHcommTimerDump()) {
+            CHK_RET(static_cast<HcclResult>(HcommTimerDump(true)));
+        }
 
         HcclTimer::startTrack = false;
         if (HcommIsSupportHcommTimerStartTrack()) {
