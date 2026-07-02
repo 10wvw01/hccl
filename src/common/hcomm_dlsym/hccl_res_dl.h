@@ -44,7 +44,7 @@ typedef struct {
 #define COMM_ADDR_EID_LEN 36
 #endif /* CANN_VERSION_NUM < CANN_VERSION(9, 0, 0) */
 
-#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+#if CANN_VERSION_NUM < CANN_VERSION(9, 2, 0)
 typedef enum {
     THREAD_TYPE_INVALID = -1,
     THREAD_TYPE_TS = 0

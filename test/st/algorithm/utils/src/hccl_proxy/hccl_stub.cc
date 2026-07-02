@@ -1056,6 +1056,16 @@ bool HcommIsSupportHcommChannelNotifyWaitWithDefaultTimeout()
     return false;
 }
 
+bool HcommIsSupportHcclAicpuKernelLaunch()
+{
+    return false;
+}
+
+bool HcommIsSupportHcclGroupStatusGet()
+{
+    return false;
+}
+
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
