@@ -45,31 +45,35 @@ HcclResult TopoMatchUBX::TopoForLayer0(const HcclComm comm, uint32_t &layer0Size
         layer0Size = 1;
     } else if (topoInstNum >= NET_INST_NUM_2) {
         HCCL_INFO("[CollAlgFactory] [TopoMatchUBX] layer0 topoInstNum [%d], Mesh 1D.", topoInstNum);
-        std::vector<std::vector<u32>> mesh1DRanks;
-        std::vector<std::vector<u32>> closRanks;
+        std::vector<u32> mesh1DRanks;
+        std::vector<u32> closRanks;
         for (uint32_t idx = 0; idx < topoInstNum; idx++) {
             CommTopo topoType;
             CHK_RET(HcclRankGraphGetTopoType(comm, 0, topoInsts[idx], &topoType));
             uint32_t* ranks;
             uint32_t rankNum;
             CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 0, topoInsts[idx], &ranks, &rankNum));
-            std::vector<u32> ranksVector;
-            ranksVector.assign(ranks, ranks + rankNum);
             if (topoType == CommTopo::COMM_TOPO_1DMESH) {
-                mesh1DRanks.push_back(ranksVector);
+                mesh1DRanks.insert(mesh1DRanks.end(), ranks, ranks + rankNum);
             } else if (topoType == CommTopo::COMM_TOPO_CLOS) {
-                closRanks.push_back(ranksVector);
+                closRanks.insert(closRanks.end(), ranks, ranks + rankNum);
             }
-            if (ranksVector.size() > layer0Size) {
-                layer0Size = ranksVector.size();
+            if (rankNum > layer0Size) {
+                layer0Size = rankNum;
             }
         }
-        for (auto &ranksVec : mesh1DRanks) {
-            algHierarchyInfo.infos[0].push_back(ranksVec);
+        if (!mesh1DRanks.empty()) {
+            algHierarchyInfo.infos[0].push_back(mesh1DRanks);
+            layer0Size = mesh1DRanks.size();
         }
-        for (auto &ranksVec : closRanks) {
-            algHierarchyInfo.infos[0].push_back(ranksVec);
+        if (!closRanks.empty()) {
+            algHierarchyInfo.infos[0].push_back(closRanks);
+            if (closRanks.size() > layer0Size) {
+                layer0Size = closRanks.size();
+            }
         }
+        HCCL_INFO("[TopoMatchUBX] layer0Size %u topoInstNum [%d], infos[0].size %u, mesh1DRanks[%u], closRanks[%u]", 
+                layer0Size, topoInstNum, algHierarchyInfo.infos[0].size(), mesh1DRanks.size(), closRanks.size());
     }
 #endif
     return HcclResult::HCCL_SUCCESS;
