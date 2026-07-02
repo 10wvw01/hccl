@@ -84,7 +84,10 @@ HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetL
                              opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER ||
                              opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
                              opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
-                             opType == HcclCMDType::HCCL_CMD_ALLTOALLVC);
+                             opType == HcclCMDType::HCCL_CMD_ALLTOALLVC ||
+                             opType == HcclCMDType::HCCL_CMD_SCATTER ||
+                             opType == HcclCMDType::HCCL_CMD_BROADCAST ||
+                             opType == HcclCMDType::HCCL_CMD_REDUCE);
         if (!isSupportedOp) {
             HCCL_ERROR("[CheckAsymmetricTopoSupport] OpType[%d] does not support asymmetric topology "
                 "(multi-module diff device num mode), only ALLGATHER/ALLREDUCE/REDUCE_SCATTER/ALLTOALL are supported.",
