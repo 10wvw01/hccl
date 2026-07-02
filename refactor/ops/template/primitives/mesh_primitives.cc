@@ -47,7 +47,7 @@ struct MeshTransferSlices {
 
 struct MeshSliceBuildInfo {
     MeshPrimitiveOp opType{MeshPrimitiveOp::ALL_GATHER};
-    MeshAllGatherSliceMode sliceMode{MeshAllGatherSliceMode::NORMAL_FIXED};
+    MeshTransferSliceMode sliceMode{MeshTransferSliceMode::NORMAL_FIXED};
     u32 myAlgRank{0};
     u32 connectedAlgRank{0};
     u32 rankSize{0};
@@ -106,20 +106,20 @@ HcclResult CheckStepRankSize(const StepSliceInfo &stepSliceInfo, u32 rankIdx)
 
 MeshAllGatherSendRecvMode ResolveMeshAllGatherSendRecvMode(const TemplateDataParams &tempAlgParams,
                                                            const TemplateResource &templateResource,
-                                                           const MeshAllGatherPrimitiveOptions &options)
+                                                           const MeshPrimitiveOptions &options)
 {
-    if (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) {
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
         const bool dmaRead = (tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
                               tempAlgParams.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
         return dmaRead ? MeshAllGatherSendRecvMode::DMA_READ : MeshAllGatherSendRecvMode::WRITE;
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::VARIABLE_COUNT ||
-        options.sliceMode == MeshAllGatherSliceMode::OMNIPIPE_STEP) {
+    if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT ||
+        options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
         return MeshAllGatherSendRecvMode::WRITE;
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::NORMAL_FIXED) {
+    if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
         return MeshAllGatherSendRecvMode::DMA_READ;
     }
 
@@ -138,7 +138,7 @@ HcclResult PushSingleChannelSlice(const std::vector<ChannelInfo> &channels, u64 
 
 HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgParams,
                                              const TemplateResource &templateResource,
-                                             const MeshAllGatherPrimitiveOptions &options,
+                                             const MeshPrimitiveOptions &options,
                                              u32 myAlgRank, u32 connectedRank, u32 connectedAlgRank,
                                              u32 rankSize, u32 dataTypeSize,
                                              MeshAllGatherSendRecvMode sendRecvMode,
@@ -151,20 +151,20 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
 
     const std::vector<ChannelInfo> &channels = templateResource.channels.at(connectedRank);
     const bool zAxisWriteTail =
-        (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR &&
+        (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
          sendRecvMode == MeshAllGatherSendRecvMode::WRITE &&
          myAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
-    const bool connectedRankHasTail = (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR &&
+    const bool connectedRankHasTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
         sendRecvMode == MeshAllGatherSendRecvMode::WRITE) ?
         zAxisWriteTail : (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
     const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
 
-    if (options.sliceMode == MeshAllGatherSliceMode::NORMAL_FIXED) {
+    if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
         return PushSingleChannelSlice(channels, sliceSize, sliceSize, sliceSize / dataTypeSize,
                                       sliceSize / dataTypeSize, channelSlices);
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::VARIABLE_COUNT) {
+    if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT) {
         // all_gather_v 只替换本端/对端 rank 的 size，peer/channel 主循环继续复用普通 Mesh。
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, myAlgRank, "allRankSliceSize"));
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, connectedAlgRank, "allRankSliceSize"));
@@ -175,7 +175,7 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
                                       tempAlgParams.count, tempAlgParams.count, channelSlices);
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::OMNIPIPE_STEP) {
+    if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
         // OmniPipe 的差异在 task 内部追加多组 step slice，而不是拆出一套外层执行循环。
         CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, myAlgRank));
         CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, connectedAlgRank));
@@ -187,7 +187,7 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
         return PushSingleChannelSlice(channels, 0, 0, 0, 0, channelSlices);
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::COMMON_CHANNEL_SPLIT) {
+    if (options.sliceMode == MeshTransferSliceMode::COMMON_CHANNEL_SPLIT) {
         const u32 channelsPerRank = static_cast<u32>(channels.size());
         std::vector<u64> ec;
         std::vector<u64> sizeOut;
@@ -201,7 +201,7 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
         return HCCL_SUCCESS;
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) {
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
         std::vector<u64> ec;
         std::vector<u64> sizeOut;
         std::vector<u64> elemOffset;
@@ -218,6 +218,47 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
     }
 
     return HCCL_E_NOT_SUPPORT;
+}
+
+HcclResult ResolveMeshReduceScatterChannelSlices(const TemplateDataParams &tempAlgParams,
+                                                 const TemplateResource &templateResource,
+                                                 const MeshPrimitiveOptions &options,
+                                                 u32 connectedRank, u32 connectedAlgRank,
+                                                 u32 rankSize, u32 dataTypeSize,
+                                                 std::vector<MeshAllGatherChannelSlice> &channelSlices)
+{
+    CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
+                    templateResource.channels.at(connectedRank).empty(),
+                HCCL_ERROR("[MeshReduceScatterPlan] connectedRank[%u] has no channel.", connectedRank),
+                HCCL_E_PARA);
+
+    const std::vector<ChannelInfo> &channels = templateResource.channels.at(connectedRank);
+    if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+        return PushSingleChannelSlice(channels, 0, 0, 0, 0, channelSlices);
+    }
+
+    const bool connectedRankHasTail = (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
+    const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
+    std::vector<u64> ec;
+    std::vector<u64> sizeOut;
+    std::vector<u64> elemOffset;
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
+        CHK_RET(CalcDataSplitByPortGroupZAxisDetour(sliceSize / dataTypeSize, dataTypeSize, channels,
+                                                    ec, sizeOut, elemOffset,
+                                                    options.zAxis.level0ChannelNumPerRank,
+                                                    options.zAxis.level1ChannelNumPerRank,
+                                                    static_cast<float>(options.zAxis.level0DataRatio)));
+    } else {
+        const u32 channelsPerRank = static_cast<u32>(channels.size());
+        CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, channels,
+                                                ec, sizeOut, elemOffset, channelsPerRank));
+    }
+
+    for (u32 channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
+        channelSlices.push_back({channelIdx, &channels[channelIdx], elemOffset[channelIdx],
+                                 sizeOut[channelIdx], sizeOut[channelIdx], ec[channelIdx], ec[channelIdx]});
+    }
+    return HCCL_SUCCESS;
 }
 
 void AppendCclBufferSlices(const TemplateDataParams &tempAlgParams, u64 txOutOffset, u64 rxOutOffset,
@@ -281,25 +322,85 @@ void AppendOmniPipeStepSlices(const TemplateDataParams &tempAlgParams, u32 myAlg
     }
 }
 
+void AppendReduceScatterOmniPipeStepSlices(const TemplateDataParams &tempAlgParams,
+                                           const MeshSliceBuildInfo &sliceBuildInfo,
+                                           MeshTransferSlices &slices)
+{
+    const StepSliceInfo &stepSliceInfo = tempAlgParams.stepSliceInfo;
+    const u32 myAlgRank = sliceBuildInfo.myAlgRank;
+    const u32 connectedAlgRank = sliceBuildInfo.connectedAlgRank;
+    const u32 stepNum = static_cast<u32>(stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size());
+    for (u32 rpt = 0; rpt < stepNum; ++rpt) {
+        const u64 txSrcCurrent = tempAlgParams.buffInfo.inBuffBaseOff +
+            stepSliceInfo.stepInputSliceStride[connectedAlgRank] +
+            stepSliceInfo.inputOmniPipeSliceStride[connectedAlgRank][rpt];
+        const u64 txDstCurrent = tempAlgParams.buffInfo.hcclBuffBaseOff +
+            stepSliceInfo.stepOutputSliceStride[myAlgRank] +
+            stepSliceInfo.outputOmniPipeSliceStride[myAlgRank][rpt];
+        const u64 rxSrcCurrent = tempAlgParams.buffInfo.inBuffBaseOff +
+            stepSliceInfo.stepInputSliceStride[myAlgRank] +
+            stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][rpt];
+        const u64 rxDstCurrent = tempAlgParams.buffInfo.hcclBuffBaseOff +
+            stepSliceInfo.stepOutputSliceStride[connectedAlgRank] +
+            stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank][rpt];
+
+        slices.txSrcSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, txSrcCurrent,
+                                        stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                        stepSliceInfo.stepCount[connectedAlgRank][rpt]);
+        slices.txDstSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, txDstCurrent,
+                                        stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
+                                        stepSliceInfo.stepCount[connectedAlgRank][rpt]);
+        slices.rxSrcSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, rxSrcCurrent,
+                                        stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                        stepSliceInfo.stepCount[myAlgRank][rpt]);
+        slices.rxDstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, rxDstCurrent,
+                                        stepSliceInfo.stepSliceSize[myAlgRank][rpt],
+                                        stepSliceInfo.stepCount[myAlgRank][rpt]);
+    }
+}
+
 HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
                                    const MeshSliceBuildInfo &sliceBuildInfo,
                                    MeshTransferSlices &slices)
 {
     if (sliceBuildInfo.opType == MeshPrimitiveOp::REDUCE_SCATTER) {
-        CHK_PRT_RET(sliceBuildInfo.linkRemote == nullptr,
+        CHK_PRT_RET(sliceBuildInfo.linkRemote == nullptr || sliceBuildInfo.channelSlice == nullptr,
                     HCCL_ERROR("[MeshTransferSlices] invalid reduce scatter slice build info."), HCCL_E_PARA);
         slices = MeshTransferSlices{};
-        slices.hasReduce = true;
-        slices.reduceOp = sliceBuildInfo.reduceOp;
+        if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::MESH_CHUNK) {
+            HCCL_ERROR("[MeshTransferSlices] MeshChunk has chunk scheduling and sync semantics outside this helper.");
+            return HCCL_E_NOT_SUPPORT;
+        }
+        if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+            AppendReduceScatterOmniPipeStepSlices(tempAlgParams, sliceBuildInfo, slices);
+            return HCCL_SUCCESS;
+        }
 
-        slices.txSrcSlices.emplace_back(tempAlgParams.buffInfo.inputPtr, sliceBuildInfo.peerOff,
-                                        sliceBuildInfo.peerSz, sliceBuildInfo.peerCount);
-        slices.txDstSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, sliceBuildInfo.myOff,
-                                        sliceBuildInfo.mySz, sliceBuildInfo.myCount);
-        slices.rxSrcSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, sliceBuildInfo.myOff,
-                                        sliceBuildInfo.mySz, sliceBuildInfo.myCount);
-        slices.rxDstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, sliceBuildInfo.myOff,
-                                        sliceBuildInfo.mySz, sliceBuildInfo.myCount);
+        const MeshAllGatherChannelSlice &channelSlice = *sliceBuildInfo.channelSlice;
+        const bool connectedRankHasTail =
+            (sliceBuildInfo.connectedAlgRank == sliceBuildInfo.rankSize - 1 && tempAlgParams.tailSize > 0);
+        const u64 outputSliceStride = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
+        for (u32 rpt = sliceBuildInfo.repeatBegin; rpt < sliceBuildInfo.repeatEnd; ++rpt) {
+            const u64 repeatInBase = tempAlgParams.buffInfo.inBuffBaseOff + rpt * tempAlgParams.inputRepeatStride;
+            const u64 repeatOutBase = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * tempAlgParams.outputRepeatStride;
+            const u64 rxSrcOffset = repeatInBase +
+                sliceBuildInfo.myAlgRank * tempAlgParams.inputSliceStride + channelSlice.elemOffset;
+            const u64 rxDstOffset = repeatOutBase +
+                sliceBuildInfo.connectedAlgRank * outputSliceStride + channelSlice.elemOffset;
+            const u64 txSrcOffset = repeatInBase +
+                sliceBuildInfo.connectedAlgRank * tempAlgParams.inputSliceStride + channelSlice.elemOffset;
+            const u64 txDstOffset = repeatOutBase +
+                sliceBuildInfo.myAlgRank * outputSliceStride + channelSlice.elemOffset;
+
+            slices.txSrcSlices.emplace_back(tempAlgParams.buffInfo.inputPtr, txSrcOffset,
+                                            channelSlice.txSliceSize, channelSlice.txSliceCount);
+            slices.txDstSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, txDstOffset,
+                                            channelSlice.txSliceSize, channelSlice.txSliceCount);
+            slices.rxSrcSlices.emplace_back(sliceBuildInfo.linkRemote->remoteCclMem.addr, rxSrcOffset,
+                                            channelSlice.rxSliceSize, channelSlice.rxSliceCount);
+            slices.rxDstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, rxDstOffset,
+                                            channelSlice.rxSliceSize, channelSlice.rxSliceCount);
+        }
         return HCCL_SUCCESS;
     }
 
@@ -308,7 +409,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
     const MeshAllGatherChannelSlice &channelSlice = *sliceBuildInfo.channelSlice;
     slices = MeshTransferSlices{};
 
-    if (sliceBuildInfo.sliceMode == MeshAllGatherSliceMode::COMMON_CHANNEL_SPLIT) {
+    if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::COMMON_CHANNEL_SPLIT) {
         const u64 txOutOffset = tempAlgParams.buffInfo.hcclBuffBaseOff +
             tempAlgParams.sliceSize * sliceBuildInfo.myAlgRank + channelSlice.elemOffset;
         const u64 rxOutOffset = tempAlgParams.buffInfo.hcclBuffBaseOff +
@@ -317,7 +418,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
         return HCCL_SUCCESS;
     }
 
-    if (sliceBuildInfo.sliceMode == MeshAllGatherSliceMode::OMNIPIPE_STEP) {
+    if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
         AppendOmniPipeStepSlices(tempAlgParams, sliceBuildInfo.myAlgRank,
                                  sliceBuildInfo.connectedAlgRank, channelSlice, slices);
         return HCCL_SUCCESS;
@@ -325,12 +426,12 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
 
     for (u32 rpt = sliceBuildInfo.repeatBegin; rpt < sliceBuildInfo.repeatEnd; ++rpt) {
         const u64 outBaseOff = tempAlgParams.buffInfo.outBuffBaseOff + rpt * tempAlgParams.outputRepeatStride;
-        const bool variableCount = (sliceBuildInfo.sliceMode == MeshAllGatherSliceMode::VARIABLE_COUNT);
+        const bool variableCount = (sliceBuildInfo.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT);
         const u64 scratchRepeatStride = variableCount ?
             tempAlgParams.sliceSize * DATATYPE_SIZE_TABLE[tempAlgParams.dataType] :
             tempAlgParams.sliceSize * sliceBuildInfo.rankSize;
         u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
-        if (sliceBuildInfo.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR &&
+        if (sliceBuildInfo.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
             tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER) {
             scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * tempAlgParams.inputRepeatStride;
         }
@@ -346,7 +447,7 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
         const u64 txScratchOffset = scratchBase +
             tempAlgParams.sliceSize * sliceBuildInfo.myAlgRank + channelSlice.elemOffset;
         const u64 rxScratchOffset = scratchBase +
-            ((sliceBuildInfo.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) ? tempAlgParams.inputSliceStride :
+            ((sliceBuildInfo.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) ? tempAlgParams.inputSliceStride :
                                                                                    tempAlgParams.sliceSize) *
                 sliceBuildInfo.connectedAlgRank +
             channelSlice.elemOffset;
@@ -366,14 +467,14 @@ HcclResult BuildMeshTransferSlices(const TemplateDataParams &tempAlgParams,
 
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
-                            const MeshAllGatherPrimitiveOptions &options)
+                            const MeshPrimitiveOptions &options)
 {
     (void)engineType;
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         return HCCL_SUCCESS;
     }
 
-    if (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR && !options.hasZAxisDetourConfig) {
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR && !options.hasZAxisDetourConfig) {
         HCCL_ERROR("[RunMeshAllGather] missing z-axis detour config.");
         return HCCL_E_PARA;
     }
@@ -394,14 +495,14 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
     const MeshAllGatherSendRecvMode sendRecvMode =
         ResolveMeshAllGatherSendRecvMode(tempAlgParams, templateResource, options);
-    const bool variableCount = (options.sliceMode == MeshAllGatherSliceMode::VARIABLE_COUNT);
+    const bool variableCount = (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT);
     const u32 repeatTaskNum = variableCount ? tempAlgParams.repeatNum : 1;
     for (u32 repeatTaskIdx = 0; repeatTaskIdx < repeatTaskNum; ++repeatTaskIdx) {
         u32 threadIdx = 0;
         const u32 repeatBegin = variableCount ? repeatTaskIdx : 0;
         const u32 repeatEnd = variableCount ? repeatTaskIdx + 1 : tempAlgParams.repeatNum;
         for (u32 i = 1; i < rankSize; ++i) {
-            const u32 connectedAlgRank = (options.sliceMode == MeshAllGatherSliceMode::Z_AXIS_DETOUR) ?
+            const u32 connectedAlgRank = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) ?
                 (i <= myAlgRank ? i - 1 : i) : (myAlgRank + i) % rankSize;
             const u32 connectedRank = ranks[connectedAlgRank];
 
@@ -445,76 +546,101 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
-    MeshAllGatherPrimitiveOptions options;
+    MeshPrimitiveOptions options;
     // 保留当前已抽取 primitive 的行为。
     // 后续调用者应从 TemplateDesc.variant 显式传入 mode，而不是依赖这个兼容重载。
-    options.sliceMode = MeshAllGatherSliceMode::COMMON_CHANNEL_SPLIT;
+    options.sliceMode = MeshTransferSliceMode::COMMON_CHANNEL_SPLIT;
     return RunMeshAllGather(tempAlgParams, templateResource, engineType, ranks, myRank, options);
+}
+
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
+                                const MeshPrimitiveOptions &options)
+{
+    (void)engineType;
+    if (options.sliceMode == MeshTransferSliceMode::MESH_CHUNK) {
+        HCCL_ERROR("[RunMeshReduceScatter] MeshChunk needs chunk scheduling, PreCopy/PostCopy and sync outside this primitive.");
+        return HCCL_E_NOT_SUPPORT;
+    }
+    if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED ||
+        options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT) {
+        HCCL_ERROR("[RunMeshReduceScatter] unsupported slice mode for mesh reduce scatter.");
+        return HCCL_E_NOT_SUPPORT;
+    }
+    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR && !options.hasZAxisDetourConfig) {
+        HCCL_ERROR("[RunMeshReduceScatter] missing z-axis detour config.");
+        return HCCL_E_PARA;
+    }
+
+    const u32 rankSize = static_cast<u32>(ranks.size());
+    if (rankSize <= 1 || templateResource.channels.empty()) {
+        return HCCL_SUCCESS;
+    }
+    u32 myAlgRank = 0;
+    bool rankFound = false;
+    for (u32 i = 0; i < rankSize; ++i) {
+        if (ranks[i] == myRank) {
+            myAlgRank = i;
+            rankFound = true;
+            break;
+        }
+    }
+    CHK_PRT_RET(!rankFound, HCCL_ERROR("[RunMeshReduceScatter] rank[%u] is not in ranks.", myRank), HCCL_E_PARA);
+
+    const HcclDataType dataType = tempAlgParams.dataType;
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
+    if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+        CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, myAlgRank));
+    }
+
+    u32 threadIdx = 0;
+    for (u32 i = 1; i < rankSize; ++i) {
+        const u32 connectedAlgRank = (myAlgRank + i) % rankSize;
+        const u32 connectedRank = ranks[connectedAlgRank];
+        if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+            CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, connectedAlgRank));
+        }
+
+        std::vector<MeshAllGatherChannelSlice> channelSlices;
+        CHK_RET(ResolveMeshReduceScatterChannelSlices(tempAlgParams, templateResource, options, connectedRank,
+                                                      connectedAlgRank, rankSize, dataTypeSize, channelSlices));
+        for (const auto &channelSlice : channelSlices) {
+            CHK_PRT_RET(channelSlice.linkRemote == nullptr || threadIdx >= templateResource.threads.size(),
+                        HCCL_ERROR("[RunMeshReduceScatter] invalid transfer slice task."), HCCL_E_PARA);
+            MeshSliceBuildInfo sliceBuildInfo;
+            sliceBuildInfo.opType = MeshPrimitiveOp::REDUCE_SCATTER;
+            sliceBuildInfo.sliceMode = options.sliceMode;
+            sliceBuildInfo.myAlgRank = myAlgRank;
+            sliceBuildInfo.connectedAlgRank = connectedAlgRank;
+            sliceBuildInfo.rankSize = rankSize;
+            sliceBuildInfo.repeatBegin = 0;
+            sliceBuildInfo.repeatEnd = tempAlgParams.repeatNum;
+            sliceBuildInfo.channelSlice = &channelSlice;
+            sliceBuildInfo.linkRemote = channelSlice.linkRemote;
+
+            MeshTransferSlices slices;
+            CHK_RET(BuildMeshTransferSlices(tempAlgParams, sliceBuildInfo, slices));
+            SendRecvInfo sendRecvInfo{{*channelSlice.linkRemote, *channelSlice.linkRemote},
+                                      {{slices.txSrcSlices, slices.txDstSlices},
+                                       {slices.rxSrcSlices, slices.rxDstSlices}},
+                                      dataType};
+            if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
+                CHK_RET(SendRecvWrite(sendRecvInfo, templateResource.threads[threadIdx]));
+            } else {
+                CHK_RET(SendRecvBatchWrite(sendRecvInfo, templateResource.threads[threadIdx]));
+            }
+            ++threadIdx;
+        }
+    }
+    return HCCL_SUCCESS;
 }
 
 HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                                 EngineType engineType, const std::vector<u32> &ranks, u32 myRank)
 {
-    (void)engineType;
-    u32 rankSize = static_cast<u32>(ranks.size());
-    if (rankSize <= 1 || templateResource.channels.empty()) {
-        return HCCL_SUCCESS;
-    }
-    u32 myRankIdx = 0;
-    for (u32 i = 0; i < rankSize; ++i) {
-        if (ranks[i] == myRank) {
-            myRankIdx = i;
-            break;
-        }
-    }
-    HcclDataType dataType = tempAlgParams.dataType;
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    u64 sliceSize = tempAlgParams.sliceSize;
-    u64 tailSize = tempAlgParams.tailSize;
-    bool isDmaRead = IsPcieProtocol(templateResource.channels);
-    u64 base = tempAlgParams.buffInfo.hcclBuffBaseOff;
-
-    const std::vector<ChannelInfo> &portGroup = templateResource.channels.begin()->second;
-    u32 channelsPerRank = static_cast<u32>(portGroup.size());
-    std::vector<u64> ec, sizeOut, elemOffset;
-    CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, portGroup, ec, sizeOut, elemOffset, channelsPerRank));
-    std::vector<u64> ecT, sizeTail, elemOffsetTail;
-    if (tailSize > 0) {
-        CHK_RET(CalcDataSplitByPortGroupCommon(tailSize / dataTypeSize, dataTypeSize, portGroup, ecT, sizeTail, elemOffsetTail, channelsPerRank));
-    }
-
-    u32 t = 0;
-    for (u32 i = 1; i < rankSize; ++i) {
-        u32 peerIdx = (myRankIdx + i) % rankSize;
-        bool peerTail = (peerIdx == rankSize - 1 && tailSize > 0);
-        for (u32 ch = 0; ch < channelsPerRank; ++ch) {
-            const ChannelInfo &link = templateResource.channels.at(ranks[peerIdx])[ch];
-            u64 peerSz = peerTail ? sizeTail[ch] : sizeOut[ch];
-            u64 peerOff = base + sliceSize * peerIdx + (peerTail ? elemOffsetTail[ch] : elemOffset[ch]);
-            u64 mySz = sizeOut[ch];
-            u64 myOff = base + sliceSize * myRankIdx + elemOffset[ch];
-            MeshSliceBuildInfo sliceBuildInfo;
-            sliceBuildInfo.opType = MeshPrimitiveOp::REDUCE_SCATTER;
-            sliceBuildInfo.linkRemote = &link;
-            sliceBuildInfo.peerOff = peerOff;
-            sliceBuildInfo.peerSz = peerSz;
-            sliceBuildInfo.peerCount = peerSz / dataTypeSize;
-            sliceBuildInfo.myOff = myOff;
-            sliceBuildInfo.mySz = mySz;
-            sliceBuildInfo.myCount = mySz / dataTypeSize;
-
-            MeshTransferSlices slices;
-            CHK_RET(BuildMeshTransferSlices(tempAlgParams, sliceBuildInfo, slices));
-            SendRecvReduceInfo info{{link, link},
-                                    {{slices.txSrcSlices, slices.txDstSlices},
-                                     {slices.rxSrcSlices, slices.rxDstSlices}},
-                                    dataType, slices.reduceOp};
-            CHK_RET(isDmaRead ? SendRecvReadReduce(info, templateResource.threads[t]) :
-                                SendRecvBatchWriteReduce(info, templateResource.threads[t]));
-            t++;
-        }
-    }
-    return HCCL_SUCCESS;
+    MeshPrimitiveOptions options;
+    options.sliceMode = MeshTransferSliceMode::COMMON_CHANNEL_SPLIT;
+    return RunMeshReduceScatter(tempAlgParams, templateResource, engineType, ranks, myRank, options);
 }
 
 HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,

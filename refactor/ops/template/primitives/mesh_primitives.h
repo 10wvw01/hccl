@@ -15,8 +15,8 @@
 
 namespace ops_hccl {
 
-// Explicit Mesh AllGather slice semantics. Do not infer this from EngineType or channel count.
-enum class MeshAllGatherSliceMode {
+// Explicit Mesh transfer slice semantics. Do not infer this from EngineType or channel count.
+enum class MeshTransferSliceMode {
     NORMAL_FIXED,
     VARIABLE_COUNT,
     OMNIPIPE_STEP,
@@ -33,8 +33,8 @@ struct ZAxisDetourConfig {
 };
 
 // Only expose caller-provided variant options; plan/task types stay private in mesh_primitives.cc.
-struct MeshAllGatherPrimitiveOptions {
-    MeshAllGatherSliceMode sliceMode{MeshAllGatherSliceMode::NORMAL_FIXED};
+struct MeshPrimitiveOptions {
+    MeshTransferSliceMode sliceMode{MeshTransferSliceMode::NORMAL_FIXED};
     bool hasZAxisDetourConfig{false};
     ZAxisDetourConfig zAxis;
 };
@@ -43,12 +43,16 @@ struct MeshAllGatherPrimitiveOptions {
 // Caller-provided options cover current AICPU Mesh AllGather variants except MeshChunk.
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
-                            const MeshAllGatherPrimitiveOptions &options);
+                            const MeshPrimitiveOptions &options);
 
 // Temporary compatibility overload. It preserves the current extracted behavior only.
 // New variant-aware callers should use the options overload above.
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
+
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
+                                const MeshPrimitiveOptions &options);
 
 HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                                 EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
