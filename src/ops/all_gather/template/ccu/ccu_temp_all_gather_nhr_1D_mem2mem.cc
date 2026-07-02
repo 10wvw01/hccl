@@ -192,7 +192,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
     }
 
     die0Size = static_cast<uint64_t>(dataCount * dieSplitRatio_) * typeSize;
-    HCCL_INFO("HYdieSplitRatio_=%llu",ratio);
+    HCCL_INFO("HYdieSplitRatio_=%llu",dieSplitRatio_);
     die1Size = templateDataParams.sliceSize - die0Size;
     HCCL_DEBUG("[CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
