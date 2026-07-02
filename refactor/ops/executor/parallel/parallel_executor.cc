@@ -164,15 +164,22 @@ inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoEx
     u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
+    u32 dataSplitRatioSum = algoExecDesc.dataSplitRatio.iter().sum();
     childrenAlgoExecDataDesc.at(childrenId) = algoExecDataDesc;
     // 先赋值父节点的信息，然后在根据并行/串行策略分开处理
     if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
-        // 并行数据先均分，后续再根据实际情况优化
-        u64 dataCout = algoExecDataDesc.dataCount / childrenSize;
+        // 根据algoExecDesc中的数据切分比例切分
+        u64 dataCount = algoExecDataDesc.dataCount * algoExecDataDesc.dataSplitRatio.at(childrenId) / dataSplitRatioSum;
         childrenAlgoExecDataDesc.at(childrenId).dataOffset
-            = algoExecDataDesc.dataOffset + dataCout * childrenId * dataTypeSize_;
-        childrenAlgoExecDataDesc.at(childrenId).dataCount
-            = dataCout + ((childrenId == childrenSize - 1) ? (algoExecDataDesc.dataCount % childrenSize) : 0);
+            = algoExecDataDesc.dataOffset + dataCount * childrenId * dataTypeSize_;
+        if (childrenId == childrenSize - 1) {
+            dataCount = algoExecDataDesc.dataCount;
+            for(size_t i = 0; i < childrenSize - 1; i++){
+                dataCount = dataCount - childrenAlgoExecDataDesc.at(i).dataCount;
+            }
+        }
+        childrenAlgoExecDataDesc.at(childrenId).dataCount = dataCount;
+
     } else {
         if (childrenId > 0) {
             // 如果是串行需要将当前节点的输入设置为上个子节点的输出
@@ -182,7 +189,8 @@ inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoEx
                 = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
         }
         childrenAlgoExecDataDesc.at(childrenId).outputBufferType
-            = (childrenId < childrenSize - 1) ? childrenAlgoExecDataDesc.at(childrenId).cclBufferType : ;
+            = (childrenId < childrenSize - 1) ? childrenAlgoExecDataDesc.at(childrenId).cclBufferType
+                                              : childrenAlgoExecDataDesc.at(childrenId).outputBufferType;
     }
     return;
 }
