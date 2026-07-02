@@ -63,6 +63,18 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::CalcRes(HcclComm comm, const OpParam& par
 
     CHK_RET(PartitionChannels(comm, channelDescs, rankIdToChannelDesc_));
 
+    double ratio = 1.0;
+    if (is2Plus6_ && !kernelChannels_[KERNEL_CLOS_MAJOR].empty() && !kernelChannels_[KERNEL_CLOS_MINOR].empty()) {
+        uint32_t majorBw = 0, minorBw = 0;
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MAJOR][0], majorBw));
+        CHK_RET(GetChannelBwCoeff(comm, myRank_, kernelChannels_[KERNEL_CLOS_MINOR][0], minorBw));
+        if (majorBw + minorBw > 0) {
+            ratio = static_cast<double>(majorBw) / (majorBw + minorBw);
+        }
+    }
+    resourceRequest.dieSplitRatio = ratio;
+    dieSplitRatio_ = ratio;
+
     uint32_t slaveThreadNum = kernelCount_ - 1;
     resourceRequest.notifyNumOnMainThread = slaveThreadNum;
     resourceRequest.slaveThreadNum = slaveThreadNum;
@@ -173,6 +185,7 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::SaveCacheCtx(HcclComm comm, const OpParam
         cacheCtx.rankGroup[i] = kernelRankGroup_[i];
     }
     cacheCtx.closPeers = closPeers_;
+    cacheCtx.dieSplitRatio = dieSplitRatio_;
 
     std::vector<char> buf = cacheCtx.Serialize();
 
@@ -237,12 +250,14 @@ void CcuTempAlltoAllVMesh1D2Die::FillRankGroupTaskArgs(uint32_t kernelIdx, const
 
         if (cacheCtx.is2Plus6 && cacheCtx.closPeers.count(peerId) > 0) {
             uint64_t recvLength = localSendRecvInfo_.recvLength[peerId];
-            uint64_t minorSendSize = sendSize * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
-            uint64_t minorRecvSize = recvLength * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
+            uint64_t majorSendSize = static_cast<uint64_t>(sendSize * dieSplitRatio_);
+            uint64_t minorSendSize = sendSize - majorSendSize;
+            uint64_t majorRecvSize = static_cast<uint64_t>(recvLength * dieSplitRatio_);
+            uint64_t minorRecvSize = recvLength - majorRecvSize;
             if (kernelIdx == KERNEL_CLOS_MAJOR) {
                 sendOffset += minorSendSize;
                 recvOffset += minorRecvSize;
-                sendSize = sendSize - minorSendSize;
+                sendSize = majorSendSize;
             } else if (kernelIdx == KERNEL_CLOS_MINOR) {
                 sendSize = minorSendSize;
             }
@@ -293,6 +308,10 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
 
     Mesh2DieCacheCtx cacheCtx;
     CHK_RET(LoadCacheCtx(param, cacheCtx));
+
+    if (templateResource.dieSplitRatio > 0.0) {
+        dieSplitRatio_ = templateResource.dieSplitRatio;
+    }
 
     uint32_t kernelCount = cacheCtx.kernelCount;
     uint32_t subThreadCount = kernelCount - 1;
@@ -365,6 +384,7 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::FastLaunch(const OpParam &param, const Te
 
     Mesh2DieCacheCtx cacheCtx;
     CHK_RET(LoadCacheCtx(param, cacheCtx));
+    dieSplitRatio_ = cacheCtx.dieSplitRatio;
 
     HcclDataType dataType = param.all2AllVDataDes.sendType;
     uint64_t dataTypeSize = SIZE_TABLE[dataType];
@@ -434,12 +454,14 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::FastLaunch(const OpParam &param, const Te
 
             if (cacheCtx.is2Plus6 && cacheCtx.closPeers.count(peerId) > 0) {
                 uint64_t recvLength = sendRecvInfo.recvLength[peerId];
-                uint64_t minorSendSize = sendSize * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
-                uint64_t minorRecvSize = recvLength * CLOS_RATIO_MINOR / CLOS_RATIO_TOTAL;
+                uint64_t majorSendSize = static_cast<uint64_t>(sendSize * dieSplitRatio_);
+                uint64_t minorSendSize = sendSize - majorSendSize;
+                uint64_t majorRecvSize = static_cast<uint64_t>(recvLength * dieSplitRatio_);
+                uint64_t minorRecvSize = recvLength - majorRecvSize;
                 if (kernelType_[i] == KERNEL_CLOS_MAJOR) {
                     sendOffset += minorSendSize;
                     recvOffset += minorRecvSize;
-                    sendSize = sendSize - minorSendSize;
+                    sendSize = majorSendSize;
                 } else if (kernelType_[i] == KERNEL_CLOS_MINOR) {
                     sendSize = minorSendSize;
                 }

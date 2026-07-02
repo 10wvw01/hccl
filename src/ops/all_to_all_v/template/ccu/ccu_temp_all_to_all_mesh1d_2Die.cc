@@ -21,9 +21,6 @@
 #include "template_utils.h"
 
 namespace ops_hccl {
-constexpr u32 KERNEL_FULLMESH=0; 
-constexpr u32 KERNEL_CLOS_MAJOR=1; 
-constexpr u32 KERNEL_CLOS_MINOR=2;
 
 CcuTempAllToAllMesh1D2Die::CcuTempAllToAllMesh1D2Die(const OpParam &param, RankId rankId,
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -53,7 +50,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     CHK_PRT_RET(subCommRanks_.size() != 1 || subCommRanks_[0].empty(),
         HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][CalcRes] Invalid subCommRanks[%u] or subCommRanks empty.",
             subCommRanks_.size()), HcclResult::HCCL_E_INTERNAL);
-
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] rankSize[%u] subCommRanks0[%u].", templateRankSize_,
         subCommRanks_[0].size());
 
@@ -105,10 +101,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
 {   
     using DieIdType = uint32_t;
     const uint32_t dieIdTypeSize = sizeof(DieIdType);
-
-    std::map<uint32_t, std::vector<HcclChannelDesc>> singleChByDie;
-    std::map<uint32_t, std::vector<HcclChannelDesc>> multiChByDie;
-
+    std::map<uint32_t, std::vector<HcclChannelDesc>> singleChByDie, multiChByDie;
     for (auto& rankToChannels : rankIdToChannelDesc) {
         u32 remoteRank = rankToChannels.first;
         std::vector<HcclChannelDesc>& channelList = rankToChannels.second;
@@ -124,24 +117,24 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
             (isMulti ? multiChByDie : singleChByDie)[dieId].emplace_back(channel);
         }
     }
-
     auto fillKernel = [this](uint32_t kernelIdx, const std::vector<HcclChannelDesc>& channels) {
         for (const auto& ch : channels) {
             kernelChannels_[kernelIdx].emplace_back(ch);
             kernelRankGroup_[kernelIdx].push_back(ch.remoteRank);
         }
     };
-
     if (is2Plus6_) {
-        kernelCount_ = 3;
-        fullmeshDieId_ = singleChByDie.begin()->first;
-        fillKernel(KERNEL_FULLMESH, singleChByDie[fullmeshDieId_]);
+        kernelCount_ = MAX_KERNEL_NUM_2DIE;
+        if (!singleChByDie.empty()) {
+            fullmeshDieId_ = singleChByDie.begin()->first;
+            fillKernel(KERNEL_FULLMESH, singleChByDie[fullmeshDieId_]);
+        }
         kernelRankGroup_[KERNEL_FULLMESH].push_back(myRank_);
         for (auto& pair : multiChByDie) {
             fillKernel(pair.first == fullmeshDieId_ ? KERNEL_CLOS_MINOR : KERNEL_CLOS_MAJOR, pair.second);
         }
     } else {
-        kernelCount_ = 2;
+        kernelCount_ = MAX_KERNEL_NUM_2DIE - 1;
         auto it0 = singleChByDie.begin();
         auto it1 = std::next(it0);
         if (it0->second.size() > it1->second.size()) {
@@ -151,12 +144,10 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
         kernelRankGroup_[KERNEL_FULLMESH].push_back(myRank_);
         fillKernel(KERNEL_CLOS_MAJOR, it1->second);
     }
-
     HCCL_INFO("[CcuTempAllToAllMesh1D2Die][PartitionChannels] Rank[%d], is2Plus6[%d], kernelCount[%u], "
         "fullmeshRankGroup[%zu], closMajorRankGroup[%zu], closMinorRankGroup[%zu].",
         myRank_, is2Plus6_, kernelCount_, kernelRankGroup_[KERNEL_FULLMESH].size(),
         kernelRankGroup_[KERNEL_CLOS_MAJOR].size(), kernelRankGroup_[KERNEL_CLOS_MINOR].size());
-
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -180,98 +171,94 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcFillArgsInfo(uint32_t kernelIdx, uint6
     return HCCL_SUCCESS;
 }
 
+HcclResult CcuTempAllToAllMesh1D2Die::LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr,
+    uint64_t token, uint64_t sliceStride, const LoopGroupConfig &config,
+    const TemplateDataParams &templateDataParams, TemplateResource& templateResource, bool skipFirstKernel)
+{
+    for (uint32_t i = 0; i < kernelCount; i++) {
+        if (skipFirstKernel && i == 0) {
+            CcuKernelSubmitInfo submitInfo;
+            submitInfo.kernelHandle = templateResource.ccuKernels[i];
+            templateResource.submitInfos.push_back(submitInfo);
+            continue;
+        }
+        uint64_t sliceSize = templateDataParams.sliceSize;
+        uint64_t sliceOffset = 0;
+        CHK_RET(CalcFillArgsInfo(i, sliceSize, sliceOffset));
+        auto goSize = CalGoSize(sliceSize, config);
+        std::vector<uint64_t> taskArgs = {inputAddr + sliceOffset, outputAddr, token, sliceSize,
+            sliceStride, sliceStride * myRank_ + sliceOffset};
+        for (auto val : goSize) { taskArgs.push_back(val); }
+        HCCL_INFO("[CcuTempAllToAllMesh1D2Die][KernelRun] kernel[%u] sliceSize[%llu] sliceOffset[%llu] "
+            "rankGroupSize[%zu] withMyRank[%u]", i, sliceSize, sliceOffset, kernelRankGroup_[i].size(),
+            kernelWithMyRank_[i]);
+        CcuResult launchRet = HcommCcuKernelLaunch(
+            templateResource.threads[i], templateResource.ccuKernels[i], taskArgs.data(), taskArgs.size());
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
+        CcuKernelSubmitInfo submitInfo;
+        CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4],
+            taskArgs[5], taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9], buffInfo_.outBuffBaseOff));
+        submitInfo.cachedArgs[11] = buffInfo_.inBuffBaseOff + sliceOffset;
+        submitInfo.kernelHandle = templateResource.ccuKernels[i];
+        templateResource.submitInfos.push_back(submitInfo);
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
 HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
     TemplateResource& templateResource)
 {
     HCCL_INFO("[CcuTempAllToAllMesh1D2Die] Run");
     opMode_ = param.opMode;
     buffInfo_ = templateDataParams.buffInfo;
-    const uint32_t rankSize = subCommRanks_[0].size();
     CHK_PRT_RET(subCommRanks_.empty() || subCommRanks_[0].empty(),
         HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][KernelRun] subCommRanks empty."), HcclResult::HCCL_E_INTERNAL);
     CHK_PRT_RET(buffInfo_.inputPtr == nullptr || buffInfo_.outputPtr == nullptr,
         HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][KernelRun] Rank[%d] input[%#llx] or output[%#llx] is null",
-            myRank_, buffInfo_.inputPtr, buffInfo_.outputPtr),
-        HcclResult::HCCL_E_PTR);
-        
-    uint64_t inputAddr  = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
+            myRank_, buffInfo_.inputPtr, buffInfo_.outputPtr), HcclResult::HCCL_E_PTR);
+
+    uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
     uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
-    uint64_t outputSliceStride = templateDataParams.sdispls[1] * DATATYPE_SIZE_TABLE[param.all2AllDataDes.recvType] -  buffInfo_.inBuffBaseOff;
-    uint64_t inputSliceStride = outputSliceStride;
-    HCCL_INFO("[CcuTempAllToAllMesh1D2Die][KernelRun] begin. Rank[%d], input[%#llx/%#llx], output[%#llx/%#llx], "
-        "sendType[%d], recvType[%d]", myRank_, inputAddr, param.inputPtr, outputAddr, param.outputPtr,
-        param.all2AllVDataDes.sendType, param.all2AllVDataDes.recvType);
-
+    uint64_t outputSliceStride = templateDataParams.sdispls[1] *
+        DATATYPE_SIZE_TABLE[param.all2AllDataDes.recvType] - buffInfo_.inBuffBaseOff;
+    HCCL_INFO("[CcuTempAllToAllMesh1D2Die][KernelRun] begin. Rank[%d], input[%#llx/%#llx], output[%#llx/%#llx]",
+        myRank_, inputAddr, param.inputPtr, outputAddr, param.outputPtr);
     uint32_t kernelCount = templateResource.ccuKernels.size();
-    is2Plus6_ = (kernelCount == MAX_KERNEL_NUM_2DIE) ? true : false;
-    if (templateResource.dieSplitRatio > 0.0) {
-        dieSplitRatio_ = templateResource.dieSplitRatio;
-    }
-    uint32_t subThreadCount = kernelCount - 1;
+    is2Plus6_ = (kernelCount == MAX_KERNEL_NUM_2DIE);
+    if (templateResource.dieSplitRatio > 0.0) { dieSplitRatio_ = templateResource.dieSplitRatio; }
 
+    HcclComm comm = static_cast<HcclComm>(param.hcclComm);
+    uint32_t *layerRanks = nullptr;
+    uint32_t rankNum = 0;
+    CHK_RET(HcclRankGraphGetRanksByLayer(comm, 0, &layerRanks, &rankNum));
+    bool skipFirstKernel = (rankNum <= 1);
+
+    uint32_t subThreadCount = kernelCount - 1;
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
         templateResource.threads.begin() + 1 + subThreadCount);
-    std::vector<u32> notifyIdxMainToSub(subThreadCount, 0);
-    CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub));
+    CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, std::vector<u32>(subThreadCount, 0)));
 
     LoopGroupConfig config{};
     config.msInterleave = CCU_MS_INTERLEAVE;
     config.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
     config.memSlice = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
-
-    for (uint32_t i = 0; i < kernelCount; i++) {
-        uint64_t sliceSize = templateDataParams.sliceSize;
-        uint64_t sliceOffset = 0;
-        CHK_RET(CalcFillArgsInfo(i, sliceSize, sliceOffset));
-        auto goSize = CalGoSize(sliceSize, config);
-
-        std::vector<uint64_t> taskArgs;
-        taskArgs.push_back(inputAddr + sliceOffset);
-        taskArgs.push_back(outputAddr);
-        taskArgs.push_back(token);
-        taskArgs.push_back(sliceSize);
-        taskArgs.push_back(inputSliceStride);
-        taskArgs.push_back(outputSliceStride * myRank_ + sliceOffset);
-
-        for (auto val : goSize) {
-            taskArgs.push_back(val);
-        }
-
-        uint64_t argSize = taskArgs.size();
-        HCCL_INFO("[CcuTempAllToAllMesh1D2Die][KernelRun] kernel[%u] sliceSize[%llu] sliceOffset[%llu] "
-            "rankGroupSize[%zu] withMyRank[%u]", i, sliceSize, sliceOffset, kernelRankGroup_[i].size(),   
-            kernelWithMyRank_[i]);
-        CcuResult launchRet = HcommCcuKernelLaunch(
-            templateResource.threads[i], templateResource.ccuKernels[i], taskArgs.data(), argSize);
-        if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
-            return ConvertCcuToHccl(launchRet);
-        }
-
-        CcuKernelSubmitInfo submitInfo;
-        CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4], taskArgs[5],
-                           taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9], buffInfo_.outBuffBaseOff));
-        submitInfo.cachedArgs[11] = buffInfo_.inBuffBaseOff + sliceOffset;                   
-        submitInfo.kernelHandle = templateResource.ccuKernels[i];   // [修改] 删内层循环，每 kernel push 一个 submitInfo
-        templateResource.submitInfos.push_back(submitInfo);
-    }
+    CHK_RET(LaunchKernels(kernelCount, inputAddr, outputAddr, token, outputSliceStride,
+        config, templateDataParams, templateResource, skipFirstKernel));
 
     std::vector<u32> notifyIdxSubToMain(subThreadCount);
-    for (uint32_t i = 0; i < subThreadCount; i++) {
-        notifyIdxSubToMain[i] = i;
-    }
+    for (uint32_t i = 0; i < subThreadCount; i++) { notifyIdxSubToMain[i] = i; }
     CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain));
-
     HCCL_DEBUG("[CcuTempAlltoAllMesh1D2Die][KernelRun] end. Rank[%d]", myRank_);
-
     return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
 {
-    (void)param;
     constexpr u32 argInIdx            = 0;
     constexpr u32 argOutIdx           = 1;
     constexpr u32 metaOutBaseOffIdx   = 10;   
@@ -285,6 +272,12 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
     }
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][FastLaunch] start, kernelCount[%u]", kernelCount);
 
+    HcclComm comm = static_cast<HcclComm>(param.hcclComm);
+    uint32_t *layerRanks = nullptr;
+    uint32_t rankNum = 0;
+    CHK_RET(HcclRankGraphGetRanksByLayer(comm, 0, &layerRanks, &rankNum));
+    bool skipFirstKernel = (rankNum <= 1);
+
     uint64_t inputAddr  = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr);
     uint64_t outputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr);
 
@@ -295,6 +288,9 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
     }
 
     for (u32 i = 0; i < kernelCount; i++) {
+        if (skipFirstKernel && i == 0) {
+            continue;
+        }
         uint64_t *args = const_cast<uint64_t *>(tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs);
         args[argInIdx]  = inputAddr  + args[metaInCombineOffIdx];   
         args[argOutIdx] = outputAddr + args[metaOutBaseOffIdx];     
