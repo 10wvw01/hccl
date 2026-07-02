@@ -581,7 +581,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         currCount = std::min(currCount, sliceCount);
         u64 currCountPart0 = static_cast<u64>(float(currCount) * dataSplitSize.at(0));
         u64 currCountPart1 = currCount - currCountPart0;
-        if (remainingLoopTimes > 1) {
+        if (remainingLoopTimes > 1 || currCountPart0 > sliceCountPart0) {
             u64 alignedCountPart0 = currCountPart0;
             u64 alignedCountPart1 = currCountPart1;
             alignedCountPart0 = alignedCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
