@@ -12,7 +12,7 @@
 # 工具函数：数据搬运（SendRecv*/PreCopy/PostCopy）+ rank 规划
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/utils) 拉进来
 #
-# 当前状态（全部注释掉，杨华宝/姚智勇补完后逐个打开）：
+# 当前状态（全部注释掉，补完后逐个打开）：
 #   ❌ data_transfer.cc   - 16 行裸函数声明，没 include 任何东西
 #   ❌ plan_ranks.cc      - 7 行伪代码（getNhrRanks/getMeshRanks）
 #   ❌ data_copy.cc       - 11 行纯注释

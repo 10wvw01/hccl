@@ -12,7 +12,7 @@
 # 公共算法定义：HcclAlgorithm、HcclExecOp 等
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/op_common) 拉进来
 #
-# 当前状态（全部注释掉，樊伟补完后逐个打开）：
+# 当前状态（全部注释掉，补完后逐个打开）：
 #   ❌ op_common.cc          - 13 行伪代码（缺分号、类型错乱）
 #   ❌ hccl_algorithm.cc     - switch 语法非法、无分号
 #

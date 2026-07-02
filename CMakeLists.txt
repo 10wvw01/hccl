@@ -19,7 +19,6 @@ message(STATUS "STATIC_MODE=${STATIC_MODE}")
 if(STATIC_MODE AND NOT ENABLE_BUILD_DEVICE)
     set(ENABLE_BUILD_DEVICE ON)
 endif()
-
 # 默认只编译 host 侧
 if(NOT DEFINED PRODUCT_SIDE)
     set(PRODUCT_SIDE "host")
@@ -186,5 +185,3 @@ elseif(BUILD_OPEN_PROJECT)
         COMPONENT hccl
     )
 endif()
-
-# this is a test commit
