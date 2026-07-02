@@ -20,9 +20,5 @@
 #   ❌ omnipipe/base_omnipipe_executor.cc      - 空文件
 
 target_sources(hccl PRIVATE
-    # base_executor.cc
-    # sole/sole_executor.cc
-    # parallel/parallel_executor.cc
-    # concurrent/base_concurrent_executor.cc
-    # omnipipe/base_omnipipe_executor.cc
+    ops_executor.cc
 )
