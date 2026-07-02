@@ -1,13 +1,103 @@
-#include "parallel_2ops_executor.h"
+#include "ops_executor.h"
 
 namespace ops_hccl {
+    OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
+    : algo_(algo), myRank_(param.myRank), rankSize_(param.rankSize), root_(param.root)
+{
+    dataInfo_.inputPtr = param.inputPtr;
+    dataInfo_.inputSize = param.inputSize;
+    dataInfo_.outputPtr = param.outputPtr;
+    dataInfo_.outputSize = param.outputSize;
+    dataInfo_.reduceOp = param.reduceOp;
+    // TODO：把param中union的结构体复制到dataInfo中
 
-HcclResult ParallelExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
+    dataTypeSize_ = DATATYPE_SIZE_TABLE[baseOpParam.dataType];
+    dataSize_ = dataCount_ * dataTypeSize_;
+}
+
+OpsExecutor::~OpsExecutor() {}
+
+HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo)
+{
+    // 储存通信域指针
+    hcclComm_ = comm;
+    // TODO：topoMatch暂不修改参数
+    algo_.topoMatch.MatchTopo(hcclComm_, topoInfo, algHierarchyInfo_);
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::Orchestrate(const OpsExecutorParam &baseExecutorParam,
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
+{
+    // 初始化资源信息
+    InitRes(resCtx);
+    // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
+    // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
+    GetMaxProcCntPerLoop(dataCount_, maxProcCntPerLoop);
+    // 循环下发阶段（按照每轮最大处理数据量，循环展开）
+    u64 loopTimes = RoundUp(dataCount_, maxProcCntPerLoop);
+    u64 processCount = maxProCntPerLoop;
+    u64 offsetCount = 0;
+    for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
+        if (dataCount_ % maxProCntPerLoop != 0) {
+            processCount = dataCount_ % maxProcCntPerLoop;
+        }
+        // 子类实现
+        AlgoExecDataDesc algoExecDataDesc;
+        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount);
+        OrchestrateLoop(resCtx, algo_.algoExecDesc, algoExecDataDesc);
+        // 偏移增加
+        offsetCount += processCount;
+    }
+    // TODO：储存队列和任务信息，用于FastLauch
+    SaveCtx();
+}
+
+// 公共工具类函数
+
+HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
+{
+    bufferInfo_.cclBuffer = Buffer{
+        resCtx.cclMem.addr;
+        resCtx.cclMem.size;
+        BufferType::HCCL_BUFFER;
+    }
+
+    algHierarchyInfo_ = resCtx.algHierarchyInfo;
+    threads_ = resCtx.threads;
+    mainThread_ = threads_.at(0);
+    // TODO：考虑不同Executor
+    // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
+    channelTable_ = RestoreChannelMap();
+
+    // TODO：加rankSize数组初始化
+}
+
+std::vector<std::map<u32, std::vector<ChannelInfo>> OpsExecutor::RestoreChannelMap(
+    const AlgResourceCtxSerializable &resCtx)
+{
+    // 桥接用函数，理论上直接resCtx直接用该结构表即可
+    // 使用原函数，略做改造，直接返回结构表（是否有性能问题？）
+}
+
+HcclResult OpsExecutor::SplitRes()
+{
+    // 需要切分的资源
+    // algHierarchyInfo：根据TemplateExecDesc.subCommIndex切分
+    // Thread: slaveThreadNum：需要算法提供GetRes
+    // Notify: notifyNumOnMainThread, notifyNumPerThread：需要算法提供GetRes
+    // Channel: 当前直接按照level切分，后续根据TemplateExecDesc.subCommIndex切分
+
+    // 从map表里获取资源，相当于GetRes
+    // map需要提供：节点数量和ID（ranks），thread数量和ID，Notify数量和ID，Channel数量和ID
+}
+
+HcclResult OpsExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
     auto it = execDescSubCommMask.find(execDesc);
     if (it == execDescSubCommMask.end()) {
         // temlate类型的节点可能不存在execDescSubCommMask
-        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
+        HCCL_ERROR("[OpsExecutor] AlgoExecDesc not found in execDescSubCommMask");
         return HCCL_SUCCESS;
     }
     std::vector<ThreadHandle> syncInterThreads;
@@ -22,12 +112,12 @@ HcclResult ParallelExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
     return PreSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnAlgoExec);
 }
 
-HcclResult ParallelExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
+HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 {
     auto it = execDescSubCommMask.find(execDesc);
     if (it == execDescSubCommMask.end()) {
         // temlate类型的节点可能不存在execDescSubCommMask
-        HCCL_ERROR("[ParallelExecutor] AlgoExecDesc not found in execDescSubCommMask");
+        HCCL_ERROR("[OpsExecutor] AlgoExecDesc not found in execDescSubCommMask");
         return HCCL_SUCCESS;
     }
     std::vector<ThreadHandle> syncInterThreads;
@@ -53,7 +143,7 @@ HcclResult ParallelExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 // notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
 // notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
 
-HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32 &subCommMask)
+HcclResult OpsExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32 &subCommMask)
 {
     size_t childrenSize = nodeAloExecDesc.children.size();
     u32 subCommMask = 0;
@@ -90,7 +180,7 @@ HcclResult ParallelExecutor::CalcResRecursion(AlgoExecDesc &nodeAloExecDesc, u32
     return HCCL_SUCCESS;
 }
 
-inline void ParallelExecutor::UpdateSubCommMask(AlgoExecDesc &nodeAloExecDesc, const u32 subCommMask)
+inline void OpsExecutor::UpdateSubCommMask(AlgoExecDesc &nodeAloExecDesc, const u32 subCommMask)
 {
     auto it = execDescSubCommMask_.find(nodeAloExecDesc);
     if (it != execDescSubCommMask_.end()) {
@@ -100,7 +190,7 @@ inline void ParallelExecutor::UpdateSubCommMask(AlgoExecDesc &nodeAloExecDesc, c
     }
 }
 
-HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
+HcclResult OpsExecutor::CalcRes(AlgResourceRequest &resourceRequest)
 {
     auto topoLevelNum = algHierarchyInfo_.infos.size();
     maxSlaveThreadNum_.assign(topoLevelNum, 0);
@@ -128,7 +218,7 @@ HcclResult ParallelExecutor::CalcRes(AlgResourceRequest &resourceRequest)
     return HCCL_SUCCESS;
 }
 
-HcclResult ParallelExecutor::GenTemplateRes(
+HcclResult OpsExecutor::GenTemplateRes(
     const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource)
 {
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo;
@@ -140,7 +230,17 @@ HcclResult ParallelExecutor::GenTemplateRes(
     return HCCL_SUCCESS;
 }
 
-inline void ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
+inline void OpsExecutor::InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount)
+{
+    algoExecDataDesc.dataOffset = dataOffset;
+    algoExecDataDesc.dataCount = dataCount;
+    algoExecDataDesc.ranksForInputData.emplace_back(myRank_);
+    algoExecDataDesc.inputBufferType = BufferType::INPUT;
+    algoExecDataDesc.outputBufferType = algo_.hcclCmdType == BROADCAST ? BufferType::INPUT : BufferType::OUTPUT;
+    algoExecDataDesc.cclBufferType = BufferType::HCCL_BUFFER;
+}
+
+inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
     AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams)
 {
     templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
@@ -160,7 +260,7 @@ inline void ParallelExecutor::GenTemplateDataParams(const AlgResourceCtxSerializ
     return;
 }
 
-inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+inline void OpsExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
     u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
@@ -195,7 +295,7 @@ inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoEx
     return;
 }
 
-HcclResult ParallelExecutor::RunTemplateDesc(
+HcclResult OpsExecutor::RunTemplateDesc(
     const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
     std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
@@ -211,7 +311,7 @@ HcclResult ParallelExecutor::RunTemplateDesc(
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
 }
 
-HcclResult ParallelExecutor::OrchestrateLoop(
+HcclResult OpsExecutor::OrchestrateLoop(
     const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
@@ -243,5 +343,4 @@ HcclResult ParallelExecutor::OrchestrateLoop(
     algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.at(childrenSize - 1).ranksForOutputData;
     return HCCL_SUCCESS;
 }
-
-} // namespace ops_hccl
+}
