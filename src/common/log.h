@@ -173,6 +173,14 @@ public:
     std::vector<TimerEntry>& GetTimerEntries() {
         return timerEntries;
     }
+
+    void DumpTimerEntries() {
+        HCCL_ERROR("DumpTimerEntries: timerEntries.size=%d", timerEntries.size());
+        for (auto &entry : timerEntries) {
+            entry.PrintLog();
+        }
+        timerEntries.clear();
+    }
 };
  
 class HcclTimer {
@@ -202,7 +210,7 @@ class HcclTimer {
     ~HcclTimer()
     {
         HCCL_INFO("[HcclTimer] timerIdx[%llu] timerEntries.size[%llu]", timerIdx, timerEntries.GetTimerEntries().size());
-        if (timerIdx < timerEntries.GetTimerEntries().size()) {
+        if (startTrack && timerIdx < timerEntries.GetTimerEntries().size()) {
             timerEntries.GetTimerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
             timerCounter--;
         }
