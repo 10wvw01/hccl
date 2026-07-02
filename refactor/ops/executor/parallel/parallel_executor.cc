@@ -168,14 +168,11 @@ inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoEx
     // 先赋值父节点的信息，然后在根据并行/串行策略分开处理
     if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
         // 并行数据先均分，后续再根据实际情况优化
-        childrenAlgoExecDataDesc.at(childrenId).dataCount = algoExecDataDesc.dataCount / childrenSize;
+        u64 dataCout = algoExecDataDesc.dataCount / childrenSize;
         childrenAlgoExecDataDesc.at(childrenId).dataOffset
-            = algoExecDataDesc.dataOffset + childrenAlgoExecDataDesc.at(childrenId).dataCount * childrenId * dataTypeSize_;
-        if (childrenId == childrenSize - 1) {
-            // 如果是并行的最后一片数据，数据大小要取尾部
-            childrenAlgoExecDataDesc.at(childrenId).dataCount
-                = algoExecDataDesc.dataCount - childrenAlgoExecDataDesc.at(childrenId).dataCount * childrenId;
-        }
+            = algoExecDataDesc.dataOffset + dataCout * childrenId * dataTypeSize_;
+        childrenAlgoExecDataDesc.at(childrenId).dataCount
+            = dataCout + ((childrenId == childrenSize - 1) ? (algoExecDataDesc.dataCount % childrenSize) : 0);
     } else {
         if (childrenId > 0) {
             // 如果是串行需要将当前节点的输入设置为上个子节点的输出
@@ -183,12 +180,9 @@ inline void ParallelExecutor::UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoEx
                 = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForOutputData;
             childrenAlgoExecDataDesc.at(childrenId).inputBufferType
                 = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
-        } 
-        if (childrenId < childrenSize - 1) {
-            // 不是最后一个直接用cclBuff当输出减少内存搬运
-            childrenAlgoExecDataDesc.at(childrenId).outputBufferType
-                = childrenAlgoExecDataDesc.at(childrenId).cclBufferType;
         }
+        childrenAlgoExecDataDesc.at(childrenId).outputBufferType
+            = (childrenId < childrenSize - 1) ? childrenAlgoExecDataDesc.at(childrenId).cclBufferType : ;
     }
     return;
 }
