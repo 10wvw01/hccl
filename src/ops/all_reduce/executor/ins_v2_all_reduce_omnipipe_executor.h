@@ -65,8 +65,8 @@ protected:
         const std::vector<double>& endpointAttrBwNew,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap, u64 maxCountPerLoop) const;
 
-    HcclResult CalcResLevel(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest& resourceRequest, bool addChannel) const;
+    HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+        const std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest, bool addChannel) const;
 
     HcclResult PrepareResForTemplateLevelRS(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
     HcclResult PrepareResForTemplateLevelAG(u32 level, std::shared_ptr<InsAlgTemplateBase>& tempBase);
@@ -122,6 +122,7 @@ protected:
     std::vector<ThreadHandle> tempMainThreadsLevel2AG_;
     std::vector<u32> ntfIdxCtrlToTempLevel2AG_;
     std::vector<u32> ntfIdxTempToCtrlLevel2AG_;
+    OmniNeedSetStepNum omniNeedSetStepNum_ = OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
 
     enum OmnipipeARLevel{
         OMNIPIPE_RS_LEVEL0 = 0,

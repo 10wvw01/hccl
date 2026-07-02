@@ -181,6 +181,9 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
+            } else if (dataSize <= 16 * 1024 * 1024 && topoInfo->userRankSize >= ccuSize) {
+                selectAlgName = "CcuAllReduceSequenceMesh1D";
+                return SelectorStatus::MATCH;
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
                 return SelectorStatus::MATCH;
@@ -195,7 +198,12 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 return SelectorStatus::NOT_MATCH;//64M以上切为aicpu
             }
         } else if (topoInfo->level0Topo == Level0Shape::CLOS &&(!IsInputOutputOverlap(opParam))) {
-            selectAlgName = "CcuAllReduceNHR1D";
+            if (dataSize < AR_CCU_CLOS_1D_SMALL_DATA_SIZE) {
+                selectAlgName = "CcuAllReduceNHR1D";
+                return SelectorStatus::MATCH;
+            } else {
+                return SelectorStatus::NOT_MATCH;
+            }
         } else {
             HCCL_DEBUG("[AllReduceAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
                 topoInfo->level0Topo);
@@ -302,10 +310,11 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0Algo(const TopoInfo
             HCCL_WARNING("[AllReduceAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
-        if (dataSize > AR_CCU_CLOS_1D_SMALL_DATA_SIZE) {
+        if (dataSize < AR_CCU_CLOS_1D_SMALL_DATA_SIZE) {
             selectAlgName = "CcuAllReduceNHR1D";
+            return SelectorStatus::MATCH;
         } else {
-            selectAlgName = "CcuAllReduceMesh1DMem2Mem";
+            return SelectorStatus::NOT_MATCH;
         }
     } else {
         HCCL_DEBUG("[AllReduceAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
@@ -535,7 +544,9 @@ SelectorStatus AllReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->userRankSize <= AR_AIV_BOARD_SIZE) {
+    if (topoInfo->level0Topo != Level0Shape::MESH_1D) {
+        selectAlgName = "AivAllReduceMesh1DTwoShot";
+    } else if (topoInfo->userRankSize <= AR_AIV_BOARD_SIZE) {
         // 板内8p场景，按照时延拐点选择算法
         if (dataSize < AR_AIV_SMALL_DATA_SIZE_IN_BOARD) {
             selectAlgName = "AivAllReduceMesh1DOneShot";

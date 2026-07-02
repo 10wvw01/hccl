@@ -24,6 +24,10 @@ set(src_list
     alltoall_testcase.cc
     alltoallv_testcase.cc
     alltoallvc_testcase.cc
+    reduce_scatter_testcase.cc
+    reduce_testcase.cc
+    all_reduce_dpu_testcase.cc
+    broadcast_testcase.cc
 )
 
 add_executable(hccl_checker_ops_stest ${src_list})

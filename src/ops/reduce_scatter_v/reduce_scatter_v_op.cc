@@ -44,13 +44,6 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     // A3是：export HCCL_OP_EXPANSION_MODE="AI_CPU"，A5的接口还没提供
     CHK_RET(InitEnvConfig());
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
-    }
-
     // 参数校验等工作;
     // 校验入参
     CHK_RET(CheckReduceScatterVInputParam(comm, sendBuf, recvBuf, recvCount, sendCounts, sendDispls, stream));
@@ -70,6 +63,7 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), tag.c_str());
     CHK_RET(CheckCount(recvCount));
     CHK_RET(CheckDataType(dataType, true));
+    CHK_RET(CheckReduceOp(dataType, op));
 
     /* 接口交互信息日志 */
     CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, tag, rankSize, "HcclReduceScatterV"));
@@ -115,11 +109,15 @@ HcclResult HcclReduceScatterVGraphMode(void *sendBuf,  const void *sendCounts, c
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), opTag.c_str());
     CHK_RET(CheckCount(recvCount));
     CHK_RET(CheckDataType(dataType, true));
+    CHK_RET(CheckReduceOp(dataType, op));
 
     // 拼装ResPackGraphMode
     ResPackGraphMode resPack;
     // 设置tag
-    strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
+    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
+        HCCL_ERROR("failed to fill resPack.tag");
+        return HCCL_E_INTERNAL;
+    }
     // 设置streams
     if (streams != nullptr && streamCount > 0) {
         for (size_t i = 0; i < streamCount; i++) {
@@ -210,9 +208,12 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
     std::vector<u64> countsAndDispls(userRankSize * rankNum);
     const u64* sendDisplsAddr = reinterpret_cast<const u64*>(sendDispls);
     const u64* sendCountsAddr = reinterpret_cast<const u64*>(sendCounts);
-
-    param.inputSize = (sendDisplsAddr[userRankSize-1] + sendCountsAddr[userRankSize-1]) * perDataSize;
-
+    
+    u64 maxInputCount = 0;
+    for (u32 i = 0; i < userRankSize; i++) {
+        maxInputCount = std::max(maxInputCount, sendDisplsAddr[i] + sendCountsAddr[i]);
+    }
+    param.inputSize = maxInputCount * perDataSize;
     std::copy(sendCountsAddr, sendCountsAddr + userRankSize, countsAndDispls.begin());
     std::copy(sendDisplsAddr, sendDisplsAddr + userRankSize, countsAndDispls.begin() + userRankSize);
     param.varMemSize = varMemSize;
@@ -280,6 +281,13 @@ HcclResult ReduceScatterVOutPlaceCommon(void *sendBuf, const void *sendDispls, c
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(HcclGetOpExpansionMode(comm, param));
+
+    // 9.0.0 ccu模式走老流程
+    if (opMode == OpMode::OPBASE && GetHcommVersion() == CANN_VERSION(9, 0, 0) &&
+        param.engine == CommEngine::COMM_ENGINE_CCU) {
+        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
+    }
+
     CHK_RET(Selector(comm, param, topoInfo, algName));
 
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
@@ -303,13 +311,12 @@ HcclResult ReduceScatterVEntryLog(void *sendBuf, const void *sendCounts, const v
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
-        char stackLogBuffer[LOG_TMPBUF_SIZE];
-        s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-            "tag[%s], sendBuf[%p], recvBuf[%p], sendCounts[%p], recvCount[%llu], sendDispls[%p], dataType[%s], reduceOp[%s], streamId[%d], deviceLogicId[%d]",
-            tag.c_str(), sendBuf, recvBuf, GetDataStr(sendCounts,totalRanks).c_str(), recvCount, GetDataStr(sendDispls,totalRanks).c_str(), GetDataTypeEnumStr(dataType).c_str(), GetReduceOpEnumStr(op).c_str(), streamId, deviceLogicId);
-        CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
-        std::string logInfo = "Entry-" + opName + ":" + std::string(stackLogBuffer);
-        HCCL_RUN_INFO("%s", logInfo.c_str());
+        HCCL_RUN_INFO("Entry-%s: tag[%s], sendBuf[%p], recvBuf[%p], recvCount[%llu], dataType[%s], reduceOp[%s], streamId[%d], deviceLogicId[%d]",
+            opName.c_str(), tag.c_str(), sendBuf, recvBuf, recvCount,
+            GetDataTypeEnumStr(dataType).c_str(), GetReduceOpEnumStr(op).c_str(), streamId, deviceLogicId);
+
+        PrintEntryArrayLog(opName, tag, "sendCounts", sendCounts, totalRanks);
+        PrintEntryArrayLog(opName, tag, "sendDispls", sendDispls, totalRanks);
     }
     return HCCL_SUCCESS;
 }

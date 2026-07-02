@@ -107,9 +107,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         std::vector<HcclChannelDesc> temp1Channels;
         CommTopo temp0PriorityTopo = COMM_TOPO_1DMESH;
         CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, temp0HierarchyInfo, temp0Channels, temp0PriorityTopo));
-        CommTopo temp1PriorityTopo = COMM_TOPO_CLOS;
-        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, temp1HierarchyInfo, temp1Channels, temp1PriorityTopo));
-
+        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, temp1Channels)); 
         CHK_PRT_RET(temp0Channels.size() != temp1Channels.size(),
             HCCL_ERROR("[InsV2AllGatherConcurrentExecutor][CalcRes] temp0Channels.size()[%zu] is not equal to temp1Channels.size()[%zu]",
                     temp0Channels.size(), temp1Channels.size()),
@@ -137,6 +135,7 @@ void InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParams.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParams.count = dataCountPerLoop;
     tempAlgParams.sliceSize = dataCountPerLoop * dataTypeSize_;
+    tempAlgParams.tailSize = dataCountPerLoop * dataTypeSize_;
     tempAlgParams.buffInfo.inBuffBaseOff = dataOffset;
     tempAlgParams.buffInfo.outBuffBaseOff = dataOffset;
     tempAlgParams.buffInfo.hcclBuffBaseOff = scratchOffset;
