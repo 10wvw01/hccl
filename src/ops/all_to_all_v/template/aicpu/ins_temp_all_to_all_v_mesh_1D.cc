@@ -227,7 +227,9 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
             myRank_, templateRankSize_, static_cast<int>(opType_), isDmaRead_, threadNum_,
             ALLTOALL_DETOUR_SRC_RANK, ALLTOALL_DETOUR_RELAY_RANK,
             ALLTOALL_DETOUR_DST_BEGIN, ALLTOALL_DETOUR_DST_END);
-        CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
+        if (!isDmaRead_) {
+            CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
+        }
     }
     for (u32 roundIdx = 0; roundIdx < commLoops && remainRankSize > 0; roundIdx++) {
         CalcCommRankSetForOneLoop(roundIdx, remainRankSize, commRanks); // 计算本轮通信rank
@@ -239,6 +241,9 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
                     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
                     CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_)); // 第1轮通信中将前拷贝与本卡数据拷贝错开
                     CHK_RET(PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_));
+                }
+                if (enableAlltoAllDetour) {
+                    CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
                 }
                 CHK_RET(LocalCopyForMyRank(tempAlgParams, threads[0], myAlgRank, 0)); // 在第1轮通信中用0号流做本卡数据拷贝
             }
