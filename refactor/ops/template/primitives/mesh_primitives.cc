@@ -127,36 +127,30 @@ HcclResult PushSingleChannelSlice(const std::vector<ChannelInfo> &channels, u64 
     return HCCL_SUCCESS;
 }
 
-HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgParams,
-                                             const TemplateResource &templateResource,
-                                             const MeshPrimitiveOptions &options,
-                                             u32 myAlgRank, u32 connectedRank, u32 connectedAlgRank,
-                                             u32 rankSize, u32 dataTypeSize,
-                                             MeshAllGatherSendRecvMode sendRecvMode,
-                                             std::vector<MeshAllGatherChannelSlice> &channelSlices)
+HcclResult ResolveMeshChannelSlices(const TemplateDataParams &tempAlgParams,
+                                    const TemplateResource &templateResource,
+                                    const MeshPrimitiveOptions &options,
+                                    u32 myAlgRank, u32 connectedRank, u32 connectedAlgRank,
+                                    u32 rankSize, u32 dataTypeSize,
+                                    MeshAllGatherSendRecvMode sendRecvMode,
+                                    std::vector<MeshAllGatherChannelSlice> &channelSlices)
 {
     CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
                     templateResource.channels.at(connectedRank).empty(),
-                HCCL_ERROR("[MeshAllGatherPlan] connectedRank[%u] has no channel.", connectedRank),
+                HCCL_ERROR("[MeshChannelSlices] connectedRank[%u] has no channel.", connectedRank),
                 HCCL_E_PARA);
 
     const std::vector<ChannelInfo> &channels = templateResource.channels.at(connectedRank);
-    const bool zAxisWriteTail =
-        (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
-         sendRecvMode == MeshAllGatherSendRecvMode::WRITE &&
-         myAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
-    const bool connectedRankHasTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
-        sendRecvMode == MeshAllGatherSendRecvMode::WRITE) ?
-        zAxisWriteTail : (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
-    const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
 
+    // ---- AllGather-only modes (early return) ----
     if (options.sliceMode == MeshTransferSliceMode::NORMAL_FIXED) {
+        const bool hasTail = (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
+        const u64 sliceSize = hasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
         return PushSingleChannelSlice(channels, sliceSize, sliceSize, sliceSize / dataTypeSize,
                                       sliceSize / dataTypeSize, channelSlices);
     }
 
     if (options.sliceMode == MeshTransferSliceMode::VARIABLE_COUNT) {
-        // all_gather_v 只替换本端/对端 rank 的 size，peer/channel 主循环继续复用普通 Mesh。
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, myAlgRank, "allRankSliceSize"));
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankSliceSize, connectedAlgRank, "allRankSliceSize"));
         CHK_RET(CheckRankVectorSize(tempAlgParams.allRankDispls, myAlgRank, "allRankDispls"));
@@ -166,70 +160,30 @@ HcclResult ResolveMeshAllGatherChannelSlices(const TemplateDataParams &tempAlgPa
                                       tempAlgParams.count, tempAlgParams.count, channelSlices);
     }
 
+    // ---- OmniPipe (shared) ----
     if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
-        // OmniPipe 的差异在 task 内部追加多组 step slice，而不是拆出一套外层执行循环。
         CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, myAlgRank));
         CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, connectedAlgRank));
         const u32 stepNum = static_cast<u32>(
             tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size());
         CHK_PRT_RET(tempAlgParams.stepSliceInfo.stepSliceSize[connectedAlgRank].size() < stepNum ||
                         tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[connectedAlgRank].size() < stepNum,
-                    HCCL_ERROR("[MeshAllGatherPlan] omnipipe peer step size mismatch."), HCCL_E_PARA);
+                    HCCL_ERROR("[MeshChannelSlices] omnipipe peer step size mismatch."), HCCL_E_PARA);
         return PushSingleChannelSlice(channels, 0, 0, 0, 0, channelSlices);
     }
 
-    if (options.sliceMode == MeshTransferSliceMode::COMMON_CHANNEL_SPLIT) {
-        const u32 channelsPerRank = static_cast<u32>(channels.size());
-        std::vector<u64> ec;
-        std::vector<u64> sizeOut;
-        std::vector<u64> elemOffset;
-        CHK_RET(CalcDataSplitByPortGroupCommon(sliceSize / dataTypeSize, dataTypeSize, channels,
-                                                ec, sizeOut, elemOffset, channelsPerRank));
-        for (u32 channelIdx = 0; channelIdx < channelsPerRank; ++channelIdx) {
-            channelSlices.push_back({channelIdx, &channels[channelIdx], elemOffset[channelIdx],
-                                     sizeOut[channelIdx], sizeOut[channelIdx], ec[channelIdx], ec[channelIdx]});
-        }
-        return HCCL_SUCCESS;
-    }
-
-    if (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR) {
-        std::vector<u64> ec;
-        std::vector<u64> sizeOut;
-        std::vector<u64> elemOffset;
-        CHK_RET(CalcDataSplitByPortGroupZAxisDetour(sliceSize / dataTypeSize, dataTypeSize, channels,
-                                                    ec, sizeOut, elemOffset,
-                                                    options.zAxis.level0ChannelNumPerRank,
-                                                    options.zAxis.level1ChannelNumPerRank,
-                                                    static_cast<float>(options.zAxis.level0DataRatio)));
-        for (u32 channelIdx = 0; channelIdx < channels.size(); ++channelIdx) {
-            channelSlices.push_back({channelIdx, &channels[channelIdx], elemOffset[channelIdx],
-                                     sizeOut[channelIdx], sizeOut[channelIdx], ec[channelIdx], ec[channelIdx]});
-        }
-        return HCCL_SUCCESS;
-    }
-
-    return HCCL_E_NOT_SUPPORT;
-}
-
-HcclResult ResolveMeshReduceScatterChannelSlices(const TemplateDataParams &tempAlgParams,
-                                                 const TemplateResource &templateResource,
-                                                 const MeshPrimitiveOptions &options,
-                                                 u32 connectedRank, u32 connectedAlgRank,
-                                                 u32 rankSize, u32 dataTypeSize,
-                                                 std::vector<MeshAllGatherChannelSlice> &channelSlices)
-{
-    CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
-                    templateResource.channels.at(connectedRank).empty(),
-                HCCL_ERROR("[MeshReduceScatterPlan] connectedRank[%u] has no channel.", connectedRank),
-                HCCL_E_PARA);
-
-    const std::vector<ChannelInfo> &channels = templateResource.channels.at(connectedRank);
-    if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
-        return PushSingleChannelSlice(channels, 0, 0, 0, 0, channelSlices);
-    }
-
-    const bool connectedRankHasTail = (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
+    // ---- Tail-aware slice size (shared: COMMON_CHANNEL_SPLIT / Z_AXIS_DETOUR) ----
+    // Z-axis WRITE mode uses myAlgRank for tail; all other paths use connectedAlgRank.
+    // ReduceScatter never passes WRITE, so it always takes the standard fallback.
+    const bool zAxisWriteTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
+                                 sendRecvMode == MeshAllGatherSendRecvMode::WRITE &&
+                                 myAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
+    const bool connectedRankHasTail = (options.sliceMode == MeshTransferSliceMode::Z_AXIS_DETOUR &&
+        sendRecvMode == MeshAllGatherSendRecvMode::WRITE) ?
+        zAxisWriteTail : (connectedAlgRank == rankSize - 1 && tempAlgParams.tailSize > 0);
     const u64 sliceSize = connectedRankHasTail ? tempAlgParams.tailSize : tempAlgParams.sliceSize;
+
+    // ---- Channel split (shared) ----
     std::vector<u64> ec;
     std::vector<u64> sizeOut;
     std::vector<u64> elemOffset;
@@ -477,9 +431,9 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
             const u32 connectedRank = ranks[connectedAlgRank];
 
             std::vector<MeshAllGatherChannelSlice> channelSlices;
-            CHK_RET(ResolveMeshAllGatherChannelSlices(tempAlgParams, templateResource, options, myAlgRank,
-                                                      connectedRank, connectedAlgRank, rankSize, dataTypeSize,
-                                                      sendRecvMode, channelSlices));
+            CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options, myAlgRank,
+                                             connectedRank, connectedAlgRank, rankSize, dataTypeSize,
+                                             sendRecvMode, channelSlices));
             for (const auto &channelSlice : channelSlices) {
                 CHK_PRT_RET(channelSlice.linkRemote == nullptr || threadIdx >= templateResource.threads.size(),
                             HCCL_ERROR("[RunMeshAllGather] invalid transfer slice task."), HCCL_E_PARA);
@@ -559,21 +513,18 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, Templat
 
     const HcclDataType dataType = tempAlgParams.dataType;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
-        CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, myAlgRank));
-    }
 
     u32 threadIdx = 0;
     for (u32 i = 1; i < rankSize; ++i) {
         const u32 connectedAlgRank = (myAlgRank + i) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
-        if (options.sliceMode == MeshTransferSliceMode::OMNIPIPE_STEP) {
-            CHK_RET(CheckStepRankSize(tempAlgParams.stepSliceInfo, connectedAlgRank));
-        }
 
         std::vector<MeshAllGatherChannelSlice> channelSlices;
-        CHK_RET(ResolveMeshReduceScatterChannelSlices(tempAlgParams, templateResource, options, connectedRank,
-                                                      connectedAlgRank, rankSize, dataTypeSize, channelSlices));
+        // RS never uses WRITE sendRecvMode, so the Z-axis tail logic in
+        // ResolveMeshChannelSlices falls through to the standard connectedAlgRank path.
+        CHK_RET(ResolveMeshChannelSlices(tempAlgParams, templateResource, options, myAlgRank,
+                                         connectedRank, connectedAlgRank, rankSize, dataTypeSize,
+                                         MeshAllGatherSendRecvMode::BATCH_WRITE, channelSlices));
         for (const auto &channelSlice : channelSlices) {
             CHK_PRT_RET(channelSlice.linkRemote == nullptr || threadIdx >= templateResource.threads.size(),
                         HCCL_ERROR("[RunMeshReduceScatter] invalid transfer slice task."), HCCL_E_PARA);
