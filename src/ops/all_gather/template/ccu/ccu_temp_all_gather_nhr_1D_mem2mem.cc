@@ -132,7 +132,6 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
         CHK_RET(GetChannelBwCoeff(comm, myRank_, channelsPerDie[1][0], p1));
         if (p0 + p1 > 0) {
             ratio = static_cast<double>(p0) / (p0 + p1);
-            HCCL_INFO("HYRATIO=%llu",ratio);
         }
     }
     resourceRequest.dieSplitRatio = ratio;
@@ -192,7 +191,6 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
     }
 
     die0Size = static_cast<uint64_t>(dataCount * dieSplitRatio_) * typeSize;
-    HCCL_INFO("HYdieSplitRatio_=%llu",dieSplitRatio_);
     die1Size = templateDataParams.sliceSize - die0Size;
     HCCL_DEBUG("[CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
