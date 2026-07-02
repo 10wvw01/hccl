@@ -152,9 +152,13 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
             const u64 scratchRepeatStride = tempAlgParams_.sliceSize * templateRankSize_;
             const u64 scratchBase = tempAlgParams_.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
 
-            u64 sliceSize = tempAlgParams_.sliceSize;
+            u64 txSliceSize = tempAlgParams_.sliceSize;
+            if (tempAlgParams_.tailSize != 0 && myAlgRank == templateRankSize_ - 1) {
+                txSliceSize = tempAlgParams_.tailSize;
+            }
+            u64 rxSliceSize = tempAlgParams_.sliceSize;
             if (tempAlgParams_.tailSize != 0 && connectedAlgRank == templateRankSize_ - 1) {
-                sliceSize = tempAlgParams_.tailSize;
+                rxSliceSize = tempAlgParams_.tailSize;
             }
             u64 txOutOffset = tempAlgParams_.outputSliceStride * myAlgRank + outBaseOff;
             u64 rxOutOffset = tempAlgParams_.outputSliceStride * connectedAlgRank + outBaseOff;
@@ -178,28 +182,29 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
                 txDstPtr = remoteOut;
                 rxSrcPtr = remoteOut;
             }
-            u64 sliceCount = sliceSize / dataTypeSize;
+            u64 txSliceCount = txSliceSize / dataTypeSize;
+            u64 rxSliceCount = rxSliceSize / dataTypeSize;
 
-            txSrcSlicesAll.emplace_back(txSrcPtr, txOutOffset, sliceSize, sliceCount);
-            txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, sliceSize, sliceCount);
-            rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, sliceSize, sliceCount);
-            rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, sliceSize, sliceCount);
+            txSrcSlicesAll.emplace_back(txSrcPtr, txOutOffset, txSliceSize, txSliceCount);
+            txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, txSliceSize, txSliceCount);
+            rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, rxSliceSize, rxSliceCount);
+            rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, rxSliceSize, rxSliceCount);
 
             HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txSrcSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, txOutOffset, sliceSize, sliceCount);
+                        myRank_, connectedRank, rpt, txOutOffset, txSliceSize, txSliceCount);
 
             HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txDstSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, txDstOffset, sliceSize, sliceCount);
+                        myRank_, connectedRank, rpt, txDstOffset, txSliceSize, txSliceCount);
 
             HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxSrcSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, rxOutOffset, sliceSize, sliceCount);
+                        myRank_, connectedRank, rpt, rxOutOffset, rxSliceSize, rxSliceCount);
 
             HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxDrcSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, rxSrcOffset, sliceSize, sliceCount);
+                        myRank_, connectedRank, rpt, rxSrcOffset, rxSliceSize, rxSliceCount);
         }
 
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
@@ -259,7 +264,12 @@ HcclResult InsTempAllGatherMesh1D::LocalDataCopy(const std::vector<ThreadHandle>
                 HCCL_DEBUG("[InsTempAllGatherMesh1D][LocalDataCopy] RankID [%d] AlgRank [%d] copy to ccl: "
                         "cclBaseOff[%llu] cclOff[%llu] sliceSize[%llu] count[%llu].",
                         myRank_, myAlgRank, cclBaseOff, cclOff, sliceSize, sliceCount);
-                LocalCopy(threads[0], srcSlice, cclDstSlice);
+                if (tempAlgParams_.buffInfo.inputPtr == tempAlgParams_.buffInfo.hcclBuff.addr) {
+                    DataSlice outSrcSlice(tempAlgParams_.buffInfo.outputPtr, outOff, sliceSize, sliceCount);
+                    LocalCopy(threads[0], outSrcSlice, cclDstSlice);
+                } else {
+                    LocalCopy(threads[0], srcSlice, cclDstSlice);
+                }
             }
         }
     }

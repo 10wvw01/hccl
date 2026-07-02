@@ -191,24 +191,24 @@ TEST_F(ST_BROADCAST_3LEVEL_TEST, st_broadcast_3level_2x4x2_fp32_multi_server)
     RunBroadcast3LevelTest(topoMeta, rankSize, count, dataType, root, dataTypeSize);
 }
 
-TEST_F(ST_BROADCAST_3LEVEL_TEST, st_broadcast_3level_2x2x2_fp32_send501m_plus_4)
+TEST_F(ST_BROADCAST_3LEVEL_TEST, st_broadcast_3level_2x2x2_fp32_send501m_plus_1)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 2);
     auto rankSize = 2 * 2 * 2;
-    auto count = 501 * 1024 * 1024 + 4;
+    auto count = 501 * 1024 * 1024 + 1;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     auto root = 0;
     auto dataTypeSize = DATATYPE_SIZE_TABLE_BROADCAST_3LEVEL[dataType];
     RunBroadcast3LevelTest(topoMeta, rankSize, count, dataType, root, dataTypeSize);
 }
 
-TEST_F(ST_BROADCAST_3LEVEL_TEST, st_broadcast_3level_2x2x2_fp32_send202)
+TEST_F(ST_BROADCAST_3LEVEL_TEST, st_broadcast_3level_2x2x2_fp32_send201)
 {
     TopoMeta topoMeta;
     GenTopoMeta(topoMeta, 2, 2, 2);
     auto rankSize = 2 * 2 * 2;
-    auto count = 202;
+    auto count = 201;
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     auto root = 0;
     auto dataTypeSize = DATATYPE_SIZE_TABLE_BROADCAST_3LEVEL[dataType];
