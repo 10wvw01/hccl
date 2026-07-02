@@ -583,6 +583,20 @@ function make_st_gov() {
                 -o coverage.info
         fi
 
+        # 排除路径
+        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
+            lcov -r coverage.info \
+                    */test/st/algorithm/* \
+                ${LCOV_PARALLEL} \
+                --ignore-errors ${LCOV_IGNORE_ERRORS} \
+                -o coverage.info
+        else
+            lcov -r coverage.info \
+                    */test/st/algorithm/* \
+                ${LCOV_PARALLEL} \
+                -o coverage.info
+        fi
+
         # 提取目标路径
         if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
             lcov -e coverage.info \
