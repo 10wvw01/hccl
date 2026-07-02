@@ -39,10 +39,14 @@ struct MeshAllGatherPrimitiveOptions {
     ZAxisDetourConfig zAxis;
 };
 
+// Full AICPU Mesh AllGather communication primitive entry.
+// Caller-provided options cover current AICPU Mesh AllGather variants except MeshChunk.
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
                             const MeshAllGatherPrimitiveOptions &options);
 
+// Temporary compatibility overload. It preserves the current extracted behavior only.
+// New variant-aware callers should use the options overload above.
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
 

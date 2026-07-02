@@ -18,7 +18,7 @@
 #   ⚠️ all_gather_selector.cc  - 多次直接 return SelectorStatus::MATCH，缺条件分支
 #   ❌ alg_selector.h          - 只有 31 行声明，无 .cc
 #
-# 当前只开 engine_selector.cc，其他等杨华宝补完。
+# 当前只开 engine_selector.cc，其他等补完。
 
 target_sources(hccl PRIVATE
     engine_selector.cc
