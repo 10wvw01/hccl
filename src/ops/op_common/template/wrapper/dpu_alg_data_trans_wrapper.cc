@@ -14,7 +14,7 @@
 
 namespace ops_hccl {
 constexpr uint64_t MS_PER_SECOND = 1000;
-constexpr u32 DPU_TIMEOUT = 180 * MS_PER_SECOND;
+constexpr u32 DPU_TIMEOUT = 5 * MS_PER_SECOND;
 
 static uint64_t GetTimestampMs()
 {
@@ -55,7 +55,8 @@ HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo)
     u32 repeatNum = srcSlices.size();
     // 向write rank发送tx同步，确保该rank的hcclBuffer可用
     // 这里只是在host上向device下任务，所以实际在host侧不会因为wait而阻塞
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, recvChannel.handle, NOTIFY_IDX_ACK)));
+    HCCL_RUN_WARNING("[DPU_TIMEOUT_VERIFY][%s] skip ACK notify record on recvChannel to trigger timeout.", __func__);
+    // CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, recvChannel.handle, NOTIFY_IDX_ACK)));
     CHK_RET(WaitDpuNotify(__func__, sendChannel.handle, NOTIFY_IDX_ACK, "ACK"));
     for (int i = 0; i < repeatNum; i++) {
         // tx同步完成后准备将自己的userIn上的数据写到对方的hcclBuffer上
@@ -83,7 +84,8 @@ HcclResult SendWrite(const DataInfo &sendInfo)
     const std::vector<DataSlice> dstSlices = sendInfo.slices_.dstSlices_;
     const ChannelInfo &sendChannel = sendInfo.channel_;
     u32 sliceNum = srcSlices.size();
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, sendChannel.handle, NOTIFY_IDX_ACK)));
+    HCCL_RUN_WARNING("[DPU_TIMEOUT_VERIFY][%s] skip ACK notify record on sendChannel to trigger timeout.", __func__);
+    // CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, sendChannel.handle, NOTIFY_IDX_ACK)));
     CHK_RET(WaitDpuNotify(__func__, sendChannel.handle, NOTIFY_IDX_ACK, "ACK"));
     for (int i = 0; i < sliceNum; i++) {
         const DataSlice srcSlice = srcSlices[i];
@@ -109,7 +111,8 @@ HcclResult RecvWrite(const DataInfo &recvInfo)
     const std::vector<DataSlice> dstSlices = recvInfo.slices_.dstSlices_;
     const ChannelInfo &recvChannel = recvInfo.channel_;
     u32 sliceNum = srcSlices.size();
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, recvChannel.handle, NOTIFY_IDX_ACK)));
+    HCCL_RUN_WARNING("[DPU_TIMEOUT_VERIFY][%s] skip ACK notify record on recvChannel to trigger timeout.", __func__);
+    // CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, recvChannel.handle, NOTIFY_IDX_ACK)));
     CHK_RET(WaitDpuNotify(__func__, recvChannel.handle, NOTIFY_IDX_ACK, "ACK"));
     for (int i = 0; i < sliceNum; i++) {
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, recvChannel.handle, NOTIFY_IDX_DATA_SIGNAL)));
