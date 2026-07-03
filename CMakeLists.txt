@@ -170,7 +170,9 @@ elseif(BUILD_OPEN_PROJECT)
             COMPONENT hccl
         )
 
-        add_dependencies(package hccl_device)
+        if(TARGET package)
+            add_dependencies(package hccl_device)
+        endif()
     endif()
 
     set(HCCL_HEAD
