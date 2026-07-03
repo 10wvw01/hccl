@@ -31,6 +31,27 @@ add_cann_subdirectories_relative(${HCCL_DIR}
     ${HCCL_DIR}/src
 )
 
+# 实验特性: 将 BIRS 等实验算子编入 device 侧 scatter_aicpu_kernel
+if(ENABLE_EXPERIMENTAL)
+    target_compile_definitions(scatter_aicpu_kernel PRIVATE ENABLE_EXPERIMENTAL)
+    target_include_directories(scatter_aicpu_kernel PRIVATE
+        ${HCCL_DIR}/experimental/
+        ${HCCL_DIR}/experimental/ops/
+        ${HCCL_DIR}/experimental/ops/op_common/
+        ${HCCL_DIR}/experimental/ops/op_common/template
+        ${HCCL_DIR}/experimental/ops/op_common/topo
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/template/)
+    target_sources(scatter_aicpu_kernel PRIVATE
+        ${HCCL_DIR}/experimental/ops/op_common/template/alg_template_base_experimental.cc
+        ${HCCL_DIR}/experimental/ops/op_common/topo/topo_experimental.cc
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/reduce_scatter_birs_executor.cc
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/reduce_scatter_executor_base.cc
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/template/reduce_scatter_birs.cc
+        ${HCCL_DIR}/experimental/ops/reduce_scatter/birs/template/reduce_scatter_birs_inter.cc)
+endif()
+
 pack_targets_and_files(
     OUTPUT_TARGET "generate_device_aicpu_package"
     OUTPUT "aicpu_hccl.tar.gz"
