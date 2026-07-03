@@ -19,6 +19,7 @@ if(NOT HCCL_CANN_COMPAT_850)
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_gather_sequence_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_gather_concurrent_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_gather_omnipipe_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_gather_omnipipe_2d_executor.cc
     )
 endif()
 
