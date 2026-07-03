@@ -101,23 +101,18 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             HCCL_ERROR("[ReduceScatterAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
         if (isMeshNumEqualToClosNum && topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO) {// 4P mesh
             if (IsSmallData(dataSize)) { // 小数据量，用1d mesh算法
-                // selectAlgName = "CcuReduceScatterMesh1D";
-                selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
+                selectAlgName = "CcuReduceScatterMesh1D";
             } else { // 大数据量，用mesh+clos并行算法
-                // selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
-                selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
+                selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
             }
         } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
-            // HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
-            // return SelectorStatus::NOT_MATCH;
-            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
+            HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
+            return SelectorStatus::NOT_MATCH;
         } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_REDUCE_MS_ALGO) {
-            // selectAlgName = "CcuReduceScatterMesh1D";
-            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
+            selectAlgName = "CcuReduceScatterMesh1D";
         } else {
-            // HCCL_DEBUG("[ReduceScatterAutoSelector] level0Topo[%u] is not supported mesh yet.", topoInfo->level0Topo);
-            // return SelectorStatus::NOT_MATCH;       
-            selectAlgName = "CcuV2ReduceScatterOmniPipeMS";
+            HCCL_DEBUG("[ReduceScatterAutoSelector] level0Topo[%u] is not supported mesh yet.", topoInfo->level0Topo);
+            return SelectorStatus::NOT_MATCH;       
         }
     } else {
         HCCL_WARNING("[ReduceScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
@@ -272,21 +267,17 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoIn
             // 4P mesh
             if (IsSmallData(dataSize)) {
                 // 小数据量，用1d mesh算法
-                // selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
-                selectAlgName = "CcuV2ReduceScatterOmniPipe";
+                selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
             } else {
                 // 大数据量，用mesh+clos并行算法
-                // selectAlgName = "CcuReduceScatterConcurrentMeshNHRSche";
-                selectAlgName = "CcuV2ReduceScatterOmniPipe";
+                selectAlgName = "CcuReduceScatterConcurrentMeshNHRSche";
             }
         } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
             // 矩形场景大数据量，用2d并行算法
-            // selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
-            selectAlgName = "CcuV2ReduceScatterOmniPipe";
+            selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
         } else {
             // 其他场景，用1d NHR算法
-            // selectAlgName = "CcuReduceScatterNhr1DMem2MemMultiJetty";
-            selectAlgName = "CcuV2ReduceScatterOmniPipe";
+            selectAlgName = "CcuReduceScatterNhr1DMem2MemMultiJetty";
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         if (topoInfo->level0PcieMix) {
