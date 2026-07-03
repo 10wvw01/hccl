@@ -170,7 +170,6 @@ void InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsA
     } else {
         tempAlgParamsIntra.buffInfo.hcclBuffBaseOff = 0;
     }
-    
 
     tempAlgParamsIntra.sliceSize = currDataCount * dataTypeSize_;
     tempAlgParamsIntra.tailSize = tempAlgParamsIntra.sliceSize;
