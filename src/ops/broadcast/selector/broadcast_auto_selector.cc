@@ -37,12 +37,18 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuMs(const TopoInfoWithNetL
                                                     std::string &selectAlgName) const
 {
     (void)opParam;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuBroadcastMesh1D";
+            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+                selectAlgName = "CcuBroadcastMesh1D";
+            } else {
+                selectAlgName = "CcuBroadcastConcurrentMesh1DNHR";
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
@@ -71,6 +77,8 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                                                     std::string &selectAlgName) const
 {
     (void)configAlgMap;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
     constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
@@ -130,7 +138,11 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWi
             HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuBroadcastMesh1DMem2Mem";
+            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+                    selectAlgName = "CcuBroadcastMesh1DMem2Mem";
+            } else {
+                selectAlgName = "CcuBroadcastConcurrentMesh1DNHRMem";
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {

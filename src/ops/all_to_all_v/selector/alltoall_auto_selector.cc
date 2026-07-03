@@ -51,7 +51,11 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
     uint64_t dataSize = sendCount * dataTypeSize * topoInfo->userRankSize;
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D && topoInfo->userRankSize <= ccuSize && dataSize < A2A_CCU_64P_MAX_DATA_SIZE) {
-            selectAlgName = "CcuAllToAllMesh1D2Die";
+            if(topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+                selectAlgName = "CcuAlltoAllMesh1D";
+            } else {
+                selectAlgName = "CcuAllToAllMesh1D2Die";
+            }
         } else {
             HCCL_WARNING("[AlltoAllAutoSelector] levelNum > 1 is not supported yet for 2d schedule mode.");
             return SelectorStatus::NOT_MATCH;
@@ -64,7 +68,11 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                 HCCL_DEBUG("[AlltoAllAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
                 return SelectorStatus::NOT_MATCH;
             } else {
-                selectAlgName = "CcuAlltoAllMesh1D";
+                if (dataSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+                    selectAlgName = "CcuAlltoAllMesh1D";
+                } else {
+                    selectAlgName = "CcuAlltoAllConcurrentMesh1D";
+                }
             }
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
@@ -83,7 +91,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                     HCCL_DEBUG("[AlltoAllAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);
                 if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= CONCURRENT_RANK_LIMIT)
                     && (dataSize > BIG_DATA_SIZE_LIMIT)) { // 同一组4P且大数据量，走并发算法
-                    selectAlgName = "CcuAllToAllMesh1DConcurrent";
+                    selectAlgName = "CcuAllToAllMesh1DConcurrentUBX";
                 } else {
                     selectAlgName = "CcuAlltoAllMesh1DMultiJetty";
                 }

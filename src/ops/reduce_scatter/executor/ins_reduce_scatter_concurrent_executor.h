@@ -14,6 +14,8 @@
 #include "executor_common_ops.h"
 #include "topo_match_base.h"
 #include "topo_match_ubx.h"
+#include "topo_match_1d.h"
+#include "topo_match_concurrent.h"
 
 namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1> class InsReduceScatterConcurrentExecutor : public InsCollAlgBase {

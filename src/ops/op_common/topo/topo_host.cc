@@ -665,6 +665,7 @@ HcclResult CalcTopoShape(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
     CHK_RET(IsLevel0PcieMix(comm, topoInfo));
     CHK_RET(CalcLevel0MeshType(comm, topoInfo));
     CHK_RET(CalcLevel2Uboe(comm, topoInfo));
+    CHK_RET(IsIntraServerSecondLayerClos(comm, topoInfo));
     return HCCL_SUCCESS;
 }
 
@@ -984,6 +985,34 @@ HcclResult IsLevel0PcieMix(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
         }
     }
     HCCL_INFO("[IsLevel0PcieMix] Level 0 has no PCIE protocol");
+    return HCCL_SUCCESS;
+}
+
+HcclResult IsIntraServerSecondLayerClos(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo)
+{
+    // 1. 超过 1 个 netlayer
+    const auto& netLayers = topoInfo->netLayerDetails.netLayers;
+    if (netLayers.size() <= 1) {
+        HCCL_DEBUG("[IsIntraServerSecondLayerClos] netLayerNum[%zu] <= 1.", netLayers.size());
+        return HCCL_SUCCESS;
+    }
+    // 2. 第二个 netlayer 的 topo 为 CLOS
+    u32 secondLayerIdx = netLayers[1];
+    if (secondLayerIdx >= topoInfo->topoInstDetailsOfLayer.size()) {
+        HCCL_WARNING("[IsIntraServerSecondLayerClos] secondLayerIdx[%u] out of range[%zu].",
+                     secondLayerIdx, topoInfo->topoInstDetailsOfLayer.size());
+        return HCCL_SUCCESS;
+    }
+ 
+    CommTopo topoType = COMM_TOPO_RESERVED;
+    HcclRankGraphGetTopoTypeByLayer(comm, secondLayerIdx, &topoType);
+    if (topoType == CommTopo::COMM_TOPO_CLOS) {
+        HCCL_INFO("[IsIntraServerSecondLayerClos] intra-server, second layer[%u] is CLOS.",
+                  secondLayerIdx);
+        topoInfo->level1ClosExist = true;
+        return HCCL_SUCCESS;
+    }
+    HCCL_DEBUG("[IsIntraServerSecondLayerClos] second layer[%u] topo is not CLOS.", secondLayerIdx);
     return HCCL_SUCCESS;
 }
 

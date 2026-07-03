@@ -18,8 +18,14 @@
 #include "ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D.h"
+#include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
 #endif //CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
+
+#include "op_common.h"
+ 
+constexpr u32 CLOS_PORT_NUM = 4;
+static bool isUBX = false;
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -47,6 +53,10 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     InitCommInfo(param, topoInfo, algHierarchyInfo);
     u32 minMembers = 2;
 
+    //判断是否为UBX组网
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        isUBX = true;
+    }
     // 拆一下algHierarchyInfo
     if (algHierarchyInfo.infos.size() == 0 || algHierarchyInfo.infos[0].size() < minMembers) {
         HCCL_ERROR("[InsReduceScatterConcurrentExecutor] algHierarchyInfo has no members, Please check the algHierarchyInfo!");
@@ -104,12 +114,6 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     
     CHK_PRT_RET(channelDescs1.empty(),
                 HCCL_ERROR("[%s] channelDescs1.size()[%zu] is zero.", __func__, channelDescs1.size()),
-                HcclResult::HCCL_E_INTERNAL);
- 
-    // 两者数量应相等
-    CHK_PRT_RET(channelDescs0.size() != channelDescs1.size(),
-                HCCL_ERROR("[%s] channelDescs0.size()[%zu] is not equal to channelDescs1.size()[%zu]", __func__,
-                           channelDescs0.size(), channelDescs1.size()),
                 HcclResult::HCCL_E_INTERNAL);
 
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
@@ -215,7 +219,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     u32 templateScratchMultiplier0 = tempAlg0->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u32 templateScratchMultiplier1 = tempAlg1->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     const u64 portNum0 = rankSize_ - 1;
-    const u64 portNum = 4;
+    const u64 portNum = CLOS_PORT_NUM;
     const u64 sliceAlignCount = HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     // 划分cclbuffer
     void *cclMemAddr = resCtx.cclMem.addr;
@@ -290,7 +294,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                             (dataCountforTemp1 - loopIndex * maxCountPerLoopforTemp1) : maxCountPerLoopforTemp1;
             u64 dataOffsetforNhr = dataCountforTemp0 * dataTypeSize_ + loopIndex * maxCountPerLoopforTemp1 * dataTypeSize_;
             GenTempAlgParams(dataOffsetforNhr, currCount, maxCountPerLoopforTemp1, tempAlgParamsforTemp1);
-            tempAlgParamsforTemp1.outputSliceStride = maxCountPerLoopforTemp1 * dataTypeSize_; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
+            tempAlgParamsforTemp1.outputSliceStride = isUBX ? maxCountPerLoopforTemp1 * dataTypeSize_ : 0; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
             CHK_RET(tempAlg1->KernelRun(param, tempAlgParamsforTemp1, templateAlgResforTemp1));
         }
     }
@@ -457,15 +461,17 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
 }
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterConcurrentMeshNHR, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceScatterConcurrentMeshNHRUBX, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
     InsTempReduceScatterMesh1D, InsTempReduceScatterNHR);
-#endif
+ 
 #ifndef AICPU_COMPILE
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRSche, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRScheUBX, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
+ 
     CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRMs, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRMsUBX, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
     CcuTempReduceScatterMesh1D, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMesh1DNHR, InsReduceScatterConcurrentExecutor, TopoMatchConcurrent,
+ 	CcuTempReduceScatterMesh1D, CcuTempReduceScatterNHR1DMem2Mem);
 #endif
-#endif
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 }
