@@ -30,11 +30,18 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
-    (void)opParam;
     (void)configAlgMap; 
     HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
+    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
+        if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
+                        "fallback to aicpu.", dataSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
                 selectAlgName = "CcuScatterNHRMem2Mem1D";
@@ -50,34 +57,47 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
             return SelectorStatus::NOT_MATCH;
         }
     } else {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-        CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
-            HCCL_WARNING("[Algo][ScatterAutoSelector] ccu schedule does not support inplace allreduce."),
-            SelectorStatus::NOT_MATCH);
-            if (topoInfo->is2DieFullMesh) {
-                HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
-                return SelectorStatus::NOT_MATCH;
-            } else {
-                selectAlgName = "CcuScatterMesh1D";
-            }
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
-                selectAlgName = "CcuScatterMesh1D";
-            } else if (topoInfo->level0PcieMix) {
-                HCCL_WARNING("[ScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
-                return SelectorStatus::NOT_MATCH;
-            } else {
-                selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
-            }
-        } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
-            HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
-        } else {
-            HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.", topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
+        SelectorStatus ret = SelectMeshAlgoCcuSchedule(topoInfo, opParam, selectAlgName);
+        if (ret != SelectorStatus::MATCH) {
+            return ret;
         }
     }
     HCCL_INFO("[ScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
+    return SelectorStatus::MATCH;
+}
+
+SelectorStatus ScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWithNetLayerDetails *topoInfo,
+                                                              const OpParam &opParam,
+                                                              std::string &selectAlgName) const
+{
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+        CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+            HCCL_WARNING("[Algo][ScatterAutoSelector] ccu schedule does not support inplace allreduce."),
+            SelectorStatus::NOT_MATCH);
+        if (topoInfo->is2DieFullMesh) {
+            HCCL_WARNING("[ScatterAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
+            return SelectorStatus::NOT_MATCH;
+        } else {
+            selectAlgName = "CcuScatterMesh1D";
+        }
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
+            selectAlgName = "CcuScatterMesh1D";
+        } else if (topoInfo->level0PcieMix) {
+            HCCL_WARNING("[ScatterAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+            return SelectorStatus::NOT_MATCH;
+        } else {
+            selectAlgName = "CcuScatterParallelMesh1DNHRUBX";
+        }
+    } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+        HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.",
+            topoInfo->level0Topo);
+        return SelectorStatus::NOT_MATCH;
+    } else {
+        HCCL_WARNING("[Algo][ScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_schedule mode.",
+            topoInfo->level0Topo);
+        return SelectorStatus::NOT_MATCH;
+    }
     return SelectorStatus::MATCH;
 }
 
@@ -148,6 +168,12 @@ SelectorStatus ScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDeta
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ScatterAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
+    if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
+        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        HCCL_DEBUG("[ScatterAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
+            __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ScatterAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
@@ -157,6 +183,23 @@ SelectorStatus ScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDeta
 
     HCCL_INFO("[ScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
+}
+
+SelectorStatus ScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDetails *topoInfo,
+                                                        const OpParam &opParam,
+                                                        const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
+                                                        std::string &selectAlgName) const
+{
+    HCCL_INFO("topoInfo->topoLevelNums is %u, topoInfo->level0Topo is %u", topoInfo->topoLevelNums, topoInfo->level0Topo);
+    (void)configAlgMap;
+    (void)opParam;
+    if (topoInfo->topoLevelNums > 1) {
+        selectAlgName = "InsScatterSequenceMeshNhrDPU";
+        HCCL_INFO("Using algo InsScatterSequenceMeshNhrDPU");
+        return SelectorStatus::MATCH;
+    }
+
+    return SelectorStatus::NOT_MATCH;
 }
 
 REGISTER_SELECTOR_BY_OPTYPE(HcclCMDType::HCCL_CMD_SCATTER, 18, ScatterAutoSelector);

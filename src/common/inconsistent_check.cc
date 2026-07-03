@@ -18,13 +18,15 @@ thread_local std::set<std::string> g_inconsistentCheckedList;
 bool NeedInconsistentCheck(const OpParam& param)
 {
     if (HcommIsSupportHcclCommAddExchangeInfo()) {
-        // inconsistentCheckSwitch 为 off 以及 inconsistentCheckSwitch 为 first 或空但非首算子时不校验，其他场景均校验
+        // 以下场景不校验参数一致性，其余场景均校验：
+        // inconsistentCheckSwitch 为 off
+        // inconsistentCheckSwitch 为 first 或空，单算子模式下非首次下发且非增量建链模式
         std::string tagStr = param.algTag;
-        bool isChecked = (GetInconsistentCheckSwitch() == 0) &&
+        bool noCheck = (GetInconsistentCheckSwitch() == 0) && (param.opMode == OpMode::OPBASE) &&
             (g_inconsistentCheckedList.find(tagStr) != g_inconsistentCheckedList.end());
         bool increCreateChannelFlag = (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) &&
             (param.opMode == OpMode::OPBASE);
-        if (GetInconsistentCheckSwitch() == -1 || (isChecked && !increCreateChannelFlag)) {
+        if (GetInconsistentCheckSwitch() == -1 || (noCheck && !increCreateChannelFlag)) {
             return false;
         } else {
             return true;
@@ -109,8 +111,13 @@ HcclResult InconsistentCheckParams(HcclComm comm, const OpExchangeInfo &exchange
                 rmtExchangeInfo.group));
         }
         if (strncmp(exchangeInfo.tag, rmtExchangeInfo.tag, TAG_LENGTH) != 0) {
-            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpTag", exchangeInfo.tag,
-                rmtExchangeInfo.tag));
+            bool isGroupEnabled = false;
+            if (HcommIsSupportHcclGroupStatusGet()) {
+                CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+            }
+            if (!isGroupEnabled) {
+                CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpTag", exchangeInfo.tag, rmtExchangeInfo.tag));
+            }
         }
         HCCL_INFO("[InconsistentCheckParams] success. remoteRank[%u]", channel.remoteRank);
     }
@@ -122,6 +129,13 @@ HcclResult InconsistentCheckOpType(const OpExchangeInfo &exchangeInfo, const Hcc
 {
     HcclCMDType locOpType = exchangeInfo.opType;
     if (locOpType == HcclCMDType::HCCL_CMD_SEND || locOpType == HcclCMDType::HCCL_CMD_RECEIVE) {
+        bool isGroupEnabled = false;
+        if (HcommIsSupportHcclGroupStatusGet()) {
+            CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+        }
+        if (isGroupEnabled) {
+            return HCCL_SUCCESS;
+        }
         // HcclCMDType::HCCL_CMD_SEND和HcclCMDType::HCCL_CMD_RECEIVE的枚举值需确保大于等于0
         uint32_t expectValue = static_cast<uint32_t>(HcclCMDType::HCCL_CMD_SEND) +
             static_cast<uint32_t>(HcclCMDType::HCCL_CMD_RECEIVE) - static_cast<uint32_t>(locOpType);

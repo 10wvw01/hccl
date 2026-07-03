@@ -43,12 +43,6 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
     CHK_RET(InitEnvConfig());
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() || GetExternalInputHcclCcuSchedMode())) {
-        return HcclAlltoAllInner(sendBuf, sendCount, sendType, recvBuf, recvCount, recvType, comm, stream);
-    }
-
     // 参数校验等工作
     CHK_RET(CheckAlltoAllInputPara(comm, sendBuf, sendCount, sendType, recvBuf, recvCount, recvType, stream));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -490,7 +484,7 @@ HcclResult CheckAlltoAllVInputPara(const HcclComm comm, const void *sendBuf, con
     RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclAlltoAllV", "nullptr", "stream", "non-null pointer"}));
     CHK_PTR_NULL(stream);
-    CHK_PRT_RET(sendBuf == recvBuf,
+    CHK_PRT_RET(sendBuf != nullptr && recvBuf != nullptr && sendBuf == recvBuf,
         HCCL_ERROR("[HcclAlltoAllV] sendBuf and recvBuf cannot be the same, AlltoAllV does not support in-place operation."),
         HCCL_E_PARA);
 
@@ -654,9 +648,23 @@ HcclResult AlltoAllVOutPlaceCommon(const void *sendBuf, const void *sendCounts, 
 
     CHK_RET(HcclGetOpExpansionMode(comm, param));
 
+    // 9.0.0 ccu模式走老流程
+    if (opMode == OpMode::OPBASE && GetHcommVersion() == CANN_VERSION(9, 0, 0) && param.engine == CommEngine::COMM_ENGINE_CCU) {
+        useInnerOp = true;
+        return HCCL_SUCCESS;
+    }
+
     CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
     if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
         return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
+    }
+
+    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+        bool aivCacheHit = false;
+        CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
+        if (aivCacheHit) {
+            return HCCL_SUCCESS;
+        }
     }
 
     std::string algName;
@@ -734,15 +742,14 @@ HcclResult AlltoAllVEntryLog(const void *sendBuf, const void *recvBuf, const voi
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
-        char stackLogBuffer[LOG_TMPBUF_SIZE];
-        s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-            "tag[%s], sendBuf[%p], recvBuf[%p], sendCounts[%s], recvCounts[%s], sdispls[%s], rdispls[%s], sendType[%s], recvType[%s], streamId[%d], deviceLogicId[%d]",
-            tag.c_str(), sendBuf, recvBuf, GetDataStr(sendCounts,totalRanks).c_str(), GetDataStr(recvCounts,totalRanks).c_str(), GetDataStr(sdispls,totalRanks).c_str(),
-            GetDataStr(rdispls,totalRanks).c_str(), GetDataTypeEnumStr(sendType).c_str(), GetDataTypeEnumStr(recvType).c_str(), streamId, deviceLogicId);
+        HCCL_RUN_INFO("Entry-%s: tag[%s], sendBuf[%p], recvBuf[%p], sendType[%s], recvType[%s], streamId[%d], deviceLogicId[%d]",
+            opName.c_str(), tag.c_str(), sendBuf, recvBuf, GetDataTypeEnumStr(sendType).c_str(),
+            GetDataTypeEnumStr(recvType).c_str(), streamId, deviceLogicId);
 
-        CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
-        std::string logInfo = "Entry-" + opName + ":" + std::string(stackLogBuffer);
-        HCCL_RUN_INFO("%s", logInfo.c_str());
+        PrintEntryArrayLog(opName, tag, "sendCounts", sendCounts, totalRanks);
+        PrintEntryArrayLog(opName, tag, "recvCounts", recvCounts, totalRanks);
+        PrintEntryArrayLog(opName, tag, "sdispls", sdispls, totalRanks);
+        PrintEntryArrayLog(opName, tag, "rdispls", rdispls, totalRanks);
     }
     return HCCL_SUCCESS;
 }
