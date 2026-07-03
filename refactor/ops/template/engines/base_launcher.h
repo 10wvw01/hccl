@@ -11,13 +11,13 @@
 #ifndef OPS_HCCL_BASE_LAUNCHER_H
 #define OPS_HCCL_BASE_LAUNCHER_H
 
-#include <vector>
 #include "hccl/base.h"
 #include "alg_primitive_types.h"
+#include "alg_param.h"
 
 namespace ops_hccl {
 
-class BaseExecutor;
+class OpsExecutor;
 
 /**
  * 引擎 Launcher 基类
@@ -35,16 +35,17 @@ public:
     /**
      * 创建引擎所需的运行时资源。
      * 工作流程：
-     *   1. 遍历 res 列表中的每一项资源请求；
+     *   1. 解析 res 中的资源需求（AlgResourceRequest 内部以 vector<vector<HcclChannelDesc>>
+     *      承载多层级 channel，单结构即可描述全部层级）；
      *   2. 根据引擎类型创建对应的资源（channel/notify/thread/cclMem 等）；
-     *   3. 将创建的资源句柄回填到 res 中供后续 LaunchKernel 使用。
+     *   3. 将创建的资源句柄回填到引擎内部上下文中供后续 LaunchKernel 使用。
      * 输入参数：
-     *   - res: 资源请求列表，由 executor.CalcRes 生成，包含每层级的资源需求
+     *   - res: 资源请求，由 OpsExecutor::CalcRes 生成，包含每层级的资源需求
      * 返回值：
      *   - HCCL_SUCCESS: 资源创建成功
      *   - HCCL_E_INTERNAL: 资源创建失败
      */
-    virtual HcclResult CreateRes(std::vector<AlgResourceRequest> &res) = 0;
+    virtual HcclResult CreateRes(AlgResourceRequest &res) = 0;
 
     /**
      * 下发 kernel 到设备侧执行。
@@ -59,7 +60,7 @@ public:
      *   - HCCL_SUCCESS: kernel 下发并执行成功
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
-    virtual HcclResult LaunchKernel(const OpParam &param, BaseExecutor &executor) = 0;
+    virtual HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) = 0;
 };
 
 }  // namespace ops_hccl

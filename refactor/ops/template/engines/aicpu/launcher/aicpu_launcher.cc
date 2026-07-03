@@ -9,55 +9,82 @@
  */
 
 #include "aicpu_launcher.h"
+
 #include "load_kernel.h"
-#include "hccl_log.h"
+#include "ops_executor.h"
+#include "log.h"
 
 namespace ops_hccl {
 
 /**
  * 创建 AICPU 运行时资源。
- * 工作流程：
- *   1. 遍历 res 列表中的每一项资源请求 AlgResourceRequest；
- *   2. 为每个层级创建 channel：
- *      - 遍历 resourceRequest.channels 中的 HcclChannelDesc；
- *      - 调用 HcommChannelCreate 创建实际通信通道并回填句柄；
- *   3. 根据 slaveThreadNum 创建从线程：
- *      - 调用 HcommThreadCreate 创建主线程与从线程；
- *   4. 根据 notifyNumPerThread 与 notifyNumOnMainThread 创建 notify：
- *      - 调用 HcommNotifyCreate 创建同步通知资源；
- *   5. 将创建的资源句柄回填到 res 中供 LaunchKernel 使用。
- * 错误处理：
- *   - channel 创建失败：记录错误日志并返回 HCCL_E_INTERNAL；
- *   - thread 创建失败：记录错误日志并返回 HCCL_E_INTERNAL；
- *   - notify 创建失败：记录错误日志并返回 HCCL_E_INTERNAL。
- * 不同引擎资源创建差异说明：
- *   - AICPU: 创建 channel、notify、thread
- *   - AIV:   创建 channel、共享内存（symmetric memory）
- *   - CCU:   创建 cclMem、notify、thread、channel
+ * 参照原 src 中 HcclAllocAlgResourceAICPU 的实现：
+ *   1. 从通信域获取 CCL buffer 作为跨 Rank 缓存（cclMem）；
+ *   2. 将资源请求中的标量字段（notifyNumOnMainThread/slaveThreadNum/notifyNumPerThread）回填到 resCtx_；
+ *   3. 根据 slaveThreadNum 创建主线程与从线程（HcommThreadCreate）；
+ *   4. 遍历每层级 channels 创建通信通道（HcommChannelCreate）。
+ * resCtx_ 作为成员保存，供后续 LaunchKernel 直接使用。
+ *
+ * 注：当前 CreateRes 接口仅传入 AlgResourceRequest，comm/param/resPack 的获取方式待重构确定后补全。
  */
-HcclResult AiCpuLauncher::CreateRes(std::vector<AlgResourceRequest> &res)
+HcclResult AiCpuLauncher::CreateRes(AlgResourceRequest &res)
 {
+    // 1. 回填标量资源需求字段
+    resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
+    resCtx_.slaveThreadNum = res.slaveThreadNum;
+    resCtx_.notifyNumPerThread = res.notifyNumPerThread;
 
+    // 2. 获取 CCL buffer 作为 scratch buffer（跨 Rank 缓存）
+    // Todo: comm 需通过通信域句柄获取，待 CreateRes 接口或 Launcher 构造补全 comm 传递
+    void *cclBufferAddr = nullptr;
+    u64 cclBufferSize = 0;
+    // CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &cclBufferSize));
+    resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
+
+    // 3. 创建 thread：主线程 + slaveThreadNum 个从线程
+    // 线程布局参见 OpsExecutor::CalcRes 注释：
+    //   thread[0]                              = main thread
+    //   thread[1]                              = intra main
+    //   threads[2..maxIntra+1]                 = intra slaves
+    //   thread[maxIntra+2]                     = inter main
+    //   threads[maxIntra+3..maxIntra+maxInter] = inter slaves
+    // Todo: 调用 HcommThreadCreate 创建主线程与从线程，回填到 resCtx_.threads
+    resCtx_.threads.resize(res.slaveThreadNum + 1);
+
+    // 4. 创建 channel：遍历每层级的 HcclChannelDesc 创建通信通道
+    for (size_t level = 0; level < res.channels.size(); ++level) {
+        std::vector<ChannelInfo> levelChannels;
+        levelChannels.reserve(res.channels[level].size());
+        for (size_t idx = 0; idx < res.channels[level].size(); ++idx) {
+            HcclChannelDesc &channelDesc = res.channels[level][idx];
+            ChannelInfo channelInfo;
+            // Todo: 调用 HcommChannelCreate(comm, channelDesc, channelInfo) 创建实际通信通道
+            CHK_RET(HcommChannelCreate(channelDesc, channelInfo));
+            levelChannels.emplace_back(channelInfo);
+        }
+        resCtx_.channels.emplace_back(std::move(levelChannels));
+    }
+
+    HCCL_INFO("[AiCpuLauncher][CreateRes] success, slaveThreadNum[%u], notifyNumOnMainThread[%u], channelLevel[%zu]",
+              resCtx_.slaveThreadNum, resCtx_.notifyNumOnMainThread, resCtx_.channels.size());
+    return HCCL_SUCCESS;
 }
 
 /**
  * 下发 AICPU kernel 到设备侧执行。
  * 工作流程：
  *   1. 加载 AICPU kernel 二进制文件（LoadAICPUKernel），确保 kernel 已加载到设备；
- *   2. 调用 HcclLaunchAicpuKernel 完成以下子步骤：
+ *   2. 调用 HcclLaunchAicpuKernel 完成环境准备、算法编排与 profiling 上报：
  *      a. 获取通信域句柄（HcommAcquireComm）；
- *      b. 反序列化资源上下文（AlgResourceCtxSerializable），还原 channel/notify/thread；
- *      c. 根据 opType 还原变长数据（如 AllGatherV 的 counts/displs）；
- *      d. 设置 batch mode，注册 DFX op 信息与 profiling；
- *      e. 主 thread 等待 Host stream 的 notify 通知；
- *      f. 根据 opType 与 algName 获取 executor，调用 executor.Orchestrate 驱动算法编排；
- *      g. 上报 profiling，通知 Host stream 完成，结束 batch mode。
+ *      b. 根据 opType 还原变长数据（如 AllGatherV 的 counts/displs）；
+ *      c. 设置 batch mode，注册 DFX op 信息与 profiling；
+ *      d. 主 thread 等待 Host stream 的 notify 通知；
+ *      e. 调用 executor.Orchestrate 驱动算法编排；
+ *      f. 上报 profiling，通知 Host stream 完成，结束 batch mode；
  *   3. 释放通信域句柄（HcommReleaseComm）。
- * 错误处理：
- *   - param 为空返回错误；
- *   - 通信域获取失败、资源反序列化失败、executor 获取失败、Orchestrate 失败均记录日志并返回错误码。
+ * resCtx_ 由 CreateRes 回填，直接传递给 HcclLaunchAicpuKernel，无需重新反序列化。
  */
-HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, BaseExecutor &executor)
+HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, OpsExecutor &executor)
 {
     HCCL_INFO("[AiCpuLauncher][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
               param.commName, param.tag, param.algTag);
@@ -66,10 +93,8 @@ HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, BaseExecutor &execu
     CHK_RET(LoadAICPUKernel());
 
     // 步骤2：通过 HcclLaunchAicpuKernel 入口完成环境准备、算法编排与 profiling 上报
-    // 该入口内部完成：通信域获取、资源反序列化、变长数据还原、batch mode 设置、
-    //                DFX 注册、主 thread notify 等待、executor.Orchestrate 调用、
-    //                profiling 上报、notify 通知 Host stream、batch mode 结束
-    CHK_RET(HcclLaunchAicpuKernel(&param, executor));
+    // 传入 resCtx_（CreateRes 已回填），内部直接使用，无需从 param->resCtx 反序列化
+    CHK_RET(HcclLaunchAicpuKernel(param, executor, resCtx_));
 
     HCCL_INFO("[AiCpuLauncher][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
