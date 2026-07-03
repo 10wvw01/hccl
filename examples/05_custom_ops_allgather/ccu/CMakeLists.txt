@@ -52,6 +52,9 @@ target_link_options(hccl_custom_allgather PRIVATE
     -Wl,-z,now
     -Wl,-z,noexecstack
 )
+target_link_directories(hccl_custom_allgather PRIVATE 
+    ${ASCEND_CANN_PACKAGE_PATH}/lib64 
+)
 target_link_libraries(hccl_custom_allgather PRIVATE
     hcomm
     c_sec
