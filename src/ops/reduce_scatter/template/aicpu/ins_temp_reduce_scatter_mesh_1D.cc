@@ -11,6 +11,64 @@
 #include "aicpu/ins_temp_reduce_scatter_mesh_1D.h"
 
 namespace ops_hccl {
+
+namespace {
+// 打印 DataSlice 中前 N 个元素的值，根据数据类型格式化输出
+void LogDataValue(const char* tag, u32 myRank, const DataSlice& slice, HcclDataType dataType, u32 maxPrint = 8)
+{
+    if (slice.size_ == 0 || slice.addr_ == nullptr) {
+        HCCL_INFO("[%s] myRank[%u] slice is empty or null", tag, myRank);
+        return;
+    }
+    void* dataPtr = static_cast<char*>(slice.addr_) + slice.offset_;
+    u32 elemSize = DATATYPE_SIZE_TABLE[dataType];
+    u32 printCount = std::min(maxPrint, static_cast<u32>(slice.count_));
+    std::string vals;
+    for (u32 i = 0; i < printCount; i++) {
+        void* elemPtr = static_cast<char*>(dataPtr) + i * elemSize;
+        if (i > 0) vals += ", ";
+        switch (dataType) {
+            case HCCL_DATA_TYPE_FP32:
+                vals += std::to_string(*static_cast<float*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_FP64:
+                vals += std::to_string(*static_cast<double*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_INT32:
+                vals += std::to_string(*static_cast<int32_t*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_INT64:
+                vals += std::to_string(*static_cast<int64_t*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_UINT64:
+                vals += std::to_string(*static_cast<uint64_t*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_INT8:
+                vals += std::to_string(static_cast<int>(*static_cast<int8_t*>(elemPtr)));
+                break;
+            case HCCL_DATA_TYPE_INT16:
+                vals += std::to_string(*static_cast<int16_t*>(elemPtr));
+                break;
+            case HCCL_DATA_TYPE_FP16: {
+                uint16_t raw = *static_cast<uint16_t*>(elemPtr);
+                char buf[32];
+                snprintf(buf, sizeof(buf), "0x%04x", raw);
+                vals += buf;
+                break;
+            }
+            default: {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "0x%016lx", static_cast<uint64_t>(*static_cast<uint32_t*>(elemPtr)));
+                vals += buf;
+                break;
+            }
+        }
+    }
+    HCCL_INFO("[%s] myRank[%u] count[%u] first[%u]={%s}",
+        tag, myRank, static_cast<u32>(slice.count_), printCount, vals.c_str());
+}
+}  // namespace
+
 InsTempReduceScatterMesh1D::InsTempReduceScatterMesh1D(
     const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -184,6 +242,8 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
                     myRank_, repeatIdx, tmpRank, srcSlice.addr_, srcSlice.offset_, srcSlice.size_,
                     dstSlice.addr_, dstSlice.offset_, dstSlice.size_);
                 CHK_RET(static_cast<HcclResult>(LocalReduce(threads[0], srcSlice, dstSlice, dataType_, reduceOp_)));
+                // [DEBUG-RS-DATA] reduce后: 打印 dstSlice 中累加后的数据值
+                LogDataValue("RS-REDUCE-AFTER", myRank_, dstSlice, dataType_);
             }
         }
     }
@@ -274,9 +334,17 @@ HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
             SendRecvInfo sendRecvInfo{{linkSend, linkRecv},
                                 {{txSrcSlices, txDstSlices},{rxSrcSlices, rxDstSlices}}
                                 , dataType_};
+            // [DEBUG-RS-DATA] 搬运前: 打印 txSrcSlice 中将要发送的数据值
+            for (u32 si = 0; si < txSrcSlices.size(); si++) {
+                LogDataValue("RS-TX-BEFORE", myRank_, txSrcSlices[si], dataType_);
+            }
             CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[queIdx]),
                         HCCL_ERROR("[InsTempReduceScatterMesh1D] RunReduceScatter Send failed"),
                         HcclResult::HCCL_E_INTERNAL);
+            // [DEBUG-RS-DATA] 搬运后: 打印 rxDstSlice 中接收到的数据值
+            for (u32 si = 0; si < rxDstSlices.size(); si++) {
+                LogDataValue("RS-RX-AFTER", myRank_, rxDstSlices[si], dataType_);
+            }
             queIdx ++;
         }
     }
