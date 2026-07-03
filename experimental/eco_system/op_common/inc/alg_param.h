@@ -75,10 +75,7 @@ constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 // Z axis detour 需要
 constexpr u32 MESH_CHANNELS_NUM = 1;
 
-constexpr uint64_t CCU_MAX_RANK_SIZE = 16;
-
-// OMNI binary config file path max length
-constexpr u32 XML_PATH_LENGTH = 512;
+constexpr uint64_t CCU_MAX_RANK_SIZE = 128;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,         // 普通拓扑类型 ，default单层拓扑使用
@@ -418,6 +415,7 @@ struct AlgResourceCtxSerializable {
     ThreadHandle unfoldThread = 0; // 展开流thread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
+    bool isHcclThreadAcquireWithConfigSupported = false;
     void *commInfoPtr = nullptr;
     // hostdpu
     void *npu2DpuShmemPtr = nullptr;
@@ -445,6 +443,7 @@ struct AlgResourceCtxSerializable {
         binaryStream << unfoldThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
+        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -478,6 +477,7 @@ struct AlgResourceCtxSerializable {
         binaryStream >> unfoldThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
+        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;
@@ -570,7 +570,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     bool isZeroCopy = false;
     char algName[OP_ALG_LENGTH] = "";
     HcclOpExpansionMode commOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
-    OpExecuteConfig opExecuteConfig;
+    OpExecuteConfig opExecuteConfig{OpExecuteConfig::DEFAULT};
     u32 numBlocksLimit = 0;
     bool isAivClearEnable = false;
     u64 ctxSize = 0;
@@ -581,7 +581,6 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
     u64 varMemSize{0};
     u8 varData[0];
-    char xmlPath[XML_PATH_LENGTH] = ""; // OMNI: binary config file path
 };
 
 struct AlgDesc {
@@ -682,5 +681,4 @@ struct OpExchangeInfo {
 };
 
 } // namespace ops_hccl
-
 #endif
