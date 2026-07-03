@@ -13,10 +13,12 @@ public:
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask, u32 &scratchMutiple);
+    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 rankSizeForInputData, u32 &rankSizeForOutputData, u32 &subCommMask);
+    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, const AlgoExecDesc &algoExecDesc,
+        u32 childrenRankSizeForInputData, float dataSplitRatio, u32 &childrenRankSizeForOutputData);
     HcclResult PrepareResForTemplate();
-    HcclResult OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc,
-        AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult OrchestrateLoop(
+        const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(
         const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx, AlgoExecDataDesc &algoExecDataDesc,
@@ -25,9 +27,10 @@ private:
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
-    inline void UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
-    u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
-    u32 MergeScratchMutiple(AlgoExecDesc &algoExecDesc, std::vector<u32> &childrenScrachMutilple);
+    inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
+        std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+    inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
+        std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
     HcclResult RunTemplateDesc(
         const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
@@ -38,8 +41,6 @@ protected:
     std::vector < std::map<u32, std::vector<ChannelInfo>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
 
     virtual u64 GetMaxProcCntPerLoop();
-
-    virtual HcclResult OrchestrateLoop(u64 processCount, u64 offsetCount);
 
     // 通信域指针
     HcclComm hcclComm_;
@@ -54,6 +55,8 @@ protected:
     // dataInfo
     DataInfo dataInfo_;
     u32 scratchMultiple_;
+    // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
+    vector<float> maxSubScratchMutiple_;
     // config
     OpMode opMode_;
 
