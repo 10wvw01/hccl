@@ -260,7 +260,7 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-inline HcclResult EnforceLaunchTask(const char* algTag)
+inline unsigned int EnforceLaunchTask(const char *algTag)
 {
     if (HcommBatchModeEnd(algTag) != HCCL_SUCCESS) {
         HCCL_ERROR("failed set eager mode, tag is %s.", algTag);

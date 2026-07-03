@@ -46,8 +46,8 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, std::st
     const char delimiter = '-';
     const char* commId = param.commName;
     // commId最大128，实际上没占用这么大，预留128已经足够
-    constexpr size_t RESERVER_SIZE = 128;
-    cacheTag.reserve(RESERVER_SIZE);
+    constexpr size_t RESERVED_SIZE = 128;
+    cacheTag.reserve(RESERVED_SIZE);
     cacheTag.append(std::to_string(inputSize))
         .append(1, delimiter)
         .append(std::to_string(static_cast<uint32_t>(opType)))
