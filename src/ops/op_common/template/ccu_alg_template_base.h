@@ -12,6 +12,7 @@
 #define HCCL_CCU_ALG_TEMPLATE_BASE
 
 #include "common_alg_template_base.h"
+#include <set>
 
 
 namespace ops_hccl {
@@ -48,6 +49,9 @@ public:
     static HcclResult GetChannelBwCoeff(HcclComm comm, uint32_t rankId, const HcclChannelDesc& channelDesc, uint32_t& bwCoeff) ;
     static HcclResult RestoreChannelMap(const std::vector<HcclChannelDesc>& channelDescs,
                                  std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc) ;
+    static HcclResult RestoreChannelMap(HcclComm comm, u32 myRank,
+                                 const std::vector<HcclChannelDesc>& channelDescs,
+                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
 
     static HcclResult SelectChannelToVec(const HcclComm comm, const u32 myRankId, const u32 rmtRankId,
         const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc, const u32 dieId,
@@ -57,6 +61,14 @@ public:
     static HcclResult GetDieInfoFromChannelDescs(HcclComm comm,
         const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc,
         u32 myRankId, uint32_t &dieNum, uint32_t &dieId);
+    static HcclResult CalcDieSplitRatio(HcclComm comm, uint32_t myRank, bool is2Plus6,
+        const std::vector<HcclChannelDesc>& majorChs,
+        const std::vector<HcclChannelDesc>& minorChs, double& ratio);
+    static HcclResult SplitChannelsByDie(HcclComm comm, uint32_t myRank,
+        std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc,
+        std::map<uint32_t, std::vector<HcclChannelDesc>>& singleChByDie,
+        std::map<uint32_t, std::vector<HcclChannelDesc>>& multiChByDie,
+        bool& is2Plus6, std::set<u32>* closPeers = nullptr);
 
 protected:
     OpMode          opMode_             = OpMode::OPBASE;
