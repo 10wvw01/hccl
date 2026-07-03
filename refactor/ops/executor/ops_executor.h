@@ -13,7 +13,8 @@ public:
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 rankSizeForInputData, u32 &rankSizeForOutputData, u32 &subCommMask);
+    HcclResult CalcResRecursion(
+        AlgoExecDesc &algoExecDesc, u32 rankSizeForInputData, u32 &rankSizeForOutputData, u32 &subCommMask);
     HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, const AlgoExecDesc &algoExecDesc,
         u32 childrenRankSizeForInputData, float dataSplitRatio, u32 &childrenRankSizeForOutputData);
     HcclResult PrepareResForTemplate();
@@ -27,13 +28,14 @@ private:
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
-    inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
+    inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+        u32 childrenId, std::vector<float> childrenScratchMutiple,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
-    HcclResult RunTemplateDesc(
-        const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
+        AlgoExecDataDesc &algoExecDataDesc, float &scratchMutiple);
 
 protected:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
@@ -181,6 +183,7 @@ enum class TemplateDataSliceMode {
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
     u64 dataCount{0};
+    u64 scratchOffset{0};
     std::vector<u32> ranksForInputData;
     std::vector<u32> ranksForOutputData;
     TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
