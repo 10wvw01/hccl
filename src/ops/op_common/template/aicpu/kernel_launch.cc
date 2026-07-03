@@ -441,19 +441,17 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         
         // 检查是否cache miss
         std::string cacheTag = "";
-        bool isCacheMiss = true;
+        bool isCacheHit = false;
         if (enableCache) { // 如果使能aicpu task cache
-            // 如果cache miss, 使用aicpu task cache前确保AicpuTsThread中无SQE
-            if (isCacheMiss) {
-                // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
-                if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
-                    return 1;
-                }
-                if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
-                    return 1;
-                }
+            // 如果使能aicpu task cache, 使用cache前确保AicpuTsThread中无SQE
+            // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
+            if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
+                HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
+                return 1;
+            }
+            if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
+                HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
+                return 1;
             }
 
             // 组装aicpu task cache tag
@@ -461,12 +459,12 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
-                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheHit)));
             }
         }
-        HCCL_INFO("[HcclLaunchAicpuKernel] isCacheMiss[%d] for cacheTag[%s]", isCacheMiss, cacheTag.c_str());
+        HCCL_INFO("[HcclLaunchAicpuKernel] isCacheHit[%d] for cacheTag[%s]", isCacheHit, cacheTag.c_str());
 
-        if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
+        if (!enableCache || !isCacheHit) { // 如果不使能aicpu task cache, 或者cache miss
             // 执行算法编排
             if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
                 HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
@@ -476,7 +474,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         if (enableCache) { // 如果使能aicpu task cache
             // 如果cache miss, 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存
-            if (isCacheMiss) {
+            if (!isCacheHit) {
                 // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
                 if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
                     HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
@@ -499,7 +497,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
                 // 首次缓存记录通信域与tag关系
-                if (isCacheMiss) {
+                if (!isCacheHit) {
                     AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
                 }
             }

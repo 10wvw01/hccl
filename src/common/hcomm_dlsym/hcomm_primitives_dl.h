@@ -120,7 +120,7 @@ HcclResult HcclChannelNotifyWaitOnThreadDefault(ThreadHandle thread, ChannelHand
     uint32_t localNotifyIdx, uint32_t fallbackTimeout);
 HcclResult HcclChannelNotifyWaitDefault(ChannelHandle channel, uint32_t localNotifyIdx, uint32_t fallbackTimeout);
 
-DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
+DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isHit);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheLookup);
 DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheSubmit);

@@ -57,7 +57,7 @@ DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, Threa
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
     ChannelHandle channel, uint32_t localNotifyIdx);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitWithDefaultTimeout, ChannelHandle channel, uint32_t localNotifyIdx);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isHit);
 DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count);
 DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
 
