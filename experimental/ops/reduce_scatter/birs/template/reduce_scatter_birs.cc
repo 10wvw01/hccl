@@ -114,17 +114,17 @@ HcclResult ReduceScatterBIRS::Preprocess(const u32 rank, const u32 rankSize, std
 HcclResult ReduceScatterBIRS::HCCSProcessMainLoop(u32 round, const u32 rank, const u32 rankSize, u32 rankSizeX_, u64 sliceSize, u64 localStrideSize) 
 {
     if (round != 0) {
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_ACK)));
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
-            u64 localOffsetByte = hccs_ranks[round - 1] / rankSizeX_ * localStrideSize;
-            u64 remoteOffsetByte = ((rankSize / rankSizeX_) + rank / rankSizeX_) * localStrideSize;
-            void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
-            void* dst = static_cast<void *>(static_cast<u8 *>(hccs_links[round - 1].remoteOutput.addr) + remoteOffsetByte);
-            
-            HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, sliceSize);
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_ACK)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+        u64 localOffsetByte = hccs_ranks[round - 1] / rankSizeX_ * localStrideSize;
+        u64 remoteOffsetByte = ((rankSize / rankSizeX_) + rank / rankSizeX_) * localStrideSize;
+        void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
+        void* dst = static_cast<void *>(static_cast<u8 *>(hccs_links[round - 1].remoteOutput.addr) + remoteOffsetByte);
+        
+        HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, sliceSize);
 
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL)));
-            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
     }
     return HCCL_SUCCESS;
 }
@@ -170,14 +170,10 @@ HcclResult ReduceScatterBIRS::FinalStep(const u32 rank, const u32 rankSize, u32 
     }
     //Tree local reduce
     auto ind = rankSize / rankSizeX_;
-    for (u32 i = 1; i < ind; i+=2){
-        LocalReduceCCLToCCL(vec[i], vec[i - 1], sliceSize, mainThread);
-    }
-    for (size_t i = 2; i < ind; i+=4){
-        LocalReduceCCLToCCL(vec[i], vec[i - 2], sliceSize, mainThread);
-    }
-    for (size_t i = 4; i < ind; i+=8){
-        LocalReduceCCLToCCL(vec[i], vec[i - 4], sliceSize, mainThread);
+    for (u32 stride = 1; stride < ind; stride *= 2) {
+        for (u32 i = stride; i < ind; i += stride * 2) {
+            LocalReduceCCLToCCL(vec[i], vec[i - stride], sliceSize, mainThread);
+        }
     }
     //Local copy to output
     void* srcSlice = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + vec[0]);
@@ -223,6 +219,7 @@ HcclResult ReduceScatterBIRS::RunAsync(const u32 rank, const u32 rankSize, std::
     CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(mainThread, dstSlice, srcSlice, sliceSize)));
 
     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+    PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_);
     for (u32 round = 0; round < hccs_ranks.size() + 1; round++) {
         //MainRecordSub + SubWaitMain
         PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_);
