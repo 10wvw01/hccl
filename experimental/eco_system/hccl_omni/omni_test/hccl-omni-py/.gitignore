@@ -1,0 +1,9 @@
+.claude/
+.vscode/
+.tmp/
+.hccl_cache
+__pycache__
+build
+dist
+*.egg-info
+.venv

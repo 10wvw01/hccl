@@ -133,6 +133,7 @@ elseif(BUILD_OPEN_PROJECT)
     add_subdirectory(src)
     if(ENABLE_EXPERIMENTAL)
         add_subdirectory(experimental/ops/)
+        add_subdirectory(experimental/eco_system/)
     endif()
 
     # Device 侧编译构建
@@ -157,6 +158,7 @@ elseif(BUILD_OPEN_PROJECT)
                 -DENABLE_SIGN=${ENABLE_SIGN}
                 -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
                 -DVERSION_INFO=${VERSION_INFO}
+                -DENABLE_EXPERIMENTAL=$<IF:$<BOOL:${ENABLE_EXPERIMENTAL}>,ON,OFF>
             INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
             BUILD_ALWAYS TRUE
         )
@@ -167,12 +169,20 @@ elseif(BUILD_OPEN_PROJECT)
             DESTINATION ${INSTALL_AICPU_KERNEL_JSON_DIR}/kernel
             COMPONENT hccl
         )
+
+        add_dependencies(package hccl_device)
     endif()
 
     set(HCCL_HEAD
         include/hccl.h
         include/hccl_mc2.h
     )
+
+    if(ENABLE_EXPERIMENTAL)
+        list(APPEND HCCL_HEAD
+            ${CMAKE_CURRENT_SOURCE_DIR}/experimental/eco_system/op_common/inc/hccl.h
+        )
+    endif()
 
     set(HCCL_JSON
         # hccl json 待补充

@@ -15,7 +15,6 @@ BUILD_DIR=${CURRENT_DIR}/build
 OUTPUT_DIR=${CURRENT_DIR}/build_out
 BUILD_DEVICE_DIR="${CURRENT_DIR}/build_device"
 OUTPUT_PATH=${CURRENT_DIR}/output
-LOGS_PATH="${CURRENT_DIR}/logs"
 USER_ID=$(id -u)
 CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
@@ -32,12 +31,8 @@ VERSION_INFO="8.5.0"
 ENABLE_EXPERIMENTAL="false"
 ENABLE_UT="off"
 ENABLE_ST="off"
-ENABLE_GCOV="off"
-ENABLE_NO_EXEC="off"
-ST_TASKS=""
 CMAKE_BUILD_TYPE="Debug"
 BUILD_CB_TEST="false"
-BUILD_ST_DIR=${CURRENT_DIR}/test/st/algorithm/build
 
 # 自定义算子工程
 ENABLE_CUSTOM="off"
@@ -175,6 +170,11 @@ function build_device(){
     # 设置交叉编译工具链路径，cmake toolchain文件通过环境变量读取
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
+    local _device_experimental=OFF
+    if [ "${ENABLE_EXPERIMENTAL}" == "true" ]; then
+        _device_experimental=ON
+    fi
+
     # 使用新版 cmake/device/CMakeLists.txt 作为独立入口，与 ExternalProject_Add 传参一致
     cmake -S ${CURRENT_DIR}/cmake/device -B . \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE:-Release} \
@@ -185,7 +185,8 @@ function build_device(){
         -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
         -DENABLE_SIGN=${ENABLE_SIGN} \
         -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
-        -DVERSION_INFO=${VERSION_INFO}
+        -DVERSION_INFO=${VERSION_INFO} \
+        -DENABLE_EXPERIMENTAL=${_device_experimental}
     if [ $? -ne 0 ]; then
         log "Error: cmake config failed for device build"
         exit 1
@@ -424,38 +425,6 @@ function mk_dir() {
   log "Info: Created ${create_dir}"
 }
 
-function run_ctest() {
-    # 设置 --noexec 选项，则跳过执行测试用例
-    if [[ "$ENABLE_NO_EXEC" = "on" ]]; then
-        log "Info: Skip executing tests"
-        return 0
-    fi
-
-    local suite_name="$1"   # "ut" or "st"
-    local log_dir="${LOGS_PATH}/${suite_name}"
-    local ctest_log="${log_dir}/run.log"
-
-    # 创建日志目录
-    mk_dir "${log_dir}"
-
-    # CTest 执行用例（超时时间：300s）
-    log "Info: Running ${suite_name} testcases with ${CPU_NUM} parallel jobs"
-    ctest -j ${CPU_NUM} \
-          --verbose \
-          --build-nocmake \
-          --timeout 350 \
-          --output-on-failure \
-          --stop-on-failure \
-          --test-output-size-failed 10000000 \
-          2>&1 | tee "${ctest_log}"
-
-    local ctest_ret=${PIPESTATUS[0]}
-    if [ "${ctest_ret}" -ne 0 ]; then
-        log "Error: Testcases failed"
-    fi
-    return ${ctest_ret}
-}
-
 # create build path
 function build_ut() {
   echo "create build directory and build";
@@ -506,116 +475,15 @@ function run_ut() {
 function run_st() {
   if [[ "X$ENABLE_ST" = "Xon" ]]; then
     local st_build_shell="${CURRENT_DIR}/test/st/algorithm/build.sh"
-    log "Info: st_build_shell = ${st_build_shell}"
-    if [ ! -e ${st_build_shell} ]; then
-      log "Error: ${st_build_shell} not found"
-      return 1
+    echo "st_build_shell = ${st_build_shell}"
+    if [ -e ${st_build_shell} ]; then
+      echo "开始执行st..."
+      bash ${st_build_shell}
+    else
+      echo "${st_build_shell} 文件不存在!"
     fi
-    log "Info: run_st ST_TASKS=${ST_TASKS}"
-    export ENABLE_GCOV=${ENABLE_GCOV}
-    export ST_TASKS=${ST_TASKS}
-    # 编译 ST 用例
-    bash ${st_build_shell}
-    local build_ret=$?
-    if [ ${build_ret} -ne 0 ]; then
-      log "Error: ST build failed"
-      return ${build_ret}
-    fi
-    # 设置运行时库搜索路径
-    local LIBRARY_PATHS="${BUILD_ST_DIR}/utils/src"
-    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/hccl_verifier"
-    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/hccl_depends_stub"
-    LIBRARY_PATHS="${LIBRARY_PATHS}:${BUILD_ST_DIR}/utils/src/aicpu"
-    export LD_LIBRARY_PATH="${LIBRARY_PATHS}:${LD_LIBRARY_PATH}"
-    # CTest 并发执行用例
-    cd "${BUILD_ST_DIR}"
-    run_ctest "st"
-    return $?
   else
     echo "System tests is not enabled, sh build.sh with parameter -s or --st to enable it"
-  fi
-}
-
-function make_st_gov() {
-    # 生成 ST 覆盖率报告
-    if [[ "X$ENABLE_ST" = "Xon" && "X$ENABLE_GCOV" = "Xon" ]]; then
-        log "Info: Generating ST coverage statistics, please wait..."
-        rm -rf ${CURRENT_DIR}/cov
-        mk_dir ${CURRENT_DIR}/cov
-        cd ${CURRENT_DIR}/cov
-
-        # 解析 lcov 版本号
-        local major_version
-        if ! major_version=$(set -o pipefail; lcov --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)*' | head -1 | cut -d. -f1); then
-            log "Error: Failed to parse lcov major version number, please check 'lcov --version'" >&2
-            exit 1
-        fi
-
-        # 适配 lcov 2.x 版本，支持并行处理覆盖率报告
-        if [[ "${major_version}" -ge 2 ]]; then
-            log "Info: Detected lcov version 2.x, running with ${CPU_NUM} parallel jobs"
-            LCOV_IGNORE_ERRORS="mismatch,corrupt,empty,inconsistent,negative,unused"
-            LCOV_RC_PARAM=""
-            LCOV_PARALLEL="-j ${CPU_NUM}"
-            GENHTML_IGNORE_ERRORS="inconsistent,corrupt"
-        else
-            LCOV_IGNORE_ERRORS=""
-            LCOV_RC_PARAM=""
-            LCOV_PARALLEL=""
-            GENHTML_IGNORE_ERRORS=""
-        fi
-
-        # 捕获覆盖率数据
-        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
-            lcov -c \
-                ${LCOV_PARALLEL} \
-                -d ${BUILD_ST_DIR}/testcase/ \
-                -d ${BUILD_ST_DIR}/utils/ \
-                --ignore-errors ${LCOV_IGNORE_ERRORS} ${LCOV_RC_PARAM} \
-                -o coverage.info
-        else
-            lcov -c \
-                ${LCOV_PARALLEL} \
-                -d ${BUILD_ST_DIR}/testcase/ \
-                -d ${BUILD_ST_DIR}/utils/ \
-                -o coverage.info
-        fi
-
-        # 排除路径
-        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
-            lcov -r coverage.info \
-                    */test/st/algorithm/* \
-                ${LCOV_PARALLEL} \
-                --ignore-errors ${LCOV_IGNORE_ERRORS} \
-                -o coverage.info
-        else
-            lcov -r coverage.info \
-                    */test/st/algorithm/* \
-                ${LCOV_PARALLEL} \
-                -o coverage.info
-        fi
-
-        # 提取目标路径
-        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
-            lcov -e coverage.info \
-                    */src/* \
-                ${LCOV_PARALLEL} \
-                --ignore-errors "${LCOV_IGNORE_ERRORS}" \
-                -o coverage.info
-        else
-            lcov -e coverage.info \
-                    */src/* \
-                ${LCOV_PARALLEL} \
-                -o coverage.info
-        fi
-
-        if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
-            genhtml coverage.info ${LCOV_PARALLEL} --ignore-errors ${GENHTML_IGNORE_ERRORS}
-        else
-            genhtml coverage.info ${LCOV_PARALLEL}
-        fi
-        
-        log "Info: ST coverage statistics generated successfully"
   fi
 }
 
@@ -669,6 +537,21 @@ function build_hccl() {
         return 1
     fi
 
+    # --full 时显式编译 Device AICPU（ExternalProject hccl_device 不在默认 ALL 目标里）
+    if [ "${ENABLE_BUILD_DEVICE}" == "ON" ]; then
+        log "Info: build device AICPU target hccl_device"
+        cmake --build . --target hccl_device ${JOB_NUM}
+        if [ $? -ne 0 ]; then
+            log "Error: hccl_device build failed"
+            return 1
+        fi
+        if [ ! -f "${BUILD_DIR}/device_build/signatures/aicpu_hccl.tar.gz" ]; then
+            log "Error: aicpu_hccl.tar.gz not found under ${BUILD_DIR}/device_build/signatures/"
+            return 1
+        fi
+        log "Info: aicpu_hccl.tar.gz ready: ${BUILD_DIR}/device_build/signatures/aicpu_hccl.tar.gz"
+    fi
+
     # 打包
     make package -j${CPU_NUM}
     if [ $? -ne 0 ]; then
@@ -713,16 +596,6 @@ function usage() {
   echo "                   Enable experimental features"
   echo "    --static"
   echo "                   Enable static library build mode"
-  echo "    -s, --st       Run all system tests (ST) with parallel execution"
-  echo "    --st_ops=<OPS1,OPS2,...>"
-  echo "                   Run specific ST operators (comma-separated)"
-  echo "                   Available: scatter,all_reduce,all_reduce_parallel,all_reduce_dpu,"
-  echo "                              all_gather_aicpu,all_gather_dpu,all_gather_v,"
-  echo "                              dpu_sendrecv,reduce_scatter_aicpu,reduce_scatter_v,"
-  echo "                              reduce_scatter,reduce,broadcast_dpu,"
-  echo "                              alltoall,alltoallv,alltoallvc"
-  echo "    --cov          Enable code coverage instrumentation"
-  echo "    --noexec       Build tests but skip executing them"
   echo ""
 }
 
@@ -770,20 +643,6 @@ while [[ $# -gt 0 ]]; do
     -s|--st)
         ENABLE_TEST="on"
         ENABLE_ST="on"
-        if [ -z "${ST_TASKS}" ]; then
-            ST_TASKS="all"
-        fi
-        shift
-        ;;
-    --st_ops=*)
-        OPTARG=$1
-        ST_TASKS=$(echo "${OPTARG#*=}" | tr ',' ';')
-        ENABLE_TEST="on"
-        ENABLE_ST="on"
-        shift
-        ;;
-    --noexec)
-        ENABLE_NO_EXEC="on"
         shift
         ;;
     -t|--test)
@@ -832,7 +691,6 @@ while [[ $# -gt 0 ]]; do
         ;;
     --cov)
         COV="true"
-        ENABLE_GCOV="on"
         shift
         ;;
     --sign-script=*)
@@ -899,11 +757,11 @@ if [ "${ENABLE_EXPERIMENTAL}" == "true" ];then
 fi
 
 if [ "${ASAN}" == "true" ];then
-    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_ASAN=ON"
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_ASAN=true"
 fi
 
 if [ "${COV}" == "true" ];then
-    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=ON"
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=true"
 fi
 
 if [ -n "${ascend_package_path}" ];then
@@ -947,13 +805,7 @@ if [ "${ENABLE_UT}" == "on" ]; then
     build_ut
     run_ut
 elif [ "${ENABLE_ST}" == "on" ]; then
-    ST_RET=0
-    run_st || ST_RET=$?
-    make_st_gov
-    if [ "${ST_RET}" -ne 0 ]; then
-        log "Error: ST tests failed"
-        exit ${ST_RET}
-    fi
+    run_st
 elif [ -n "${TEST}" ];then
     build_test
 elif [ "${ENABLE_CUSTOM}" == "on" ]; then

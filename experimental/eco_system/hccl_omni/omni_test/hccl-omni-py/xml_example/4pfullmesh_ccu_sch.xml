@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+<root>
+  <NPU rankId="0">
+    <instruction opCode="ResRequest" slaveThreadNum="0" notifyNumOnMainThread="0" notifyNumPerThread="0" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="0" remoteRank="1" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="0" remoteRank="2" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="0" remoteRank="3" linkProto="UBC_CTP" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="1" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="2" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="3" />
+    </instruction>
+  </NPU>
+  <NPU rankId="1">
+    <instruction opCode="ResRequest" slaveThreadNum="0" notifyNumOnMainThread="0" notifyNumPerThread="0" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="1" remoteRank="0" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="1" remoteRank="2" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="1" remoteRank="3" linkProto="UBC_CTP" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="1" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="2"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="3"/>
+    </instruction>
+  </NPU>
+  <NPU rankId="2">
+    <instruction opCode="ResRequest" slaveThreadNum="0" notifyNumOnMainThread="0" notifyNumPerThread="0" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="2" remoteRank="0" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="2" remoteRank="1" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="2" remoteRank="3" linkProto="UBC_CTP" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="2"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="1"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="3"/>
+    </instruction>
+  </NPU>
+  <NPU rankId="3">
+    <instruction opCode="ResRequest" slaveThreadNum="0" notifyNumOnMainThread="0" notifyNumPerThread="0" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="3" remoteRank="0" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="3" remoteRank="1" linkProto="UBC_CTP" />
+      <channel netLayerId="0" localRank="3" remoteRank="2" linkProto="UBC_CTP" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="3"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="1"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="UBC_CTP" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="2"/>
+    </instruction>
+  </NPU>
+</root>

@@ -1,0 +1,167 @@
+<?xml version="1.0"?>
+<root>
+  <NPU rankId="0">
+    <instruction opCode="ResRequest" slaveThreadNum="3" notifyNumOnMainThread="3" notifyNumPerThread="1" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="0" remoteRank="1" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="0" remoteRank="2" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="0" remoteRank="3" linkProto="HCCS" />
+    </instruction>
+    <instruction opCode="PreSyncInterThreads" mainThreadIdx="0" subThreadNum="3">
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="1">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="1" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="2">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="2" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="3">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="0" />
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="3" />
+    </instruction>
+    <instruction opCode="PostSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" srcSliceNum="3" dstSliceNum="3" threadIdx="0" waitFlag="0">
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="0"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="0"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="0"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="0"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="0"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="0"/>
+    </instruction>
+  </NPU>
+  <NPU rankId="1">
+    <instruction opCode="ResRequest" slaveThreadNum="3" notifyNumOnMainThread="3" notifyNumPerThread="1" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="1" remoteRank="0" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="1" remoteRank="2" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="1" remoteRank="3" linkProto="HCCS" />
+    </instruction>
+    <instruction opCode="PreSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="1" />
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="1">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS"  threadIdx="2">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="2"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS"  threadIdx="3">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="3"/>
+    </instruction>
+    <instruction opCode="PostSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" srcSliceNum="3" dstSliceNum="3" threadIdx="0" waitFlag="0">
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="1"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="1"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="1"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="1"/>
+    </instruction>
+  </NPU>
+  <NPU rankId="2">
+    <instruction opCode="ResRequest" slaveThreadNum="3" notifyNumOnMainThread="3" notifyNumPerThread="1" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="2" remoteRank="0" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="2" remoteRank="1" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="2" remoteRank="3" linkProto="HCCS" />
+    </instruction>
+    <instruction opCode="PreSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="2"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="1">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS"  threadIdx="2">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="1"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS"  threadIdx="3">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="3"/>
+    </instruction>
+    <instruction opCode="PostSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" srcSliceNum="3" dstSliceNum="3" threadIdx="0" waitFlag="0">
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="2"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="2"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="2"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="2"/>
+    </instruction>
+  </NPU>
+  <NPU rankId="3">
+    <instruction opCode="ResRequest" slaveThreadNum="3" notifyNumOnMainThread="3" notifyNumPerThread="1" netLayerNum="1" chanCount="3">
+      <channel netLayerId="0" localRank="3" remoteRank="0" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="3" remoteRank="1" linkProto="HCCS" />
+      <channel netLayerId="0" localRank="3" remoteRank="2" linkProto="HCCS" />
+    </instruction>
+    <instruction opCode="PreSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4"  threadIdx="0">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="3" rankId="3"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="1">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="0"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="2">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="1"/>
+    </instruction>
+    <instruction opCode="SendRecvWrite" sliceNum="4" netLayerId="0" linkProto="HCCS" threadIdx="3">
+      <srcSlice bufferType="INPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="HCCL_BUFFER" sliceIdx="3" rankId="2"/>
+    </instruction>
+    <instruction opCode="PostSyncInterThreads" mainThreadIdx="0" subThreadNum="3" >
+      <subThread subThreadId="1" />
+      <subThread subThreadId="2" />
+      <subThread subThreadId="3" />
+    </instruction>
+    <instruction opCode="LocalCopy" sliceNum="4" srcSliceNum="3" dstSliceNum="3" threadIdx="0">
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="0" rankId="3"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="1" rankId="3"/>
+      <srcSlice bufferType="HCCL_BUFFER" sliceIdx="2" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="0" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="1" rankId="3"/>
+      <dstSlice bufferType="OUTPUT" sliceIdx="2" rankId="3"/>
+    </instruction>
+  </NPU>
+</root>

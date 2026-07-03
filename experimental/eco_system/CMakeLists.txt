@@ -1,0 +1,177 @@
+# -----------------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -------------------------
+
+# 添加这一行来启用PIC
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+
+if(NOT ENABLE_EXPERIMENTAL)
+    return()
+endif()
+
+set(ECO_SYSTEM_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+set(ECO_SYSTEM_ALG_PARAM_INC ${ECO_SYSTEM_ROOT}/op_common/inc)
+
+function(_eco_system_validate_sources sources)
+    foreach(_src IN LISTS sources)
+        get_filename_component(_abs_src "${_src}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+        file(TO_CMAKE_PATH "${_abs_src}" _abs_src)
+        file(TO_CMAKE_PATH "${ECO_SYSTEM_ROOT}" _eco_root)
+        if(NOT _abs_src MATCHES "^${_eco_root}/")
+            message(FATAL_ERROR "eco_system only compiles files under ${ECO_SYSTEM_ROOT}, rejected: ${_abs_src}")
+        endif()
+    endforeach()
+endfunction()
+
+function(_eco_system_setup_include_dirs target_name)
+    get_target_property(_hccl_includes hccl INCLUDE_DIRECTORIES)
+    if(NOT _hccl_includes)
+        set(_hccl_includes "")
+    endif()
+    target_include_directories(${target_name} PRIVATE
+        ${ECO_SYSTEM_ALG_PARAM_INC}
+        ${ECO_SYSTEM_ROOT}
+        ${ECO_SYSTEM_ROOT}/op_common
+        ${ECO_SYSTEM_ROOT}/op_common/inc
+        ${ECO_SYSTEM_ROOT}/hccl_omni
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/ccu
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/ccu/kernel
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/aiv
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/aiv/kernel
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/aicpu
+        ${ECO_SYSTEM_ROOT}/hccl_omni/executor
+        ${ECO_SYSTEM_ROOT}/hccl_omni/selector
+        ${ECO_SYSTEM_ROOT}/hccl_omni/op_graph
+        ${_hccl_includes}
+    )
+endfunction()
+
+# 仅编译 eco_system 目录下的源文件，链入 hccl
+function(eco_system_add_sources)
+    cmake_parse_arguments(ARG "" "" "SOURCES" ${ARGN})
+    if(NOT ARG_SOURCES)
+        message(FATAL_ERROR "eco_system_add_sources: SOURCES is empty")
+    endif()
+    if(NOT TARGET hccl)
+        message(WARNING "eco_system: hccl target not found, skip linking ${ARG_SOURCES}")
+        return()
+    endif()
+
+    _eco_system_validate_sources("${ARG_SOURCES}")
+
+    string(REPLACE "/" "_" _dir_tag "${CMAKE_CURRENT_LIST_DIR}")
+    string(REPLACE "\\" "_" _dir_tag "${_dir_tag}")
+    string(REGEX REPLACE "^.*eco_system_" "eco_" _dir_tag "${_dir_tag}")
+    set(_lib_name "hccl_${_dir_tag}")
+
+    add_library(${_lib_name} OBJECT ${ARG_SOURCES})
+
+    get_target_property(_hccl_defs hccl COMPILE_DEFINITIONS)
+    if(NOT _hccl_defs)
+        set(_hccl_defs "")
+    endif()
+
+    _eco_system_setup_include_dirs(${_lib_name})
+    target_compile_definitions(${_lib_name} PRIVATE ${_hccl_defs} ENABLE_EXPERIMENTAL)
+
+    target_sources(hccl PRIVATE $<TARGET_OBJECTS:${_lib_name}>)
+    message(STATUS "eco_system: linked ${_lib_name} into hccl (${ARG_SOURCES})")
+endfunction()
+
+# 仅编译 eco_system 目录下的源文件，链入 opgraph_hccl
+function(eco_system_add_opgraph_sources)
+    cmake_parse_arguments(ARG "" "" "SOURCES" ${ARGN})
+    if(NOT ARG_SOURCES)
+        message(FATAL_ERROR "eco_system_add_opgraph_sources: SOURCES is empty")
+    endif()
+    if(NOT TARGET opgraph_hccl)
+        return()
+    endif()
+
+    _eco_system_validate_sources("${ARG_SOURCES}")
+
+    string(REPLACE "/" "_" _dir_tag "${CMAKE_CURRENT_LIST_DIR}")
+    string(REPLACE "\\" "_" _dir_tag "${_dir_tag}")
+    string(REGEX REPLACE "^.*eco_system_" "eco_opgraph_" _dir_tag "${_dir_tag}")
+    set(_lib_name "hccl_${_dir_tag}")
+
+    add_library(${_lib_name} OBJECT ${ARG_SOURCES})
+
+    get_target_property(_opgraph_defs opgraph_hccl COMPILE_DEFINITIONS)
+    get_target_property(_opgraph_includes opgraph_hccl INCLUDE_DIRECTORIES)
+    if(NOT _opgraph_defs)
+        set(_opgraph_defs "")
+    endif()
+    if(NOT _opgraph_includes)
+        set(_opgraph_includes "")
+    endif()
+
+    _eco_system_setup_include_dirs(${_lib_name})
+    target_include_directories(${_lib_name} PRIVATE ${_opgraph_includes})
+    target_compile_definitions(${_lib_name} PRIVATE ${_opgraph_defs} ENABLE_EXPERIMENTAL)
+
+    target_link_libraries(opgraph_hccl PRIVATE $<TARGET_OBJECTS:${_lib_name}>)
+endfunction()
+
+# alg_param.h 在 op_common/inc/，其 #include "omni_parser.h" 在 op_common/ 下，
+# 覆盖 alg_param.h 时必须同时把 op_common 目录加入 include 路径。
+function(_eco_system_override_alg_param_include)
+    set(_eco_alg_param_targets
+        hccl
+        opgraph_hccl
+        scatter_aicpu_kernel
+        hccl_kernel_compat
+        hccl_compat
+    )
+    foreach(_target IN LISTS _eco_alg_param_targets)
+        if(TARGET ${_target})
+            target_include_directories(${_target} BEFORE PRIVATE
+                ${ECO_SYSTEM_ALG_PARAM_INC}
+                ${ECO_SYSTEM_ROOT}/op_common
+            )
+            message(STATUS "eco_system: ${_target} uses alg_param.h from ${ECO_SYSTEM_ALG_PARAM_INC}")
+        endif()
+    endforeach()
+endfunction()
+
+message(STATUS "eco_system: compile sources under ${ECO_SYSTEM_ROOT} only")
+
+add_subdirectory(hccl_omni)
+add_subdirectory(op_common)
+
+function(_eco_system_add_aicpu_kernel_sources)
+    if(NOT TARGET scatter_aicpu_kernel)
+        return()
+    endif()
+
+    set(_omni_aicpu_sources
+        ${ECO_SYSTEM_ROOT}/hccl_omni/executor/omni_sole_aicpu_executor.cc
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/aicpu/omni_temp_aicpu.cc
+    )
+    _eco_system_validate_sources("${_omni_aicpu_sources}")
+
+    target_include_directories(scatter_aicpu_kernel PRIVATE
+        ${ECO_SYSTEM_ALG_PARAM_INC}
+        ${ECO_SYSTEM_ROOT}
+        ${ECO_SYSTEM_ROOT}/op_common
+        ${ECO_SYSTEM_ROOT}/op_common/inc
+        ${ECO_SYSTEM_ROOT}/hccl_omni
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template
+        ${ECO_SYSTEM_ROOT}/hccl_omni/template/aicpu
+        ${ECO_SYSTEM_ROOT}/hccl_omni/executor
+    )
+    target_compile_definitions(scatter_aicpu_kernel PRIVATE ENABLE_EXPERIMENTAL)
+    target_sources(scatter_aicpu_kernel PRIVATE ${_omni_aicpu_sources})
+    message(STATUS "eco_system: scatter_aicpu_kernel includes omni aicpu sources")
+endfunction()
+
+_eco_system_override_alg_param_include()
+_eco_system_add_aicpu_kernel_sources()
