@@ -11,6 +11,7 @@
 #include "aicpu_task_cache_policy.h"
 #include "alg_env_config.h"
 #include "log.h"
+#include "aicpu_task_cache_utils.h"
 
 namespace ops_hccl {
 
@@ -69,13 +70,10 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &i
     const TopoInfoWithNetLayerDetails &topoInfo)
 {
     // 准备input/output size
-    HcclDataType sendType = HcclDataType::HCCL_DATA_TYPE_RESERVED;
-    HcclDataType recvType = HcclDataType::HCCL_DATA_TYPE_RESERVED;
     uint64_t inputSize = 0;
     uint64_t outputSize = 0;
-    CHK_RET(ParseOpParamForCache(param, sendType, recvType, inputSize, outputSize, topoInfo));
-    UNUSED_PARAM(sendType);
-    UNUSED_PARAM(recvType);
+
+    CHK_RET(AicpuTaskCacheUtils::GetInputOutputInfoForCache(param, topoInfo.userRankSize, inputSize, outputSize));
 
     // 注意: A3下alltoall/alltoallv/alltoallvc可能存在inputSize/outputSize为0的情况, 导致不分配user input/output
     //     但会使用tinySendRecvMem_更新algResource.paramInput/OutputMem用于建链, 导致cache无法区分给定地址字段的地址类型
@@ -101,8 +99,13 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &i
     const uint64_t outputStart = reinterpret_cast<uint64_t>(param.outputPtr);
     const uint64_t outputEnd = outputStart + outputSize - 1;
 
-    // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按照outplace场景特殊处理, 正常使能cache
-    if (inputStart == outputStart && inputEnd == outputEnd && param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
+    // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按(照outplace场景特殊处理, 正常使能cache
+    if (param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
+        CHK_PRT_RET(!(inputStart == outputStart && inputSize == outputSize),
+            HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] broadcast shoud input==output[0x%016llx, 0x%016llx] "
+                      "inputSize==outputSize[%u,%u]",
+                inputStart, outputStart, inputSize, outputSize),
+            HCCL_E_PARA);
         isInplace = false;
         HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] input==output[0x%016llx, 0x%016llx] for opType[%d] -> isInplace[%d]",
             inputStart, inputEnd, param.opType, isInplace);
@@ -119,48 +122,6 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &i
         HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] input[0x%016llx, 0x%016llx] is not overlapping with "
                   "output[0x%016llx, 0x%016llx] -> isInplace[%d]",
             inputStart, inputEnd, outputStart, outputEnd, isInplace);
-    }
-
-    return HCCL_SUCCESS;
-}
-
-HcclResult AicpuTaskCachePolicy::ParseOpParamForCache(const OpParam &param, HcclDataType &sendType, HcclDataType &recvType,
-    uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails &topoInfo)
-{
-    // 注意: 由于ParseOpParamForCache前已经做过IsAicpuTaskCacheEnable检查, 这里不再做重复检验
-
-    const HcclCMDType opType = param.opType;
-    const uint32_t rankSize = topoInfo.userRankSize;
-
-    // 准备data type和count
-    // NOTE: 非V类算子 (DataRes), V类算子 (VDataDes), All2All类算子 (All2AllDataDes), batch类算子
-    // (BatchSendRecvDataDes/BatchWriteDataDes)
-    if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) { // alltoall算子
-        // 注意: sendType和recvType一定相同
-        sendType = param.all2AllDataDes.sendType;
-        recvType = param.all2AllDataDes.recvType;
-
-        // 注意: 对于alltoall算子, inputSize和outputSize一定相同 (但不能直接使用param.input/outputSize,
-        // alltoall算子不会设置这两个字段)
-        const uint64_t sendCount = *(reinterpret_cast<const uint64_t*>(param.all2AllVDataDes.sendCounts));
-        inputSize = sendCount * rankSize * SIZE_TABLE[sendType];
-
-        // 注意: 不能使用param.All2AllDataDes.recvCount * rankSize * SIZE_TABLE[recvType],
-        // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
-        outputSize = inputSize;
-                                
-        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
-            "inputSize[%llu] outputSize[%llu] sendCount[%llu] dataTypeSize[%u]",
-            opType, rankSize, sendType, recvType, inputSize, outputSize, sendCount, SIZE_TABLE[sendType]);
-    } else {
-        sendType = param.DataDes.dataType;
-        recvType = param.DataDes.dataType;
-        inputSize = param.inputSize;
-        outputSize = param.outputSize;
-
-        HCCL_DEBUG("[AicpuTaskCachePolicy][ParseOpParamForCache] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
-            "inputSize[%llu] outputSize[%llu]",
-            opType, rankSize, sendType, recvType, inputSize, outputSize);
     }
 
     return HCCL_SUCCESS;

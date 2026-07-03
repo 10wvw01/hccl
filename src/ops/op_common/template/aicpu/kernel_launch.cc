@@ -32,6 +32,7 @@
 #include "alg_data_trans_wrapper.h"
 #include "aicpu_task_cache_key.h"
 #include "aicpu_task_cache_comm_manager.h"
+#include "aicpu_task_cache_utils.h"
 #include "ins_send_executor.h"
 #include "ins_recv_executor.h"
 
@@ -493,7 +494,11 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 // 准备地址信息 (当前rank的userIn和userOut)
                 constexpr uint32_t ADDRS_COUNT = 2;
                 void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
-                uint64_t sizes[ADDRS_COUNT] = {param->inputSize, param->outputSize};
+                uint64_t inputSize = 0;
+                uint64_t outputSize = 0;
+                CHK_RET(static_cast<HcclResult>(AicpuTaskCacheUtils::GetInputOutputInfoForCache(
+                    *param, resCtxPtr->topoInfo.userRankSize, inputSize, outputSize)));
+                uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
 
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
                 // 首次缓存记录通信域与tag关系
