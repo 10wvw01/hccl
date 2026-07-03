@@ -104,6 +104,8 @@ HcclResult CalAllLevelEndpointAttrBwCoeff(
 
 HcclResult IsLevel0PcieMix(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo);
 
+HcclResult IsIntraServerSecondLayerClos(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo);
+
 template<typename T>
 bool is_uniform(const std::vector<T>& vec);
 }

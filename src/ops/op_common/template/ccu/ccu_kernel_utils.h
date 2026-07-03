@@ -36,6 +36,9 @@ uint32_t    GetReduceExpansionNum(HcclReduceOp reduceOp, HcclDataType dataType, 
 std::string GetReduceTypeStr(HcclDataType dataType, HcclReduceOp opType);
 
 uint64_t DataTypeSizeGet(HcclDataType type);
+uint64_t GetLoopIterNum(uint64_t iterNum);
+uint64_t GetLoopGsaOffset(uint64_t gsaOffset);
+uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t totalLoopNum);
 
 }
 #endif // HCCL_CCU_KERNEL_UTILS_H_

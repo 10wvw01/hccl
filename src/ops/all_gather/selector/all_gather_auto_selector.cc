@@ -24,6 +24,7 @@ constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 OMNI_UBX_AG_DATA_SIZE = 16 * 1024 * 1024;
+constexpr u64 SMALL_COUNT_16M = 16 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
@@ -57,10 +58,17 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
             selectAlgName = "CcuAllGatherMesh2Die";
             return SelectorStatus::MATCH;
-         } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
+        } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
-        } else {
+        } 
+#ifdef Ascend_950_CCU_V2
+        else if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
+            selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
+            return SelectorStatus::MATCH;
+        }
+#endif
+        else {
             selectAlgName = "CcuAllGatherMesh1D";
             return SelectorStatus::MATCH;
         }
@@ -105,7 +113,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
     if (dataSize > SMALL_COUNT_512KB) {
         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
+            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMemUBX";
         } else if (isClosNumMultipleOfMeshNum) {
             if (dataSize < OMNI_UBX_AG_DATA_SIZE) {
                 selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
@@ -132,7 +140,14 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
         HCCL_DEBUG("[AllGatherAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
         return SelectorStatus::NOT_MATCH;
     } else {
-        selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+#ifdef Ascend_950_CCU_V2
+        if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
+            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
+        } else
+#endif
+        {
+            selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+        }
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
@@ -307,7 +322,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             HCCL_ERROR("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
             if (isMeshNumEqualToClosNum && topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO) {
                 if (dataSize > SMALL_COUNT_512KB) {
-                    selectAlgName = "InsAllGatherConcurrentMesh1DNHR";
+                    selectAlgName = "InsAllGatherConcurrentMesh1DNHRUBX";
                 } else {
                     selectAlgName = "InsAllGatherMesh1D";
                 }

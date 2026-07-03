@@ -14,6 +14,7 @@
 
 #ifndef AICPU_COMPILE
 #include "ccu/ccu_temp_all_to_all_mesh1d_multi_jetty.h"
+#include "ccu_temp_all_to_all_mesh_1D.h"
 #endif
 
 namespace ops_hccl {
@@ -24,6 +25,9 @@ constexpr uint32_t CONST_1 = 1;
 constexpr uint32_t CONST_2 = 2;
 constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
+constexpr u32 CLOS_PORT_NUM_SERVER_V2 = 8;
+ 
+static bool isUBX = false;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllToAllConcurrentExecutor()
@@ -72,7 +76,11 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         HCCL_ERROR("[InsV2AllToAllConcurrentExecutor[%s] toposize = %u", __FUNCTION__, algHierarchyInfo.infos[0].size());
         return HCCL_E_PARA;
     }
-
+    //判断是否为UBX组网
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        isUBX = true;
+    }
+ 
     // 获取子通信域
     std::vector<std::vector<u32>> subCommRanks0 = {algHierarchyInfo.infos[0][0]};
     std::vector<std::vector<u32>> subCommRanks1 = {algHierarchyInfo.infos[0][1]};
@@ -239,7 +247,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
 
     // 按topo切分数据：0为topo 0，1为topo 1
     uint32_t factorMesh = rankSize_ - 1;
-    uint32_t factorClos = CONST_4;                // 端口数获取
+    uint32_t factorClos = isUBX ? CONST_4 : CLOS_PORT_NUM_SERVER_V2;       // 端口数获取
     uint32_t factor = factorMesh + factorClos;
     for (u64 i = 0; i < rankSize_; i++) {
         uint64_t sendQuotient = sendCounts_[i] / factor;
@@ -425,8 +433,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     tempAlgParams.tailSize = tempAlgParams.sliceSize;
     // 这里的stride当成传统意义上的sreide 间隔
     tempAlgParams.inputSliceStride = 0; // 变长算子不涉及,这里是每一块数据的大小，这个值被sendCounts代替了
-    tempAlgParams.outputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
-
+    tempAlgParams.outputSliceStride = isUBX ? maxDataCountPerLoop * dataTypeSize_ : sendCounts_[0] * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
+ 
+    HCCL_INFO("tempAlgParams.count[%llu]",tempAlgParams.count);
     for (u64 i = 0; i < rankSize_; i++) {
         if (splitData.sendCounts[i] > processedDataCount) {
             tempAlgParams.sendCounts[i] = std::min(currDataCount, splitData.sendCounts[i] - processedDataCount);
@@ -452,8 +461,8 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     HCCL_INFO("[InsV2AllToAllConcurrentExecutor] loop = %u, tempAlgParams.buffInfo.inBuffBaseOff = %u,"
         "tempAlgParams.buffInfo.outBuffBaseOff = %u, tempAlgParams.inputSliceStride = %u,"
         "tempAlgParams.outputSliceStride = %u, tempAlgParams.sliceSize = %u",
-        loop, tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride, tempAlgParams.sliceSize,
-        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff);
+        loop, tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff,
+        tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride, tempAlgParams.sliceSize);
 
     // 不需要重复
     tempAlgParams.repeatNum = 1;
@@ -551,7 +560,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
 // 第1个模板走mesh拓扑
 // 第2个模板走clos拓扑
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
-                                InsAllToAllMesh1DConcurrent,
+                                InsAllToAllMesh1DConcurrentUBX,
                                 InsV2AllToAllConcurrentExecutor,
                                 TopoMatchUBX,
                                 InsTempAlltoAllVMesh1D,
@@ -565,11 +574,17 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALLV,
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
-                                CcuAllToAllMesh1DConcurrent,
+                                CcuAllToAllMesh1DConcurrentUBX,
                                 InsV2AllToAllConcurrentExecutor,
                                 TopoMatchUBX,
                                 CcuTempAllToAllMesh1dMultiJetty,
                                 CcuTempAllToAllMesh1dMultiJetty);
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
+                                CcuAlltoAllConcurrentMesh1D,
+                                InsV2AllToAllConcurrentExecutor,
+                                TopoMatchConcurrent,
+                                CcuTempAlltoAllMesh1D,
+                                CcuTempAlltoAllMesh1D);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
