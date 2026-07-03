@@ -19,6 +19,8 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter_birs_executor.cc
 )
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()
