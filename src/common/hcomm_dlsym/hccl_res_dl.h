@@ -13,10 +13,10 @@
 
 #include "dlsym_common.h"
 #include "hccl_res.h"
-#include "hcomm_res_defs.h"
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_res_expt.h"
+#include "hcomm_res_defs.h"
 #endif
 
 /* 8.5.0 桩: hccl_res.h / hcomm_res_defs.h / hccl_res_expt.h 中 9.0.0 新增类型 */
