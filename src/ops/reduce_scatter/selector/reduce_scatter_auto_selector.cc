@@ -27,6 +27,8 @@ constexpr u64 RS_CCU_64P_SEQ_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 RS_CCU_8P_MIN_DATA_SIZE = 64 * 1024 * 1024;
 constexpr u64 RS_AICPU_SEQUENCE_SIZE_THRESHOLD = 4ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_RS_DATA_SIZE = 4 * 1024 * 1024;
+constexpr u64 OMNI_UBX_RS_SCHED_DATA_SIZE = 4 * 1024 * 1024;
+constexpr u64 OMNI_UBX_RS_MS_DATA_SIZE = 2 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
@@ -105,8 +107,10 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
                 selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
             }
         } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
-            HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
-            return SelectorStatus::NOT_MATCH;
+            if (dataSize < OMNI_UBX_RS_MS_DATA_SIZE) {
+                HCCL_WARNING("[%s] MESH_1D_CLOS not match.", __func__);
+                return SelectorStatus::NOT_MATCH;
+            } else { selectAlgName = "CcuV2ReduceScatterOmniPipeMs"; }
         } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_REDUCE_MS_ALGO) {
             selectAlgName = "CcuReduceScatterMesh1D";
         } else {
@@ -114,8 +118,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             return SelectorStatus::NOT_MATCH;       
         }
     } else {
-        HCCL_WARNING("[ReduceScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
-                topoInfo->level0Topo);
+        HCCL_WARNING("[ReduceScatterAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.", topoInfo->level0Topo);
         return SelectorStatus::NOT_MATCH;
     }
     HCCL_INFO("[ReduceScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
@@ -276,7 +279,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoIn
             }
         } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
             // 矩形场景大数据量，用2d并行算法
-            selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
+            if (dataSize < OMNI_UBX_RS_SCHED_DATA_SIZE) {
+                selectAlgName = "CcuReduceScatterParallelMesh1DNHRMultiJetty";
+            } else {
+                selectAlgName = "CcuV2ReduceScatterOmniPipe";
+            }
         } else {
             // 其他场景，用1d NHR算法
             selectAlgName = "CcuReduceScatterNhr1DMem2MemMultiJetty";

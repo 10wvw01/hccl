@@ -28,6 +28,8 @@ constexpr u64 AR_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_CCU_CLOS_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_AR_DATA_SIZE = 32 * 1024 * 1024;
+constexpr u64 OMNI_UBX_AR_SCHED_DATA_SIZE = 64 * 1024 * 1024;
+constexpr u64 OMNI_UBX_AR_MS_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AIV_SMALL_DATA_SIZE_IN_BOARD = 128 * 1024;
 constexpr u64 AR_AIV_BOARD_SIZE = 8;
 constexpr u32 TOPO_LEVEL_NUM_2 = 2;
@@ -89,8 +91,12 @@ SelectorStatus AllReduceAutoSelector::SelectMeshUBXAlgo(const TopoInfoWithNetLay
             selectAlgName = "CcuAllReduceConcurrentMs";
         }
     } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
-        HCCL_DEBUG("[AllReduceAutoSelector][%s] MESH_1D_CLOS not match.", __func__);
-        return SelectorStatus::NOT_MATCH;
+        if (dataSize < OMNI_UBX_AR_MS_DATA_SIZE) {
+            HCCL_DEBUG("[AllReduceAutoSelector][%s] MESH_1D_CLOS not match.", __func__);
+            return SelectorStatus::NOT_MATCH;
+        } else {
+            selectAlgName = "CcuV2AllReduceOmniPipe2DMs";
+        }
     } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_REDUCE_MS_ALGO) {
         // 跨4p回退
         selectAlgName = "CcuAllReduceMesh1D";
@@ -237,7 +243,11 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0UBXAlgo(const TopoI
         }
     } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
         // 矩形场景大数据量，用Parallel并行算法
-        selectAlgName = "CcuAllReduceParallelNHR1DMutiJetty";
+        if (dataSize < OMNI_UBX_AR_SCHED_DATA_SIZE) {
+            selectAlgName = "CcuAllReduceParallelNHR1DMutiJetty";
+        } else {
+            selectAlgName = "CcuV2AllReduceOmniPipe2D";
+        }
     } else {
         // 其他场景，用1d NHR算法
         selectAlgName = "CcuAllReduceNHR1DMem2MemMultiJetty";
