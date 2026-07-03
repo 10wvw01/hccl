@@ -168,4 +168,12 @@ HcclResult CcuTempBroadcastMesh1D::KernelRun(const OpParam& param,
 
     return HCCL_SUCCESS;
 }
+
+HcclResult CcuTempBroadcastMesh1D::GetRes(AlgResourceRequest& resourceRequest) const
+{
+    resourceRequest.slaveThreadNum = 0;
+    resourceRequest.notifyNumOnMainThread = 0;
+ 
+    return HCCL_SUCCESS;
+}
 } // namespace ops_hccl

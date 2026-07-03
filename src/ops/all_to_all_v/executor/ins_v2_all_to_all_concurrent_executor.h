@@ -15,6 +15,7 @@
 #include "topo_match_base.h"
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
+#include "topo_match_concurrent.h"
 
 namespace ops_hccl {
 using namespace std;
