@@ -36,6 +36,13 @@ typedef struct {
     uint64_t size;
 } CommMem;
 
+typedef struct {
+    uint32_t version;
+    uint32_t magicWord;
+    uint32_t size;
+    uint32_t reserved;
+} CommAbiHeader;
+
 #define COMM_PROTOCOL_UBC_CTP ((CommProtocol)4)
 #define COMM_PROTOCOL_UBC_TP  ((CommProtocol)5)
 #define COMM_PROTOCOL_UB_MEM  ((CommProtocol)6)

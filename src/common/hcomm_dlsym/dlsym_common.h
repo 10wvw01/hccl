@@ -43,8 +43,8 @@ typedef enum {
 typedef uint64_t ThreadHandle;
 #endif
 
-#ifndef HCCL_GROUP_FEATURE_SUPPORT
-#include "hcomm_res_defs.h"
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+#include "hccl_res_dl.h"
 
 const uint32_t P2P_MAX_ARG_SIZE = 8192U;
 typedef struct {
