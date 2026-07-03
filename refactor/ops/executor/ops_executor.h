@@ -170,11 +170,18 @@ union DataDesUnion {
     } batchSendRecvDataDes;
 };
 
+enum class TemplateDataSliceMode {
+    NORMAL_FIXED,
+    VARIABLE_COUNT,
+};
+
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
     u64 dataCount{0};
     std::vector<u32> ranksForInputData;
     std::vector<u32> ranksForOutputData;
+    TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
+    std::vector<u64> rankSliceCounts;
     BufferType inputBufferType{BufferType::INPUT};
     BufferType outputBufferType{BufferType::OUTPUT};
     BufferType cclBufferType{BufferType::HCCL_BUFFER};
@@ -201,6 +208,9 @@ struct TemplateDataParam {
     bool enableRemoteMemAccess{false};
 
     std::vector<u32> ranksForInputData;
+    TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
+    // Per-rank element counts in ranks/algRank order. Empty for fixed-count mode.
+    std::vector<u64> rankSliceCounts;
 
     // TODO：变长
 };
