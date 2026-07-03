@@ -11,7 +11,7 @@
 ## 目录结构
 
 ```text
-├── CMakeLists.txt                      # 原自定义算子包构建配置文件，本直接编译样例不依赖
+├── CMakeLists.txt                      # CMake 直接编译样例配置文件
 ├── op_host/
 │   ├── allgather.cc                    # HcclAllGatherCustom 算子实现源文件
 │   ├── utils.cc                        # 工具模块（通道获取、线程获取、Kernel注册）
@@ -27,10 +27,8 @@
 │   └── log.h                           # 日志宏定义
 └── testcase/
     ├── main.cc                         # 样例实现源文件
-    └── Makefile                        # 编译/构建配置文件
+    └── Makefile                        # 旧版 Makefile 编译配置文件
 ```
-
-> 本目录从 `ccu` 样例复制而来，保留了原 CMake 文件便于对照；直接编译流程只使用 `testcase/Makefile`。
 
 ## 一、环境准备
 
@@ -59,21 +57,22 @@ source /usr/local/Ascend/cann/set_env.sh
 
 ### 1. 编译样例
 
-在 `examples/05_custom_ops_allgather/ccu_direct/testcase` 代码目录下执行如下命令：
+在 `examples/05_custom_ops_allgather/ccu_direct` 代码目录下执行如下命令：
 
 ```bash
 # 编译样例
-make
+cmake -S . -B build
+cmake --build build -j
 ```
 
-`Makefile` 会直接编译以下源文件并链接生成 `custom_allgather_ccu`：
+`CMakeLists.txt` 会直接编译以下源文件并链接生成 `custom_allgather_ccu`：
 
 ```text
-main.cc
-../op_host/allgather.cc
-../op_host/utils.cc
-../op_kernel_ccu/exec_op.cc
-../op_kernel_ccu/ccu_kernel.cc
+testcase/main.cc
+op_host/allgather.cc
+op_host/utils.cc
+op_kernel_ccu/exec_op.cc
+op_kernel_ccu/ccu_kernel.cc
 ```
 
 链接依赖来自 CANN/HCCL 环境：
@@ -87,14 +86,14 @@ acl_rt
 
 ### 2. 执行样例
 
-在 `examples/05_custom_ops_allgather/ccu_direct/testcase` 代码目录下执行如下命令：
+在 `examples/05_custom_ops_allgather/ccu_direct` 代码目录下执行如下命令：
  	 
 ```bash
 # 运行样例
-make test
+cmake --build build --target run_custom_allgather_ccu
 
 # 或直接执行样例二进制
-./custom_allgather_ccu
+./build/custom_allgather_ccu
 ```
 
 ### 3. 样例结果示例

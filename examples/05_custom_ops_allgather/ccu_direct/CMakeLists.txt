@@ -9,7 +9,8 @@
 # -----------------------------------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16.0)
-project(hccl_examples_custom_ops_allgather_ccu_direct LANGUAGES CXX)
+find_package(ASC REQUIRED)
+project(hccl_examples_custom_ops_allgather_ccu_direct LANGUAGES CXX ASC)
 
 if(NOT DEFINED ASCEND_CANN_PACKAGE_PATH)
     if(DEFINED ENV{ASCEND_HOME_PATH})
@@ -22,7 +23,7 @@ if(NOT DEFINED ASCEND_CANN_PACKAGE_PATH)
 endif()
 
 add_executable(custom_allgather_ccu
-    testcase/main.cc
+    testcase/main.asc
     op_host/allgather.cc
     op_host/utils.cc
     op_kernel_ccu/exec_op.cc
@@ -48,8 +49,13 @@ target_compile_options(custom_allgather_ccu PRIVATE
     -fstack-protector-strong
     -fPIE
     -O2
-    -s
+    # -s
 )
+set(CMAKE_ASC_ARCHITECTURES "dav-3510" CACHE STRING "CMAKE_ASC_ARCHITECTURES, e.g. dav-3510")
+target_compile_options(custom_allgather_ccu PRIVATE
+    $<$<COMPILE_LANGUAGE:ASC>:--npu-arch=${CMAKE_ASC_ARCHITECTURES}>
+)
+
 target_compile_definitions(custom_allgather_ccu PRIVATE
     HOST_COMPILE
     _GLIBCXX_USE_CXX11_ABI=0
@@ -69,4 +75,10 @@ target_link_libraries(custom_allgather_ccu PRIVATE
     c_sec
     ascendcl
     acl_rt
+)
+
+add_custom_target(run_custom_allgather_ccu
+    COMMAND custom_allgather_ccu
+    DEPENDS custom_allgather_ccu
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
