@@ -27,26 +27,21 @@ HcclResult TopoMatchUBX::TopoForLayer0(const HcclComm comm, uint32_t &layer0Size
     uint32_t *topoInsts;
     uint32_t topoInstNum = 0;
     CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 0, &topoInsts, &topoInstNum));
-    if (topoInstNum == NET_INST_NUM_1) {
-        // mesh1d
+    if (topoInstNum == NET_INST_NUM_1) { // mesh1d
         HCCL_INFO("[CollAlgFactory] [TopoMatchUBX] layer0 topoInstNum [%d], Mesh 1D.", topoInstNum);
         uint32_t* ranks;
         uint32_t rankNum;
         CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 0, topoInsts[0], &ranks, &rankNum));
         HCCL_DEBUG("[CollAlgFactory] [TopoMatchUBX] Rank [%d], all [%u] ranks in this pod: [%s]",
-            myRank,
-            rankNum,
-            PrintCArray<uint32_t>(ranks, rankNum).c_str());
+            myRank, rankNum, PrintCArray<uint32_t>(ranks, rankNum).c_str());
         std::vector<uint32_t> rankVecLayer0(ranks, ranks + rankNum);
         algHierarchyInfo.infos[0].push_back({rankVecLayer0});
         layer0Size = rankVecLayer0.size();
     } else if (topoInstNum == 0) {
         algHierarchyInfo.infos[0].push_back({{myRank}});
         layer0Size = 1;
-    } else if (topoInstNum >= NET_INST_NUM_2) {
-        HCCL_INFO("[CollAlgFactory] [TopoMatchUBX] layer0 topoInstNum [%d], Mesh 1D.", topoInstNum);
-        std::vector<u32> mesh1DRanks;
-        std::vector<u32> closRanks;
+    } else if (topoInstNum >= NET_INST_NUM_2) { // MESH1DCLOS
+        std::vector<u32> mesh1DRanks, closRanks;
         for (uint32_t idx = 0; idx < topoInstNum; idx++) {
             CommTopo topoType;
             CHK_RET(HcclRankGraphGetTopoType(comm, 0, topoInsts[idx], &topoType));
@@ -58,9 +53,7 @@ HcclResult TopoMatchUBX::TopoForLayer0(const HcclComm comm, uint32_t &layer0Size
             } else if (topoType == CommTopo::COMM_TOPO_CLOS) {
                 closRanks.insert(closRanks.end(), ranks, ranks + rankNum);
             }
-            if (rankNum > layer0Size) {
-                layer0Size = rankNum;
-            }
+            layer0Size = rankNum;
         }
         if (!mesh1DRanks.empty()) {
             algHierarchyInfo.infos[0].push_back(mesh1DRanks);
@@ -173,6 +166,7 @@ HcclResult TopoMatchUBX::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerDeta
     // 3. 计算layer0的topo
     algHierarchyInfo.infos.resize(COMM_LAYER_SIZE_2);
     uint32_t layer0Size = 0;
+    HCCL_INFO("[CollAlgFactory] [TopoMatchUBX] TopoForLayer0.");
     CHK_RET(TopoForLayer0(comm, layer0Size, myRank, algHierarchyInfo));
     // 4. 计算layer1的topo
     if (layerNum >= COMM_LAYER_SIZE_2) {
