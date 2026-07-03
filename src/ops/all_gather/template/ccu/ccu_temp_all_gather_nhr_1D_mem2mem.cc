@@ -92,14 +92,11 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
         channelDescs = myChannelDescs;
     }
     CHK_RET(RestoreChannelMap(comm, myRank_, channelDescs, rankIdToChannelDesc_));
-    channelsPerRank_ = CalcChannelsPerRank(channelDescs);
 
     // 1.从获得的channelDesc，判断kernel发送到几个die上
     uint32_t dieNum = 0;
     uint32_t enableDieId = 0;
     CHK_RET(GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc_, myRank_, dieNum, enableDieId));
-    CHK_PRT_RET(channelsPerRank_ > dieNum, HCCL_ERROR("[CcuTempAllGatherNHR1DMem2Mem] ChannelsPerRank is %u, while dienum is %u. ChannelsPerRank is over dienum",
-                channelsPerRank_, dieNum), HcclResult::HCCL_E_INTERNAL);
 
     if (dieNum < 1 || dieNum > CCU_DIE_NUM_MAX_2) { // 目前只支持1个或2个die
         HCCL_ERROR("[CcuTempAllGatherNHR1DMem2Mem::CalcRes] get channelDescs fail");
