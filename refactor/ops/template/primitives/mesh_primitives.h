@@ -13,49 +13,17 @@
 
 #include "hccl_algorithm.h"
 
+struct TemplateDataParam;
+
 namespace ops_hccl {
 
-// Explicit Mesh transfer slice semantics. Do not infer this from EngineType or channel count.
-enum class MeshTransferSliceMode {
-    NORMAL_FIXED,
-    VARIABLE_COUNT,
-    OMNIPIPE_STEP,
-    COMMON_CHANNEL_SPLIT,
-    Z_AXIS_DETOUR,
-    MESH_CHUNK,
-};
-
-// Z-axis detour metadata comes from resource planning.
-struct ZAxisDetourConfig {
-    u32 level0ChannelNumPerRank{0};
-    u32 level1ChannelNumPerRank{0};
-    double level0DataRatio{0.0};
-};
-
-// Only expose caller-provided variant options; plan/task types stay private in mesh_primitives.cc.
-struct MeshPrimitiveOptions {
-    MeshTransferSliceMode sliceMode{MeshTransferSliceMode::NORMAL_FIXED};
-    bool hasZAxisDetourConfig{false};
-    ZAxisDetourConfig zAxis;
-};
-
 // Full AICPU Mesh AllGather communication primitive entry.
-// Caller-provided options cover current AICPU Mesh AllGather variants except MeshChunk.
-HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                            EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
-                            const MeshPrimitiveOptions &options);
+// Slice mode and variable-count metadata are carried by TemplateDataParam.
+HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
+                            const std::vector<u32> &ranks, u32 myRank);
 
-// Temporary compatibility overload. It preserves the current extracted behavior only.
-// New variant-aware callers should use the options overload above.
-HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                            EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
-
-HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank,
-                                const MeshPrimitiveOptions &options);
-
-HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                                EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
+HcclResult RunMeshReduceScatter(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
+                                const std::vector<u32> &ranks, u32 myRank);
 
 HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
