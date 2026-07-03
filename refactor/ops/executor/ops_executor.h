@@ -1,16 +1,36 @@
 #include "hccl_algorithm.h"
 
-class BaseExecutor {
+class OpsExecutor {
 public:
-    BaseExecutor(HcclAlgorithm &algo, OpParam &param);
-    ~BaseExecutor();
+    OpsExecutor(HcclAlgorithm &algo, OpParam &param);
+    ~OpsExecutor();
 
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo);
 
     virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    HcclResult Orchestrate(const BaseExecutorParam &baseExecutorParam,
+    HcclResult Orchestrate(const OpsExecutorParam &baseExecutorParam,
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
+
+private:
+    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask, u32 &scratchMutiple);
+    HcclResult PrepareResForTemplate();
+    HcclResult OrchestrateLoop(const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc,
+        AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult GenTemplateRes(
+        const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource);
+    inline void GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx, AlgoExecDataDesc &algoExecDataDesc,
+        TemplateDataParams &templateDataParams);
+    inline void UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
+    HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
+    HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
+    inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
+    inline void UpdateDataSplit(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+    u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+    u32 MergeScratchMutiple(AlgoExecDesc &algoExecDesc, std::vector<u32> &childrenScrachMutilple);
+    // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
+    HcclResult RunTemplateDesc(
+        const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
 
 protected:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
@@ -33,7 +53,7 @@ protected:
     u32 root_ = INVALID_VALUE_RANKID;
     // dataInfo
     DataInfo dataInfo_;
-
+    u32 scratchMultiple_;
     // config
     OpMode opMode_;
 
@@ -64,7 +84,7 @@ protected:
     std::map<AlgoExecDesc, u32> execDescSubCommMask_;
 };
 
-struct BaseExecutorParam {
+struct OpsExecutorParam {
     BaseOpParam baseOpParam;
     ConfigParam configParam;
     BufferParam bufferParam;
