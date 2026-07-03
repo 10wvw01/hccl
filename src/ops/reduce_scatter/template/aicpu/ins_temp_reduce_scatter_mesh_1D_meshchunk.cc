@@ -126,7 +126,7 @@ HcclResult InsTempReduceScatterMesh1DMeshChunk::RunReduceScatter(
     uint64_t sliceNum = templateRankSize_ - 1;
     uint64_t mySliceSize = sliceInfoVec[myAlgRank][0].size;  // 获取本rank需要处理的数据量，executor已按4K对齐
     uint64_t mySliceCount = mySliceSize / DATATYPE_SIZE_TABLE[dataType_];
-
+    HCCL_INFO("zjy test RunReduceScatter");
     std::vector<uint64_t> sliceSize;
     // 数据切分为sliceNum块，前sliceNum-1块每块按4K向下对齐，最后一块取余数(无需对齐)�?
     // 选向下对齐是为了保证DoMeshChunk�?步接收区[mySliceSize-lastBlock, mySliceSize-lastBlock+sliceSize[0])
