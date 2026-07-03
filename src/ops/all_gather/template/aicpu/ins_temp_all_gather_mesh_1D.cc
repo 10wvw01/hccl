@@ -67,11 +67,15 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
         HCCL_INFO("[InsTempAllGatherMesh1D] Rank [%d], get slicesize zero.", myRank_);
         return HCCL_SUCCESS;
     }
-    inputSymWindow_ = param.inputSymWindow;
-    outputSymWindow_ = param.outputSymWindow;
-    inputOffset_ = param.inputOffset;
-    outputOffset_ = param.outputOffset;
-    supportSymmetricMemory_ = param.supportSymmetricMemory;
+    supportSymmetricMemory_ = tempAlgParams.supportSymmetricMemory;
+    if (supportSymmetricMemory_) {
+        HCCL_INFO("[InsTempAllGatherMesh1D] symmetric memory enabled");
+        inputSymWindow_ = param.inputSymWindow;
+        outputSymWindow_ = param.outputSymWindow;
+        inputOffset_ = param.inputOffset;
+        outputOffset_ = param.outputOffset;
+    }
+    
     threadNum_ = templateResource.threads.size();
     tempAlgParams_ = tempAlgParams;
     dataType_ = param.DataDes.dataType;
@@ -124,22 +128,15 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
         void *remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
         
         // 对称内存下，远端地址需要通过HcclSymWinGetPeerPointer获取
-        void *remoteIn = nullptr;
         void *remoteOut = nullptr;
         if (supportSymmetricMemory_) {
-            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, connectedRank, &remoteIn);
-            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteIn == nullptr,
-                        HCCL_ERROR("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
-                            "remoteRank[%u] inputRet[%d] in[%p]", connectedRank, ret, remoteIn),
-                            HcclResult::HCCL_E_INTERNAL);
-
-            ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, connectedRank, &remoteOut);
+            HcclResult ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, connectedRank, &remoteOut);
             CHK_PRT_RET(ret != HCCL_SUCCESS || remoteOut == nullptr,
                         HCCL_ERROR("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer failed, "
                             "remoteRank[%u] outputRet[%d] out[%p]", connectedRank, ret, remoteOut),
                             HcclResult::HCCL_E_INTERNAL);
             HCCL_INFO("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
-                "remoteRank[%u] in[%p] out[%p]", connectedRank, remoteIn, remoteOut);
+                "remoteRank[%u] out[%p]", connectedRank, remoteOut);
         }
 
         std::vector<DataSlice> txSrcSlicesAll;
