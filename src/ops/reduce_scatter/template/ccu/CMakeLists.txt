@@ -17,12 +17,9 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_mesh_1D_2die_mem2mem.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_mesh2die.cc
-<<<<<<< HEAD
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_omnipipe_mesh1d.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.cc
-=======
->>>>>>> 075e6de8 (new)
 )
 
 if(TARGET hccl)
