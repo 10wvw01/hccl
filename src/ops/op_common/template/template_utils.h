@@ -242,6 +242,9 @@ struct TemplateDataParams {
     u64 tailSize{0};
     bool enableRemoteMemAccess{false};
     u64 processedDataCount{0};
+    u64 loopIndex{0};
+    u64 loopTimes{1};
+    bool isLastLoop{true};
     u64 root{0};
     HcclDataType dataType{HCCL_DATA_TYPE_INT8};
     std::vector<u64> allRankSliceSize;
@@ -279,6 +282,9 @@ struct TemplateDataParams {
         binaryStream << dataType;
         binaryStream << stepSliceInfo.Serialize();
         binaryStream << opType;
+        binaryStream << loopIndex;
+        binaryStream << loopTimes;
+        binaryStream << isLastLoop;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -310,6 +316,9 @@ struct TemplateDataParams {
         binaryStream >> stepSliceInfoData;
         stepSliceInfo.DeSerialize(stepSliceInfoData);
         binaryStream >> opType;
+        binaryStream >> loopIndex;
+        binaryStream >> loopTimes;
+        binaryStream >> isLastLoop;
     }
 };
 

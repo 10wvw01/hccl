@@ -312,6 +312,9 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         tempAlgParams.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
         tempAlgParams.buffInfo.hcclBuffBaseOff = 0;
         tempAlgParams.processedDataCount = processedDataCount;
+        tempAlgParams.loopIndex = loop;
+        tempAlgParams.loopTimes = loopTimes;
+        tempAlgParams.isLastLoop = (loop == loopTimes - 1);
 
         tempAlgParams.sliceSize = currDataCount * dataTypeSize_; // 这是每次循环处理的数据大小
         tempAlgParams.tailSize = tempAlgParams.sliceSize;

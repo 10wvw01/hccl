@@ -80,14 +80,44 @@ private:
     bool IsAlltoAllDetourDstRank(u32 rank) const;
     bool ShouldSkipDirectSend(u32 remoteRank) const;
     bool ShouldSkipDirectRecv(u32 remoteRank) const;
+    // Return the extra scratch slot used on rank3 for one detoured destination.
     u32 CalcDetourScratchBuffIdx(u32 dstRank) const;
+    // Return the private notify slot used to fence forward completion between loops.
+    u32 CalcDetourForwardNotifyIdx(u32 dstRank) const;
     void CalcCclBuffIdxByRank(u32 rank, u32 remoteRank, u32 &rankCclBuffIdx, u32 &remoteCclBuffIdx) const;
+    // Move rank0's cross-CPU payload into rank3 extra scratch before normal transfer.
     HcclResult RunDetourPreStage(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    // Forward rank0's detoured payload from rank3 to ranks 4-7.
     HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    // Make rank3 forward streams wait only for the rank0->rank3 pre-stage streams.
+    HcclResult SyncDetourPreStageToForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads) const;
+    // Record forward completion so the next loop can protect rank3 scratch reuse.
+    HcclResult RecordDetourForwardDone(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads);
+    // Wait for the previous loop's forward before rank3 accepts new detour scratch data.
+    HcclResult WaitDetourForwardDone(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads);
+    // Collect any pending forward work on the last loop before returning to the caller.
+    HcclResult FlushDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads);
+    // Sync normal alltoall threads while leaving detour forward streams pipelined.
+    HcclResult PostSyncNormalThreads(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const std::vector<ThreadHandle> &subThreads) const;
+    // Collect the stream thread indices that communicate with one remote rank.
+    HcclResult CollectThreadIdxsForRemoteRank(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        u32 remoteRank, std::vector<u32> &threadIdxs) const;
+    // Collect all stream thread indices used by detour forward on this rank.
+    HcclResult CollectDetourForwardThreadIdxs(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        std::vector<u32> &threadIdxs) const;
+    // Check whether this rank must participate in forward tail synchronization.
+    bool IsDetourForwardParticipant() const;
+    // Forward one destination's detoured payload using the normal rank3<->dst streams.
     HcclResult RunDetourForwardForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams, u32 dstRank) const;
+    // Copy rank0's forwarded CCL slot into the final output on write-mode destinations.
     HcclResult PostCopyDetourFromSrcRank(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread) const;
 
     HcclCMDType opType_{HcclCMDType::HCCL_CMD_INVALID};
@@ -100,6 +130,7 @@ private:
     std::vector<u64> recvCountsSplit_;
     std::vector<u64> recvSizeSplit_;
     std::vector<u64> recvOffsetSplit_;
+    bool detourForwardPending_{false};
 };
 
 } // namespace Hccl

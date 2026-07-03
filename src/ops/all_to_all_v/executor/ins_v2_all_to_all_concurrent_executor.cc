@@ -345,6 +345,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
                                 (maxSendOrRecvDataCount0 - processedDataCount[0]) : (maxDataCountPerLoop[0]);
             SetTemplateDataParams(tempAlgParams0, splitData[0], loop, currDataCount, processedDataCount[0],
                                   maxDataCountPerLoop[0]);
+            tempAlgParams0.loopIndex = loop;
+            tempAlgParams0.loopTimes = loopTimes0;
+            tempAlgParams0.isLastLoop = (loop == loopTimes0 - 1);
             CHK_RET(algTemplate0->KernelRun(param, tempAlgParams0, templateAlgRes0));
             processedDataCount[0] += currDataCount;
         }
@@ -354,6 +357,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
                                 (maxSendOrRecvDataCount1 - processedDataCount[1]) : (maxDataCountPerLoop[1]);
             SetTemplateDataParams(tempAlgParams1, splitData[1], loop, currDataCount, processedDataCount[1],
                                   maxDataCountPerLoop[1]);
+            tempAlgParams1.loopIndex = loop;
+            tempAlgParams1.loopTimes = loopTimes1;
+            tempAlgParams1.isLastLoop = (loop == loopTimes1 - 1);
             CHK_RET(algTemplate1->KernelRun(param, tempAlgParams1, templateAlgRes1));
             processedDataCount[1] += currDataCount;
         }
