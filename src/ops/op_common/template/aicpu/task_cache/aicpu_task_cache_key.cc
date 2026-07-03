@@ -10,13 +10,11 @@
 
 #include "aicpu_task_cache_key.h"
 
-#include <sstream>
-
 #include "aicpu_task_cache_utils.h"
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::string& cacheTag)
+HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, std::string &cacheTag)
 {
     // 校验opType
     const HcclCMDType opType = param.opType;
@@ -47,16 +45,23 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
     // 注意: enum class不能转为uint8_t, 否则会作为char输出
     const char delimiter = '-';
     const char* commId = param.commName;
-    std::ostringstream oss;
-    oss << inputSize << delimiter
-        << static_cast<uint32_t>(opType) << delimiter
-        << static_cast<uint32_t>(dataType) << delimiter
-        << static_cast<uint32_t>(reduceType) << delimiter
-        << static_cast<uint32_t>(isZeroCopy) << delimiter
-        << static_cast<uint32_t>(opMode) << delimiter
-        << commId;
-    cacheTag = oss.str();
-        
+    // commId最大128，实际上没占用这么大，预留128已经足够
+    constexpr size_t RESERVER_SIZE = 128;
+    cacheTag.reserve(RESERVER_SIZE);
+    cacheTag.append(std::to_string(inputSize))
+        .append(1, delimiter)
+        .append(std::to_string(static_cast<uint32_t>(opType)))
+        .append(1, delimiter)
+        .append(std::to_string(static_cast<uint32_t>(dataType)))
+        .append(1, delimiter)
+        .append(std::to_string(static_cast<uint32_t>(reduceType)))
+        .append(1, delimiter)
+        .append(std::to_string(static_cast<uint32_t>(isZeroCopy)))
+        .append(1, delimiter)
+        .append(std::to_string(static_cast<uint32_t>(opMode)))
+        .append(1, delimiter)
+        .append(commId);
+
     HCCL_INFO("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] cacheTag[%s] from commId[%s] opType[%d] dataType[%d] "
         "reduceType[%d] isZeroCopy[%d] inputSize[%llu] opMode[%d]",
         cacheTag.c_str(), commId, opType, dataType, reduceType, isZeroCopy, inputSize, opMode);
