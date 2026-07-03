@@ -39,7 +39,7 @@ def test_cache_key_with_rank_suffix():
     # Mock configurations
     kernel_config = {'kernel': 'test'}
     cluster_config = {'nodes': 1}
-    op_param = {'op_name': 0, 'size': 1024}
+    op_param = {'op_name': 2, 'input': 1024, 'output': 1024}
 
     # Get operator
     operator = test_op[kernel_config]
@@ -260,7 +260,7 @@ def test_integration():
 
         kernel_config = {'test': 'integration'}
         cluster_config = {'cluster': 'test'}
-        op_param = {'op_name': 0, 'operation': 'test'}
+        op_param = {'op_name': 2, 'input': 1024, 'output': 1024, 'operation': 'test'}
 
         # Run operator
         operator = integration_op[kernel_config]

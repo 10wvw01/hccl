@@ -37,7 +37,7 @@ class HcclOmniConfig:
 # Now import other modules
 from .jit import jit
 
-from .op_param import OpName, ReduceOp
+from .op_param import OpName, ReduceOp, build_op_param
 
 # Re-export the main decorator and interpreter modes
-__all__ = ['jit', 'HcclOmniConfig', 'OpName', 'ReduceOp']
+__all__ = ['jit', 'HcclOmniConfig', 'OpName', 'ReduceOp', 'build_op_param']

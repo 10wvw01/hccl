@@ -227,10 +227,11 @@ def test_xml_to_bin_converter_multiple_instructions():
     assert isinstance(binary_data, bytes)
     print(f"Binary data length: {len(binary_data)} bytes")
 
-    # First instruction: 8 bytes header + 1 srcSlice (4 bytes) + 1 dstSlice (4 bytes) = 16 bytes
-    # Second instruction: 8 bytes header + 2 srcSlice (8 bytes) + 1 dstSlice (4 bytes) = 20 bytes
-    # Total: 36 bytes
-    assert len(binary_data) == 36, f"Expected 36 bytes, got {len(binary_data)}"
+    # Each slice entry is 8 bytes (52 bits of bit-fields, rounded to 8).
+    # 1st instruction: 8 header + 1 srcSlice(8) + 1 dstSlice(8) = 24 bytes
+    # 2nd instruction: 8 header + 2 srcSlice(16) + 1 dstSlice(8) = 32 bytes
+    # Total: 56 bytes
+    assert len(binary_data) == 56, f"Expected 56 bytes, got {len(binary_data)}"
 
     print('[OK] Multiple instructions conversion verified')
 
@@ -278,14 +279,14 @@ def test_integration_with_cache():
 
     kernel_config = {'test': 'converter'}
     cluster_config = {'cluster': 'test'}
-    op_param = {'op_name': 0, 'operation': 'test'}
+    op_param = {'op_name': 2, 'input': 1024, 'output': 1024, 'operation': 'test'}
 
     # Run operator to trigger XML generation and conversion
     operator = test_converter_op[kernel_config]
     result = operator(cluster_config, op_param)
 
-    # invoke_backend returns None (all_to_all returns None)
-    assert result is None
+    # invoke_backend returns the recv_buf from hccl_omni_run
+    assert result is not None
 
     # Check cache directory for binary files
     from hccl_omni.cache import get_hccl_cache_dir

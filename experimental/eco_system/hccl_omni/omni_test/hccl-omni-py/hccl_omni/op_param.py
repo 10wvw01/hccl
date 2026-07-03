@@ -18,6 +18,8 @@ Binary Layout (little-endian, bit-addressed, 32832 bits = 4104 bytes total):
 
 from enum import IntEnum
 
+import torch
+
 
 class OpName(IntEnum):
     """HCCL communication operator types."""
@@ -62,6 +64,8 @@ def _set_bits(value, width, offset, target):
 
 def _normalize_enum(value, enum_cls):
     """Convert enum member to its integer value; pass integers through."""
+    if value is None:
+        return 0
     if isinstance(value, enum_cls):
         return int(value)
     return int(value)
@@ -151,3 +155,204 @@ def serialize_op_param(op_param):
     result = _write_int64_array(result, _OFFSET_RDISPLS, rdispls)
 
     return result.to_bytes(OP_PARAM_SIZE, 'little')
+
+
+def _get_elem_count(t) -> int:
+    """Extract element count: calls numel() if available, otherwise treat as int."""
+    if hasattr(t, 'numel'):
+        return t.numel()
+    return int(t)
+
+
+def _cumsum_zero_prefix(arr: list[int]) -> list[int]:
+    """Compute cumulative-sum offsets with a leading zero.
+
+    Example: [3, 5, 2] -> [0, 3, 8]
+    """
+    offsets = []
+    acc = 0
+    for v in arr:
+        offsets.append(acc)
+        acc += v
+    return offsets
+
+
+def build_op_param(op_param: dict, world_size: int) -> dict:
+    """Convert a high-level op_param dict to the low-level form for serialize_op_param.
+
+    High-level fields:
+        - op_name: OpName or int (required)
+        - input: torch.Tensor (required)
+        - output: torch.Tensor or list[torch.Tensor] for Allgather (required)
+        - reduce_op: ReduceOp or int (optional, default SUM)
+        - input_split_sizes: list[int] | None (ReduceScatter / Alltoall)
+        - output_split_sizes: list[int] | None (Alltoall)
+
+    Returns a dict with keys:
+        op_name, reduce_op, data_count, send_counts, recv_counts, sdispls, rdispls
+    """
+    if not isinstance(op_param, dict):
+        raise TypeError(f"op_param must be a dict, got {type(op_param).__name__}")
+
+    if 'op_name' not in op_param:
+        raise ValueError("op_name is required in op_param")
+    if 'input' not in op_param:
+        raise ValueError("input is required in op_param")
+    if 'output' not in op_param:
+        raise ValueError("output is required in op_param")
+
+    op_name = _normalize_enum(op_param['op_name'], OpName)
+    reduce_op = _normalize_enum(op_param.get('reduce_op', 0), ReduceOp)
+
+    input_tensor = op_param['input']
+    output = op_param['output']
+    input_size = _get_elem_count(input_tensor)
+
+    input_split_sizes = op_param.get('input_split_sizes')
+    output_split_sizes = op_param.get('output_split_sizes')
+
+    # ------------------------------------------------------------------
+    # Allgather
+    # ------------------------------------------------------------------
+    if op_name == OpName.Allgather:
+        if not isinstance(output, list):
+            raise ValueError(
+                f"Allgather output must be a list of tensors, got {type(output).__name__}"
+            )
+        if len(output) != world_size:
+            raise ValueError(
+                f"Allgather output list length ({len(output)}) must equal world_size ({world_size})"
+            )
+        output_sizes = [t.numel() if hasattr(t, 'numel') else int(t) for t in output]
+        send_counts = [input_size] * world_size
+        recv_counts = output_sizes
+        sdispls = [0] * world_size
+        rdispls = _cumsum_zero_prefix(recv_counts)
+
+    # ------------------------------------------------------------------
+    # ReduceScatter
+    # ------------------------------------------------------------------
+    elif op_name == OpName.ReduceScatter:
+        if input_split_sizes is None:
+            if input_size % world_size != 0:
+                raise ValueError(
+                    f"ReduceScatter input size ({input_size}) must be divisible "
+                    f"by world_size ({world_size}) when input_split_sizes is not provided"
+                )
+            input_split_sizes = [input_size // world_size] * world_size
+        else:
+            input_split_sizes = [int(s) for s in input_split_sizes]
+            if len(input_split_sizes) != world_size:
+                raise ValueError(
+                    f"input_split_sizes length ({len(input_split_sizes)}) "
+                    f"must equal world_size ({world_size})"
+                )
+        output_size = _get_elem_count(output)
+
+        send_counts = input_split_sizes
+        recv_counts = [output_size]
+        sdispls = _cumsum_zero_prefix(send_counts)
+        rdispls = [0]
+
+    # ------------------------------------------------------------------
+    # Allreduce
+    # ------------------------------------------------------------------
+    elif op_name == OpName.Allreduce:
+        output_size = _get_elem_count(output)
+        if input_size != output_size:
+            raise ValueError(
+                f"Allreduce input size ({input_size}) must equal output size ({output_size})"
+            )
+        send_counts = [input_size] * world_size
+        recv_counts = [output_size]
+        sdispls = [0] * world_size
+        rdispls = [0]
+
+    # ------------------------------------------------------------------
+    # Alltoall / Alltoallv
+    # ------------------------------------------------------------------
+    elif op_name == OpName.Alltoall:
+        if input_split_sizes is None:
+            if input_size % world_size != 0:
+                raise ValueError(
+                    f"Alltoall input size ({input_size}) must be divisible "
+                    f"by world_size ({world_size}) when input_split_sizes is not provided"
+                )
+            input_split_sizes = [input_size // world_size] * world_size
+        else:
+            input_split_sizes = [int(s) for s in input_split_sizes]
+            if len(input_split_sizes) != world_size:
+                raise ValueError(
+                    f"input_split_sizes length ({len(input_split_sizes)}) "
+                    f"must equal world_size ({world_size})"
+                )
+
+        if output_split_sizes is None:
+            output_split_sizes = list(input_split_sizes)
+        else:
+            output_split_sizes = [int(s) for s in output_split_sizes]
+            if len(output_split_sizes) != world_size:
+                raise ValueError(
+                    f"output_split_sizes length ({len(output_split_sizes)}) "
+                    f"must equal world_size ({world_size})"
+                )
+
+        output_size = _get_elem_count(output)
+
+        if sum(input_split_sizes) != input_size:
+            raise ValueError(
+                f"Alltoall sum(input_split_sizes) ({sum(input_split_sizes)}) "
+                f"must equal input size ({input_size})"
+            )
+        if sum(output_split_sizes) != output_size:
+            raise ValueError(
+                f"Alltoall sum(output_split_sizes) ({sum(output_split_sizes)}) "
+                f"must equal output size ({output_size})"
+            )
+
+        send_counts = input_split_sizes
+        recv_counts = output_split_sizes
+        sdispls = _cumsum_zero_prefix(send_counts)
+        rdispls = _cumsum_zero_prefix(recv_counts)
+
+    # ------------------------------------------------------------------
+    # Alltoallv (full explicit counts)
+    # ------------------------------------------------------------------
+    elif op_name == OpName.Alltoallv:
+        # Alltoallv requires explicit counts/displs; use them directly
+        send_counts_raw = op_param.get('send_counts', [])
+        recv_counts_raw = op_param.get('recv_counts', [])
+        sdispls_raw = op_param.get('sdispls', [])
+        rdispls_raw = op_param.get('rdispls', [])
+
+        send_counts = [int(c) for c in send_counts_raw]
+        recv_counts = [int(c) for c in recv_counts_raw]
+        sdispls = [int(d) for d in sdispls_raw]
+        rdispls = [int(d) for d in rdispls_raw]
+
+        if sum(send_counts) != input_size:
+            raise ValueError(
+                f"Alltoallv sum(send_counts) ({sum(send_counts)}) "
+                f"must equal input size ({input_size})"
+            )
+        output_size = _get_elem_count(output)
+        if sum(recv_counts) != output_size:
+            raise ValueError(
+                f"Alltoallv sum(recv_counts) ({sum(recv_counts)}) "
+                f"must equal output size ({output_size})"
+            )
+
+    else:
+        raise ValueError(f"Unknown op_name: {op_name}")
+
+    data_count = sum(send_counts)
+
+    return {
+        'op_name': op_name,
+        'reduce_op': reduce_op,
+        'data_count': data_count,
+        'send_counts': send_counts,
+        'recv_counts': recv_counts,
+        'sdispls': sdispls,
+        'rdispls': rdispls,
+    }

@@ -1,0 +1,29 @@
+{
+  "name": "example_15rank_split",
+  "rank_base": 0,
+  "num_node": 1,
+  "total_rank_num": 15,
+  "num_rank_node": [15],
+  "cluster": {
+    "level0": {
+      "groups": [
+        {"group_id": 0, "ranks": [0, 1, 2, 3], "type": "1DMESH", "bandwidth": 45, "netlayer": 0},
+        {"group_id": 1, "ranks": [4, 5, 6, 7], "type": "1DMESH", "bandwidth": 45, "netlayer": 0},
+        {"group_id": 2, "ranks": [8, 9, 10, 11], "type": "1DMESH", "bandwidth": 45, "netlayer": 0},
+        {"group_id": 3, "ranks": [12, 13, 14], "type": "1DMESH", "bandwidth": 45, "netlayer": 0}
+      ]
+    },
+    "level1": {
+      "groups": [
+        {"group_id": 0, "ranks": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "type": "Clos", "bandwidth": 180, "netlayer": 1}
+      ]
+    }
+  },
+  "collective": {
+    "type": "allgather",
+    "chunksize": 1048576
+  },
+  "output": {
+    "hccl_xml": "../results/15rank_hccl.xml"
+  }
+}

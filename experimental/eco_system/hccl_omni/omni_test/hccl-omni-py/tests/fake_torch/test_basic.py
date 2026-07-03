@@ -171,7 +171,7 @@ def test_operator_invocation():
     # Create test configurations
     kernel_config = {'kernel': 'test'}
     cluster_config = {'nodes': 1}
-    op_param = {'op_name': 0, 'size': 1024}
+    op_param = {'op_name': 2, 'input': 1024, 'output': 1024}
 
     # Test operator[kernel_config](cluster_config, op_param) syntax
     operator = test_operator[kernel_config]

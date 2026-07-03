@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hcclgen"
+version = "0.1.0"
+description = "HCCL-oriented input parser and SCIP full-MILP AllGather synthesizer."
+requires-python = ">=3.10"
+dependencies = [
+  "pyscipopt",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hcclgen*"]

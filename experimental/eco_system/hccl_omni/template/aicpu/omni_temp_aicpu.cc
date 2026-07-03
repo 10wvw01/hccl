@@ -8,43 +8,92 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "omni_temp_aicpu.h"
+#include "aicpu/omni_temp_aicpu.h"
 #include "log.h"
 #include "param_check.h"
 #include "utils.h"
 
 namespace ops_hccl {
 
-// Helper function to get buffer address based on slice type (computes sliceSize from sliceNum internally)
-static void *GetBufferAddrBySliceType(omni::BufferTypeTmp sliceType, const TemplateDataParams &tempAlgParams,
-    uint64_t sliceIdx, uint64_t sliceNum)
+// Helper: compute per-slice process count (in elements) for variable-length AlltoAllV
+// When sendCounts/recvCounts are available, returns counts[sliceIdx]; else falls back to sliceSize/dtypeSize
+// Note: For multi-loop scenarios, counts[] represents the total count per slice, not the remaining count.
+// The single-loop case (data fits in CCL buffer) works correctly. Multi-loop unequal AlltoAllV requires
+// additional tracking of processed counts per slice (TODO).
+static u64 GetSliceProcessCount(
+    omni::BufferTypeTmp sliceType, const TemplateDataParams &tempAlgParams, uint64_t sliceIdx, uint64_t dtypeSize)
 {
+    if (sliceType == omni::INPUT && !tempAlgParams.sendCounts.empty() && sliceIdx < tempAlgParams.sendCounts.size()) {
+        return tempAlgParams.sendCounts[sliceIdx];
+    }
+    if (sliceType == omni::OUTPUT && !tempAlgParams.recvCounts.empty() && sliceIdx < tempAlgParams.recvCounts.size()) {
+        return tempAlgParams.recvCounts[sliceIdx];
+    }
+    // HCCL_BUFFER or fallback: uniform sliceSize
+    return (dtypeSize > 0) ? tempAlgParams.sliceSize / dtypeSize : 0;
+}
+
+// Helper function to get buffer address based on slice type
+// When sdispls/rdispls are available (unequal AlltoAllV), uses displs-based addressing;
+// otherwise falls back to fixed-stride model (equal partition).
+static void *GetBufferAddrBySliceType(
+    omni::BufferTypeTmp sliceType, const TemplateDataParams &tempAlgParams, uint64_t sliceIdx, uint64_t sliceNum)
+{
+    u64 dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     switch (sliceType) {
         case omni::INPUT: {
-            uint64_t sliceSize = tempAlgParams.buffInfo.inputSize;
-            void *addr = (void *)((char *)tempAlgParams.buffInfo.inputPtr
-                + tempAlgParams.buffInfo.inBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] input(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr;
+            if (!tempAlgParams.sdispls.empty() && sliceIdx < tempAlgParams.sdispls.size()) {
+                // Unequal AlltoAllV: sdispls[sliceIdx] is in elements, convert to bytes + inBuffBaseOff for loop
+                // advancement
+                u64 elemOff = tempAlgParams.sdispls[sliceIdx];
+                addr = (void *)((char *)tempAlgParams.buffInfo.inputPtr + elemOff * dtypeSize
+                                + tempAlgParams.buffInfo.inBuffBaseOff);
+                HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] input-displs(%p = %p + %llu*%llu + %llu), "
+                          "sdispls[%llu]=%llu",
+                    addr, (void *)tempAlgParams.buffInfo.inputPtr, elemOff, dtypeSize,
+                    tempAlgParams.buffInfo.inBuffBaseOff, sliceIdx, elemOff);
+            } else {
+                // Equal partition: fixed stride
+                uint64_t sliceSize = tempAlgParams.buffInfo.inputSize;
+                addr = (void *)((char *)tempAlgParams.buffInfo.inputPtr + tempAlgParams.buffInfo.inBuffBaseOff
+                                + sliceIdx * sliceSize);
+                HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] input-stride(%p = %p + %llu + %llu * %llu)", addr,
+                    (void *)tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.inBuffBaseOff, sliceIdx, sliceSize);
+            }
             return addr;
         }
         case omni::OUTPUT: {
-            uint64_t sliceSize = tempAlgParams.buffInfo.outputSize;
-            void *addr = (void *)((char *)tempAlgParams.buffInfo.outputPtr
-                + tempAlgParams.buffInfo.outBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] output(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)tempAlgParams.buffInfo.outputPtr, tempAlgParams.buffInfo.outBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr;
+            if (!tempAlgParams.rdispls.empty() && sliceIdx < tempAlgParams.rdispls.size()) {
+                // Unequal AlltoAllV: rdispls[sliceIdx] is in elements, convert to bytes + outBuffBaseOff for loop
+                // advancement
+                u64 elemOff = tempAlgParams.rdispls[sliceIdx];
+                addr = (void *)((char *)tempAlgParams.buffInfo.outputPtr + elemOff * dtypeSize
+                                + tempAlgParams.buffInfo.outBuffBaseOff);
+                HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] output-displs(%p = %p + %llu*%llu + %llu), "
+                          "rdispls[%llu]=%llu",
+                    addr, (void *)tempAlgParams.buffInfo.outputPtr, elemOff, dtypeSize,
+                    tempAlgParams.buffInfo.outBuffBaseOff, sliceIdx, elemOff);
+            } else {
+                // Equal partition: fixed stride
+                uint64_t sliceSize = tempAlgParams.buffInfo.outputSize;
+                addr = (void *)((char *)tempAlgParams.buffInfo.outputPtr + tempAlgParams.buffInfo.outBuffBaseOff
+                                + sliceIdx * sliceSize);
+                HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] output-stride(%p = %p + %llu + %llu * %llu)", addr,
+                    (void *)tempAlgParams.buffInfo.outputPtr, tempAlgParams.buffInfo.outBuffBaseOff, sliceIdx,
+                    sliceSize);
+            }
             return addr;
         }
         case omni::HCCL_BUFFER: {
+            // HCCL_BUFFER 始终用 fixed stride（slot 等分），不受 displs 影响
             uint64_t sliceSize = tempAlgParams.buffInfo.hcclBuffSize;
-            void *addr = (void *)((char *)tempAlgParams.buffInfo.hcclBuff.addr
-                + tempAlgParams.buffInfo.hcclBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] hccl(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr = (void *)((char *)tempAlgParams.buffInfo.hcclBuff.addr + tempAlgParams.buffInfo.hcclBuffBaseOff
+                                  + sliceIdx * sliceSize);
+            HCCL_INFO("YHB-CHECKER: [GetBufferAddrBySliceType] hccl(%p = %p + %llu + %llu * %llu)", addr,
+                (void *)tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.hcclBuffBaseOff, sliceIdx,
+                sliceSize);
             return addr;
         }
         default:
@@ -52,36 +101,55 @@ static void *GetBufferAddrBySliceType(omni::BufferTypeTmp sliceType, const Templ
     }
 }
 
-// Helper function to get remote address based on slice type (computes sliceSize from sliceNum internally)
+// Helper function to get remote address based on slice type
+// When sdispls/rdispls are available (unequal AlltoAllV), uses displs-based addressing;
+// otherwise falls back to fixed-stride model (equal partition).
 static void *GetRemoteAddrBySliceType(omni::BufferTypeTmp sliceType, const TemplateDataParams &tempAlgParams,
     const ChannelInfo &channel, uint64_t sliceIdx, uint64_t sliceNum)
 {
+    u64 dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     switch (sliceType) {
         case omni::INPUT: {
-            uint64_t sliceSize = tempAlgParams.buffInfo.inputSize;
-            void *addr = (void *)((char *)channel.remoteInput.addr
-                + tempAlgParams.buffInfo.inBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] input(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)channel.remoteInput.addr, tempAlgParams.buffInfo.inBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr;
+            if (!tempAlgParams.sdispls.empty() && sliceIdx < tempAlgParams.sdispls.size()) {
+                u64 elemOff = tempAlgParams.sdispls[sliceIdx];
+                addr = (void *)((char *)channel.remoteInput.addr + elemOff * dtypeSize
+                                + tempAlgParams.buffInfo.inBuffBaseOff);
+                HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] input-displs(%p = %p + %llu*%llu + %llu)", addr,
+                    (void *)channel.remoteInput.addr, elemOff, dtypeSize, tempAlgParams.buffInfo.inBuffBaseOff);
+            } else {
+                uint64_t sliceSize = tempAlgParams.buffInfo.inputSize;
+                addr = (void *)((char *)channel.remoteInput.addr + tempAlgParams.buffInfo.inBuffBaseOff
+                                + sliceIdx * sliceSize);
+                HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] input-stride(%p = %p + %llu + %llu * %llu)", addr,
+                    (void *)channel.remoteInput.addr, tempAlgParams.buffInfo.inBuffBaseOff, sliceIdx, sliceSize);
+            }
             return addr;
         }
         case omni::OUTPUT: {
-            uint64_t sliceSize = tempAlgParams.buffInfo.outputSize;
-            void *addr = (void *)((char *)channel.remoteOutput.addr
-                + tempAlgParams.buffInfo.outBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] output(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)channel.remoteOutput.addr, tempAlgParams.buffInfo.outBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr;
+            if (!tempAlgParams.rdispls.empty() && sliceIdx < tempAlgParams.rdispls.size()) {
+                u64 elemOff = tempAlgParams.rdispls[sliceIdx];
+                addr = (void *)((char *)channel.remoteOutput.addr + elemOff * dtypeSize
+                                + tempAlgParams.buffInfo.outBuffBaseOff);
+                HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] output-displs(%p = %p + %llu*%llu + %llu)", addr,
+                    (void *)channel.remoteOutput.addr, elemOff, dtypeSize, tempAlgParams.buffInfo.outBuffBaseOff);
+            } else {
+                uint64_t sliceSize = tempAlgParams.buffInfo.outputSize;
+                addr = (void *)((char *)channel.remoteOutput.addr + tempAlgParams.buffInfo.outBuffBaseOff
+                                + sliceIdx * sliceSize);
+                HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] output-stride(%p = %p + %llu + %llu * %llu)", addr,
+                    (void *)channel.remoteOutput.addr, tempAlgParams.buffInfo.outBuffBaseOff, sliceIdx, sliceSize);
+            }
             return addr;
         }
         case omni::HCCL_BUFFER: {
+            // HCCL_BUFFER 始终用 fixed stride
             uint64_t sliceSize = tempAlgParams.buffInfo.hcclBuffSize;
-            void *addr = (void *)((char *)channel.remoteCclMem.addr
-                + tempAlgParams.buffInfo.hcclBuffBaseOff + sliceIdx * sliceSize);
-            HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] hccl(%p = %p + %u + %llu * %llu), len(%llu)",
-                addr, (void *)channel.remoteCclMem.addr, tempAlgParams.buffInfo.hcclBuffBaseOff,
-                sliceIdx, sliceSize, tempAlgParams.sliceSize);
+            void *addr = (void *)((char *)channel.remoteCclMem.addr + tempAlgParams.buffInfo.hcclBuffBaseOff
+                                  + sliceIdx * sliceSize);
+            HCCL_INFO("YHB-CHECKER: [GetRemoteAddrBySliceType] hccl(%p = %p + %llu + %llu * %llu)", addr,
+                (void *)channel.remoteCclMem.addr, tempAlgParams.buffInfo.hcclBuffBaseOff, sliceIdx, sliceSize);
             return addr;
         }
         default:
@@ -99,8 +167,8 @@ OmniTempAicpu::~OmniTempAicpu()
 {
 }
 
-HcclResult OmniTempAicpu::CalcRes(HcclComm comm, const OpParam &param,
-    const TopoInfoWithNetLayerDetails *topoInfo, AlgResourceRequest &resourceRequest, const omni::XmlInfo &xmlInfo)
+HcclResult OmniTempAicpu::CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+    AlgResourceRequest &resourceRequest, const omni::XmlInfo &xmlInfo)
 {
     HCCL_INFO("[OmniTempAicpu][CalcRes] Start to calc resource.");
 
@@ -132,7 +200,7 @@ HcclResult OmniTempAicpu::CalcChannelRequestOmni(HcclComm comm, const OpParam &p
 
     const u32 myRank = topoInfo->userRank;
 
-    for (const auto& channelInfo : topoInfo->xmlInfo.resInfo.vecChannelInfo) {
+    for (const auto &channelInfo : topoInfo->xmlInfo.resInfo.vecChannelInfo) {
         const u64 remoteRank = channelInfo.remoteRank;
 
         uint32_t *netLayers = nullptr;
@@ -148,7 +216,8 @@ HcclResult OmniTempAicpu::CalcChannelRequestOmni(HcclComm comm, const OpParam &p
             CHK_RET(HcclRankGraphGetLinks(comm, netLayer, myRank, static_cast<u32>(remoteRank), &linkList, &listSize));
 
             for (u32 idx = 0; idx < listSize; idx++) {
-                HCCL_DEBUG("CalcChannelRequestOmni HcclRankGraphGetLinks myrank %u to remoteRank %u, %u, %u, linkProtocol %u",
+                HCCL_DEBUG(
+                    "CalcChannelRequestOmni HcclRankGraphGetLinks myrank %u to remoteRank %u, %u, %u, linkProtocol %u",
                     myRank, remoteRank, netLayer, listSize, linkList[idx].linkAttr.linkProtocol);
 
                 if (linkList[idx].linkAttr.linkProtocol != CommProtocol::COMM_PROTOCOL_UBC_CTP) {
@@ -171,8 +240,8 @@ HcclResult OmniTempAicpu::CalcChannelRequestOmni(HcclComm comm, const OpParam &p
                 }
 
                 HCCL_INFO("CalcChannelRequestOmni Add channel request between %zu and %zu, netLayerIdx %u, "
-                "linkListIdx %u, protocol %zu",
-                myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
+                          "linkListIdx %u, protocol %zu",
+                    myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
 
                 break;
             }
@@ -429,19 +498,15 @@ HcclResult OmniTempAicpu::HandleLocalCopy(const omni::OmniNormalInstruction &sig
         return HCCL_E_INTERNAL;
     }
 
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
-    HCCL_DEBUG("HandleLocalCopy processCount[%llu] srcProcessSize[%llu] dstProcessSize[%llu]", processCount,
-        srcProcessSize, dstProcessSize);
-
-    HCCL_INFO("YHB-CHECKER: [HandleLocalCopy] count(%u)", signalInfo.sendRecvInfo.srcSliceInfo.size());
+    HCCL_INFO("YHB-CHECKER: [HandleLocalCopy] count(%u), dataType[%u] dtypeSize[%llu]",
+        signalInfo.sendRecvInfo.srcSliceInfo.size(), tempAlgParams.dataType, dtypeSize);
     for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
         // 计算源地址
         const auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
-        void *srcAddr = GetBufferAddrBySliceType(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx,
-            signalInfo.sendRecvInfo.sliceNum);
+        void *srcAddr = GetBufferAddrBySliceType(
+            srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, signalInfo.sendRecvInfo.sliceNum);
         if (!srcAddr) {
             HCCL_ERROR("[HandleLocalCopy] Invalid source address");
             return HCCL_E_INTERNAL;
@@ -449,23 +514,35 @@ HcclResult OmniTempAicpu::HandleLocalCopy(const omni::OmniNormalInstruction &sig
 
         // 计算目标地址
         const auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
-        void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx,
-            signalInfo.sendRecvInfo.sliceNum);
+        void *dstAddr = GetBufferAddrBySliceType(
+            dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, signalInfo.sendRecvInfo.sliceNum);
         if (!dstAddr) {
             HCCL_ERROR("[HandleLocalCopy] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
 
+        // 计算传输大小：使用 per-slice process count 支持不等分 AlltoAllV
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        // 对于 copy/reduce，src 和 dst 的 processCount 应相同，取较小值保证安全
+        uint64_t dstProcessCount
+            = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
+        if (dstProcessCount < processCount) {
+            processCount = dstProcessCount;
+        }
+        uint64_t processSize = processCount * dtypeSize;
+
+        HCCL_DEBUG("HandleLocalCopy i[%u] processCount[%llu] processSize[%llu]", i, processCount, processSize);
+
         // 执行本地拷贝
-        DataSlice srcSliceObj(srcAddr, 0, srcProcessSize, processCount);
-        DataSlice dstSliceObj(dstAddr, 0, dstProcessSize, processCount);
+        DataSlice srcSliceObj(srcAddr, 0, processSize, processCount);
+        DataSlice dstSliceObj(dstAddr, 0, processSize, processCount);
 
         if (signalInfo.opType == omni::OP_LOCAL_COPY) {
             CHK_RET(static_cast<HcclResult>(
                 LocalCopy(threads[signalInfo.sendRecvInfo.threadIdx], srcSliceObj, dstSliceObj)));
         } else if (signalInfo.opType == omni::OP_LOCAL_REDUCE) {
             CHK_RET(static_cast<HcclResult>(LocalReduce(threads[signalInfo.sendRecvInfo.threadIdx], srcSliceObj,
-                dstSliceObj, signalInfo.sendRecvInfo.inputDataType, signalInfo.sendRecvInfo.reduceType)));
+                dstSliceObj, tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType)));
         } else {
             HCCL_ERROR("[HandleLocalCopy] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
         }
@@ -498,16 +575,12 @@ HcclResult OmniTempAicpu::HandleSendRecvWrite(const omni::OmniNormalInstruction 
     const ChannelInfo &channel = it->second[roundRobinIndex_];
     const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
-    HCCL_DEBUG("YHB: HandleSendRecvWrite thread %u myRank_ %u remoteRank %u remoteRecvRank %u sliceNum %u rrIndex %u rrSize %u",
-        signalInfo.sendRecvInfo.threadIdx, myRank_, remoteRank, remoteRecvRank, sliceNum, roundRobinIndex_, it->second.size());
-
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-
-    HCCL_DEBUG("HandleSendRecvWrite processCount[%llu] srcProcessSize[%llu] dstProcessSize[%llu]", processCount,
-        srcProcessSize, dstProcessSize);
+    HCCL_DEBUG("YHB: HandleSendRecvWrite thread %u myRank_ %u remoteRank %u remoteRecvRank %u sliceNum %u rrIndex %u "
+               "rrSize %u",
+        signalInfo.sendRecvInfo.threadIdx, myRank_, remoteRank, remoteRecvRank, sliceNum, roundRobinIndex_,
+        it->second.size());
 
     // 准备发送数据切片
     std::vector<DataSlice> txSrcSlices;
@@ -521,15 +594,19 @@ HcclResult OmniTempAicpu::HandleSendRecvWrite(const omni::OmniNormalInstruction 
             HCCL_ERROR("[HandleSendRecvWrite] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        // Per-slice process count 支持不等分 AlltoAllV
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
 
         auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
-        void *dstAddr = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
+        void *dstAddr
+            = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
         if (!dstAddr) {
             HCCL_ERROR("[HandleSendRecvWrite] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        txDstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        txDstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
     }
 
     HCCL_DEBUG("myRank_[%u] remoteRank[%u]", myRank_, remoteRank);
@@ -548,8 +625,8 @@ HcclResult OmniTempAicpu::HandleSendRecvWrite(const omni::OmniNormalInstruction 
         SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
         CHK_RET(static_cast<HcclResult>(SendRecvWrite(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_SEND_RECV_WRITE_REDUCE) {
-        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
-            signalInfo.sendRecvInfo.inputDataType, signalInfo.sendRecvInfo.reduceType);
+        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList), tempAlgParams.dataType,
+            signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(SendRecvWriteReduce(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleSendRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -575,9 +652,7 @@ HcclResult OmniTempAicpu::HandleSendWrite(const omni::OmniNormalInstruction &sig
     roundRobinIndex_ = 0;
     const ChannelInfo &channel = it->second[roundRobinIndex_];
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备发送数据切片
     std::vector<DataSlice> srcSlices;
@@ -589,16 +664,26 @@ HcclResult OmniTempAicpu::HandleSendWrite(const omni::OmniNormalInstruction &sig
             HCCL_ERROR("[HandleSendWrite] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        srcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
     }
 
-    for (const auto &dstSlice : signalInfo.sendRecvInfo.dstSliceInfo) {
-        void *dstAddr = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
+    for (uint32_t i = 0; i < signalInfo.sendRecvInfo.dstSliceInfo.size(); ++i) {
+        const auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
+        void *dstAddr
+            = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
         if (!dstAddr) {
             HCCL_ERROR("[HandleSendWrite] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        dstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        // dstSlice processCount 应与对应 srcSlice 一致，确保发送和写入数据量匹配
+        uint64_t processCount = (i < signalInfo.sendRecvInfo.srcSliceInfo.size())
+                                    ? GetSliceProcessCount(signalInfo.sendRecvInfo.srcSliceInfo[i].sliceType,
+                                          tempAlgParams, signalInfo.sendRecvInfo.srcSliceInfo[i].sliceIdx, dtypeSize)
+                                    : tempAlgParams.sliceSize / dtypeSize;
+        uint64_t processSize = processCount * dtypeSize;
+        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
     }
 
     // 执行发送写操作
@@ -607,8 +692,8 @@ HcclResult OmniTempAicpu::HandleSendWrite(const omni::OmniNormalInstruction &sig
         DataInfo sendInfo(channel, std::move(sendSliceList));
         CHK_RET(static_cast<HcclResult>(SendWrite(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_SEND_WRITE_REDUCE) {
-        DataReduceInfo sendInfo(channel, std::move(sendSliceList), signalInfo.sendRecvInfo.inputDataType,
-            signalInfo.sendRecvInfo.reduceType);
+        DataReduceInfo sendInfo(
+            channel, std::move(sendSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(SendWriteReduce(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleSendWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -633,13 +718,15 @@ HcclResult OmniTempAicpu::HandleRecvWrite(const omni::OmniNormalInstruction &sig
     }
     roundRobinIndex_ = 0;
     const ChannelInfo &channel = it->second[roundRobinIndex_];
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备接收数据切片
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
+
+    // RecvWrite 当前不使用 src/dst slices（接收端由远端写入），保留固定 sliceSize 逻辑
+    uint64_t processCount = tempAlgParams.sliceSize / dtypeSize;
+    uint64_t processSize = processCount * dtypeSize;
 
     // 执行接收写操作
     SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
@@ -647,8 +734,8 @@ HcclResult OmniTempAicpu::HandleRecvWrite(const omni::OmniNormalInstruction &sig
         DataInfo recvInfo(channel, std::move(recvSliceList));
         CHK_RET(static_cast<HcclResult>(RecvWrite(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_RECV_WRITE_REDUCE) {
-        DataReduceInfo recvInfo(channel, std::move(recvSliceList), signalInfo.sendRecvInfo.inputDataType,
-            signalInfo.sendRecvInfo.reduceType);
+        DataReduceInfo recvInfo(
+            channel, std::move(recvSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -681,9 +768,7 @@ HcclResult OmniTempAicpu::HandleSendRecvRead(const omni::OmniNormalInstruction &
     const ChannelInfo &channel = it->second[roundRobinIndex_];
     const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备发送数据切片
     std::vector<DataSlice> txSrcSlices;
@@ -695,12 +780,15 @@ HcclResult OmniTempAicpu::HandleSendRecvRead(const omni::OmniNormalInstruction &
 
     for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
         auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
-        void *srcAddr = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
+        void *srcAddr
+            = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
         if (!srcAddr) {
             HCCL_ERROR("[HandleSendRecvRead] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        rxSrcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        rxSrcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
 
         auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
         void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, sliceNum);
@@ -708,7 +796,10 @@ HcclResult OmniTempAicpu::HandleSendRecvRead(const omni::OmniNormalInstruction &
             HCCL_ERROR("[HandleSendRecvRead] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        uint64_t dstProcessCount
+            = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
+        uint64_t dstProcessSize = dstProcessCount * dtypeSize;
+        rxDstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, dstProcessCount));
     }
 
     // 执行发送接收读操作
@@ -720,8 +811,8 @@ HcclResult OmniTempAicpu::HandleSendRecvRead(const omni::OmniNormalInstruction &
         SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
         CHK_RET(static_cast<HcclResult>(SendRecvRead(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_SEND_RECV_READ_REDUCE) {
-        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
-            signalInfo.sendRecvInfo.inputDataType, signalInfo.sendRecvInfo.reduceType);
+        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList), tempAlgParams.dataType,
+            signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(SendRecvReadReduce(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleSendRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -747,13 +838,15 @@ HcclResult OmniTempAicpu::HandleSendRead(const omni::OmniNormalInstruction &sign
     roundRobinIndex_ = 0;
     const ChannelInfo &channel = it->second[roundRobinIndex_];
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备发送数据切片
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
+
+    // SendRead 当前不填充 slices，保留固定 sliceSize 逻辑
+    uint64_t processCount = tempAlgParams.sliceSize / dtypeSize;
+    uint64_t processSize = processCount * dtypeSize;
 
     // 执行发送读操作
     SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
@@ -762,8 +855,8 @@ HcclResult OmniTempAicpu::HandleSendRead(const omni::OmniNormalInstruction &sign
         DataInfo sendInfo(channel, std::move(sendSliceList));
         CHK_RET(static_cast<HcclResult>(SendRead(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_SEND_READ_REDUCE) {
-        DataReduceInfo sendInfo(channel, std::move(sendSliceList), signalInfo.sendRecvInfo.inputDataType,
-            signalInfo.sendRecvInfo.reduceType);
+        DataReduceInfo sendInfo(
+            channel, std::move(sendSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(SendReadReduce(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleSendRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -789,21 +882,22 @@ HcclResult OmniTempAicpu::HandleRecvRead(const omni::OmniNormalInstruction &sign
     roundRobinIndex_ = 0;
     const ChannelInfo &channel = it->second[roundRobinIndex_];
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备接收数据切片
     std::vector<DataSlice> srcSlices;
     std::vector<DataSlice> dstSlices;
 
     for (const auto &srcSlice : signalInfo.sendRecvInfo.srcSliceInfo) {
-        void *srcAddr = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
+        void *srcAddr
+            = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
         if (!srcAddr) {
             HCCL_ERROR("[HandleRecvRead] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        srcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
     }
 
     for (const auto &dstSlice : signalInfo.sendRecvInfo.dstSliceInfo) {
@@ -812,7 +906,9 @@ HcclResult OmniTempAicpu::HandleRecvRead(const omni::OmniNormalInstruction &sign
             HCCL_ERROR("[HandleRecvRead] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        dstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
     }
 
     // 执行接收读操作
@@ -822,8 +918,8 @@ HcclResult OmniTempAicpu::HandleRecvRead(const omni::OmniNormalInstruction &sign
         DataInfo recvInfo(channel, std::move(recvSliceList));
         CHK_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else if (signalInfo.opType == omni::OP_RECV_READ_REDUCE) {
-        DataReduceInfo recvInfo(channel, std::move(recvSliceList), signalInfo.sendRecvInfo.inputDataType,
-            signalInfo.sendRecvInfo.reduceType);
+        DataReduceInfo recvInfo(
+            channel, std::move(recvSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(RecvReadReduce(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
     } else {
         HCCL_ERROR("[HandleRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
@@ -836,9 +932,7 @@ HcclResult OmniTempAicpu::HandleGroupBroadcast(const omni::OmniNormalInstruction
     const TemplateDataParams &tempAlgParams)
 {
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备源数据切片
     std::vector<DataSlice> srcSlices;
@@ -850,7 +944,9 @@ HcclResult OmniTempAicpu::HandleGroupBroadcast(const omni::OmniNormalInstruction
             HCCL_ERROR("[HandleGroupBroadcast] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        srcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
     }
 
     // 准备目标数据切片
@@ -861,7 +957,9 @@ HcclResult OmniTempAicpu::HandleGroupBroadcast(const omni::OmniNormalInstruction
             HCCL_ERROR("[HandleGroupBroadcast] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        dstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
 
         // 获取对应远程rank的channel
         auto it = channels.find(dstSlice.remoteRank);
@@ -889,9 +987,7 @@ HcclResult OmniTempAicpu::HandleGroupReduce(const omni::OmniNormalInstruction &s
     const TemplateDataParams &tempAlgParams)
 {
     uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t processCount = tempAlgParams.sliceSize / SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t srcProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
-    uint64_t dstProcessSize = processCount * SIZE_TABLE[signalInfo.sendRecvInfo.inputDataType];
+    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
     // 准备源数据切片
     std::vector<DataSlice> srcSlices;
@@ -903,7 +999,9 @@ HcclResult OmniTempAicpu::HandleGroupReduce(const omni::OmniNormalInstruction &s
             HCCL_ERROR("[HandleGroupReduce] Invalid source address");
             return HCCL_E_INTERNAL;
         }
-        srcSlices.push_back(DataSlice(srcAddr, 0, srcProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
     }
 
     // 准备目标数据切片
@@ -914,7 +1012,9 @@ HcclResult OmniTempAicpu::HandleGroupReduce(const omni::OmniNormalInstruction &s
             HCCL_ERROR("[HandleGroupReduce] Invalid destination address");
             return HCCL_E_INTERNAL;
         }
-        dstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, processCount));
+        uint64_t processCount = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
+        uint64_t processSize = processCount * dtypeSize;
+        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
 
         // 获取对应远程rank的channel
         auto it = channels.find(dstSlice.remoteRank);
@@ -931,8 +1031,8 @@ HcclResult OmniTempAicpu::HandleGroupReduce(const omni::OmniNormalInstruction &s
     // 为每个源rank执行接收归约操作
     for (size_t i = 0; i < channelInfos.size(); i++) {
         SlicesList recvSliceList({srcSlices[i]}, dstSlices);
-        DataReduceInfo recvInfo(channelInfos[i], std::move(recvSliceList), signalInfo.sendRecvInfo.inputDataType,
-            signalInfo.sendRecvInfo.reduceType);
+        DataReduceInfo recvInfo(
+            channelInfos[i], std::move(recvSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
         CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[0])));
     }
     return HCCL_SUCCESS;
