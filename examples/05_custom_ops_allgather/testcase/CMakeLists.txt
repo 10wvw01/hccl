@@ -17,8 +17,8 @@ target_include_directories(test_custom_allgather PRIVATE
     ${MPI_CXX_INCLUDE_PATH}
 )
 
-target_link_directories(test_custom_allgather PRIVATE 
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64 
+target_link_directories(test_custom_allgather PRIVATE
+    ${ASCEND_CANN_PACKAGE_PATH}/lib64
 )
 
 target_link_libraries(test_custom_allgather PRIVATE
