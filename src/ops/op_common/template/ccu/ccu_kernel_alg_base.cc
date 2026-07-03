@@ -617,7 +617,7 @@ CcuResult GroupReduceWithoutMyRank(CcuKernelCtxBase &ctx, const size_t channels[
 
 CcuResult CreateMultiOpCopy(CcuKernelCtxBase &ctx, GroupCopyVar &var)
 {
-    AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated, CCU_MS_LOCAL_COPY_LOOP_COUNT, LOCAL_COPY_MS_PER_LOOP);
+    AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated, 16, 16);
 
     std::string loopType = "localcopy";
     if (ctx.IsLoopEntityRegistered(loopType)) {
