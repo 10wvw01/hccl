@@ -1359,7 +1359,8 @@ HcclResult HcclAllocAlgResourceAICPU(
 }
 
 static HcclResult HcclGetThreadWithConfig(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
-    u32 threadNum, std::vector<ThreadHandle> &threads, std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
+    u32 threadNum, std::vector<ThreadHandle> &threads, std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost,
+    bool unfoldReady)
 {
     std::vector<ThreadConfig> threadConfigs(threadNum);
     CHK_RET(static_cast<HcclResult>(ThreadConfigInit(threadConfigs.data(), threadNum)));
@@ -1375,11 +1376,13 @@ static HcclResult HcclGetThreadWithConfig(HcclComm comm, const OpParam &param, A
     CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_AICPU, threadNum, THREAD_TYPE_TS,
         threadConfigs.data(), threads.data()));
     // 申请展开流对应的Thread
-    ThreadConfig unfoldThreadConfig;
-    CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
-    unfoldThreadConfig.notifyNumPerThread = 0;
-    CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
-        &unfoldThreadConfig, &resCtxHost->unfoldThread));
+    if (!unfoldReady) {
+        ThreadConfig unfoldThreadConfig;
+        CHK_RET(static_cast<HcclResult>(ThreadConfigInit(&unfoldThreadConfig, 1)));
+        unfoldThreadConfig.notifyNumPerThread = 0;
+        CHK_RET(HcclThreadAcquireWithConfig(comm, COMM_ENGINE_CPU, 1, THREAD_TYPE_TS,
+            &unfoldThreadConfig, &resCtxHost->unfoldThread));
+    }
     CHK_RET(SaveMainThreadInfo(comm, param, threads[0], resRequest.notifyNumOnMainThread + 1));
     return HCCL_SUCCESS;
 }
@@ -1392,8 +1395,17 @@ HcclResult HcclGetThread(
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
         u32 threadNum = resRequest.slaveThreadNum + 1;
         std::vector<ThreadHandle> threads(threadNum);
+        bool unfoldReady = false;
+        {
+            ThreadHandle existingUnfoldThread = 0;
+            if (GetUnfoldThreadInfo(comm, param, existingUnfoldThread) == HCCL_SUCCESS) {
+                resCtxHost->unfoldThread = existingUnfoldThread;
+                unfoldReady = true;
+                HCCL_INFO("[HcclGetThread] reuse unfoldThread [%lu]", resCtxHost->unfoldThread);
+            }
+        }
         if (HcommIsSupportHcclThreadAcquireWithConfig()) {
-            CHK_RET(HcclGetThreadWithConfig(comm, param, resRequest, threadNum, threads, resCtxHost));
+            CHK_RET(HcclGetThreadWithConfig(comm, param, resRequest, threadNum, threads, resCtxHost, unfoldReady));
         } else {
             u32 maxNotifyNum = resRequest.notifyNumOnMainThread;
             for (u32 i = 0; i < resRequest.notifyNumPerThread.size(); i++) {
@@ -1403,10 +1415,14 @@ HcclResult HcclGetThread(
             }
             HCCL_DEBUG("[HcclGetThread] require maxNotifyNum[%u] for all AICPU threads.", maxNotifyNum);
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
-            CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
+            if (!unfoldReady) {
+                CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
+            }
             CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
         }
-        CHK_RET(SaveUnfoldThreadInfo(comm, param, resCtxHost->unfoldThread));
+        if (!unfoldReady) {
+            CHK_RET(SaveUnfoldThreadInfo(comm, param, resCtxHost->unfoldThread));
+        }
         HCCL_INFO("[HcclGetThread] unfoldThread [%lu]", resCtxHost->unfoldThread);
         HCCL_DEBUG("threads ptr is %p\n", threads.data());
         for (u32 i = 0; i < threadNum; i++) {
@@ -1504,7 +1520,7 @@ HcclResult SaveUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandl
     void *ctx = nullptr;
     // 申请一块host类型内存，保存展开流信息
     char unfoldAlgTag[ALG_TAG_LENGTH] = {0};
-    int ret = snprintf_s(unfoldAlgTag, sizeof(unfoldAlgTag), sizeof(unfoldAlgTag) - 1, "%s_unfold", param.algTag);
+    int ret = snprintf_s(unfoldAlgTag, sizeof(unfoldAlgTag), sizeof(unfoldAlgTag) - 1, "%s_unfold", param.commName);
     CHK_PRT_RET(ret <= 0, HCCL_ERROR("[%s] failed to fill unfoldAlgTag", __func__), HCCL_E_INTERNAL);
     CHK_RET(HcclEngineCtxCreate(comm, unfoldAlgTag, CommEngine::COMM_ENGINE_CPU_TS, size, &ctx));
     // 填充主流handle信息
@@ -1520,7 +1536,7 @@ HcclResult GetUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle
     uint64_t size = sizeof(ThreadHandle);
     void *ctx = nullptr;
     char unfoldAlgTag[ALG_TAG_LENGTH] = {0};
-    int ret = snprintf_s(unfoldAlgTag, sizeof(unfoldAlgTag), sizeof(unfoldAlgTag) - 1, "%s_unfold", param.algTag);
+    int ret = snprintf_s(unfoldAlgTag, sizeof(unfoldAlgTag), sizeof(unfoldAlgTag) - 1, "%s_unfold", param.commName);
     CHK_PRT_RET(ret <= 0, HCCL_ERROR("[%s] failed to fill unfoldAlgTag", __func__), HCCL_E_INTERNAL);
     CHK_RET(HcclEngineCtxGet(comm, unfoldAlgTag, CommEngine::COMM_ENGINE_CPU_TS, &ctx, &size));
     // 获取展开流handle信息
