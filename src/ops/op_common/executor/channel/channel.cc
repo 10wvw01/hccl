@@ -98,7 +98,7 @@ HcclResult ProcessFlattenLink(HcclComm comm, u32 myRank, const std::vector<std::
 {
 #if !defined(AICPU_COMPILE) && (CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0))
     std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc;
-    CHK_RET(CcuAlgTemplateBase::RestoreChannelMap(channels, rankIdToChannelDesc));
+    CHK_RET(CcuAlgTemplateBase::RestoreChannelMap(comm, myRank, channels, rankIdToChannelDesc));
     uint32_t enableDieNum = 0;
     uint32_t enableDieId = 0;
     CHK_RET(CcuAlgTemplateBase::GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc, myRank, enableDieNum, enableDieId));
@@ -275,7 +275,6 @@ HcclResult ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol>
                 CHK_RET(CreateChannelFromLink(comm, myRank, remoteRank, netLayer, idx, linkList[idx],
                     funcName, channels));
                 protocolFound = true;
-                break;
             }
         }
         if (protocolFound) {
