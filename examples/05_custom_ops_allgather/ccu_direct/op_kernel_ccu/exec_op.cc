@@ -65,7 +65,7 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
     CHK_PTR_NULL(kernelFunc);
     CHK_PTR_NULL(cfg);
     CHK_PTR_NULL(cfg->attrs);
-    CHK_PTR_NULL(args);
+    // CHK_PTR_NULL(args); // args可以传入nullptr，通算融合场景，taskargs是在aicore中设置
 
     auto *attrs = static_cast<HcommLaunchKernelAttrs *>(cfg->attrs);
     CHK_PTR_NULL(attrs->kernelName);
@@ -96,6 +96,10 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
         HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regEndRet);
         return ConvertCcuToHccl(regEndRet);
     }
+
+    // Todo: 根据kernelHandle获取taskArgs参数个数
+    // uint32_t sqeArgsNums = HcommCcuArgsNumGet(*attrs->kernelHandle);
+    // argLen = sqeArgsNums;
 
     CcuResult launchRet = HcommCcuKernelLaunch(attrs->thread, *attrs->kernelHandle,
                                                 static_cast<uint64_t *>(args), argLen);
@@ -151,7 +155,7 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     config.memSlice     = CCU_MS_SIZE * CCU_LOCAL_COPY_MS_PER_LOOP;
     auto goSize         = CalGoSize(sliceSize, config);
 
-    //Todo：第一阶段 HcommCcuHostKernelLaunch----------------------------------
+    //Todo：第一阶段 HcommCcuHostKernelLaunch---------------纯通信场景-------------------
     HcommLaunchKernelCfg cfg;
     cfg.ccuSchd = {1,0,0x01};
     cfg.ccuIns = insHandle;
@@ -182,7 +186,7 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg,
                                      &taskArgs, sizeof(TaskArgs) / sizeof(uint64_t)));
 
-    //Todo：第二阶段<<<>>>
+    //Todo：第二阶段 <<<>>> 纯通信场景，有taskargs参数
     // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(
     //     taskArgs[0], 
     //     taskArgs[1],
@@ -196,7 +200,32 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     //     taskArgs[9],
     //     kernelArg
     //     );
+
+
+
+    /* 第一阶段 通算融合场景，没有taskargs
+    HcommLaunchKernelCfg cfg;
+    cfg.ccuSchd = {1,0,0x01};
+    cfg.ccuIns = insHandle;
+    cfg.stream = param.stream;
+
+    resCtx.ccuKernels.resize(1); // 只注册1个kernel
+    HcommLaunchKernelAttrs attrs {
+        kernelInfo.kernelFuncName,
+        kernelInfo.kernelArg,
+        resCtx.threads[0],
+        &resCtx.ccuKernels[0],
+    };
+    cfg.attrs = &attrs;
+    // 此处没有taskArgs，在前面aicore kernel中设置taskArags
+    CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg, nullptr, 0);
     
+    
+    // 第二阶段 通算融合场景，没有taskargs
+    // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(kernelArg);
+    */
+
+
 
     return HCCL_SUCCESS;
 }

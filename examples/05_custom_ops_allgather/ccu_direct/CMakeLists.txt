@@ -24,7 +24,6 @@ endif()
 
 add_executable(custom_allgather_ccu
     testcase/main.asc
-    op_host/allgather.cc
     op_host/utils.cc
     op_kernel_ccu/exec_op.cc
     op_kernel_ccu/ccu_kernel.cc

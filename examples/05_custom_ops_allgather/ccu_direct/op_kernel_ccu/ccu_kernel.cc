@@ -255,6 +255,11 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     return CcuResult::CCU_SUCCESS;
 }
 
+    // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(
+    //     taskArgs[0], taskArgs[1],taskArgs[2], taskArgs[3], taskArgs[4], taskArgs[5],
+    //     taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9],
+    //     kernelArg
+    //     );
 
 // __global__ __ccu_host__ void CcuAllGatherKernel(uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
 // uint64_t currentRankSliceInputOffset, uint64_t currentRankSliceOutputOffset, uint64_t sliceSize,

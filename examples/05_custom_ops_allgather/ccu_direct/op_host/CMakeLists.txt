@@ -9,7 +9,6 @@
 # -----------------------------------------------------------------------------------------------------------
 
 set(op_host_src_list
-    ${CMAKE_CURRENT_SOURCE_DIR}/allgather.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/utils.cc
 )
 
