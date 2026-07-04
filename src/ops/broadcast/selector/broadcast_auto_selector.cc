@@ -79,7 +79,6 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
     constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
-    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->userRankSize == 0 ||
@@ -104,7 +103,7 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             return  SelectorStatus::NOT_MATCH;
         }
     } else {
-        SelectorStatus ret = SelectMeshAlgoCcuSchedule(topoInfo, selectAlgName);
+        SelectorStatus ret = SelectMeshAlgoCcuSchedule(topoInfo, opParam, selectAlgName);
         if (ret != SelectorStatus::MATCH) {
             return ret;
         }
@@ -114,7 +113,7 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
 }
 
 SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWithNetLayerDetails* topoInfo,
-                                                                std::string &selectAlgName) const
+                                                    const OpParam &opParam, std::string &selectAlgName) const
 {
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
