@@ -845,17 +845,16 @@ HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std:
     (void) topoInfo;
     HCCL_INFO("[%s] algTag[%s] commModeTag[%s] resCtx(Host)[%p] aivCommInfoPtr(Device)[%p]", __func__,
         param.algTag, param.commModeTag, param.resCtx, resCtxHost.aivCommInfoPtr);
-    u32 numBlocksLimit = MAX_NUM_BLOCKS;
-    if (param.opMode == OpMode::OFFLOAD) {
-        AivParamStorage *aivParam = nullptr;
-        HcclResult ret = GetAivParamStorageByComm(comm, &aivParam);
-        if (ret == HCCL_SUCCESS && aivParam != nullptr) {
-            numBlocksLimit = aivParam->aivCoreLimit;
-        } else {
-            HCCL_ERROR("[%s] GetAivParamStorageByComm faile, ret[%d], aivParam[%p]", __func__, ret, aivParam);
-            return HCCL_E_INTERNAL;
-        }
-    } else {
+    u32 numBlocksLimit = 0;
+    AivParamStorage *aivParam = nullptr;
+    HcclResult ret = GetAivParamStorageByComm(comm, &aivParam, false);
+    if (ret == HCCL_SUCCESS && aivParam != nullptr) {
+        numBlocksLimit = aivParam->aivCoreLimit;
+    } else if (param.opMode == OpMode::OFFLOAD) {
+        HCCL_ERROR("[%s] GetAivParamStorageByComm faile, ret[%d], aivParam[%p]", __func__, ret, aivParam);
+        return HCCL_E_INTERNAL;
+    }
+    if (numBlocksLimit == 0 && param.opMode == OpMode::OPBASE) {
         ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
     }
     CHK_PRT_RET(numBlocksLimit < 1,
@@ -1032,15 +1031,19 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     exchangeInfo.opExecuteConfig = param.opExecuteConfig;
     exchangeInfo.reduceType = param.reduceType;
     CHK_RET(FillOpExchangeInfoWithDataDes(param, exchangeInfo));
-    if (param.opMode == OpMode::OFFLOAD) {
-        AivParamStorage *aivParam = nullptr;
-        HcclResult ret = GetAivParamStorageByComm(comm, &aivParam);
-        if (ret == HCCL_SUCCESS && aivParam != nullptr) {
-            exchangeInfo.aivCoreLimit = aivParam->aivCoreLimit;
-        }
-    } else {
-        ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &exchangeInfo.aivCoreLimit));
+
+    u32 numBlocksLimit = 0;
+    AivParamStorage *aivParam = nullptr;
+    HcclResult ret = GetAivParamStorageByComm(comm, &aivParam, false);
+    if (ret == HCCL_SUCCESS && aivParam != nullptr) {
+        numBlocksLimit = aivParam->aivCoreLimit;
+        exchangeInfo.aivCoreLimit = numBlocksLimit;
+    } 
+    if (numBlocksLimit == 0 && param.opMode == OpMode::OPBASE) {
+        ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
+        exchangeInfo.aivCoreLimit = numBlocksLimit;
     }
+
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
     s32 sRet = strncpy_s(exchangeInfo.tag, TAG_LENGTH, param.tag, TAG_LENGTH);
@@ -2377,7 +2380,7 @@ HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startu
     return HCCL_SUCCESS;
 }
 
-HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam)
+HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam, bool ifCreate)
 {
     if (comm == nullptr || aivParam == nullptr) {
         HCCL_ERROR("[GetAivParamStorageByComm] Invalid parameters");
@@ -2389,7 +2392,12 @@ HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam)
 
     const char *aivParamTag = "AivParamStorage";
     if (HcclEngineCtxGet(comm, aivParamTag, CommEngine::COMM_ENGINE_CPU_TS, &aivParamCtx, &size) != HCCL_SUCCESS) {
-        CHK_RET(HcclEngineCtxCreate(comm, aivParamTag, CommEngine::COMM_ENGINE_CPU_TS, size, &aivParamCtx));
+        if (ifCreate) {
+            CHK_RET(HcclEngineCtxCreate(comm, aivParamTag, CommEngine::COMM_ENGINE_CPU_TS, size, &aivParamCtx));
+        } else {
+            HCCL_WARNING("[GetAivParamStorageByComm] Call HcclEngineCtxGet failed.");
+            return HCCL_E_PARA;
+        }
     }
 
     *aivParam = static_cast<AivParamStorage *>(aivParamCtx);
@@ -2407,7 +2415,7 @@ HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam)
     HcclComm comm = nullptr;
     CHK_RET(HcomGetCommHandleByGroup(group, &comm));
 
-    return GetAivParamStorageByComm(comm, aivParam);
+    return GetAivParamStorageByComm(comm, aivParam, true);
 }
 
 HcclResult SetMultipleDimensionSplitRatio(OpParam &param) {
