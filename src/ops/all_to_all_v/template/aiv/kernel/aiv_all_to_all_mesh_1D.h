@@ -91,12 +91,12 @@ private:
         CpGM2GM((__gm__ T *)dstOffset_, (__gm__ T *)srcOffset_, sliceCount);
         pipe_barrier(PIPE_ALL);
  
-        uint64_t setFlagIdx = coreIdx_;
-        Record(rank_, setFlagIdx, curTag_);
- 
+        uint64_t setFlagIdx = rank_ * coreNumPerDstRank + coreIdxForDstRank;
+        Record(dstRank, setFlagIdx, curTag_);
+
         // ReadRemote阶段
-        uint64_t waitFlagIdx = rank_ * coreNumPerDstRank + coreIdxForDstRank;
-        WaitFlag(dstRank, waitFlagIdx, curTag_);
+        uint64_t waitFlagIdx = dstRank * coreNumPerDstRank + coreIdxForDstRank;
+        WaitFlag(rank_, waitFlagIdx, curTag_);
  
         srcOffset_ = reinterpret_cast<uint64_t>(GM_IN[dstRank]) + rank_ * dataSize_ + sliceOffsetSize;
         dstOffset_ = output_ + dstRank * outputSliceStride_ + sliceOffsetSize;
