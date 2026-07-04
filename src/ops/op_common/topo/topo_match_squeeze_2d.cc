@@ -134,7 +134,7 @@ HcclResult TopoMatchSqueeze2D::MatchTopo(const HcclComm comm, TopoInfoWithNetLay
     uint32_t myRank;
     CHK_RET(HcclGetRankId(comm, &myRank));
 
-    CHK_PRT_RET(!shouldGoOutPlace(deviceType),
+    CHK_PRT_RET(!shouldGoOutPlace(topoInfo->deviceType),
         HCCL_ERROR("[TopoMatchSqueeze2D][MatchTopo] Rank [%u], deviceType not supported yet.", myRank),
         HcclResult::HCCL_E_PARA);
 
