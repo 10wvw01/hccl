@@ -88,7 +88,6 @@ uint64_t GetLoopGsaOffset(uint64_t gsaOffset){
     }
 }
  
- 
 uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t totalLoopNum)
 {
     DevType deviceType;
@@ -115,6 +114,18 @@ uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t
                 | ((repeatLoopIndex & SetBits(repeatLoopBitNum)) << repeatLoopShiftBit)
                 | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);
     }
+}
+
+uint64_t GetOffsetParam(uint64_t gsaOffset, uint64_t msOffset, uint64_t ckeOffset)
+{
+    constexpr uint16_t gsaBitNum   = 32;
+    constexpr uint16_t gsaShiftBit = 21;
+    constexpr uint16_t msBitNum    = 11;
+    constexpr uint16_t msShiftBit  = 10;
+    constexpr uint16_t ckeBitNum   = 10;
+    constexpr uint16_t ckeShiftBit = 0;
+    return ((gsaOffset & SetBits(gsaBitNum)) << gsaShiftBit) | ((msOffset & SetBits(msBitNum)) << msShiftBit)
+            | ((ckeOffset & SetBits(ckeBitNum)) << ckeShiftBit);
 }
 
 uint64_t GetExpansionParam(uint64_t expansionNum)
