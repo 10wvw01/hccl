@@ -59,23 +59,45 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, InsA
     dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
 
-    rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
-    if (rankSizeLevel0_ == 0) {
-        HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
-        return HcclResult::HCCL_E_PARA;
-    }
+    rankSizeLevel_.resize(OMNIPIPE_LEVEL_NUM);
+    rankIdxLevel_.resize(OMNIPIPE_LEVEL_NUM);
 
-    rankSizeLevel1_ = algHierarchyInfo.infos[0][1].size() / rankSizeLevel0_;
-    if (rankSizeLevel1_ == 0) {
-        HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
-        return HcclResult::HCCL_E_PARA;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        HCCL_INFO("[%s] topo: UBX", __func__);
+        topoType_ = TopoType::UBX;
+        rankSizeLevel_[OMNIPIPE_LEVEL0] = algHierarchyInfo.infos[0][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL0] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+
+        rankSizeLevel_[OMNIPIPE_LEVEL1] = algHierarchyInfo.infos[0][1].size() / rankSizeLevel_[OMNIPIPE_LEVEL0];
+        if (rankSizeLevel_[OMNIPIPE_LEVEL1] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+    } else {
+        HCCL_INFO("[%s] topo: MULTI_LEVEL", __func__);
+        topoType_ = TopoType::MULTI_LEVEL;
+        rankSizeLevel_[OMNIPIPE_LEVEL0] = algHierarchyInfo.infos[0][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL0] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+
+        rankSizeLevel_[OMNIPIPE_LEVEL1] = algHierarchyInfo.infos[1][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL1] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
     }
-    rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
-    rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
+    rankIdxLevel_[OMNIPIPE_LEVEL1] = myRank_ / rankSizeLevel_[OMNIPIPE_LEVEL0];
+    rankIdxLevel_[OMNIPIPE_LEVEL0] = myRank_ % rankSizeLevel_[OMNIPIPE_LEVEL0];
 
     HCCL_INFO("[%s] myRank[%u] rankSize[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] "
         "rankIdxLevel1[%u] devType[%u] dataCount[%u] dataType[%u] dataTypeSize[%u]",
-        __func__, myRank_, rankSize_, rankSizeLevel0_, rankSizeLevel1_, rankIdxLevel0_, rankIdxLevel1_, devType_,
+        __func__, myRank_, rankSize_, rankSizeLevel_[OMNIPIPE_LEVEL0], rankSizeLevel_[OMNIPIPE_LEVEL1],
+        rankIdxLevel_[OMNIPIPE_LEVEL0], rankIdxLevel_[OMNIPIPE_LEVEL1], devType_,
         dataCount_, dataType_, dataTypeSize_);
 
     return HcclResult::HCCL_SUCCESS;
@@ -104,6 +126,28 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
 
 
 template <typename AlgTopoMatch, typename CcuAlgTempLevel0, typename CcuAlgTempLevel1>
+HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuAlgTempLevel1>::BuildSubCommRanks(
+    const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+    std::vector<std::vector<u32>>& subCommRanks0,
+    std::vector<std::vector<u32>>& subCommRanks1)
+{
+    if (topoType_ == TopoType::UBX) {
+        subCommRanks0 = {algHierarchyInfo.infos[0][0]};
+        auto size = algHierarchyInfo.infos[0][1].size() / algHierarchyInfo.infos[0][0].size();
+        subCommRanks1.resize(1, std::vector<u32>(size, 0));
+        u32 index = 0;
+        for (auto i = myRank_ % rankSizeLevel_[OMNIPIPE_LEVEL0]; i < algHierarchyInfo.infos[0][1].size();
+             i += rankSizeLevel_[OMNIPIPE_LEVEL0]) {
+            subCommRanks1[0][index++] = algHierarchyInfo.infos[0][1][i];
+        }
+    } else {
+        subCommRanks0 = algHierarchyInfo.infos[0];
+        subCommRanks1 = algHierarchyInfo.infos[1];
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename CcuAlgTempLevel0, typename CcuAlgTempLevel1>
 HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuAlgTempLevel1>::CalcRes(
     HcclComm comm, const OpParam& param,
     const TopoInfoWithNetLayerDetails *topoInfo,
@@ -113,13 +157,9 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     HCCL_DEBUG("[%s] ins0618 alleref start", __func__);
     CHK_RET(InitCommInfo(param, topoInfo, algHierarchyInfo));
 
-    std::vector<std::vector<u32>> subCommRanks0{algHierarchyInfo.infos[0][0]};
-    auto size = algHierarchyInfo.infos[0][1].size() / algHierarchyInfo.infos[0][0].size();
-    std::vector<std::vector<u32>> subCommRanks1(1, std::vector<u32>(size, 0));
-    u32 index = 0;
-    for (auto i = myRank_ % rankSizeLevel0_; i < algHierarchyInfo.infos[0][1].size(); i += rankSizeLevel0_) {
-        subCommRanks1[0][index++] = algHierarchyInfo.infos[0][1][i];
-    }
+    std::vector<std::vector<u32>> subCommRanks0;
+    std::vector<std::vector<u32>> subCommRanks1;
+    CHK_RET(BuildSubCommRanks(algHierarchyInfo, subCommRanks0, subCommRanks1));
     CcuAlgTempLevel0 algTempLevel0(param, myRank_, subCommRanks0);
     CcuAlgTempLevel1 algTempLevel1(param, myRank_, subCommRanks1);
 
@@ -164,22 +204,44 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     dataType_ = param.DataDes.dataType;
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-    rankSizeLevel0_ = resCtx.algHierarchyInfo.infos[0][0].size();
-    if (rankSizeLevel0_ == 0) {
-        HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
-        return HcclResult::HCCL_E_PARA;
-    }
+    rankSizeLevel_.resize(OMNIPIPE_LEVEL_NUM);
+    rankIdxLevel_.resize(OMNIPIPE_LEVEL_NUM);
 
-    rankSizeLevel1_ = resCtx.algHierarchyInfo.infos[0][1].size() / rankSizeLevel0_;
-    if (rankSizeLevel1_ == 0) {
-        HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
-        return HcclResult::HCCL_E_PARA;
+    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+        topoType_ = TopoType::UBX;
+        HCCL_INFO("[%s] topo: UBX", __func__);
+        rankSizeLevel_[OMNIPIPE_LEVEL0] = resCtx.algHierarchyInfo.infos[0][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL0] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+
+        rankSizeLevel_[OMNIPIPE_LEVEL1] = resCtx.algHierarchyInfo.infos[0][1].size() / rankSizeLevel_[OMNIPIPE_LEVEL0];
+        if (rankSizeLevel_[OMNIPIPE_LEVEL1] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+    } else {
+        HCCL_INFO("[%s] topo: MULTI_LEVEL", __func__);
+        topoType_ = TopoType::MULTI_LEVEL;
+        rankSizeLevel_[OMNIPIPE_LEVEL0] = resCtx.algHierarchyInfo.infos[0][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL0] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
+
+        rankSizeLevel_[OMNIPIPE_LEVEL1] = resCtx.algHierarchyInfo.infos[1][0].size();
+        if (rankSizeLevel_[OMNIPIPE_LEVEL1] == 0) {
+            HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
+            return HcclResult::HCCL_E_PARA;
+        }
     }
-    rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
-    rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
+    rankIdxLevel_[OMNIPIPE_LEVEL1] = myRank_ / rankSizeLevel_[OMNIPIPE_LEVEL0];
+    rankIdxLevel_[OMNIPIPE_LEVEL0] = myRank_ % rankSizeLevel_[OMNIPIPE_LEVEL0];
 
     HCCL_DEBUG("[%s] myRank[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
-        __func__, myRank_, rankSizeLevel0_, rankSizeLevel1_, rankIdxLevel0_, rankIdxLevel1_);
+        __func__, myRank_, rankSizeLevel_[OMNIPIPE_LEVEL0], rankSizeLevel_[OMNIPIPE_LEVEL1],
+        rankIdxLevel_[OMNIPIPE_LEVEL0], rankIdxLevel_[OMNIPIPE_LEVEL1]);
 
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
@@ -238,13 +300,9 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
 {
     HCCL_DEBUG("[%s] Start", __func__);
     auto algHierarchyInfo = resCtx.algHierarchyInfo;
-    std::vector<std::vector<u32>> subCommRanks0{algHierarchyInfo.infos[0][0]};
-    auto size = algHierarchyInfo.infos[0][1].size() / algHierarchyInfo.infos[0][0].size();
-    std::vector<std::vector<u32>> subCommRanks1(1, std::vector<u32>(size, 0));
-    u32 index = 0;
-    for (auto i = myRank_ % rankSizeLevel0_; i < algHierarchyInfo.infos[0][1].size(); i += rankSizeLevel0_) {
-        subCommRanks1[0][index++] = algHierarchyInfo.infos[0][1][i];
-    }
+    std::vector<std::vector<u32>> subCommRanks0;
+    std::vector<std::vector<u32>> subCommRanks1;
+    CHK_RET(BuildSubCommRanks(algHierarchyInfo, subCommRanks0, subCommRanks1));
     CcuAlgTempLevel0 algTemplateLevel0(param, myRank_, subCommRanks0);
     CcuAlgTempLevel1 algTemplateLevel1(param, myRank_, subCommRanks1);
 
@@ -273,7 +331,7 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     // 1. 计算带宽
     double eqBwLevel0 = BW_OMNI_UBX_CCU_SCHED_AG_MESH;
     double eqBwLevel1 = BW_OMNI_UBX_CCU_SCHED_AG_CLOS;
-    eqBwLevel1 = rankSizeLevel1_ > 1 ? eqBwLevel1 / (rankSizeLevel1_ - 1) : eqBwLevel1;
+    eqBwLevel1 = rankSizeLevel_[OMNIPIPE_LEVEL1] > 1 ? eqBwLevel1 / (rankSizeLevel_[OMNIPIPE_LEVEL1] - 1) : eqBwLevel1;
     std::vector<double> endpointAttrBw = {eqBwLevel0, eqBwLevel1, 1.0};
     HCCL_INFO("[%s] eqBwLevel0:%f, eqBwLevel1:%f", __func__, eqBwLevel0, eqBwLevel1);
 
@@ -293,8 +351,8 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     sliceParam.endpointAttrBw = endpointAttrBw;
     sliceParam.opMode = param.opMode;
     sliceParam.engine = CommEngine::COMM_ENGINE_CCU;
-    sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
-    sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
+    sliceParam.levelRankId = {rankIdxLevel_[OMNIPIPE_LEVEL0], rankIdxLevel_[OMNIPIPE_LEVEL1], 0};
+    sliceParam.levelRankSize = {rankSizeLevel_[OMNIPIPE_LEVEL0], rankSizeLevel_[OMNIPIPE_LEVEL1], 1};
     std::vector<u64> levelAlgType{1, 1, 1};
     sliceParam.levelAlgType = levelAlgType;
     sliceParam.dataTypeSize = dataTypeSize_;
