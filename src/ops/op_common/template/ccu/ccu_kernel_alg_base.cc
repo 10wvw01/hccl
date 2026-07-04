@@ -532,7 +532,7 @@ CcuResult GroupBroadcastV1(CcuKernelCtxBase &ctx, const size_t channels[], uint3
     ccu::Variable offsetCfg;
     ccu::Variable loopParam;
     ccu::Variable sliceSize;
-    CCU_CHK_RET(CreateMultiOpBroadcast(ctx, var, channels, channelCount));
+    CCU_CHK_RET(CreateMultiOpBroadcastV1(ctx, var, channels, channelCount));
     auto &loops = ctx.loopMap["broadcast"];
 
     CCU_IF(goSize.loopParam != 0)

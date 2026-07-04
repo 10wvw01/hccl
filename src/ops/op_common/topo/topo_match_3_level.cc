@@ -131,7 +131,7 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     uint32_t myRank;
     CHK_RET(HcclGetRankId(comm, &myRank));
 
-    CHK_PRT_RET(!shouldGoOutPlace(deviceType),
+    CHK_PRT_RET(!shouldGoOutPlace(topoInfo->deviceType),
         HCCL_ERROR("[CollAlgFactory] [TopoMatch3Level] Rank [%d], deviceType not supported yet.",
             myRank),
         HcclResult::HCCL_E_PARA);
