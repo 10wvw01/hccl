@@ -125,6 +125,15 @@ int main()
     ACLCHECK(aclrtGetDeviceCount(&devCount));
     std::cout << "Found " << devCount << " NPU device(s) available" << std::endl;
 
+    // 本示例由偶数 rank 向 device+1 发送、奇数 rank 从 device-1 接收，要求设备数为偶数且不少于 2，
+    // 否则最大的偶数 rank 会向不存在的 rank 发送，导致收发无法配对（报错或挂死）
+    if (devCount < 2 || devCount % 2 != 0) {
+        std::cout << "This example requires an even number of NPU devices (>= 2), but found " << devCount
+                  << ". Please set ASCEND_RT_VISIBLE_DEVICES accordingly." << std::endl;
+        ACLCHECK(aclFinalize());
+        return -1;
+    }
+
     int32_t rootRank = 0;
     ACLCHECK(aclrtSetDevice(rootRank));
     // 生成 Root 节点信息，各线程使用同一份 RootInfo
