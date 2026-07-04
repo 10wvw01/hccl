@@ -127,7 +127,7 @@ CcuResult GroupReduceWithoutMyRank(CcuKernelCtxBase &ctx, const size_t channels[
                         ccu::LocalAddr dst, std::vector<ccu::RemoteAddr> src, GroupOpSizeVars goSize,
                         HcclDataType dataType, HcclDataType outputDataType, HcclReduceOp opType);
 
-CcuResult CreateMultiOpCopy(CcuKernelCtxBase &ctx, GroupCopyVar &var);
+CcuResult CreateMultiOpCopyV1(CcuKernelCtxBase &ctx, GroupCopyVar &var);
 CcuResult GroupCopy(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr src, GroupOpSizeVars goSize);
 
 CcuResult CreateReduceLoop(CcuKernelCtxBase &ctx, GroupLocalReduceVar &var, uint32_t size,
@@ -142,11 +142,11 @@ CcuResult GroupReduce(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t c
                         ccu::LocalAddr dst, std::vector<ccu::RemoteAddr> src, ccu::LocalAddr localSrc,
                         GroupOpSizeVars goSize, HcclDataType dataType, HcclDataType outputDataType, HcclReduceOp opType);
 
-CcuResult CreateMultiOpReduce(CcuKernelCtxBase &ctx, GroupReduceVar &var,
+CcuResult CreateMultiOpReduceV1(CcuKernelCtxBase &ctx, GroupReduceVar &var,
                                const size_t channels[], uint32_t channelCount, HcclDataType dataType,
                                HcclDataType outputDataType, HcclReduceOp opType);
 
-CcuResult CreateMultiOpBroadcast(CcuKernelCtxBase &ctx, GroupBroadcastVar &var,
+CcuResult CreateMultiOpBroadcastV1(CcuKernelCtxBase &ctx, GroupBroadcastVar &var,
                                  const size_t channels[], uint32_t channelCount);
 
 CcuResult GroupBroadcast(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount,
@@ -155,7 +155,12 @@ CcuResult GroupBroadcast(CcuKernelCtxBase &ctx, const size_t channels[], uint32_
 CcuResult CreateMultiOpReduceWithoutMyRank(CcuKernelCtxBase &ctx, GroupReduceVar &var,
                                  const size_t channels[], uint32_t channelCount, HcclDataType dataType,
                                  HcclDataType outputDataType, HcclReduceOp opType);
-
+CcuResult GroupReduceV1(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount, ccu::LocalAddr dst,
+                        std::vector<ccu::RemoteAddr> src, ccu::LocalAddr localSrc, GroupOpSizeVars goSize, HcclDataType dataType,
+                        HcclDataType outputDataType, HcclReduceOp opType);
+CcuResult GroupBroadcastV1(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount,
+                         ccu::LocalAddr localDst, std::vector<ccu::RemoteAddr> dst, ccu::LocalAddr src, GroupOpSizeVars goSize);
+CcuResult GroupCopyV1(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr src, GroupOpSizeVars goSize);
 }
 
 #endif // !CCU_KERNEL_ALG_BASE

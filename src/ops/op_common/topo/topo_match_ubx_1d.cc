@@ -31,7 +31,7 @@ HcclResult TopoMatchUBX1d::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerDe
         HCCL_E_INTERNAL);
     uint32_t myRank;
     CHK_RET(HcclGetRankId(comm, &myRank));
-    CHK_PRT_RET(!shouldGoOutPlace(deviceType),
+    CHK_PRT_RET(!shouldGoOutPlace(topoInfo->deviceType),
         HCCL_ERROR("[CollAlgFactory] [TopoMatchUBX] Rank [%d], deviceType not supported yet.",
             myRank),
         HcclResult::HCCL_E_PARA);

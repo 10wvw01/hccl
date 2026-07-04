@@ -62,19 +62,6 @@ uint64_t GetLoopParam(uint64_t loopCtxId, uint64_t gsaOffset, uint64_t loopIterN
     }
 }
 
-uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t totalLoopNum)
-{
-    constexpr uint16_t repeatBitNum       = 7;
-    constexpr uint16_t repeatNumShiftBit  = 55;
-    constexpr uint16_t repeatLoopBitNum   = 7;
-    constexpr uint16_t repeatLoopShiftBit = 48;
-    constexpr uint16_t totalLoopBitNum    = 7;
-    constexpr uint16_t totalLoopShiftBit  = 41;
-    return ((repeatNum & SetBits(repeatBitNum)) << repeatNumShiftBit)
-           | ((repeatLoopIndex & SetBits(repeatLoopBitNum)) << repeatLoopShiftBit)
-           | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);
-}
-
 uint64_t GetLoopIterNum(uint64_t iterNum)
 {
     DevType deviceType;
