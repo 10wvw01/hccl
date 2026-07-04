@@ -15,6 +15,7 @@
 namespace ops_hccl {
 
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u32 OMNI2D_UBX_BR_DATA_SIZE = 16 * 1024 * 1024;
 
 SelectorStatus BroadcastAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -67,6 +68,10 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
+    // selectAlgName = "CcuBroadcastOmniPipe2D";
+    // HCCL_INFO("[BroadcastAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
+    // return SelectorStatus::MATCH;
+
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
@@ -89,7 +94,13 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
             } else {
-                selectAlgName = "CcuBroadcastParallelMesh1DNHR";
+                if (dataSize < OMNI2D_UBX_BR_DATA_SIZE) {
+                    selectAlgName = "CcuBroadcastParallelMesh1DNHR";
+                    HCCL_DEBUG("[SelectMeshAlgoCcuSchedule] dataSize[%llu] tag0 selectAlgName[%s]", dataSize, selectAlgName);
+                } else {
+                    selectAlgName = "CcuBroadcastOmniPipe2D";
+                    HCCL_DEBUG("[SelectMeshAlgoCcuSchedule] dataSize[%llu] tag0 selectAlgName[%s]", dataSize, selectAlgName);
+                }
             }
         } else {
              HCCL_WARNING("[Algo][BroadcastAutoSelector] level0Shape[%d] is not supported yet for ccu schedule mode.",
