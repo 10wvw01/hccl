@@ -29,7 +29,7 @@ HcclResult TopoMatchPcieMix::MatchTopo(const HcclComm comm, TopoInfoWithNetLayer
     uint32_t myRank;
     CHK_RET(HcclGetRankId(comm, &myRank));
 
-    CHK_PRT_RET(!shouldGoOutPlace(deviceType),
+    CHK_PRT_RET(!shouldGoOutPlace(topoInfo->deviceType),
         HCCL_ERROR("[TopoMatchPcieMix] Rank [%d], deviceType not supported yet.", myRank), HcclResult::HCCL_E_PARA);
 
     // 获取通信网络层数
