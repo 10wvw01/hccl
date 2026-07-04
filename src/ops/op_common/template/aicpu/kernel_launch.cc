@@ -454,7 +454,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
         
         // 检查是否cache miss
-        std::string cacheTag = "";
+        std::string cacheTag;
         bool isCacheHit = false;
         if (enableCache) { // 使能aicpu task cache
             // 使用aicpu task cache前确保AicpuTsThread中无SQE (cache miss下避免缓存算法无关的task; cache hit下避免task下发乱序)
@@ -474,7 +474,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
 
             // 组装aicpu task cache tag
-            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, cacheTag);
+            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, inputSize, cacheTag);
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {

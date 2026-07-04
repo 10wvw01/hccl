@@ -14,7 +14,7 @@
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, std::string &cacheTag)
+HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_t inputSize, std::string &cacheTag)
 {
     // 校验opType
     const HcclCMDType opType = param.opType;
@@ -37,7 +37,6 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, std::st
     const HcclReduceOp reduceType = param.reduceType;
     const bool isZeroCopy = param.isZeroCopy;
     const OpMode opMode = param.opMode;
-    const uint64_t inputSize = param.inputSize;
 
     // 使用'-'作为间隔符, 拼接cacheTag
     // 注意: 把input size放在前面, 如果需要解析, 可以减少解析开销

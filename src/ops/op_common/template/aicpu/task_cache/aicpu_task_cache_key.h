@@ -25,7 +25,7 @@ public:
     AicpuTaskCacheKey() = delete;
 
     // 拼接cacheTag
-    static HcclResult GetAicpuTaskCacheTag(const OpParam &param, std::string &cacheTag);
+    static HcclResult GetAicpuTaskCacheTag(const OpParam &param, uint64_t inputSize, std::string &cacheTag);
 };
 
 } // namespace Hccl
