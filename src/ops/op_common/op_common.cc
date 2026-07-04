@@ -1076,7 +1076,7 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
     }
 
     // 参数一致性校验
-    if (NeedInconsistentCheck(param)) {
+    if (NeedInconsistentCheck(comm, param)) {
         OpExchangeInfo exchangeInfo{};
         CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
         CHK_RET(CompareOpExchangeInfos(comm, param, resRequest, exchangeInfo));
@@ -1095,7 +1095,7 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     exchangeInfo.opExecuteConfig = param.opExecuteConfig;
     exchangeInfo.reduceType = param.reduceType;
     CHK_RET(FillOpExchangeInfoWithDataDes(param, exchangeInfo));
-    if (param.opMode == OpMode::OFFLOAD) {
+    if (param.opMode == OpMode::OFFLOAD && param.engine == CommEngine::AIV) {
         AivParamStorage *aivParam = nullptr;
         HcclResult ret = GetAivParamStorageByComm(comm, &aivParam);
         if (ret == HCCL_SUCCESS && aivParam != nullptr) {
@@ -1147,7 +1147,7 @@ HcclResult FillOpExchangeInfoWithDataDes(const OpParam &param, OpExchangeInfo &e
 HcclResult AddExchangeInfo(HcclComm comm, const OpParam &param)
 {
     CHK_PTR_NULL(comm);
-    if (NeedInconsistentCheck(param)) {
+    if (NeedInconsistentCheck(comm, param)) {
         OpExchangeInfo exchangeInfo{};
         CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
         CHK_RET(HcclCommAddExchangeInfo(comm, &exchangeInfo, sizeof(exchangeInfo)));
