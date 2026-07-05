@@ -17,7 +17,7 @@ This sample demonstrates how to call the `HcclAllReduce()` API to perform an `Al
 ```
 ├── main.cc      # Sample source file
 ├── Makefile     # Compilation and build configuration file
-└── allreduce    # Compiled executable file
+└── all_reduce    # Compiled executable file
 ```
 
 ## Environment Preparation
