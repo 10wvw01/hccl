@@ -88,24 +88,31 @@ private:
     // Move rank0's cross-CPU payload into rank3 extra scratch before normal transfer.
     HcclResult RunDetourPreStage(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
-    // Forward rank0's detoured payload from rank3 to ranks 4-7.
-    HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
-        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
-    // Make rank3 forward streams wait only for the rank0->rank3 pre-stage streams.
-    HcclResult SyncDetourPreStageToForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
-        const std::vector<ThreadHandle> &threads) const;
-    // Record forward completion so the next loop can protect rank3 scratch reuse.
-    HcclResult RecordDetourForwardDone(const std::map<u32, std::vector<ChannelInfo>> &channels,
-        const std::vector<ThreadHandle> &threads);
+    // Record one dst scratch readiness from the rank0<->rank3 pre-stage streams.
+    HcclResult RecordDetourPreStageReadyForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, u32 dstRank) const;
+    // Wait for rank3 scratch readiness on the current rank3<->dst forward streams.
+    HcclResult WaitDetourPreStageReadyForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, u32 dstRank) const;
+    // Record one dst forward completion so the next loop can protect rank3 scratch reuse.
+    HcclResult RecordDetourForwardDoneForDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, u32 dstRank);
     // Wait for the previous loop's forward before rank3 accepts new detour scratch data.
     HcclResult WaitDetourForwardDone(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads);
+    // Consume forward completion notifies without changing the pending state.
+    HcclResult WaitDetourForwardDoneNotify(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads) const;
     // Collect any pending forward work on the last loop before returning to the caller.
     HcclResult FlushDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads);
     // Sync normal alltoall threads while leaving detour forward streams pipelined.
     HcclResult PostSyncNormalThreads(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const std::vector<ThreadHandle> &subThreads) const;
+    // Check whether the current normal peer should be followed by one detour forward.
+    bool ShouldRunDetourForwardAfterNormal(u32 remoteRank) const;
+    // Resolve the destination rank forwarded on the current rank3<->dst peer.
+    u32 ResolveDetourForwardDstRank(u32 remoteRank) const;
     // Collect the stream thread indices that communicate with one remote rank.
     HcclResult CollectThreadIdxsForRemoteRank(const std::map<u32, std::vector<ChannelInfo>> &channels,
         u32 remoteRank, std::vector<u32> &threadIdxs) const;

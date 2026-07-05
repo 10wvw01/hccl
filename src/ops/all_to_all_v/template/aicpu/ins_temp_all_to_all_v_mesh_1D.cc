@@ -236,9 +236,6 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
         if (!isDmaRead_) {
             CHK_RET(WaitDetourForwardDone(channels, threads));
             CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
-            CHK_RET(SyncDetourPreStageToForward(channels, threads));
-            CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
-            CHK_RET(RecordDetourForwardDone(channels, threads));
         }
     }
     for (u32 roundIdx = 0; roundIdx < commLoops && remainRankSize > 0; roundIdx++) {
@@ -259,9 +256,6 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
                 if (enableAlltoAllDetour) {
                     CHK_RET(WaitDetourForwardDone(channels, threads));
                     CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
-                    CHK_RET(SyncDetourPreStageToForward(channels, threads));
-                    CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
-                    CHK_RET(RecordDetourForwardDone(channels, threads));
                 }
                 CHK_RET(LocalCopyForMyRank(tempAlgParams, threads[0], myAlgRank, 0)); // 在第1轮通信中用0号流做本卡数据拷贝
             }
@@ -318,6 +312,12 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByLoop(const std::vector<u32> &com
         CHK_RET(CalcDataSplitByPortGroupCommon(recvCount, dataTypeSize_, curChannels,
             recvCountsSplit_, recvSizeSplit_, recvOffsetSplit_, curValidChannelsSize));
         CHK_RET(RunSendRecvByChannel(tempAlgParams, roundIdx, curValidChannelsSize, curChannels, remoteRank, threads, commLoops));
+        if (ShouldRunDetourForwardAfterNormal(remoteRank)) {
+            u32 dstRank = ResolveDetourForwardDstRank(remoteRank);
+            CHK_RET(WaitDetourPreStageReadyForDst(channels, threads, dstRank));
+            CHK_RET(RunDetourForwardForDst(channels, threads, tempAlgParams, dstRank));
+            CHK_RET(RecordDetourForwardDoneForDst(channels, threads, dstRank));
+        }
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -453,20 +453,9 @@ HcclResult InsTempAlltoAllVMesh1D::RunDetourPreStage(
                     HcclResult::HCCL_E_INTERNAL);
             }
         }
-    }
-    return HCCL_SUCCESS;
-}
-
-HcclResult InsTempAlltoAllVMesh1D::RunDetourForward(
-    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
-    const TemplateDataParams &tempAlgParams) const
-{
-    if (myRank_ == ALLTOALL_DETOUR_RELAY_RANK) {
-        for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
-            CHK_RET(RunDetourForwardForDst(channels, threads, tempAlgParams, dstRank));
+        if (myRank_ == ALLTOALL_DETOUR_RELAY_RANK) {
+            CHK_RET(RecordDetourPreStageReadyForDst(channels, threads, dstRank));
         }
-    } else if (IsAlltoAllDetourDstRank(myRank_)) {
-        CHK_RET(RunDetourForwardForDst(channels, threads, tempAlgParams, myRank_));
     }
     return HCCL_SUCCESS;
 }
@@ -520,8 +509,9 @@ HcclResult InsTempAlltoAllVMesh1D::CollectDetourForwardThreadIdxs(
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVMesh1D::SyncDetourPreStageToForward(
-    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads) const
+HcclResult InsTempAlltoAllVMesh1D::RecordDetourPreStageReadyForDst(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
+    u32 dstRank) const
 {
     if (myRank_ != ALLTOALL_DETOUR_RELAY_RANK) {
         return HCCL_SUCCESS;
@@ -529,35 +519,52 @@ HcclResult InsTempAlltoAllVMesh1D::SyncDetourPreStageToForward(
 
     std::vector<u32> preStageThreadIdxs;
     CHK_RET(CollectThreadIdxsForRemoteRank(channels, ALLTOALL_DETOUR_SRC_RANK, preStageThreadIdxs));
-    std::vector<ThreadHandle> preStageThreads;
-    std::vector<u32> notifyIdxSubToMain;
-    for (u32 threadIdx : preStageThreadIdxs) {
-        preStageThreads.push_back(threads[threadIdx]);
-        notifyIdxSubToMain.push_back(threadIdx - 1);
+    if (preStageThreadIdxs.empty()) {
+        return HCCL_SUCCESS;
     }
-    if (!preStageThreads.empty()) {
-        CHK_RET(PostSyncInterThreads(threads[0], preStageThreads, notifyIdxSubToMain));
+    if (preStageThreadIdxs.size() > 1) {
+        const ThreadHandle &preStageMainThread = threads[preStageThreadIdxs[0]];
+        std::vector<ThreadHandle> preStageSubThreads;
+        for (u32 idx = 1; idx < preStageThreadIdxs.size(); idx++) {
+            preStageSubThreads.push_back(threads[preStageThreadIdxs[idx]]);
+        }
+        CHK_RET(PostSyncInterThreadsPerRank(preStageMainThread, preStageSubThreads));
     }
 
     std::vector<u32> forwardThreadIdxs;
-    CHK_RET(CollectDetourForwardThreadIdxs(channels, forwardThreadIdxs));
-    std::vector<ThreadHandle> forwardThreads;
-    std::vector<u32> notifyIdxMainToSub;
-    for (u32 threadIdx : forwardThreadIdxs) {
-        forwardThreads.push_back(threads[threadIdx]);
-        notifyIdxMainToSub.push_back(0);
-    }
-    if (!forwardThreads.empty()) {
-        CHK_RET(PreSyncInterThreads(threads[0], forwardThreads, notifyIdxMainToSub));
+    CHK_RET(CollectThreadIdxsForRemoteRank(channels, dstRank, forwardThreadIdxs));
+    u32 notifyIdx = CalcDetourForwardNotifyIdx(dstRank);
+    for (u32 forwardThreadIdx : forwardThreadIdxs) {
+        CHK_RET(static_cast<HcclResult>(
+            HcommThreadNotifyRecordOnThread(threads[preStageThreadIdxs[0]], threads[forwardThreadIdx], notifyIdx)));
     }
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAlltoAllVMesh1D::RecordDetourForwardDone(
-    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads)
+HcclResult InsTempAlltoAllVMesh1D::WaitDetourPreStageReadyForDst(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
+    u32 dstRank) const
 {
     if (myRank_ != ALLTOALL_DETOUR_RELAY_RANK) {
-        if (IsAlltoAllDetourDstRank(myRank_)) {
+        return HCCL_SUCCESS;
+    }
+
+    std::vector<u32> forwardThreadIdxs;
+    CHK_RET(CollectThreadIdxsForRemoteRank(channels, dstRank, forwardThreadIdxs));
+    u32 notifyIdx = CalcDetourForwardNotifyIdx(dstRank);
+    u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    for (u32 forwardThreadIdx : forwardThreadIdxs) {
+        CHK_RET(HcclThreadNotifyWaitOnThreadDefault(threads[forwardThreadIdx], notifyIdx, execTimeout));
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVMesh1D::RecordDetourForwardDoneForDst(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
+    u32 dstRank)
+{
+    if (myRank_ != ALLTOALL_DETOUR_RELAY_RANK) {
+        if (myRank_ == dstRank) {
             detourForwardPending_ = true;
         }
         return HCCL_SUCCESS;
@@ -565,25 +572,23 @@ HcclResult InsTempAlltoAllVMesh1D::RecordDetourForwardDone(
 
     std::vector<u32> preStageThreadIdxs;
     CHK_RET(CollectThreadIdxsForRemoteRank(channels, ALLTOALL_DETOUR_SRC_RANK, preStageThreadIdxs));
-    for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
-        std::vector<u32> forwardThreadIdxs;
-        CHK_RET(CollectThreadIdxsForRemoteRank(channels, dstRank, forwardThreadIdxs));
-        if (forwardThreadIdxs.empty()) {
-            continue;
+    std::vector<u32> forwardThreadIdxs;
+    CHK_RET(CollectThreadIdxsForRemoteRank(channels, dstRank, forwardThreadIdxs));
+    if (forwardThreadIdxs.empty()) {
+        return HCCL_SUCCESS;
+    }
+    if (forwardThreadIdxs.size() > 1) {
+        const ThreadHandle &forwardMainThread = threads[forwardThreadIdxs[0]];
+        std::vector<ThreadHandle> forwardSubThreads;
+        for (u32 idx = 1; idx < forwardThreadIdxs.size(); idx++) {
+            forwardSubThreads.push_back(threads[forwardThreadIdxs[idx]]);
         }
-        if (forwardThreadIdxs.size() > 1) {
-            const ThreadHandle &forwardMainThread = threads[forwardThreadIdxs[0]];
-            std::vector<ThreadHandle> forwardSubThreads;
-            for (u32 idx = 1; idx < forwardThreadIdxs.size(); idx++) {
-                forwardSubThreads.push_back(threads[forwardThreadIdxs[idx]]);
-            }
-            CHK_RET(PostSyncInterThreadsPerRank(forwardMainThread, forwardSubThreads));
-        }
-        u32 notifyIdx = CalcDetourForwardNotifyIdx(dstRank);
-        for (u32 preStageThreadIdx : preStageThreadIdxs) {
-            CHK_RET(static_cast<HcclResult>(
-                HcommThreadNotifyRecordOnThread(threads[forwardThreadIdxs[0]], threads[preStageThreadIdx], notifyIdx)));
-        }
+        CHK_RET(PostSyncInterThreadsPerRank(forwardMainThread, forwardSubThreads));
+    }
+    u32 notifyIdx = CalcDetourForwardNotifyIdx(dstRank);
+    for (u32 preStageThreadIdx : preStageThreadIdxs) {
+        CHK_RET(static_cast<HcclResult>(
+            HcommThreadNotifyRecordOnThread(threads[forwardThreadIdxs[0]], threads[preStageThreadIdx], notifyIdx)));
     }
     detourForwardPending_ = true;
     return HCCL_SUCCESS;
@@ -596,6 +601,18 @@ HcclResult InsTempAlltoAllVMesh1D::WaitDetourForwardDone(
         return HCCL_SUCCESS;
     }
 
+    CHK_RET(WaitDetourForwardDoneNotify(channels, threads));
+    detourForwardPending_ = false;
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVMesh1D::WaitDetourForwardDoneNotify(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads) const
+{
+    if (myRank_ != ALLTOALL_DETOUR_RELAY_RANK) {
+        return HCCL_SUCCESS;
+    }
+
     std::vector<u32> preStageThreadIdxs;
     CHK_RET(CollectThreadIdxsForRemoteRank(channels, ALLTOALL_DETOUR_SRC_RANK, preStageThreadIdxs));
     u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
@@ -605,7 +622,6 @@ HcclResult InsTempAlltoAllVMesh1D::WaitDetourForwardDone(
                 threads[preStageThreadIdx], CalcDetourForwardNotifyIdx(dstRank), execTimeout));
         }
     }
-    detourForwardPending_ = false;
     return HCCL_SUCCESS;
 }
 
@@ -615,6 +631,8 @@ HcclResult InsTempAlltoAllVMesh1D::FlushDetourForward(
     if (!IsDetourForwardParticipant() || !detourForwardPending_) {
         return HCCL_SUCCESS;
     }
+
+    CHK_RET(WaitDetourForwardDoneNotify(channels, threads));
 
     std::vector<u32> forwardThreadIdxs;
     CHK_RET(CollectDetourForwardThreadIdxs(channels, forwardThreadIdxs));
@@ -652,6 +670,20 @@ HcclResult InsTempAlltoAllVMesh1D::PostSyncNormalThreads(
         CHK_RET(PostSyncInterThreads(threads[0], normalThreads, notifyIdxSubToMain));
     }
     return HCCL_SUCCESS;
+}
+
+bool InsTempAlltoAllVMesh1D::ShouldRunDetourForwardAfterNormal(u32 remoteRank) const
+{
+    if (!IsAlltoAllDetourEnabled()) {
+        return false;
+    }
+    return (myRank_ == ALLTOALL_DETOUR_RELAY_RANK && IsAlltoAllDetourDstRank(remoteRank)) ||
+        (IsAlltoAllDetourDstRank(myRank_) && remoteRank == ALLTOALL_DETOUR_RELAY_RANK);
+}
+
+u32 InsTempAlltoAllVMesh1D::ResolveDetourForwardDstRank(u32 remoteRank) const
+{
+    return myRank_ == ALLTOALL_DETOUR_RELAY_RANK ? remoteRank : myRank_;
 }
 
 HcclResult InsTempAlltoAllVMesh1D::RunDetourForwardForDst(
