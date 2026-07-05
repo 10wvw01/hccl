@@ -81,8 +81,17 @@ private:
     bool ShouldSkipDirectSend(u32 remoteRank) const;
     bool ShouldSkipDirectRecv(u32 remoteRank) const;
     u32 CalcDetourScratchBuffIdx(u32 dstRank) const;
+    u32 CalcThreadBaseByRemoteRank(u32 remoteRank) const;
+    u32 CalcDetourDstThreadBase() const;
+    u32 CalcDetourRelayThreadBase() const;
     void CalcCclBuffIdxByRank(u32 rank, u32 remoteRank, u32 &rankCclBuffIdx, u32 &remoteCclBuffIdx) const;
     HcclResult RunDetourPreStage(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    HcclResult RunDetourForwardReadReuseRank0Stream(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
+    HcclResult RunDetourForwardReadRelay(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads) const;
+    HcclResult RunDetourForwardReadDst(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;
     HcclResult RunDetourForward(const std::map<u32, std::vector<ChannelInfo>> &channels,
         const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) const;

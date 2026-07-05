@@ -9,6 +9,8 @@
  */
 
 #include "aicpu/ins_temp_all_to_all_v_mesh_1D.h"
+#include "exec_timeout_manager.h"
+#include "hcomm_primitives_dl.h"
 
 #define NET_NUM 2
 
@@ -20,6 +22,9 @@ constexpr u32 ALLTOALL_DETOUR_RELAY_RANK = 3;
 constexpr u32 ALLTOALL_DETOUR_DST_BEGIN = 4;
 constexpr u32 ALLTOALL_DETOUR_DST_END = 7;
 constexpr u32 ALLTOALL_DETOUR_DST_NUM = ALLTOALL_DETOUR_DST_END - ALLTOALL_DETOUR_DST_BEGIN + 1;
+constexpr u32 ALLTOALL_DETOUR_NOTIFY_IDX_ACK = 2;
+constexpr u32 ALLTOALL_DETOUR_NOTIFY_IDX_DATA_SIGNAL = 3;
+constexpr u32 ALLTOALL_DETOUR_NOTIFY_NUM = ALLTOALL_DETOUR_NOTIFY_IDX_DATA_SIGNAL + 1;
 }
 
 InsTempAlltoAllVMesh1D::InsTempAlltoAllVMesh1D(
@@ -57,6 +62,13 @@ HcclResult InsTempAlltoAllVMesh1D::CalcRes(HcclComm comm, const OpParam& param, 
         HCCL_DEBUG("[InsTempAlltoAllVMesh1D::CalcRes] Get Channel Success!");
     } else {
         CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+    }
+    if (IsAlltoAllDetourCandidate()) {
+        for (HcclChannelDesc &channel : level0Channels) {
+            if (channel.notifyNum < ALLTOALL_DETOUR_NOTIFY_NUM) {
+                channel.notifyNum = ALLTOALL_DETOUR_NOTIFY_NUM;
+            }
+        }
     }
     resourceRequest.channels.push_back(level0Channels);
     if (std::string(param.algName) != "InsAlltoAllMesh1DSingleChannel") {
@@ -244,6 +256,7 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
                 }
                 if (enableAlltoAllDetour) {
                     CHK_RET(RunDetourPreStage(channels, threads, tempAlgParams));
+                    CHK_RET(RunDetourForwardReadReuseRank0Stream(channels, threads, tempAlgParams));
                 }
                 CHK_RET(LocalCopyForMyRank(tempAlgParams, threads[0], myAlgRank, 0)); // 在第1轮通信中用0号流做本卡数据拷贝
             }
@@ -264,7 +277,7 @@ HcclResult InsTempAlltoAllVMesh1D::RunALLtoALL(
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
     }
-    if (enableAlltoAllDetour) {
+    if (enableAlltoAllDetour && !isDmaRead_) {
         CHK_RET(PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_));
         CHK_RET(RunDetourForward(channels, threads, tempAlgParams));
         CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
@@ -356,6 +369,25 @@ u32 InsTempAlltoAllVMesh1D::CalcDetourScratchBuffIdx(u32 dstRank) const
     return concurrentSendRecvNum_ + dstRank - ALLTOALL_DETOUR_DST_BEGIN;
 }
 
+u32 InsTempAlltoAllVMesh1D::CalcThreadBaseByRemoteRank(u32 remoteRank) const
+{
+    u32 myRankCclBuffIdx = 0;
+    u32 remoteCclBuffIdx = 0;
+    CalcCclBuffIdx(remoteRank, myRankCclBuffIdx, remoteCclBuffIdx);
+    (void)remoteCclBuffIdx;
+    return myRankCclBuffIdx * channelsPerRank_ + 1;
+}
+
+u32 InsTempAlltoAllVMesh1D::CalcDetourDstThreadBase() const
+{
+    return CalcThreadBaseByRemoteRank(ALLTOALL_DETOUR_SRC_RANK);
+}
+
+u32 InsTempAlltoAllVMesh1D::CalcDetourRelayThreadBase() const
+{
+    return CalcThreadBaseByRemoteRank(ALLTOALL_DETOUR_SRC_RANK);
+}
+
 HcclResult InsTempAlltoAllVMesh1D::RunDetourPreStage(
     const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
     const TemplateDataParams &tempAlgParams) const
@@ -428,6 +460,102 @@ HcclResult InsTempAlltoAllVMesh1D::RunDetourPreStage(
                     HcclResult::HCCL_E_INTERNAL);
             }
         }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVMesh1D::RunDetourForwardReadReuseRank0Stream(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
+    const TemplateDataParams &tempAlgParams) const
+{
+    if (!isDmaRead_) {
+        return HCCL_SUCCESS;
+    }
+    if (myRank_ == ALLTOALL_DETOUR_RELAY_RANK) {
+        return RunDetourForwardReadRelay(channels, threads);
+    }
+    if (IsAlltoAllDetourDstRank(myRank_)) {
+        return RunDetourForwardReadDst(channels, threads, tempAlgParams);
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVMesh1D::RunDetourForwardReadRelay(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads) const
+{
+    u32 threadBase = CalcDetourRelayThreadBase();
+    for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
+        auto it = channels.find(dstRank);
+        if (it == channels.end()) {
+            HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardReadRelay] dstRank[%u] does not exist in channels map!",
+                dstRank);
+            return HCCL_E_PARA;
+        }
+        const std::vector<ChannelInfo> &curChannels = it->second;
+        u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
+        for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
+            CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(
+                threads[threadBase + channelId], curChannels[channelId].handle, ALLTOALL_DETOUR_NOTIFY_IDX_ACK)));
+            HCCL_INFO("[InsTempAlltoAllVMesh1D][RunDetourForwardReadRelay] record detour ack on thread[%u], "
+                "channelId[%u], dstRank[%u].", threadBase + channelId, channelId, dstRank);
+        }
+    }
+
+    u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    for (u32 dstRank = ALLTOALL_DETOUR_DST_BEGIN; dstRank <= ALLTOALL_DETOUR_DST_END; dstRank++) {
+        const std::vector<ChannelInfo> &curChannels = channels.at(dstRank);
+        u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
+        for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
+            CHK_RET(HcclChannelNotifyWaitOnThreadDefault(threads[threadBase + channelId],
+                curChannels[channelId].handle, ALLTOALL_DETOUR_NOTIFY_IDX_DATA_SIGNAL, execTimeout));
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InsTempAlltoAllVMesh1D::RunDetourForwardReadDst(
+    const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
+    const TemplateDataParams &tempAlgParams) const
+{
+    auto it = channels.find(ALLTOALL_DETOUR_RELAY_RANK);
+    if (it == channels.end()) {
+        HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunDetourForwardReadDst] relayRank[%u] does not exist in channels map!",
+            ALLTOALL_DETOUR_RELAY_RANK);
+        return HCCL_E_PARA;
+    }
+
+    const std::vector<ChannelInfo> &curChannels = it->second;
+    u32 curValidChannelsSize = std::min(static_cast<u32>(curChannels.size()), channelsPerRank_);
+    u64 detourCount = tempAlgParams.recvCounts[ALLTOALL_DETOUR_SRC_RANK];
+    std::vector<u64> detourCountsSplit;
+    std::vector<u64> detourSizeSplit;
+    std::vector<u64> detourOffsetSplit;
+    CHK_RET(CalcDataSplitByPortGroupCommon(detourCount, dataTypeSize_, curChannels,
+        detourCountsSplit, detourSizeSplit, detourOffsetSplit, curValidChannelsSize));
+
+    u32 threadBase = CalcDetourDstThreadBase();
+    u32 scratchBuffIdx = CalcDetourScratchBuffIdx(myRank_);
+    u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    for (u32 channelId = 0; channelId < curValidChannelsSize; channelId++) {
+        const ChannelInfo &channel = curChannels[channelId];
+        ThreadHandle thread = threads[threadBase + channelId];
+        CHK_RET(HcclChannelNotifyWaitOnThreadDefault(
+            thread, channel.handle, ALLTOALL_DETOUR_NOTIFY_IDX_ACK, execTimeout));
+        if (detourSizeSplit[channelId] > 0) {
+            void *src = static_cast<u8 *>(channel.remoteCclMem.addr) +
+                scratchBuffIdx * tempAlgParams.inputSliceStride + tempAlgParams.buffInfo.hcclBuffBaseOff +
+                detourOffsetSplit[channelId];
+            void *dst = static_cast<u8 *>(tempAlgParams.buffInfo.outputPtr) +
+                tempAlgParams.rdispls[ALLTOALL_DETOUR_SRC_RANK] * dataTypeSize_ + detourOffsetSplit[channelId];
+            CHK_RET(static_cast<HcclResult>(
+                HcommReadOnThread(thread, channel.handle, dst, src, detourSizeSplit[channelId])));
+        }
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(
+            thread, channel.handle, ALLTOALL_DETOUR_NOTIFY_IDX_DATA_SIGNAL)));
+        HCCL_INFO("[InsTempAlltoAllVMesh1D][RunDetourForwardReadDst] read detour data on thread[%u], "
+            "channelId[%u], srcRank[%u], relayRank[%u], size[%llu].",
+            threadBase + channelId, channelId, ALLTOALL_DETOUR_SRC_RANK, ALLTOALL_DETOUR_RELAY_RANK,
+            detourSizeSplit[channelId]);
     }
     return HCCL_SUCCESS;
 }
