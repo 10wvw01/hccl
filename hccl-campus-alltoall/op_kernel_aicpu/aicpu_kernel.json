@@ -1,0 +1,9 @@
+{
+    "HcclAICPUKernel":{
+        "opInfo":{
+            "functionName":"HcclAICPUKernel",
+            "kernelSo":"libhccl_device.so",
+            "opKernelLib":"AICPUKernel"
+        }
+    }
+}
