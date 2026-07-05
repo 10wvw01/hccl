@@ -23,6 +23,7 @@ constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
+constexpr u32 OMNI_UBX_AG_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
@@ -77,14 +78,9 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         CHK_PRT_RET(CheckClosNumMultipleOfMeshNum(topoInfo, isClosNumMultipleOfMeshNum) != HCCL_SUCCESS,
             HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
         if (dataSize > SMALL_COUNT_512KB) {
-            // 大数据量场景，4P内并发executor，4P外回退ccu_sched模式
-            if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-                selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
-                return SelectorStatus::MATCH;
-            } else {
-                HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
-                return SelectorStatus::NOT_MATCH;
-            }
+            // 大数据量场景，4P内并发executor资源不够暂不支持，因此4P内和4P外回退ccu_sched模式
+            HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
+            return SelectorStatus::NOT_MATCH;
         } else {
                 selectAlgName = "CcuAllGatherMesh1D";
                 return SelectorStatus::MATCH;
@@ -111,7 +107,11 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
             selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
         } else if (isClosNumMultipleOfMeshNum) {
-            selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
+            if (dataSize < OMNI_UBX_AG_DATA_SIZE) {
+                selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
+            } else {
+                selectAlgName = "CcuAllGatherOmniPipe2D";
+            }
         } else {
             selectAlgName = "CcuAllGatherNHR1DMem2MemMultiJetty";
         }
@@ -186,6 +186,12 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
+        constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
+        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+            HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
+                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
@@ -243,7 +249,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgName = "InsV2AllGatherOmniPipeUboe";
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
@@ -259,7 +265,9 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllGatherNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
+            if (topoInfo->topoLevelNums >= 3) {
+                selectAlgName = "InsAllGatherSequenceNHRNHRMesh1D";
+            } else if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllGatherSequenceNHRMesh1D" : "InsAllGatherParallelMesh1DNHR";
             } else {
@@ -304,7 +312,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                     selectAlgName = "InsAllGatherMesh1D";
                 }
             } else if(isClosNumMultipleOfMeshNum && dataSize > SMALL_COUNT_512KB) {
-                selectAlgName = "InsAllGatherParallelMesh1DNHRMultiJetty";
+                selectAlgName = (dataSize < OMNI_PCIE_AG_DATA_SIZE) ? "InsAllGatherParallelMesh1DNHRMultiJetty" :
+                                                                          "InsV2AllGatherOmniPipe";
             } else {
                 // 4P外非对称场景，大小数据量都用NHR算法
                 selectAlgName = "InsAllGatherNHR";
@@ -340,6 +349,12 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
         SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
+    if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
+        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        HCCL_DEBUG("[AllGatherAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
+            __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]",
             __func__, totalSize, cclBufferSize);

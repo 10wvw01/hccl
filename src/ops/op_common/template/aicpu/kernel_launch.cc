@@ -12,6 +12,8 @@
 #include <sstream>
 #include <memory>
 #include <cstring>
+#include <sched.h>
+#include <hccl/hccl_comm.h>
 #include "alg_param.h"
 #include "executor_base.h"
 #include "coll_alg_exec_registry.h"
@@ -30,7 +32,6 @@
 #include "alg_data_trans_wrapper.h"
 #include "ins_send_executor.h"
 #include "ins_recv_executor.h"
-
 
 using namespace ops_hccl;
 namespace {
@@ -258,6 +259,13 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 
 extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 {
+    // 修改当前进程的调度策略和优先级
+    struct sched_param schedParam;
+    schedParam.sched_priority = 0; // 设置优先级为0
+    if (sched_setscheduler(0, SCHED_OTHER, &schedParam) == -1) {
+        HCCL_ERROR("%s sched_setscheduler to SCHED_OTHER failed", __func__);
+        return 1;
+    }
     if (param == nullptr) {
         HCCL_ERROR("%s param is nullptr", __func__);
         return 1;
@@ -387,11 +395,14 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         // 主thread等待Host stream的通知
         ThreadHandle exportedAicpuTsThread = param->opThread;
         u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
-        for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
-            if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
-                maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
+        if (!resCtxPtr->isHcclThreadAcquireWithConfigSupported) {
+            for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
+                if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
+                    maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
+                }
             }
         }
+
         if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
             CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
         }
@@ -553,8 +564,8 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         HCCL_ERROR("%s args is nullptr", __func__);
         return 1;
     }
-    struct HcclP2pParam *params = static_cast<struct HcclP2pParam *>(args);
-    ThreadHandle sendRecvStream = params->sendRecvStream;
+    HcclP2pKernelParam *params = static_cast<HcclP2pKernelParam *>(args);
+    ThreadHandle sendRecvThread = params->sendRecvThread;
     void *paramPtr = static_cast<void *>(&params->opParams[0]);
     OpParam *param = static_cast<OpParam *>(paramPtr);
 
@@ -663,19 +674,14 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
 
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
         HcclResult ret = HCCL_SUCCESS;
-        if (sendRecvStream) {
-            if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
-                InsSendExecutor* sendExecutor = dynamic_cast<InsSendExecutor*>(executor.get());
-                ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
-            }
-            else {
-                InsRecvExecutor* recvExecutor = dynamic_cast<InsRecvExecutor*>(executor.get());
-                ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvStream);
-            }
+        if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
+            InsSendExecutor *sendExecutor = dynamic_cast<InsSendExecutor *>(executor.get());
+            ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
+        } else {
+            InsRecvExecutor *recvExecutor = dynamic_cast<InsRecvExecutor *>(executor.get());
+            ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
         }
-        else {
-            ret = executor->Orchestrate(*param, *resCtxPtr);
-        }
+
         if (ret != HCCL_SUCCESS) {
             HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
                     param->algName, static_cast<int>(param->opType));

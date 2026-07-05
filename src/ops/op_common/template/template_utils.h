@@ -24,6 +24,8 @@ namespace ops_hccl {
 
 # define UINT32_MAX     (4294967295U)
 constexpr u32 INVALID_U32 = UINT32_MAX;
+constexpr u32 MAX_JETTY_NUM = 4;
+constexpr u32 SMALL_SIZE_512KB = 512 * 1024;
 
 constexpr s32 INVALID_RANKID = INT32_MAX;
 
@@ -241,6 +243,7 @@ struct TemplateDataParams {
     u64 outputRepeatStride{0};
     u64 tailSize{0};
     bool enableRemoteMemAccess{false};
+    bool supportSymmetricMemory{false};
     u64 processedDataCount{0};
     u64 loopIndex{0};
     u64 loopTimes{1};
@@ -257,6 +260,9 @@ struct TemplateDataParams {
     std::vector<u64> rdispls;
     StepSliceInfo stepSliceInfo;
     BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
+    StepSliceInfo omniReadDstStepSliceInfo;
+    bool omniLastStepRead_ = false;
+    u64 localCopyFlag{0};
 
     std::vector<char> Serialize() const
     {
@@ -271,6 +277,7 @@ struct TemplateDataParams {
         binaryStream << outputRepeatStride;
         binaryStream << tailSize;
         binaryStream << enableRemoteMemAccess;
+        binaryStream << supportSymmetricMemory;
         binaryStream << allRankSliceSize;
         binaryStream << allRankDispls;
         binaryStream << sendCounts;
@@ -285,6 +292,9 @@ struct TemplateDataParams {
         binaryStream << loopIndex;
         binaryStream << loopTimes;
         binaryStream << isLastLoop;
+        binaryStream << omniReadDstStepSliceInfo.Serialize();
+        binaryStream << omniLastStepRead_;
+        binaryStream << localCopyFlag;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -303,6 +313,7 @@ struct TemplateDataParams {
         binaryStream >> outputRepeatStride;
         binaryStream >> tailSize;
         binaryStream >> enableRemoteMemAccess;
+        binaryStream >> supportSymmetricMemory;
         binaryStream >> allRankSliceSize;
         binaryStream >> allRankDispls;
         binaryStream >> sendCounts;
@@ -319,6 +330,11 @@ struct TemplateDataParams {
         binaryStream >> loopIndex;
         binaryStream >> loopTimes;
         binaryStream >> isLastLoop;
+        std::vector<char> omniReadDstStepSliceInfoData;
+        binaryStream >> omniReadDstStepSliceInfoData;
+        omniReadDstStepSliceInfo.DeSerialize(omniReadDstStepSliceInfoData);
+        binaryStream >> omniLastStepRead_;
+        binaryStream >> localCopyFlag;
     }
 };
 
@@ -480,5 +496,8 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const u32 level0ChannelNumPerRank,
                                                 const u32 level1ChannelNumPerRank,
                                                 const float level0DataRatio = 0.5f);
+
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType);
+
 }
 #endif
