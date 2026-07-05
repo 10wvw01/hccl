@@ -48,13 +48,6 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount,
 
     // 入口的地方先解析环境变量, 调用位置有特殊要求，不要变化
     CHK_RET(InitEnvConfig());
-
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclScatterInner(sendBuf, recvBuf, recvCount, dataType, root, comm, stream);
-    }
     
     // AclGraph引导到老的流程上面
     #ifdef MACRO_DEV_TYPE_NEW
@@ -173,10 +166,22 @@ HcclResult ScatterExecOp(OpParam &param, void *sendBuf, void *recvBuf, uint64_t 
     if (param.deviceType == DevType::DEV_TYPE_910_95) {
     #endif
         CHK_RET(HcclGetOpExpansionMode(comm, param));
-        
+
+        // 9.0.0 ccu模式走老流程
+        if (GetHcommVersion() == CANN_VERSION(9, 0, 0) && param.engine == CommEngine::COMM_ENGINE_CCU) {
+            return HcclScatterInner(sendBuf, recvBuf, recvCount, dataType, root, comm, stream);
+        }
+
         CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
         if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
             return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
+        }
+        if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+            bool aivCacheHit = false;
+            CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
+            if (aivCacheHit) {
+                return HCCL_SUCCESS;
+            }
         }
         std::string algName;
         std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
