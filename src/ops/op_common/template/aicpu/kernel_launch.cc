@@ -494,16 +494,16 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                     return 1;
                 }
 
-                // 算子展开后, 通知aicpu task cache停止缓存task
-                if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
-                    CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str())));
-                }
-
                 // 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存 (cache miss下避免缓存算法无关的task; cache hit下不需要强制下发)
                 // 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发 (但开销有限)
                 if (EnforceLaunchTask(param->algTag) != HCCL_SUCCESS) {
                     HCCL_ERROR("failed to enforce launch task before using aicpu task cache, tag is %s.", param->algTag);
                     return 1;
+                }
+
+                // 算子展开后, 通知aicpu task cache停止缓存task
+                if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
+                    CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str())));
                 }
 
                 // 首次缓存记录通信域与tag关系
