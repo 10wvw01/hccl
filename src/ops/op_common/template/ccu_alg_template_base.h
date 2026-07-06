@@ -49,9 +49,6 @@ public:
     static HcclResult GetChannelBwCoeff(HcclComm comm, uint32_t rankId, const HcclChannelDesc& channelDesc, uint32_t& bwCoeff) ;
     static HcclResult RestoreChannelMap(const std::vector<HcclChannelDesc>& channelDescs,
                                  std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc) ;
-    static HcclResult RestoreChannelMap(HcclComm comm, u32 myRank,
-                                 const std::vector<HcclChannelDesc>& channelDescs,
-                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
 
     static HcclResult SelectChannelToVec(const HcclComm comm, const u32 myRankId, const u32 rmtRankId,
         const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc, const u32 dieId,

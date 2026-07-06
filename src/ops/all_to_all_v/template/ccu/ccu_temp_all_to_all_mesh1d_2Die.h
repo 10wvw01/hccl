@@ -44,7 +44,7 @@ private:
     HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
     HcclResult LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
         uint64_t sliceStride, const LoopGroupConfig &config, const TemplateDataParams &templateDataParams,
-        TemplateResource& templateResource, bool skipFirstKernel);
+        TemplateResource& templateResource);
 
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;

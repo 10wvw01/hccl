@@ -91,7 +91,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
         CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
         channelDescs = myChannelDescs;
     }
-    CHK_RET(RestoreChannelMap(comm, myRank_, channelDescs, rankIdToChannelDesc_));
+    CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
 
     // 1.从获得的channelDesc，判断kernel发送到几个die上
     uint32_t dieNum = 0;

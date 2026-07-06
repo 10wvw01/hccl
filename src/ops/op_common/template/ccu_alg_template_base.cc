@@ -97,30 +97,6 @@ HcclResult CcuAlgTemplateBase::RestoreChannelMap(const std::vector<HcclChannelDe
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuAlgTemplateBase::RestoreChannelMap(HcclComm comm, u32 myRank,
-                                                 const std::vector<HcclChannelDesc>& channelDescs,
-                                                 std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc)
-{
-    std::map<u32, std::vector<HcclChannelDesc>> rawMap;
-    for (const auto& channel : channelDescs) {
-        rawMap[channel.remoteRank].push_back(channel);
-    }
-    for (auto& kv : rawMap) {
-        std::set<uint32_t> seenDie;
-        std::vector<HcclChannelDesc> deduped;
-        for (const auto& ch : kv.second) {
-            EndpointAttrDieId dieId = 0;
-            CHK_RET(HcclRankGraphGetEndpointInfo(comm, myRank, &ch.localEndpoint,
-                ENDPOINT_ATTR_DIE_ID, sizeof(dieId), &dieId));
-            if (seenDie.insert(dieId).second) {
-                deduped.push_back(ch);
-            }
-        }
-        rankIdToChannelDesc[kv.first] = std::move(deduped);
-    }
-    return HCCL_SUCCESS;
-}
-
 HcclResult CcuAlgTemplateBase::GetChannelDieId(HcclComm comm, uint32_t rankId, const HcclChannelDesc& channelDesc,
                                                uint32_t& dieId)
 {

@@ -151,15 +151,9 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcFillArgsInfo(uint32_t kernelIdx, uint6
 
 HcclResult CcuTempAllToAllMesh1D2Die::LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr,
     uint64_t token, uint64_t sliceStride, const LoopGroupConfig &config,
-    const TemplateDataParams &templateDataParams, TemplateResource& templateResource, bool skipFirstKernel)
+    const TemplateDataParams &templateDataParams, TemplateResource& templateResource)
 {
     for (uint32_t i = 0; i < kernelCount; i++) {
-        if (skipFirstKernel && i == 0) {
-            CcuKernelSubmitInfo submitInfo;
-            submitInfo.kernelHandle = templateResource.ccuKernels[i];
-            templateResource.submitInfos.push_back(submitInfo);
-            continue;
-        }
         uint64_t sliceSize = templateDataParams.sliceSize;
         uint64_t sliceOffset = 0;
         CHK_RET(CalcFillArgsInfo(i, sliceSize, sliceOffset));
@@ -210,12 +204,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     is2Plus6_ = (kernelCount == MAX_KERNEL_NUM_2DIE);
     if (templateResource.dieSplitRatio > 0.0) { dieSplitRatio_ = templateResource.dieSplitRatio; }
 
-    HcclComm comm = static_cast<HcclComm>(param.hcclComm);
-    uint32_t *layerRanks = nullptr;
-    uint32_t rankNum = 0;
-    CHK_RET(HcclRankGraphGetRanksByLayer(comm, 0, &layerRanks, &rankNum));
-    bool skipFirstKernel = (rankNum <= 1);
-
     uint32_t subThreadCount = kernelCount - 1;
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
         templateResource.threads.begin() + 1 + subThreadCount);
@@ -226,7 +214,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     config.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
     config.memSlice = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
     CHK_RET(LaunchKernels(kernelCount, inputAddr, outputAddr, token, outputSliceStride,
-        config, templateDataParams, templateResource, skipFirstKernel));
+        config, templateDataParams, templateResource));
 
     std::vector<u32> notifyIdxSubToMain(subThreadCount);
     for (uint32_t i = 0; i < subThreadCount; i++) { notifyIdxSubToMain[i] = i; }
@@ -250,12 +238,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
     }
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][FastLaunch] start, kernelCount[%u]", kernelCount);
 
-    HcclComm comm = static_cast<HcclComm>(param.hcclComm);
-    uint32_t *layerRanks = nullptr;
-    uint32_t rankNum = 0;
-    CHK_RET(HcclRankGraphGetRanksByLayer(comm, 0, &layerRanks, &rankNum));
-    bool skipFirstKernel = (rankNum <= 1);
-
     uint64_t inputAddr  = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr);
     uint64_t outputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr);
 
@@ -266,9 +248,6 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
     }
 
     for (u32 i = 0; i < kernelCount; i++) {
-        if (skipFirstKernel && i == 0) {
-            continue;
-        }
         uint64_t *args = const_cast<uint64_t *>(tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs);
         args[argInIdx]  = inputAddr  + args[metaInCombineOffIdx];   
         args[argOutIdx] = outputAddr + args[metaOutBaseOffIdx];     

@@ -98,7 +98,7 @@ HcclResult ProcessFlattenLink(HcclComm comm, u32 myRank, const std::vector<std::
 {
 #if !defined(AICPU_COMPILE) && (CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0))
     std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc;
-    CHK_RET(CcuAlgTemplateBase::RestoreChannelMap(comm, myRank, channels, rankIdToChannelDesc));
+    CHK_RET(CcuAlgTemplateBase::RestoreChannelMap(channels, rankIdToChannelDesc));
     uint32_t enableDieNum = 0;
     uint32_t enableDieId = 0;
     CHK_RET(CcuAlgTemplateBase::GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc, myRank, enableDieNum, enableDieId));
@@ -269,9 +269,20 @@ HcclResult ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol>
     std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName)
 {
     protocolFound = false;
+    std::set<uint32_t> seenDie;
     for (auto expectedProtocol : expectedProtocols) {
         for (u32 idx = 0; idx < linkList.size(); idx++) {
-            if (linkList[idx].linkAttr.linkProtocol == expectedProtocol) {
+            if (linkList[idx].linkAttr.linkProtocol != expectedProtocol) {
+                continue;
+            }
+            EndpointAttrDieId dieId = 0;
+            HcclResult dieRet = HcclRankGraphGetEndpointInfo(comm, myRank, &linkList[idx].srcEndpointDesc,
+                ENDPOINT_ATTR_DIE_ID, sizeof(dieId), &dieId);
+            bool shouldAdd = true;
+            if (dieRet == HCCL_SUCCESS) {
+                shouldAdd = seenDie.insert(dieId).second;
+            }
+            if (shouldAdd) {
                 CHK_RET(CreateChannelFromLink(comm, myRank, remoteRank, netLayer, idx, linkList[idx],
                     funcName, channels));
                 protocolFound = true;

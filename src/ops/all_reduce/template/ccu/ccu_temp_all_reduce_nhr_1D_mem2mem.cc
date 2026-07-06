@@ -63,7 +63,7 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::CalcRes(HcclComm comm, const OpParam& p
 {
     std::vector<HcclChannelDesc> channelDescs;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, channelDescs));
-    CHK_RET(RestoreChannelMap(comm, myRank_, channelDescs, rankIdToChannelDesc_));
+    CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
 
     uint32_t dieNum = 0;
     uint32_t enableDieId = 0;
