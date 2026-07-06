@@ -60,4 +60,4 @@ std::map<u32, AutoSelectorBase *> SelectorRegistry::GetAllSelectors()
     return impls_;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl

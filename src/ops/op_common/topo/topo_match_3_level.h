@@ -42,6 +42,6 @@ private:
         return oss.str();
     }
 };
-}  // namespace Hccl
+}  // namespace ops_hccl
 
 #endif

@@ -44,6 +44,6 @@ private:
     uint32_t mySubCommRank_ = 0;
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // HCCLV2_CCU_TEMP_ALL_REDUCE_MESH_1D_H_

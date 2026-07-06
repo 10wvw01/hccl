@@ -15,7 +15,6 @@
 #include "ins_temp_all_gather_mesh_1D_intra.h"
 
 namespace ops_hccl {
-// ! 已经编码完成
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
 InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
@@ -220,12 +219,12 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     
     // 中转内存单次最多能够接受的output count，注意是count不是size
     u64 maxCountPerLoop = tempAlgParamsStepOne.buffInfo.hcclBuff.size / 2 / HCCL_MIN_SLICE_ALIGN *
-                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_;//这边看前面有/10*10，不知道要不要加上
+                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     // 计算loopTimes
     u64 loopTimes = dataCount_ / maxCountPerLoop  + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
     u64 processedDataCount = 0;
     for (u64 loop = 0; loop < loopTimes; loop++) {
-        u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;//判断是最后一轮，就处理尾块长度
+        u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
 
         // ----------- 框内ReduceScatter数据搬运 -----------
         // 框内的数据偏移和搬运计算
@@ -239,11 +238,10 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
                 tempAlgParamsStepOne.allRankSliceSize.size(),
                 rankSizeLevel0_),
             HcclResult::HCCL_E_INTERNAL);
-        tempAlgParamsStepOne.sliceSize = 0; //没用到，template里面用SplitData算了
-        tempAlgParamsStepOne.tailSize = 0; //没用到
-        // 这里的stride当成传统意义上的stride间隔
-        tempAlgParamsStepOne.inputSliceStride = 0; // 没用到
-        tempAlgParamsStepOne.outputSliceStride = 0; // 没用到
+        tempAlgParamsStepOne.sliceSize = 0;
+        tempAlgParamsStepOne.tailSize = 0;
+        tempAlgParamsStepOne.inputSliceStride = 0;
+        tempAlgParamsStepOne.outputSliceStride = 0;
 
         HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepOne.inputSliceStride [%u],"
             "tempAlgParamsStepOne.outputSliceStride [%u] tempAlgParamsStepOne.sliceSize [%u]",
@@ -251,7 +249,6 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%u],"
             "tempAlgParamsStepOne.buffInfo.outBuffBaseOff [%u]",
             loop, tempAlgParamsStepOne.buffInfo.inBuffBaseOff, tempAlgParamsStepOne.buffInfo.outBuffBaseOff);
-        // 不需要重复
         tempAlgParamsStepOne.repeatNum = 1; 
         tempAlgParamsStepOne.inputRepeatStride = 0; 
         tempAlgParamsStepOne.outputRepeatStride = 0; 
@@ -276,10 +273,9 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
                     tempAlgParamsStepTwo.allRankSliceSize.size(),
                     rankSizeLevel1_),
                 HcclResult::HCCL_E_INTERNAL);
-            // 这里的stride当成传统意义上的stride 间隔
-            tempAlgParamsStepTwo.inputSliceStride = 0;   // 没用到
-            tempAlgParamsStepTwo.outputSliceStride = 0;  // 没用到
-            //
+            tempAlgParamsStepTwo.inputSliceStride = 0;
+            tempAlgParamsStepTwo.outputSliceStride = 0;
+
             HCCL_INFO(
                 "[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepTwo.inputSliceStride [%u],"
                 "tempAlgParamsStepTwo.outputSliceStride [%u] "
@@ -316,7 +312,6 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
             tempAlgParamsStepThree.sliceSize = 0;
             tempAlgParamsStepThree.tailSize = 0;
-            // 这里的stride当成传统意义上的stride 间隔
             tempAlgParamsStepThree.inputSliceStride = 0;
             tempAlgParamsStepThree.outputSliceStride = 0;
 
@@ -353,7 +348,6 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
         tempAlgParamsStepFour.sliceSize = 0;
         tempAlgParamsStepFour.tailSize = 0;
-        // 这里的stride当成传统意义上的stride间隔
         tempAlgParamsStepFour.inputSliceStride = 0;
         tempAlgParamsStepFour.outputSliceStride = 0;
         

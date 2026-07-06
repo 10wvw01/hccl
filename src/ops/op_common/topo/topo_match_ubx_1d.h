@@ -30,5 +30,5 @@ protected:
     HcclResult TopoForLayer1(const HcclComm comm, uint32_t layer0Size, const uint32_t myRank,
                                     AlgHierarchyInfoForAllLevel& algHierarchyInfo) const override;
 };
-}  // namespace Hccl
+}  // namespace ops_hccl
 #endif  // !TOPO_MATCH_UBX_MESH_1D

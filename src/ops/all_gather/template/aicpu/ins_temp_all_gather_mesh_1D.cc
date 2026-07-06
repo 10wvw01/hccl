@@ -182,21 +182,12 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
             rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, sliceSize, sliceCount);
             rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, sliceSize, sliceCount);
 
-            HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txSrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, txOutOffset, sliceSize, sliceCount);
-
-            HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txDstSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, txDstOffset, sliceSize, sliceCount);
-
-            HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxSrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, rxOutOffset, sliceSize, sliceCount);
-
-            HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxDrcSlices: "
-                        "offset[%d] sliceSize[%d] count[%d].",
-                        myRank_, connectedRank, rpt, rxSrcOffset, sliceSize, sliceCount);
+            HCCL_DEBUG("[InsTempAllGatherMesh1D][RunAllGatherMesh] rankId[%u] connectedRank[%u] rpt[%u] "
+                        "tx(offset[%llu] dstOffset[%llu] size[%llu] count[%llu]) "
+                        "rx(offset[%llu] srcOffset[%llu] size[%llu] count[%llu]).",
+                        myRank_, connectedRank, rpt,
+                        txOutOffset, txDstOffset, sliceSize, sliceCount,
+                        rxOutOffset, rxSrcOffset, sliceSize, sliceCount);
         }
 
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
@@ -305,13 +296,13 @@ HcclResult InsTempAllGatherMesh1D::PostLocalCopy(const std::vector<ThreadHandle>
     return HcclResult::HCCL_SUCCESS;
 }
 
-void InsTempAllGatherMesh1D::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub)
+void InsTempAllGatherMesh1D::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
 {
-    notifyIdxMianToSub.clear();
+    notifyIdxMainToSub.clear();
     u32 threadNum = GetThreadNum();
     u32 slaveThreadNum = threadNum - 1;
     for (u32 slaveThreadIdx = 0; slaveThreadIdx < slaveThreadNum; slaveThreadIdx++) {
-        notifyIdxMianToSub.push_back(0);
+        notifyIdxMainToSub.push_back(0);
     }
 }
 

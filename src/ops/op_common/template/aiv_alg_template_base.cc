@@ -167,4 +167,4 @@ HcclResult AivAlgTemplateBase::SetchannelsPerRank(const std::map<u32, std::vecto
     return HCCL_SUCCESS;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl

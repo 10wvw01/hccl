@@ -121,7 +121,7 @@ namespace ops_hccl
             // 将执行模式转换回到batch
             if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS)
             {
-                HCCL_ERROR("[InsTempSendDpu] failed set eager mode, tag is %s.", param.algTag);
+                HCCL_ERROR("[InsTempSendDpu] failed set batch mode, tag is %s.", param.algTag);
                 return HCCL_E_INTERNAL;
             }
             HCCL_INFO("[InsTempSendDpu] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -141,7 +141,7 @@ namespace ops_hccl
             DataSlice remoteCclBuffer(tempAlgParams.buffInfo.outputPtr, 0, processSize_, count_); // ccl buffer不需要offset
             // 发送
             SlicesList sendSlicesList({inputBuffer}, {remoteCclBuffer});
-            DataInfo sendInfo(sendChannel_, sendSlicesList);
+            DataInfo sendInfo(sendChannel_, sendSlicesList, dataType_);
             CHK_PRT_RET(SendWrite(sendInfo, thread_),
                         HCCL_ERROR("[InsTempSendDpu][KernelRun]Aicpu Run Send failed"),
                         HcclResult::HCCL_E_INTERNAL);

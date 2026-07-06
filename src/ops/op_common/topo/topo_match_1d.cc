@@ -59,4 +59,4 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
-} // namespace Hccl
+} // namespace ops_hccl

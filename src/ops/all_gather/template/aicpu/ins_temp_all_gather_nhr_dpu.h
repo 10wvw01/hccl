@@ -11,8 +11,6 @@
 #ifndef INS_TEMP_ALL_GATHER_NHR_DPU_H
 #define INS_TEMP_ALL_GATHER_NHR_DPU_H
 
-#pragma once
-
 #include "alg_v2_template_base.h"
 
 namespace ops_hccl {

@@ -158,4 +158,4 @@ u64 CcuTempAllReduceMesh1DOneShot::CalcScratchMultiple(BufferType inBuffType, Bu
     (void)outBuffType;
     return templateRankSize_;
 }
-} // namespace Hccl
+} // namespace ops_hccl

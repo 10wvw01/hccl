@@ -74,6 +74,6 @@ protected:
     // 是否启用对称内存
     bool                             supportSymmetricMemory_ = false;
 };
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // !HCCLV2_INS_ALG_TEMPLATE_BASE

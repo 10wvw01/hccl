@@ -82,7 +82,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::KernelRun(const OpParam& param, const
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempAllGatherOmniPipeNHRDPU] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherOmniPipeNHRDPU] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
