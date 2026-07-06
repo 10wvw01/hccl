@@ -398,7 +398,7 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     //   由 level2 (inBuffBaseOff2=above) 读入并搬到 [0,…)。
     // - level2 跳过 (rankSizeLevel2_==1, skipLevel2_): 没有层搬运 above→0, level3 必须直接写到 [0, s3*slice),
     //   供 level1 (若活动, 读[0]) 或 level0 (读[0]) 直接读。否则 level0 读 [0] 是空的 → 全零。
-    const u64 above = skipLevel2_ ? 0 : (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * sliceSize);
+    const u64 above = skipLevel2_ ? 0 : (rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * sliceSize + (skipLevel1_ ? 0 : rankSizeLevel2_ * rankSizeLevel3_ * sliceSize));
 
     tempAlgParamsLevel3.buffInfo.inputPtr = param.inputPtr;
     tempAlgParamsLevel3.buffInfo.outputPtr = resCtx.cclMem.addr;
@@ -453,9 +453,9 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     tempAlgParamsLevel2.buffInfo.outputSize = param.outputSize;
 
     tempAlgParamsLevel2.buffInfo.inBuffBaseOff =
-        rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_;
-    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = 0;
-    tempAlgParamsLevel2.buffInfo.hcclBuffBaseOff = 0;
+        rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_ + (skipLevel1_ ? 0 : rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_);
+    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = skipLevel1_ ? 0 : rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_;
+    tempAlgParamsLevel2.buffInfo.hcclBuffBaseOff = skipLevel1_ ? 0 : rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_;
     tempAlgParamsLevel2.sliceSize = curCount * dataTypeSize_;
     tempAlgParamsLevel2.count = curCount;
     tempAlgParamsLevel2.tailSize = tempAlgParamsLevel2.sliceSize;
@@ -492,7 +492,7 @@ void InsV2AllGatherSequenceExecutor4LevelOCS<AlgTopoMatch, InsAlgTemplate0, InsA
     tempAlgParamsLevel1.buffInfo.inputSize = param.inputSize;
     tempAlgParamsLevel1.buffInfo.outputSize = param.outputSize;
 
-    tempAlgParamsLevel1.buffInfo.inBuffBaseOff = 0;
+    tempAlgParamsLevel1.buffInfo.inBuffBaseOff = skipLevel1_ ? 0 : rankSizeLevel1_ * rankSizeLevel2_ * rankSizeLevel3_ * curCount * dataTypeSize_;
     tempAlgParamsLevel1.buffInfo.outBuffBaseOff = 0;
     tempAlgParamsLevel1.buffInfo.hcclBuffBaseOff = 0;
     tempAlgParamsLevel1.sliceSize = curCount * dataTypeSize_;
