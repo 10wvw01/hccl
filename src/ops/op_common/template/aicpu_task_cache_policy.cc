@@ -15,7 +15,7 @@
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, const TopoInfoWithNetLayerDetails &topoInfo, 
+HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, const uint32_t rankSize, 
     const AlgResourceCtxSerializable &resCtxHost, bool isCapture, bool &isCacheEnable)
 {
     isCacheEnable = false;
@@ -50,7 +50,7 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
 
     // 屏蔽inplace场景
     bool isInplace = false;
-    CHK_RET(IsInplaceForCache(param, isInplace, topoInfo));
+    CHK_RET(IsInplaceForCache(param, rankSize, isInplace));
     if (isInplace) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] inplace case is not supported for operator unfolding "
                   "cache");
@@ -66,14 +66,13 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     return HCCL_SUCCESS;
 }
 
-HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &isInplace,
-    const TopoInfoWithNetLayerDetails &topoInfo)
+HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const uint32_t rankSize, bool &isInplace)
 {
     // 准备input/output size
     uint64_t inputSize = 0;
     uint64_t outputSize = 0;
 
-    CHK_RET(AicpuTaskCacheUtils::GetInputOutputInfoForCache(param, topoInfo.userRankSize, inputSize, outputSize));
+    CHK_RET(AicpuTaskCacheUtils::GetInputOutputInfoForCache(param, rankSize, inputSize, outputSize));
 
     // 注意: A3下alltoall/alltoallv/alltoallvc可能存在inputSize/outputSize为0的情况, 导致不分配user input/output
     //     但会使用tinySendRecvMem_更新algResource.paramInput/OutputMem用于建链, 导致cache无法区分给定地址字段的地址类型
