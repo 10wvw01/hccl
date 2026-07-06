@@ -116,7 +116,6 @@ static CcuResult DoScatterOmniPipeNHRSingleStep(ScatterOmniPipeNHR1DMem2MemConte
     ccu::RemoteAddr dst;
     const auto &sendSliceIdxList = nhrStepInfo.txSliceIdxs;
     const auto &recvSliceIdxList = nhrStepInfo.rxSliceIdxs;
-
     if (!sendSliceIdxList.empty()) {
         if (ctx.rank2ChannelIdx.count(nhrStepInfo.toRank) == 0) {
             return CCU_E_INTERNAL;
@@ -143,7 +142,6 @@ static CcuResult DoScatterOmniPipeNHRSingleStep(ScatterOmniPipeNHR1DMem2MemConte
 
             dst.addr = ctx.output[toRankIdx];
             dst.addr += ctx.outputOmniSliceStrideVec[sendSliceIdx];
-
             uint16_t mask = 1 << i;
             CCU_IF(ctx.sliceSize != 0)
             {

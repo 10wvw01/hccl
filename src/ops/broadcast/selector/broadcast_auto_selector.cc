@@ -141,7 +141,7 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWi
         } else {
             if (dataSize < OMNI2D_UBX_BR_DATA_SIZE) {
                 selectAlgName = "CcuBroadcastParallelMesh1DNHRUBX";
-            } else{
+            } else {
                 selectAlgName = "CcuBroadcastOmniPipe2D";
             }
         }
@@ -232,7 +232,7 @@ SelectorStatus BroadcastAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        dataSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        dataSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
         HCCL_DEBUG("[BroadcastAutoSelector][%s] dataSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
             __func__, dataSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
         return SelectorStatus::NOT_MATCH;

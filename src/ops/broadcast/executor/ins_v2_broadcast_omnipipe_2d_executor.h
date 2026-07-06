@@ -97,7 +97,7 @@ private:
     uint64_t rankIdxLevel0_{0};
     uint64_t rankIdxLevel1_{0};
  
-    enum OmnipipeARLevel{
+    enum OmnipipeARLevel {
         OMNIPIPE_SC_LEVEL0 = 0,
         OMNIPIPE_SC_LEVEL1 = 1,
         OMNIPIPE_AG_LEVEL0 = 2,
