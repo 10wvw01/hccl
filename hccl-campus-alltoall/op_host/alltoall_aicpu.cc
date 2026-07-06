@@ -110,13 +110,6 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     CHK_PTR_NULL(comm);
     CHK_PTR_NULL(stream);
 
-    const char *mode = getenv("HCCL_OP_EXPANSION_MODE");
-    if (mode != nullptr || strcmp(mode, "AICPU") == 0) {
-        // 默认使用 AICPU 通信引擎
-    } else {
-        // CCU 通信引擎
-    }
-
     // 构造算子参数
     OpParam param;
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", "hccl_custom_alltoall");

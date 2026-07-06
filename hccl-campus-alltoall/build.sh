@@ -87,6 +87,8 @@ format() {
 }
 
 run_ut() {
+    # 编译并运行 UT 用例
+    mkdir -p "${BUILD_DIR}"
     cd "${BUILD_DIR}"
     ctest -j ${CPU_NUM} \
           --verbose \

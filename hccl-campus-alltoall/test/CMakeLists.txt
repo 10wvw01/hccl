@@ -21,9 +21,13 @@ set(HCCL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../")
 add_executable(test_alltoall
     # 业务代码
     ${HCCL_DIR}/op_host/alltoall.cc
+    ${HCCL_DIR}/op_host/alltoall_aicpu.cc
+    ${HCCL_DIR}/op_host/alltoall_ccu.cc
+    ${HCCL_DIR}/op_host/exec_ccu_op.cc
     ${HCCL_DIR}/op_host/launch_aicpu_kernel.cc
     ${HCCL_DIR}/op_kernel_aicpu/aicpu_kernel.cc
     ${HCCL_DIR}/op_kernel_aicpu/exec_op.cc
+    ${HCCL_DIR}/op_kernel_ccu/ccu_kernel.cc
     # 测试代码
     ${HCCL_DIR}/test/ut_alltoall.cc
     ${HCCL_DIR}/test/stub/ut_stub_acl_rt.cc
