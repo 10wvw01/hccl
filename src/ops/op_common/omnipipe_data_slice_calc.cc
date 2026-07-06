@@ -1487,11 +1487,11 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
             // 先计算通信步数和每步每一小片数据量
             outerStepNum = CalAllgatherDataSize2D(zGatherDataSize[rs], xyGatherDataSize[rs], zB, xyB, zRankSize,
                                                     xRankSize * yRankSize, omniPipeSplitSliceInfoListPerLoop[rs].size,
-                                                    maxStepNum);
+                                                    maxStepNum, omniPipeSliceParam.engine);
             // 这里认为y一定大
             for (u64 i = 0; i < outerStepNum; i++) {
                 innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
-                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum);
+                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
             }
             // 计算2d数据片的偏移，下面变成3d时用
             CalAllgather2DOffset(zGatherOffset[rs], xyGatherOffset[rs], outerStepNum, zRankSize, xRankSize * yRankSize,
@@ -1512,11 +1512,11 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
         for (int rs = 0; rs < rankSize; rs++) {
             // 先计算通信步数和每步每一小片数据量
             outerStepNum = CalAllgatherDataSize2D(xyGatherDataSize[rs], zGatherDataSize[rs], xyB, zB, xRankSize * yRankSize,
-                                                    zRankSize, omniPipeSplitSliceInfoListPerLoop[rs].size, maxStepNum);
+                                                    zRankSize, omniPipeSplitSliceInfoListPerLoop[rs].size, maxStepNum, omniPipeSliceParam.engine);
             // 这里认为y一定大
             for (u64 i = 0; i < outerStepNum; i++) {
                 innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
-                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum);
+                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
             }
             // 计算2d数据片的偏移，下面变成3d时用
             CalAllgather2DOffset(xyGatherOffset[rs], zGatherOffset[rs], outerStepNum, xRankSize * yRankSize, zRankSize,
