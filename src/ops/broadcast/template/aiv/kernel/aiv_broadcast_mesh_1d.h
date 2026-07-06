@@ -52,7 +52,7 @@ __aicore__ inline void AivBroadcastMesh1D::Process(uint64_t curCount, uint64_t s
 {
     curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
     uint64_t dataTypeSize = sizeof(T);
-    uint64_t coreNumPerRank = rankSize_ == 8 ? 2 : 1;
+    uint64_t coreNumPerRank = 2 * rankSize_ > numBlocks_ ? 1 : 2;
     uint64_t curStageCoreNum = coreNumPerRank * rankSize_;
     if (blockIdx_ >= curStageCoreNum) {
         return;
@@ -180,7 +180,7 @@ __aicore__ inline void AivBroadcastV2Mesh1D(KERNEL_ARGS_DEF)
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
-    if (len * sizeof(T) >= DATA_LIMIT && rankSize != 8) {
+    if (len * sizeof(T) >= DATA_LIMIT && rankSize > 8) {
         op.ProcessBigData<T>(len, sliceId);
     } else {
         op.Process<T>(len, sliceId, inputSliceStride);
