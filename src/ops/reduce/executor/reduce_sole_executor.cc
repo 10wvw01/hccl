@@ -11,6 +11,7 @@
 #include "reduce_sole_executor.h"
 #include "../template/aicpu/reduce_mesh_1D.h"
 #include "../template/aicpu/reduce_mesh_1D_two_shot.h"
+#include "../template/aicpu/reduce_mesh_1D_two_shot_Z_axis_detour.h"
 #include "../template/aicpu/reduce_nhr.h"
 #include "../template/aicpu/reduce_aicpu_reduce_nhr.h"
 #include "topo_match_1d.h"
@@ -110,6 +111,9 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, AlgTemplate>::OrchestrateLoop(
     // 构建template
     std::shared_ptr<AlgTemplate> algTemplate =
         std::make_shared<AlgTemplate>(param, resCtx.topoInfo.userRank, resCtx.algHierarchyInfo.infos[0]);
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS && std::string(param.algName) != "ReduceNHR") {
+        algTemplate->SetchannelsPerRank(templateAlgRes.channels);
+    }
     u32 templateScratchMultiplier =
         algTemplate->CalcScratchMultiple(tempAlgParams.buffInfo.inBuffType, tempAlgParams.buffInfo.outBuffType);
     // 计算最小传输大小
@@ -254,6 +258,7 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
 // 第二个参数是Reduce的template文件
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceMesh1D, ReduceSoleExecutor, TopoMatch1D, ReduceMesh1D);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceMesh1DTwoShot, ReduceSoleExecutor, TopoMatch1D, ReduceMesh1DTwoShot);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceMesh1DTwoShotZAxisDetour, ReduceSoleExecutor, TopoMatch1D, ReduceMesh1DTwoShotZAxisDetour);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceNHR, ReduceSoleExecutor, TopoMatch1D, ReduceNHR);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceAicpuReduceNHR, ReduceSoleExecutor, TopoMatch1D, ReduceAicpuReduceNHR);
 

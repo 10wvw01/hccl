@@ -11,6 +11,7 @@
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_mesh_1D.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_mesh_1D_two_shot.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/reduce_mesh_1D_two_shot_Z_axis_detour.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_nhr.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_gather_mesh_1D_intra.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/reduce_aicpu_reduce_nhr.cc
