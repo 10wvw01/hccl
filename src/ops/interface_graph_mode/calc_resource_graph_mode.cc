@@ -21,6 +21,29 @@
 #include "hccl_aiv_utils.h"
 #include "aiv_kernel_def.h"
 
+namespace {
+struct AclHostMemGuard {
+    void *ptr = nullptr;
+
+    AclHostMemGuard() = default;
+    AclHostMemGuard(const AclHostMemGuard&) = delete;
+    AclHostMemGuard& operator=(const AclHostMemGuard&) = delete;
+    AclHostMemGuard(AclHostMemGuard&&) = delete;
+    AclHostMemGuard& operator=(AclHostMemGuard&&) = delete;
+
+    ~AclHostMemGuard()
+    {
+        if (ptr == nullptr) {
+            return;
+        }
+        aclError ret = aclrtFreeHost(ptr);
+        if (ret != ACL_SUCCESS) {
+            HCCL_WARNING("[AclHostMemGuard] aclrtFreeHost failed, ret[%d]", ret);
+        }
+    }
+};
+}
+
 HcclResult HcclCreateOpParamGraphMode(OpParamGraphMode **opParam)
 {
     if (opParam == nullptr) {
@@ -192,16 +215,16 @@ HcclResult HcclSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit)
 HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op, HcclCMDType opType,
                            u32 aivCoreLimit, bool *ifAiv, char *algName)
 {
+    if (group == nullptr || ifAiv == nullptr || algName == nullptr) {
+        HCCL_ERROR("[HcclSelectAlgGraphMode] Invalid parameters");
+        return HCCL_E_PARA;
+    }
     HCCL_INFO("[HcclSelectAlgGraphMode] Start: group[%s] count[%llu] dataType[%u] reduceOp[%u] opType[%u] aivCoreLimit[%u]",
         group, count, dataType, op, opType, aivCoreLimit);
     
     if (g_aivKernelInfoMap.find(opType) == g_aivKernelInfoMap.end()) {
         HCCL_INFO("[HcclSelectAlgGraphMode] Unsupported aiv op.");
         return HCCL_SUCCESS;
-    }
-    if (group == nullptr || ifAiv == nullptr || algName == nullptr) {
-        HCCL_ERROR("[HcclSelectAlgGraphMode] Invalid parameters");
-        return HCCL_E_PARA;
     }
 
     s32 deviceLogicId = 0;
@@ -230,6 +253,10 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     param.enableDetour = false;
     param.deviceType = deviceType;
 
+    AclHostMemGuard sendCountsHost;
+    AclHostMemGuard recvCountsHost;
+    AclHostMemGuard sdisplsHost;
+    AclHostMemGuard rdisplsHost;
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
         opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
@@ -237,19 +264,15 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
         param.all2AllVDataDes.recvType = dataType;
 
         u64 arrSize = rankSize * sizeof(u64);
-        void *sendCountsHost = nullptr;
-        void *recvCountsHost = nullptr;
-        void *sdisplsHost = nullptr;
-        void *rdisplsHost = nullptr;
-        ACLCHECK(aclrtMallocHost(&sendCountsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&recvCountsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&rdisplsHost, arrSize));
+        ACLCHECK(aclrtMallocHost(&sendCountsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&recvCountsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&sdisplsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&rdisplsHost.ptr, arrSize));
 
-        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
-        u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost);
-        u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost);
-        u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost);
+        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost.ptr);
+        u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost.ptr);
+        u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost.ptr);
+        u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost.ptr);
 
         u64 dataCountOffset = 0;
         for (u32 i = 0; i < rankSize; i++) {
@@ -260,10 +283,10 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
             dataCountOffset += count;
         }
 
-        param.all2AllVDataDes.sendCounts = sendCountsHost;
-        param.all2AllVDataDes.recvCounts = recvCountsHost;
-        param.all2AllVDataDes.sdispls = sdisplsHost;
-        param.all2AllVDataDes.rdispls = rdisplsHost;
+        param.all2AllVDataDes.sendCounts = sendCountsHost.ptr;
+        param.all2AllVDataDes.recvCounts = recvCountsHost.ptr;
+        param.all2AllVDataDes.sdispls = sdisplsHost.ptr;
+        param.all2AllVDataDes.rdispls = rdisplsHost.ptr;
     }
 
     int ret = sprintf_s(param.tag, sizeof(param.tag), "SelectAlg_%d_%s", static_cast<int>(opType), param.commName);
@@ -327,25 +350,25 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
     param.opMode = ops_hccl::OpMode::OFFLOAD;
     param.numBlocksLimit = aivCoreLimit;
 
+    AclHostMemGuard sendCountsHost;
+    AclHostMemGuard recvCountsHost;
+    AclHostMemGuard sdisplsHost;
+    AclHostMemGuard rdisplsHost;
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
         param.all2AllVDataDes.recvType = dataType;
         param.all2AllVDataDes.sendType = dataType;
 
         u64 arrSize = rankSize * sizeof(u64);
-        void *sendCountsHost = nullptr;
-        void *recvCountsHost = nullptr;
-        void *sdisplsHost = nullptr;
-        void *rdisplsHost = nullptr;
-        ACLCHECK(aclrtMallocHost(&sendCountsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&recvCountsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
-        ACLCHECK(aclrtMallocHost(&rdisplsHost, arrSize));
+        ACLCHECK(aclrtMallocHost(&sendCountsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&recvCountsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&sdisplsHost.ptr, arrSize));
+        ACLCHECK(aclrtMallocHost(&rdisplsHost.ptr, arrSize));
 
-        u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost);
-        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
-        u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost);
-        u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost);
+        u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost.ptr);
+        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost.ptr);
+        u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost.ptr);
+        u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost.ptr);
 
         u64 dataCountOffset = 0;
         for (u32 i = 0; i < rankSize; i++) {
@@ -356,10 +379,10 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
             dataCountOffset += count;
         }
 
-        param.all2AllVDataDes.recvCounts = recvCountsHost;
-        param.all2AllVDataDes.sendCounts = sendCountsHost;
-        param.all2AllVDataDes.sdispls = sdisplsHost;
-        param.all2AllVDataDes.rdispls = rdisplsHost;
+        param.all2AllVDataDes.recvCounts = recvCountsHost.ptr;
+        param.all2AllVDataDes.sendCounts = sendCountsHost.ptr;
+        param.all2AllVDataDes.sdispls = sdisplsHost.ptr;
+        param.all2AllVDataDes.rdispls = rdisplsHost.ptr;
     }
 
     CHK_RET(InitEnvConfig());
