@@ -98,7 +98,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
 
     // NHR
     CommTopo priorityTopo = COMM_TOPO_CLOS;
-    CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, channelDescs, priorityTopo));
+    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs, priorityTopo));
     for (auto channel : channelDescs) {
         HCCL_DEBUG("[%s] channel myrank[%u], remoteRank [%u]", __func__, myRank_,  channel.remoteRank);
         if (channel.channelProtocol != COMM_PROTOCOL_UBC_CTP) {

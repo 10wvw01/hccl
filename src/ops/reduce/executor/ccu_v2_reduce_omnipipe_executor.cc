@@ -231,47 +231,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     return HCCL_SUCCESS;
 }
 
-template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
-HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::InitOmniPipeScratchParam(
-            OmniPipeScratchParam& scratchParam, const OpParam& param,
-            const std::vector<double>& endpointAttrBwAvg)
-{
-    //scratchParam.dataSizePerLoop\ scratchParam.dataWholeSize 在外部赋值
-    scratchParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
-    scratchParam.endpointAttrBw = endpointAttrBwAvg;
-    scratchParam.levelAlgType = {1, 0, 1}; // [jjy][todo]rs说后面再修改？
-
-    std::vector<u64> dataSizeVec;
-    for (int i = 0; i < rankSize_; i++) {
-        dataSizeVec.push_back(dataSize_);
-    }
-    
-    // scratchParam.dataSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-    scratchParam.dataSize = dataSizeVec;
-    // scratchParam.dataSize = dataSize_;
-    scratchParam.dataTypeSize = dataTypeSize_;
-    scratchParam.maxTmpMemSize = 200 * 1024 * 1024;
-    scratchParam.opMode = param.opMode;
-    scratchParam.engine = param.engine;
-    return HCCL_SUCCESS;
-}
-
-template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
-HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::InitOmniPipeSliceParam(
-            OmniPipeSliceParam& sliceParam, const OpParam& param,
-            const std::vector<double>& endpointAttrBwAvg)
-{
-    //sliceParam.dataSizePerLoop\ sliceParam.dataWholeSize 在外部赋值
-    sliceParam.endpointAttrBw = endpointAttrBwAvg;
-    sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
-    sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
-    sliceParam.levelAlgType = {1, 0, 1}; // [jjy][todo]rs说后面再修改？
-    sliceParam.dataTypeSize = dataTypeSize_;
-    sliceParam.opMode = param.opMode;
-    sliceParam.engine = param.engine;
-    return HCCL_SUCCESS;
-}
-
 // 将计算出的单步slice信息初始化到templateParam中
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::GenTemplateAlgParamsByDimData(
@@ -377,12 +336,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	TemplateDataParams tempAlgParamsCommon;
 	tempAlgParamsCommon.buffInfo.inputPtr = param.inputPtr;
 	tempAlgParamsCommon.buffInfo.outputPtr = param.outputPtr;
-	tempAlgParamsCommon.buffInfo.inputSize = param.inputSize;
-	tempAlgParamsCommon.buffInfo.outputSize = param.outputSize;
+	// tempAlgParamsCommon.buffInfo.inputSize = param.inputSize;
+	// tempAlgParamsCommon.buffInfo.outputSize = param.outputSize;
 	tempAlgParamsCommon.buffInfo.hcclBuff = resCtx.cclMem;
     tempAlgParamsCommon.buffInfo.hcclBuffSize = resCtx.cclMem.size;
-	tempAlgParamsCommon.inputSliceStride = dataSize_;
-	tempAlgParamsCommon.outputSliceStride = dataSize_;
+	// tempAlgParamsCommon.inputSliceStride = dataSize_;
+	// tempAlgParamsCommon.outputSliceStride = dataSize_;
 
     // 资源模板初始化
     TemplateResource templateResourceCommon;
@@ -407,11 +366,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     templateResourceGY.ccuKernels.insert(templateResourceGY.ccuKernels.end(),
         resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1] + resCtx.ccuKernelNum[2],
         resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1] + resCtx.ccuKernelNum[2]+ resCtx.ccuKernelNum[3]);
-
-    // templateResourceRsX.threads.emplace_back(threads_[0]);
-    // templateResourceRsY.threads.emplace_back(threads_[1]);
-    // templateResourceGX.threads.emplace_back(threads_[0]);
-    // templateResourceGY.threads.emplace_back(threads_[1]);
 
     // 1、计算带宽 平均带宽还是总带宽,如果是总带宽这边要处理成平均带宽 // [jjy][todo]计算带宽打桩
     std::vector<std::vector<double>> endpointAttrBw;
@@ -450,7 +404,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
     HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
-    // std::vector<u64> dataWholeSize(rankSize_, perLoopSize);
     std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = dataSizePerLoop;
@@ -551,7 +504,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-            
+            gAlgTempX.SetRoot(myRank_);
+            gAlgTempY.SetRoot(myRank_);
             if (i == 0) { // 第一步
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -667,6 +621,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 }
