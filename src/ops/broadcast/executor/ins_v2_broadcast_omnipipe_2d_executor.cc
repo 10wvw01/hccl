@@ -58,23 +58,23 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
  
     rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
     if (rankSizeLevel0_ == 0) {
-		HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
-		return HcclResult::HCCL_E_PARA;
-	}
+        HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
+        return HcclResult::HCCL_E_PARA;
+    }
     rankSizeLevel1_ = algHierarchyInfo.infos[0][1].size() / rankSizeLevel0_;
     if (rankSizeLevel1_ == 0) {
-		HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
-		return HcclResult::HCCL_E_PARA;
-	}
+        HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
+        return HcclResult::HCCL_E_PARA;
+    }
  
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 
     u64 rootx = param.root % rankSizeLevel0_;
-	u64 rooty = param.root / rankSizeLevel0_;
-	bool isRoot = (myRank_ == param.root);
-	isSameYAxisAsRoot = (rankIdxLevel0_ == rootx) && !isRoot;
-	isSameXAxisAsRoot = (rankIdxLevel1_ == rooty) && !isRoot;
+    u64 rooty = param.root / rankSizeLevel0_;
+    bool isRoot = (myRank_ == param.root);
+    isSameXAxisAsRoot = (rankIdxLevel1_ == rooty) && !isRoot;
+    isSameYAxisAsRoot = (rankIdxLevel0_ == rootx) && !isRoot;
  
     HCCL_DEBUG("[%s]myRank[%u] rankSize[%u] rankSizeLevel0[%u] rankSizeLevel1[%u] rankIdxLevel0[%u] "
         "rankIdxLevel1[%u] devType[%u] dataCount[%u] dataType[%u] dataTypeSize[%u]",
@@ -504,7 +504,7 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             }
             if (i == level0StepCountSC - 1) {
                 // 末步: 同x轴非root沿y轴转发(NHR/templateY); 同y轴非root沿x轴转发(mesh/templateX)
-				HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
+                HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
                 scatterAlgTempY.ifDoTask_ = true;
 				if (isSameXAxisAsRoot) {
 					CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(
