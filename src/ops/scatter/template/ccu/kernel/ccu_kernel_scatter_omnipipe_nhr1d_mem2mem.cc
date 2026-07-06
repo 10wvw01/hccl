@@ -13,14 +13,14 @@
 
 namespace ops_hccl {
 
-constexpr uint16_t OUTPUT_XN_ID   = 0;
-constexpr uint16_t TOKEN_XN_ID    = 1;
-constexpr uint16_t POST_SYNC_ID   = 2;
-constexpr uint16_t STEP_SYNC_ID   = 3;
-constexpr uint16_t CKE_IDX_0      = 0;
+constexpr uint16_t OUTPUT_XN_ID = 0;
+constexpr uint16_t TOKEN_XN_ID = 1;
+constexpr uint16_t POST_SYNC_ID = 2;
+constexpr uint16_t STEP_SYNC_ID = 3;
+constexpr uint16_t CKE_IDX_0 = 0;
 
-static CcuResult ParseKernelArg(ScatterOmniPipeNHR1DMem2MemContext &ctx,
-    CcuKernelArgScatterOmniPipeNHR1DMem2Mem *kernelArg)
+static CcuResult ParseKernelArg(
+    ScatterOmniPipeNHR1DMem2MemContext &ctx, CcuKernelArgScatterOmniPipeNHR1DMem2Mem *kernelArg)
 {
     ctx.arg = kernelArg;
     ctx.rankSize = kernelArg->rankSize;
@@ -72,7 +72,7 @@ static CcuResult LoadArgs(ScatterOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
-        CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));     
+        CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));
     }
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
@@ -87,10 +87,10 @@ static CcuResult PreSync(ScatterOmniPipeNHR1DMem2MemContext &ctx)
 {
     uint32_t allBit = (1 << OUTPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
-        CCU_CHK_RET(ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.output[ctx.myRankIdx],
-            OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID));
-        CCU_CHK_RET(ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.myRankIdx],
-            TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID));
+        CCU_CHK_RET(ccu::WriteVariableWithNotify(
+            ctx.arg->channels[i], ctx.output[ctx.myRankIdx], OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID));
+        CCU_CHK_RET(ccu::WriteVariableWithNotify(
+            ctx.arg->channels[i], ctx.token[ctx.myRankIdx], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID));
     }
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit));
@@ -109,67 +109,70 @@ static CcuResult PostSync(ScatterOmniPipeNHR1DMem2MemContext &ctx)
     return CCU_SUCCESS;
 }
 
-static CcuResult DoScatterOmniPipeNHRSingleStep(ScatterOmniPipeNHR1DMem2MemContext &ctx,
-    const NHRStepInfo &nhrStepInfo)
+static CcuResult DoScatterOmniPipeNHRSend(ScatterOmniPipeNHR1DMem2MemContext &ctx, const NHRStepInfo &nhrStepInfo)
 {
+    if (ctx.rank2ChannelIdx.count(nhrStepInfo.toRank) == 0) {
+        return CCU_E_INTERNAL;
+    }
+    u32 toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+    if (toRankIdx >= ctx.arg->channelCount) {
+        return CCU_E_INTERNAL;
+    }
+
+    ChannelHandle sendChannel = ctx.arg->channels[toRankIdx];
     ccu::LocalAddr src;
     ccu::RemoteAddr dst;
-    const auto &sendSliceIdxList = nhrStepInfo.txSliceIdxs;
-    const auto &recvSliceIdxList = nhrStepInfo.rxSliceIdxs;
+    src.token = ctx.token[ctx.myRankIdx];
+    dst.token = ctx.token[toRankIdx];
 
-    if (!sendSliceIdxList.empty()) {
-        if (ctx.rank2ChannelIdx.count(nhrStepInfo.toRank) == 0) {
-            return CCU_E_INTERNAL;
+    for (u32 i = 0; i < nhrStepInfo.txSliceIdxs.size(); i++) {
+        u32 sendSliceIdx = nhrStepInfo.txSliceIdxs[i];
+        ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
+        if (ctx.ifRealRoot) {
+            src.addr = ctx.input;
+            src.addr += ctx.inputOmniSliceStrideVec[sendSliceIdx];
+        } else {
+            src.addr = ctx.output[ctx.myRankIdx];
+            src.addr += ctx.outputOmniSliceStrideVec[sendSliceIdx];
         }
-        u32 toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
-        if (toRankIdx >= ctx.arg->channelCount) {
-            return CCU_E_INTERNAL;
+        dst.addr = ctx.output[toRankIdx];
+        dst.addr += ctx.outputOmniSliceStrideVec[sendSliceIdx];
+        uint16_t mask = 1 << i;
+        CCU_IF(ctx.sliceSize != 0)
+        {
+            CCU_CHK_RET(ccu::Write(sendChannel, dst, src, ctx.sliceSize, ctx.event, mask));
         }
-        ChannelHandle sendChannel = ctx.arg->channels[toRankIdx];
-
-        src.token = ctx.token[ctx.myRankIdx];
-        dst.token = ctx.token[toRankIdx];
-
-        for (u32 i = 0; i < sendSliceIdxList.size(); i++) {
-            u32 sendSliceIdx = sendSliceIdxList[i];
-            ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
-            if (ctx.ifRealRoot) {
-                src.addr = ctx.input;
-                src.addr += ctx.inputOmniSliceStrideVec[sendSliceIdx];
-            } else {
-                src.addr = ctx.output[ctx.myRankIdx];
-                src.addr += ctx.outputOmniSliceStrideVec[sendSliceIdx];
-            }
-
-            dst.addr = ctx.output[toRankIdx];
-            dst.addr += ctx.outputOmniSliceStrideVec[sendSliceIdx];
-
-            uint16_t mask = 1 << i;
-            CCU_IF(ctx.sliceSize != 0)
-            {
-                CCU_CHK_RET(ccu::Write(sendChannel, dst, src, ctx.sliceSize, ctx.event, mask));
-            }
-            CCU_IF(ctx.sliceSize == 0)
-            {
-                CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
-            }
-        }
-        uint16_t sendBit = (1 << sendSliceIdxList.size()) - 1;
-        CCU_CHK_RET(ccu::EventWait(ctx.event, sendBit));
-
-        CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[toRankIdx], CKE_IDX_0, 1 << STEP_SYNC_ID));
-    }
-
-    if (!recvSliceIdxList.empty()) {
-        if (ctx.rank2ChannelIdx.count(nhrStepInfo.fromRank) != 0) {
-            u32 fromRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-            if (fromRankIdx < ctx.arg->channelCount) {
-                ChannelHandle recvChannel = ctx.arg->channels[fromRankIdx];
-                CCU_CHK_RET(ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID));
-            }
+        CCU_IF(ctx.sliceSize == 0)
+        {
+            CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
         }
     }
+    uint16_t sendBit = (1 << nhrStepInfo.txSliceIdxs.size()) - 1;
+    CCU_CHK_RET(ccu::EventWait(ctx.event, sendBit));
+    CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[toRankIdx], CKE_IDX_0, 1 << STEP_SYNC_ID));
+    return CCU_SUCCESS;
+}
 
+static CcuResult DoScatterOmniPipeNHRRecv(ScatterOmniPipeNHR1DMem2MemContext &ctx, const NHRStepInfo &nhrStepInfo)
+{
+    if (ctx.rank2ChannelIdx.count(nhrStepInfo.fromRank) != 0) {
+        u32 fromRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+        if (fromRankIdx < ctx.arg->channelCount) {
+            ChannelHandle recvChannel = ctx.arg->channels[fromRankIdx];
+            CCU_CHK_RET(ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID));
+        }
+    }
+    return CCU_SUCCESS;
+}
+
+static CcuResult DoScatterOmniPipeNHRSingleStep(ScatterOmniPipeNHR1DMem2MemContext &ctx, const NHRStepInfo &nhrStepInfo)
+{
+    if (!nhrStepInfo.txSliceIdxs.empty()) {
+        CCU_CHK_RET(DoScatterOmniPipeNHRSend(ctx, nhrStepInfo));
+    }
+    if (!nhrStepInfo.rxSliceIdxs.empty()) {
+        CCU_CHK_RET(DoScatterOmniPipeNHRRecv(ctx, nhrStepInfo));
+    }
     return CCU_SUCCESS;
 }
 
