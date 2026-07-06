@@ -172,3 +172,74 @@ TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_hcclbuff_add_1)
     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
     RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
 }
+
+// asymmetric topology
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_base_test)
+{
+    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}}};
+    u64 dataCount = 1024;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
+    u32 dataTypeSize = 1;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_single_dataCount)
+{
+    TopoMeta topoMeta{{{0, 1, 2}, {0, 1, 2, 3}, {1, 2}}};
+    u64 dataCount = 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
+    u32 dataTypeSize = 2;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MAX;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_odd_dataCount)
+{
+    TopoMeta topoMeta{{{0, 1}, {1, 2, 3, 4}, {0, 1}, {4, 5, 6, 7}}};
+    u64 dataCount = 13;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+    u32 dataTypeSize = 4;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_even_dataCount)
+{
+    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2}, {0, 1, 2, 3, 4, 5, 6}, {3, 4}}};
+    u64 dataCount = 16;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
+    u32 dataTypeSize = 2;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_small_data)
+{
+    TopoMeta topoMeta{{{0, 1, 2}, {8, 9, 10, 11, 12, 13}}};
+    u64 dataCount = 4096;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
+    u32 dataTypeSize = 4;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MAX;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_mid_data)
+{
+    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {0, 1}, {0}}};
+    u64 dataCount = 1048575;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
+    u32 dataTypeSize = 2;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_hcclbuff_add_1)
+{
+    TopoMeta topoMeta{{{1, 2, 3}, {0, 1, 3, 5}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3}}};
+    u64 dataCount = 200 * 1024 * 1024 + 1;
+    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
+    u32 dataTypeSize = 1;
+    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
+    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
