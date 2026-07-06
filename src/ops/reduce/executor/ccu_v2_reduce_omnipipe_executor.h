@@ -90,14 +90,15 @@ protected:
 
     uint64_t rankIdxLevel0_{0};
     uint64_t rankIdxLevel1_{0};
+    uint64_t rootx{0};
+    uint64_t rooty{0};
 
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
     bool isRoot{false};
     bool isSameXAxis{false};
     bool isSameYAxis{false};
-    u64 rootXAixs{0};
-    u64 rootYAixs{0};
+    
     u64 subCommRootId_{0};
 
     enum OmnipipeARLevel{
