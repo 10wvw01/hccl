@@ -10,12 +10,16 @@
 
 #ifndef HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_
 #define HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_
-
+#include <array>
 #include "utils.h"
 #include "ccu_alg_template_base.h"
+#include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
-
+constexpr u32 MAX_KERNEL_NUM_2DIE = 3;
+constexpr u32 KERNEL_FULLMESH = 0;
+constexpr u32 KERNEL_CLOS_MAJOR = 1;
+constexpr u32 KERNEL_CLOS_MINOR = 2;
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
@@ -29,33 +33,29 @@ public:
     {
         return StringFormat("Template of alltoall ccu mesh 2Die with rankSize[%u]", templateRankSize_);
     }
-
     HcclResult CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
         AlgResourceRequest &resourceRequest) override;
-
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource& templateResource) override;
+    HcclResult FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx) override;
+
 private:
-    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs, uint32_t &meshDieId,
-                                std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
-    HcclResult CalcChannelRequest(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
-    HcclResult ProcessLinkForProtocol(const HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName) const;
-    HcclResult CreateChannelFromLink(const HcclComm comm, u32 myRank, u32 rank, uint32_t netLayer, u32 idx,
-        const CommLink& link, const std::string& funcName, std::vector<HcclChannelDesc>& channels) const;
-    HcclResult ProcessLinkForProtocolNhr(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound) const;
-    HcclResult CalcNHRChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks) const;
+    HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
+    HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
+    HcclResult LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
+        uint64_t sliceStride, const LoopGroupConfig &config, const TemplateDataParams &templateDataParams,
+        TemplateResource& templateResource);
 
-    const uint32_t DIE_NUM = 2; // 2Die
-
-    std::map<uint32_t, std::vector<HcclChannelDesc>> channels_; // key is DieId
-    std::map<uint32_t, RankGroup> rankGroup_;
+    bool is2Plus6_ = false;
+    uint32_t kernelCount_ = 2;
+    uint32_t fullmeshDieId_ = 0;
+    double dieSplitRatio_ = 1.0;
+    std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
+    std::vector<HcclChannelDesc> kernelChannels_[MAX_KERNEL_NUM_2DIE];
+    std::vector<RankId> kernelRankGroup_[MAX_KERNEL_NUM_2DIE];
     std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
+    
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 #endif // HCCLV2_CCU_TEMP_ALL_TO_ALL_MESH_1D_2DIE_H_
