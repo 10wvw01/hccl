@@ -20,7 +20,6 @@ bool NeedInconsistentCheck(HcclComm comm, const OpParam& param)
         // 以下场景不校验参数一致性，其余场景均校验：
         // inconsistentCheckSwitch为off
         // inconsistentCheckSwitch为first或空，单算子模式下非首次下发且非增量建链模式，当前以context是否存在作为首次下发判断依据
-        std::string tagStr = param.algTag;
         bool noCheck = (GetInconsistentCheckSwitch() == 0) && (param.opMode == OpMode::OPBASE) &&
             CheckCtxStatus(comm, param);
         bool increCreateChannelFlag = (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) &&
