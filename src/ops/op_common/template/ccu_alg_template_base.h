@@ -12,6 +12,7 @@
 #define HCCL_CCU_ALG_TEMPLATE_BASE
 
 #include "common_alg_template_base.h"
+#include <set>
 
 
 namespace ops_hccl {
@@ -57,6 +58,14 @@ public:
     static HcclResult GetDieInfoFromChannelDescs(HcclComm comm,
         const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc,
         u32 myRankId, uint32_t &dieNum, uint32_t &dieId);
+    static HcclResult CalcDieSplitRatio(HcclComm comm, uint32_t myRank, bool is2Plus6,
+        const std::vector<HcclChannelDesc>& majorChs,
+        const std::vector<HcclChannelDesc>& minorChs, double& ratio);
+    static HcclResult SplitChannelsByDie(HcclComm comm, uint32_t myRank,
+        std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc,
+        std::map<uint32_t, std::vector<HcclChannelDesc>>& singleChByDie,
+        std::map<uint32_t, std::vector<HcclChannelDesc>>& multiChByDie,
+        bool& is2Plus6, std::set<u32>* closPeers = nullptr);
 
 protected:
     OpMode          opMode_             = OpMode::OPBASE;
