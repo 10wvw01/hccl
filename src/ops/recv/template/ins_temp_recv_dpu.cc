@@ -141,7 +141,7 @@ namespace ops_hccl
                 tempAlgParams.buffInfo.hcclBuff.addr, 0, processSize_, count_); // cclbuffer不需要offset
             // 发送
             SlicesList recvSlicesList({remoteInputBuffer}, {localCclBuffer});
-            DataInfo recvInfo(recvChannel_, recvSlicesList);
+            DataInfo recvInfo(recvChannel_, recvSlicesList, dataType_);
             CHK_PRT_RET(RecvWrite(recvInfo, thread_),
                         HCCL_ERROR("[InsTempRecvDpu][KernelRun]Aicpu Run Recv failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -200,7 +200,7 @@ namespace ops_hccl
                                  tempAlgParam.count); // cclbuffer不需要offset
         // 发送
         SlicesList recvSlicesList({remoteInputBuffer}, {localCclBuffer});
-        DataInfo recvInfo(linkRecv, recvSlicesList);
+        DataInfo recvInfo(linkRecv, recvSlicesList, tempAlgParam.dataType);
         CHK_PRT_RET(RecvWrite(recvInfo), HCCL_ERROR("[InsTempRecvDpu][DPUKernelRun] Run Recv failed"), HcclResult::HCCL_E_INTERNAL);
         HCCL_INFO("[InsTempRecvDpu][DPUKernelRun] Run Recv success!");
 #endif

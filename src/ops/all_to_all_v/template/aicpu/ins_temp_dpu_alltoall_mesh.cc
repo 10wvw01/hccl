@@ -94,7 +94,7 @@ HcclResult InsTempDpuAlltoAllMesh::KernelRun(const OpParam &param, const Templat
 
     // 转换成eager-mode，保障AICPU指令下发执行完成
     if (HcommBatchModeEnd(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempDpuAlltoAllMesh] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempDpuAlltoAllMesh] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     if (HcommThreadSynchronize(threads_[0]) != 0) {
@@ -281,7 +281,7 @@ HcclResult InsTempDpuAlltoAllMesh::SendRecvData(const OpParam &param, const std:
                       myRank_, remoteRank, tempAlgParams.buffInfo.hcclBuffBaseOff + myRank_ * hcclbuffBlockMemSize_,
                       tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize_ + remoteRank * hcclbuffBlockMemSize_,
                       recvSliceSize);
-            SendRecvInfo sendRecvInfo{{link, link}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
+            SendRecvInfo sendRecvInfo{{link, link}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_};
             CHK_PRT_RET(SendRecvWrite(sendRecvInfo, threads[threadIdx]),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [SendRecvData] AlltoAll AICPU SendRecv failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -301,7 +301,7 @@ HcclResult InsTempDpuAlltoAllMesh::SendRecvData(const OpParam &param, const std:
                       myRank_, remoteRank, tempAlgParams.buffInfo.hcclBuffBaseOff + remoteRank * hcclbuffBlockMemSize_,
                       tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize_ + myRank_ * hcclbuffBlockMemSize_,
                       sendSliceSize);
-            DataInfo sendDataInfo{link, {txSrcSlices, txDstSlices}};
+            DataInfo sendDataInfo{link, {txSrcSlices, txDstSlices}, dataType_};
             CHK_PRT_RET(SendWrite(sendDataInfo, threads[threadIdx]),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [SendRecvData] AlltoAll AICPU only Send failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -321,7 +321,7 @@ HcclResult InsTempDpuAlltoAllMesh::SendRecvData(const OpParam &param, const std:
                       myRank_, remoteRank, tempAlgParams.buffInfo.hcclBuffBaseOff + myRank_ * hcclbuffBlockMemSize_,
                       tempAlgParams.buffInfo.hcclBuffBaseOff + halfMaxTmpMemSize_ + remoteRank * hcclbuffBlockMemSize_,
                       recvSliceSize);
-            DataInfo recvDataInfo{link, {rxSrcSlices, rxDstSlices}};
+            DataInfo recvDataInfo{link, {rxSrcSlices, rxDstSlices}, dataType_};
             CHK_PRT_RET(RecvWrite(recvDataInfo, threads[threadIdx]),
                         HCCL_ERROR("[InsTempDpuAlltoAllMesh] [SendRecvData] AlltoAll AICPU only Recv failed"),
                         HcclResult::HCCL_E_INTERNAL);

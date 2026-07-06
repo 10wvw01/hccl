@@ -58,6 +58,8 @@ HcclResult InsTempReduceScatterMesh1D::CalcRes(HcclComm comm, const OpParam& par
 
 u64 InsTempReduceScatterMesh1D::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
+    (void) inBuffType;
+    (void) outBuffType;
     u64 scratchMultiple = templateRankSize_;
     return scratchMultiple;
 }
@@ -265,4 +267,4 @@ HcclResult InsTempReduceScatterMesh1D::GetRes(AlgResourceRequest& resourceReques
     return HCCL_SUCCESS;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl

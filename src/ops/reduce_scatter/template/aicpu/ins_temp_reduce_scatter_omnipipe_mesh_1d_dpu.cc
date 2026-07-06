@@ -306,7 +306,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DPUKernelRun(const TemplateDat
             txSrcSlices.push_back(txSrcSlice);
             txDstSlices.push_back(txDstSlice);
         }
-        SendRecvInfo sendRecvInfo{{linkRemote, linkRemote}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
+        SendRecvInfo sendRecvInfo{{linkRemote, linkRemote}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_};
         CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
             HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] RunReduceScatter Send failed"),
             HcclResult::HCCL_E_INTERNAL);

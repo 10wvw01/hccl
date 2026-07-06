@@ -48,4 +48,4 @@ private:
 };
 }  // namespace Hccl
 
-#endif  // !TOPO_MATCH_MESH_NHR
+#endif  // TOPO_MATCH_MESH_NHR

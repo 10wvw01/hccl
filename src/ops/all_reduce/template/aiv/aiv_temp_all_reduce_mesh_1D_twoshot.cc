@@ -130,4 +130,4 @@ HcclResult AivTempAllReduceMesh1DTwoShot::KernelRun(const OpParam& param,
     return HcclResult::HCCL_SUCCESS;
 }
 
-}  // namespace Hccl
+}  // namespace ops_hccl

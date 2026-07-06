@@ -38,6 +38,6 @@ public:
     HcclResult CalNumBlocks(u32& numBlocks, u64 dataSize, u32 numBlocksLimit) override;
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 };
-}  // namespace Hccl
+}  // namespace ops_hccl
 
 #endif  // AIV_TEMP_ALL_REDUCE_MESH_1D_TWOSHOT

@@ -55,6 +55,6 @@ protected:
     u32             channelsPerRank_    = 1;
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // COMMON_ALG_TEMPLATE_BASE_H

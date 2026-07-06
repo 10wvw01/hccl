@@ -39,5 +39,5 @@ protected:
         return oss.str();
     }
 };
-}  // namespace Hccl
+}  // namespace ops_hccl
 #endif  // !TOPO_MATCH_UBX

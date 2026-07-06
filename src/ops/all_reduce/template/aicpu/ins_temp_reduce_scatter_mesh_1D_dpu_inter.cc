@@ -270,4 +270,4 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::PostLocalReduce(const OpParam &pa
 #ifndef AICPU_COMPILE
 REGISTER_TEMPLATE_V2("InsTempReduceScatterMesh1dDpuInter", InsTempReduceScatterMesh1dDpuInter);
 #endif
-} // namespace Hccl
+} // namespace ops_hccl

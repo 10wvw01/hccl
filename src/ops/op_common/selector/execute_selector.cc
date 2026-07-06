@@ -54,4 +54,4 @@ HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* t
     return HcclResult::HCCL_E_NOT_SUPPORT;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl

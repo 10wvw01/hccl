@@ -52,5 +52,5 @@ private:
     u64 processSize_{0};
 };
 
-} // namespace Hccl
-#endif //OPEN_HCCL_INS_TEMP_REDUCE_SCATTER_MESH_1D_DPU
+} // namespace ops_hccl
+#endif // INS_TEMP_REDUCE_SCATTER_1D_DPU

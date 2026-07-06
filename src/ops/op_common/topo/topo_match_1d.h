@@ -35,6 +35,6 @@ private:
     u32 myRank_{0};
     std::vector<u32> rankIds_;
 };
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // !HCCLV2_TOPO_MATCH_MESH

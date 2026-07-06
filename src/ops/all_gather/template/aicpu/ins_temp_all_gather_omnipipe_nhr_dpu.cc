@@ -146,7 +146,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::RunNHR(
         // read 模式使用rx, tx地址不生效，仅使用对端link做Post/Wait
         TxRxChannels sendRecvChannels(txChannel[0], rxChannel[0]);
         TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
-        SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
+        SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, tempAlgParams.dataType);
 
         CHK_PRT_RET(
             SendRecvWrite(sendRecvInfo),

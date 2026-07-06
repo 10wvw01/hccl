@@ -151,7 +151,7 @@ namespace ops_hccl
                     tempAlgParams.buffInfo.hcclBuffBaseOff + myRank_ * hcclbuffBlockMemSize_, processSize_, count_); // 发送到对端对应本rank划分的cclbuffer
                 // 发送
                 SlicesList sendSlicesList({inputBuffer}, {remoteCclBuffer});
-                DataInfo sendInfo(recvRank_ < myRank_ ? sendRecvChannel_ : subSendRecvChannel_, sendSlicesList);
+                DataInfo sendInfo(recvRank_ < myRank_ ? sendRecvChannel_ : subSendRecvChannel_, sendSlicesList, dataType_);
                 CHK_PRT_RET(SendWrite(sendInfo, thread_),
                             HCCL_ERROR("[InsTempBatchSendRecvDpu][KernelRun]Aicpu Run Send failed"),
                             HcclResult::HCCL_E_INTERNAL);
@@ -163,7 +163,7 @@ namespace ops_hccl
                     tempAlgParams.buffInfo.hcclBuffBaseOff + recvRank_ * hcclbuffBlockMemSize_, processSize_, count_); // 从给对端rank划分的cclbuffer接收
                 // 发送
                 SlicesList recvSlicesList({remoteInputBuffer}, {localCclBuffer});
-                DataInfo recvInfo(recvRank_ > myRank_ ? sendRecvChannel_ : subSendRecvChannel_, recvSlicesList);
+                DataInfo recvInfo(recvRank_ > myRank_ ? sendRecvChannel_ : subSendRecvChannel_, recvSlicesList, dataType_);
                 CHK_PRT_RET(RecvWrite(recvInfo, subThread_),
                             HCCL_ERROR("[InsTempRecvDpu][KernelRun]Aicpu Run Recv failed"),
                             HcclResult::HCCL_E_INTERNAL);

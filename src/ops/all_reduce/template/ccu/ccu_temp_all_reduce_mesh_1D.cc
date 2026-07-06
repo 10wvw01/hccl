@@ -223,4 +223,4 @@ u64 CcuTempAllReduceMesh1D::GetThreadNum() const
 {
     return 1;
 }
-} // namespace Hccl
+} // namespace ops_hccl

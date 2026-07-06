@@ -94,9 +94,8 @@ HcclResult InsTempReduceScatterMesh1DIntra::PostCopy(
         return HCCL_E_INTERNAL;
     }
     // 如果是单算子模式, 并且是最后一步算子，需要将数据从 cclBuffer 拷贝到 userOut
-    HCCL_INFO("[InsTempReduceScatterMesh1DIntra][PostCopy], copy from cclBuffer to userOut");
-    // 先把本卡的数据从userIn搬运到userOut，然后再在userOut上做规约
-    HCCL_INFO("[InsTempReduceScatterMesh1DIntra][PostCopy]tempAlgParams.repeatNum=%llu", tempAlgParams.repeatNum);
+    HCCL_INFO("[InsTempReduceScatterMesh1DIntra][PostCopy] copy from cclBuffer to userOut");
+    HCCL_INFO("[InsTempReduceScatterMesh1DIntra][PostCopy] tempAlgParams.repeatNum=%llu", tempAlgParams.repeatNum);
     u64 sliceSize = tempAlgParams.allRankSliceSize.at(rankIdx);
     u64 sliceCount = tempAlgParams.allRankProcessedDataCount.at(rankIdx);
     u64 sliceOffset = tempAlgParams.allRankDispls.at(rankIdx);

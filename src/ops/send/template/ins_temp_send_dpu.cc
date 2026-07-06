@@ -141,7 +141,7 @@ namespace ops_hccl
             DataSlice remoteCclBuffer(tempAlgParams.buffInfo.outputPtr, 0, processSize_, count_); // ccl buffer不需要offset
             // 发送
             SlicesList sendSlicesList({inputBuffer}, {remoteCclBuffer});
-            DataInfo sendInfo(sendChannel_, sendSlicesList);
+            DataInfo sendInfo(sendChannel_, sendSlicesList, dataType_);
             CHK_PRT_RET(SendWrite(sendInfo, thread_),
                         HCCL_ERROR("[InsTempSendDpu][KernelRun]Aicpu Run Send failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -187,7 +187,7 @@ namespace ops_hccl
         DataSlice remoteCclBuffer(tempAlgParam.buffInfo.outputPtr, 0, tempAlgParam.sliceSize); // ccl
         // 发送
         SlicesList sendSlicesList({localCclBuffer}, {remoteCclBuffer});
-        DataInfo sendInfo(linkSend, sendSlicesList);
+        DataInfo sendInfo(linkSend, sendSlicesList, tempAlgParam.dataType);
         CHK_PRT_RET(
             SendWrite(sendInfo), HCCL_ERROR("[InsTempSendDpu][DPUKernelRun] Run Send failed"), HcclResult::HCCL_E_INTERNAL);
         HCCL_INFO("[InsTempSendDpu][DPUKernelRun] Run Send success!");
