@@ -134,6 +134,96 @@ HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     return HcclResult::HCCL_SUCCESS;
 }
 
+HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::LaunchOneRepeat(const StepSliceInfo &stepSliceInfo,
+    TemplateResource &templateResource, uint32_t rpt, uint64_t repeatNum, bool ifNewRoot, uint64_t inputAddr,
+    uint64_t outputAddr, uint64_t token)
+{
+    uint64_t sliceSize = 0;
+    std::vector<uint64_t> inputOmniSliceSizeVec = {};
+    std::vector<uint64_t> inputOmniSliceStrideVec = {};
+    std::vector<uint64_t> outputOmniSliceStrideVec = {};
+    BuildSliceInfoVec(
+        stepSliceInfo, rpt, repeatNum, ifDoTask_, sliceSize, inputOmniSliceSizeVec, inputOmniSliceStrideVec, outputOmniSliceStrideVec);
+
+    for (uint32_t i = 0; i < inputOmniSliceSizeVec.size(); i++) {
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceSizeVec[%d] = %llu "
+                    "isStepone[%d] isLastStep[%d]",
+            myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceSizeVec[i], isStepOne_, isLastStep_);
+    }
+    for (uint32_t i = 0; i < inputOmniSliceStrideVec.size(); i++) {
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceStrideVec[%d] = %llu "
+                   "isStepone[%d] isLastStep[%d]",
+            myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceStrideVec[i], isStepOne_, isLastStep_);
+    }
+    for (uint32_t i = 0; i < outputOmniSliceStrideVec.size(); i++) {
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] outputOmniSliceStrideVec[%d] = %llu "
+                   "isStepone[%d] isLastStep[%d]",
+            myRank_, subCommRootId_, rpt, sliceSize, i, outputOmniSliceStrideVec[i], isStepOne_, isLastStep_);
+    }
+
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, sliceSize, token, isStepOne_, isLastStep_, ifNewRoot};
+    taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
+    taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
+    taskArgs.insert(taskArgs.end(), inputOmniSliceSizeVec.begin(), inputOmniSliceSizeVec.end());
+    uint64_t argSize = taskArgs.size();
+    HCCL_DEBUG(
+        "[%s] myRank[%u] mySubCommRank[%u] rpt[%u] argSize[%llu]", __func__, myRank_, mySubCommRank_, rpt, argSize);
+
+    CcuResult launchRet
+        = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
+    if (launchRet != CCU_SUCCESS) {
+        HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
+        return ConvertCcuToHccl(launchRet);
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::RunScatterNHRDispatch(const TemplateDataParams &templateDataParams,
+    TemplateResource &templateResource, uint64_t inputAddr, uint64_t outputAddrBase, uint64_t outBuffBaseOff,
+    uint64_t token)
+{
+    auto stepSliceInfo = templateDataParams.stepSliceInfo;
+    uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
+    bool ifNewRoot = (subCommRootId_ == mySubCommRank_);
+    uint64_t totalPieceNum = stepSliceInfo.inputOmniPipeSliceStride[myRank_ % xRankSize_].size();
+    uint64_t peerNum = templateRankSize_ - 1;
+    // 防御一下，其实都是能够整除的
+    CHK_PRT_RET(totalPieceNum % peerNum != 0,
+        HCCL_ERROR("inputOmniPipeSliceStride size=%llu not divisible by peerNum=%llu, repeatNum truncated",
+            totalPieceNum, peerNum),
+        HCCL_E_INTERNAL);
+
+    uint64_t repeatNum = totalPieceNum / peerNum;
+    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] subCommRootId_[%u] ifDoTask_[%d] isStepone[%d] isLastStep[%d] "
+               "repeatNum[%llu]",
+        __func__, myRank_, mySubCommRank_, subCommRootId_, ifDoTask_, isStepOne_, isLastStep_, repeatNum);
+    for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
+        HcclResult ret
+            = LaunchOneRepeat(stepSliceInfo, templateResource, rpt, repeatNum, ifNewRoot, inputAddr, outputAddr, token);
+        if (ret != HcclResult::HCCL_SUCCESS) {
+            return ret;
+        }
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::RunLocalCopy(const TemplateDataParams &templateDataParams,
+    TemplateResource &templateResource, uint64_t inputAddrBase, uint64_t outputAddrBase)
+{
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
+    DataSlice srcSlice(
+        buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+    DataSlice dstSlice(
+        buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inputAddrBase[%llu] inputAddrOffset[%llu] outputAddrBase[%llu] "
+               "outputAddrOffset[%llu] sliceSize[%llu]",
+        __func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff, outputAddrBase, buffInfo_.outBuffBaseOff,
+        templateDataParams.sliceSize);
+    CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy end", __func__, myRank_);
+    return HcclResult::HCCL_SUCCESS;
+}
+
 HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::KernelRun(
     const OpParam &param, const TemplateDataParams &templateDataParams, TemplateResource &templateResource)
 {
@@ -141,8 +231,8 @@ HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::KernelRun(
         return HCCL_SUCCESS;
     }
     uint64_t localCopyFlag = templateDataParams.localCopyFlag;
-    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] isStepone[%d] isLastStep[%d] localCopyFlag[%d] start", __func__, myRank_,
-        mySubCommRank_, isStepOne_, isLastStep_, localCopyFlag);
+    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] isStepone[%d] isLastStep[%d] localCopyFlag[%d] start", __func__,
+        myRank_, mySubCommRank_, isStepOne_, isLastStep_, localCopyFlag);
     buffInfo_ = templateDataParams.buffInfo;
     auto stepSliceInfo = templateDataParams.stepSliceInfo;
 
@@ -159,67 +249,10 @@ HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::KernelRun(
     CHK_RET(GetToken(buffInfo_, token));
 
     if (localCopyFlag == 0) {
-        uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
-        bool ifNewRoot = (subCommRootId_ == mySubCommRank_);
-        uint64_t totalPieceNum = stepSliceInfo.inputOmniPipeSliceStride[myRank_% xRankSize_].size();
-        uint64_t peerNum = templateRankSize_ - 1;
-        CHK_PRT_RET(totalPieceNum % peerNum != 0,
-            HCCL_ERROR("inputOmniPipeSliceStride size=%llu not divisible by peerNum=%llu, repeatNum truncated", totalPieceNum,
-            peerNum), HCCL_E_INTERNAL);
-
-        uint64_t repeatNum = totalPieceNum / peerNum;
-        HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] subCommRootId_[%u] ifDoTask_[%d] isStepone[%d] isLastStep[%d] "
-                   "repeatNum[%llu]",
-            __func__, myRank_, mySubCommRank_, subCommRootId_, ifDoTask_, isStepOne_, isLastStep_, repeatNum);
-        for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
-            uint64_t sliceSize = 0;
-            uint64_t inputOmniPipeSliceStride = 0;
-            uint64_t outputOmniPipeSliceStride = 0;
-            std::vector<uint64_t> inputOmniSliceSizeVec = {};
-            std::vector<uint64_t> inputOmniSliceStrideVec = {};
-            std::vector<uint64_t> outputOmniSliceStrideVec = {};
-            BuildSliceInfoVec(
-                stepSliceInfo, rpt, repeatNum, ifDoTask_, sliceSize, inputOmniSliceSizeVec, inputOmniSliceStrideVec, outputOmniSliceStrideVec);
-            for (uint32_t i = 0; i < inputOmniSliceSizeVec.size(); i++) {
-                HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceSizeVec[%d] = %llu "
-                          "isStepone[%d] isLastStep[%d]",
-                    myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceSizeVec[i], isStepOne_, isLastStep_);
-            }
-            for (uint32_t i = 0; i < inputOmniSliceStrideVec.size(); i++) {
-                HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceStrideVec[%d] = %llu "
-                          "isStepone[%d] isLastStep[%d]",
-                    myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceStrideVec[i], isStepOne_, isLastStep_);
-            }
-            for (uint32_t i = 0; i < outputOmniSliceStrideVec.size(); i++) {
-                HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] outputOmniSliceStrideVec[%d] = %llu "
-                          "isStepone[%d] isLastStep[%d]",
-                    myRank_, subCommRootId_, rpt, sliceSize, i, outputOmniSliceStrideVec[i], isStepOne_, isLastStep_);
-            }
-
-            std::vector<uint64_t> taskArgs
-                = {inputAddr, outputAddr, sliceSize, token, isStepOne_, isLastStep_, ifNewRoot};
-            taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
-            taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
-            taskArgs.insert(taskArgs.end(), inputOmniSliceSizeVec.begin(), inputOmniSliceSizeVec.end());
-            uint64_t argSize = taskArgs.size();
-            HCCL_DEBUG("[%s] myRank[%u] mySubCommRank[%u] rpt[%u] argSize[%llu]", __func__, myRank_, mySubCommRank_, rpt, argSize);
-
-            CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
-            if (launchRet != CCU_SUCCESS) {
-                HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
-                return ConvertCcuToHccl(launchRet);
-            }
-        }
+        return RunScatterNHRDispatch(
+            templateDataParams, templateResource, inputAddr, outputAddrBase, outBuffBaseOff, token);
     } else if (localCopyFlag == 1) {
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
-        DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
-        DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inputAddrBase[%llu] inputAddrOffset[%llu] outputAddrBase[%llu] "
-                "outputAddrOffset[%llu] sliceSize[%llu]",
-            __func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff, outputAddrBase, buffInfo_.outBuffBaseOff,
-            templateDataParams.sliceSize);
-        CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy end", __func__, myRank_);
+        return RunLocalCopy(templateDataParams, templateResource, inputAddrBase, outputAddrBase);
     }
 
     HCCL_DEBUG("[%s] run success", __func__);
@@ -227,10 +260,10 @@ HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::KernelRun(
 }
 
 void CcuTempScatterOmniPipeNHR1DMem2Mem::BuildSliceInfoVec(const StepSliceInfo &stepSliceInfo, uint32_t rpt,
-    uint64_t repeatNum, bool ifDoTask_, uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceSizeVec,
+    uint64_t repeatNum, bool ifDoTask, uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceSizeVec,
     std::vector<uint64_t> &inputOmniSliceStrideVec, std::vector<uint64_t> &outputOmniSliceStrideVec)
 {
-    if (!ifDoTask_) {
+    if (!ifDoTask) {
         for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
             inputOmniSliceSizeVec.push_back(0);
             inputOmniSliceStrideVec.push_back(0);

@@ -289,15 +289,13 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
         level0ThreadsNum = algTempLevel0.GetThreadNum();
         level0Threads_.assign(localThreads_.begin() + 1, localThreads_.begin() + 1 + level0ThreadsNum);
         templateMainThreads_.push_back(level0Threads_.at(0));
-        CHK_RET(algTempLevel0.GetRes(level0TempRequest));
-        
+        CHK_RET(algTempLevel0.GetRes(level0TempRequest));        
     }
     if (rankSizeLevel1_ > 1) {
         level1ThreadsNum = algTempLevel1.GetThreadNum();
         level1Threads_.assign(localThreads_.begin() + 1 + level0ThreadsNum, localThreads_.end());
         templateMainThreads_.push_back(level1Threads_.at(0));
         CHK_RET(algTempLevel1.GetRes(level1TempRequest));
-        
     }
     HCCL_DEBUG("[%s]level0ThreadsNum[%u] level1ThreadsNum[%u]", __func__, level0ThreadsNum, level1ThreadsNum);    
     HCCL_DEBUG(
@@ -530,12 +528,11 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(
                         tempAlgParamsX, currentSliceInfo.dataSliceLevel0[i], processedDataCount, resCtx, param));
                 }
-            }
-            // 中间步骤：逐步转发阶段
-            // - root节点：快轴发对角数据，慢轴发同轴数据
-            // - 同x轴非root节点：不发送任何数据
-            // - 同y轴非root节点：往x轴方向发送部分转发数据
-            else if(i != 0 && i != innerServerStepNum - 1) {
+            } else if(i != 0 && i != innerServerStepNum - 1) {
+                // 中间步骤：逐步转发阶段
+                // - root节点：快轴发对角数据，慢轴发同轴数据
+                // - 同x轴非root节点：不发送任何数据
+                // - 同y轴非root节点：往x轴方向发送部分转发数据
                 HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
 
                 // 同快轴(y轴)的非root节点：往x轴方向发送部分转发数据（使用mesh算法,走templateX）
@@ -638,7 +635,4 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_SCATTER, CcuV2ScatterOmniPi
     TopoMatchUBX, CcuTempScatterOmniPipeMesh1DMem2Mem, CcuTempScatterOmniPipeNHR1DMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
-
-
-
 } // namespace ops_hccl
