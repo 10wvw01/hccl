@@ -219,7 +219,7 @@ HcclResult ReduceMesh1DTwoShotZAxisDetour::SendRecvDataToPeers(
                 TxRxSlicesList sendRecvSlicesList({sendSrcSlicesList, sendDstSlicesList}, {recvSrcSlicesList, recvDstSlicesList});
                 SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
                 u32 threadIdx = remoteIdx * channelsPerRank_ + channelIdx;
-                CHK_PRT_RET(static_cast<HcclResult>(SendRecvBatchWrite(sendRecvInfo, threads.at(threadIdx)),
+                CHK_PRT_RET(static_cast<HcclResult>(SendRecvBatchWrite(sendRecvInfo, threads.at(threadIdx))),
                     HCCL_ERROR("[ReduceMesh1DTwoShotZAxisDetour][SendRecvDataToPeers] SendRecv failed."),
                     HcclResult::HCCL_E_INTERNAL);
             }
@@ -344,7 +344,7 @@ HcclResult ReduceMesh1DTwoShotZAxisDetour::GatherRemoteData(
             const SlicesList recvSlicesList({recvSrcSlice}, {recvDstSlice});
             const DataInfo recvInfo(channel, recvSlicesList);
             u32 threadIdx = remoteIdx * channelsPerRank_ + channelIdx;
-            CHK_PRT_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads.at(threadIdx)),
+            CHK_PRT_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads.at(threadIdx))),
                 HCCL_ERROR("[ReduceMesh1DTwoShotZAxisDetour][GatherRemoteData] RecvRead failed."),
                 HcclResult::HCCL_E_INTERNAL);
         }
@@ -384,7 +384,7 @@ HcclResult ReduceMesh1DTwoShotZAxisDetour::SendToRoot(
         const SlicesList sendSlicesList({sendSrcSlice}, {sendDstSlice});
         const DataInfo sendInfo(channel, sendSlicesList);
         u32 threadIdx = myIdx_ * channelsPerRank_ + channelIdx;
-        CHK_PRT_RET(static_cast<HcclResult>(SendRead(sendInfo, threads.at(threadIdx)),
+        CHK_PRT_RET(static_cast<HcclResult>(SendRead(sendInfo, threads.at(threadIdx))),
             HCCL_ERROR("[ReduceMesh1DTwoShotZAxisDetour][SendToRoot] SendRead failed."),
             HcclResult::HCCL_E_INTERNAL);
     }
