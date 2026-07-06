@@ -65,7 +65,9 @@ inline bool IsNeedStrictModeForOrderPreserved(const OpParam& opParam, u32 rankSi
                 dataType == HcclDataType::HCCL_DATA_TYPE_BFP16 ||
                 dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
         case HcclReduceOp::HCCL_REDUCE_PROD:
-            return (dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
+            return (dataType == HcclDataType::HCCL_DATA_TYPE_FP16 ||
+                dataType == HcclDataType::HCCL_DATA_TYPE_FP32 ||
+                dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
         default:
             return false;
     }
