@@ -27,11 +27,10 @@ CcuTempGatherOmniPipeMesh1DMem2Mem::CcuTempGatherOmniPipeMesh1DMem2Mem(const OpP
     if (it != ranks.end()) {
         mySubCommRank_ = std::distance(ranks.begin(), it);
     }
-    rankId_ = rankId;
     // 子通信域的root卡号
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    auto itRoot = std::find(ranks.begin(), ranks.end(), param.root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_ = std::distance(ranks.begin(), itRoot);
     }
 
     ifRealRoot_ = (rankId == param.root);
@@ -208,12 +207,12 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                     ifNewRoot,
                     peerId
                 };
-                // if (ifNewRoot && sliceSize!=0) {
+                if (ifNewRoot && sliceSize!=0) {
                 HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
                             " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d] peerId[%d]",
                             rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_, peerId);
             
-                // }
+                }
                 uint64_t argSize = taskArgs.size();
                 CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
                 if (launchRet != CCU_SUCCESS) {
