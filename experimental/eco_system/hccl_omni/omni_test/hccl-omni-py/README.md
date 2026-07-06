@@ -72,7 +72,104 @@ result = operator(cluster_config, op_param)
 **参数**：
 - `kernel_config` (dict): 内核配置
 - `cluster_config` (dict): 集群拓扑描述
-- `op_param` (dict): 算子参数
+- `op_param` (dict): 算子参数，包含算子类型、输入输出张量及切分配置
+
+### `op_param` 参数说明
+
+`op_param` 描述待执行算子的类型、数据及切分方式。
+
+**字段**：
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `op_name` | `OpName` | 是 | 算子类型枚举 |
+| `input` | `torch.Tensor` | 是 | 输入张量 |
+| `output` | `torch.Tensor \| list[torch.Tensor]` | 是 | 输出张量，Allgather 为 list |
+| `reduce_op` | `ReduceOp` | 否 | 归约操作，默认 SUM |
+| `input_split_sizes` | `list[int]` | 否 | 输入切分大小（ReduceScatter / Alltoall） |
+| `output_split_sizes` | `list[int]` | 否 | 输出切分大小（Alltoall） |
+
+**各算子要求**：
+
+**Allgather**
+
+| 字段 | 要求 |
+|------|------|
+| `input` | 单个 tensor，size = N |
+| `output` | `list[tensor]`，长度 = world_size，每个 tensor 的 size = N |
+| `split_sizes` | 不使用 |
+
+每个 rank 持有 N 个元素的本地数据，收集所有 rank 的数据后得到 world_size × N 的结果。
+
+**ReduceScatter**
+
+| 字段 | 要求 |
+|------|------|
+| `input` | 单个 tensor，size = N |
+| `output` | 单个 tensor，size = 每个 rank 分得的 chunk |
+| `input_split_sizes` | 可选 `list[int]`，长度 = world_size。未提供时 N 必须被 world_size 整除，自动均分 |
+
+输入 tensor 按 `input_split_sizes` 切分为 world_size 份，各份归约后散射到对应 rank。框架根据 `input_split_sizes` 自动计算 `send_counts` 和 `sdispls`。
+
+**Allreduce**
+
+| 字段 | 要求 |
+|------|------|
+| `input` | 单个 tensor，size = N |
+| `output` | 单个 tensor，size 必须与 input 相同 |
+| `split_sizes` | 不使用 |
+
+所有 rank 的输入进行归约，结果广播到所有 rank。
+
+**Alltoall**
+
+| 字段 | 要求 |
+|------|------|
+| `input` | 单个 tensor，size = sum(input_split_sizes) |
+| `output` | 单个 tensor，size = sum(output_split_sizes) |
+| `input_split_sizes` | 可选 `list[int]`，长度 = world_size。定义发给每个 rank 的元素数。未提供时 input size 必须被 world_size 整除，自动均分 |
+| `output_split_sizes` | 可选 `list[int]`，长度 = world_size。定义从每个 rank 接收的元素数。未提供时等于 `input_split_sizes` |
+
+每个 rank 按 `input_split_sizes` 切分自身数据发给对应 rank，同时按 `output_split_sizes` 从各 rank 接收数据。
+
+**示例**：
+
+```python
+from hccl_omni import OpName, ReduceOp
+
+# Allgather
+op_param = {
+    'op_name': OpName.Allgather,
+    'input': local_tensor,
+    'output': [t1, t2, t3, t4],  # world_size 个 tensor
+}
+
+# ReduceScatter with explicit split
+op_param = {
+    'op_name': OpName.ReduceScatter,
+    'input': input_tensor,
+    'output': output_tensor,
+    'input_split_sizes': [256, 512, 256],
+    'reduce_op': ReduceOp.SUM,
+}
+
+# Allreduce
+op_param = {
+    'op_name': OpName.Allreduce,
+    'input': input_tensor,
+    'output': output_tensor,
+    'reduce_op': ReduceOp.SUM,
+}
+
+# Alltoall with explicit split
+op_param = {
+    'op_name': OpName.Alltoall,
+    'input': input_tensor,
+    'output': output_tensor,
+    'input_split_sizes': [2, 4, 6, 8],
+    'output_split_sizes': [4, 4, 4, 4],
+}
+```
 
 ## 设计约束
 
@@ -127,12 +224,9 @@ result = operator(cluster_config, op_param)
 - **fake_torch**：使用 mock 打桩，无需真实 PyTorch 环境，适用于单元测试
 - **real_torch**：使用真实 PyTorch，支持分布式测试，适用于集成测试
 
-### 使用 pytest 运行测试（推荐）
+### 使用 pytest 运行
 
 ```bash
-# 安装 pytest
-pip install pytest
-
 # 运行所有 fake torch 测试
 pytest tests/fake_torch/ -v
 
@@ -140,71 +234,18 @@ pytest tests/fake_torch/ -v
 pytest tests/fake_torch/test_basic.py -v
 ```
 
-### 使用测试运行器
+### real_torch 分布式测试
+
+### real_torch 测试
+
+验证 HCCL-OMNI 算子与 `torch.distributed` 原生接口的数值一致性，覆盖 Allgather、ReduceScatter、Allreduce、Alltoall。
+
+需要在 Ascend NPU 环境下运行，依赖 `torch_npu` 和 HCCL 通信库。
 
 ```bash
-# 运行 fake torch 测试
-python tests/run_test.py --mode fake
+# 单进程（world_size=1，部分测试会跳过）
+pytest tests/real_torch/test_operators.py -v
 
-# 运行 real torch 测试（单进程）
-python tests/run_test.py --mode real
-
-# 运行 real torch 测试（分布式）
-torchrun --nproc_per_node=4 tests/run_test.py --mode real
+# 分布式（4 卡，pytest 报告由各 rank 独立输出）
+torchrun --nproc_per_node=4 tests/real_torch/test_operators.py -v
 ```
-
-### 执行单个测试文件
-
-**Fake torch 测试**（无需真实 PyTorch 环境）：
-```bash
-python tests/fake_torch/test_<test_name>.py
-```
-
-**Real torch 测试**：
-```bash
-# 单进程模式
-python tests/real_torch/test_<test_name>.py
-
-# 分布式模式
-torchrun --nproc_per_node=4 tests/real_torch/test_<test_name>.py
-```
-
-### XML 到 BIN 流程测试
-
-验证从 XML 文件读取、切分到 bin 生成的完整流程：
-
-```bash
-# 使用默认输入文件和临时输出目录
-python tests/fake_torch/test_xml_to_bin.py
-
-# 指定输入文件和输出目录
-python tests/fake_torch/test_xml_to_bin.py --input-file xml_example/4pfullmesh.xml --output-dir /path/to/output
-```
-
-### 测试环境说明
-
-测试框架通过 `tests/conftest.py` 自动管理：
-- 自动添加项目根目录到 Python 路径
-- 自动设置 mock torch 环境（fake_torch 测试）
-
-测试文件无需手动处理路径设置，直接导入即可：
-
-```python
-# tests/fake_torch/test_example.py
-import hccl_omni
-from test_utils import setup_unified_test_environment
-
-# 设置测试配置
-temp_dir, config_file = setup_unified_test_environment()
-
-def test_example():
-    # 测试代码
-    pass
-```
-
-### 编写测试
-
-- **Fake torch 测试**：在 `fake_torch/` 目录下创建测试文件，使用测试工具设置 mock 环境。
-- **Real torch 测试**：在 `real_torch/` 目录下创建测试文件，手动初始化分布式环境。
-
-使用 `torchrun` 时，测试代码应处理多 rank 情况。
