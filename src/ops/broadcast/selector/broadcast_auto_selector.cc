@@ -15,6 +15,8 @@
 namespace ops_hccl {
 
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u64 BROADCAST_MESH_CCU_MAX_DATA_SIZE = 16 * 1024;
+constexpr u64 BROADCAST_NHR_CCU_MAX_DATA_SIZE = 1 * 1024 * 1024;
 
 SelectorStatus BroadcastAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -89,7 +91,16 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
             } else {
-                selectAlgName = "CcuBroadcastParallelMesh1DNHR";
+                u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+                u64 dataSize = opParam.DataDes.count * perDataSize;
+                u64 perRankSize = (topoInfo->userRankSize > 0) ? (dataSize / topoInfo->userRankSize) : dataSize;
+                if (perRankSize <= BROADCAST_MESH_CCU_MAX_DATA_SIZE) {
+                    selectAlgName = "CcuBroadcastMesh1DMem2Mem";
+                } else if (perRankSize <= BROADCAST_NHR_CCU_MAX_DATA_SIZE) {
+                    selectAlgName = "CcuBroadcastNHR1DMem2Mem";
+                } else {
+                    selectAlgName = "CcuBroadcastParallelMesh1DNHR";
+                }
             }
         } else {
              HCCL_WARNING("[Algo][BroadcastAutoSelector] level0Shape[%d] is not supported yet for ccu schedule mode.",
@@ -212,7 +223,7 @@ SelectorStatus BroadcastAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        dataSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        dataSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
         HCCL_DEBUG("[BroadcastAutoSelector][%s] dataSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
             __func__, dataSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
         return SelectorStatus::NOT_MATCH;
