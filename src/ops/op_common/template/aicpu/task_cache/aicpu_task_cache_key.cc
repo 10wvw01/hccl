@@ -8,15 +8,14 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cstdio>
+
 #include "aicpu_task_cache_key.h"
-
-#include <sstream>
-
 #include "aicpu_task_cache_utils.h"
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::string& cacheTag)
+HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_t inputSize, std::string &cacheTag)
 {
     // 校验opType
     const HcclCMDType opType = param.opType;
@@ -39,24 +38,20 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam& param, std::st
     const HcclReduceOp reduceType = param.reduceType;
     const bool isZeroCopy = param.isZeroCopy;
     const OpMode opMode = param.opMode;
-    const uint64_t inputSize = param.inputSize;
 
     // 使用'-'作为间隔符, 拼接cacheTag
     // 注意: 把input size放在前面, 如果需要解析, 可以减少解析开销
     // 注意: commId放在最后, 如果需要解析, 无需考虑commId中含有delimiter的情况
     // 注意: enum class不能转为uint8_t, 否则会作为char输出
-    const char delimiter = '-';
     const char* commId = param.commName;
-    std::ostringstream oss;
-    oss << inputSize << delimiter
-        << static_cast<uint32_t>(opType) << delimiter
-        << static_cast<uint32_t>(dataType) << delimiter
-        << static_cast<uint32_t>(reduceType) << delimiter
-        << static_cast<uint32_t>(isZeroCopy) << delimiter
-        << static_cast<uint32_t>(opMode) << delimiter
-        << commId;
-    cacheTag = oss.str();
-        
+    // commId最大128，预留256
+    constexpr size_t RESERVED_SIZE = 128 * 2;
+    char buf[RESERVED_SIZE];
+    int len = snprintf(buf, RESERVED_SIZE, "%llu-%u-%u-%u-%u-%u-%s", static_cast<unsigned long long>(inputSize),
+        static_cast<uint32_t>(opType), static_cast<uint32_t>(dataType), static_cast<uint32_t>(reduceType),
+        static_cast<uint32_t>(isZeroCopy), static_cast<uint32_t>(opMode), commId);
+    cacheTag.assign(buf, len);
+
     HCCL_INFO("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] cacheTag[%s] from commId[%s] opType[%d] dataType[%d] "
         "reduceType[%d] isZeroCopy[%d] inputSize[%llu] opMode[%d]",
         cacheTag.c_str(), commId, opType, dataType, reduceType, isZeroCopy, inputSize, opMode);

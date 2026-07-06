@@ -57,10 +57,12 @@ DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, Threa
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
     ChannelHandle channel, uint32_t localNotifyIdx);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitWithDefaultTimeout, ChannelHandle channel, uint32_t localNotifyIdx);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isCacheMiss);
 DEFINE_WEAK_FUNC(int32_t, HcommTimerStartTrack, bool startTrack);
 DEFINE_WEAK_FUNC(int32_t, HcommTimerDump, bool dump);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheSubmit, const char* tag, void** addrs, uint64_t* sizes, uint32_t count);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isHit);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheStart, const char* tag, void** addrs, uint64_t* sizes, const uint64_t count);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheEnd, const char* tag);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheExecute, const char* tag, void** addrs, uint64_t* sizes, const uint64_t count);
 DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
 
 using HcclHcommBatchTransferOnThreadFunc =
@@ -117,10 +119,12 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThreadWithDefaultTimeout);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitWithDefaultTimeout);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheLookup);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommTimerStartTrack);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommTimerDump);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheSubmit);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheLookup);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheStart);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheEnd);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheExecute);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommAicpuTsTaskCacheClear);
     g_HcommBatchTransferOnThread = reinterpret_cast<HcclHcommBatchTransferOnThreadFunc>(
         dlsym(libHcommHandle, "HcommBatchTransferOnThread"));

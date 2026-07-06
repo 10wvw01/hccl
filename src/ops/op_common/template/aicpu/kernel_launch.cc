@@ -260,9 +260,23 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
+inline unsigned int EnforceLaunchTask(const char *algTag)
+{
+    if (HcommBatchModeEnd(algTag) != HCCL_SUCCESS) {
+        HCCL_ERROR("failed set eager mode, tag is %s.", algTag);
+        return 1;
+    }
+    if (HcommBatchModeStart(algTag) != HCCL_SUCCESS) {
+        HCCL_ERROR("failed set batch mode, tag is %s.", algTag);
+        return 1;
+    }
+    return HCCL_SUCCESS;
+}
+
 extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint64_t opUnfoldIdx)
 {
     FUNCTION_TRACE;
+    
     // 修改当前进程的调度策略和优先级
     struct sched_param schedParam;
     schedParam.sched_priority = 0; // 设置优先级为0
@@ -441,75 +455,86 @@ extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
         
         // 检查是否cache miss
-        std::string cacheTag = "";
-        bool isCacheMiss = true;
-        if (enableCache) { // 如果使能aicpu task cache
-            MY_TIMER("HcommAicpuTsTaskCacheLookup");
-            // 如果cache miss, 使用aicpu task cache前确保AicpuTsThread中无SQE
-            if (isCacheMiss) {
-                // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
-                if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
-                    return 1;
-                }
-                if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
-                    return 1;
-                }
+        std::string cacheTag;
+        bool isCacheHit = false;
+        if (enableCache) { // 使能aicpu task cache
+            MY_TIMER("HcclLaunchAicpuKernelInternal_step1");
+
+            // 使用aicpu task cache前确保AicpuTsThread中无SQE (cache miss下避免缓存算法无关的task; cache hit下避免task下发乱序)
+            // 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发 (但开销有限)
+            if (EnforceLaunchTask(param->algTag) != HCCL_SUCCESS) {
+                HCCL_ERROR("failed to enforce launch task before using aicpu task cache, tag is %s.", param->algTag);
+                return 1;
             }
 
+            // 准备地址信息 (当前rank的userIn和userOut)
+            constexpr uint64_t ADDRS_COUNT = 2;
+            void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
+            uint64_t inputSize = 0;
+            uint64_t outputSize = 0;
+            CHK_RET(static_cast<HcclResult>(AicpuTaskCacheUtils::GetInputOutputInfoForCache(
+                *param, resCtxPtr->topoInfo.userRankSize, inputSize, outputSize)));
+            uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
+
             // 组装aicpu task cache tag
-            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, cacheTag);
+            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, inputSize, cacheTag);
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
-                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheMiss)));
+                MY_TIMER("HcommAicpuTsTaskCacheLookup");
+                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheHit)));
             }
-        }
-        HCCL_INFO("[HcclLaunchAicpuKernel] isCacheMiss[%d] for cacheTag[%s]", isCacheMiss, cacheTag.c_str());
+            HCCL_INFO("[HcclLaunchAicpuKernel] isCacheHit[%d] for cacheTag[%s]", isCacheHit, cacheTag.c_str());
 
-        if (!enableCache || isCacheMiss) { // 如果不使能aicpu task cache, 或者cache miss
+            if (!isCacheHit) { // cache miss
+                // 算子展开前, 通知aicpu task cache开始缓存task
+                if (HcommIsSupportHcommAicpuTsTaskCacheStart()) {
+                    MY_TIMER("HcommAicpuTsTaskCacheStart");
+                    CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheStart(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+                }
+
+                // 执行算法编排
+                {
+                    MY_TIMER("Orchestrate");
+                    if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
+                        HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
+                        return 1;
+                    }
+                }
+
+                // 算子展开后, 通知aicpu task cache停止缓存task
+                if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
+                    MY_TIMER("HcommAicpuTsTaskCacheEnd");
+                    CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str())));
+                }
+
+                // 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存 (cache miss下避免缓存算法无关的task; cache hit下不需要强制下发)
+                // 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发 (但开销有限)
+                if (EnforceLaunchTask(param->algTag) != HCCL_SUCCESS) {
+                    HCCL_ERROR("failed to enforce launch task before using aicpu task cache, tag is %s.", param->algTag);
+                    return 1;
+                }
+
+                // 首次缓存记录通信域与tag关系
+                {
+                    MY_TIMER("AddCommTagMap");
+                    AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
+                }
+            } else { // cache hit
+                // 刷新并下发task
+                // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
+                if (HcommIsSupportHcommAicpuTsTaskCacheExecute()) {
+                    MY_TIMER("HcommAicpuTsTaskCacheExecute");
+                    CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheExecute(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
+                }
+            }
+        } else { // 不使能aicpu task cache
+            MY_TIMER("Orchestrate");
+
             // 执行算法编排
-            MY_TIMER("HcclLaunchAicpuKernel_Orchestrate");
             if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
                 HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
                 return 1;
-            }
-        }
-
-        if (enableCache) { // 如果使能aicpu task cache
-            MY_TIMER("HcommAicpuTsTaskCacheSubmit");
-            // 如果cache miss, 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存
-            if (isCacheMiss) {
-                // TODO: 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不会缓存SQE, 无需强制下发
-                if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
-                    return 1;
-                }
-                if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
-                    return 1;
-                }
-            }
-
-            // 提交aicpu task cache
-            // cache miss会缓存地址信息; cache hit会刷新缓存的task并下发
-            // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
-            if (HcommIsSupportHcommAicpuTsTaskCacheSubmit()) {
-                // 准备地址信息 (当前rank的userIn和userOut)
-                constexpr uint32_t ADDRS_COUNT = 2;
-                void* addrs[ADDRS_COUNT] = {param->inputPtr, param->outputPtr};
-                uint64_t inputSize = 0;
-                uint64_t outputSize = 0;
-                CHK_RET(static_cast<HcclResult>(AicpuTaskCacheUtils::GetInputOutputInfoForCache(
-                    *param, resCtxPtr->topoInfo.userRankSize, inputSize, outputSize)));
-                uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
-
-                CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheSubmit(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
-                // 首次缓存记录通信域与tag关系
-                if (isCacheMiss) {
-                    AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
-                }
             }
         }
 
