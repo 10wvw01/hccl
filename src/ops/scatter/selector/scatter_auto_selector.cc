@@ -14,7 +14,11 @@
 
 namespace ops_hccl {
 constexpr u64 OMNI2D_UBX_SC_DATA_SIZE = 16 * 1024 * 1024;
+<<<<<<< HEAD
 constexpr uint32_t TOPO_LEVEL_3 = 3;
+=======
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+>>>>>>> scatter支持三级executor
 
 SelectorStatus ScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -122,7 +126,11 @@ SelectorStatus ScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDe
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->topoLevelNums == TOPO_LEVEL_3) {
-            selectAlgName = "InsScatterNHR";
+            if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+                selectAlgName = "InsScatterSequenceMesh1DNHRNHR";
+            } else {
+                selectAlgName = "InsScatterNHR";
+            }
         } else if (topoInfo->Level1Nhr) {
             selectAlgName = "InsScatterNHR";
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
