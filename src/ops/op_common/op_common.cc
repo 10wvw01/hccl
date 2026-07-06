@@ -60,6 +60,7 @@ namespace ops_hccl {
 constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify idx
 constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超时时间偏移量
 constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
+constexpr u32 CPU_TS_NOTIFY_NUM = 3;            // CPU TS thread notify数量
 
 void UpdateAicpuTimeoutCtx(const OpParam &param, AlgResourceCtxSerializable &resCtx)
 {
@@ -622,7 +623,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     ThreadHandle cpuTsThread{0};
     ThreadHandle exportedAicpuTsThread{0};
     if ((param.engine == COMM_ENGINE_AICPU_TS) || (param.engine == COMM_ENGINE_CPU)) {
-        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 3, &cpuTsThread));
+        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, CPU_TS_NOTIFY_NUM, &cpuTsThread));
         // Export cpuTsThread
         CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
     }
@@ -755,6 +756,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     ThreadHandle exportedCpuTsThread, u32 notifyNumOnMainThread, void *resCtxSequence, std::string &algName, ThreadHandle unfoldThread)
 {
     HCCL_DEBUG("[HcclAicpuKernelEntranceLaunch]start to run aicpu kernel");
+    (void) algName;
     // 当前aicpu launch接口只能有一个输入参数，将Context指针放在param参数中
     param.resCtx = resCtxSequence;
     param.aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
