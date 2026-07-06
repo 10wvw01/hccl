@@ -101,6 +101,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
                                             interTempRequest.ccuKernelInfos.begin(),
                                             interTempRequest.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(interTempRequest.ccuKernelNum[0]);
+        resourceRequest.dieSplitRatio = interTempRequest.dieSplitRatio;
     }
  
     return HCCL_SUCCESS;
@@ -409,6 +410,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         templateAlgResInter.ccuKernels.insert(templateAlgResInter.ccuKernels.end(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
+        templateAlgResInter.dieSplitRatio = resCtx.dieSplitRatio;
     } else {
         templateAlgResIntra.channels = intraChannelMap_;
         templateAlgResInter.channels = interChannelMap_;
