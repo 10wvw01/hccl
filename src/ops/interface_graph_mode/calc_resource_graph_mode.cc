@@ -25,6 +25,12 @@ namespace {
 struct AclHostMemGuard {
     void *ptr = nullptr;
 
+    AclHostMemGuard() = default;
+    AclHostMemGuard(const AclHostMemGuard&) = delete;
+    AclHostMemGuard& operator=(const AclHostMemGuard&) = delete;
+    AclHostMemGuard(AclHostMemGuard&&) = delete;
+    AclHostMemGuard& operator=(AclHostMemGuard&&) = delete;
+
     ~AclHostMemGuard()
     {
         if (ptr == nullptr) {
