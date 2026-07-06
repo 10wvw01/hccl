@@ -187,7 +187,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
         constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
-        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize > MAX_RANK_NUM_FOR_SEQ_ALGO) {
             HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
                 topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
             return SelectorStatus::NOT_MATCH;
@@ -210,6 +210,9 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
                 return SelectorStatus::NOT_MATCH;
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
                 selectAlgName = "CcuAllGatherNHR1DMem2Mem";
+                return SelectorStatus::MATCH;
+            } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_SEQ_ALGO) {
+                selectAlgName = "CcuAllGatherParallelMesh1DNHR"; // 小组网直接使用paralle算法
                 return SelectorStatus::MATCH;
             } else if (dataSize < AG_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) {
                 selectAlgName = "CcuAllGatherMesh1DMem2Mem";
