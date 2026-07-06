@@ -55,6 +55,6 @@ protected:
     std::vector<u64> elemOffset_;
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
-#endif //OPEN_HCCL_INS_TEMP_REDUCE_SCATTER_MESH_H
+#endif // INS_TEMP_REDUCE_SCATTER_MESH_1D_H

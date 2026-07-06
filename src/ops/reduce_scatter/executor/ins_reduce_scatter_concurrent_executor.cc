@@ -163,7 +163,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     std::vector<std::vector<u32>> temp0HierarchyInfo {algHierarchyInfo_.infos[0][0]};
     std::vector<std::vector<u32>> temp1HierarchyInfo {algHierarchyInfo_.infos[0][1]};
     std::shared_ptr<InsAlgTemplate0> tempAlg0 =
-        std::make_shared<InsAlgTemplate0>(param, myRank_, temp0HierarchyInfo); // same as calres
+        std::make_shared<InsAlgTemplate0>(param, myRank_, temp0HierarchyInfo); // same as CalcRes
     std::shared_ptr<InsAlgTemplate1> tempAlg1 =
         std::make_shared<InsAlgTemplate1>(param, myRank_, temp1HierarchyInfo);
     // 准备资源
@@ -416,7 +416,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     rankSize_ = resCtx.topoInfo.userRankSize;
 
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;

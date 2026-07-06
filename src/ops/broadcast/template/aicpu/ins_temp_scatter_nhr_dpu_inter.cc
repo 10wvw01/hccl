@@ -90,7 +90,7 @@ HcclResult InsTempScatterNHRDPUInter::GetStepInfo(u32 step, u32 nSteps, AicpuNHR
     }
  
     if (deltaRoot < nRanks) {  // 需要发
-        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] Need to Send: deltaRoot[%u], nRanks[%d]", deltaRoot, nRanks);
+        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] Need to Send: deltaRoot[%u], nRanks[%u]", deltaRoot, nRanks);
         u32 sendTo = (myAlgRank + rankSize - deltaRankPair) % rankSize;
         u32 txSliceIdx = sendTo;
         for (u32 i = 0; i < nSlices; i++) {
@@ -98,11 +98,11 @@ HcclResult InsTempScatterNHRDPUInter::GetStepInfo(u32 step, u32 nSteps, AicpuNHR
             stepInfo.txSliceIdxs.push_back(targetTxSliceIdx);
             txSliceIdx = (txSliceIdx + rankSize - deltaSliceIndex) % rankSize;
         }
-        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] rankSize[%u], myAlgRank[%d], sendTo Idx[%u]", subCommRanks_[0].size(), myAlgRank, sendTo);
+        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] rankSize[%zu], myAlgRank[%u], sendTo Idx[%u]", subCommRanks_[0].size(), myAlgRank, sendTo);
         stepInfo.toRank = subCommRanks_[0].at(sendTo);
         stepInfo.nSlices = nSlices;
     } else if (deltaRoot >= deltaRankPair && deltaRoot < nRanks + deltaRankPair) {  // 需要收
-        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] Need to Recv: deltaRoot[%u], nRanks[%d], deltaRankPair[%d]", deltaRoot, nRanks, deltaRankPair);
+        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] Need to Recv: deltaRoot[%u], nRanks[%u], deltaRankPair[%u]", deltaRoot, nRanks, deltaRankPair);
         u32 recvFrom = (myAlgRank + deltaRankPair) % rankSize;
         u32 rxSliceIdx = myAlgRank;
         for (u32 i = 0; i < nSlices; i++) {
@@ -110,7 +110,7 @@ HcclResult InsTempScatterNHRDPUInter::GetStepInfo(u32 step, u32 nSteps, AicpuNHR
             stepInfo.rxSliceIdxs.push_back(targetRxSliceIdx);
             rxSliceIdx = (rxSliceIdx + rankSize - deltaSliceIndex) % rankSize;
         }
-        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] rankSize[%u], myAlgRank[%d], recvFrom Idx[%u]", subCommRanks_[0].size(), myAlgRank, recvFrom);
+        HCCL_INFO("[InsTempScatterNHRDPUInter][GetStepInfo] rankSize[%zu], myAlgRank[%u], recvFrom Idx[%u]", subCommRanks_[0].size(), myAlgRank, recvFrom);
         stepInfo.fromRank = subCommRanks_[0].at(recvFrom);
         stepInfo.nSlices = nSlices;
     }
@@ -128,7 +128,7 @@ HcclResult InsTempScatterNHRDPUInter::KernelRun(const OpParam& param, const Temp
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     SetRoot(tempAlgParams.root);
 
-    HCCL_INFO("[InsTempScatterNHRDPUInter] queNum_ =  [%d], threads size = [%d]", threadNum_, templateResource.threads.size());
+    HCCL_INFO("[InsTempScatterNHRDPUInter] queNum_ =  [%u], threads size = [%zu]", threadNum_, templateResource.threads.size());
     
     if (templateResource.threads.size() < 1) {
         HCCL_ERROR("[InsTempScatterNHRDPUInter] Rank[%u], required thread error.", myRank_);
@@ -178,7 +178,7 @@ HcclResult InsTempScatterNHRDPUInter::KernelRun(const OpParam& param, const Temp
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempScatterNHRDPUInter] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempScatterNHRDPUInter] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
  
@@ -223,8 +223,8 @@ HcclResult InsTempScatterNHRDPUInter::LocalDataCopy(const TemplateDataParams& te
  
         DataSlice srcSlices(tempAlgParams.buffInfo.inputPtr, inOff, sliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams.buffInfo.hcclBuff.addr, scOff, sliceSize, sliceCount);
-        HCCL_INFO("[InsTempScatterNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] algRankIdx [%d] "
-            "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].", myRank_, algRankIdx, inOff, scOff, sliceOffset,
+        HCCL_INFO("[InsTempScatterNHRDPUInter][LocalCopy] LocalDataCopy RankID [%u] algRankIdx [%u] "
+            "srcOff[%llu] dstOff[%llu] sliceOffset[%llu] sliceSize[%llu].", myRank_, algRankIdx, inOff, scOff, sliceOffset,
             sliceSize);
         LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
     }
@@ -254,8 +254,8 @@ HcclResult InsTempScatterNHRDPUInter::PostLocalCopy(const TemplateDataParams& te
             u64 outOffset = outBaseOff + sliceOffset;
             DataSlice srcSlice(tempAlgParams.buffInfo.hcclBuff.addr, scratchOffset, sliceSize, sliceCount);
             DataSlice dstSlice(tempAlgParams.buffInfo.outputPtr, outOffset, sliceSize, sliceCount);
-            HCCL_INFO("[InsTempScatterNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
-                       "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].",
+            HCCL_INFO("[InsTempScatterNHRDPUInter][LocalCopy] LocalDataCopy RankID [%u] dataRank [%u] dataAlgRank[%u] "
+                       "srcOff[%llu] dstOff[%llu] sliceOffset[%llu] sliceSize[%llu].",
                        myRank_, rank, algRank, scratchOffset, outOffset, sliceOffset, sliceSize);
             LocalCopy(templateResource.threads[0], srcSlice, dstSlice);
         }

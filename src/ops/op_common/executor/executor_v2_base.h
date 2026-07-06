@@ -88,6 +88,6 @@ protected:
     u64           dataTypeSize_ = 0;
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // !HCCLV2_INS_COLL_ALG_BASE

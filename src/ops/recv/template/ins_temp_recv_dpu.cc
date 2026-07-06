@@ -15,7 +15,6 @@ namespace ops_hccl
     InsTempRecvDpu::InsTempRecvDpu()
     {
     }
-    // ! 已编码完成
     InsTempRecvDpu::InsTempRecvDpu(const OpParam &param,
                                    const u32 rankId, // 传通信域的rankId，userRank
                                    const std::vector<std::vector<u32>> &subCommRanks)
@@ -36,11 +35,10 @@ namespace ops_hccl
         std::vector<HcclChannelDesc> level0Channels;
         CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
         resourceRequest.channels.push_back(level0Channels);
-        HCCL_INFO("[InsTempRecvDpu][CalcRes] Sucessfully calres!");
+        HCCL_INFO("[InsTempRecvDpu][CalcRes] Successfully calc res!");
         return HCCL_SUCCESS;
     }
 
-    // ! 基本编码完成，剩余数据序列化
     HcclResult InsTempRecvDpu::KernelRun(
         const OpParam &param, const TemplateDataParams &tempAlgParams, TemplateResource &templateResource)
     {
@@ -49,7 +47,7 @@ namespace ops_hccl
         threadNum_ = templateResource.threads.size();
         if (threadNum_ < 1)
         {
-            HCCL_ERROR("[InsTempRecvDpu] Rank [%d], required thread error.", myRank_);
+            HCCL_ERROR("[InsTempRecvDpu] Rank [%u], required thread error.", myRank_);
             return HCCL_E_INTERNAL;
         }
         thread_ = templateResource.threads[0];
@@ -57,7 +55,7 @@ namespace ops_hccl
         if (channelIter == templateResource.channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempRecvDpu][KernelRun] my rank is [%d], send rank [%u] channel not found!", myRank_, sendRank_);
+                "[InsTempRecvDpu][KernelRun] my rank is [%u], send rank [%u] channel not found!", myRank_, sendRank_);
             return HCCL_E_INTERNAL;
         }
         recvChannel_ = channelIter->second[0];
@@ -96,10 +94,10 @@ namespace ops_hccl
                                  dpuRunInfoSeqData.size(),
                                  &sendMsgId) != 0)
             {
-                HCCL_ERROR("HcommRecvRequest failed");
+                HCCL_ERROR("HcommSendRequest failed");
                 return HCCL_E_INTERNAL;
             }
-            HCCL_INFO("HcommRecvRequest run over, sendMsgId[%u]", sendMsgId);
+            HCCL_INFO("HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
             // 等待DPU数据传输，然后回写结果回来
             void *recvData = nullptr;
             u32 recvMsgId = 0;
@@ -113,7 +111,7 @@ namespace ops_hccl
             // 将执行模式转换回到batch
             if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS)
             {
-                HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+                HCCL_ERROR("failed set batch mode, tag is %s.", param.algTag);
                 return HCCL_E_INTERNAL;
             }
             HCCL_INFO("HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -141,7 +139,7 @@ namespace ops_hccl
                 tempAlgParams.buffInfo.hcclBuff.addr, 0, processSize_, count_); // cclbuffer不需要offset
             // 发送
             SlicesList recvSlicesList({remoteInputBuffer}, {localCclBuffer});
-            DataInfo recvInfo(recvChannel_, recvSlicesList);
+            DataInfo recvInfo(recvChannel_, recvSlicesList, dataType_);
             CHK_PRT_RET(RecvWrite(recvInfo, thread_),
                         HCCL_ERROR("[InsTempRecvDpu][KernelRun]Aicpu Run Recv failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -178,14 +176,14 @@ namespace ops_hccl
             if (rankId != myRank)
             {
                 sendRank = rankId;
-                HCCL_INFO("[InsTempRecvDpu] [DPUKernelRun] my rank is [%d],  send rank is [%u].", myRank, sendRank);
+                HCCL_INFO("[InsTempRecvDpu] [DPUKernelRun] my rank is [%u],  send rank is [%u].", myRank, sendRank);
             }
         }
         auto channelIter = channels.find(sendRank);
         if (channelIter == channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempRecvDpu] [DPUKernelRun] my rank is [%d], send rank [%u] channel not found!", myRank, sendRank);
+                "[InsTempRecvDpu] [DPUKernelRun] my rank is [%u], send rank [%u] channel not found!", myRank, sendRank);
             return HCCL_E_INTERNAL;
         }
         ChannelInfo linkRecv = channelIter->second[0];

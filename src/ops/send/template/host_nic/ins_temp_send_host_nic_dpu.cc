@@ -37,9 +37,9 @@ HcclResult InsTempSendHostNicDpu::CalcRes(HcclComm comm, const OpParam &param,
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempSendHostNicDpu][CalcRes]slaveThreadNum[%u], notifyNumPerThread [%u], notifyNumOnMainThread [%u],"
-        " level1Channels [%u].",
-        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread, resourceRequest.notifyNumOnMainThread,
+    HCCL_INFO("[InsTempSendHostNicDpu][CalcRes]slaveThreadNum[%u], notifyNumPerThreadSize [%zu], notifyNumOnMainThread [%u],"
+        " level1Channels [%zu].",
+        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(), resourceRequest.notifyNumOnMainThread,
         level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -63,7 +63,7 @@ HcclResult InsTempSendHostNicDpu::KernelRun(const OpParam &param, const Template
     dataType_ = param.DataDes.dataType;
 
     if (threadNum_ < 1) {
-        HCCL_ERROR("[InsTempSendHostNicDpu] Rank [%d], required thread error.", myRank_);
+        HCCL_ERROR("[InsTempSendHostNicDpu] Rank [%u], required thread error.", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -104,7 +104,7 @@ HcclResult InsTempSendHostNicDpu::KernelRun(const OpParam &param, const Template
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("InsTempSendHostNicDpu failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("InsTempSendHostNicDpu failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     HCCL_INFO("InsTempSendHostNicDpu HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);

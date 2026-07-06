@@ -30,7 +30,7 @@ HcclResult InsTempAllGatherNHRDPUInter::CalcRes(HcclComm comm, const OpParam& pa
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempAllGatherNHRDPUInter][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%u].",
+    HCCL_INFO("[InsTempAllGatherNHRDPUInter][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%zu].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread, level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -52,7 +52,7 @@ HcclResult InsTempAllGatherNHRDPUInter::KernelRun(const OpParam& param, const Te
         HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][KernelRun] check myRank[%u]", myRank_);
     count_ = tempAlgParams.count;
     dataType_ = param.DataDes.dataType;
-    dataTypeSize_ = DATATYPE_SIZE_TABLE[dataType_];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
     if (templateResource.threads.size() < 1) {
         HCCL_ERROR("[InsTempAllGatherNHRDPUInter] Rank[%u], required thread error.", myRank_);
@@ -69,9 +69,6 @@ HcclResult InsTempAllGatherNHRDPUInter::KernelRun(const OpParam& param, const Te
         HCCL_ERROR("[InsTempAllGatherNHRDPUInter] HcommThreadSynchronize failed");
         return HCCL_E_INTERNAL;
     }
-    
-    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
-
     DPURunInfo dpuRunInfo;
     dpuRunInfo.templateName = "InsTempAllGatherNHRDPUInter";
     dpuRunInfo.tempAlgParams = tempAlgParams;
@@ -103,7 +100,7 @@ HcclResult InsTempAllGatherNHRDPUInter::KernelRun(const OpParam& param, const Te
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempAllGatherNHRDPUInter] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherNHRDPUInter] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -190,8 +187,8 @@ HcclResult InsTempAllGatherNHRDPUInter::LocalDataCopy(const TemplateDataParams& 
  
         DataSlice srcSlices(tempAlgParams.buffInfo.inputPtr, inOff, sliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams.buffInfo.hcclBuff.addr, scOff, sliceSize, sliceCount);
-        HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataAlgRank[%d] "
-            "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].", myRank_, algRankIdx, inOff, scOff, sliceOffset,
+        HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%u] dataAlgRank[%u] "
+            "srcOff[%llu] dstOff[%llu] sliceOffset[%llu] sliceSize[%llu].", myRank_, algRankIdx, inOff, scOff, sliceOffset,
             sliceSize);
         LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
     }
@@ -209,7 +206,7 @@ HcclResult InsTempAllGatherNHRDPUInter::RunNHR(const TemplateDataParams& tempAlg
             AicpuNHRStepInfo stepInfo;
             CHK_RET(GetStepInfo(step, nSteps, stepInfo));
 
-            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
+            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter] rank[%u] rankSize[%llu] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
                 myRank_, tempRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
             CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParams, rpt, myRank_, tempRankSize_));
@@ -243,8 +240,8 @@ HcclResult InsTempAllGatherNHRDPUInter::PostLocalCopy(const TemplateDataParams& 
             u64 outOffset = outBaseOff + sliceOffset;
             DataSlice srcSlice(tempAlgParams.buffInfo.hcclBuff.addr, scratchOffset, sliceSize, sliceCount);
             DataSlice dstSlice(tempAlgParams.buffInfo.outputPtr, outOffset, sliceSize, sliceCount);
-            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
-                       "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].",
+            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%u] dataRank [%u] dataAlgRank[%u] "
+                       "srcOff[%llu] dstOff[%llu] sliceOffset[%llu] sliceSize[%llu].",
                        myRank_, rank, algRank, scratchOffset, outOffset, sliceOffset, sliceSize);
             LocalCopy(templateResource.threads[0], srcSlice, dstSlice);
         }

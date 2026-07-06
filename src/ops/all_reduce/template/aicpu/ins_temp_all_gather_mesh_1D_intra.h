@@ -52,6 +52,6 @@ private:
     u32 dataTypeSize_{0};
 };
 
-}  // namespace Hccl
+}  // namespace ops_hccl
 
 #endif  // INS_TEMP_ALL_GATHER_MESH_1D_H

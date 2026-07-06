@@ -38,9 +38,9 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::CalcRes(HcclComm comm, const OpPa
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempReduceScatterMesh1dDpuInter][CalcRes]slaveThreadNum[%u] notifyNumPerThread[%u] notifyNumOnMainThread[%u]"
-        " level1Channels[%u].",
-        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread, resourceRequest.notifyNumOnMainThread,
+    HCCL_INFO("[InsTempReduceScatterMesh1dDpuInter][CalcRes]slaveThreadNum[%u] notifyNumPerThreadSize[%zu] notifyNumOnMainThread[%u]"
+        " level1Channels[%zu].",
+        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(), resourceRequest.notifyNumOnMainThread,
         level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -64,7 +64,7 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::KernelRun(const OpParam& param,
     dataType_ = param.DataDes.dataType;
 
     if (threadNum_ < 1) {
-        HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter] Rank [%d], required thread error.", myRank_);
+        HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter] Rank [%u], required thread error.", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -105,7 +105,7 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::KernelRun(const OpParam& param,
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     HCCL_INFO("[InsTempReduceScatterMesh1dDpuInter] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -134,7 +134,7 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::DPUKernelRun(const TemplateDataPa
         HCCL_ERROR("[InsTempReduceScatterMesh1dDpuInter][RunReduceScatter] rankIds or myRank is error.");
         return HCCL_E_INTERNAL;
     }
-    HCCL_DEBUG("[InsTempReduceScatterMesh1dDpuInter][sliceNum]: [%u] ",
+    HCCL_DEBUG("[InsTempReduceScatterMesh1dDpuInter][sliceNum]: [%zu] ",
             tempAlgParams.allRankSliceSize.size());
     u64 recvSize = tempAlgParams.allRankSliceSize.at(myAlgRank);
     u64 recvCount = tempAlgParams.allRankProcessedDataCount.at(myAlgRank);
@@ -270,4 +270,4 @@ HcclResult InsTempReduceScatterMesh1dDpuInter::PostLocalReduce(const OpParam &pa
 #ifndef AICPU_COMPILE
 REGISTER_TEMPLATE_V2("InsTempReduceScatterMesh1dDpuInter", InsTempReduceScatterMesh1dDpuInter);
 #endif
-} // namespace Hccl
+} // namespace ops_hccl

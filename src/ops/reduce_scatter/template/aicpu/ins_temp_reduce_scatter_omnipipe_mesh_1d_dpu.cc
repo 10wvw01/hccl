@@ -38,9 +38,9 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::CalcRes(
     std::vector<HcclChannelDesc> level0Channels;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
     resourceRequest.channels.push_back(level0Channels);
-    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu][CalcRes]slaveThreadNum[%u] notifyNumPerThread[%u] notifyNumOnMainThread[%u]"
-        " level0Channels[%u].",
-        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread, resourceRequest.notifyNumOnMainThread,
+    HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu][CalcRes]slaveThreadNum[%u] notifyNumPerThreadSize[%zu] notifyNumOnMainThread[%u]"
+        " level0Channels[%zu].",
+        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(), resourceRequest.notifyNumOnMainThread,
         level0Channels.size());
     return HCCL_SUCCESS;
 }
@@ -80,7 +80,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DoLocalCopy(
 {
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu][DoLocalCopy] DoLocalCopy myRank_ = [%u]", myRank_);
     if (tempAlgParams.sliceSize == 0) {
-        HCCL_INFO("Rank [%d], get slicesize zero. skip localcopy", myRank_);
+        HCCL_INFO("Rank [%u], get slicesize zero. skip localcopy", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
     u32 rankIdx = 0;
@@ -106,7 +106,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DoLocalCopy(
         return HCCL_E_PARA;
     }
     // 这里的循环precopy是ranksize-1，postcopy是1
-    HCCL_INFO("MT tempAlgParams.sliceSize = %u", tempAlgParams.sliceSize);
+    HCCL_INFO("MT tempAlgParams.sliceSize = %llu", tempAlgParams.sliceSize);
     for (auto i = 0; i < tempAlgParams.repeatNum; ++i) {
         auto srcSlice = DataSlice(srcAddr,
             tempAlgParams.buffInfo.inBuffBaseOff + i * tempAlgParams.inputSliceStride,
@@ -137,10 +137,10 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::KernelRun(
     threadNum_ = templateResource.threads.size();
     dataType_ = param.DataDes.dataType;
 
-    HCCL_INFO("[%s]Run Start, threadNum_=%u, processSize_=%u, count_=%u, dataType_=%u", __func__, threadNum_, processSize_, count_, dataType_);
+    HCCL_INFO("[%s]Run Start, threadNum_=%u, processSize_=%llu, count_=%llu, dataType_=%u", __func__, threadNum_, processSize_, count_, dataType_);
 
     if (threadNum_ < 1) {
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] Rank [%d], required thread error.", myRank_);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] Rank [%u], required thread error.", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -182,7 +182,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::KernelRun(
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1dDpu] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1dDpu] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -250,7 +250,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1dDpu::DPUKernelRun(const TemplateDat
     templateRankSize_ = subCommRanks[0].size();
     subCommRanks_ = subCommRanks;
 #ifndef AICPU_COMPILE
-    HCCL_INFO("MT start to RunReduceScatter, channels.size()=%u", channels.size());
+    HCCL_INFO("MT start to RunReduceScatter, channels.size()=%zu", channels.size());
     u32 myAlgRank = 0;
     auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank);
     if (iter != subCommRanks_[0].end()) {

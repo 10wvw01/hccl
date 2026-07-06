@@ -33,11 +33,11 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     reduceOp_ = param.reduceType;
     dataType_ = param.DataDes.dataType;
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
     algHierarchyInfo_ = algHierarchyInfo;
     HCCL_INFO("[InsV2ReduceSequenceExecutor][InitCommInfo] myRank [%u], rankSize [%u], devType [%u], redOp [%u], "
-        "dataType [%u], dataCount [%u], dataTypeSize [%u]", myRank_, rankSize_, devType_, reduceOp_, dataType_, dataCount_, dataTypeSize_);
+        "dataType [%u], dataCount [%llu], dataTypeSize [%llu]", myRank_, rankSize_, devType_, reduceOp_, dataType_, dataCount_, dataTypeSize_);
     return HCCL_SUCCESS;
 }
 
@@ -57,7 +57,6 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     return HCCL_SUCCESS;
 }
 
-// ! 已编码完成
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
 HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
@@ -100,7 +99,6 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     return HCCL_SUCCESS;
 }
 
-// ! 已编码完成
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
 HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
@@ -114,7 +112,7 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     dataCount_ = param.DataDes.count;
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
@@ -134,7 +132,6 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     return HCCL_SUCCESS;
 }
 
-// ! 已编码完成
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
 HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
@@ -218,7 +215,7 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     
     // 中转内存单次最多能够接受的output count，注意是count不是size
     u64 maxCountPerLoop = tempAlgParamsReduceScatterMesh1D.buffInfo.hcclBuff.size / 2 / HCCL_MIN_SLICE_ALIGN *
-                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_;//这边看前面有/10*10，不知道要不要加上
+                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     // 计算loopTimes
     u64 loopTimes = dataCount_ / maxCountPerLoop  + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
     u64 processedDataCount = 0;
@@ -233,7 +230,7 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
         tempAlgParamsReduceScatterMesh1D.buffInfo.hcclBuffBaseOff = 0; //CCL-IN
         CHK_RET(SplitData(currDataCount, rankSizeLevel0_, tempAlgParamsReduceScatterMesh1D));//计算每个卡对应位置的offset,count,size
         CHK_PRT_RET(tempAlgParamsReduceScatterMesh1D.allRankSliceSize.size() != rankSizeLevel0_,
-            HCCL_ERROR("[InsV2ReduceSequenceExecutor][tempAlgParamsReduceScatterMesh1D] slice num[%u] is not equal to rank size[%u].",
+            HCCL_ERROR("[InsV2ReduceSequenceExecutor][tempAlgParamsReduceScatterMesh1D] slice num[%zu] is not equal to rank size[%llu].",
                 tempAlgParamsReduceScatterMesh1D.allRankSliceSize.size(),
                 rankSizeLevel0_),
             HcclResult::HCCL_E_INTERNAL);
@@ -243,11 +240,11 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
         tempAlgParamsReduceScatterMesh1D.inputSliceStride = 0; // 没用到
         tempAlgParamsReduceScatterMesh1D.outputSliceStride = 0; // 没用到
 
-        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsReduceScatterMesh.inputSliceStride [%u],"
-            "tempAlgParamsReduceScatterMesh.outputSliceStride [%u] tempAlgParamsReduceScatterMesh.sliceSize [%u]",
+        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsReduceScatterMesh.inputSliceStride [%llu],"
+            "tempAlgParamsReduceScatterMesh.outputSliceStride [%llu] tempAlgParamsReduceScatterMesh.sliceSize [%llu]",
             loop, tempAlgParamsReduceScatterMesh1D.inputSliceStride, tempAlgParamsReduceScatterMesh1D.outputSliceStride, tempAlgParamsReduceScatterMesh1D.sliceSize);
-        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsReduceScatterMesh.buffInfo.inBuffBaseOff [%u],"
-            "tempAlgParamsReduceScatterMesh.buffInfo.outBuffBaseOff [%u]",
+        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsReduceScatterMesh.buffInfo.inBuffBaseOff [%llu],"
+            "tempAlgParamsReduceScatterMesh.buffInfo.outBuffBaseOff [%llu]",
             loop, tempAlgParamsReduceScatterMesh1D.buffInfo.inBuffBaseOff, tempAlgParamsReduceScatterMesh1D.buffInfo.outBuffBaseOff);
         // 不需要重复
         tempAlgParamsReduceScatterMesh1D.repeatNum = 1; 
@@ -269,8 +266,8 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
             CHK_RET(SplitData(
                 tempAlgParamsReduceScatterMesh1dDpu.count, rankSizeLevel1_, tempAlgParamsReduceScatterMesh1dDpu));
             CHK_PRT_RET(tempAlgParamsReduceScatterMesh1dDpu.allRankSliceSize.size() != rankSizeLevel1_,
-                HCCL_ERROR("[InsV2ReduceSequenceExecutor][tempAlgParamsReduceScatterMesh1dDpu] slice num[%u] is not "
-                           "equal to rank size[%u].",
+                HCCL_ERROR("[InsV2ReduceSequenceExecutor][tempAlgParamsReduceScatterMesh1dDpu] slice num[%zu] is not "
+                           "equal to rank size[%llu].",
                     tempAlgParamsReduceScatterMesh1dDpu.allRankSliceSize.size(),
                     rankSizeLevel1_),
                 HcclResult::HCCL_E_INTERNAL);
@@ -279,16 +276,16 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
             tempAlgParamsReduceScatterMesh1dDpu.outputSliceStride = 0;  // 没用到
             //
             HCCL_INFO(
-                "[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsReduceScatterMesh1dDpu.inputSliceStride [%u],"
-                "tempAlgParamsReduceScatterMesh1dDpu.outputSliceStride [%u] "
-                "tempAlgParamsReduceScatterMesh1dDpu.sliceSize [%u]",
+                "[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsReduceScatterMesh1dDpu.inputSliceStride [%llu],"
+                "tempAlgParamsReduceScatterMesh1dDpu.outputSliceStride [%llu] "
+                "tempAlgParamsReduceScatterMesh1dDpu.sliceSize [%llu]",
                 loop,
                 tempAlgParamsReduceScatterMesh1dDpu.inputSliceStride,
                 tempAlgParamsReduceScatterMesh1dDpu.outputSliceStride,
                 tempAlgParamsReduceScatterMesh1dDpu.sliceSize);
-            HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] "
-                      "tempAlgParamsReduceScatterMesh1dDpu.buffInfo.inBuffBaseOff [%u],"
-                      "tempAlgParamsReduceScatterMesh1dDpu.buffInfo.outBuffBaseOff [%u]",
+            HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] "
+                      "tempAlgParamsReduceScatterMesh1dDpu.buffInfo.inBuffBaseOff [%llu],"
+                      "tempAlgParamsReduceScatterMesh1dDpu.buffInfo.outBuffBaseOff [%llu]",
                 loop,
                 tempAlgParamsReduceScatterMesh1dDpu.buffInfo.inBuffBaseOff,
                 tempAlgParamsReduceScatterMesh1dDpu.buffInfo.outBuffBaseOff);
@@ -318,15 +315,15 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
             tempAlgParamsGatherDpu.inputSliceStride = 0;
             tempAlgParamsGatherDpu.outputSliceStride = 0;
 
-            HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsGatherDpu.inputSliceStride [%u],"
-                      "tempAlgParamsGatherDpu.outputSliceStride [%u] tempAlgParamsGatherDpu.sliceSize [%u]",
+            HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsGatherDpu.inputSliceStride [%llu],"
+                      "tempAlgParamsGatherDpu.outputSliceStride [%llu] tempAlgParamsGatherDpu.sliceSize [%llu]",
                 loop,
                 tempAlgParamsGatherDpu.inputSliceStride,
                 tempAlgParamsGatherDpu.outputSliceStride,
                 tempAlgParamsGatherDpu.sliceSize);
             HCCL_INFO(
-                "[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsGatherDpu.buffInfo.inBuffBaseOff [%u],"
-                "tempAlgParamsGatherDpu.buffInfo.outBuffBaseOff [%u]",
+                "[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsGatherDpu.buffInfo.inBuffBaseOff [%llu],"
+                "tempAlgParamsGatherDpu.buffInfo.outBuffBaseOff [%llu]",
                 loop,
                 tempAlgParamsGatherDpu.buffInfo.inBuffBaseOff,
                 tempAlgParamsGatherDpu.buffInfo.outBuffBaseOff);
@@ -355,11 +352,11 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
         tempAlgParamsGatherMesh1D.inputSliceStride = 0;
         tempAlgParamsGatherMesh1D.outputSliceStride = 0;
         
-        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsGatherMesh.inputSliceStride [%u],"
-            "tempAlgParamsGatherMesh.outputSliceStride [%u] tempAlgParamsGatherMesh.sliceSize [%u]",
+        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsGatherMesh.inputSliceStride [%llu],"
+            "tempAlgParamsGatherMesh.outputSliceStride [%llu] tempAlgParamsGatherMesh.sliceSize [%llu]",
             loop, tempAlgParamsGatherMesh1D.inputSliceStride, tempAlgParamsGatherMesh1D.outputSliceStride, tempAlgParamsGatherMesh1D.sliceSize);
-        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%u] tempAlgParamsGatherMesh.buffInfo.inBuffBaseOff [%u],"
-            "tempAlgParamsGatherMesh.buffInfo.outBuffBaseOff [%u]",
+        HCCL_INFO("[InsV2ReduceSequenceExecutor] loop [%llu] tempAlgParamsGatherMesh.buffInfo.inBuffBaseOff [%llu],"
+            "tempAlgParamsGatherMesh.buffInfo.outBuffBaseOff [%llu]",
             loop, tempAlgParamsGatherMesh1D.buffInfo.inBuffBaseOff, tempAlgParamsGatherMesh1D.buffInfo.outBuffBaseOff);
         // 应该不需要重复
         tempAlgParamsGatherMesh1D.repeatNum = 1; 
@@ -422,7 +419,7 @@ HcclResult InsV2ReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     }
 
     for (u32 i = 0; i < tempAlgParams.allRankSliceSize.size(); ++i) {
-        HCCL_DEBUG("[InsV2ReduceSequenceExecutor] SliceInfo: offset[%u] size[%u] count[%u]",
+        HCCL_DEBUG("[InsV2ReduceSequenceExecutor] SliceInfo: offset[%llu] size[%llu] count[%llu]",
             tempAlgParams.allRankDispls.at(i),
             tempAlgParams.allRankSliceSize.at(i),
             tempAlgParams.allRankProcessedDataCount.at(i));
@@ -439,4 +436,4 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE,
                                 InsTempReduceScatterMesh1dDpuInter,
                                 InsTempGatherDpuInter,
                                 InsTempGatherMesh1dIntra);
-}  //
+}  // namespace ops_hccl

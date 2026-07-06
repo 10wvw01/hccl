@@ -30,7 +30,7 @@ HcclResult InsTempAllGatherNHRDPU::CalcRes(HcclComm comm, const OpParam& param, 
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempAllGatherNHRDPU][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%u].",
+    HCCL_INFO("[InsTempAllGatherNHRDPU][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%zu].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread, level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -101,7 +101,7 @@ HcclResult InsTempAllGatherNHRDPU::KernelRun(const OpParam& param,
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempAllGatherNHRDPU] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -198,7 +198,7 @@ HcclResult InsTempAllGatherNHRDPU::RunNHR(const TemplateDataParams& tempAlgParam
             AicpuNHRStepInfo stepInfo;
             CHK_RET(GetStepInfo(step, nSteps, stepInfo));
 
-            HCCL_DEBUG("[InsTempAllGatherNHRDPU] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
+            HCCL_DEBUG("[InsTempAllGatherNHRDPU] rank[%u] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
                 myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
             stepInfo.toRank = GetRankFromMap(stepInfo.toRank);

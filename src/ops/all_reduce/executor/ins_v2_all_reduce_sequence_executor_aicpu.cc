@@ -42,11 +42,11 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     reduceOp_ = param.reduceType;
     dataType_ = param.DataDes.dataType;
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
     algHierarchyInfo_ = algHierarchyInfo;
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu][InitCommInfo] myRank [%u], rankSize [%u], redOp [%u], "
-        "dataType [%u] dataTypeSize [%u]", myRank_, rankSize_, devType_, reduceOp_, dataTypeSize_);
+        "dataType [%u] dataTypeSize [%llu]", myRank_, rankSize_, devType_, reduceOp_, dataTypeSize_);
     return HCCL_SUCCESS;
 }
 
@@ -132,8 +132,8 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
         resReqAllGatherInter.notifyNumOnMainThread, resReqAllGatherIntra.notifyNumOnMainThread});
 
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
-        HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] ccu stepOne has %d kernels, stepTwo has %d kernels, "
-            "stepThree has %d kernels, stepFour has %d kernels",
+        HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] ccu stepOne has %u kernels, stepTwo has %u kernels, "
+            "stepThree has %u kernels, stepFour has %u kernels",
             resReqReduceScatterIntra.ccuKernelNum[0], resReqReduceScatterInter.ccuKernelNum[0],
             resReqAllGatherInter.ccuKernelNum[0], resReqAllGatherIntra.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(resReqReduceScatterIntra.ccuKernelNum[0]);
@@ -165,9 +165,9 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     rankSize_ = resCtx.topoInfo.userRankSize;
 
     dataCount_ = param.DataDes.count;
-    dataSize_ = dataCount_ * dataTypeSize_;
     dataType_ = param.DataDes.dataType;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
+    dataSize_ = dataCount_ * dataTypeSize_;
     reduceOp_ = param.reduceType;
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
@@ -262,9 +262,9 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepOne.inputSliceStride = tempAlgParamsStepOne.sliceSize;
     tempAlgParamsStepOne.outputSliceStride = 0; // 归约时固定归约到offset0位置
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepOne.inputSliceStride [%u], "
-        "tempAlgParamsStepOne.outputSliceStride [%u], tempAlgParamsStepOne.sliceSize [%u], tempAlgParamsStepOne.tailSize [%u], "
-        "tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepOne.buffInfo.outBuffBaseOff [%u]",
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepOne.inputSliceStride [%llu], "
+        "tempAlgParamsStepOne.outputSliceStride [%llu], tempAlgParamsStepOne.sliceSize [%llu], tempAlgParamsStepOne.tailSize [%llu], "
+        "tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%llu], tempAlgParamsStepOne.buffInfo.outBuffBaseOff [%llu]",
         loop, tempAlgParamsStepOne.inputSliceStride, tempAlgParamsStepOne.outputSliceStride, tempAlgParamsStepOne.sliceSize,
         tempAlgParamsStepOne.tailSize, tempAlgParamsStepOne.buffInfo.inBuffBaseOff, tempAlgParamsStepOne.buffInfo.outBuffBaseOff);
     // 不需要重复
@@ -304,9 +304,9 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepTwo.outputSliceStride = tempAlgParamsStepTwo.sliceSize;
 
     HCCL_INFO(
-        "[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepTwo.inputSliceStride [%u], "
-        "tempAlgParamsStepTwo.outputSliceStride [%u], tempAlgParamsStepTwo.sliceSize [%u], tempAlgParamsStepTwo.tailSize [%u], "
-        "tempAlgParamsStepTwo.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepTwo.buffInfo.outBuffBaseOff [%u]",
+        "[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepTwo.inputSliceStride [%llu], "
+        "tempAlgParamsStepTwo.outputSliceStride [%llu], tempAlgParamsStepTwo.sliceSize [%llu], tempAlgParamsStepTwo.tailSize [%llu], "
+        "tempAlgParamsStepTwo.buffInfo.inBuffBaseOff [%llu], tempAlgParamsStepTwo.buffInfo.outBuffBaseOff [%llu]",
         loop, tempAlgParamsStepTwo.inputSliceStride, tempAlgParamsStepTwo.outputSliceStride,
         tempAlgParamsStepTwo.sliceSize, tempAlgParamsStepTwo.tailSize, tempAlgParamsStepTwo.buffInfo.inBuffBaseOff,
         tempAlgParamsStepTwo.buffInfo.outBuffBaseOff);
@@ -334,9 +334,9 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepThree.inputSliceStride = tempAlgParamsStepThree.sliceSize;
     tempAlgParamsStepThree.outputSliceStride = tempAlgParamsStepThree.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepThree.inputSliceStride [%u],"
-        "tempAlgParamsStepThree.outputSliceStride [%u] tempAlgParamsStepThree.sliceSize [%u], tempAlgParamsStepThree.tailSize [%u], "
-        "tempAlgParamsStepThree.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepThree.buffInfo.outBuffBaseOff [%u]",
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepThree.inputSliceStride [%llu],"
+        "tempAlgParamsStepThree.outputSliceStride [%llu] tempAlgParamsStepThree.sliceSize [%llu], tempAlgParamsStepThree.tailSize [%llu], "
+        "tempAlgParamsStepThree.buffInfo.inBuffBaseOff [%llu], tempAlgParamsStepThree.buffInfo.outBuffBaseOff [%llu]",
         loop, tempAlgParamsStepThree.inputSliceStride, tempAlgParamsStepThree.outputSliceStride,
         tempAlgParamsStepThree.sliceSize, tempAlgParamsStepThree.tailSize, tempAlgParamsStepThree.buffInfo.inBuffBaseOff,
         tempAlgParamsStepThree.buffInfo.outBuffBaseOff);
@@ -364,9 +364,9 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepFour.inputSliceStride = 0;
     tempAlgParamsStepFour.outputSliceStride = tempAlgParamsStepFour.sliceSize;
     
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepFour.inputSliceStride [%u], "
-        "tempAlgParamsStepFour.outputSliceStride [%u], tempAlgParamsStepFour.sliceSize [%u], tempAlgParamsStepFour.tailSize [%u], "
-        "tempAlgParamsStepFour.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepFour.buffInfo.outBuffBaseOff [%u]",
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepFour.inputSliceStride [%llu], "
+        "tempAlgParamsStepFour.outputSliceStride [%llu], tempAlgParamsStepFour.sliceSize [%llu], tempAlgParamsStepFour.tailSize [%llu], "
+        "tempAlgParamsStepFour.buffInfo.inBuffBaseOff [%llu], tempAlgParamsStepFour.buffInfo.outBuffBaseOff [%llu]",
         loop, tempAlgParamsStepFour.inputSliceStride, tempAlgParamsStepFour.outputSliceStride, tempAlgParamsStepFour.sliceSize,
         tempAlgParamsStepFour.tailSize, tempAlgParamsStepFour.buffInfo.inBuffBaseOff, tempAlgParamsStepFour.buffInfo.outBuffBaseOff);
 
@@ -387,7 +387,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     algTemplate->GetRes(req);
     if (channelLevelIdx >= remoteRankToChannelInfo_.size()) {
         HCCL_ERROR("[InsV2AllReduceSequenceExecutorAicpu][GenTempResource] channelLevelIdx[%u] should be lower"
-            "than remoteRankToChannelInfo_.size()[%u]", channelLevelIdx, remoteRankToChannelInfo_.size());
+            "than remoteRankToChannelInfo_.size()[%zu]", channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
     tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];

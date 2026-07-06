@@ -15,7 +15,6 @@ namespace ops_hccl
     InsTempSendDpu::InsTempSendDpu()
     {
     }
-    // ! 已编码完成
     InsTempSendDpu::InsTempSendDpu(const OpParam &param,
                                    const u32 rankId, // 传通信域的rankId，userRank
                                    const std::vector<std::vector<u32>> &subCommRanks)
@@ -23,12 +22,10 @@ namespace ops_hccl
     {
     }
 
-    // ! 已编码完成
     InsTempSendDpu::~InsTempSendDpu()
     {
     }
 
-    // ! 已编码完成
     HcclResult InsTempSendDpu::CalcRes(
         HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo, AlgResourceRequest &resourceRequest)
     {
@@ -38,11 +35,10 @@ namespace ops_hccl
         std::vector<HcclChannelDesc> level0Channels;
         CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
         resourceRequest.channels.push_back(level0Channels);
-        HCCL_INFO("[InsTempSendDpu][CalcRes] Sucessfully calres!");
+        HCCL_INFO("[InsTempSendDpu][CalcRes] Successfully calc res!");
         return HCCL_SUCCESS;
     }
 
-    // ! 基本编码完成，剩余数据序列化
     HcclResult InsTempSendDpu::KernelRun(
         const OpParam &param, const TemplateDataParams &tempAlgParams, TemplateResource &templateResource)
     {
@@ -51,7 +47,7 @@ namespace ops_hccl
         threadNum_ = templateResource.threads.size();
         if (threadNum_ < 1)
         {
-            HCCL_ERROR("[InsTempSendDpu] Rank [%d], required thread error.", myRank_);
+            HCCL_ERROR("[InsTempSendDpu] Rank [%u], required thread error.", myRank_);
             return HCCL_E_INTERNAL;
         }
         thread_ = templateResource.threads[0];
@@ -59,7 +55,7 @@ namespace ops_hccl
         if (channelIter == templateResource.channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempSendDpu][KernelRun]my rank is [%d], receive rank [%u] channel not found!", myRank_, recvRank_);
+                "[InsTempSendDpu][KernelRun]my rank is [%u], receive rank [%u] channel not found!", myRank_, recvRank_);
             return HCCL_E_INTERNAL;
         }
         sendChannel_ = channelIter->second[0];
@@ -121,7 +117,7 @@ namespace ops_hccl
             // 将执行模式转换回到batch
             if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS)
             {
-                HCCL_ERROR("[InsTempSendDpu] failed set eager mode, tag is %s.", param.algTag);
+                HCCL_ERROR("[InsTempSendDpu] failed set batch mode, tag is %s.", param.algTag);
                 return HCCL_E_INTERNAL;
             }
             HCCL_INFO("[InsTempSendDpu] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -141,7 +137,7 @@ namespace ops_hccl
             DataSlice remoteCclBuffer(tempAlgParams.buffInfo.outputPtr, 0, processSize_, count_); // ccl buffer不需要offset
             // 发送
             SlicesList sendSlicesList({inputBuffer}, {remoteCclBuffer});
-            DataInfo sendInfo(sendChannel_, sendSlicesList);
+            DataInfo sendInfo(sendChannel_, sendSlicesList, dataType_);
             CHK_PRT_RET(SendWrite(sendInfo, thread_),
                         HCCL_ERROR("[InsTempSendDpu][KernelRun]Aicpu Run Send failed"),
                         HcclResult::HCCL_E_INTERNAL);
@@ -172,14 +168,14 @@ namespace ops_hccl
             if (rankId != myRank)
             {
                 recvRank = rankId;
-                HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank is [%u].", myRank, recvRank);
+                HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%u],  receive rank is [%u].", myRank, recvRank);
             }
         }
         auto channelIter = channels.find(recvRank);
         if (channelIter == channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank [%u] channel not found!", myRank, recvRank);
+                "[InsTempSendDpu] [DPUKernelRun] my rank is [%u],  receive rank [%u] channel not found!", myRank, recvRank);
             return HCCL_E_INTERNAL;
         }
         ChannelInfo linkSend = channelIter->second[0];

@@ -1091,4 +1091,4 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReducePar
 
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif /* AICPU_COMPILE */
-}  // namespace Hccl
+}  // namespace ops_hccl

@@ -46,7 +46,7 @@ HcclResult InsV2BarrierSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     CHK_RET(interTempAlg.CalcRes(comm, param, topoInfo, resReqInter));
 
     resourceRequest.slaveThreadNum = std::max(resReqIntra.slaveThreadNum, resReqInter.slaveThreadNum);
-    resourceRequest.notifyNumPerThread = resReqIntra.notifyNumPerThread; // DPU 目前无 notify
+    resourceRequest.notifyNumPerThread = resReqIntra.notifyNumPerThread;
     resourceRequest.notifyNumOnMainThread = std::max(resReqIntra.notifyNumOnMainThread, resReqInter.notifyNumOnMainThread);
 
     resourceRequest.channels = {resReqIntra.channels[0], resReqInter.channels[0]};

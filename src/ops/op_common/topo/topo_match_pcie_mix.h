@@ -42,5 +42,5 @@ private:
     HcclResult DeduplicateLevelRanks(const uint32_t myRank, std::vector<uint32_t> &level0Ranks,
         std::vector<uint32_t> &level1Ranks) const;
 };
-}  // namespace Hccl
+}  // namespace ops_hccl
 #endif  // !TOPO_MATCH_PCIE_MIX

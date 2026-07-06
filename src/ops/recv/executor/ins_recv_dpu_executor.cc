@@ -37,7 +37,7 @@ namespace ops_hccl {
 
         HCCL_INFO(
             "[InsRecvDpuExecutor][InitCommInfo] myRank [%u], remoteRank [%u], rankSize [%u], devType [%u], "
-            "dataType [%u], dataTypeSize[%u]",
+            "dataType [%u], dataTypeSize[%llu]",
             myRank_, remoteRank_, rankSize_, devType_, dataType_, dataTypeSize_);
         
         return HcclResult::HCCL_SUCCESS;
@@ -49,10 +49,10 @@ namespace ops_hccl {
     {
         // 初始化一些基本成员变量
         myRank_ = topoInfo->userRank;
-        HCCL_DEBUG("[InsRecvDpuExecutor][CalcAlgHierarchyInfo][%d] Start.", myRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][CalcAlgHierarchyInfo][%u] Start.", myRank_);
         CHK_PRT_RET(
             topoInfo->userRankSize == 0,
-            HCCL_ERROR("[InsRecvDpuExecutor][CalcAlgHierarchyInfo] Rank [%d], rankSize is 0.", myRank_),
+            HCCL_ERROR("[InsRecvDpuExecutor][CalcAlgHierarchyInfo] Rank [%u], rankSize is 0.", myRank_),
             HcclResult::HCCL_E_PARA);
         
         // AlgHierarchyInfoForAllLevel固定为一层
@@ -63,7 +63,7 @@ namespace ops_hccl {
             algHierarchyInfo.infos[0][0].push_back(rankId);
         }
         
-        HCCL_DEBUG("[InsRecvDpuExecutor][CalcAlgHierarchyInfo][%d] Success.", myRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][CalcAlgHierarchyInfo][%u] Success.", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
 
@@ -74,7 +74,7 @@ namespace ops_hccl {
     {
         // 初始化一些基本成员变量
         InitCommInfo(comm, param, topoInfo, algHierarchyInfo);
-        HCCL_DEBUG("[InsRecvDpuExecutor][CalcRes][%d]<-[%d] Start.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][CalcRes][%u]<-[%u] Start.", myRank_, remoteRank_);
 
         resourceRequest.notifyNumOnMainThread = 0;
         resourceRequest.slaveThreadNum = 0;
@@ -83,7 +83,7 @@ namespace ops_hccl {
         CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels));
         resourceRequest.channels.push_back(level0Channels);
 
-        HCCL_DEBUG("[InsRecvDpuExecutor][CalcRes][%d]<-[%d] Success.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][CalcRes][%u]<-[%u] Success.", myRank_, remoteRank_);
         return HcclResult::HCCL_SUCCESS;
     }
 
@@ -91,7 +91,7 @@ namespace ops_hccl {
     HcclResult InsRecvDpuExecutor<InsAlgTemplate>::Orchestrate(const OpParam &param,
         const AlgResourceCtxSerializable &resCtx)
     {
-        HCCL_DEBUG("[InsRecvDpuExecutor][Orchestrate][%d]->[%d] Start.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][Orchestrate][%u]->[%u] Start.", myRank_, remoteRank_);
 
         opMode_ = param.opMode;
         myRank_ = resCtx.topoInfo.userRank;
@@ -118,7 +118,7 @@ namespace ops_hccl {
         
         CHK_RET(algTemplateDpu->KernelRun(param, tempAlgParams, templateResource));
 
-        HCCL_DEBUG("[InsRecvDpuExecutor][Orchestrate][%d]->[%d] Success.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvDpuExecutor][Orchestrate][%u]->[%u] Success.", myRank_, remoteRank_);
         return HcclResult::HCCL_SUCCESS;
     }
 

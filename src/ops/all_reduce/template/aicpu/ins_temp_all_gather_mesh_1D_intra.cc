@@ -217,7 +217,7 @@ HcclResult InsTempAllGatherMesh1dIntra::LocalDataCopy(const std::vector<ThreadHa
                    "outOff[%d] sliceSize[%d] count[%d].",
                    myRank_, myAlgRank, outBaseOff, outOff, sliceSize, sliceCount);
 
-        LocalCopy(threads[0], srcSlice, dstSlice);
+        CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -253,20 +253,20 @@ HcclResult InsTempAllGatherMesh1dIntra::PostLocalCopy(const std::vector<ThreadHa
             HCCL_DEBUG("[InsTempAllGatherMesh1D][PostLocalCopy] LocalDataCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
                        "scratchBase[%d] outBaseOff[%d] scratchOffset[%d] outOffset[%d].",
                        myRank_, rank, algRank, scratchBase, outBaseOff, scratchOffset, outOffset);
-            LocalCopy(threads[0], srcSlice, dstSlice);
+            CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
         }
     }
     return HcclResult::HCCL_SUCCESS;
 }
 
-void InsTempAllGatherMesh1dIntra::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub)
+void InsTempAllGatherMesh1dIntra::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
 {
-    notifyIdxMianToSub.clear();
+    notifyIdxMainToSub.clear();
     u32 threadNum = threadNum_;
     u32 slaveThreadNum = threadNum - 1;
     HCCL_INFO("[InsTempAllGatherMesh1dIntra][GetNotifyIdxMainToSub]threadNum: %u, slaveThreadNum: %u",threadNum,slaveThreadNum);
     for (u32 slaveThreadIdx = 0; slaveThreadIdx < slaveThreadNum; slaveThreadIdx++) {
-        notifyIdxMianToSub.push_back(0);
+        notifyIdxMainToSub.push_back(0);
     }
 }
 

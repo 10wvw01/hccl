@@ -15,7 +15,6 @@ namespace ops_hccl {
 InsTempReduceScatterMesh1dDpu::InsTempReduceScatterMesh1dDpu()
 {
 }
-// ! 已编码完成
 InsTempReduceScatterMesh1dDpu::InsTempReduceScatterMesh1dDpu(const OpParam& param,
                                                         const u32 rankId, // 传通信域的rankId，userRank
                                                         const std::vector<std::vector<u32>> &subCommRanks)
@@ -23,12 +22,10 @@ InsTempReduceScatterMesh1dDpu::InsTempReduceScatterMesh1dDpu(const OpParam& para
 {
 }
 
-// ! 已编码完成
 InsTempReduceScatterMesh1dDpu::~InsTempReduceScatterMesh1dDpu()
 {
 }
 
-// ! 已编码完成
 HcclResult InsTempReduceScatterMesh1dDpu::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                                AlgResourceRequest& resourceRequest)
 {
@@ -40,14 +37,13 @@ HcclResult InsTempReduceScatterMesh1dDpu::CalcRes(HcclComm comm, const OpParam& 
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempReduceScatterMeshSeqInter][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u]"
-        " level1Channels[%u].",
+    HCCL_INFO("[InsTempReduceScatterMesh1dDpu][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u]"
+        " level1Channels[%zu].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread,
         level1Channels.size());
     return HCCL_SUCCESS;
 }
 
-// ! 已编码完成
 u64 InsTempReduceScatterMesh1dDpu::CalcScratchMultiple(BufferType inBufferType, BufferType outBufferType)
 {
     (void) inBufferType;
@@ -56,7 +52,6 @@ u64 InsTempReduceScatterMesh1dDpu::CalcScratchMultiple(BufferType inBufferType, 
     return scratchMultiple;
 }
 
-// ! 基本编码完成，剩余数据序列化
 HcclResult InsTempReduceScatterMesh1dDpu::KernelRun(const OpParam& param,
                                                     const TemplateDataParams& tempAlgParams,
                                                     TemplateResource& templateResource)
@@ -67,7 +62,7 @@ HcclResult InsTempReduceScatterMesh1dDpu::KernelRun(const OpParam& param,
     dataType_ = param.DataDes.dataType;
 
     if (threadNum_ < 1) {
-        HCCL_ERROR("[InsTempReduceScatterMesh1dDpu] Rank [%d], required thread error.", myRank_);
+        HCCL_ERROR("[InsTempReduceScatterMesh1dDpu] Rank [%u], required thread error.", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -105,7 +100,7 @@ HcclResult InsTempReduceScatterMesh1dDpu::KernelRun(const OpParam& param,
     }
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempReduceScatterMesh1dDpu] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempReduceScatterMesh1dDpu] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     HCCL_INFO("[InsTempReduceScatterMesh1dDpu] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
@@ -171,7 +166,6 @@ HcclResult InsTempReduceScatterMesh1dDpu::DPUKernelRun(const TemplateDataParams&
     return HCCL_SUCCESS;
 }
 
-// ! 已完成编码，待与堂植确认加法序问题
 HcclResult InsTempReduceScatterMesh1dDpu::PostLocalReduce(const OpParam &param, const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads)
 {
     // 通信结束之后，数据都在 cclBuffer 上，需要搬运到对应的输出位置。
@@ -240,4 +234,4 @@ HcclResult InsTempReduceScatterMesh1dDpu::PostLocalReduce(const OpParam &param, 
 #ifndef AICPU_COMPILE
 REGISTER_TEMPLATE_V2("InsTempReduceScatterMesh1dDpu", InsTempReduceScatterMesh1dDpu);
 #endif
-} // namespace Hccl
+} // namespace ops_hccl

@@ -27,7 +27,7 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
     algHierarchyInfo_ = algHierarchyInfo;
-    HCCL_INFO("[InsV2ScatterSequenceExecutor][InitCommInfo] myRank [%u], rankSize [%u], dataTypeSize [%u]",
+    HCCL_INFO("[InsV2ScatterSequenceExecutor][InitCommInfo] myRank [%u], rankSize [%u], dataTypeSize [%llu]",
         myRank_,
         rankSize_,
         dataTypeSize_);
@@ -91,7 +91,7 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2ScatterSequenceExecutor][Orchestrate]errNo[0x%016llx] Scatter excutor kernel run failed",
+        HCCL_ERROR("[InsV2ScatterSequenceExecutor][Orchestrate]errNo[0x%016llx] Scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -113,7 +113,7 @@ HcclResult InsV2ScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
 
-    HCCL_INFO("[InsV2ScatterSequenceExecutor][InitExecutorInfo] myRank [%u], rankSize [%u], dataTypeSize [%u]",
+    HCCL_INFO("[InsV2ScatterSequenceExecutor][InitExecutorInfo] myRank [%u], rankSize [%u], dataTypeSize [%llu]",
         +myRank_,
         rankSize_,
         dataTypeSize_);

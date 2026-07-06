@@ -7,8 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef INS_TEMP_RECV_DPU
-#define INS_TEMP_RECV_DPU
+#ifndef INS_TEMP_RECV_HOST_NIC_DPU
+#define INS_TEMP_RECV_HOST_NIC_DPU
 
 #include "alg_v2_template_base.h"
 #include "alg_v2_template_register.h"
@@ -50,5 +50,5 @@ private:
     u64 processSize_{0};
 };
 
-}  // namespace Hccl
+}  // namespace ops_hccl
 #endif /* INS_TEMP_RECV_HOST_NIC_DPU */

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INS_TEMP_REDUCE_SCATTER_1D_DPU
-#define INS_TEMP_REDUCE_SCATTER_1D_DPU
+#ifndef INS_TEMP_REDUCE_SCATTER_MESH_1D_DPU
+#define INS_TEMP_REDUCE_SCATTER_MESH_1D_DPU
 
 #include "alg_v2_template_base.h"
 #include "alg_v2_template_register.h"
@@ -52,5 +52,5 @@ private:
     u64 processSize_{0};
 };
 
-} // namespace Hccl
-#endif //OPEN_HCCL_INS_TEMP_REDUCE_SCATTER_MESH_1D_DPU
+} // namespace ops_hccl
+#endif // INS_TEMP_REDUCE_SCATTER_MESH_1D_DPU
