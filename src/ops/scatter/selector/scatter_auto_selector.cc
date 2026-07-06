@@ -13,6 +13,7 @@
 #include "hccl_aiv_utils.h"
 
 namespace ops_hccl {
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 
 SelectorStatus ScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -113,7 +114,11 @@ SelectorStatus ScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDe
         if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsScatterNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            selectAlgName = "InsScatterParallelMesh1DNHR";
+            if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+                selectAlgName = "InsScatterSequenceMesh1DNHRNHR";
+            } else {
+                selectAlgName = "InsScatterParallelMesh1DNHR";
+            }
         } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
             HCCL_WARNING("[ScatterAutoSelector] level0Shape[%d] is not supported yet for levelNum > 1.");
             return SelectorStatus::NOT_MATCH;
