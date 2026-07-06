@@ -572,6 +572,20 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             std::vector<u32> notifyIdxesMainToSub{0};
             std::vector<u32> notifyIdxesSubToMain{0};
             u64 rankOffset = 0;
+
+            std::vector<u64> perRankOffset;
+ 	        perRankOffset.resize(rankSize_);
+ 	        perRankOffset[0] = 0;
+ 	        for (u32 i = 1; i < rankSize_; i++) {
+ 	            perRankOffset[i] = perRankOffset[i - 1] + allRankSplitData[i - 1];
+ 	        }
+            std::vector<u64> perInnnerLoopOffset;
+ 	        perInnnerLoopOffset.resize(rankSize_);
+ 	        perInnnerLoopOffset[0] = 0;
+ 	        for (u32 i = 1; i < rankSize_; i++) {
+ 	            perInnnerLoopOffset[i] = perInnnerLoopOffset[i - 1]  + multiLoopAllRankSplitData[loop][i -1];
+ 	        }
+
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             for (u32 i = 0; i < rankSize_; i++) {
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCount);
@@ -583,8 +597,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
                 tempAlgParamLocalCopy.count = currDataCount; // 128
                 tempAlgParamLocalCopy.sliceSize = currDataCount * dataTypeSize_ ; // 128*4
-                tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCount * dataTypeSize_; // i * 512
-                tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankOffset + processedDataCount * dataTypeSize_;  // i * 512
+                tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = perRankOffset[myRank_] * dataTypeSize_ + processedDataCount * dataTypeSize_; // i * 512
+                tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = perInnnerLoopOffset[myRank_] * dataTypeSize_;  // i * 512
 
                 if (i == param.root) {
                     tempAlgParamLocalCopy.buffInfo.inputPtr = param.inputPtr;
