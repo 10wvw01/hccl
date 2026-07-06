@@ -1,6 +1,7 @@
 # 通信算子接口
 
 - [接口简介](intro.md)
+- [数据类型定义](data_type_def.md)
 - [集合通信](collective_comm.md)
   - [HcclBroadcast](HcclBroadcast.md)
   - [HcclAllGather](HcclAllGather.md)
