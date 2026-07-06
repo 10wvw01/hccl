@@ -216,98 +216,117 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunAllToAll(
     HCCL_INFO("[RunAllToAll] Start, templateRankSize[%u], threadNum[%u], slaveThreadNum[%u], "
         "totalRanks[%u]", templateRankSize_, threadNum_, slaveThreadNum, totalRanks);
 
-    // 单线程场景：主线程直接串行执行所有SendRecvWrite，无需批次同步
-    if (threadNum_ <= 1) {
-        for (u32 rankIdx = 1; rankIdx < templateRankSize_; rankIdx++) {
-            u32 nextRank = (myAlgRank + rankIdx) % templateRankSize_;
-            u32 remoteRank = subCommRanks_[0][nextRank];
-            auto channelIter = channels.find(remoteRank);
-            CHK_PRT_RET(channelIter == channels.end(),
-                HCCL_ERROR("[RunAllToAll] channel not found for nextRank[%u], remoteRank[%u]",
-                    nextRank, remoteRank), HCCL_E_INTERNAL);
-            const std::vector<ChannelInfo> &curChannels = channelIter->second;
-            CHK_PRT_RET(curChannels.empty(),
-                HCCL_ERROR("[RunAllToAll] curChannels empty for nextRank[%u]", nextRank), HCCL_E_INTERNAL);
-            u64 sliceSize = memBlockInfo.size[nextRank];
-            const ChannelInfo &linkSend = curChannels[0];
-            void *remoteCclBuffAddr = linkSend.remoteCclMem.addr;
-            u32 txOutputIndex = CalcOutputIndex(nextRank, myAlgRank);
-            u64 txSrcOffset = memBlockInfo.userInputOffsets[nextRank];
-            u64 txDstOffset = memBlockInfo.outputOffsets[txOutputIndex];
-            DataSlice txSrcSlice(tempAlgParams.buffInfo.inputPtr, txSrcOffset, sliceSize);
-            DataSlice txDstSlice(remoteCclBuffAddr, txDstOffset, sliceSize);
-            SendRecvInfo sendRecvInfo{
-                TxRxChannels{linkSend, linkSend},
-                TxRxSlicesList{SlicesList{{txSrcSlice}, {txDstSlice}}, SlicesList{{}, {}}}
-            };
-            CHK_RET(SendRecvWrite(sendRecvInfo, threads[0]));
-            HCCL_INFO("[RunAllToAll] single-thread, rankIdx[%u], nextRank[%u]", rankIdx, nextRank);
-        }
-        HCCL_INFO("[RunAllToAll] End (single-thread)");
-        return HCCL_SUCCESS;
-    }
+    // ============================================================
+    // 派发一次发送：本端 userIn 的某块 → 远端 cclBuff 的某块
+    // ============================================================
+    auto sendOneSlice = [&](u32 dstRank, const ThreadHandle &thread,
+                            u32 batchNo, u32 opNoInBatch) -> HcclResult {
+        // 算法 rank → 物理 rank → 拿 channel
+        u32 dstPhyRank = subCommRanks_[0][dstRank];
+        auto chIter = channels.find(dstPhyRank);
+        CHK_PRT_RET(chIter == channels.end(),
+            HCCL_ERROR("[RunAllToAll] channel not found for dstRank[%u], dstPhyRank[%u]",
+                dstRank, dstPhyRank), HCCL_E_INTERNAL);
+        const std::vector<ChannelInfo> &chList = chIter->second;
+        CHK_PRT_RET(chList.empty(),
+            HCCL_ERROR("[RunAllToAll] chList empty for dstRank[%u]", dstRank), HCCL_E_INTERNAL);
 
-    // 多线程场景：分批次派发，每批slaveThreadNum个操作并行执行
-    // SendRecvWrite是异步的（只向device下任务不阻塞），如果同一从线程排多个SendRecvWrite，
-    // 它们会串行执行，导致notify循环等待死锁。批次同步确保每批内操作并行执行。
-    u32 numBatches = (totalRanks + slaveThreadNum - 1) / slaveThreadNum; // 向上取整
-    std::vector<ThreadHandle> subThreads(threads.begin() + 1, threads.begin() + threadNum_);
+        // 算源/目的地址
+        u64 sliceSize = memBlockInfo.size[dstRank];
+        const ChannelInfo &ch = chList[0];
+        void *remoteCclBuff = ch.remoteCclMem.addr;
+        u32 dstOutputSlot = CalcOutputIndex(dstRank, myAlgRank);
+        u64 srcOffset = memBlockInfo.userInputOffsets[dstRank];
+        u64 dstOffset = memBlockInfo.outputOffsets[dstOutputSlot];
+
+        // 构造发送描述符（只发，不收）
+        DataSlice srcSlice(tempAlgParams.buffInfo.inputPtr, srcOffset, sliceSize);
+        DataSlice dstSlice(remoteCclBuff, dstOffset, sliceSize);
+        SendRecvInfo sendInfo{
+            TxRxChannels{ch, ch},
+            TxRxSlicesList{SlicesList{{srcSlice}, {dstSlice}}, SlicesList{{}, {}}}
+        };
+
+        CHK_RET(SendRecvWrite(sendInfo, thread));
+        HCCL_INFO("[RunAllToAll] batch[%u], opNo[%u], dstRank[%u], sliceSize[%llu]",
+            batchNo, opNoInBatch, dstRank, sliceSize);
+        return HCCL_SUCCESS;
+    };
+
+    // ============================================================
+    // 对称分批 all2all
+    //
+    // 【为什么按 distance 分批】
+    //   把 N 个 rank 想象成环。distance 是环上距离：
+    //     - rightRank = (我 + distance) % N  ：往右走 distance 步
+    //     - leftRank  = (我 - distance + N) % N ：往左走 distance 步
+    //   关键性质：A 的 right(+d)=B，对应 B 的 left(-d)=A，双方用同一个 distance。
+    //   所以"我给 B 发"和"B 给我发"必落在同一批次，notify 不跨批等待，不死锁。
+    //
+    // 【每批塞多少 op】
+    //   maxOpsPerBatch = 从线程数（保守，不复用主线程）
+    //   同一个 distance 的 left/right 必须同批，塞不下就整体留到下一批。
+    //   注：从线程数为奇数时，每批实际只能用 偶数 个线程（因 op 是 2 个一组），
+    //       会有 1 个从线程闲置。这是保守取舍，避免主线程复用的潜在风险。
+    //
+    // 【线程分配】
+    //   op0 → threads[1], op1 → threads[2], ..., op(slaveThreadNum-1) → threads[slaveThreadNum]
+    //   全部使用从线程，主线程 threads[0] 只负责同步协调（PreSync/PostSync）
+    // ============================================================
+    std::vector<ThreadHandle> slaveThreads(threads.begin() + 1, threads.begin() + threadNum_);
     GetNotifyIdxMainToSub(notifyIdxMainToSub_);
     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
 
-    HCCL_INFO("[RunAllToAll] multi-thread, numBatches[%u], notifyIdxMainToSub size[%zu], "
-        "notifyIdxSubToMain size[%zu]", numBatches, notifyIdxMainToSub_.size(),
+    HCCL_INFO("[RunAllToAll] multi-thread, slaveThreadNum[%u], notifyIdxMainToSub size[%zu], "
+        "notifyIdxSubToMain size[%zu]", slaveThreadNum, notifyIdxMainToSub_.size(),
         notifyIdxSubToMain_.size());
 
-    u32 rankIdx = 1;
-    for (u32 batch = 0; batch < numBatches; batch++) {
-        // 唤醒从线程，开始本批次
-        CHK_RET(PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_));
+    const u32 N = templateRankSize_;
+    const u32 maxDistance = N / 2;              // distance 取 1..maxDistance
+    const u32 maxOpsPerBatch = slaveThreadNum;  // 保守：只用从线程，不溢出到主线程
+    u32 batchNo = 0;
+    u32 distance = 1;
 
-        // 每个从线程派发一个SendRecvWrite
-        u32 opsInBatch = std::min(slaveThreadNum, totalRanks - batch * slaveThreadNum);
-        for (u32 i = 0; i < opsInBatch; i++, rankIdx++) {
-            u32 nextRank = (myAlgRank + rankIdx) % templateRankSize_;
-            u32 remoteRank = subCommRanks_[0][nextRank];
+    while (distance <= maxDistance) {
+        // ---- 开新批次：唤醒从线程 ----
+        CHK_RET(PreSyncInterThreads(threads[0], slaveThreads, notifyIdxMainToSub_));
 
-            auto channelIter = channels.find(remoteRank);
-            CHK_PRT_RET(channelIter == channels.end(),
-                HCCL_ERROR("[RunAllToAll] channel not found for nextRank[%u], remoteRank[%u]",
-                    nextRank, remoteRank), HCCL_E_INTERNAL);
-            const std::vector<ChannelInfo> &curChannels = channelIter->second;
-            CHK_PRT_RET(curChannels.empty(),
-                HCCL_ERROR("[RunAllToAll] curChannels empty for nextRank[%u]", nextRank), HCCL_E_INTERNAL);
+        u32 opNoInBatch = 0; // 本批次已派几个 op
+        while (distance <= maxDistance) {
+            // 本 distance 的两个对端（distance = N/2 时重合，只发一次）
+            u32 rightRank = (myAlgRank + distance) % N;
+            u32 leftRank  = (myAlgRank + N - distance) % N;
+            bool isDiagonal = (leftRank == rightRank);  // N 偶数且 distance=N/2，对角线
+            u32 opCountThisDistance = isDiagonal ? 1 : 2;
 
-            u64 sliceSize = memBlockInfo.size[nextRank];
-            u32 channelIdx = 0;
-            const ChannelInfo &linkSend = curChannels[channelIdx];
-            const ChannelInfo &linkRecv = curChannels[channelIdx];
-            ThreadHandle thread = threads[i + 1]; // 从线程i+1
+            // 守护：本 distance 必须整组塞进同批次，塞不下就换下一批
+            // (opNoInBatch > 0 的判断避免死循环：批次空时即使塞不下也强塞)
+            if (opNoInBatch + opCountThisDistance > maxOpsPerBatch && opNoInBatch > 0) {
+                break;
+            }
 
-            void *remoteCclBuffAddr = linkSend.remoteCclMem.addr;
-            u32 txOutputIndex = CalcOutputIndex(nextRank, myAlgRank);
-            u64 txSrcOffset = memBlockInfo.userInputOffsets[nextRank];
-            u64 txDstOffset = memBlockInfo.outputOffsets[txOutputIndex];
+            // 派 right op（线程轮转：threads[1..slaveThreadNum]，主线程不参与派 op）
+            CHK_RET(sendOneSlice(rightRank, threads[opNoInBatch + 1], batchNo, opNoInBatch));
+            opNoInBatch++;
 
-            DataSlice txSrcSlice(tempAlgParams.buffInfo.inputPtr, txSrcOffset, sliceSize);
-            DataSlice txDstSlice(remoteCclBuffAddr, txDstOffset, sliceSize);
+            // 派 left op（与 right 不同时才派）
+            if (!isDiagonal) {
+                CHK_RET(sendOneSlice(leftRank, threads[opNoInBatch + 1], batchNo, opNoInBatch));
+                opNoInBatch++;
+            }
 
-            std::vector<DataSlice> txSrcSlices = {txSrcSlice};
-            std::vector<DataSlice> txDstSlices = {txDstSlice};
-            std::vector<DataSlice> rxSrcSlices = {};
-            std::vector<DataSlice> rxDstSlices = {};
-            SendRecvInfo sendRecvInfo{
-                TxRxChannels{linkSend, linkRecv},
-                TxRxSlicesList{SlicesList{txSrcSlices, txDstSlices}, SlicesList{rxSrcSlices, rxDstSlices}}
-            };
-            CHK_RET(SendRecvWrite(sendRecvInfo, thread));
-            HCCL_INFO("[RunAllToAll] batch[%u/%u], op[%u], threadIdx[%u], nextRank[%u], sliceSize[%llu]",
-                batch, numBatches, i, i + 1, nextRank, sliceSize);
+            distance++;
+
+            // 本批次满了就换下一批
+            if (opNoInBatch >= maxOpsPerBatch) {
+                break;
+            }
         }
 
-        // 等待本批次所有从线程完成，避免notify循环等待死锁
-        CHK_RET(PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_));
-        HCCL_INFO("[RunAllToAll] batch[%u/%u] completed, opsInBatch[%u]", batch, numBatches, opsInBatch);
+        // ---- 本批次结束：等从线程完成 ----
+        CHK_RET(PostSyncInterThreads(threads[0], slaveThreads, notifyIdxSubToMain_));
+        HCCL_INFO("[RunAllToAll] batch[%u] completed, opsInBatch[%u]", batchNo, opNoInBatch);
+        batchNo++;
     }
 
     HCCL_INFO("[RunAllToAll] End");
