@@ -137,6 +137,14 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
                             HcclResult::HCCL_E_INTERNAL);
             HCCL_INFO("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer success, "
                 "remoteRank[%u] out[%p]", connectedRank, remoteOut);
+
+            ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, connectedRank, &remoteOut);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || remoteOut == nullptr,
+                        HCCL_ERROR("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer2 failed, "
+                            "remoteRank[%u] outputRet[%d] out[%p]", connectedRank, ret, remoteOut),
+                            HcclResult::HCCL_E_INTERNAL);
+            HCCL_INFO("[InsTempAllGatherSymmetryMemoryMesh1D] HcclSymWinGetPeerPointer2 success, "
+                "remoteRank[%u] out[%p]", connectedRank, remoteOut);
         }
 
         std::vector<DataSlice> txSrcSlicesAll;
@@ -204,6 +212,8 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
         CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[threadIdx]),
                     HCCL_ERROR("[InsTempAllGatherMesh1D] RunAllGather Send failed"), HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[threadIdx]),
+                    HCCL_ERROR("[InsTempAllGatherMesh1D] RunAllGather Send2 failed"), HcclResult::HCCL_E_INTERNAL);
         }
     return HcclResult::HCCL_SUCCESS;
 }
