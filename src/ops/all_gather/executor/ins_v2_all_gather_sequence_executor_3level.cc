@@ -40,7 +40,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     AlgResourceRequest &resourceRequest)
 {
     if (algHierarchyInfo.infos.size() != SEQUENCE_EXECUTOR_3_LEVEL_NUM) {
-        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level] algHierarchyInfo size %u should be %u", algHierarchyInfo.infos.size(), SEQUENCE_EXECUTOR_3_LEVEL_NUM);
+        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level] algHierarchyInfo size %zu should be %u", algHierarchyInfo.infos.size(), SEQUENCE_EXECUTOR_3_LEVEL_NUM);
         return HCCL_E_INTERNAL;
     }
     // 构建template
@@ -72,7 +72,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     resourceRequest.channels.emplace_back(Level1TempRequest.channels[0]);
     resourceRequest.channels.emplace_back(Level2TempRequest.channels[0]);
     HCCL_DEBUG("[InsV2AllGatherSequenceExecutor3Level][CalcRes] notifyNumOnMainThread[%u], slaveThreadNum[%u], "
-               "channels[%u]",
+               "channels[%zu]",
                resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum,
                resourceRequest.channels.size());
     for (auto i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
@@ -117,7 +117,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     HcclResult ret = OrchestrateLoop(param, resCtx, Level0TempAlg, Level1TempAlg, Level2TempAlg);
     CHK_PRT_RET(
         ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level][Orchestrate]errNo[0x%016llx] All Gather excutor kernel run failed",
+        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level][Orchestrate]errNo[0x%016llx] All Gather executor kernel run failed",
                    HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -163,9 +163,9 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, InsAlgTemplate0 &tempAlgLevel0,
     InsAlgTemplate1 &tempAlgLevel1, InsAlgTemplate2 &tempAlgLevel2)
 {
-    HCCL_INFO("[InsV2AllGatherParallelExecutor] AlgTemplate Level0 server is [%s]", tempAlgLevel0.Describe().c_str());
-    HCCL_INFO("[InsV2AllGatherParallelExecutor] AlgTemplate Level1 server is [%s]", tempAlgLevel1.Describe().c_str());
-    HCCL_INFO("[InsV2AllGatherParallelExecutor] AlgTemplate Level2 server is [%s]", tempAlgLevel2.Describe().c_str());
+    HCCL_INFO("[InsV2AllGatherSequenceExecutor3Level] AlgTemplate Level0 is [%s]", tempAlgLevel0.Describe().c_str());
+    HCCL_INFO("[InsV2AllGatherSequenceExecutor3Level] AlgTemplate Level1 is [%s]", tempAlgLevel1.Describe().c_str());
+    HCCL_INFO("[InsV2AllGatherSequenceExecutor3Level] AlgTemplate Level2 is [%s]", tempAlgLevel2.Describe().c_str());
 
     u32 templateScratchMultiplierLevel0 = tempAlgLevel0.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::OUTPUT);
  	u32 templateScratchMultiplierLevel1 = tempAlgLevel1.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
@@ -182,7 +182,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     u64 maxCountPerLoop =
         (std::min(static_cast<u64>(scratchMemBlockSize), static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_ / 10) * 10;
     if (maxCountPerLoop == 0) {
-        HCCL_ERROR("[InsV2AllGatherParallelExecutor] myRank[%u] maxCountPerLoop is 0, "
+        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level] myRank[%u] maxCountPerLoop is 0, "
             "scratchMultiplier[%u] too large for cclBuffSize[%llu]",
             totalScratchMultiple, scratchMemBlockSize);
         return HCCL_E_INTERNAL;
@@ -211,7 +211,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
         // 尾同步
     }
 
-    HCCL_INFO("[InsV2AllGatherParallelExecutor][OrchestrateLoop] End.");
+    HCCL_INFO("[InsV2AllGatherSequenceExecutor3Level][OrchestrateLoop] End.");
     return HcclResult::HCCL_SUCCESS;
 };
 
@@ -312,7 +312,7 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel0.enableRemoteMemAccess = param.opMode == OpMode::OFFLOAD;
 
     HCCL_DEBUG(
-        "[InsV2AllGatherSequenceExecutor3Level][GenTemplateAlgParamsLevel0] rank[%d] inBuffBaseOff[%llu] "
+        "[InsV2AllGatherSequenceExecutor3Level][GenTemplateAlgParamsLevel0] rank[%u] inBuffBaseOff[%llu] "
         "outBuffBaseOff[%llu] scratchBuffBaseOff[%llu] sliceSize[%llu] outputSliceStride[%llu] levels_[0].rankSize[%u] "
         "levels_[1].rankSize[%u] rankIdxLevel0[%u] rankIdxLevel1[%u]",
         myRank_, tempAlgParamsLevel0.buffInfo.inBuffBaseOff, tempAlgParamsLevel0.buffInfo.outBuffBaseOff,

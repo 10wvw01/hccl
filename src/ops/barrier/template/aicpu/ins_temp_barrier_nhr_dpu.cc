@@ -31,7 +31,7 @@ HcclResult InsTempBarrierNHRDPU::CalcRes(HcclComm comm, const OpParam &param,
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempBarrierNHRDPU][CalcRes] level1Channels[%u].", level1Channels.size());
+    HCCL_INFO("[InsTempBarrierNHRDPU][CalcRes] level1Channels[%zu].", level1Channels.size());
     return HCCL_SUCCESS;
 }
 
@@ -148,32 +148,32 @@ HcclResult InsTempBarrierNHRDPU::RunNHRBarrier(const std::map<u32, std::vector<C
         if (txChannel[0].remoteRank == rxChannel[0].remoteRank) {
             TxRxChannels sendRecvChannels(txChannel[0], rxChannel[0]);
             TxRxSlicesList sendRecvSlicesList({emptySlices, emptySlices}, {emptySlices, emptySlices});
-            SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
+            SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, tempAlgParams.dataType);
 
             CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
                 HCCL_ERROR("[InsTempBarrierNHRDPU] SendRecvWrite failed (step=%u)", step),
                 HcclResult::HCCL_E_INTERNAL);
         } else if (txChannel[0].remoteRank < rxChannel[0].remoteRank) {
             SlicesList sendSliceList(emptySlices, emptySlices);
-            DataInfo sendInfo(txChannel[0], sendSliceList);
+            DataInfo sendInfo(txChannel[0], sendSliceList, tempAlgParams.dataType);
             CHK_PRT_RET(SendWrite(sendInfo),
                 HCCL_ERROR("[InsTempBarrierNHRDPU] Send failed (step=%u)", step),
                 HcclResult::HCCL_E_INTERNAL);
 
             SlicesList recvSliceList(emptySlices, emptySlices);
-            DataInfo recvInfo(rxChannel[0], recvSliceList);
+            DataInfo recvInfo(rxChannel[0], recvSliceList, tempAlgParams.dataType);
             CHK_PRT_RET(RecvWrite(recvInfo),
                 HCCL_ERROR("[InsTempBarrierNHRDPU] Recv failed (step=%u)", step),
                 HcclResult::HCCL_E_INTERNAL);
         } else {
             SlicesList recvSliceList(emptySlices, emptySlices);
-            DataInfo recvInfo(rxChannel[0], recvSliceList);
+            DataInfo recvInfo(rxChannel[0], recvSliceList, tempAlgParams.dataType);
             CHK_PRT_RET(RecvWrite(recvInfo),
                 HCCL_ERROR("[InsTempBarrierNHRDPU] Recv failed (step=%u)", step),
                 HcclResult::HCCL_E_INTERNAL);
 
             SlicesList sendSliceList(emptySlices, emptySlices);
-            DataInfo sendInfo(txChannel[0], sendSliceList);
+            DataInfo sendInfo(txChannel[0], sendSliceList, tempAlgParams.dataType);
             CHK_PRT_RET(SendWrite(sendInfo),
                 HCCL_ERROR("[InsTempBarrierNHRDPU] Send failed (step=%u)", step),
                 HcclResult::HCCL_E_INTERNAL);

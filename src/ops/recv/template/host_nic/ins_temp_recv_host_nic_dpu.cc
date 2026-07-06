@@ -37,9 +37,9 @@ HcclResult InsTempRecvHostNicDpu::CalcRes(HcclComm comm, const OpParam &param,
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempRecvHostNicDpu][CalcRes]slaveThreadNum[%u], notifyNumPerThread [%u], notifyNumOnMainThread [%u],"
-        " level1Channels [%u].",
-        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread, resourceRequest.notifyNumOnMainThread,
+    HCCL_INFO("[InsTempRecvHostNicDpu][CalcRes]slaveThreadNum[%u], notifyNumPerThreadSize [%zu], notifyNumOnMainThread [%u],"
+        " level1Channels [%zu].",
+        resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(), resourceRequest.notifyNumOnMainThread,
         level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -63,7 +63,7 @@ HcclResult InsTempRecvHostNicDpu::KernelRun(const OpParam &param, const Template
     dataType_ = param.DataDes.dataType;
 
     if (threadNum_ < 1) {
-        HCCL_ERROR("[InsTempRecvHostNicDpu] Rank [%d], required thread error.", myRank_);
+        HCCL_ERROR("[InsTempRecvHostNicDpu] Rank [%u], required thread error.", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -88,11 +88,11 @@ HcclResult InsTempRecvHostNicDpu::KernelRun(const OpParam &param, const Template
     auto dpuRunInfoSeqData = dpuRunInfo.Serialize();
     if (HcommSendRequest(reinterpret_cast<uint64_t>(res.npu2DpuShmemPtr),
         param.algTag, static_cast<void *>(dpuRunInfoSeqData.data()), dpuRunInfoSeqData.size(), &sendMsgId) != 0) {
-        HCCL_ERROR("InsTempRecvHostNicDpu HcommRecvRequest failed");
+        HCCL_ERROR("InsTempRecvHostNicDpu HcommSendRequest failed");
         return HCCL_E_INTERNAL;
     }
 
-    HCCL_INFO("InsTempRecvHostNicDpu HcommRecvRequest run over, sendMsgId[%u]", sendMsgId);
+    HCCL_INFO("InsTempRecvHostNicDpu HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
 
     // 等待DPU数据传输，然后回写结果回来
     void *recvData = nullptr;
@@ -104,7 +104,7 @@ HcclResult InsTempRecvHostNicDpu::KernelRun(const OpParam &param, const Template
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("InsTempRecvHostNicDpu failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("InsTempRecvHostNicDpu failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
     HCCL_INFO("InsTempRecvHostNicDpu HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);

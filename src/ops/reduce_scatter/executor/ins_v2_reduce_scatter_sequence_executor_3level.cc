@@ -37,7 +37,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
 
     algHierarchyInfo_ = algHierarchyInfo;
     HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level][InitCommInfo] myRank [%u], rankSize [%u], redOp [%u], "
-        "dataType [%u] dataTypeSize [%u]", myRank_, rankSize_, reduceOp_, dataType_, dataTypeSize_);
+        "dataType [%u] dataTypeSize [%llu]", myRank_, rankSize_, reduceOp_, dataType_, dataTypeSize_);
     return HCCL_SUCCESS;
 }
 
@@ -107,12 +107,12 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] notifyNumOnMainThread is %u", myRank_, resourceRequest.notifyNumOnMainThread);
     resourceRequest.channels.resize(SEQUENCE_EXECUTOR_LEVEL_NUM);
     if (resReq0.channels.empty() || resReq2.channels.empty()) {
-        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] channels empty, level0[%u] level2[%u]",
+        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] channels empty, level0[%zu] level2[%zu]",
             myRank_, resReq0.channels.size(), resReq2.channels.size());
         return HCCL_E_INTERNAL;
     }
     if (!skipLevel1_ && resReq1.channels.empty()) {
-        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] channels empty, level1[%u]",
+        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] channels empty, level1[%zu]",
             myRank_, resReq1.channels.size());
         return HCCL_E_INTERNAL;
     }
@@ -121,10 +121,12 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
         resourceRequest.channels[1] = resReq1.channels[0];
     }
     resourceRequest.channels[2] = resReq2.channels[0];
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] slaveThreadNum is [%u], notifyNumOnMainThread is [%u], "
-        "level0 chanel size [%u], level1 channel size [%u], level2 channel size [%u]",
-        myRank_, resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread,
-        resourceRequest.channels[0].size(), resourceRequest.channels[1].size(), resourceRequest.channels[2].size());
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor3Level] myRank[%u] slaveThreadNum is [%u], "
+        "notifyNumPerThreadSize is [%zu], notifyNumOnMainThread is [%u], level0 channel size [%zu], "
+        "level1 channel size [%zu], level2 channel size [%zu]",
+        myRank_, resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(),
+        resourceRequest.notifyNumOnMainThread, resourceRequest.channels[0].size(), resourceRequest.channels[1].size(),
+        resourceRequest.channels[2].size());
     return HCCL_SUCCESS;
 }
 
@@ -163,7 +165,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level][Orchestrate] myRank[%u] errNo[0x%016llx] "
-            "Reduce scatter excutor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
+            "Reduce scatter executor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
 
@@ -258,7 +260,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     algTemplate->GetRes(req);
     if (channelLevelIdx >= remoteRankToChannelInfo_.size()) {
         HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level][GenTempResource] myRank[%u] channelLevelIdx[%u] should be lower"
-            "than remoteRankToChannelInfo_.size()[%u]", myRank_, channelLevelIdx, remoteRankToChannelInfo_.size());
+            "than remoteRankToChannelInfo_.size()[%zu]", myRank_, channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
     tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];

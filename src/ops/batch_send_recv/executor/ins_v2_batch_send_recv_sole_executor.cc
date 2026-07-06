@@ -86,6 +86,7 @@ HcclResult InsV2BatchSendRecvSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes
             HCCL_ERROR(
                 "[InsV2BatchSendRecvSoleExecutor][CalcRes] task remoteRank[%u] has no direct link with myRank[%u]",
                 remoteRank, myRank_);
+            return HCCL_E_PARA;
         } else {
             CHK_RET(HcclRankGraphGetLinks(comm, 0, myRank_, remoteRank, &linkList, &listSize));
             if (listSize == 0) {

@@ -8,15 +8,12 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INS_TEMP_GATHER_NHR_DPU_H
-#define INS_TEMP_GATHER_NHR_DPU_H
-
-#pragma once
+#ifndef INS_TEMP_GATHER_NHR_DPU_INTER
+#define INS_TEMP_GATHER_NHR_DPU_INTER
 
 #include "alg_v2_template_base.h"
 
 namespace ops_hccl {
-
 class InsTempGatherDpuInter : public InsAlgTemplateBase {
 public:
     InsTempGatherDpuInter() {}
@@ -54,6 +51,6 @@ private:
     u64 count_{0};
     u32 dataTypeSize_{0};
 };
-}
+} // namespace ops_hccl
 
-#endif
+#endif  // INS_TEMP_GATHER_NHR_DPU_INTER

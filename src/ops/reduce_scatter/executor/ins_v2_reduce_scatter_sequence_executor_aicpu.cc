@@ -39,11 +39,11 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     reduceOp_ = param.reduceType;
     dataType_ = param.DataDes.dataType;
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
 
     algHierarchyInfo_ = algHierarchyInfo;
     HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][InitCommInfo] myRank [%u], rankSize [%u], redOp [%u], "
-        "dataType [%u] dataTypeSize [%u]", myRank_, rankSize_, reduceOp_, dataType_, dataTypeSize_);
+        "dataType [%u] dataTypeSize [%llu]", myRank_, rankSize_, reduceOp_, dataType_, dataTypeSize_);
     return HCCL_SUCCESS;
 }
 
@@ -97,7 +97,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] notifyNumOnMainThread is %u", resourceRequest.notifyNumOnMainThread);
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         // ccu
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] ccu intraTemplate has %d channels, interTemplate has %d channels",
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] ccu intraTemplate has %u kernels, interTemplate has %u kernels",
             resReqIntra.ccuKernelNum[0], resReqInter.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(resReqIntra.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(resReqInter.ccuKernelNum[0]);
@@ -109,10 +109,12 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
         resourceRequest.channels.resize(SEQUENCE_EXECUTOR_LEVEL_NUM);
         resourceRequest.channels[0] = resReqIntra.channels[0];
         resourceRequest.channels[1] = resReqInter.channels[0];
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] slaveThreadNum is [%u], notifyNumOnMainThread is [%u], "\
-            "level 1 chanel size [%u], level 2 channel size [%u]",
-            resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread,
-            resourceRequest.channels[0].size(), resourceRequest.channels[1].size());
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] slaveThreadNum is [%u], "
+            "notifyNumPerThreadSize is [%zu], notifyNumOnMainThread is [%u], "
+            "level 1 channel size [%zu], level 2 channel size [%zu]",
+            resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(),
+            resourceRequest.notifyNumOnMainThread, resourceRequest.channels[0].size(),
+            resourceRequest.channels[1].size());
     }
     return HCCL_SUCCESS;
 }
@@ -126,7 +128,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     rankSize_ = resCtx.topoInfo.userRankSize;
 
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;
@@ -153,7 +155,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InsV2ReduceScatterSequenceExecutorAicpu][Orchestrate] errNo[0x%016llx] "\
-            "Reduce scatter excutor kernel run failed",
+            "Reduce scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
@@ -236,7 +238,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     algTemplate->GetRes(req);
     if (channelLevelIdx >= remoteRankToChannelInfo_.size()) {
         HCCL_ERROR("[InsV2ReduceScatterSequenceExecutorAicpu][GenTempResource] channelLevelIdx[%u] should be lower"
-            "than remoteRankToChannelInfo_.size()[%u]", channelLevelIdx, remoteRankToChannelInfo_.size());
+            "than remoteRankToChannelInfo_.size()[%zu]", channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
     tempReousrce.channels = remoteRankToChannelInfo_[channelLevelIdx];
@@ -340,14 +342,15 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FastLaunchSaveCtx(
     const OpParam &param, const TemplateResource &templateAlgResIntra, const TemplateResource &templateAlgResInter, u32 notifyNumOnMainThread)
 {
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loopTimes==1, save fast launch ctx.");
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] loopTimes==1, save fast launch ctx.");
     u32 threadNum = threads_.size();
     u32 ccuKernelNum = templateAlgResInter.submitInfos.size() + templateAlgResIntra.submitInfos.size();
     if (ccuKernelNum < 1) {
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] ccu kernel num is 0, no need to save.");
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]",
+        threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgResIntra.submitInfos.size()),
                                          static_cast<u32>(templateAlgResInter.submitInfos.size())};
@@ -359,7 +362,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FastLaunch(
         const OpParam &param, const CcuFastLaunchCtx *ctx)
 {
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor][FastLaunch] Start");
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][FastLaunch] Start");
     InsAlgTemplate1 tempAlgInter{};
     InsAlgTemplate0 tempAlgIntra{};
     
@@ -371,7 +374,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
     
     // 框间template
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor][FastLaunch] Intra ccuKernelNum[%llu]", ctx->ccuKernelNum[0]);
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][FastLaunch] Intra ccuKernelNum[%llu]", ctx->ccuKernelNum[0]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtxIntra, param.inputPtr, param.hcclBuff.addr, param.hcclBuff));
     tempFastLaunchCtxIntra.threads = threads_;
     tempFastLaunchCtxIntra.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[0]);
@@ -381,7 +384,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     }
     
     // 框内template
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor][FastLaunch] Inter ccuKernelNum[%llu]", ctx->ccuKernelNum[1]);
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][FastLaunch] Inter ccuKernelNum[%llu]", ctx->ccuKernelNum[1]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtxInter, param.hcclBuff.addr, param.outputPtr, param.hcclBuff));
     tempFastLaunchCtxInter.threads = threads_;
     tempFastLaunchCtxInter.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[1]);
@@ -389,7 +392,7 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
         CHK_RET(tempAlgInter.FastLaunch(param, tempFastLaunchCtxInter));
     }
 
-    HCCL_INFO("[InsV2ReduceScatterSequenceExecutor][FastLaunch] End.");
+    HCCL_INFO("[InsV2ReduceScatterSequenceExecutorAicpu][FastLaunch] End.");
     return HCCL_SUCCESS;
 }
 #endif

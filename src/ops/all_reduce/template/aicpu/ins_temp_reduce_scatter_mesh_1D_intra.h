@@ -54,6 +54,6 @@ private:
     u32 dataTypeSize_{0};
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif //OPEN_HCCL_INS_TEMP_REDUCE_SCATTER_MESH_H

@@ -69,6 +69,6 @@ protected:
     u32             channelsPerRank_    = 1;
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // AIV_ALG_TEMPLATE_BASE

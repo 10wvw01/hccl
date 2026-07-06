@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef INS_TEMP_ALL_GATHER_NHR_DPU_H
-#define INS_TEMP_ALL_GATHER_NHR_DPU_H
+#ifndef INS_TEMP_ALLGATHER_NHR_DPU_INTER_H
+#define INS_TEMP_ALLGATHER_NHR_DPU_INTER_H
 
 #pragma once
 
@@ -58,4 +58,4 @@ private:
 };
 }
  
-#endif
+#endif  // INS_TEMP_ALLGATHER_NHR_DPU_INTER_H

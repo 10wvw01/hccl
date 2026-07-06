@@ -29,7 +29,7 @@ HcclResult InsTempGatherDpuInter::CalcRes(HcclComm comm, const OpParam& param, c
     std::vector<HcclChannelDesc> level1Channels;
     CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
-    HCCL_INFO("[InsTempGatherDpuInter][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%u].",
+    HCCL_INFO("[InsTempGatherDpuInter][CalcRes]slaveThreadNum[%u] notifyNumOnMainThread[%u] level1Channels[%zu].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread, level1Channels.size());
     return HCCL_SUCCESS;
 }
@@ -99,7 +99,7 @@ HcclResult InsTempGatherDpuInter::KernelRun(const OpParam& param, const Template
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempGatherDpuInter] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempGatherDpuInter] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -172,9 +172,9 @@ HcclResult InsTempGatherDpuInter::LocalDataCopy(const TemplateDataParams& tempAl
     u64 sliceCount = tempAlgParams.allRankProcessedDataCount.at(algRankIdx);
     u64 sliceOffset = tempAlgParams.allRankDispls.at(algRankIdx);
 
-        // 数据量为0的数据片无需Copy
+    // 数据量为0的数据片无需Copy
     if (sliceSize == 0) {
-        HCCL_INFO("[InsTempGatherDpuInter][LocalDataCopy] Rank %d has no data to process.", myRank_);
+        HCCL_INFO("[InsTempGatherDpuInter][LocalDataCopy] Rank %u has no data to process.", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
 
@@ -207,7 +207,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
             AicpuNHRStepInfo stepInfo;
             CHK_RET(GetStepInfo(step, nSteps, stepInfo));
 
-            HCCL_DEBUG("[InsTempGatherDpuInter] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
+            HCCL_DEBUG("[InsTempGatherDpuInter] rank[%u] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
                 myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
             
             auto rxChannel = channels.at(GetRankFromMap(stepInfo.fromRank));
@@ -246,8 +246,8 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                             HCCL_ERROR("[InsTempGatherDpuInter] SendRecvWrite failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         HCCL_INFO(
-                            "[InsTempGatherDpuInter][RunNHR]SendRecvWrite on rank %u src offset %u, dst offset %u, "
-                            "size %u",
+                            "[InsTempGatherDpuInter][RunNHR]SendRecvWrite on rank %u src offset %llu, dst offset %llu, "
+                            "size %llu",
                             myRank_,
                             sendOffset,
                             sendOffset,
@@ -343,10 +343,10 @@ HcclResult InsTempGatherDpuInter::PostLocalCopy(const TemplateDataParams& tempAl
             DataSlice dstSlice(tempAlgParams.buffInfo.outputPtr, outOffset, sliceSize,
                                sliceCount);
             CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
-            HCCL_INFO(
-                "[InsTempGatherDpuInter][PostLocalCopy]LocalCopy on position %u src offset %u, dst offset %u, size %u",
+            HCCL_DEBUG(
+                "[InsTempGatherDpuInter][PostLocalCopy]LocalCopy on position %u src offset %llu, dst offset %llu, size %llu",
                 algRank, scratchOffset, outOffset, sliceSize);
-            HCCL_INFO("[InsTempGatherDpuInter][PostLocalCopy]LocalCopy src addr %p, dst addr %p",
+            HCCL_DEBUG("[InsTempGatherDpuInter][PostLocalCopy]LocalCopy src addr %p, dst addr %p",
                 tempAlgParams.buffInfo.hcclBuff.addr,
                 tempAlgParams.buffInfo.outputPtr);
         }

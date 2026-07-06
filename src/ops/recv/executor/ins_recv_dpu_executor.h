@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_INS_RECV_EXECUTOR_H
-#define HCCL_INS_RECV_EXECUTOR_H
+#ifndef HCCL_INS_RECV_DPU_EXECUTOR_H
+#define HCCL_INS_RECV_DPU_EXECUTOR_H
 
 #include "alg_param.h"
 #include "topo_host.h"
@@ -53,4 +53,4 @@ namespace ops_hccl {
     };
 } // namespace ops_hccl
 
-#endif // HCCL_INS_RECV_EXECUTOR_H
+#endif  // HCCL_INS_RECV_DPU_EXECUTOR_H

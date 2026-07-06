@@ -35,7 +35,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::KernelRun(const OpParam& param, const
     }
 
     if (templateRankSize_ == 1) {
-        HCCL_INFO("[InsTempAllGatherOmniPipeNHRDPU] Rank [%d], template ranksize is 1.", myRank_);
+        HCCL_INFO("[InsTempAllGatherOmniPipeNHRDPU] Rank [%u], template ranksize is 1.", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
 
@@ -82,7 +82,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::KernelRun(const OpParam& param, const
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("[InsTempAllGatherOmniPipeNHRDPU] failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherOmniPipeNHRDPU] failed set batch mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -102,7 +102,7 @@ HcclResult InsTempAllGatherOmniPipeNHRDPU::RunNHR(
         AicpuNHRStepInfo stepInfo;
         CHK_RET(GetStepInfo(step, nSteps, stepInfo));
 
-        HCCL_DEBUG("[InsTempAllGatherOmniPipeNHRDPU] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] "
+        HCCL_DEBUG("[InsTempAllGatherOmniPipeNHRDPU] rank[%u] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] "
                     "nSteps[%u] nSlices[%u]",
                     myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 

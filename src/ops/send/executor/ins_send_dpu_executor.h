@@ -7,8 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef HCCL_INS_SEND_EXECUTOR_H
-#define HCCL_INS_SEND_EXECUTOR_H
+#ifndef HCCL_INS_SEND_DPU_EXECUTOR_H
+#define HCCL_INS_SEND_DPU_EXECUTOR_H
 
 #include "alg_param.h"
 #include "topo_host.h"
@@ -45,4 +45,4 @@ namespace ops_hccl {
     };
 } // namespace ops_hccl
 
-#endif // HCCL_INS_SEND_EXECUTOR_H
+#endif  // HCCL_INS_SEND_DPU_EXECUTOR_H

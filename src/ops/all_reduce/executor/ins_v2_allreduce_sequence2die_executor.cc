@@ -65,12 +65,14 @@ HcclResult InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     }
     
     if (param.engine == COMM_ENGINE_CCU) {
-        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] intraTemplate has [%d] kernels.", resReqStepReduce.ccuKernelNum[0]);
+        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] intraTemplate has [%u] kernels.",
+            resReqStepReduce.ccuKernelNum[0]);
         resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
                                             resReqStepReduce.ccuKernelInfos.begin(),
                                             resReqStepReduce.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(resReqStepReduce.ccuKernelNum[0]);
-        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] interTemplate has [%d] kernels.", resReqStepGather.ccuKernelNum[0]);
+        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] interTemplate has [%u] kernels.",
+            resReqStepGather.ccuKernelNum[0]);
         std::for_each(resourceRequest.ccuKernelInfos.begin(), resourceRequest.ccuKernelInfos.end(), [](CcuKernelInfo &info) {
             info.resGroup = 0;
         });
@@ -81,7 +83,8 @@ HcclResult InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         std::for_each(resourceRequest.ccuKernelInfos.begin() + resReqStepReduce.ccuKernelNum[0], resourceRequest.ccuKernelInfos.end(), [](CcuKernelInfo &info) {
             info.resGroup = 1;
         });
-        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] all has [%d] kernels.", resourceRequest.ccuKernelInfos.size());
+        HCCL_INFO("[InsV2AllReduceSequence2DieExecutor][CalcRes] all has [%zu] kernels.",
+            resourceRequest.ccuKernelInfos.size());
     }
     return HCCL_SUCCESS;
 }
@@ -95,7 +98,7 @@ HcclResult InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     rankSize_ = resCtx.topoInfo.userRankSize;
  
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;
     dataSize_ = dataCount_ * dataTypeSize_;
@@ -106,7 +109,7 @@ HcclResult InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllReduceSequence2DieExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor kernel run failed",
+        HCCL_ERROR("[InsV2AllReduceSequence2DieExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
@@ -144,7 +147,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 u64  InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::RoundUp(const u64 dividend, const u64 divisor) const
 {
     if (divisor == 0) {
-        HCCL_WARNING("[InsTempAllReduceMesh1DTwoShot][RoundUp] divisor is 0.");
+        HCCL_WARNING("[InsV2AllReduceSequence2DieExecutor][RoundUp] divisor is 0.");
         return dividend;
     }
     return (dividend + divisor - 1) / divisor;
@@ -253,12 +256,12 @@ HcclResult InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         CHK_RET(algTemplate1->KernelRun(param, tempAlgParams1, templateAlgRes1));
  
         processedDataCount += currDataCount;
-        HCCL_DEBUG("[InsV2AllReduceSequence2DieExecutor] testargs fortemplate0  tempAlgParams0.buffInfo.inBuffBaseOff[%u], tempAlgParams0.buffInfo.outBuffBaseOff[%u], tempAlgParams0.sliceSize[%u],"
-        "tempAlgParams0.tailSize[%u], tempAlgParams0.inputSliceStride[%u], tempAlgParams0.outputSliceStride[%u].", tempAlgParams0.buffInfo.inBuffBaseOff, tempAlgParams0.buffInfo.outBuffBaseOff
+        HCCL_DEBUG("[InsV2AllReduceSequence2DieExecutor] testargs fortemplate0  tempAlgParams0.buffInfo.inBuffBaseOff[%llu], tempAlgParams0.buffInfo.outBuffBaseOff[%llu], tempAlgParams0.sliceSize[%llu],"
+        "tempAlgParams0.tailSize[%llu], tempAlgParams0.inputSliceStride[%llu], tempAlgParams0.outputSliceStride[%llu].", tempAlgParams0.buffInfo.inBuffBaseOff, tempAlgParams0.buffInfo.outBuffBaseOff
         , tempAlgParams0.sliceSize,tempAlgParams0.tailSize, tempAlgParams0.inputSliceStride, tempAlgParams0.outputSliceStride);
 
-        HCCL_DEBUG("[InsV2AllReduceSequence2DieExecutor] testargs fortemplate1  tempAlgParams1.buffInfo.inBuffBaseOff[%u], tempAlgParams0.buffInfo.outBuffBaseOff[%u], tempAlgParams0.sliceSize[%u],"
-        "tempAlgParams1.tailSize[%u], tempAlgParams1.inputSliceStride[%u], tempAlgParams1.outputSliceStride[%u].", tempAlgParams1.buffInfo.inBuffBaseOff, tempAlgParams1.buffInfo.outBuffBaseOff
+        HCCL_DEBUG("[InsV2AllReduceSequence2DieExecutor] testargs fortemplate1  tempAlgParams1.buffInfo.inBuffBaseOff[%llu], tempAlgParams1.buffInfo.outBuffBaseOff[%llu], tempAlgParams1.sliceSize[%llu],"
+        "tempAlgParams1.tailSize[%llu], tempAlgParams1.inputSliceStride[%llu], tempAlgParams1.outputSliceStride[%llu].", tempAlgParams1.buffInfo.inBuffBaseOff, tempAlgParams1.buffInfo.outBuffBaseOff
         , tempAlgParams1.sliceSize, tempAlgParams1.tailSize, tempAlgParams1.inputSliceStride, tempAlgParams1.outputSliceStride);
     }
 

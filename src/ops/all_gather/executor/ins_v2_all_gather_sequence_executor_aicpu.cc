@@ -32,10 +32,10 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     rankSize_ = topoInfo->userRankSize;
     dataType_ = param.DataDes.dataType;
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     algHierarchyInfo_ = algHierarchyInfo;
 
-    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][InitCommInfo] myRank[%u], rankSize[%u], dataType[%u], dataTypeSize[%u]",
+    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][InitCommInfo] myRank[%u], rankSize[%u], dataType[%u], dataTypeSize[%llu]",
         myRank_, rankSize_, dataType_, dataTypeSize_);
     return HCCL_SUCCESS;
 }
@@ -90,7 +90,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
 
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         // ccu: 合并两个template的ccuKernelInfos
-        HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][CalcRes] intraTemplate has [%d] kernels, interTemplate has [%d] kernels.",
+        HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][CalcRes] intraTemplate has [%u] kernels, interTemplate has [%u] kernels.",
                   resReqIntra.ccuKernelNum[0], resReqInter.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(resReqInter.ccuKernelNum[0]);
         resourceRequest.ccuKernelNum.emplace_back(resReqIntra.ccuKernelNum[0]);
@@ -113,7 +113,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     myRank_ = resCtx.topoInfo.userRank;
     rankSize_ = resCtx.topoInfo.userRankSize;
     dataCount_ = param.DataDes.count;
-    dataTypeSize_ =  SIZE_TABLE[param.DataDes.dataType];
+    dataTypeSize_ = SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
     dataType_ = param.DataDes.dataType;
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
@@ -228,7 +228,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     algTemplate.GetRes(req);
     if (channelLevelIdx >= remoteRankToChannelInfo_.size()) {
         HCCL_ERROR("[InsV2AllGatherSequenceExecutorAicpu][GenTempResource] channelLevelIdx[%u] should be lower"
-            "than remoteRankToChannelInfo_.size()[%u]", channelLevelIdx, remoteRankToChannelInfo_.size());
+            "than remoteRankToChannelInfo_.size()[%zu]", channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
     tempReousrce.channels = remoteRankToChannelInfo_[channelLevelIdx];
