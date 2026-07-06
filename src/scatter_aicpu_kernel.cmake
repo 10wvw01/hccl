@@ -212,11 +212,11 @@ if(NOT HCCL_CANN_COMPAT_850)
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:hcomm_headers>
+        unified_dlog
         -Wl,--no-as-needed
         ccl_kernel
         hccl_kernel_compat
         -Wl,--no-as-needed
-        unified_dlog
     )
 else()
     target_link_libraries(scatter_aicpu_kernel PRIVATE

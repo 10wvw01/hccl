@@ -204,15 +204,15 @@ target_link_libraries(opgraph_hccl PRIVATE
     $<BUILD_INTERFACE:mmpa_headers>
     $<BUILD_INTERFACE:runtime_headers>
     $<BUILD_INTERFACE:hcomm_headers>
+    unified_dlog
     ${_op_proto_link_libs}
     -Wl,--whole-archive
     rt2_registry
     -Wl,--no-whole-archive
     -Wl,-Bsymbolic
-    unified_dlog
 )
 
-target_link_directories(opgraph_hccl PRIVATE 
+target_link_directories(opgraph_hccl PRIVATE
     ${ASCEND_CANN_PACKAGE_PATH}/lib64
 )
 
