@@ -1,5 +1,7 @@
 #include "ops_executor.h"
 
+constexpr u64 UB_MAX_DATA_SIZE = 256 * 1024 * 1024;  // 256MB, UB单次最大传输量
+
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
     : algo_(algo),
@@ -45,13 +47,13 @@ HcclResult OpsExecutor::Orchestrate(const AlgHierarchyInfoForAllLevel &algHierar
     InitRes(resCtx);
     // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
-    GetMaxProcCntPerLoop(dataCount_, maxProcCntPerLoop);
+    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_);
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = RoundUp(dataCount_, maxProcCntPerLoop);
-    u64 processCount = maxProCntPerLoop;
+    u64 processCount = maxProcCntPerLoop;
     u64 offsetCount = 0;
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
-        if (dataCount_ % maxProCntPerLoop != 0) {
+        if (loopIdx == loopTimes - 1) {
             processCount = dataCount_ % maxProcCntPerLoop;
         }
         // 子类实现
@@ -63,6 +65,21 @@ HcclResult OpsExecutor::Orchestrate(const AlgHierarchyInfoForAllLevel &algHierar
     }
     // TODO：储存队列和任务信息，用于FastLauch
     SaveCtx();
+}
+
+u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
+{
+    if (scratchMultiple_ == 0 || dataTypeSize_ == 0) {
+        return dataCount;
+    }
+    // CCL buffer scratch容量约束：每element需要scratchMultiple_倍dataTypeSize_的scratch空间
+    u64 maxByCcl = bufferInfo_.cclBuffer.size / (static_cast<u64>(scratchMultiple_) * dataTypeSize_);
+    // UB传输约束：硬件单次传输的element数上限
+    u64 maxByUb = UB_MAX_DATA_SIZE / dataTypeSize_;
+    // 取最小值（总量、CCL scratch、UB传输三者约束）
+    u64 resCount = std::min({dataCount, maxByCcl, maxByUb});
+    // 对齐?
+    return resCount;
 }
 
 // 公共工具类函数
