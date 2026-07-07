@@ -171,7 +171,7 @@ static ge::graphStatus HcomAllToAllVCInferShapeV2(gert::InferShapeContext *conte
     }
 
     int64_t recvCount = 0;
-    for (int64_t i = 0; i * i< sendCountMatrix.size(); i++) {
+    for (int64_t i = 0; i < rankSize; i++) {
         int64_t tempRecvCount = sendCountMatrix[rank + i * rankSize];
         recvCount += tempRecvCount;
     }
