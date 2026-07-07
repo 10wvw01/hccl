@@ -72,6 +72,8 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                     selectAlgName = "CcuAllToAllVMesh1DMultiJetty";
                 }
             }
+        } else if (topoInfo->level0Topo == Level0Shape::CLOS  && !topoInfo->level0PcieMix) {
+            selectAlgName = "CcuAlltoAllVMesh1D";
         } else {
             HCCL_DEBUG("[AlltoAllVAutoSelector] algo is not supported yet for ccu_schedule mode, reset to default.");
             return SelectorStatus::NOT_MATCH;
