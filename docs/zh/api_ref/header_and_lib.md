@@ -50,10 +50,10 @@ HCCL 对外头文件共 2 个，安装到 CANN 安装路径的 `include/hccl/` �
 
 ## 安装后目录结构
 
-通过 `cann-hccl_<version>_linux-<arch>.run` 安装后，对外头文件与库文件落入 CANN 安装路径（默认 `/usr/local/Ascend/ascend-toolkit/<version>/<arch>/`）：
+通过 `cann-hccl_<version>_linux-<arch>.run` 安装后，对外头文件与库文件落入 CANN 安装路径下 `<arch>-linux/` 子目录（`${INSTALL_PATH}` 默认为 `/usr/local/Ascend/ascend-toolkit/<version>`，`<arch>` 为 `x86_64` 或 `aarch64`）：
 
 ```text
-${INSTALL_PATH}/
+${INSTALL_PATH}/<arch>-linux/
 ├── include/
 │   └── hccl/
 │       ├── hccl.h              # 14 个通信算子 C 接口
