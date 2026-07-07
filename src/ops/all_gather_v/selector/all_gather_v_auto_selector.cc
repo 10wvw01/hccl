@@ -42,6 +42,12 @@ SelectorStatus AllGatherVAutoSelector::SelectCcuScheduleAlgo(
         SelectorStatus::NOT_MATCH);
     if (topoInfo->topoLevelNums == 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
         selectAlgName = "CcuAllGatherVMesh1D";
+    } else if (topoInfo->level0Topo == Level0Shape:CLOS) {
+        if (topoInfo->level0PcieMix) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+            HCCL_WARNING("[AllGatherVAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+            return SelectorStatus::NOT_MATCH;
+        }
+        selectAlgName = "CcuAllGatherVMesh1D";
     } else {
         HCCL_WARNING("[AllGatherVAutoSelector] ccu_schedule not supported for multi-level AllGatherV yet");
         return SelectorStatus::NOT_MATCH;
