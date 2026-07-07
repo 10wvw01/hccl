@@ -124,7 +124,7 @@ HcclResult BatchSendRecvOutPlace(HcclSendRecvItem *sendRecvInfo, uint32_t itemNu
 
     // 参数准备
     param.varMemSize = varMemSize;
-    memcpy_s(param.varData, varMemSize, sendRecvInfo, varMemSize);
+    CHK_SAFETY_FUNC_RET(memcpy_s(param.varData, varMemSize, sendRecvInfo, varMemSize));
     param.batchSendRecvDataDes.itemNum = itemNum;
     param.batchSendRecvDataDes.sendRecvItemsPtr = 
         reinterpret_cast<HcclSendRecvItem*>(param.varData);
