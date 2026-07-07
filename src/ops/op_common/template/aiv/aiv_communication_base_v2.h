@@ -652,6 +652,7 @@ __aicore__ inline void AivCommBase::DataCopyUB2GM(const GlobalTensor<T>& dstGlob
 template<typename T>
 __aicore__ inline void AivCommBase::CpGM2GM(__gm__ T *outputGM, __gm__ T *inputGM, uint64_t count)
 {
+    pipe_barrier(PIPE_ALL);
     GlobalTensor<T> inputGT;
     inputGT.SetGlobalBuffer(inputGM, count);
     GlobalTensor<T> outputGT;
@@ -674,6 +675,7 @@ __aicore__ inline void AivCommBase::CpGM2GM(__gm__ T *outputGM, __gm__ T *inputG
         count -= curCount;
         curOffset += curCount;
     }
+    pipe_barrier(PIPE_ALL);
     return;
 }
 
