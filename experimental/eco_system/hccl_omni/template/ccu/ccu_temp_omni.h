@@ -20,12 +20,16 @@ namespace ops_hccl {
 
 using RankGroup = std::vector<u32>;
 
+HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
+    std::vector<u64> &sendSliceData, std::vector<u64> &recvSliceData, std::vector<u64> &sendSdispls,
+    std::vector<u64> &localSdispls);
+
 class CcuTempOmni : public CcuAlgTemplateBase {
 public:
     CcuTempOmni() = default;
-    explicit  CcuTempOmni(const OpParam& param,
-                                        const u32 rankId, // 传通信域的rankId，userRank
-                                        const std::vector<std::vector<u32>> &subCommRanks);
+    explicit CcuTempOmni(const OpParam &param,
+        const u32 rankId, // 传通信域的rankId，userRank
+        const std::vector<std::vector<u32>> &subCommRanks);
 
     ~CcuTempOmni() override;
 
@@ -34,44 +38,47 @@ public:
         return StringFormat("Template of omni with tempRankSize [%u].", tempRankSize_);
     }
 
-    HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                       AlgResourceRequest& resourceRequest);
+    HcclResult CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+        AlgResourceRequest &resourceRequest);
 
-    HcclResult KernelRun(const OpParam& param,
-                         const TemplateDataParams& templateDataParams,
-                         TemplateResource& templateResource,
-                         const omni::XmlInfo &xmlInfo,
-                         uint32_t syncNum);
+    HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
+        TemplateResource &templateResource, const omni::XmlInfo &xmlInfo, const std::vector<u64> &sendSliceData,
+        const std::vector<u64> &recvSliceData, const std::vector<u64> &sendSdispls,
+        const std::vector<u64> &localSdispls, uint32_t syncNum);
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     u64 GetThreadNum() const override;
-    HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;
+    HcclResult FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx) override;
 
 private:
-    HcclResult CalcChannelRequestOmni(HcclComm comm,
-        const OpParam& param,
-        const TopoInfoWithNetLayerDetails* topoInfo,
-        const std::vector<std::vector<u32>>& subcommInfo,
-        std::vector<HcclChannelDesc> &channels);
+    HcclResult CalcChannelRequestOmni(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+        const std::vector<std::vector<u32>> &subcommInfo, std::vector<HcclChannelDesc> &channels);
 
     HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs);
 
-    HcclResult ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName);
+    HcclResult ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol> &expectedProtocols,
+        const std::vector<CommLink> &linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
+        std::vector<HcclChannelDesc> &channels, bool &protocolFound, const std::string &funcName);
 
     HcclResult CreateChannelFromLink(HcclComm comm, u32 myRank, u32 rank, uint32_t netLayer, u32 idx,
-        const CommLink& link, const std::string& funcName, std::vector<HcclChannelDesc>& channels);
+        const CommLink &link, const std::string &funcName, std::vector<HcclChannelDesc> &channels);
 
     uint32_t tempRankSize_ = 0;
     uint32_t dieNum_ = 0;
     std::map<uint32_t, std::vector<HcclChannelDesc>> channels_; // key is DieId
-    std::map<uint32_t, RankGroup> rankGroup_; // key is DieId
+    std::map<uint32_t, RankGroup> rankGroup_;                   // key is DieId
 
     uint32_t mySubCommRank_ = 0;
     uint32_t syncNum_ = 0;
+    uint64_t sliceNum_ = 0;
+
+    HcclResult BuildOmniTaskArgs(const BuffInfo &buffInfo, uint32_t syncIdx,
+        const std::vector<u64> &sendCounts, const std::vector<u64> &recvCounts, const std::vector<u64> &sdispls,
+        const std::vector<u64> &rdispls, const std::vector<u64> &sendSliceData, const std::vector<u64> &recvSliceData,
+        const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls,
+        std::vector<uint64_t> &taskArgs) const;
 };
 
-}// namespace ops_hccl
+} // namespace ops_hccl
 
-#endif// HCCL_CCU_TEMP_OMNI_H
+#endif // HCCL_CCU_TEMP_OMNI_H

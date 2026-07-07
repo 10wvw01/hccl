@@ -20,18 +20,18 @@
 
 namespace ops_hccl {
 struct OmniSendRecvInfo {
-    omni::OpType          opType;
-    HcclDataType          inputDataType;
-    HcclDataType          outputDataType;
-    HcclReduceOp          reduceType;
-    uint64_t              sliceNum;
-    uint64_t              threadIdx;
-    uint64_t              netlayerId;
+    omni::OpType opType;
+    HcclDataType inputDataType;
+    HcclDataType outputDataType;
+    HcclReduceOp reduceType;
+    uint64_t sliceNum;
+    uint64_t threadIdx;
+    uint64_t netlayerId;
     std::vector<omni::OmniSliceInfo> srcSliceInfo;
     std::vector<omni::OmniSliceInfo> dstSliceInfo;
 };
 
-struct CcuKernelArgOmni : public CcuKernelArgBase{
+struct CcuKernelArgOmni : public CcuKernelArgBase {
     uint32_t rankId;
     OpParam opParam;
     bool handleSelfRank;
@@ -40,8 +40,27 @@ struct CcuKernelArgOmni : public CcuKernelArgBase{
     std::vector<std::vector<OmniSendRecvInfo>> sendRecvInfo;
 };
 
+struct A2AsingleSendRecvInfo {
+    ccu::Variable tailSize;
+    ccu::Variable loopNum;
+    GroupOpSizeVars tailGoSize;
+};
+
 struct OmniContext : public CcuKernelCtxBase {
     const CcuKernelArgOmni *arg;
+    uint64_t sliceNum;
+
+    // rankSize个rank的原始数据
+    std::vector<uint64_t> sendCounts;
+    std::vector<uint64_t> recvCounts;
+    std::vector<uint64_t> sdispls;
+    std::vector<uint64_t> rdispls;
+
+    // sliceNum个rank的搬运信息
+    std::vector<A2AsingleSendRecvInfo> sendRecvCountsInfo;
+    std::vector<uint64_t> recvSliceData;
+    std::vector<uint64_t> sendSdispls;
+    std::vector<uint64_t> localSdispls;
 
     std::map<uint32_t, ChannelHandle> rankId2Channel;
     std::map<u32, uint32_t> rankId2Idx;
@@ -52,9 +71,7 @@ struct OmniContext : public CcuKernelCtxBase {
 
     std::vector<ChannelHandle> channels;
     ccu::Variable scratchAddr;
-    ccu::Variable sliceSize;
     ccu::Variable syncIdx;
-    ccu::Variable inputSize;
 
     GroupOpSizeVars goSize;
 
@@ -66,9 +83,8 @@ struct OmniContext : public CcuKernelCtxBase {
     std::array<std::vector<ccu::LocalAddr>, 2> loopScratch;
     ccu::LocalAddr loopSrc[2];
     ccu::LocalAddr loopDst[2];
-    ccu::Variable  loopLen[2];
-    ccu::Variable  loopLenExp[2];
-
+    ccu::Variable loopLen[2];
+    ccu::Variable loopLenExp[2];
 };
 
 CcuResult CcuOmniKernel(CcuKernelArg arg);

@@ -25,9 +25,8 @@ constexpr u32 DIE_NUM = 2;
 constexpr u32 UDIE0 = 0;
 constexpr u32 UDIE1 = 1;
 
-CcuTempOmni::CcuTempOmni(const OpParam& param, const u32 rankId,
-                                       const std::vector<std::vector<u32>> &subCommRanks)
-: CcuAlgTemplateBase(param, rankId, subCommRanks)
+CcuTempOmni::CcuTempOmni(const OpParam &param, const u32 rankId, const std::vector<std::vector<u32>> &subCommRanks)
+    : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
     tempRankSize_ = subCommRanks[0].size();
     auto it = std::find(subCommRanks[0].begin(), subCommRanks[0].end(), rankId);
@@ -41,9 +40,9 @@ CcuTempOmni::~CcuTempOmni()
 }
 
 HcclResult CcuTempOmni::CreateChannelFromLink(HcclComm comm, u32 myRank, u32 rank, uint32_t netLayer, u32 idx,
-    const CommLink& link, const std::string& funcName, std::vector<HcclChannelDesc>& channels)
+    const CommLink &link, const std::string &funcName, std::vector<HcclChannelDesc> &channels)
 {
-    (void) comm;
+    (void)comm;
     HcclChannelDesc channelDesc;
     HcclChannelDescInit(&channelDesc, 1);
     channelDesc.remoteRank = rank;
@@ -53,21 +52,20 @@ HcclResult CcuTempOmni::CreateChannelFromLink(HcclComm comm, u32 myRank, u32 ran
     channelDesc.remoteEndpoint.protocol = link.dstEndpointDesc.protocol;
     channelDesc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
     channelDesc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
-    HCCL_DEBUG("%s local device phyId: %u, remote device phyId: %u.",
-                funcName.c_str(), channelDesc.localEndpoint.loc.device.devPhyId,
-                channelDesc.remoteEndpoint.loc.device.devPhyId);
+    HCCL_DEBUG("%s local device phyId: %u, remote device phyId: %u.", funcName.c_str(),
+        channelDesc.localEndpoint.loc.device.devPhyId, channelDesc.remoteEndpoint.loc.device.devPhyId);
     HCCL_INFO("%s Add channel request between %zu and %zu, netLayerIdx %u, "
               "linkListIdx %u, protocol %zu",
-              funcName.c_str(), myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
+        funcName.c_str(), myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
     channelDesc.channelProtocol = link.linkAttr.linkProtocol;
     channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
     channels.push_back(channelDesc);
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuTempOmni::ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-    const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-    std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName)
+HcclResult CcuTempOmni::ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol> &expectedProtocols,
+    const std::vector<CommLink> &linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
+    std::vector<HcclChannelDesc> &channels, bool &protocolFound, const std::string &funcName)
 {
     protocolFound = false;
     HCCL_INFO("ProcessLinkForProtocol expectedProtocols size %u", expectedProtocols.size());
@@ -75,8 +73,8 @@ HcclResult CcuTempOmni::ProcessLinkForProtocol(HcclComm comm, const std::vector<
         for (u32 idx = 0; idx < linkList.size(); idx++) {
             HCCL_INFO("linkProtocol %u, expectedProtocol %u", linkList[idx].linkAttr.linkProtocol, expectedProtocol);
             if (linkList[idx].linkAttr.linkProtocol == expectedProtocol) {
-                CHK_RET(CreateChannelFromLink(comm, myRank, remoteRank, netLayer, idx, linkList[idx],
-                    funcName, channels));
+                CHK_RET(
+                    CreateChannelFromLink(comm, myRank, remoteRank, netLayer, idx, linkList[idx], funcName, channels));
                 protocolFound = true;
                 break;
             }
@@ -96,7 +94,7 @@ HcclResult CcuTempOmni::CalcChannelRequestOmni(HcclComm comm, const OpParam &par
 
     const u32 myRank = topoInfo->userRank;
 
-    for (const auto& channelInfo : topoInfo->xmlInfo.resInfo.vecChannelInfo) {
+    for (const auto &channelInfo : topoInfo->xmlInfo.resInfo.vecChannelInfo) {
         const u64 remoteRank = channelInfo.remoteRank;
 
         uint32_t *netLayers = nullptr;
@@ -115,9 +113,11 @@ HcclResult CcuTempOmni::CalcChannelRequestOmni(HcclComm comm, const OpParam &par
             u32 listSize = 0;
             CHK_RET(HcclRankGraphGetLinks(comm, netLayer, myRank, static_cast<u32>(remoteRank), &linkList, &listSize));
 
-            HCCL_DEBUG("CalcChannelRequestOmni netLayer %u, rank %u to remote rank %u linksize %u", netLayer, myRank, remoteRank, listSize);
+            HCCL_DEBUG("CalcChannelRequestOmni netLayer %u, rank %u to remote rank %u linksize %u", netLayer, myRank,
+                remoteRank, listSize);
             for (u32 idx = 0; idx < listSize; idx++) {
-                HCCL_DEBUG("CalcChannelRequestOmni HcclRankGraphGetLinks myrank %u to remoteRank %u, netLayer %u, listSize %u, linkProtocol %u",
+                HCCL_DEBUG("CalcChannelRequestOmni HcclRankGraphGetLinks myrank %u to remoteRank %u, netLayer %u, "
+                           "listSize %u, linkProtocol %u",
                     myRank, remoteRank, netLayer, listSize, linkList[idx].linkAttr.linkProtocol);
 
                 // if (linkList[idx].linkAttr.linkProtocol != CommProtocol::COMM_PROTOCOL_UBC_CTP) {
@@ -138,7 +138,7 @@ HcclResult CcuTempOmni::CalcChannelRequestOmni(HcclComm comm, const OpParam &par
                 channels.push_back(channelDesc);
 
                 HCCL_INFO("CalcChannelRequestOmni Add channel request between %zu and %zu, netLayerIdx %u, "
-                    "linkListIdx %u, protocol %zu",
+                          "linkListIdx %u, protocol %zu",
                     myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
 
                 break;
@@ -150,7 +150,7 @@ HcclResult CcuTempOmni::CalcChannelRequestOmni(HcclComm comm, const OpParam &par
 }
 
 // 分别记录两个Die上的channel，构造rankGroup
-HcclResult CcuTempOmni::PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc>& channelDescs)
+HcclResult CcuTempOmni::PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs)
 {
     for (const auto &channel : channelDescs) {
         const u32 remoteRank = channel.remoteRank;
@@ -158,19 +158,23 @@ HcclResult CcuTempOmni::PartitionChannels(HcclComm comm, const std::vector<HcclC
         HcclResult ret = GetChannelDieId(comm, myRank_, channel, dieId);
         CHK_PRT_RET(ret != HCCL_SUCCESS,
             HCCL_ERROR("[CcuTempOmni][PartitionChannels] Rank[%d] channel to remoteRank[%d], Failed to "
-                "get dieId. errNo[0x%016llx]", myRank_, remoteRank, HCCL_ERROR_CODE(ret)),
+                       "get dieId. errNo[0x%016llx]",
+                myRank_, remoteRank, HCCL_ERROR_CODE(ret)),
             ret);
         CHK_PRT_RET(dieId >= DIE_NUM,
             HCCL_ERROR("[CcuTempOmni][PartitionChannels] Rank[%d] channel to remoteRank[%d], dieId[%u] is "
-                "invalid.", myRank_, remoteRank, dieId),
+                       "invalid.",
+                myRank_, remoteRank, dieId),
             HCCL_E_INTERNAL);
         HCCL_INFO("[CcuTempOmni][PartitionChannels] Rank[%d] channel to remoteRank[%d], insert to "
-            "channels at dieId[%u].", myRank_, remoteRank, dieId);
+                  "channels at dieId[%u].",
+            myRank_, remoteRank, dieId);
         channels_[dieId].emplace_back(channel);  // 记录此channel属于哪个die
         rankGroup_[dieId].push_back(remoteRank); // 记录此rank属于哪个die
     }
 
-    HCCL_INFO("PartitionChannels rankGroup_[0] size %u, rankGroup_[1] size %u", rankGroup_[0].size(), rankGroup_[1].size());
+    HCCL_INFO(
+        "PartitionChannels rankGroup_[0] size %u, rankGroup_[1] size %u", rankGroup_[0].size(), rankGroup_[1].size());
 
     HCCL_DEBUG("[CcuTempOmni][PartitionChannels] Rank[%d], die0 channels[%u], die1 channels[%u].", myRank_,
         channels_[0].size(), channels_[1].size());
@@ -191,10 +195,124 @@ HcclResult CcuTempOmni::PartitionChannels(HcclComm comm, const std::vector<HcclC
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                                                      AlgResourceRequest& resourceRequest)
+HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
+    std::vector<u64> &sendSliceData, std::vector<u64> &recvSliceData, std::vector<u64> &sendSdispls,
+    std::vector<u64> &localSdispls)
+{
+    if (sliceNum == 0) {
+        return HCCL_SUCCESS;
+    }
+
+    const u64 *scPtr = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
+    const u64 *rcPtr = static_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
+
+    sendSliceData.clear();
+    recvSliceData.clear();
+    sendSdispls.clear();
+    localSdispls.clear();
+    sendSliceData.reserve(sliceNum);
+    recvSliceData.reserve(sliceNum);
+    sendSdispls.reserve(sliceNum);
+    localSdispls.reserve(sliceNum);
+
+    const u32 ratio = static_cast<u32>(sliceNum / rankSize);
+    if (rankSize == 0) {
+        HCCL_ERROR("[BuildOmniSliceMeta] rankSize is 0");
+        return HCCL_E_PARA;
+    }
+
+    if (dataCount != 0) {
+        const u64 perSliceCount = dataCount / sliceNum;
+        for (u32 i = 0; i < sliceNum; i++) {
+            sendSliceData.push_back(perSliceCount);
+            recvSliceData.push_back(perSliceCount);
+            u32 rankIdx = i % ratio;
+            sendSdispls.push_back(rankIdx * perSliceCount);
+            localSdispls.push_back(rankIdx * perSliceCount);
+        }
+        return HCCL_SUCCESS;
+    }
+
+    if (sliceNum % rankSize != 0) {
+        HCCL_ERROR("[BuildOmniSliceMeta] sliceNum[%llu] is not divisible by rankSize[%u]", sliceNum, rankSize);
+        return HCCL_E_PARA;
+    }
+
+    for (u32 i = 0; i < sliceNum; i++) {
+        const u32 rankIdx = i / ratio;
+        const u32 slotInRank = i % ratio;
+        const u64 sendBase = scPtr[rankIdx] / ratio;
+        const u64 sendRem = scPtr[rankIdx] % ratio;
+        const u64 recvBase = rcPtr[rankIdx] / ratio;
+        const u64 recvRem = rcPtr[rankIdx] % ratio;
+        sendSliceData.push_back(sendBase + (slotInRank < sendRem ? 1 : 0));
+        recvSliceData.push_back(recvBase + (slotInRank < recvRem ? 1 : 0));
+        sendSdispls.push_back(sendBase * slotInRank);
+        localSdispls.push_back(sendSdispls[rankIdx] + sendBase * slotInRank);
+    }
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult CcuTempOmni::BuildOmniTaskArgs(const BuffInfo &buffInfo, uint32_t syncIdx,
+    const std::vector<u64> &sendCounts, const std::vector<u64> &recvCounts, const std::vector<u64> &sdispls,
+    const std::vector<u64> &rdispls, const std::vector<u64> &sendSliceData, const std::vector<u64> &recvSliceData,
+    const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls,
+    std::vector<uint64_t> &taskArgs) const
+{
+    taskArgs.clear();
+    taskArgs.push_back(PointerToAddr(buffInfo.inputPtr) + buffInfo.inBuffBaseOff);
+    taskArgs.push_back(PointerToAddr(buffInfo.outputPtr) + buffInfo.outBuffBaseOff);
+    taskArgs.push_back(PointerToAddr(buffInfo.hcclBuff.addr));
+    uint64_t token = 0;
+    CHK_RET(GetToken(buffInfo, token));
+    taskArgs.push_back(token);
+    taskArgs.push_back(syncIdx);
+
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount = CCU_MS_INTERLEAVE;
+    config.memSlice = CCU_MS_INTERLEAVE * CCU_MS_SIZE;
+
+    uint64_t xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    auto xnMaxTransportGoSize = CalGoSize(xnMaxTransportSize, config);
+    for (auto val : xnMaxTransportGoSize) {
+        taskArgs.push_back(val);
+    }
+
+    for (uint32_t i = 0; i < tempRankSize_; i++) {
+        taskArgs.push_back(sendCounts[i]);
+        taskArgs.push_back(recvCounts[i]);
+        taskArgs.push_back(sdispls[i]);
+        taskArgs.push_back(rdispls[i]);
+    }
+
+    for (uint64_t i = 0; i < sliceNum_; i++) {
+        taskArgs.push_back(recvSliceData[i]);
+        taskArgs.push_back(sendSdispls[i]);
+        taskArgs.push_back(localSdispls[i]);
+
+        uint64_t tailSize = sendSliceData[i] % UB_MAX_TRANS_SIZE;
+        uint64_t loopNum = UINT64_MAX - 1 - (sendSliceData[i] / UB_MAX_TRANS_SIZE);
+        taskArgs.push_back(tailSize);
+        taskArgs.push_back(loopNum);
+        auto tailGoSize = CalGoSize(tailSize, config);
+        for (auto val : tailGoSize) {
+            taskArgs.push_back(val);
+        }
+    }
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
+    AlgResourceRequest &resourceRequest)
 {
     HCCL_DEBUG("[CalcRes] rankid [%u] begin", mySubCommRank_);
+
+    if (!topoInfo->xmlInfo.vecNormalInstruction.empty()) {
+        sliceNum_ = topoInfo->xmlInfo.vecNormalInstruction[0].sendRecvInfo.sliceNum;
+    }
 
     resourceRequest.slaveThreadNum = topoInfo->xmlInfo.resInfo.slaveThreadNum;
     resourceRequest.notifyNumOnMainThread = topoInfo->xmlInfo.resInfo.notifyNumOnMainThread;
@@ -202,7 +320,7 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
 
     // 计算channel信息
     std::vector<HcclChannelDesc> channelDescs;
-    CHK_RET(CalcChannelRequestOmni(comm, param, topoInfo, subCommRanks_, channelDescs)); //只支持两个rank之间1条链接
+    CHK_RET(CalcChannelRequestOmni(comm, param, topoInfo, subCommRanks_, channelDescs)); // 只支持两个rank之间1条链接
     // CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
 
     HCCL_DEBUG("[CalcRes] rankid [%u] channelDescs size [%u]", mySubCommRank_, channelDescs.size());
@@ -211,7 +329,7 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
         return HCCL_E_NOT_FOUND;
     }
 
-    CHK_RET(PartitionChannels(comm, channelDescs));// 分别记录两个Die上的channel，构造rankGroup
+    CHK_RET(PartitionChannels(comm, channelDescs)); // 分别记录两个Die上的channel，构造rankGroup
     resourceRequest.channels.emplace_back(channelDescs);
 
     std::vector<std::vector<std::vector<OmniSendRecvInfo>>> tmpSendRecvInfo; // dieid:sync:opvec
@@ -221,8 +339,9 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
     std::vector<OmniSendRecvInfo> tmpInfoDie0;
     std::vector<OmniSendRecvInfo> tmpInfoDie1;
     HCCL_DEBUG("[CalcRes] Instruction size %u", topoInfo->xmlInfo.vecNormalInstruction.size());
-    for (auto& dieSendRecvInfo : topoInfo->xmlInfo.vecNormalInstruction) {
-        if (dieSendRecvInfo.opType == omni::OP_RES_REQUEST || dieSendRecvInfo.opType == omni::OP_PRE_SYNC_INTER_THREADS) {
+    for (auto &dieSendRecvInfo : topoInfo->xmlInfo.vecNormalInstruction) {
+        if (dieSendRecvInfo.opType == omni::OP_RES_REQUEST
+            || dieSendRecvInfo.opType == omni::OP_PRE_SYNC_INTER_THREADS) {
             continue;
         }
 
@@ -245,12 +364,17 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
         sendRecvInfo.srcSliceInfo = dieSendRecvInfo.sendRecvInfo.srcSliceInfo;
         sendRecvInfo.dstSliceInfo = dieSendRecvInfo.sendRecvInfo.dstSliceInfo;
 
-        if (std::find(rankGroup_[0].begin(), rankGroup_[0].end(), dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank) != rankGroup_[0].end()) {
+        if (std::find(
+                rankGroup_[0].begin(), rankGroup_[0].end(), dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank)
+            != rankGroup_[0].end()) {
             tmpInfoDie0.push_back(sendRecvInfo);
-        } else if (std::find(rankGroup_[1].begin(), rankGroup_[1].end(), dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank) != rankGroup_[1].end()){
+        } else if (std::find(rankGroup_[1].begin(), rankGroup_[1].end(),
+                       dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank)
+                   != rankGroup_[1].end()) {
             tmpInfoDie1.push_back(sendRecvInfo);
         } else {
-            HCCL_ERROR("[CalcRes] sendRecvInfo.remoteRank is %u not in rankGroup", dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank);
+            HCCL_ERROR("[CalcRes] sendRecvInfo.remoteRank is %u not in rankGroup",
+                dieSendRecvInfo.sendRecvInfo.dstSliceInfo[0].remoteRank);
         }
     }
 
@@ -259,13 +383,15 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
         tmpSendRecvInfo[1].push_back(tmpInfoDie1);
     }
 
-    HCCL_DEBUG("[CalcRes] syncNum is %u, die0 sendRecvInfo size %u, die1 sendRecvInfo size %u", syncNum_, tmpSendRecvInfo[0].size(), tmpSendRecvInfo[1].size());
+    HCCL_DEBUG("[CalcRes] syncNum is %u, die0 sendRecvInfo size %u, die1 sendRecvInfo size %u", syncNum_,
+        tmpSendRecvInfo[0].size(), tmpSendRecvInfo[1].size());
 
     HCCL_DEBUG("randgroup [0] size %u, [1] size %u", rankGroup_[0].size(), rankGroup_[1].size());
 
     uint32_t dieNum = 0;
-    for (uint32_t dieId = 0; dieId < DIE_NUM; dieId++) {    // 2Die算法，需要执行两次
-        if (rankGroup_[dieId].size() == 0) continue;
+    for (uint32_t dieId = 0; dieId < DIE_NUM; dieId++) { // 2Die算法，需要执行两次
+        if (rankGroup_[dieId].size() == 0)
+            continue;
         dieNum++;
 
         // 创建每个kernel的kernelArg，放入kernelInfo, 然后将kernelinfo放入resourceRequest.ccuKernelInfos
@@ -284,59 +410,38 @@ HcclResult CcuTempOmni::CalcRes(HcclComm comm, const OpParam& param, const TopoI
         kernelInfo.channels = channels_[dieId];
         resourceRequest.ccuKernelInfos.push_back(kernelInfo);
 
-        HCCL_DEBUG("[CcuTempOmni][CalcRes] dieId=%u, channels=%llu, ccuKernelInfos=%llu",
-            dieId, channels_[dieId].size(), resourceRequest.ccuKernelInfos.size());
+        HCCL_DEBUG("[CcuTempOmni][CalcRes] dieId=%u, channels=%llu, ccuKernelInfos=%llu", dieId,
+            channels_[dieId].size(), resourceRequest.ccuKernelInfos.size());
     }
 
-    resourceRequest.ccuKernelNum.push_back(dieNum);        // kernel数量
+    resourceRequest.ccuKernelNum.push_back(dieNum); // kernel数量
 
     HCCL_DEBUG("[CalcRes] rankid [%u] end", mySubCommRank_);
 
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult CcuTempOmni::KernelRun(const OpParam& param,
-                                            const TemplateDataParams& templateDataParams,
-                                            TemplateResource& templateResource,
-                                            const omni::XmlInfo &xmlInfo,
-                                            uint32_t syncIdx)
+HcclResult CcuTempOmni::KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
+    TemplateResource &templateResource, const omni::XmlInfo &xmlInfo, const std::vector<u64> &sendSliceData,
+    const std::vector<u64> &recvSliceData, const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls,
+    uint32_t syncIdx)
 {
     HCCL_INFO("[CcuTempOmni] rankid [%u] KernelRun begin", mySubCommRank_);
 
     buffInfo_ = templateDataParams.buffInfo;
-    uint64_t inputAddr          = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
-    uint64_t outputAddr         = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
+    sliceNum_ = xmlInfo.vecNormalInstruction.empty() ? sliceNum_
+                                                      : xmlInfo.vecNormalInstruction[0].sendRecvInfo.sliceNum;
 
-    uint64_t token;
-    CHK_RET(GetToken(buffInfo_, token));
-    uint64_t scratchAddr        = PointerToAddr(buffInfo_.hcclBuff.addr) + buffInfo_.hcclBuffBaseOff;
-    uint64_t sliceSize          = templateDataParams.sliceSize;
-    uint64_t inputSize          = templateDataParams.buffInfo.inputSize;
+    std::vector<uint64_t> taskArgs;
+    CHK_RET(BuildOmniTaskArgs(buffInfo_, syncIdx, templateDataParams.sendCounts, templateDataParams.recvCounts,
+        templateDataParams.sdispls, templateDataParams.rdispls, sendSliceData, recvSliceData, sendSdispls,
+        localSdispls, taskArgs));
 
-    LoopGroupConfig config{};
-    // config.msInterleave = CCU_MS_INTERLEAVE;
-    // config.loopCount = CCU_MS_DEFAULT_LOOP_COUNT;
-    // config.memSlice = CCU_MS_SIZE; // todo
+    auto argSize = taskArgs.size();
 
-    config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount    = CCU_MS_LOCAL_COPY_LOOP_COUNT;
-    config.memSlice     = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
-    auto goSize = CalGoSize(sliceSize, config);
-
-    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, scratchAddr, token, sliceSize, syncIdx, inputSize,
-                                       goSize[0], goSize[1], goSize[2], goSize[3]};
-    uint64_t argSize = 11;
-
-    HCCL_INFO("[CcuTempOmni] [KernelRun] rankid [%u] input[%llu] outputAddr[%llu] scratchAddr[%llu] token[%llu] sliceSize[%llu] syncIdx[%llu] inputSize[%llu]",
-            mySubCommRank_, inputAddr, outputAddr, scratchAddr, token, sliceSize, syncIdx, inputSize);
-
-    HCCL_INFO("templateResource.ccuKernels size %u", templateResource.ccuKernels.size());
-
-    // 下发两个ccu kernel
-    for(uint64_t dieIdx = 0; dieIdx < templateResource.ccuKernels.size(); dieIdx++) {
-
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[dieIdx], templateResource.ccuKernels[dieIdx],
-                                                    taskArgs.data(), argSize);
+    for (uint64_t dieIdx = 0; dieIdx < templateResource.ccuKernels.size(); dieIdx++) {
+        CcuResult launchRet = HcommCcuKernelLaunch(
+            templateResource.threads[dieIdx], templateResource.ccuKernels[dieIdx], taskArgs.data(), argSize);
 
         if (launchRet != CCU_SUCCESS) {
             HCCL_ERROR("[CcuTempOmni::KernelRun] kernel launch failed, ccuRet -> %d", launchRet);
@@ -345,9 +450,8 @@ HcclResult CcuTempOmni::KernelRun(const OpParam& param,
 
         CcuKernelSubmitInfo submitInfo;
         submitInfo.kernelHandle = templateResource.ccuKernels[dieIdx];
-        CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4],
-                           taskArgs[5], taskArgs[6], taskArgs[7], taskArgs[8], taskArgs[9],
-                           taskArgs[10], buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff));
+        CHK_RET(FillCachedArgs(submitInfo, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4], taskArgs[5],
+            taskArgs[6], taskArgs[7], taskArgs[8], argSize, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff));
         templateResource.submitInfos.push_back(submitInfo);
     }
 
@@ -368,34 +472,73 @@ u64 CcuTempOmni::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffTy
     return tempRankSize_;
 }
 
-HcclResult CcuTempOmni::FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx)
+HcclResult CcuTempOmni::FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx)
 {
     if (tempFastLaunchCtx.ccuKernelSubmitInfos.size() == 0) {
         HCCL_INFO("[CcuTempOmni::FastLaunch] ccu kernel num is 0, just success.");
         return HCCL_SUCCESS;
     }
     HCCL_DEBUG("[CcuTempOmni::FastLaunch] start");
-    uint64_t *args = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
 
-    uint64_t argSize = 11;
-    constexpr u32 inputIdx = 0;
-    constexpr u32 outputIdx = 1;
-    constexpr u32 inputOffsetIdx = 11;
-    constexpr u32 outputOffsetIdx = 12;
-    args[inputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
-    args[outputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
+    u32 rankSize = 0;
+    CHK_RET(HcclGetRankSize(static_cast<HcclComm>(param.hcclComm), &rankSize));
+    tempRankSize_ = rankSize;
 
-    HCCL_INFO("[CcuTempOmni] [FastLaunch] rankid [%u] input[%llu] outputAddr[%llu] scratchAddr[%llu] token[%llu] sliceSize[%llu] syncIdx[%llu] inputSize[%llu]",
-            mySubCommRank_, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    const uint64_t *cachedArgs = tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs;
+    constexpr u32 argSizeIdx = 9;
+    constexpr u32 inputOffsetIdx = 10;
+    constexpr u32 outputOffsetIdx = 11;
+    const uint64_t argSize = cachedArgs[argSizeIdx];
+    if (argSize < 9 + 4 * rankSize || (argSize - 9 - 4 * rankSize) % 9 != 0) {
+        HCCL_ERROR("[CcuTempOmni::FastLaunch] invalid cached argSize[%llu] rankSize[%u]", argSize, rankSize);
+        return HCCL_E_INTERNAL;
+    }
+    sliceNum_ = (argSize - 9 - 4 * rankSize) / 9;
 
+    const u64 *scPtr = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
+    const u64 *rcPtr = static_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
+    const u64 *sdPtr = static_cast<const u64 *>(param.all2AllVDataDes.sdispls);
+    const u64 *rdPtr = static_cast<const u64 *>(param.all2AllVDataDes.rdispls);
+
+    std::vector<u64> sendCounts(tempRankSize_, 0);
+    std::vector<u64> recvCounts(tempRankSize_, 0);
+    std::vector<u64> sdispls(tempRankSize_, 0);
+    std::vector<u64> rdispls(tempRankSize_, 0);
+    for (uint32_t i = 0; i < tempRankSize_; i++) {
+        sendCounts[i] = scPtr[i];
+        recvCounts[i] = rcPtr[i];
+        sdispls[i] = sdPtr[i];
+        rdispls[i] = rdPtr[i];
+    }
+
+    std::vector<u64> sendSliceData;
+    std::vector<u64> recvSliceData;
+    std::vector<u64> sendSdispls;
+    std::vector<u64> localSdispls;
+    CHK_RET(BuildOmniSliceMeta(param, tempRankSize_, sliceNum_, param.dataCount, sendSliceData, recvSliceData,
+        sendSdispls, localSdispls));
+
+    BuffInfo buffInfo = tempFastLaunchCtx.buffInfo;
+    buffInfo.inputPtr = param.inputPtr;
+    buffInfo.outputPtr = param.outputPtr;
+    buffInfo.hcclBuff = param.hcclBuff;
+    buffInfo.inBuffBaseOff = cachedArgs[inputOffsetIdx];
+    buffInfo.outBuffBaseOff = cachedArgs[outputOffsetIdx];
+
+    std::vector<uint64_t> taskArgs;
+    CHK_RET(BuildOmniTaskArgs(buffInfo, static_cast<uint32_t>(cachedArgs[4]), sendCounts, recvCounts, sdispls, rdispls,
+        sendSliceData, recvSliceData, sendSdispls, localSdispls, taskArgs));
+
+    HCCL_INFO("[CcuTempOmni][FastLaunch] rankid [%u] input[%llu] output[%llu] scratch[%llu] token[%llu] syncIdx[%llu] "
+              "argSize[%llu]",
+        mySubCommRank_, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4], taskArgs.size());
 
     for (u32 i = 0; i < tempFastLaunchCtx.ccuKernelSubmitInfos.size(); i++) {
-        void *taskArgs = reinterpret_cast<void*>(args);
-        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[i],
-                                                tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle,
-                                                taskArgs, argSize);
+        CcuResult launchRet = HcommCcuKernelLaunch(
+            tempFastLaunchCtx.threads[i], tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle, taskArgs.data(),
+            taskArgs.size());
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllGatherMesh1D::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
+            HCCL_ERROR("[CcuTempOmni::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);
         }
     }

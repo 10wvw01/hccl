@@ -148,7 +148,7 @@ HcclResult CheckOmniRunInputPara(const HcclComm comm, const void *sendBuf, const
 HcclResult OmniRunConstructOpParam(const void *sendBuf, const void *sendCounts, const void *sdispls,
     const void *recvBuf, const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm,
     aclrtStream stream, const std::string &tag, HcclCMDType opType, u32 rankSize, OpMode opMode, u64 varMemSize,
-    OpParam &param, const char *xmlPath)
+    OpParam &param, const char *xmlPath, u32 omniDataCount)
 {
     CHK_RET(HcclGetCommName(comm, param.commName));
     param.stream = stream;
@@ -166,6 +166,7 @@ HcclResult OmniRunConstructOpParam(const void *sendBuf, const void *sendCounts, 
     param.inputPtr = const_cast<void *>(sendBuf);
     param.outputPtr = const_cast<void *>(recvBuf);
     param.varMemSize = varMemSize;
+    param.dataCount = omniDataCount;
     param.all2AllVDataDes.sendType = dataType;
     param.all2AllVDataDes.recvType = dataType;
 
@@ -211,7 +212,7 @@ namespace ops_hccl {
 HcclResult OmniRunOutPlaceCommon(const void *sendBuf, const void *sendCounts, const void *sdispls, const void *recvBuf,
     const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, OpMode opMode, const ResPackGraphMode &resPack,
-    const char *xmlPath)
+    const char *xmlPath, u32 omniDataCount)
 {
     u64 varMemSize = ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
     void *paramMem = malloc(sizeof(OpParam) + varMemSize);
@@ -232,7 +233,7 @@ HcclResult OmniRunOutPlaceCommon(const void *sendBuf, const void *sendCounts, co
     HCCL_ERROR("[OmniRunOutPlaceCommon] varMemSize [%llu] size [%llu]", varMemSize, sizeof(OpParam) + varMemSize);
 
     CHK_RET(OmniRunConstructOpParam(sendBuf, sendCounts, sdispls, recvBuf, recvCounts, rdispls, dataType, comm, stream,
-        tag, opType, rankSize, opMode, varMemSize, param, xmlPath));
+        tag, opType, rankSize, opMode, varMemSize, param, xmlPath, omniDataCount));
 
     CHK_RET(HcclGetOpExpansionMode(comm, param));
 
@@ -274,8 +275,9 @@ HcclResult OmniRunOutPlaceCommon(const void *sendBuf, const void *sendCounts, co
 // ---------------------------------------------------------------------------
 // HcclOmniRun: C API entry point (extern "C" for dlsym/dlopen resolution)
 // ---------------------------------------------------------------------------
-extern "C" HcclResult HcclOmniRun(const void *sendBuf, const void *recvBuf, HcclDataType sendType, HcclDataType recvType,
-    const char *xmlPath, const void *opParam, uint64_t opParamSize, HcclComm comm, aclrtStream stream)
+extern "C" HcclResult HcclOmniRun(const void *sendBuf, const void *recvBuf, HcclDataType sendType,
+    HcclDataType recvType, const char *xmlPath, const void *opParam, uint64_t opParamSize, HcclComm comm,
+    aclrtStream stream)
 {
     // Validate opParam blob
     if (opParam == nullptr || opParamSize < OP_PARAM_BLOB_SIZE) {
@@ -343,9 +345,9 @@ extern "C" HcclResult HcclOmniRun(const void *sendBuf, const void *recvBuf, Hccl
     CHK_RET(CheckDataType(recvType, false));
 
     // Execute via dedicated OmniRun flow (not AlltoAllVOutPlaceCommon)
-    CHK_RET_AND_PRINT_IDE(
-        ops_hccl::OmniRunOutPlaceCommon(sendBuf, sendCounts, sdisplsPtr, recvBuf, recvCounts, rdisplsPtr, recvType,
-            comm, stream, tag, HcclCMDType::HCCL_CMD_ALLTOALLV, rankSize, OpMode::OPBASE, ResPackGraphMode(), xmlPath),
+    CHK_RET_AND_PRINT_IDE(ops_hccl::OmniRunOutPlaceCommon(sendBuf, sendCounts, sdisplsPtr, recvBuf, recvCounts,
+                              rdisplsPtr, recvType, comm, stream, tag, HcclCMDType::HCCL_CMD_ALLTOALLV, rankSize,
+                              OpMode::OPBASE, ResPackGraphMode(), xmlPath, blob->dataCount),
         tag.c_str());
 
     CHK_RET(LogHcclExit("HcclOmniRun", tag.c_str(), startut));
