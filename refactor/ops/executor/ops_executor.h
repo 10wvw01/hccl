@@ -64,9 +64,9 @@ protected:
 
     // 拓扑分级信息
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
-    // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
-    std::vector<u32> subRankSize_;
-    std::vector<u32> subRankIdx_;
+    // // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
+    // std::vector<u32> subRankSize_;//确认
+    // std::vector<u32> subRankIdx_;
 
     // 资源信息
     // [Buffer资源]
@@ -79,7 +79,9 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
+
+    std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
     std::vector<u32> maxSlaveThreadNum_;
     std::vector<u32> maxNotifyNumOnMainThread_;
@@ -118,9 +120,6 @@ struct BufferInfo {
     Buffer inputBuffer;
     Buffer outputBuffer;
     Buffer cclBuffer;
-
-    // cclBuffer统一用ptr和size来描述，template里面也是用这些参数，不使用HcclMem
-    // 删除冗余maxTmpMemSize_参数
 };
 
 struct Buffer {
@@ -134,45 +133,8 @@ struct DataInfo {
     u64 inputSize = 0;
     void *outputPtr = nullptr;
     u64 outputSize = 0;
-    DataDesUnion dataDesUnion;
+    HcclDataType dataType;
     HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
-};
-
-union DataDesUnion {
-    struct {
-        u64 count;
-        HcclDataType dataType;
-        HcclDataType outputType;
-        u64 strideCount;
-    } DataDes = {0, HCCL_DATA_TYPE_RESERVED, HCCL_DATA_TYPE_RESERVED, 0};
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        u64 sendCount;
-        u64 recvCount;
-    } all2AllDataDes;
-    struct {
-        void *counts;
-        void *displs;
-        HcclDataType dataType;
-    } vDataDes;
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        void *sendCounts;
-        void *recvCounts;
-        void *sdispls;
-        void *rdispls; // 指向变长区指针
-    } all2AllVDataDes;
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        void *sendCountMatrix;
-    } all2AllVCDataDes;
-    struct {
-        HcclSendRecvItem *sendRecvItemsPtr;
-        u32 itemNum;
-    } batchSendRecvDataDes;
 };
 
 enum class TemplateDataSliceMode {
@@ -214,9 +176,9 @@ struct TemplateDataParam {
     bool enableRemoteMemAccess{false};
 
     std::vector<u32> ranksForInputData;
-    TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
-    // Per-rank element counts in ranks/algRank order. Empty for fixed-count mode.
-    std::vector<u64> rankSliceCounts;
+    // TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
+    // // Per-rank element counts in ranks/algRank order. Empty for fixed-count mode.
+    // std::vector<u64> rankSliceCounts;
 
     // TODO：变长
 };

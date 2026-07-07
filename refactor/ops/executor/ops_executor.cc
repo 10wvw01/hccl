@@ -12,10 +12,18 @@ OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
     dataInfo_.outputPtr = param.outputPtr;
     dataInfo_.outputSize = param.outputSize;
     dataInfo_.reduceOp = param.reduceOp;
-    // TODO：把param中union的结构体复制到dataInfo中
+    // TODO: DataDesUnion赋值
 
     dataTypeSize_ = DATATYPE_SIZE_TABLE[baseOpParam.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
+    opMode_ = param.opMode;
+
+    bufferInfo_.inputBuffer.ptr = inputPtr;
+    bufferInfo_.inputBuffer.size = inputSize;
+    bufferInfo_.inputBuffer.bufferType = BufferType::INPUT;
+    bufferInfo_.outputBuffer.ptr = outputPtr;
+    bufferInfo_.outputBuffer.size = outputSize;
+    bufferInfo_.outputBuffer.bufferType = BufferType::OUTPUT;
 }
 
 OpsExecutor::~OpsExecutor()
@@ -63,9 +71,9 @@ HcclResult OpsExecutor::Orchestrate(const OpsExecutorParam &baseExecutorParam,
 HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
 {
     bufferInfo_.cclBuffer = Buffer;
-    resCtx.cclMem.addr;
-    resCtx.cclMem.size;
-    BufferType::HCCL_BUFFER;
+    bufferInfo_.cclBuffer.ptr = resCtx.cclMem.addr;
+    bufferInfo_.cclBuffer.size = resCtx.cclMem.size;
+    bufferInfo_.cclBuffer.buffetType = BufferType::HCCL_BUFFER;
 
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
@@ -211,6 +219,7 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes, 
     } else {
         childrenRankSizeForOutputData = childrenRankSizeForInputData / templateRanks.size();
     }
+    requestChannels_.at(subCommIndex) = tempRequest.channels.at(0);
     return HCCL_SUCCESS;
 }
 
@@ -252,6 +261,7 @@ HcclResult OpsExecutor::CalcRes(AlgResourceRequest &resourceRequest)
         subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
         subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
         scratchMultiple += maxSubScratchMutiple_.at(subCommIndex);
+        resourceRequest.channels.emplace_back(requestChannels.at(subCommIndex));
     }
     scratchMultiple_ = std::ceil(scratchMultiple);
     return HCCL_SUCCESS;
@@ -289,7 +299,7 @@ inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable 
     templateDataParams.buffInfo.inBuffType = algoExecDataDesc.inputBufferType;
     templateDataParams.buffInfo.outBuffType = algoExecDataDesc.outputBufferType;
     templateDataParams.buffInfo.hcclBuffType = algoExecDataDesc.cclBufferType;
-    templateDataParams.dataType = dataInfo_.dataDesUnion.dataType;
+    templateDataParams.dataType = dataInfo_.dataType;
     templateDataParams.sliceCount = algoExecDataDesc.dataCount;
     // todo 待支持tailcount
     templateDataParams.tailCount = algoExecDataDesc.dataCount;
@@ -309,12 +319,6 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     childrenAlgoExecDataDesc.at(childrenId) = algoExecDataDesc;
     // 根据algoExecDesc中的数据切分比例切分
     childrenAlgoExecDataDesc.at(childrenId).dataOffset
-        = childrenId == 0 ? algoExecDataDesc.scratchOffset
-                          : (childrenAlgoExecDataDesc.at(childrenId - 1).scratchOffset
-                                + std::ceil(childrenAlgoExecDataDesc.at(childrenId - 1).dataCount
-                                            * childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputData.size()
-                                            * dataTypeSize_ * childrenScratchMutiple.at(childrenId - 1)));
-    childrenAlgoExecDataDesc.at(childrenId).dataOffset
         = childrenId == 0
               ? algoExecDataDesc.dataOffset
               : (childrenAlgoExecDataDesc.at(childrenId - 1).dataOffset
@@ -328,6 +332,13 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
         }
     }
     childrenAlgoExecDataDesc.at(childrenId).dataCount = dataCount;
+
+    childrenAlgoExecDataDesc.at(childrenId).scratchOffset
+        = childrenId == 0 ? algoExecDataDesc.scratchOffset
+                          : (childrenAlgoExecDataDesc.at(childrenId - 1).scratchOffset
+                                + std::ceil(childrenAlgoExecDataDesc.at(childrenId - 1).dataCount
+                                            * childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputData.size()
+                                            * dataTypeSize_ * childrenScratchMutiple.at(childrenId - 1)));
     return;
 }
 
