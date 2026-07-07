@@ -67,6 +67,21 @@ public:
      */
     HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) override;
 
+    
+    /**
+     * AICUP引擎数据传输接口。
+     * 工作流程：
+     *   1. 解析 ctx 中的channel信息和数据信息；
+     *   2. 根据入参选择发送方式（write\read）\reduce；
+     *   3. 将数据发送到目的地址。
+     * 输入参数：
+     *   - ctx: 发送数据上下文
+     * 返回值：
+     *   - status: 数据发送成功or失败
+     *   - bytesTransferred: 数据发送字节数
+     */
+    HcclResult Send(const TransferContext &ctx) override;
+
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;

@@ -13,10 +13,12 @@
 
 #include "hccl/base.h"
 #include "alg_param.h"
+#include "transfer.h"
 
 namespace ops_hccl {
 
 class OpsExecutor;
+
 
 /**
  * 引擎 Launcher 基类
@@ -42,7 +44,7 @@ public:
      *   - res: 资源请求，由 OpsExecutor::CalcRes 生成，包含每层级的资源需求
      * 返回值：
      *   - HCCL_SUCCESS: 资源创建成功
-     *   - HCCL_E_INTERNAL: 资源创建失败
+     *   - : 资源创建失败
      */
     virtual HcclResult CreateRes(AlgResourceRequest &res) = 0;
 
@@ -51,7 +53,7 @@ public:
      * 工作流程：
      *   1. 准备执行环境（加载 kernel 二进制、初始化 thread）；
      *   2. 调用 executor.Orchestrate 驱动算法模板编排；
-     *   3. 等待设备侧执行完成并上报 profiling。
+     *   3. 等待设备侧执HCCL_E_INTERNAL行完成并上报 profiling。
      * 输入参数：
      *   - param: 算子参数，包含 commName、tag、opType、数据描述等
      *   - executor: 执行器引用，提供 Orchestrate 接口
@@ -60,6 +62,20 @@ public:
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
     virtual HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) = 0;
+
+    /**
+     * 数据传输统一接口。
+     * 工作流程：
+     *   1. 解析 ctx 中的channel信息和数据信息；
+     *   2. 根据入参选择发送方式（write\read）\reduce；
+     *   3. 将数据发送到目的地址。
+     * 输入参数：
+     *   - ctx: 发送数据上下文
+     * 返回值：
+     *   - HCCL_SUCCESS: 数据发送成功
+     *   - HCCL_E_INTERNAL: 数据发送失败
+     */
+    virtual HcclResult Send(const TransferContext &ctx) = 0;
 };
 
 }  // namespace ops_hccl
