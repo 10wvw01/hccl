@@ -83,10 +83,10 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
             HCCL_DEBUG("[AllGatherAutoSelector] Level0Shape::MESH_1D_CLOS in large data scene is not supported for ccu_ms mode, reset to default.");
             return SelectorStatus::NOT_MATCH;
         } else {
-                selectAlgName = "CcuAllGatherMesh1D";
-                return SelectorStatus::MATCH;
-            }
-        } else {
+            selectAlgName = "CcuAllGatherMesh1D";
+            return SelectorStatus::MATCH;
+        }
+    } else {
         HCCL_DEBUG("[AllGatherAutoSelector] Level0Topo[%u] is not supported for ccu_ms mode, reset to default.", topoInfo->level0Topo);
         return SelectorStatus::NOT_MATCH;
     }
