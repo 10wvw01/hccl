@@ -29,13 +29,16 @@ private:
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
     inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
-        u32 childrenId, std::vector<float> childrenScratchMutiple,
-        std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+        u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+    // 聚合子节点执行结果到当前节点：scratchSize按策略聚合（PARALLEL求和，SEQUENCE取最大），
+    // 输出ranks直接取最后一个子节点的输出ranks
+    inline void MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
+        const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
     // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
-    HcclResult RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
-        AlgoExecDataDesc &algoExecDataDesc, float &scratchMutiple);
+    HcclResult RunTemplateDesc(
+        const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
 
 protected:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
@@ -79,7 +82,7 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
@@ -151,7 +154,7 @@ union DataDesUnion {
     } all2AllDataDes;
     struct {
         void *counts;
-        void *displs;//带v的数据偏移
+        void *displs; // 带v的数据偏移
         HcclDataType dataType;
     } vDataDes;
     struct {
@@ -173,19 +176,13 @@ union DataDesUnion {
     } batchSendRecvDataDes;
 };
 
-enum class TemplateDataSliceMode {
-    NORMAL_FIXED,
-    VARIABLE_COUNT,
-};
-
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
     u64 dataCount{0};
     u64 scratchOffset{0};
+    u64 scratchSize(0); // 输出参数，调用完了才知道
     std::vector<u32> ranksForInputData;
-    std::vector<u32> ranksForOutputData;
-    TemplateDataSliceMode sliceMode{TemplateDataSliceMode::NORMAL_FIXED};
-    std::vector<u64> rankSliceCounts;
+    std::vector<u32> ranksForOutputData; // 输出参数，调用完了才知道
     BufferType inputBufferType{BufferType::INPUT};
     BufferType outputBufferType{BufferType::OUTPUT};
     BufferType cclBufferType{BufferType::HCCL_BUFFER};

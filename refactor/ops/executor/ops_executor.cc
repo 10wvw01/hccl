@@ -312,18 +312,12 @@ inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable 
 }
 
 inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
-    u32 childrenId, std::vector<float> childrenScratchMutiple, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
+    u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
     u32 dataSplitRatioSum = std::accumulate(algoExecDesc.dataSplitRatio.begin(), algoExecDesc.dataSplitRatio.end(), 0);
     childrenAlgoExecDataDesc.at(childrenId) = algoExecDataDesc;
     // 根据algoExecDesc中的数据切分比例切分
-    childrenAlgoExecDataDesc.at(childrenId).dataOffset
-        = childrenId == 0 ? algoExecDataDesc.scratchOffset
-                          : (childrenAlgoExecDataDesc.at(childrenId - 1).scratchOffset
-                                + std::ceil(childrenAlgoExecDataDesc.at(childrenId - 1).dataCount
-                                            * childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputData.size()
-                                            * dataTypeSize_ * childrenScratchMutiple.at(childrenId - 1)));
     childrenAlgoExecDataDesc.at(childrenId).dataOffset
         = childrenId == 0
               ? algoExecDataDesc.dataOffset
@@ -338,6 +332,10 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
         }
     }
     childrenAlgoExecDataDesc.at(childrenId).dataCount = dataCount;
+    childrenAlgoExecDataDesc.at(childrenId).scratchOffset
+        = childrenId == 0 ? algoExecDataDesc.scratchOffset
+                          : (childrenAlgoExecDataDesc.at(childrenId - 1).scratchOffset
+                                + childrenAlgoExecDataDesc.at(childrenId - 1).scratchSize);
     return;
 }
 
@@ -359,8 +357,25 @@ inline void OpsExecutor::UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, Alg
     return;
 }
 
-HcclResult OpsExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes,
-    AlgoExecDataDesc &algoExecDataDesc, float &scratchMutiple)
+inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
+    const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc)
+{
+    u64 scratchSize = 0;
+    if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE) {
+        for (const auto &child : childrenAlgoExecDataDesc) {
+            scratchSize = max(scratchSize, child.scratchSize);
+        }
+    } else {
+        for (const auto &child : childrenAlgoExecDataDesc) {
+            scratchSize += child.scratchSize;
+        }
+    }
+    algoExecDataDesc.scratchSize = scratchSize;
+    algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.back().ranksForOutputData;
+}
+
+HcclResult OpsExecutor::RunTemplateDesc(
+    const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
     std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
@@ -373,7 +388,9 @@ HcclResult OpsExecutor::RunTemplateDesc(const AlgResourceCtxSerializable &resCtx
     std::vector<u32> ranksForOutputData;
     CHK_RET(baseTemplate.KernelRun(templateDataParams, templateResource, ranksForOutputData));
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
-    scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
+    float scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
+    algoExecDataDesc.scratchSize = std::ceil(
+        algoExecDataDesc.dataCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple);
 }
 
 HcclResult OpsExecutor::OrchestrateLoop(
@@ -381,25 +398,21 @@ HcclResult OpsExecutor::OrchestrateLoop(
 {
     size_t childrenSize = algoExecDesc.children.size();
     std::vector<AlgoExecDataDesc> childrenAlgoExecDataDesc;
-    std::vector<float> childrenScratchMutiple;
     childrenAlgoExecDataDesc.resize(childrenSize);
-    childrenScratchMutiple.resize(childrenSize);
     for (size_t i = 0; i < childrenSize; ++i) {
         // 如果是串行需要开始前同步
         if (algoExecDesc.execPolicy == ExecPolicy::SEQUENCE && childrenSize > 1) {
             CHK_RET(PreSyncBySubCommMask(algoExecDesc));
         }
         if (algoExecDesc.execPolicy == ExecPolicy::PARALLEL) {
-            UpdateDataSplitParallel(
-                algoExecDesc, algoExecDataDesc, i, childrenScratchMutiple, childrenAlgoExecDataDesc);
+            UpdateDataSplitParallel(algoExecDesc, algoExecDataDesc, i, childrenAlgoExecDataDesc);
         } else {
             UpdateDataSplitSequence(algoExecDesc, algoExecDataDesc, i, childrenAlgoExecDataDesc);
         }
         VariantType &v = algoExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-            CHK_RET(
-                RunTemplateDesc(resCtx, templateExeDes, childrenAlgoExecDataDesc.at(i), childrenScratchMutiple.at(i)));
+            CHK_RET(RunTemplateDesc(resCtx, templateExeDes, childrenAlgoExecDataDesc.at(i)));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
@@ -413,7 +426,7 @@ HcclResult OpsExecutor::OrchestrateLoop(
         }
     }
     // 整个执行器的数据输出直接用最后一个子节点的执行器的数据输出
-    algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.at(childrenSize - 1).ranksForOutputData;
+    MergeChildrenOutput(algoExecDesc, childrenAlgoExecDataDesc, algoExecDataDesc);
     return HCCL_SUCCESS;
 }
 } // namespace ops_hccl
