@@ -9,9 +9,11 @@
 # -----------------------------------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16.0)
+set(HCCL_DEV_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
+include(${HCCL_DEV_BASE}/cmake/fetch_cann_cmake.cmake)
 project(hccl_checker_ops_stest)
 set(TOP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
-set(HCCL_DEV_BASE ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
+
 
 enable_testing()
 
@@ -57,7 +59,7 @@ endif()
 
 # 下载并编译gtest
 set(CANN_3RD_LIB_PATH ${HCCL_DEV_BASE}/third_party)
-include(${HCCL_DEV_BASE}/cmake/third_party/gtest.cmake)
+add_cann_third_party(gtest)
 
 add_subdirectory(testcase)
 add_subdirectory(utils)
