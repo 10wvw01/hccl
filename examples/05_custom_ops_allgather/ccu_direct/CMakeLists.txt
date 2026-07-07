@@ -74,6 +74,7 @@ target_link_libraries(custom_allgather_ccu PRIVATE
     c_sec
     ascendcl
     acl_rt
+    ascendc_runtime
 )
 
 add_custom_target(run_custom_allgather_ccu

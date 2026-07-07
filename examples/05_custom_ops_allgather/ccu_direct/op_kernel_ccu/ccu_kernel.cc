@@ -215,6 +215,10 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
         }
     }
 
+    // Todo: 等待AICORE 发通知
+    ccu::Array<ccu::Event> events(ctx.arg->eventHandle, ctx.arg->eventNum);
+    ccu::EventWait(events[0]);
+
     // 2.加载参数
     uint32_t argId = 0;
     CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
@@ -227,6 +231,20 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(ccu::LoadArg(ctx.goSize.loopParam, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.goSize.parallelParam, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.goSize.residual, argId++));
+
+    // Todo: 读取aicore中设置的taskargs
+    // ccu::Array<ccu::Variable> vars(ctx.arg->varHandle, ctx.arg->varNum);
+    // ctx.input = vars[0];
+    // ctx.output[ctx.arg->rankId] = vars[1];
+    // ctx.token[ctx.arg->rankId] = vars[2];
+    // ctx.currentRankSliceInputOffset = vars[3];
+    // ctx.currentRankSliceOutputOffset = vars[4];
+    // ctx.sliceSize = vars[5];
+    // ctx.goSize.addrOffset = vars[6];
+    // ctx.goSize.loopParam = vars[7];
+    // ctx.goSize.parallelParam = vars[8];
+    // ctx.goSize.residual = vars[9];
+
 
     // 3.前同步
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
@@ -251,6 +269,9 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID)); // 等待远端卡数据搬运完成
     }
+
+    // Todo: 通知AICORE CCU通信已完成
+    ccu::EventRecord(events[1]);
 
     return CcuResult::CCU_SUCCESS;
 }

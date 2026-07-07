@@ -10,6 +10,7 @@
 
 #include <string>
 #include <vector>
+#include <hccl/hccl_diag.h>
 #include "log.h"
 #include "common.h"
 #include "ccu_kernel.h"
@@ -45,9 +46,13 @@ HcclResult GetDeviceType(DeviceType *deviceType) {
 
 HcclResult GetThreadForCcu(HcclComm comm, const OpParam &param, AlgResourceCtxSerializable &resCtxHost) {
     // 只考虑threadNum = 1场景
+    uint32_t threadNum = 1;
     ThreadHandle thread;
-    CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream,
-        resCtxHost.notifyNumOnMainThread, &thread)); // host模式下，将主流封装为thread，并创建主流上的notify
+    // CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream,
+    //     resCtxHost.notifyNumOnMainThread, &thread)); // host模式下，将主流封装为thread，并创建主流上的notify
+    // 调整thread获取方法，不绑定主流，一旦绑定会导致stream 串行执行
+    CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, resCtxHost.notifyNumOnMainThread, &thread));
+
     resCtxHost.threads.push_back(thread);
     return HCCL_SUCCESS;
 }
@@ -55,6 +60,15 @@ HcclResult GetThreadForCcu(HcclComm comm, const OpParam &param, AlgResourceCtxSe
 HcclResult GetChannelForCcu(HcclComm comm, const OpParam &param, std::vector<ChannelHandle> &kernelChannels) {
     uint32_t channelNum = param.rankSize - 1;
     kernelChannels.resize(channelNum);
+
+    // 增加dfx信息
+    HcclDfxOpInfo hcclDfxOpInfo{};
+    hcclDfxOpInfo.inputMemAddr = reinterpret_cast<uint64_t>(param.inputPtr);
+    hcclDfxOpInfo.inputMemSize = param.inputSize;
+    hcclDfxOpInfo.outputMemAddr = reinterpret_cast<uint64_t>(param.outputPtr);
+    hcclDfxOpInfo.outputMemSize = param.outputSize;
+
+    CHK_RET(HcclDfxRegOpInfoByCommId(const_cast<char*>(param.commName), reinterpret_cast<void*>(&hcclDfxOpInfo)));
 
     uint32_t channelIndex = 0;
     for(uint32_t remoteRank = 0; remoteRank < param.rankSize; remoteRank++) {
@@ -168,7 +182,6 @@ HcclResult AllocAlgResource(HcclComm comm, const OpParam &param, AlgResourceCtxS
     uint64_t cclBufferSize;
     CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &cclBufferSize)); // 从通信域获取CCL buffer
     resCtxHost.cclMem = CommBuffer{cclBufferAddr, cclBufferSize};
-    uint32_t threadNum = 1; // 需要一条流
     resCtxHost.notifyNumOnMainThread = 0;
 
     CHK_RET(GetThreadForCcu(comm, param, resCtxHost)); // 申请流资源
