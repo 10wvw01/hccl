@@ -77,8 +77,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 
-    rootx = param.root % rankSizeLevel0_;
-    rooty = param.root / rankSizeLevel0_;
+    u64 rootx = param.root % rankSizeLevel0_;
+    u64 rooty = param.root / rankSizeLevel0_;
 
     bool isRoot = (myRank_ == param.root);
     isSameYAxisAsRoot = (rankIdxLevel0_ == rootx && !isRoot); // 同x，走NHR
@@ -170,7 +170,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     CHK_RET(gAlgTempLevelX.CalcRes(comm, param, topoInfo, resGReqLevelX));
     AlgResourceRequest resGReqLevelY;
     CHK_RET(gAlgTempLevelY.CalcRes(comm, param, topoInfo, resGReqLevelY));
-    gAlgTempLevelY.SetRoot(rooty * rankSizeLevel0_ + rankIdxLevel1_);
+    gAlgTempLevelY.SetRoot(param.root);
 
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelX, resourceRequest, 0));
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelY, resourceRequest, 1));
@@ -214,8 +214,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
 
-    rootx = param.root % rankSizeLevel0_;
-    rooty = param.root / rankSizeLevel0_;
+    u64 rootx = param.root % rankSizeLevel0_;
+    u64 rooty = param.root / rankSizeLevel0_;
     bool isRoot = (myRank_ == param.root);
     isSameYAxisAsRoot = (rankIdxLevel0_ == rootx && !isRoot);
     isSameXAxisAsRoot = (rankIdxLevel1_ == rooty && !isRoot);
@@ -325,8 +325,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	CcuRsAlgTemplateY rsAlgTempY(param, myRank_, subCommRanks1);
     CcuGAlgTemplateX gAlgTempX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempY(param, myRank_, subCommRanks1);
-    gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx);
-    gAlgTempY.SetRoot(rooty * rankSizeLevel0_ + rankIdxLevel1_);
+    gAlgTempX.SetRoot(param.root);
+    gAlgTempY.SetRoot(param.root);
 
     // levelThreads_.resize(CCU_OMNIPIPE_LEVEL_NUM);
     // levelThreads_[CCU_OMNIPIPE_LEVEL0].push_back(threads_[0]);
@@ -504,8 +504,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-            gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx);
-            gAlgTempY.SetRoot(rooty * rankSizeLevel0_ + rankIdxLevel1_);
+            gAlgTempX.SetRoot(myRank_);
+            gAlgTempY.SetRoot(myRank_);
             if (i == 0) { // 第一步
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -572,7 +572,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             std::vector<u32> notifyIdxesMainToSub{0};
             std::vector<u32> notifyIdxesSubToMain{0};
             u64 rankOffset = 0;
-            u64 loopOffset = 0;
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             for (u32 i = 0; i < rankSize_; i++) {
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCount);
@@ -596,12 +595,11 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 }
 
                 // HCCL_DEBUG("[%s] tempAlgParamLocalCopyxx.buffInfo.inputPtr[%u] ",&(param.inputPtr));
-                HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] loopOffset[%lu]", __func__,
+                HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu]", __func__,
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff,
-                tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, loopOffset);
+                tempAlgParamLocalCopy.sliceSize, processedDataCount);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
-                loopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;
             }
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
                 
