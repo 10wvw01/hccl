@@ -364,6 +364,16 @@ static ccu::Variable GetallAddrBySliceType(OmniContext &ctx, omni::BufferTypeTmp
     return tmpAddr;
 }
 
+static ccu::Variable GetallAddrBySliceTypeWithLoopOffset(OmniContext &ctx, omni::BufferTypeTmp sliceType,
+    uint32_t rankIdx, uint64_t sliceIdx, ccu::Variable loopNum, ccu::Variable loopNumTmp,
+    ccu::Variable xnMaxTransportSize, const std::vector<ccu::Variable> &sendSdispls,
+    const std::vector<ccu::Variable> &localSdispls)
+{
+    ccu::Variable addr = GetallAddrBySliceType(ctx, sliceType, rankIdx, sliceIdx, sendSdispls, localSdispls);
+    addr = addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+    return addr;
+}
+
 static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalInfo)
 {
     HCCL_DEBUG("groupCopy  begin rank id %u", ctx.arg->rankId);
@@ -376,7 +386,8 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
         HCCL_WARNING("[DoRepeatOmni] srd and dst num should be same");
     }
 
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
 
     for (uint32_t i = 0; i < signalInfo.srcSliceInfo.size(); i++) {
         HCCL_DEBUG("localcopy rank id %u, remoteRank is %u, src sliceIdx is %u, dst sliceIdx is %u", ctx.arg->rankId,
@@ -385,19 +396,15 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
 
         ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[i].sliceIdx].loopNum;
         ccu::Variable loopNumTmp = loopNum;
-        uint64_t loopIdx = 0;
         CCU_WHILE(loopNum != UINT64_MAX)
         {
-            myInput.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
+            myInput.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
-            myOutput.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-
-            myInput.addr = myInput.addr + loopIdx * UB_MAX_TRANS_SIZE;
-            myOutput.addr = myOutput.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            myOutput.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
             CCU_IF(loopNum == UINT64_MAX - 1)
             {
@@ -414,7 +421,6 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
             }
 
             loopNum += ctx.constVar1;
-            loopIdx++;
         }
     }
 
@@ -437,7 +443,7 @@ static CcuResult DoOpLocalReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
         ccu::LocalAddr tmpInput;
         tmpInput.token = ctx.token[ctx.rankId2Idx[sliceInfo.remoteRank]];
 
-        tmpInput = GetallAddrBySliceType(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
+        tmpInput.addr = GetallAddrBySliceType(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
             sliceInfo.sliceIdx, ctx.sendSdispls, ctx.localSdispls);
 
         myInput.push_back(tmpInput);
@@ -456,7 +462,8 @@ static CcuResult DoOpLocalReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
 
 static CcuResult DoOpWriteNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo)
 {
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     for (uint32_t i = 0; i < signalInfo.srcSliceInfo.size(); i++) {
         ccu::RemoteAddr remoteDst;
         ccu::LocalAddr src;
@@ -469,15 +476,12 @@ static CcuResult DoOpWriteNb(OmniContext &ctx, const OmniSendRecvInfo &signalInf
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
         CCU_WHILE(loopNum != UINT64_MAX)
         {
-            src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-            remoteDst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-
-            src.addr = src.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
-            remoteDst.addr = remoteDst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            src.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
+            remoteDst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
             CCU_IF(loopNum == UINT64_MAX - 1)
             {
@@ -510,7 +514,8 @@ static CcuResult DoOpWriteNb(OmniContext &ctx, const OmniSendRecvInfo &signalInf
 static CcuResult DoOpWriteReduceNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo)
 {
     HCCL_DEBUG("WriteReduceNb  begin rank id %u", ctx.arg->rankId);
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     for (uint32_t i = 0; i < signalInfo.srcSliceInfo.size(); i++) {
         ccu::RemoteAddr remoteDst;
         ccu::LocalAddr src;
@@ -523,15 +528,12 @@ static CcuResult DoOpWriteReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sig
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
         CCU_WHILE(loopNum != UINT64_MAX)
         {
-            src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-            remoteDst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-
-            src.addr = src.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
-            remoteDst.addr = remoteDst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            src.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
+            remoteDst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
             CCU_IF(loopNum == UINT64_MAX - 1)
             {
@@ -564,7 +566,8 @@ static CcuResult DoOpWriteReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sig
 static CcuResult DoOpReadNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo)
 {
     HCCL_DEBUG("ReadNb  begin rank id %u", ctx.arg->rankId);
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     for (uint32_t i = 0; i < signalInfo.srcSliceInfo.size(); i++) {
         ccu::RemoteAddr remoteDst;
         ccu::LocalAddr src;
@@ -577,15 +580,12 @@ static CcuResult DoOpReadNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
         CCU_WHILE(loopNum != UINT64_MAX)
         {
-            src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-            remoteDst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-
-            src.addr = src.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
-            remoteDst.addr = remoteDst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            src.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
+            remoteDst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
             CCU_IF(loopNum == UINT64_MAX - 1)
             {
@@ -615,7 +615,8 @@ static CcuResult DoOpReadNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo
 static CcuResult DoOpReadReduceNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo)
 {
     HCCL_DEBUG("ReadReduceNb  begin rank id %u", ctx.arg->rankId);
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     for (uint32_t i = 0; i < signalInfo.srcSliceInfo.size(); i++) {
         ccu::RemoteAddr remoteDst;
         ccu::LocalAddr src;
@@ -628,15 +629,12 @@ static CcuResult DoOpReadReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sign
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
         CCU_WHILE(loopNum != UINT64_MAX)
         {
-            src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-            remoteDst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[i].sliceType,
-                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
-                ctx.sendSdispls, ctx.localSdispls);
-
-            src.addr = src.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
-            remoteDst.addr = remoteDst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            src.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
+            remoteDst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[i].sliceType,
+                ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx, loopNum,
+                loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
             CCU_IF(loopNum == UINT64_MAX - 1)
             {
@@ -675,7 +673,8 @@ static CcuResult DoOpGroupBroadcast(OmniContext &ctx, const OmniSendRecvInfo &si
         return CCU_SUCCESS;
     }
 
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     GroupOpSizeVars fullGoSize = ctx.goSize;
     ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[0].sliceIdx].loopNum;
     ccu::Variable loopNumTmp = loopNum;
@@ -683,10 +682,9 @@ static CcuResult DoOpGroupBroadcast(OmniContext &ctx, const OmniSendRecvInfo &si
     {
         ccu::LocalAddr src;
         src.token = ctx.token[ctx.rankId2Idx[signalInfo.srcSliceInfo[0].remoteRank]];
-        src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[0].sliceType,
-            ctx.rankId2Idx[signalInfo.srcSliceInfo[0].remoteRank], signalInfo.srcSliceInfo[0].sliceIdx, ctx.sendSdispls,
-            ctx.localSdispls);
-        src.addr = src.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+        src.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[0].sliceType,
+            ctx.rankId2Idx[signalInfo.srcSliceInfo[0].remoteRank], signalInfo.srcSliceInfo[0].sliceIdx, loopNum,
+            loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
         std::vector<ccu::RemoteAddr> dst;
         ChannelHandle channels[CCU_MAX_RANK_SIZE];
@@ -694,18 +692,18 @@ static CcuResult DoOpGroupBroadcast(OmniContext &ctx, const OmniSendRecvInfo &si
         for (auto &sliceInfo : signalInfo.dstSliceInfo) {
             ccu::RemoteAddr tmpdst;
             tmpdst.token = ctx.token[ctx.rankId2Idx[sliceInfo.remoteRank]];
-            tmpdst.addr = GetallAddrBySliceType(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
-                sliceInfo.sliceIdx, ctx.sendSdispls, ctx.localSdispls);
-            tmpdst.addr = tmpdst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            tmpdst.addr
+                = GetallAddrBySliceTypeWithLoopOffset(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
+                    sliceInfo.sliceIdx, loopNum, loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
             dst.push_back(tmpdst);
             channels[channelIdx++] = ctx.rankId2Channel[sliceInfo.remoteRank];
         }
 
         ccu::LocalAddr localdst;
         localdst.token = ctx.token[ctx.rankId2Idx[ctx.arg->rankId]];
-        localdst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[0].sliceType,
-            ctx.rankId2Idx[ctx.arg->rankId], signalInfo.srcSliceInfo[0].sliceIdx, ctx.sendSdispls, ctx.localSdispls);
-        localdst.addr = localdst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+        localdst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[0].sliceType,
+            ctx.rankId2Idx[ctx.arg->rankId], signalInfo.srcSliceInfo[0].sliceIdx, loopNum, loopNumTmp,
+            xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
         CCU_IF(loopNum == UINT64_MAX - 1)
         {
@@ -740,7 +738,8 @@ static CcuResult DoOpGroupReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
         return CCU_SUCCESS;
     }
 
-    ccu::Variable xnMaxTransportSize = UB_MAX_TRANS_SIZE;
+    ccu::Variable xnMaxTransportSize;
+    xnMaxTransportSize = UB_MAX_TRANS_SIZE;
     GroupOpSizeVars fullGoSize = ctx.goSize;
     ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[0].sliceIdx].loopNum;
     ccu::Variable loopNumTmp = loopNum;
@@ -748,10 +747,9 @@ static CcuResult DoOpGroupReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
     {
         ccu::LocalAddr dst;
         dst.token = ctx.token[ctx.rankId2Idx[ctx.arg->rankId]];
-        dst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[0].sliceType,
-            ctx.rankId2Idx[signalInfo.dstSliceInfo[0].remoteRank], signalInfo.dstSliceInfo[0].sliceIdx, ctx.sendSdispls,
-            ctx.localSdispls);
-        dst.addr = dst.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+        dst.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.dstSliceInfo[0].sliceType,
+            ctx.rankId2Idx[signalInfo.dstSliceInfo[0].remoteRank], signalInfo.dstSliceInfo[0].sliceIdx, loopNum,
+            loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
         std::vector<ccu::RemoteAddr> src;
         ChannelHandle channels[CCU_MAX_RANK_SIZE];
@@ -759,18 +757,18 @@ static CcuResult DoOpGroupReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
         for (auto &sliceInfo : signalInfo.srcSliceInfo) {
             ccu::RemoteAddr tmpSrc;
             tmpSrc.token = ctx.token[ctx.rankId2Idx[sliceInfo.remoteRank]];
-            tmpSrc.addr = GetallAddrBySliceType(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
-                sliceInfo.sliceIdx, ctx.sendSdispls, ctx.localSdispls);
-            tmpSrc.addr = tmpSrc.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            tmpSrc.addr
+                = GetallAddrBySliceTypeWithLoopOffset(ctx, sliceInfo.sliceType, ctx.rankId2Idx[sliceInfo.remoteRank],
+                    sliceInfo.sliceIdx, loopNum, loopNumTmp, xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
             src.push_back(tmpSrc);
             channels[channelIdx++] = ctx.rankId2Channel[sliceInfo.remoteRank];
         }
 
         ccu::LocalAddr localSrc;
         localSrc.token = ctx.token[ctx.rankId2Idx[ctx.arg->rankId]];
-        localSrc.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[0].sliceType,
-            ctx.rankId2Idx[ctx.arg->rankId], signalInfo.srcSliceInfo[0].sliceIdx, ctx.sendSdispls, ctx.localSdispls);
-        localSrc.addr = localSrc.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+        localSrc.addr = GetallAddrBySliceTypeWithLoopOffset(ctx, signalInfo.srcSliceInfo[0].sliceType,
+            ctx.rankId2Idx[ctx.arg->rankId], signalInfo.srcSliceInfo[0].sliceIdx, loopNum, loopNumTmp,
+            xnMaxTransportSize, ctx.sendSdispls, ctx.localSdispls);
 
         CCU_IF(loopNum == UINT64_MAX - 1)
         {
