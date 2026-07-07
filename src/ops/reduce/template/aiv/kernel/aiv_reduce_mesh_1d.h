@@ -96,6 +96,7 @@ private:
                 for (uint32_t i = 0; i < rankSize_; i++) {
                     WaitFlag(rank_, i * coreNumPerRank + innerId, curTag);
                     if (i == 0) {
+                        pipe_barrier(PIPE_ALL);
                         continue;
                     }
                     uint64_t inputOffset =
