@@ -50,7 +50,7 @@ protected:
         std::vector<std::map<u32, std::vector<ChannelInfo>>> &rankIdToChannelInfo) const override;
     HcclResult PrepareResForTemplateLevel(u32 level, std::shared_ptr<InsAlgTemplateBase> &tempBase);
     HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
-        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest);
+        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest) const;
 
     HcclResult UbxLastStepLocalCopy(const OpParam& param, const OmniPipeSliceInfo& omniPipeSliceInfo, 
         const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo,
@@ -91,8 +91,6 @@ private:
     std::vector<ThreadHandle> tempMainThreadsXY_;
     std::vector<ThreadHandle> tempMainThreadsZ_;
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
-
-    std::vector<u32> channelCountPerActiveLevel_;
 
     OmniNeedSetStepNum omniNeedSetStepNum_ = OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
     bool omniUbxLastStepRead_ = false;
