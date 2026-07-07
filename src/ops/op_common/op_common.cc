@@ -52,6 +52,7 @@
 #include "hccl_res_expt_dl.h"
 
 namespace ops_hccl {
+thread_local bool needInconsistentCheck = false;
 constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify idx
 constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超时时间偏移量
 constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
@@ -873,6 +874,9 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
         return HCCL_SUCCESS;
     }
 
+    // context创建前做是否需要参数一致性的判断，context未创建则判断为首次下发该算子
+    needInconsistentCheck = NeedInconsistentCheck(comm, param);
+
     // 计算AlgHierarchyInfo
     AlgHierarchyInfoForAllLevel algHierarchyInfo;  // 分级通信域信息{localRankId, localRankSize}
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo, algHierarchyInfo));
@@ -900,7 +904,7 @@ HcclResult HcclGetAlgRes(HcclComm comm, OpParam& param, std::unique_ptr<InsCollA
     }
 
     // 参数一致性校验
-    if (NeedInconsistentCheck(param)) {
+    if (needInconsistentCheck) {
         OpExchangeInfo exchangeInfo{};
         CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
         CHK_RET(CompareOpExchangeInfos(comm, param, resRequest, exchangeInfo));
@@ -969,7 +973,7 @@ HcclResult FillOpExchangeInfoWithDataDes(const OpParam &param, OpExchangeInfo &e
 HcclResult AddExchangeInfo(HcclComm comm, const OpParam &param)
 {
     CHK_PTR_NULL(comm);
-    if (NeedInconsistentCheck(param)) {
+    if (needInconsistentCheck) {
         OpExchangeInfo exchangeInfo{};
         CHK_RET(FillOpExchangeInfo(comm, param, exchangeInfo));
         CHK_RET(HcclCommAddExchangeInfo(comm, &exchangeInfo, sizeof(exchangeInfo)));
