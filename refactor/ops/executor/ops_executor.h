@@ -9,7 +9,7 @@ public:
 
     virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    HcclResult Orchestrate(const OpsExecutorParam &baseExecutorParam,
+    HcclResult Orchestrate(
         const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
@@ -94,31 +94,6 @@ protected:
 
     // 递归后用于保存算法执行所需要的流同步信息
     std::map<AlgoExecDesc, u32> execDescSubCommMask_;
-};
-
-struct OpsExecutorParam {
-    BaseOpParam baseOpParam;
-    ConfigParam configParam;
-    BufferParam bufferParam;
-};
-
-struct BaseOpParam {
-    u32 myRank = INVALID_VALUE_RANKID;
-    u32 rankSize = 0;
-
-    HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
-    u64 dataCount = 0;
-
-    HcclReduceOp reduceOp = HCCL_REDUCE_RESERVED; // reduce类型，搬运类算子使用默认值
-    u32 root = INVALID_VALUE_RANKID;              // root节点所在rank，不涉及root算子使用默认值
-
-    // TODO：针对带V的算子，需要额外传入数组
-    u8 varData = 0;
-};
-
-struct ConfigParam {
-    OpMode opMode;
-    // TODO：绕路参数
 };
 
 struct BufferInfo {

@@ -39,8 +39,7 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayer
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::Orchestrate(const OpsExecutorParam &baseExecutorParam,
-    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
+HcclResult OpsExecutor::Orchestrate(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
 {
     // 初始化资源信息
     InitRes(resCtx);
