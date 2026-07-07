@@ -130,7 +130,14 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoW
                 selectAlgName = "CcuReduceScatterVNHR1DMem2Mem";
                 return SelectorStatus::NOT_MATCH;
             }
-        } else {
+        } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+            if (topoInfo->level0PcieMix) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+                HCCL_WARNING("pcie mixed topo is not supported yet for ccu schedule mode.");
+                return SelectorStatus::NOT_MATCH;
+            }
+            selectAlgName = "CcuReduceScatterVMesh1D";
+        }
+        else {
             HCCL_WARNING("[SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
                 topoInfo->level0Topo);
             return SelectorStatus::NOT_MATCH;
@@ -179,9 +186,11 @@ SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoCcuSchedule(const TopoI
             return SelectorStatus::NOT_MATCH;
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
-        HCCL_WARNING("[ReduceScatterVAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
-            topoInfo->level0Topo);
-        return SelectorStatus::NOT_MATCH;
+        if (topoInfo->level0PcieMix) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+            HCCL_WARNING("pcie mixed topo is not supported yet for ccu schedule mode.");
+            return SelectorStatus::NOT_MATCH;
+        }
+        selectAlgName = "CcuReduceScatterVMesh1D";
     } else {
         HCCL_WARNING("[ReduceScatterVAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
             topoInfo->level0Topo);
