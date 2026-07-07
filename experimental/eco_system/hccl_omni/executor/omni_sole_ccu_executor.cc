@@ -85,7 +85,7 @@ HcclResult InsOmniSoleCcuExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
     if (resCtx.topoInfo.xmlInfo.vecNormalInstruction.size() == 0) {
-        INFO("[InsOmniSoleCcuExecutor][Orchestrate] xmlInfo Instruction is empty");
+        HCCL_INFO("[InsOmniSoleCcuExecutor][Orchestrate] xmlInfo Instruction is empty");
         return HCCL_SUCCESS;
     }
 
@@ -167,8 +167,8 @@ HcclResult InsOmniSoleCcuExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLoop
     std::vector<u64> recvSliceData;
     std::vector<u64> sendSdispls;
     std::vector<u64> localSdispls;
-    CHK_RET(BuildOmniSliceMeta(param, rankSize_, sliceNum, dataCount_, sendSliceData, recvSliceData, sendSdispls,
-        localSdispls));
+    CHK_RET(BuildOmniSliceMeta(
+        param, rankSize_, sliceNum, dataCount_, sendSliceData, recvSliceData, sendSdispls, localSdispls));
 
     TemplateDataParams tempAlgParams;
     tempAlgParams.buffInfo.inputPtr = param.inputPtr;

@@ -385,6 +385,7 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
 
         ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[i].sliceIdx].loopNum;
         ccu::Variable loopNumTmp = loopNum;
+        uint64_t loopIdx = 0;
         while (loopNum != UINT64_MAX) {
             myInput.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
@@ -394,7 +395,7 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
                 ctx.rankId2Idx[signalInfo.dstSliceInfo[i].remoteRank], signalInfo.dstSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
 
-            myInput.addr = myInput.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
+            myInput.addr = myInput.addr + loopIdx * UB_MAX_TRANS_SIZE;
             myOutput.addr = myOutput.addr + (loopNum - loopNumTmp) * xnMaxTransportSize;
 
             CCU_IF(loopNum == UINT64_MAX - 1)
@@ -412,6 +413,7 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
             }
 
             loopNum += 1;
+            loopIdx++;
         }
     }
 

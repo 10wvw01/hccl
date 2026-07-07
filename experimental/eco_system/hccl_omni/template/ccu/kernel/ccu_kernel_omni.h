@@ -51,16 +51,16 @@ struct OmniContext : public CcuKernelCtxBase {
     uint64_t sliceNum;
 
     // rankSize个rank的原始数据
-    std::vector<uint64_t> sendCounts;
-    std::vector<uint64_t> recvCounts;
-    std::vector<uint64_t> sdispls;
-    std::vector<uint64_t> rdispls;
+    std::vector<ccu::Variable> sendCounts;
+    std::vector<ccu::Variable> recvCounts;
+    std::vector<ccu::Variable> sdispls;
+    std::vector<ccu::Variable> rdispls;
 
     // sliceNum个rank的搬运信息
     std::vector<A2AsingleSendRecvInfo> sendRecvCountsInfo;
-    std::vector<uint64_t> recvSliceData;
-    std::vector<uint64_t> sendSdispls;
-    std::vector<uint64_t> localSdispls;
+    std::vector<ccu::Variable> recvSliceData;
+    std::vector<ccu::Variable> sendSdispls;
+    std::vector<ccu::Variable> localSdispls;
 
     std::map<uint32_t, ChannelHandle> rankId2Channel;
     std::map<u32, uint32_t> rankId2Idx;
