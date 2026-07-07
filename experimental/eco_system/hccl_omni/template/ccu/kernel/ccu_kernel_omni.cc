@@ -250,7 +250,7 @@ static CcuResult InitResources(OmniContext &ctx)
     ctx.moConfig.memSlice = CCU_MS_SIZE;
 
     ctx.resourceAllocated = false;
-
+    ctx.constVar1 = 1;
     ctx.events.resize(arg->rankGroup.size());
 
     HCCL_DEBUG("[CcuKernelOmni] rankId [%u] InitResources end", ctx.arg->rankId);
@@ -344,7 +344,7 @@ static CcuResult PostSync(OmniContext &ctx)
 }
 
 static ccu::Variable GetallAddrBySliceType(OmniContext &ctx, omni::BufferTypeTmp sliceType, uint32_t rankIdx,
-    uint64_t sliceIdx, const std::vector<uint64_t> &sendSdispls, const std::vector<uint64_t> &localSdispls)
+    uint64_t sliceIdx, const std::vector<ccu::Variable> &sendSdispls, const std::vector<ccu::Variable> &localSdispls)
 {
     (void)sendSdispls;
     ccu::Variable tmpAddr;
@@ -386,7 +386,8 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
         ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[i].sliceIdx].loopNum;
         ccu::Variable loopNumTmp = loopNum;
         uint64_t loopIdx = 0;
-        while (loopNum != UINT64_MAX) {
+        CCU_WHILE(loopNum != UINT64_MAX)
+        {
             myInput.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
@@ -412,7 +413,7 @@ static CcuResult DoOpLocalCopy(OmniContext &ctx, const OmniSendRecvInfo &signalI
                 GroupCopy(ctx, myOutput, myInput, ctx.goSize);
             }
 
-            loopNum += 1;
+            loopNum += ctx.constVar1;
             loopIdx++;
         }
     }
@@ -466,7 +467,8 @@ static CcuResult DoOpWriteNb(OmniContext &ctx, const OmniSendRecvInfo &signalInf
         ccu::Variable loopNumTmp = loopNum;
         uint64_t eventIdx = signalInfo.dstSliceInfo[i].remoteRecvRank >> REMOTE_RANKID_BIT;
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
-        while (loopNum != UINT64_MAX) {
+        CCU_WHILE(loopNum != UINT64_MAX)
+        {
             src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
@@ -495,7 +497,7 @@ static CcuResult DoOpWriteNb(OmniContext &ctx, const OmniSendRecvInfo &signalInf
                     xnMaxTransportSize, ctx.events[eventIdx], (1 << (rankIdx % BIT_NUM_PER_CKE)));
             }
 
-            loopNum += 1;
+            loopNum += ctx.constVar1;
         }
 
         HCCL_DEBUG("WriteNb rank id %u, eventIdx is %llu, rankIdx %llu", ctx.arg->rankId, eventIdx, rankIdx);
@@ -519,7 +521,8 @@ static CcuResult DoOpWriteReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sig
         ccu::Variable loopNumTmp = loopNum;
         uint64_t eventIdx = signalInfo.dstSliceInfo[i].remoteRecvRank >> REMOTE_RANKID_BIT;
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
-        while (loopNum != UINT64_MAX) {
+        CCU_WHILE(loopNum != UINT64_MAX)
+        {
             src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
@@ -549,7 +552,7 @@ static CcuResult DoOpWriteReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sig
                     (1 << (rankIdx % BIT_NUM_PER_CKE)));
             }
 
-            loopNum += 1;
+            loopNum += ctx.constVar1;
         }
 
         HCCL_DEBUG("WriteReduceNb rank id %u, eventIdx is %llu, rankIdx %llu", ctx.arg->rankId, eventIdx, rankIdx);
@@ -572,7 +575,8 @@ static CcuResult DoOpReadNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo
         ccu::Variable loopNumTmp = loopNum;
         uint64_t eventIdx = signalInfo.dstSliceInfo[i].remoteRecvRank >> REMOTE_RANKID_BIT;
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
-        while (loopNum != UINT64_MAX) {
+        CCU_WHILE(loopNum != UINT64_MAX)
+        {
             src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
@@ -601,7 +605,7 @@ static CcuResult DoOpReadNb(OmniContext &ctx, const OmniSendRecvInfo &signalInfo
                     xnMaxTransportSize, ctx.events[eventIdx], (1 << (rankIdx % BIT_NUM_PER_CKE))));
             }
 
-            loopNum += 1;
+            loopNum += ctx.constVar1;
         }
     }
     HCCL_DEBUG("ReadNb  end rank id %u", ctx.arg->rankId);
@@ -622,7 +626,8 @@ static CcuResult DoOpReadReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sign
         ccu::Variable loopNumTmp = loopNum;
         uint64_t eventIdx = signalInfo.dstSliceInfo[i].remoteRecvRank >> REMOTE_RANKID_BIT;
         uint64_t rankIdx = signalInfo.dstSliceInfo[i].remoteRecvRank & ((1 << REMOTE_RANKID_BIT) - 1);
-        while (loopNum != UINT64_MAX) {
+        CCU_WHILE(loopNum != UINT64_MAX)
+        {
             src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[i].sliceType,
                 ctx.rankId2Idx[signalInfo.srcSliceInfo[i].remoteRank], signalInfo.srcSliceInfo[i].sliceIdx,
                 ctx.sendSdispls, ctx.localSdispls);
@@ -652,7 +657,7 @@ static CcuResult DoOpReadReduceNb(OmniContext &ctx, const OmniSendRecvInfo &sign
                     1 << (rankIdx % BIT_NUM_PER_CKE));
             }
 
-            loopNum += 1;
+            loopNum += ctx.constVar1;
         }
     }
     HCCL_DEBUG("ReadReduceNb  end rank id %u", ctx.arg->rankId);
@@ -674,7 +679,8 @@ static CcuResult DoOpGroupBroadcast(OmniContext &ctx, const OmniSendRecvInfo &si
     GroupOpSizeVars fullGoSize = ctx.goSize;
     ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[0].sliceIdx].loopNum;
     ccu::Variable loopNumTmp = loopNum;
-    while (loopNum != UINT64_MAX) {
+    CCU_WHILE(loopNum != UINT64_MAX)
+    {
         ccu::LocalAddr src;
         src.token = ctx.token[ctx.rankId2Idx[signalInfo.srcSliceInfo[0].remoteRank]];
         src.addr = GetallAddrBySliceType(ctx, signalInfo.srcSliceInfo[0].sliceType,
@@ -716,7 +722,7 @@ static CcuResult DoOpGroupBroadcast(OmniContext &ctx, const OmniSendRecvInfo &si
             CCU_CHK_RET(GroupBroadcast(ctx, channels, channelIdx, localdst, dst, src, ctx.goSize));
         }
 
-        loopNum += 1;
+        loopNum += ctx.constVar1;
     }
 
     HCCL_DEBUG("GroupBroadcast  end rank id %u", ctx.arg->rankId);
@@ -738,7 +744,8 @@ static CcuResult DoOpGroupReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
     GroupOpSizeVars fullGoSize = ctx.goSize;
     ccu::Variable loopNum = ctx.sendRecvCountsInfo[signalInfo.srcSliceInfo[0].sliceIdx].loopNum;
     ccu::Variable loopNumTmp = loopNum;
-    while (loopNum != UINT64_MAX) {
+    CCU_WHILE(loopNum != UINT64_MAX)
+    {
         ccu::LocalAddr dst;
         dst.token = ctx.token[ctx.rankId2Idx[ctx.arg->rankId]];
         dst.addr = GetallAddrBySliceType(ctx, signalInfo.dstSliceInfo[0].sliceType,
@@ -782,7 +789,7 @@ static CcuResult DoOpGroupReduce(OmniContext &ctx, const OmniSendRecvInfo &signa
                 signalInfo.outputDataType, signalInfo.reduceType);
         }
 
-        loopNum += 1;
+        loopNum += ctx.constVar1;
     }
 
     HCCL_DEBUG("GroupReduce end rank id %u", ctx.arg->rankId);

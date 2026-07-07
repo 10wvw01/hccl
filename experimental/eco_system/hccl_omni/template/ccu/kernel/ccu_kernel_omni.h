@@ -85,6 +85,8 @@ struct OmniContext : public CcuKernelCtxBase {
     ccu::LocalAddr loopDst[2];
     ccu::Variable loopLen[2];
     ccu::Variable loopLenExp[2];
+
+    ccu::Variable constVar1;
 };
 
 CcuResult CcuOmniKernel(CcuKernelArg arg);
