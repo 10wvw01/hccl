@@ -45,7 +45,7 @@ protected:
 
     std::vector < std::map<u32, std::vector<ChannelInfo>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
 
-    virtual u64 GetMaxProcCntPerLoop();
+    u64 GetMaxProcCntPerLoop(u64 dataCount);
 
     // 通信域指针
     HcclComm hcclComm_;
