@@ -174,12 +174,12 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::BuildCcuKernelInfos(const OpParam& para
 }
 
 HcclResult CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
-                                                           const TemplateDataParams& templateDataParams,
+                                                           uint64_t sliceSize,
                                                            uint64_t& die0Size, uint64_t& die1Size) const
 {
     constexpr uint64_t MULTIPLIER = 4;
     uint64_t typeSize = DataTypeSizeGet(param.DataDes.dataType);
-    uint64_t dataCount = (templateDataParams.sliceSize / typeSize);
+    uint64_t dataCount = (sliceSize / typeSize);
 
     if (dataCount <= templateRankSize_ * MULTIPLIER) {  // 数据量极小，不划分die
         die0Size = dataCount * typeSize;
@@ -188,7 +188,7 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
     }
 
     die0Size = static_cast<uint64_t>(dataCount * dieSplitRatio_) * typeSize;
-    die1Size = templateDataParams.sliceSize - die0Size;
+    die1Size = sliceSize - die0Size;
     HCCL_DEBUG("[CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies] die0Size = %llu, die1Size = %llu", die0Size , die1Size);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -202,8 +202,10 @@ HcclResult CcuTempAllGatherNHR1DMem2Mem::PrepareLaunchArgs(const OpParam& param,
     uint64_t die0LastSize = 0;
     uint64_t die1LastSize = 0;
     constexpr uint32_t MAX_DIE_NUM_2 = 2;
-    SplitDataFor2Dies(param, templateDataParams, die0Size, die1Size);
-    SplitDataFor2Dies(param, templateDataParams, die0LastSize, die1LastSize);
+    SplitDataFor2Dies(param, templateDataParams.sliceSize, die0Size, die1Size);
+    uint64_t lastSliceTotal = (templateDataParams.tailSize != 0) ? templateDataParams.tailSize
+                                                                 : templateDataParams.sliceSize;
+    SplitDataFor2Dies(param, lastSliceTotal, die0LastSize, die1LastSize);
 
     uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
     uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
