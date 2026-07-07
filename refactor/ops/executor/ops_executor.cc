@@ -299,7 +299,7 @@ inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable 
     templateDataParams.buffInfo.inBuffType = algoExecDataDesc.inputBufferType;
     templateDataParams.buffInfo.outBuffType = algoExecDataDesc.outputBufferType;
     templateDataParams.buffInfo.hcclBuffType = algoExecDataDesc.cclBufferType;
-    templateDataParams.dataType = dataInfo_.dataDesUnion.dataType;
+    templateDataParams.dataType = dataInfo_.dataType;
     templateDataParams.sliceCount = algoExecDataDesc.dataCount;
     // todo 待支持tailcount
     templateDataParams.tailCount = algoExecDataDesc.dataCount;

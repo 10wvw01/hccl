@@ -28,7 +28,7 @@ private:
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
-    inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
+    inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
         u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
@@ -82,7 +82,9 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
+
+    std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
@@ -136,44 +138,8 @@ struct DataInfo {
     u64 inputSize = 0;
     void *outputPtr = nullptr;
     u64 outputSize = 0;
-    DataDesUnion dataDesUnion;
+    HcclDataType dataType;
     HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
-};
-
-union DataDesUnion {
-    struct {
-        u64 count;
-        HcclDataType dataType;
-        HcclDataType outputType;
-    } DataDes = {0, HCCL_DATA_TYPE_RESERVED, HCCL_DATA_TYPE_RESERVED, 0};
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        u64 sendCount;
-        u64 recvCount;
-    } all2AllDataDes;
-    struct {
-        void *counts;
-        void *displs; // 带v的数据偏移
-        HcclDataType dataType;
-    } vDataDes;
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        void *sendCounts;
-        void *recvCounts;
-        void *sdispls;
-        void *rdispls; // 指向变长区指针
-    } all2AllVDataDes;
-    struct {
-        HcclDataType sendType;
-        HcclDataType recvType;
-        void *sendCountMatrix;
-    } all2AllVCDataDes;
-    struct {
-        HcclSendRecvItem *sendRecvItemsPtr;
-        u32 itemNum;
-    } batchSendRecvDataDes;
 };
 
 struct AlgoExecDataDesc {
