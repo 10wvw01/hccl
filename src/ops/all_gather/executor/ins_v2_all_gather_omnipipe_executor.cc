@@ -480,7 +480,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             if (rankSizeLevel_[OMNIPIPE_LEVEL2] > 1) {
                 CHK_RET(GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2],
                                                       omniPipeSliceInfo.dataSliceLevel2[i]));
-                tempAlgParamMap[OMNIPIPE_LEVEL2].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel2[];
+                tempAlgParamMap[OMNIPIPE_LEVEL2].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel2[i];
                 tempAlgParamMap[OMNIPIPE_LEVEL2].processedDataCount=processedDataCount;
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsZ_, ntfIdxCtrlToTempZ_));
                 CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2],
