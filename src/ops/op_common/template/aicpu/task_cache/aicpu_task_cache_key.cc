@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <charconv>
 #include <cstring>
 #include <string>
 
@@ -16,6 +15,34 @@
 #include "aicpu_task_cache_utils.h"
 
 namespace ops_hccl {
+
+namespace {
+// 将无符号整数转为十进制字符串, 写入[ptr, end)区间
+// 返回写入后的指针; 若缓冲区不足, 返回nullptr
+// 兼容uint32_t和unsigned long long (uint32_t隐式提升为uint64_t)
+inline char *UIntToChars(char *ptr, const char *end, uint64_t val)
+{
+    // uint64_t最大20位数字 (18446744073709551615)
+    char tmp[20];
+    char *tp = tmp;
+
+    do {
+        *tp++ = static_cast<char>('0' + val % 10U);
+        val /= 10U;
+    } while (val > 0);
+
+    size_t len = static_cast<size_t>(tp - tmp);
+    if (UNLIKELY(ptr + len > end)) {
+        return nullptr;
+    }
+
+    // 反转写入目标缓冲区
+    while (tp > tmp) {
+        *ptr++ = *--tp;
+    }
+    return ptr;
+}
+} // namespace
 
 HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_t inputSize, std::string &cacheTag)
 {
@@ -51,13 +78,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     const char delimiter = '-';
 
     // inputSize
-    auto res = std::to_chars(ptr, end, static_cast<unsigned long long>(inputSize));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    char *next = UIntToChars(ptr, end, static_cast<unsigned long long>(inputSize));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, inputSize[%llu]",
             static_cast<unsigned long long>(inputSize));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after inputSize[%llu]",
             static_cast<unsigned long long>(inputSize));
@@ -66,13 +93,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     *ptr++ = delimiter;
 
     // opType
-    res = std::to_chars(ptr, end, static_cast<uint32_t>(opType));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    next = UIntToChars(ptr, end, static_cast<uint32_t>(opType));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, opType[%u]",
             static_cast<uint32_t>(opType));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after opType");
         return HCCL_E_INTERNAL;
@@ -80,13 +107,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     *ptr++ = delimiter;
 
     // dataType
-    res = std::to_chars(ptr, end, static_cast<uint32_t>(dataType));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    next = UIntToChars(ptr, end, static_cast<uint32_t>(dataType));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, dataType[%u]",
             static_cast<uint32_t>(dataType));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after dataType");
         return HCCL_E_INTERNAL;
@@ -94,13 +121,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     *ptr++ = delimiter;
 
     // reduceType
-    res = std::to_chars(ptr, end, static_cast<uint32_t>(reduceType));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    next = UIntToChars(ptr, end, static_cast<uint32_t>(reduceType));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, reduceType[%u]",
             static_cast<uint32_t>(reduceType));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after reduceType");
         return HCCL_E_INTERNAL;
@@ -108,13 +135,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     *ptr++ = delimiter;
 
     // isZeroCopy
-    res = std::to_chars(ptr, end, static_cast<uint32_t>(isZeroCopy));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    next = UIntToChars(ptr, end, static_cast<uint32_t>(isZeroCopy));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, isZeroCopy[%u]",
             static_cast<uint32_t>(isZeroCopy));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after isZeroCopy");
         return HCCL_E_INTERNAL;
@@ -122,13 +149,13 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     *ptr++ = delimiter;
 
     // opMode
-    res = std::to_chars(ptr, end, static_cast<uint32_t>(opMode));
-    if (UNLIKELY(res.ec != std::errc{})) {
+    next = UIntToChars(ptr, end, static_cast<uint32_t>(opMode));
+    if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, opMode[%u]",
             static_cast<uint32_t>(opMode));
         return HCCL_E_INTERNAL;
     }
-    ptr = res.ptr;
+    ptr = next;
     if (UNLIKELY(ptr >= end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after opMode");
         return HCCL_E_INTERNAL;
