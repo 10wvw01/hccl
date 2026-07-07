@@ -90,11 +90,15 @@ private:
                 CpGM2GM((__gm__ T *)outputOffset, (__gm__ T *)inputOffset, innerChunkSize);
                 pipe_barrier(PIPE_ALL);
             }
+            pipe_barrier(PIPE_ALL);
             Record(targetRank, rank_ * coreNumPerRank + innerId, curTag);
+            pipe_barrier(PIPE_ALL);
         } else if (blockIdx_ < coreNumTotal) {
             if (innerChunkSize > 0) {
                 for (uint32_t i = 0; i < rankSize_; i++) {
+                    pipe_barrier(PIPE_ALL);
                     WaitFlag(rank_, i * coreNumPerRank + innerId, curTag);
+                    pipe_barrier(PIPE_ALL);
                     if (i == 0) {
                         continue;
                     }
@@ -106,7 +110,9 @@ private:
                     pipe_barrier(PIPE_ALL);
                 }
             }
+            pipe_barrier(PIPE_ALL);
             Record(rank_, ipcReduceFlagOffset + innerId, curTag);
+            pipe_barrier(PIPE_ALL);
         }
     }
 
@@ -115,7 +121,9 @@ private:
         if (rank_ != root_ || blockIdx_ >= coreNumFirstStage || innerChunkSize == 0) {
             return;
         }
+        pipe_barrier(PIPE_ALL);
         WaitFlag(targetRank, ipcReduceFlagOffset + innerId, curTag);
+        pipe_barrier(PIPE_ALL);
         uint64_t inputOffset =
             reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (innerId * innerChunkStride) * sizeof(T);
         uint64_t outputOffset = output_ + (targetRank * rankChunkStride + innerId * innerChunkStride) * sizeof(T);
