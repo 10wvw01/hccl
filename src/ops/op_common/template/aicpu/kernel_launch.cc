@@ -260,20 +260,20 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-inline unsigned int EnforceLaunchTask(const char *algTag)
+inline HcclResult EnforceLaunchTask(const char *algTag)
 {
     if (HcommBatchModeEnd(algTag) != HCCL_SUCCESS) {
         HCCL_ERROR("failed set eager mode, tag is %s.", algTag);
-        return 1;
+        return HCCL_E_INTERNAL;
     }
     if (HcommBatchModeStart(algTag) != HCCL_SUCCESS) {
         HCCL_ERROR("failed set batch mode, tag is %s.", algTag);
-        return 1;
+        return HCCL_E_INTERNAL;
     }
     return HCCL_SUCCESS;
 }
 
-inline unsigned int OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable* resCtxPtr, ThreadHandle thread,
+inline HcclResult OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable* resCtxPtr, ThreadHandle thread,
     std::string& algName)
 {
     // NotifyWait等待时间: 只在算子展开过程中使用
@@ -295,13 +295,13 @@ inline unsigned int OpOrchestrate(OpParam *param, const AlgResourceCtxSerializab
     std::shared_ptr<InsCollAlgBase> executor = CollAlgExecRegistryV2::Instance().GetAlgExec(param->opType, algName);
     if (executor.get() == nullptr) {
         HCCL_ERROR("Fail to find executor for algName[%s]", algName.c_str());
-        return 1;
+        return HCCL_E_INTERNAL;
     }
 
     // 执行算法编排: 只用于算子展开
     if (executor->Orchestrate(*param, *resCtxPtr) != HCCL_SUCCESS) {
         HCCL_ERROR("orchestrate failed for alg:%s", param->algName);
-        return 1;
+        return HCCL_E_INTERNAL;
     }
 
     return HCCL_SUCCESS;
@@ -506,10 +506,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 // 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存, 用于cache miss下避免缓存算法无关的task
                 // 注意: cache hit时, task刷新后直接下发, 这里无需强制下发
                 // 注意: hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不使能, 无需强制下发 (仅首次执行触发, 开销有限)
-                if (EnforceLaunchTask(param->algTag) != HCCL_SUCCESS) {
-                    HCCL_ERROR("failed to enforce launch task before using aicpu task cache, tag is %s.", param->algTag);
-                    return 1;
-                }
+                CHK_RET(EnforceLaunchTask(param->algTag));
 
                 // 算子展开后, 通知aicpu task cache停止缓存task
                 if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
