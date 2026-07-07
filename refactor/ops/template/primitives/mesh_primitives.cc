@@ -30,11 +30,17 @@ bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels)
 }  // namespace
 
 HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
-                            const std::vector<u32> &ranks, u32 myRank)
+                            const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
+                            std::vector<SendRecvInfo> &sendRecvInfos)
 {
+    sendRecvInfos.clear();
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
+        // 没有实际 peer 通信时，输出数据归属不变。
+        ranksForOutputData = tempAlgParams.ranksForInputData;
         return HCCL_SUCCESS;
     }
+
+    ranksForOutputData.clear();
 
     const u32 rankSize = static_cast<u32>(ranks.size());
     u32 myAlgRank = 0;
@@ -50,78 +56,155 @@ HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateRe
 
     const HcclDataType dataType = tempAlgParams.dataType;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    const bool variableCount = (tempAlgParams.sliceMode == TemplateDataSliceMode::VARIABLE_COUNT);
-    CHK_PRT_RET(variableCount && tempAlgParams.rankSliceCounts.size() < rankSize,
-                HCCL_ERROR("[RunMeshAllGather] rankSliceCounts size[%u] is smaller than rankSize[%u].",
-                           static_cast<u32>(tempAlgParams.rankSliceCounts.size()), rankSize),
-                HCCL_E_PARA);
 
-    const u32 blockNum = tempAlgParams.ranksForInputData.empty() ?
-        1 : static_cast<u32>(tempAlgParams.ranksForInputData.size());
-    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
-
+    std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
+    if (ranksForInputData.empty()) {
+        // 兼容上层暂未传 ranksForInputData 的场景：默认当前 scratch 只有本 rank 一块数据。
+        ranksForInputData.emplace_back(myRank);
+    }
+    const u32 blockNum = static_cast<u32>(ranksForInputData.size());
+    // ranksForOutputData 描述本轮 AllGather 后，本地 scratch 每个连续 block 属于哪个真实 rank。
+    // 布局按环状 self-first 展开：每个 rank 视角下自己的 block group 永远在最前。
+    ranksForOutputData.resize(static_cast<size_t>(rankSize) * blockNum);
     for (u32 blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
-        u32 threadIdx = 0;
-        const u32 inputBlockIdx = tempAlgParams.ranksForInputData.empty() ?
-            blockIdx : (tempAlgParams.ranksForInputData[blockIdx] % blockNum);
-        for (u32 i = 1; i < rankSize; ++i) {
-            const u32 connectedAlgRank = (myAlgRank + i) % rankSize;
-            const u32 connectedRank = ranks[connectedAlgRank];
-            CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
-                            templateResource.channels.at(connectedRank).empty(),
-                        HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", connectedRank),
-                        HCCL_E_PARA);
-            CHK_PRT_RET(threadIdx >= templateResource.threads.size(),
-                        HCCL_ERROR("[RunMeshAllGather] invalid transfer task."), HCCL_E_PARA);
-            const ChannelInfo &linkRemote = templateResource.channels.at(connectedRank)[0];
+        ranksForOutputData[blockIdx] = ranksForInputData[blockIdx];
+    }
 
-            // AllGather 的 scratch 采用 rank-major 布局：
-            // slot = algRank * blockNum + ranksForInputData[blockIdx] % blockNum。
-            // 这样同一个 rank 的所有 input block 连续摆放，替代旧 stride 语义。
-            u64 txRankOffset = (static_cast<u64>(myAlgRank) * blockNum + inputBlockIdx) * sliceSize;
-            u64 rxRankOffset = (static_cast<u64>(connectedAlgRank) * blockNum + inputBlockIdx) * sliceSize;
-            u64 txSliceSize = (myAlgRank == rankSize - 1 && tailSize > 0) ? tailSize : sliceSize;
-            u64 rxSliceSize = (connectedAlgRank == rankSize - 1 && tailSize > 0) ? tailSize : sliceSize;
-            u64 txSliceCount = txSliceSize / dataTypeSize;
-            u64 rxSliceCount = rxSliceSize / dataTypeSize;
-            if (variableCount) {
-                txRankOffset = 0;
-                rxRankOffset = 0;
-                for (u32 algRank = 0; algRank < myAlgRank; ++algRank) {
-                    txRankOffset += tempAlgParams.rankSliceCounts[algRank] * blockNum * dataTypeSize;
-                }
-                for (u32 algRank = 0; algRank < connectedAlgRank; ++algRank) {
-                    rxRankOffset += tempAlgParams.rankSliceCounts[algRank] * blockNum * dataTypeSize;
-                }
-                txSliceCount = tempAlgParams.rankSliceCounts[myAlgRank];
-                rxSliceCount = tempAlgParams.rankSliceCounts[connectedAlgRank];
-                txSliceSize = txSliceCount * dataTypeSize;
-                rxSliceSize = rxSliceCount * dataTypeSize;
-                txRankOffset += static_cast<u64>(inputBlockIdx) * txSliceSize;
-                rxRankOffset += static_cast<u64>(inputBlockIdx) * rxSliceSize;
-            }
+    // 环状 self-first 布局：自己固定在 0 号区域，后面按 ranks 环状顺序排列。
+    // 例如 rank0 视角是 0,1,2,3；rank2 视角是 2,3,0,1。
+    auto getPosition = [&](u32 algRank, u32 selfAlgRank) -> u32 {
+        return (algRank + rankSize - selfAlgRank) % rankSize;
+    };
 
-            const u64 txScratchOffset = tempAlgParams.cclBufferOffset + txRankOffset;
-            const u64 rxScratchOffset = tempAlgParams.cclBufferOffset + rxRankOffset;
-            std::vector<DataSlice> txSrcSlices{
-                DataSlice(tempAlgParams.cclBufferPtr, txScratchOffset, txSliceSize, txSliceCount)};
-            std::vector<DataSlice> txDstSlices{
-                DataSlice(linkRemote.remoteCclMem.addr, txScratchOffset, txSliceSize, txSliceCount)};
-            std::vector<DataSlice> rxSrcSlices{
-                DataSlice(linkRemote.remoteCclMem.addr, rxScratchOffset, rxSliceSize, rxSliceCount)};
-            std::vector<DataSlice> rxDstSlices{
-                DataSlice(tempAlgParams.cclBufferPtr, rxScratchOffset, rxSliceSize, rxSliceCount)};
-            SendRecvInfo sendRecvInfo{{linkRemote, linkRemote},
-                                      {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}},
-                                      dataType};
-            if (variableCount) {
-                CHK_RET(SendRecvWrite(sendRecvInfo, templateResource.threads[threadIdx]));
-            } else {
-                CHK_RET(SendRecvRead(sendRecvInfo, templateResource.threads[threadIdx]));
+    auto getAlgRankByRankId = [&](u32 rankId, u32 &algRank) -> HcclResult {
+        for (u32 rankIdx = 0; rankIdx < rankSize; ++rankIdx) {
+            if (ranks[rankIdx] == rankId) {
+                algRank = rankIdx;
+                return HCCL_SUCCESS;
             }
-            ++threadIdx;
         }
+        HCCL_ERROR("[RunMeshAllGather] data rank[%u] is not in ranks.", rankId);
+        return HCCL_E_PARA;
+    };
+
+    auto inferDataRank = [&](u32 blockIdx, u32 ownerAlgRank, u32 &dataRank) -> HcclResult {
+        // ranksForInputData 是“我视角”下当前已有 block 的归属。
+        // 推导 peer 视角的同位置 block 时，不能用 global rank 直接加减；
+        // 需要先转成 algRank，再按 ownerAlgRank 相对 myAlgRank 的环状距离旋转。
+        u32 dataAlgRank = 0;
+        CHK_RET(getAlgRankByRankId(ranksForInputData[blockIdx], dataAlgRank));
+        const u32 algRankDistance = getPosition(ownerAlgRank, myAlgRank);
+        const u32 inferredAlgRank = (dataAlgRank + algRankDistance) % rankSize;
+        dataRank = ranks[inferredAlgRank];
+        return HCCL_SUCCESS;
+    };
+
+    auto getBlockSize = [&](u32 dataRank, u64 &blockSize) -> HcclResult {
+        // 当前只处理定长场景：大多数 rank 使用 sliceCount；最后一个 rank 可用 tailCount 表示尾块。
+        u32 dataAlgRank = 0;
+        CHK_RET(getAlgRankByRankId(dataRank, dataAlgRank));
+        u64 blockCount = tempAlgParams.sliceCount;
+        if (tempAlgParams.tailCount > 0 && dataAlgRank == rankSize - 1) {
+            blockCount = tempAlgParams.tailCount;
+        }
+        blockSize = blockCount * dataTypeSize;
+        return HCCL_SUCCESS;
+    };
+
+    auto getGroupSize = [&](u32 ownerAlgRank, u64 &groupSize) -> HcclResult {
+        // 一个 group 表示某个 owner rank 当前已经拥有的整段 block。
+        // AllGather 和 peer 通信时搬的是整段 group，不是单个 block。
+        groupSize = 0;
+        for (u32 blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+            u32 dataRank = 0;
+            u64 blockSize = 0;
+            CHK_RET(inferDataRank(blockIdx, ownerAlgRank, dataRank));
+            CHK_RET(getBlockSize(dataRank, blockSize));
+            groupSize += blockSize;
+        }
+        return HCCL_SUCCESS;
+    };
+
+    auto getAlgRankByPosition = [&](u32 position, u32 selfAlgRank) -> u32 {
+        return (selfAlgRank + position) % rankSize;
+    };
+
+    auto getGroupOffset = [&](u32 ownerAlgRank, u32 layoutSelfAlgRank, u64 &groupOffset) -> HcclResult {
+        // 计算 ownerAlgRank 这一整段 group 在 layoutSelfAlgRank 视角的 scratch 起始偏移。
+        // 因为 tail block 可能让最后一个 rank 大小不同，所以这里仍按前面 group 的实际大小累加。
+        groupOffset = 0;
+        const u32 ownerPosition = getPosition(ownerAlgRank, layoutSelfAlgRank);
+        for (u32 position = 0; position < ownerPosition; ++position) {
+            const u32 prevOwnerAlgRank = getAlgRankByPosition(position, layoutSelfAlgRank);
+            u64 prevGroupSize = 0;
+            CHK_RET(getGroupSize(prevOwnerAlgRank, prevGroupSize));
+            groupOffset += prevGroupSize;
+        }
+        return HCCL_SUCCESS;
+    };
+
+    u32 threadIdx = 0;
+    for (u32 i = 1; i < rankSize; ++i) {
+        const u32 connectedAlgRank = (myAlgRank + i) % rankSize;
+        const u32 connectedRank = ranks[connectedAlgRank];
+        CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
+                        templateResource.channels.at(connectedRank).empty(),
+                    HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", connectedRank),
+                    HCCL_E_PARA);
+        CHK_PRT_RET(threadIdx >= templateResource.threads.size(),
+                    HCCL_ERROR("[RunMeshAllGather] invalid transfer task."), HCCL_E_PARA);
+        const ChannelInfo &linkRemote = templateResource.channels.at(connectedRank)[0];
+
+        u64 txGroupSize = 0;
+        u64 rxGroupSize = 0;
+        u64 txSrcOffset = 0;
+        u64 txDstOffset = 0;
+        u64 rxSrcOffset = 0;
+        u64 rxDstOffset = 0;
+        CHK_RET(getGroupSize(myAlgRank, txGroupSize));
+        CHK_RET(getGroupSize(connectedAlgRank, rxGroupSize));
+        CHK_RET(getGroupOffset(myAlgRank, myAlgRank, txSrcOffset));
+        CHK_RET(getGroupOffset(myAlgRank, connectedAlgRank, txDstOffset));
+        CHK_RET(getGroupOffset(connectedAlgRank, connectedAlgRank, rxSrcOffset));
+        CHK_RET(getGroupOffset(connectedAlgRank, myAlgRank, rxDstOffset));
+
+        // 新布局不再使用 outputSliceStride/repeatStride。
+        // 每个 repeat 对应当前 scratch 中一个连续 block，ranksForInputData 描述这些 block 的归属和顺序；
+        // AllGather 对一个 peer 通信时，直接把当前已有 block 组成的整段数据搬到对端/本端对应区域。
+        txSrcOffset += tempAlgParams.cclBufferOffset;
+        txDstOffset += tempAlgParams.cclBufferOffset;
+        rxSrcOffset += tempAlgParams.cclBufferOffset;
+        rxDstOffset += tempAlgParams.cclBufferOffset;
+
+        // 四组 DataSlice 与旧模板含义一致：
+        // txSrc：本地 scratch 当前已有 group；txDst：写到对端 scratch 中“我”对应的位置。
+        // rxSrc：对端 scratch 当前已有 group；rxDst：写到本地 scratch 中“peer”对应的位置。
+        std::vector<DataSlice> txSrcSlices{
+            DataSlice(tempAlgParams.cclBufferPtr, txSrcOffset, txGroupSize, txGroupSize / dataTypeSize)};
+        std::vector<DataSlice> txDstSlices{
+            DataSlice(linkRemote.remoteCclMem.addr, txDstOffset, txGroupSize, txGroupSize / dataTypeSize)};
+        std::vector<DataSlice> rxSrcSlices{
+            DataSlice(linkRemote.remoteCclMem.addr, rxSrcOffset, rxGroupSize, rxGroupSize / dataTypeSize)};
+        std::vector<DataSlice> rxDstSlices{
+            DataSlice(tempAlgParams.cclBufferPtr, rxDstOffset, rxGroupSize, rxGroupSize / dataTypeSize)};
+
+        const u32 position = getPosition(connectedAlgRank, myAlgRank);
+        for (u32 blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+            // 同步更新输出归属表。这里的 slot 必须和 rxDst 的物理布局一致：
+            // peer 的 group 放在 position 区域，group 内 block 顺序沿用对端当前已有顺序。
+            u32 dataRank = 0;
+            CHK_RET(inferDataRank(blockIdx, connectedAlgRank, dataRank));
+            const u32 slot = position * blockNum + blockIdx;
+            ranksForOutputData[slot] = dataRank;
+        }
+
+        // primitive 只把四组 slice 打包成 SendRecvInfo 返回给模板；
+        // 实际 SendRecvRead/Write 由模板按 sendRecvInfos 顺序选择线程执行。
+        SendRecvInfo sendRecvInfo{{linkRemote, linkRemote},
+                                  {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}},
+                                  dataType};
+        sendRecvInfos.emplace_back(sendRecvInfo);
+        ++threadIdx;
     }
     return HCCL_SUCCESS;
 }

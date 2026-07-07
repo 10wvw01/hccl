@@ -20,7 +20,8 @@ namespace ops_hccl {
 // Full AICPU Mesh AllGather communication primitive entry.
 // Slice mode and variable-count metadata are carried by TemplateDataParam.
 HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
-                            const std::vector<u32> &ranks, u32 myRank);
+                            const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
+                            std::vector<SendRecvInfo> &sendRecvInfos);
 
 HcclResult RunMeshReduceScatter(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
                                 const std::vector<u32> &ranks, u32 myRank);
