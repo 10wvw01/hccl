@@ -38,39 +38,36 @@ typedef struct {
     aclrtStream stream = nullptr;
 } HcommLaunchKernelCfg;
 
-struct TaskArgs {
-    uint64_t sqeArgs1;
-    uint64_t sqeArgs2;
-    uint64_t sqeArgs3;
-    uint64_t sqeArgs4;
-    uint64_t sqeArgs5;
-    uint64_t sqeArgs6;
-    uint64_t sqeArgs7;
-    uint64_t sqeArgs8;
-    uint64_t sqeArgs9;
-    uint64_t sqeArgs10;
+constexpr uint32_t HCOMM_HOST_MAX_TASK_ARG_NUM = 10;
+
+struct HcommHostKernelArgs {
+    uint64_t taskArgs[HCOMM_HOST_MAX_TASK_ARG_NUM];
+    uint32_t taskArgNum;
+    void *kernelArg;
 };
 
 struct HcommLaunchKernelAttrs {
     const char *kernelName;
-    void *kernelArg;
+    // void *kernelArg;
     ThreadHandle thread;
     CcuKernelHandle *kernelHandle;
 };
 
 typedef void(__CcuHostKernelFunc)(void * args);
-HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchKernelCfg *cfg, void *args,
-                                    size_t argLen)
+// HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchKernelCfg *cfg, void *args,
+//                                     size_t argLen)
+HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchKernelCfg *cfg, void *args) // args包含了taskargs和kernelarg
 {
     CHK_PTR_NULL(kernelFunc);
     CHK_PTR_NULL(cfg);
     CHK_PTR_NULL(cfg->attrs);
-    // CHK_PTR_NULL(args); // args可以传入nullptr，通算融合场景，taskargs是在aicore中设置
+    CHK_PTR_NULL(args);
 
     auto *attrs = static_cast<HcommLaunchKernelAttrs *>(cfg->attrs);
+    auto *launchArgs = static_cast<HcommHostKernelArgs *>(args);
     CHK_PTR_NULL(attrs->kernelName);
-    CHK_PTR_NULL(attrs->kernelArg);
     CHK_PTR_NULL(attrs->kernelHandle);
+    CHK_PTR_NULL(launchArgs->kernelArg);
 
     CcuResult regStartRet = HcommCcuKernelRegisterStart(cfg->ccuIns);
     if (regStartRet != CCU_SUCCESS) {
@@ -78,7 +75,7 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
         return ConvertCcuToHccl(regStartRet);
     }
 
-    const void *kernelArgs[] = {attrs->kernelArg};
+    const void *kernelArgs[] = {launchArgs->kernelArg};
 
     constexpr uint32_t dieId = 0; // 预留接口，暂无含义
     constexpr uint32_t kernelArgNum = 1;
@@ -97,12 +94,12 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
         return ConvertCcuToHccl(regEndRet);
     }
 
-    // Todo: 根据kernelHandle获取taskArgs参数个数
+    // Todo: 根据kernelHandle获取taskArgs参数个数 当前 case taskargLen 是10
     // uint32_t sqeArgsNums = HcommCcuArgsNumGet(*attrs->kernelHandle);
-    // argLen = sqeArgsNums;
 
     CcuResult launchRet = HcommCcuKernelLaunch(attrs->thread, *attrs->kernelHandle,
-                                                static_cast<uint64_t *>(args), argLen);
+                                                launchArgs->taskArgs, launchArgs->taskArgNum);
+
     if (launchRet != CCU_SUCCESS) {
         HCCL_ERROR("[CcuTempAllGatherMesh1DMem2Mem::ExecOp] kernel launch failed, ccuRet -> %d", launchRet);
         return ConvertCcuToHccl(launchRet);
@@ -124,6 +121,10 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     auto kernelArg = std::make_shared<CcuKernelArgAllGatherMesh1DMem2Mem>();
     kernelArg->rankSize = param.rankSize;
     kernelArg->rankId = param.myRank;
+    // kernelArg->taskArgBaseAddr = param.taskArgBaseAddr;
+    kernelArg->varHandle = param.varHandle;
+    kernelArg->eventHandle = param.eventHandle;
+
     kernelInfo.setKernelArg(kernelArg);
 
     auto* kernelArgBase = static_cast<CcuKernelArgBase*>(kernelInfo.kernelArg);
@@ -164,41 +165,34 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     resCtx.ccuKernels.resize(1); // 只注册1个kernel
     HcommLaunchKernelAttrs attrs {
         kernelInfo.kernelFuncName,
-        kernelInfo.kernelArg,
         resCtx.threads[0],
         &resCtx.ccuKernels[0],
     };
     cfg.attrs = &attrs;
 
-    TaskArgs taskArgs = {
-        inputAddr,
-        outputAddr,
-        token,
-        currentRankSliceInputOffset,
-        currentRankSliceOutputOffset,
-        sliceSize,
-        goSize[0],
-        goSize[1],
-        goSize[2],
-        goSize[3],
+    HcommHostKernelArgs launchArgs = {
+        {},
+        0,
+        kernelInfo.kernelArg,
     };
 
+
     CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg,
-                                     &taskArgs, sizeof(TaskArgs) / sizeof(uint64_t)));
+                                     &launchArgs));
 
     //Todo：第二阶段 <<<>>> 纯通信场景，有taskargs参数
     // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(
-    //     taskArgs[0], 
-    //     taskArgs[1],
-    //     taskArgs[2],
-    //     taskArgs[3],
-    //     taskArgs[4],
-    //     taskArgs[5],
-    //     taskArgs[6],
-    //     taskArgs[7],
-    //     taskArgs[8],
-    //     taskArgs[9],
-    //     kernelArg
+            // inputAddr,
+            // outputAddr,
+            // token,
+            // currentRankSliceInputOffset,
+            // currentRankSliceOutputOffset,
+            // sliceSize,
+            // goSize[0],
+            // goSize[1],
+            // goSize[2],
+            // goSize[3],
+    //     kernelInfo.kernelArg
     //     );
 
 
@@ -218,11 +212,16 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     };
     cfg.attrs = &attrs;
     // 此处没有taskArgs，在前面aicore kernel中设置taskArags
-    CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg, nullptr, 0);
+    HcommHostKernelArgs launchArgs = {
+        nullptr,
+        0,
+        kernelInfo.kernelArg,
+    };
+    CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg, launchArgs);
     
     
     // 第二阶段 通算融合场景，没有taskargs
-    // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(kernelArg);
+    // CcuAllGatherMesh1DMem2MemKernel<<<{1,0,0x01}, insHandle, param.stream>>>(kernelInfo.kernelArg);
     */
 
 
@@ -260,20 +259,6 @@ HcclResult ExecOp(const OpParam &param, AlgResourceCtxSerializable &resCtx)
 
     HcclComm comm = static_cast<HcclComm>(param.hcclComm);
     CHK_PTR_NULL(comm);
-
-    // CcuKernelInfo kernelInfo;
-    // CHK_RET(GetCcuKernel(comm, param, resCtx, resCtx.kernelChannels, kernelInfo)); // 注册kernel
-
-    // for (uint64_t loop = 0; loop < loopCount; loop++) {
-    //     uint64_t sliceCount = std::min(maxDataCountPerLoop, count - loop * maxDataCountPerLoop);
-    //     uint64_t inputAddr = baseInputAddr + processedDataCount * dataTypeSize;
-    //     uint64_t outputAddr = baseOutputAddr + processedDataCount * dataTypeSize;
-
-    //     CHK_RET(LaunchCcuKernelSlice(resCtx, inputAddr, outputAddr, token, dataSize,
-    //                                  param.myRank, sliceCount, dataTypeSize));
-
-    //     processedDataCount += sliceCount;
-    // }
 
     CcuKernelInfo kernelInfo;
     CHK_RET(LaunchCcuKernel(comm, param, resCtx, resCtx.kernelChannels, kernelInfo,

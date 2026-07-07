@@ -53,6 +53,10 @@ struct CcuLoopEntity {
 struct CcuKernelArgAllGatherMesh1DMem2Mem : public CcuKernelArgBase {
     uint64_t rankSize;
     uint32_t rankId;
+    uint64_t taskArgBaseAddr;
+    CcuVariableHandle varHandle;
+    CcuEventHandle eventHandle;
+
 };
 
 struct AllGatherMesh1DMem2MemContext {

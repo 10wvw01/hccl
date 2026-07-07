@@ -159,6 +159,9 @@ struct OpParam {
     uint32_t myRank = 0;
     uint32_t rankSize = 0;
     DeviceType devType = DEVICE_TYPE_A5;
+    uint64_t taskArgBaseAddr = 0;
+    CcuVariableHandle varHandle{0};
+    CcuEventHandle eventHandle{0};
 };
 
 constexpr uint32_t SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),

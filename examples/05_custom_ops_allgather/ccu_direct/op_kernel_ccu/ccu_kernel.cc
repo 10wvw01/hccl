@@ -216,17 +216,34 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     }
 
     // 2.加载参数
-    uint32_t argId = 0;
-    CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.output[ctx.arg->rankId], argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.arg->rankId], argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceInputOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceOutputOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.addrOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.loopParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.parallelParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.residual, argId++));
+    // uint32_t argId = 0;
+    // CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.output[ctx.arg->rankId], argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.arg->rankId], argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceInputOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceOutputOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.addrOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.loopParam, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.parallelParam, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.residual, argId++));
+  // 2.从AICore写入的CCU变量空间加载参数，布局与main.asc::vector_add保持一致。
+    constexpr uint64_t taskArgSize = sizeof(uint64_t);
+    uint64_t taskArgAddr = ctx.arg->taskArgBaseAddr;
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 0, ctx.input));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 1, ctx.output[ctx.arg->rankId]));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 2, ctx.token[ctx.arg->rankId]));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 3, ctx.currentRankSliceInputOffset));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 4, ctx.currentRankSliceOutputOffset));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 5, ctx.sliceSize));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 6, ctx.goSize.addrOffset));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 7, ctx.goSize.loopParam));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 8, ctx.goSize.parallelParam));
+    CCU_CHK_RET(ccu::Load(taskArgAddr + taskArgSize * 9, ctx.goSize.residual));
+    // ctx.input = ccu::Variable(ctx.arg->varHandle[0]); // Todo: 如何从varHandle初始化Variable？
+    // ctx.output[ctx.arg->rankId] = ccu::Variable(ctx.arg->varHandle[1]);
+
+
 
     // 3.前同步
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
@@ -251,6 +268,11 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID)); // 等待远端卡数据搬运完成
     }
+
+    // Todo: 通知AICORE CCU通信已完成
+    constexpr uint16_t mask = 0x01;
+    ccu::Event event1 = ccu::Event(ctx.arg->eventHandle);
+    ccu::EventRecord(event1, mask);
 
     return CcuResult::CCU_SUCCESS;
 }
