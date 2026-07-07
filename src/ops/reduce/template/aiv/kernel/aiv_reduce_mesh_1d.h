@@ -92,6 +92,7 @@ private:
             }
             Record(targetRank, rank_ * coreNumPerRank + innerId, curTag);
         } else if (blockIdx_ < coreNumTotal) {
+            WaitFlag(rank_, innerId, curTag);  // 保证前序Scatter都搬运完
             if (innerChunkSize > 0) {
                 for (uint32_t i = 0; i < rankSize_; i++) {
                     WaitFlag(rank_, i * coreNumPerRank + innerId, curTag);
