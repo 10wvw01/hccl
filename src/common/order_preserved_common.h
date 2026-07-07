@@ -18,9 +18,9 @@
 namespace ops_hccl {
 
 constexpr u32 MIN_STRICT_RANK_NUM_ORDER_PRESERVED = 2;
-constexpr u32 MAX_RANK_NUM_FOR_ORDER_PRESERVED = 2;
+constexpr u32 MAX_RANK_NUM_FOR_ORDER_PRESERVED = 32;
 // 保序算子总线程数上限（含主线程），解耦线程数与rank数的强相关关系
-constexpr u32 ORDER_PRESERVED_MAX_THREADS = 4; // [TODO] 测试用：8p环境验证轮转逻辑，验证通过后改回32
+constexpr u32 ORDER_PRESERVED_MAX_THREADS = 32; // [TODO] 测试用：8p环境验证轮转逻辑，验证通过后改回32
 
 // 总线程数 = min(rankSize, ORDER_PRESERVED_MAX_THREADS)
 inline u32 CalcEffectiveThreadNum(u32 rankSize)
