@@ -364,12 +364,9 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
-<<<<<<< HEAD
-=======
     (void)opParam;
     CHK_PRT_RET(IsTopoLevelUnsupported(topoInfo), HCCL_INFO("[AllGatherAutoSelector][%s] unsupported topo level.",
         __func__), SelectorStatus::NOT_MATCH);
->>>>>>> c7fee300 (fix: fail allgather selector on unsupported topo levels)
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] rankSize[%u] larger than [%u]",
