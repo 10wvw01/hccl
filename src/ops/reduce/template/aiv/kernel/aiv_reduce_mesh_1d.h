@@ -102,6 +102,7 @@ private:
                         reinterpret_cast<uint64_t>(GM_IN[rank_]) + (i * rankChunkSize + innerId * innerChunkStride) * sizeof(T);
                     uint64_t outputOffset =
                         reinterpret_cast<uint64_t>(GM_IN[rank_]) + (innerId * innerChunkStride) * sizeof(T);
+                    pipe_barrier(PIPE_ALL);
                     CpGM2GM((__gm__ T *)outputOffset, (__gm__ T *)inputOffset, innerChunkSize, reduceOp_);
                     pipe_barrier(PIPE_ALL);
                 }
