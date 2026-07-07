@@ -9,7 +9,7 @@
  */
 
 #include "ins_v2_broadcast_sequence_executor_3level.h"
-#include "ins_temp_scatter_mesh_1D.h"
+#include "ins_temp_scatter_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_scatter_nhr.h"
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
@@ -534,13 +534,23 @@ HcclResult InsV2BroadcastSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     algTemplateScatterL2->SetRoot(scatterL2Root);
 
     // Buffer sizing: single-segment, totalMult = ScatterL0's CalcScratchMultiple (=1)
+    // Scatter CalcScratchMultiple=1 means per-rank CCL only needs 1 sliceSize (not N0).
+    // Peak CCL usage = totalMult * sliceSizeL0 = 1 * maxCountPerLoop * dts / N0.
+    // Constraint: maxCountPerLoop * dts / N0 <= cclMem.size
+    // => maxCountPerLoop <= N0 * cclMem.size / dts
+    // Use subRankAlign = N1 * N2 instead of totalRankAlign = N0 * N1 * N2,
+    // then align to N0 to ensure sliceSizeL0 is divisible.
     u64 totalMult = algTemplateScatterL0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
     if (totalMult == 0) {
         totalMult = 1;
     }
-    u32 totalRankAlign = rankSizeLevel0_ * rankSizeLevel1_ * rankSizeLevel2_;
+    u64 subRankAlign = rankSizeLevel1_ * rankSizeLevel2_;
+    if (subRankAlign == 0) {
+        subRankAlign = 1;
+    }
     u64 maxCountPerLoop = resCtx.cclMem.size / totalMult / HCCL_MIN_SLICE_ALIGN *
-                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / totalRankAlign * totalRankAlign;
+                          HCCL_MIN_SLICE_ALIGN / dataTypeSize_ / subRankAlign * subRankAlign;
+    maxCountPerLoop = maxCountPerLoop / rankSizeLevel0_ * rankSizeLevel0_;
     if (maxCountPerLoop == 0) {
         HCCL_ERROR("[InsV2BroadcastSequenceExecutor3Level] maxCountPerLoop is 0, cclMemSize[%llu] too small",
             resCtx.cclMem.size);
@@ -610,7 +620,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_BROADCAST,
     InsBroadcastSequenceMesh1DNHRNHR,
     InsV2BroadcastSequenceExecutor3Level,
     TopoMatchMultilevel,
-    InsTempScatterMesh1D,
+    InsTempScatterMesh1DZAxisDetour,
     InsTempScatterNHR,
     InsTempScatterNHR,
     InsTempAllGatherNHR,

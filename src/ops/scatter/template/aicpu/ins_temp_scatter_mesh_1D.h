@@ -44,14 +44,31 @@ public:
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override;
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
     HcclResult GetRes(AlgResourceRequest &resourceReques) const override;
+    HcclResult SetchannelsPerRank(const std::map<u32, std::vector<ChannelInfo>> &channels) { return HCCL_SUCCESS; }
+    HcclResult CalcDataSplitByPortGroup(const u64 totalDataCount, const u64 dataTypeSize,
+        const std::vector<ChannelInfo> &channels,
+        std::vector<u64> &elemCountOut, std::vector<u64> &sizeOut,
+        std::vector<u64> &elemOffset)
+    {
+        elemCountOut.clear();
+        sizeOut.clear();
+        elemOffset.clear();
+        elemCountOut.push_back(totalDataCount);
+        sizeOut.push_back(totalDataCount * dataTypeSize);
+        elemOffset.push_back(0);
+        return HCCL_SUCCESS;
+    }
 
-private:
+protected:
     HcclResult PreCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const;
-    HcclResult RunMesh(const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads, 
+    virtual HcclResult RunMesh(const std::map<u32, std::vector<ChannelInfo>> &channels, const std::vector<ThreadHandle> &threads,
                     const TemplateDataParams &tempAlgParams);
     HcclResult PostCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const;
     u64 processSize_{0};
     u64 count_{0};
+    std::vector<u64> elemCountOut_;
+    std::vector<u64> sizeOut_;
+    std::vector<u64> elemOffset_;
 };
 
 } // namespace Hccl
