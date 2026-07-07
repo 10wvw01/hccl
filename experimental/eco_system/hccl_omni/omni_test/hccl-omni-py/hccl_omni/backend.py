@@ -37,11 +37,16 @@ def _extract_tensors(op_param: dict, op_name: int):
     return input_tensor, recv_buf
 
 
-def _scatter_allgather_result(flat_buf, output_list, recv_counts):
-    """Copy flat Allgather result back into each output list tensor."""
+def _scatter_allgather_result(flat_buf, output_list):
+    """Copy flat Allgather result back into each output list tensor.
+
+    Slice by each output tensor's own numel() so the scatter stays correct
+    even for non-uniform allgather, where the binary block's recv_counts is
+    [input_size]*world_size and does not reflect per-output sizes.
+    """
     offset = 0
-    for i, out_tensor in enumerate(output_list):
-        count = recv_counts[i]
+    for out_tensor in output_list:
+        count = out_tensor.numel()
         chunk = flat_buf[offset:offset + count].reshape(out_tensor.shape)
         out_tensor.copy_(chunk)
         offset += count
@@ -101,7 +106,6 @@ def invoke_backend(op_param: dict, file_path: str):
         _scatter_allgather_result(
             recv_buf,
             op_param['output'],
-            op_param_low['recv_counts'],
         )
 
     return result

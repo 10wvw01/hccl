@@ -248,9 +248,9 @@ class TestBuildOpParam:
             'output': [3, 3],
         }, world_size=w)
         assert low['send_counts'] == [5, 5]
-        assert low['recv_counts'] == [3, 3]
+        assert low['recv_counts'] == [5, 5]
         assert low['sdispls'] == [0, 0]
-        assert low['rdispls'] == [0, 3]
+        assert low['rdispls'] == [0, 5]
 
     def test_allgather_output_not_list_raises(self):
         with pytest.raises(ValueError, match='list'):
@@ -274,7 +274,7 @@ class TestBuildOpParam:
         }, world_size=w)
 
         assert low['send_counts'] == [16, 16, 16, 16]
-        assert low['recv_counts'] == [16]
+        assert low['recv_counts'] == [16, 16, 16, 16]
         assert low['sdispls'] == [0, 16, 32, 48]
         assert low['rdispls'] == [0]
         assert low['data_count'] == 64
@@ -287,7 +287,8 @@ class TestBuildOpParam:
         }, world_size=w)
         assert low['send_counts'] == [10, 20, 30]
         assert low['sdispls'] == [0, 10, 30]
-        assert low['recv_counts'] == [20]
+        assert low['recv_counts'] == [10, 20, 30]
+        assert low['data_count'] == 0
 
     def test_reduce_scatter_uneven_raises(self):
         with pytest.raises(ValueError, match='divisible'):
@@ -305,9 +306,10 @@ class TestBuildOpParam:
         }, world_size=w)
 
         assert low['send_counts'] == [100] * w
-        assert low['recv_counts'] == [100]
+        assert low['recv_counts'] == [100] * w
         assert low['sdispls'] == [0] * w
-        assert low['rdispls'] == [0]
+        assert low['rdispls'] == [0] * w
+        assert low['data_count'] == 100
 
     def test_allreduce_size_mismatch_raises(self):
         with pytest.raises(ValueError, match='equal'):
@@ -362,6 +364,25 @@ class TestBuildOpParam:
                 'input_split_sizes': [60, 40],
                 'output_split_sizes': [10, 20],
             }, world_size=2)
+
+    # ---- Alltoallv ----
+    def test_alltoallv_basic(self):
+        w = 2
+        low = build_op_param({
+            'op_name': OpName.Alltoallv,
+            'input': 100,
+            'output': 100,
+            'send_counts': [60, 40],
+            'recv_counts': [30, 70],
+            'sdispls': [0, 60],
+            'rdispls': [0, 30],
+        }, world_size=w)
+
+        assert low['send_counts'] == [60, 40]
+        assert low['recv_counts'] == [30, 70]
+        assert low['sdispls'] == [0, 60]
+        assert low['rdispls'] == [0, 30]
+        assert low['data_count'] == 0
 
     # ---- General ----
     def test_missing_op_name_raises(self):

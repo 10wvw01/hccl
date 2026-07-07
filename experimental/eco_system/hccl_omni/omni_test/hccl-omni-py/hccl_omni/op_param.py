@@ -18,8 +18,6 @@ Binary Layout (little-endian, bit-addressed, 32832 bits = 4104 bytes total):
 
 from enum import IntEnum
 
-import torch
-
 
 class OpName(IntEnum):
     """HCCL communication operator types."""
@@ -223,11 +221,11 @@ def build_op_param(op_param: dict, world_size: int) -> dict:
             raise ValueError(
                 f"Allgather output list length ({len(output)}) must equal world_size ({world_size})"
             )
-        output_sizes = [t.numel() if hasattr(t, 'numel') else int(t) for t in output]
         send_counts = [input_size] * world_size
-        recv_counts = output_sizes
+        recv_counts = [input_size] * world_size
         sdispls = [0] * world_size
         rdispls = _cumsum_zero_prefix(recv_counts)
+        data_count = sum(send_counts)
 
     # ------------------------------------------------------------------
     # ReduceScatter
@@ -247,12 +245,14 @@ def build_op_param(op_param: dict, world_size: int) -> dict:
                     f"input_split_sizes length ({len(input_split_sizes)}) "
                     f"must equal world_size ({world_size})"
                 )
-        output_size = _get_elem_count(output)
-
         send_counts = input_split_sizes
-        recv_counts = [output_size]
+        recv_counts = list(input_split_sizes)
         sdispls = _cumsum_zero_prefix(send_counts)
         rdispls = [0]
+        if op_param.get('input_split_sizes') is not None:
+            data_count = 0
+        else:
+            data_count = sum(send_counts)
 
     # ------------------------------------------------------------------
     # Allreduce
@@ -264,9 +264,10 @@ def build_op_param(op_param: dict, world_size: int) -> dict:
                 f"Allreduce input size ({input_size}) must equal output size ({output_size})"
             )
         send_counts = [input_size] * world_size
-        recv_counts = [output_size]
+        recv_counts = [output_size] * world_size
         sdispls = [0] * world_size
-        rdispls = [0]
+        rdispls = [0] * world_size
+        data_count = input_size
 
     # ------------------------------------------------------------------
     # Alltoall / Alltoallv
@@ -314,6 +315,7 @@ def build_op_param(op_param: dict, world_size: int) -> dict:
         recv_counts = output_split_sizes
         sdispls = _cumsum_zero_prefix(send_counts)
         rdispls = _cumsum_zero_prefix(recv_counts)
+        data_count = sum(send_counts)
 
     # ------------------------------------------------------------------
     # Alltoallv (full explicit counts)
@@ -342,10 +344,10 @@ def build_op_param(op_param: dict, world_size: int) -> dict:
                 f"must equal output size ({output_size})"
             )
 
+        data_count = 0
+
     else:
         raise ValueError(f"Unknown op_name: {op_name}")
-
-    data_count = sum(send_counts)
 
     return {
         'op_name': op_name,

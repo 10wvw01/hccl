@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Callable
 import torch.distributed as dist
 from . algsynthesizer.generate_check_solver_input import *
