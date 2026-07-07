@@ -58,6 +58,14 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
         return HCCL_E_PARA;
     }
 
+    // 获取rootRank
+    // 注意: broadcast/reduce/scatter的task编排受rootRank影响
+    uint32_t rootRank = 0;
+    if (opType == HcclCMDType::HCCL_CMD_BROADCAST || opType == HcclCMDType::HCCL_CMD_SCATTER ||
+        opType == HcclCMDType::HCCL_CMD_REDUCE) {
+        rootRank = param.root;
+    }
+
     // 获取其他字段
     const HcclReduceOp reduceType = param.reduceType;
     const bool isZeroCopy = param.isZeroCopy;
@@ -68,8 +76,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     // 注意: commId放在最后, 如果需要解析, 无需考虑commId中含有delimiter的情况
     // 注意: enum class不能转为uint8_t, 否则会作为char输出; 需显式转为uint32_t后再用to_chars, 否则编译失败
     const char* commId = param.commName;
-    // commId最大128, 6个整数最多120字符, 预留256足够
-    constexpr size_t RESERVED_SIZE = 256;
+    constexpr size_t RESERVED_SIZE = 256; // commId+6个整数, 最多128+70+6个字符, 预留256足够
     cacheTag.reserve(RESERVED_SIZE);  // 复用调用方传入的cacheTag容量, 避免重复分配
     cacheTag.resize(RESERVED_SIZE);
     char *buf = cacheTag.data();
@@ -77,7 +84,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     const char *end = buf + RESERVED_SIZE;
     const char delimiter = '-';
 
-    // inputSize
+    // inputSize (uint64最多20个字符)
     char *next = UIntToChars(ptr, end, static_cast<unsigned long long>(inputSize));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, inputSize[%llu]",
@@ -92,7 +99,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // opType
+    // opType (uint32最多10个字符)
     next = UIntToChars(ptr, end, static_cast<uint32_t>(opType));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, opType[%u]",
@@ -106,7 +113,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // dataType
+    // dataType (uint32最多10个字符)
     next = UIntToChars(ptr, end, static_cast<uint32_t>(dataType));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, dataType[%u]",
@@ -120,7 +127,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // reduceType
+    // reduceType (uint32最多10个字符)
     next = UIntToChars(ptr, end, static_cast<uint32_t>(reduceType));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, reduceType[%u]",
@@ -134,7 +141,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // isZeroCopy
+    // isZeroCopy (uint32最多10个字符)
     next = UIntToChars(ptr, end, static_cast<uint32_t>(isZeroCopy));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, isZeroCopy[%u]",
@@ -148,7 +155,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // opMode
+    // opMode (uint32最多10个字符)
     next = UIntToChars(ptr, end, static_cast<uint32_t>(opMode));
     if (UNLIKELY(next == nullptr)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, opMode[%u]",
@@ -162,7 +169,21 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     }
     *ptr++ = delimiter;
 
-    // 拼接commId (最后一段, 不加delimiter后缀)
+    // rootRank (uint32最多10个字符)
+    next = UIntToChars(ptr, end, rootRank);
+    if (UNLIKELY(next == nullptr)) {
+        HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] to_chars failed, rootRank[%u]",
+            rootRank);
+        return HCCL_E_INTERNAL;
+    }
+    ptr = next;
+    if (UNLIKELY(ptr >= end)) {
+        HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending delimiter after rootRank");
+        return HCCL_E_INTERNAL;
+    }
+    *ptr++ = delimiter;
+
+    // 拼接commId (最后一段, 不加delimiter后缀; 最多128个字符)
     size_t commLen = std::strlen(commId);
     if (UNLIKELY(ptr + commLen > end)) {
         HCCL_ERROR("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] buffer overflow when appending commId, commLen[%zu]",
