@@ -70,6 +70,12 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                     return SelectorStatus::NOT_MATCH;
                 }
             }
+        } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+            if (topoInfo->level0PcieMix) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
+                HCCL_WARNING("[AllToAllVAutoSelector] pcie mixed topo is not supported yet for ccu schedule mode.");
+                return SelectorStatus::NOT_MATCH;
+            }
+            selectAlgName = "CcuAlltoAllVMesh1D";
         } else {
             HCCL_DEBUG("[AlltoAllVAutoSelector] algo is not supported yet for ccu_schedule mode, reset to default.");
             return SelectorStatus::NOT_MATCH;

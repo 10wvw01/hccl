@@ -86,10 +86,10 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
                 return SelectorStatus::NOT_MATCH;
             }
         } else {
-                selectAlgName = "CcuAllGatherMesh1D";
-                return SelectorStatus::MATCH;
-            }
-        } else {
+            selectAlgName = "CcuAllGatherMesh1D";
+            return SelectorStatus::MATCH;
+        }
+    } else {
         HCCL_DEBUG("[AllGatherAutoSelector] Level0Topo[%u] is not supported for ccu_ms mode, reset to default.", topoInfo->level0Topo);
         return SelectorStatus::NOT_MATCH;
     }

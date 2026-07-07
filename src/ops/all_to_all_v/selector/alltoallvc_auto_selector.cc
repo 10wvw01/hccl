@@ -32,6 +32,8 @@ SelectorStatus AlltoAllVCAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithN
 
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         selectAlgName = "CcuAlltoAllVCMesh1D";
+    } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
+        selectAlgName = "CcuAlltoAllVCMesh1D";
     } else {
         HCCL_DEBUG("hccl algo no match");
         return SelectorStatus::NOT_MATCH;
