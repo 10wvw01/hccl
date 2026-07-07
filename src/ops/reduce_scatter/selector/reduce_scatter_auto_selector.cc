@@ -20,7 +20,7 @@ constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
 constexpr u64 RS_AICPU_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 RS_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 RS_AICPU_1D_MIN_DATA_SIZE = 4 * 1024 * 1024;
-constexpr u64 RS_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1536 * 1024 * 1024;
+constexpr u64 RS_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD = 1536 * 1024 * 1024;
 
 constexpr u64 RS_CCU_64P_MIN_DATA_SIZE = 128 * 1024 * 1024;
 constexpr u64 RS_CCU_64P_SEQ_DATA_SIZE = 16 * 1024 * 1024;
@@ -369,7 +369,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoAicpuForMesh1D(const Top
         selectAlgName = "InsReduceScatterMesh1D";
     } else {
         if (IsTwoLevelNetLayer(topoInfo)) {
-            if (dataSize * topoInfo->userRankSize > RS_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD) {
+            if (dataSize * topoInfo->userRankSize > RS_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD) {
                 selectAlgName = "InsReduceScatterMesh1DMeshChunk";
             } else if (dataSize * ratio > RS_AICPU_1D_MAX_DATA_SIZE) {
                 selectAlgName = "InsReduceScatterMesh1DMeshChunk";
