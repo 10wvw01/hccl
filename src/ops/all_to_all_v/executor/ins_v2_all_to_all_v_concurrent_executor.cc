@@ -74,7 +74,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     localSendRecvInfo_.recvOffset.resize(rankSize_, 0);
 
     CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize_ * sizeof(u64),
-    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][OrchestrateLoop] param.varMemSize [%llu] is invalid",
+    HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][SetAlltoAllLocalSendRecvInfo] param.varMemSize [%llu] is invalid",
         param.varMemSize), HCCL_E_PARA);
 
     const u64* data = reinterpret_cast<const u64*>(param.varData);
