@@ -607,7 +607,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的的链路
+                continue; // 跨框场景，nhr算法只取layer1的链路
             }
             CommLink *linkList = nullptr;
             u32 listSize;
@@ -918,7 +918,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的的链路
+                continue; // 跨框场景，nhr算法只取layer1的链路
             }
             CommLink *linkList = nullptr;
             u32 listSize;
