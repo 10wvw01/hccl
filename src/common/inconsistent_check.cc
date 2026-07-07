@@ -24,7 +24,7 @@ bool NeedInconsistentCheck(HcclComm comm, const OpParam& param)
             CheckCtxStatus(comm, param);
         bool increCreateChannelFlag = (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) &&
             (param.opMode == OpMode::OPBASE);
-        if (GetInconsistentCheckSwitch() == -1 || (isChecked && !increCreateChannelFlag)) {
+        if (GetInconsistentCheckSwitch() == -1 || (noChecked && !increCreateChannelFlag)) {
             return false;
         } else {
             return true;
