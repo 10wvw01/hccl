@@ -87,18 +87,18 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         }
     } else if(topoType_ == TopoType::THREE_LEVEL) {
         HCCL_INFO("[BuildSubCommAndTempMap] treeLevel");
-        if (!algHierarchyInfo.infos[0].empty() && !algHierarchyInfo.infos[0][0].empty()) {
-                subCommRanks0.push_back(algHierarchyInfo.infos[0][0]);
+        if (!algHierarchyInfo_.infos[0].empty() && !algHierarchyInfo_.infos[0][0].empty()) {
+                subCommRanks0.push_back(algHierarchyInfo_.infos[0][0]);
             } else {
                 subCommRanks0.emplace_back(std::vector<u32>{myRank_});
             }
-            if (!algHierarchyInfo.infos[1].empty() && !algHierarchyInfo.infos[1][0].empty()) {
-                subCommRanks1.push_back(algHierarchyInfo.infos[1][0]);
+            if (!algHierarchyInfo_.infos[1].empty() && !algHierarchyInfo_.infos[1][0].empty()) {
+                subCommRanks1.push_back(algHierarchyInfo_.infos[1][0]);
             } else {
                 subCommRanks1.emplace_back(std::vector<u32>{myRank_});
             }
-            if (!algHierarchyInfo.infos[2].empty() && !algHierarchyInfo.infos[2][0].empty()) {
-                subCommRanks2.push_back(algHierarchyInfo.infos[2][0]);
+            if (!algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
+                subCommRanks2.push_back(algHierarchyInfo_.infos[2][0]);
             } else {
                 subCommRanks2.emplace_back(std::vector<u32>{myRank_});
             }
@@ -146,7 +146,7 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 { 
     // 初始化一些基本成员变量
     InitCommInfo(param, topoInfo, algHierarchyInfo);
-     if (algHierarchyInfo_.infos.size() == ALG_HIERARCHY_NUM3 &&
+    if (algHierarchyInfo_.infos.size() == ALG_HIERARCHY_NUM3 &&
  	        !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
  	        topoType_ = TopoType::THREE_LEVEL;
  	    } else {
@@ -191,7 +191,15 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               resReqlevel.notifyNumPerThread.begin(),
                                               resReqlevel.notifyNumPerThread.end());
-    resourceRequest.channels.emplace_back(resReqlevel.channels[0]);
+    // 将每层的 channel 合并进唯一的 channels[0]，使 op_common 只发起一次 HcclChannelAcquire，
+    // 避免对称内存 pending 在多层多次建链下只覆盖首层、后续层 remoteMems 为空的问题。
+    if (!resReqlevel.channels.empty()) {
+        if (resourceRequest.channels.empty()) {
+            resourceRequest.channels.resize(1);
+        }
+        resourceRequest.channels[0].insert(resourceRequest.channels[0].end(),
+            resReqlevel.channels[0].begin(), resReqlevel.channels[0].end());
+    }
     return HCCL_SUCCESS;
 }
 
@@ -259,6 +267,10 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 
     CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo_,
             subCommRanks0, subCommRanks1, subCommRanks2, tempMap, &resCtx.topoInfo));
+    // 保存各层 rank 列表，供 RestoreChannelMap 按 remoteRank 归层使用（channels 已扁平合并为一次建链）
+    subCommRanks0_ = subCommRanks0;
+    subCommRanks1_ = subCommRanks1;
+    subCommRanks2_ = subCommRanks2;
 
     rankIdxLevel_[OMNIPIPE_LEVEL0] = myRank_ % rankSizeLevel_[OMNIPIPE_LEVEL0];
     rankIdxLevel_[OMNIPIPE_LEVEL1] = myRank_ % (rankSizeLevel_[OMNIPIPE_LEVEL0] * rankSizeLevel_[OMNIPIPE_LEVEL1]) /
@@ -446,7 +458,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             if (rankSizeLevel_[OMNIPIPE_LEVEL2] > 1) {
                 CHK_RET(GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2],
                                                       omniPipeSliceInfo.dataSliceLevel2[i]));
-                tempAlgParamMap[OMNIPIPE_LEVEL2].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel2[i];
+                tempAlgParamMap[OMNIPIPE_LEVEL2].omniReadDstStepSliceInfo=omniPipeSliceLocalcopyInfo.dataSliceLevel2[];
                 tempAlgParamMap[OMNIPIPE_LEVEL2].processedDataCount=processedDataCount;
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsZ_, ntfIdxCtrlToTempZ_));
                 CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2],
@@ -520,15 +532,36 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo) const
 {
     rankIdToChannelInfo.resize(OMNIPIPE_LEVEL_NUM);
-    u32 level = 0;
-    for (u32 i = 0; i < OMNIPIPE_LEVEL_NUM; i++) {
-        if (rankSizeLevel_[i] > 1) {
-            for (auto& channel : resCtx.channels[level]) {
-                u32 remoteRank = channel.remoteRank;
-                rankIdToChannelInfo[i][remoteRank].push_back(channel);
-            }
-            level++;
+    if (resCtx.channels.empty()) {
+        return HCCL_SUCCESS;
+    }
+    // channels 已扁平合并到 channels[0]（一次建链，避免对称内存多层多次建链漏回填）；
+    // 按 remoteRank 归属到对应 Omnipipe 层（同一对端 rank 只会出现在一层子通信域里）。
+    auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
+        for (u32 v : group) {
+            if (v == r) { return true; }
         }
+        return false;
+    };
+    auto tryLevel = [&](u32 i, const std::vector<std::vector<u32>>& subComms,
+                        u32 remoteRank, const ChannelInfo& ch) -> bool {
+        if (rankSizeLevel_[i] <= 1) {
+            return false;
+        }
+        for (const auto& group : subComms) {
+            if (contains(group, static_cast<u32>(myRank_)) && contains(group, remoteRank)) {
+                rankIdToChannelInfo[i][remoteRank].push_back(ch);
+                return true;
+            }
+        }
+        return false;
+    };
+    for (const auto& channel : resCtx.channels[0]) {
+        u32 rr = channel.remoteRank;
+        if (tryLevel(OMNIPIPE_LEVEL0, subCommRanks0_, rr, channel)) { continue; }
+        if (tryLevel(OMNIPIPE_LEVEL1, subCommRanks1_, rr, channel)) { continue; }
+        if (tryLevel(OMNIPIPE_LEVEL2, subCommRanks2_, rr, channel)) { continue; }
+        HCCL_WARNING("[RestoreChannelMap] remoteRank[%u] not found in any active level, dropped.", rr);
     }
     return HCCL_SUCCESS;
 }
@@ -669,7 +702,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER, InsV2AllGatherOmniPipePc
                        InsTempAllGatherOmniPipeNHR, InsTempAllGatherOmniPipeNHRDPU);
  REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER, InsV2AllGatherOmniPipe,	 
                         InsV2AllGatherOmniPipeExecutor, TopoMatchUBX, InsTempAllGatherOmniPipeMesh1D,	 
-                        InsTempAllGatherOmniPipeNHR, InsTempAllGatherOmniPipeNHRDPU);
+                        InsTempAllGatherOmniPipeMesh1D, InsTempAllGatherOmniPipeNHRDPU);
 
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER, InsV2AllGatherOmniPipeUboe,
                        InsV2AllGatherOmniPipeExecutor, TopoMatch3Level, InsTempAllGatherOmniPipeMesh1D,
