@@ -61,9 +61,9 @@ project(hccl)
 # 初始化 CANN 项目配置
 init_cann_project()
 
-# 采用 C++14 标准
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 采用 C++17 标准（refactor 代码使用 std::variant 需要）
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard" FORCE)
+set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
 set(CMAKE_C_FLAGS_RELEASE "")
 set(CMAKE_CXX_FLAGS_RELEASE "")
 

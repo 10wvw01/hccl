@@ -84,9 +84,8 @@ enum class HcclAlgEngineType {
 };
 
 enum class HcclAlgExecPolicy {
+    SEQUENCE,
     PARALLEL,
-    CONCURRENT,
-    OMINIPIPE,
 };
 
 enum class HcclAlgShotMode {
@@ -138,13 +137,13 @@ struct TemplateExecDesc {
 //     executeType: PARALLEL,
 //     templates = [NHR, MESH]
 // }
+
+using VariantType = std::variant<TemplateExecDesc, std::shared_ptr<AlgoExecDesc>>;
 struct AlgoExecDesc {
     HcclAlgExecPolicy execPolicy;                  // 描述children的并行策略：串行/并行
     std::vector<VariantType> children;
     std::vector<u32> dataSplitRatio;        // 并行数据切分比例，元素个数必须和children个数一致,例如1:1:1
 };
-
-using VariantType = std::variant<TemplateExecDesc, std::shared_ptr<AlgoExecDesc>>;
 
 /**
  * 算法描述对象，由上游 Selector 选定后注入。
@@ -190,7 +189,7 @@ public:
     // 算法描述成员，执行器在 CalcAlgHierarchyInfo/CalcRes/Orchestrate 中直接读取
     HcclCMDType hcclCmdType;
     HcclAlgEngineType engineType;
-    TopoMatchBase topoMatch;
+    std::shared_ptr<TopoMatchBase> topoMatch;
     AlgoExecDesc algoExecDesc;
 };
 

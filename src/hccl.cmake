@@ -68,7 +68,7 @@ target_compile_options(hccl PRIVATE
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -fstack-protector-all
 )
 
@@ -196,7 +196,7 @@ target_compile_options(opgraph_hccl PRIVATE
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -fstack-protector-all
     -fvisibility=hidden
 )
