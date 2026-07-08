@@ -276,11 +276,25 @@ inline HcclResult EnforceLaunchTask(const char *algTag)
 inline HcclResult OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable* resCtxPtr, ThreadHandle thread,
     std::string& algName)
 {
+    // RTSQ等待时间: 与算子展开无关, 但resCtx固定该设置不会再变更
+    if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
+        CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
+    }
+
     // NotifyWait等待时间: 只在算子展开过程中使用
     if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
         CHK_RET(HcclSetNotifyWaitTimeOut(resCtxPtr->waitTimeout));
     }
+
+    // 主thread等待Host stream的通知
     u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
+    if (!resCtxPtr->isHcclThreadAcquireWithConfigSupported) {
+        for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
+            if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
+                maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
+            }
+        }
+    }
     HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]", __func__, thread,
         maxNotifyNum, resCtxPtr->waitTimeout);
     CHK_RET(HcclThreadNotifyWaitOnThreadDefault(thread, maxNotifyNum, resCtxPtr->waitTimeout));
@@ -441,21 +455,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             return 1;
         }
 
-        // 主thread等待Host stream的通知
         ThreadHandle exportedAicpuTsThread = param->opThread;
-        u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
-        if (!resCtxPtr->isHcclThreadAcquireWithConfigSupported) {
-            for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
-                if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
-                    maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
-                }
-            }
-        }
-
-        // RTSQ等待时间: 与算子展开无关
-        if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
-            CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
-        }
 
         // 检查aicpu task cache使能约束
         bool enableCache = param->aicpuCacheEnable;
