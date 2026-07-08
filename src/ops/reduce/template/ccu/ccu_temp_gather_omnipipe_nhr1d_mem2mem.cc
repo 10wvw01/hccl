@@ -29,9 +29,9 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     }
 
     // 子通信域的root卡号
-    auto rootIt = std::find(ranks.begin(), ranks.end(), param.root);
-    if (rootIt != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), rootIt);
+    auto itRoot = std::find(ranks.begin(), ranks.end(), param.root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_ = std::distance(ranks.begin(), itRoot);
     }
     rankId_ = rankId;
     ifRealRoot_ = (rankId == param.root);
@@ -60,7 +60,7 @@ void CcuTempGatherOmniPipeNHR1DMem2Mem::UnsetRoot(u32 rank)
 {
     HCCL_INFO("[CcuTempGatherOmniPipeNHR1DMem2Mem][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
     if (!ifRealRoot_) {
-        subCommRootId_ = 1000;
+        subCommRootId_ = UINT32_MAX;
     }
 }
 
@@ -98,7 +98,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
 
     // NHR
     CommTopo priorityTopo = COMM_TOPO_CLOS;
-    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs, priorityTopo));
+    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs));
     for (auto channel : channelDescs) {
         HCCL_DEBUG("[%s] channel myrank[%u], remoteRank [%u]", __func__, myRank_,  channel.remoteRank);
         if (channel.channelProtocol != COMM_PROTOCOL_UBC_CTP) {
@@ -142,6 +142,9 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                                                           const TemplateDataParams& templateDataParams,
                                                           TemplateResource& templateResource)
 {
+    if (templateRankSize_ <= 1) {
+        return HCCL_SUCCESS;
+    }
     HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] start1");
 
     buffInfo_ = templateDataParams.buffInfo;
