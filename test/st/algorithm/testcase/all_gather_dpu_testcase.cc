@@ -243,6 +243,7 @@ TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_100_fp32)
 TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_10m_int8)
 {
     TopoMeta topoMeta {{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {2, 3, 4}, {4, 5, 6}}};
+    u64 sendCount = 10 * 1024 * 1024;  // 接收数据量
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;  // 数据类型
     RunAllGatherDPUA5(topoMeta, sendCount, dataType);
 }
