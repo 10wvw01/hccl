@@ -19,6 +19,11 @@
 #   ❌ concurrent/base_concurrent_executor.cc  - 空文件
 #   ❌ omnipipe/base_omnipipe_executor.cc      - 空文件
 
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common
+)
+
 target_sources(hccl PRIVATE
     ops_executor.cc
 )

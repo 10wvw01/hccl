@@ -1,5 +1,7 @@
 #include "hccl_algorithm.h"
 
+namespace ops_hccl {
+
 class OpsExecutor {
 public:
     OpsExecutor(HcclAlgorithm &algo, OpParam &param);
@@ -144,3 +146,5 @@ struct TemplateDataParam {
 
     // TODO：变长
 };
+
+} // namespace ops_hccl
