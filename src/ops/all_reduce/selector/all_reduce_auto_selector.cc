@@ -187,7 +187,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
-            } else if (dataSize <= 16 * 1024 * 1024 && topoInfo->userRankSize >= ccuSize) {
+            } else if (dataSize <= RS_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
                 return SelectorStatus::MATCH;
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
@@ -391,7 +391,6 @@ SelectorStatus AllReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             } else {
                 selectAlgName = "InsAllReduceNHR";
             }
-
         } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
             selectAlgName = "InsAllReduceNHR";
         } else {
@@ -550,7 +549,7 @@ SelectorStatus AllReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        dataSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        dataSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
         HCCL_DEBUG("[AllReduceAutoSelector][%s] dataSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
             __func__, dataSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
         return SelectorStatus::NOT_MATCH;

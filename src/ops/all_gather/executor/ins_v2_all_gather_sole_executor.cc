@@ -83,7 +83,7 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(
         ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllGatherSoleExecutor][Orchestrate]errNo[0x%016llx] All Gather excutor kernel run failed",
+        HCCL_ERROR("[InsV2AllGatherSoleExecutor][Orchestrate]errNo[0x%016llx] All Gather executor kernel run failed",
                    HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -143,9 +143,10 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         maxDataSizePerLoop = transportBoundDataSize;
     }
 
-    // 如果是对称内存，每次传输的大小不受cclbuffer和UB_MAX_DATA_SIZE的限制
-    if (param.supportSymmetricMemory) {
+    // 如果是对称内存，且算法是InsAllGatherMesh1D，每次传输的大小不受cclbuffer和UB_MAX_DATA_SIZE的限制
+    if (param.supportSymmetricMemory && std::string(param.algName) == "InsAllGatherMesh1D") {
         maxDataSizePerLoop = dataSize_;
+        tempAlgParams.supportSymmetricMemory = true;
     }
     u64 maxCountPerLoop = maxDataSizePerLoop / dataTypeSize_;
     // 计算loopTimes

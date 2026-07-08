@@ -19,6 +19,7 @@
 #include "topo_match_pcie_mix.h"
 
 namespace ops_hccl {
+constexpr u32 OMNIPIPE_LEVEL2_IDX = 2;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::InsV2AllGatherSequenceExecutor3Level()
@@ -117,7 +118,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
     HcclResult ret = OrchestrateLoop(param, resCtx, Level0TempAlg, Level1TempAlg, Level2TempAlg);
     CHK_PRT_RET(
         ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level][Orchestrate]errNo[0x%016llx] All Gather excutor kernel run failed",
+        HCCL_ERROR("[InsV2AllGatherSequenceExecutor3Level][Orchestrate]errNo[0x%016llx] All Gather executor kernel run failed",
                    HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -191,7 +192,7 @@ HcclResult InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, I
 
     TemplateResource Level2TempAlgRes, Level1TempAlgRes, Level0TempAlgRes;
     TemplateDataParams tempAlgParamsLevel2, tempAlgParamsLevel1, tempAlgParamsLevel0;
-    CHK_RET(GenTempResource(2, Level2TempAlgRes));
+    CHK_RET(GenTempResource(OMNIPIPE_LEVEL2_IDX, Level2TempAlgRes));
     CHK_RET(GenTempResource(1, Level1TempAlgRes));
     CHK_RET(GenTempResource(0, Level0TempAlgRes));
 

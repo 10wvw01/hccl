@@ -15,11 +15,12 @@
 namespace ops_hccl {
 constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
+constexpr u32 MAX_RANK_NUM_FOR_SEQ_ALGO = 8;
 constexpr u64 AG_CCU_SMALL_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 AG_FLATTEN_MAX_DATA_SIZE = 64 * 1024;
 constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
-constexpr u64 AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
+constexpr u64 AG_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
@@ -187,7 +188,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
         constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
-        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize > MAX_RANK_NUM_FOR_SEQ_ALGO) {
             HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
                 topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
             return SelectorStatus::NOT_MATCH;
@@ -210,6 +211,13 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
                 return SelectorStatus::NOT_MATCH;
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
                 selectAlgName = "CcuAllGatherNHR1DMem2Mem";
+                return SelectorStatus::MATCH;
+            } else if (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_SEQ_ALGO) {
+                if (dataSize <= AG_CCU_CLOS_SMALL_DATA_SIZE) {
+                    selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+                } else {
+                    selectAlgName = "CcuAllGatherParallelMesh1DNHR";
+                }
                 return SelectorStatus::MATCH;
             } else if (dataSize < AG_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) {
                 selectAlgName = "CcuAllGatherMesh1DMem2Mem";
@@ -265,7 +273,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsAllGatherNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (topoInfo->topoLevelNums >= 3) {
+            if (topoInfo->topoLevelNums >= TOPO_LEVEL_NUM_3) {
                 selectAlgName = "InsAllGatherSequenceNHRNHRMesh1D";
             } else if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
@@ -281,7 +289,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         }
     } else {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (IsTwoLevelNetLayer(topoInfo) && dataSize * topoInfo->userRankSize > AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD) {
+            if (IsTwoLevelNetLayer(topoInfo) && dataSize * topoInfo->userRankSize > AG_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD) {
                 selectAlgName = "InsAllGatherMesh1D1DZAxisDetour";
             } else {
                 selectAlgName = "InsAllGatherMesh1D";
@@ -350,7 +358,7 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        totalSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
         HCCL_DEBUG("[AllGatherAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
             __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
         return SelectorStatus::NOT_MATCH;

@@ -565,8 +565,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
 
     // 算总的scratch再按比例除得到loop
     u64 allCclBufferSize = 0;
-    if (opMode == OpMode::OPBASE
-        && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU || engine == CommEngine::COMM_ENGINE_CCU)) {
+    if ((engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
         allCclBufferSize = dataSize * xRankSize * yRankSize * zRankSize;
     }
     allCclBufferSize = allCclBufferSize + scratchSize[OmniPipeLevel::OMNIPIPE_LEVEL0] +
@@ -627,8 +626,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
                                          zConnerStep, outerStepNum, innerStepNum, maxStepNum, levelAlgType, engine, xB, yB);
         }
         allCclBufferSize = 0;
-        if (opMode == OpMode::OPBASE
-            && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
+        if ((engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
             allCclBufferSize = maxDataSizePerLoop * xRankSize * yRankSize * zRankSize;
         }
         allCclBufferSize = allCclBufferSize + scratchSize[OmniPipeLevel::OMNIPIPE_LEVEL0] +
@@ -908,7 +906,6 @@ OmniPipeSliceInfo CalcAGOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam
 {
     // 公共拓扑参数
     HCCL_INFO("[CalcAGOmniPipeSliceInfo] Run start");
-    // int maxStepNum = MAX_STEP_NUM;
     int maxStepNum = SetMaxStepNumOmni(omniPipeSliceParam.needSetStepNum);
     u64 processedDataEachRank = 0;  // 预留偏移参数，现在填0
     std::vector<u64> levelRankSize = omniPipeSliceParam.levelRankSize;
@@ -1591,8 +1588,7 @@ OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam
                                             zRSDataSize[maxDataPieceId], levelRankSize, zConnerStep, outerStepNum,
                                             innerStepNum, maxStepNum, xB, yB);
     }
-    if (omniPipeSliceParam.opMode == OpMode::OPBASE
-        && (omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_AICPU_TS
+    if ((omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_AICPU_TS
             || omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_CPU)) {
         xCclBufferBaseOff = dataSizePerLoop[maxDataPieceId] * xRankSize * yRankSize * zRankSize;
         HCCL_INFO("xCclBufferBaseOff=%llu, xRankSize=%llu, yRankSize=%llu, zRankSize=%llu",
