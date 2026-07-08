@@ -49,16 +49,14 @@ HcclResult OpsExecutor::Orchestrate(const AlgHierarchyInfoForAllLevel &algHierar
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
     u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_);
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
-    u64 loopTimes = RoundUp(dataCount_, maxProcCntPerLoop);
-    u64 processCount = maxProcCntPerLoop;
+    u64 loopTimes = (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
-        if (loopIdx == loopTimes - 1) {
-            processCount = dataCount_ % maxProcCntPerLoop;
-        }
+        u64 processCount = (loopIdx == loopTimes - 1) ? dataCount_ % maxProcCntPerLoop : maxProcCntPerLoop;
+        u64 tailCount = (loopIdx == loopTimes - 1) ? processCount % rankSize_ : 0;
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
-        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount);
+        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount, tailCount);
         OrchestrateLoop(resCtx, algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
@@ -78,7 +76,9 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
     u64 maxByUb = UB_MAX_DATA_SIZE / dataTypeSize_;
     // 取最小值（总量、CCL scratch、UB传输三者约束）
     u64 resCount = std::min({dataCount, maxByCcl, maxByUb});
-    // 对齐?
+
+    resCount = resCount / rankSize_ * rankSize_;
+    // 对齐
     return resCount;
 }
 
@@ -294,15 +294,25 @@ HcclResult OpsExecutor::GenTemplateRes(
     return HCCL_SUCCESS;
 }
 
-inline void OpsExecutor::InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount)
+inline void OpsExecutor::InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount)
 {
     algoExecDataDesc.dataOffset = dataOffset;
-    algoExecDataDesc.dataCount = dataCount;
     algoExecDataDesc.scratchOffset = dataOffset * scratchMultiple_;
-    algoExecDataDesc.ranksForInputData.emplace_back(myRank_);
+    algoExecDataDesc.tailCount = tailCount;
+    
     algoExecDataDesc.inputBufferType = BufferType::INPUT;
     algoExecDataDesc.outputBufferType = algo_.hcclCmdType == BROADCAST ? BufferType::INPUT : BufferType::OUTPUT;
     algoExecDataDesc.cclBufferType = BufferType::HCCL_BUFFER;
+    
+    if (algo_.hcclCmdType == ALLGATHER) {
+        algoExecDataDesc.sliceCount = dataCount;
+        algoExecDataDesc.ranksForInputData.emplace_back(myRank_);
+    } else {
+        algoExecDataDesc.sliceCount = dataCount / rankSize_;
+        for(int i = 0; i < rankSize_; i++) {
+            algoExecDataDesc.ranksForInputData.emplace_back(i);
+        }
+    }
 }
 
 inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,

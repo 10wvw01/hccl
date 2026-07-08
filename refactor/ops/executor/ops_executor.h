@@ -24,7 +24,7 @@ private:
     inline void UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
-    inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
+    inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount);
     inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
@@ -110,9 +110,10 @@ struct DataInfo {
 
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
-    u64 dataCount{0};
+    u64 sliceCount{0};
     u64 scratchOffset{0};
     u64 scratchSize(0); // 输出参数，调用完了才知道
+    u64 tailCount{0};
     std::vector<u32> ranksForInputData;
     std::vector<u32> ranksForOutputData; // 输出参数，调用完了才知道
     BufferType inputBufferType{BufferType::INPUT};
