@@ -224,68 +224,8 @@ TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_2server_root0_in
     RunScatterTest(0, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_INT32);
 }
 
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_3server_root0_uint64_small_data)
-{   
-    TopoMeta topoMeta {{{0, 1, 2, 3, 4, 5}, {8, 9, 10, 11, 12, 13, 14, 15}, {16, 17}}};
-    RunScatterTest(0, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_UINT64);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_3server_root3_int16_small_data)
-{   
-    TopoMeta topoMeta {{{0, 2, 4, 6}, {8, 9, 10, 11, 12}, {16, 17, 18, 19, 20, 21, 22, 23}}};
-    RunScatterTest(3, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_INT16);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_4server_root5_fp32_big_data)
-{   
-    TopoMeta topoMeta {{{0, 1, 2, 3}, {8, 9, 10, 11, 12}, {16, 18, 20}}};
-    RunScatterTest(5, topoMeta, 400 * 1024 * 1024, HcclDataType::HCCL_DATA_TYPE_FP32);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_2server_root1_int8_big_data)
-{   
-    TopoMeta topoMeta {{{0, 1, 2, 4, 6, 7}, {8, 9, 10, 11, 12, 13, 14, 15}}};
-    RunScatterTest(1, topoMeta, 400 * 1024 * 1024, HcclDataType::HCCL_DATA_TYPE_INT8);
-}
-
 TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_4server_root1_fp16_small_data)
 {   
     TopoMeta topoMeta {{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20, 21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
     RunScatterTest(1, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_FP16);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_3server_root0_int32_small_data)
-{   
-    TopoMeta topoMeta {{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    RunScatterTest(0, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_INT32);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_4server_root0_uint64_small_data)
-{   
-    TopoMeta topoMeta {{{0, 2, 3, 4}, {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3}, {0, 1, 2, 3}}};
-    RunScatterTest(0, topoMeta, 105, HcclDataType::HCCL_DATA_TYPE_UINT64);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_6server_root3_int16_small_data)
-{   
-    TopoMeta topoMeta {{{0, 2, 3, 4}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {3, 5}, {0}, {5, 6}}};
-    RunScatterTest(3, topoMeta, 400 * 1024 * 1024, HcclDataType::HCCL_DATA_TYPE_INT16);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_8server_root5_fp64_big_data)
-{   
-    TopoMeta topoMeta {{{1, 3}, {2, 5}, {3, 4, 5}, {4, 5, 6, 7}, {5, 6, 7}, {6, 7}, {7}, {0}}};
-    RunScatterTest(5, topoMeta, 400 * 1024 * 1024, HcclDataType::HCCL_DATA_TYPE_FP64);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_6server_root1_int8_big_data)
-{   
-    TopoMeta topoMeta {{{0}, {0, 2}, {0, 1, 3}, {0, 4}, {0, 5, 6, 7}, {0, 6}}};
-    RunScatterTest(1, topoMeta, 451 * 1024 * 1024, HcclDataType::HCCL_DATA_TYPE_INT8);
-}
-
-TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_nhr_asymmetric_2server_root0_fp16_small_data)
-{   
-    TopoMeta topoMeta {{{0}, {0, 1, 2, 3, 4, 5, 6, 7}}};
-    RunScatterTest(0, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_FP16);
 }

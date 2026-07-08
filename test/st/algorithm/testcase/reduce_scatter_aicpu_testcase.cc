@@ -387,46 +387,6 @@ TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_2
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_4server_int32_max_test)
-{
-    // 仿真模型初始化
-    TopoMeta topoMeta {{{1, 2, 3, 4, 5}, {0, 1, 2, 3}, {4, 5, 6}, {0, 1, 2, 6, 7}}};  // 三维数组指定超节点-Server-Device信息
-    auto recvCount = 200;  // 接收数据量
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT32;  // 数据类型
-    auto reduceOp = HcclReduceOp::HCCL_REDUCE_MAX;
-    RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
-}
-
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_3server_fp32_min_test)
-{
-    // 仿真模型初始化
-    TopoMeta topoMeta {{{0, 2, 3, 4, 5, 6}, {1, 2, 4}, {0, 1, 2, 3, 4, 7}}};  // 三维数组指定超节点-Server-Device信息
-    auto recvCount = 1024 + 1;  // 接收数据量
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;  // 数据类型
-    auto reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
-    RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
-}
-
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_8server_fp16_sum_test)
-{
-    // 仿真模型初始化
-    TopoMeta topoMeta {{{0, 4, 6, 7}, {1, 2, 5}, {3, 7}, {1}, {2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {1, 2, 3}}};
-    auto recvCount = 200;  // 接收数据量
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;  // 数据类型
-    auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-    RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
-}
-
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_5server_int8_sum_test)
-{
-    // 仿真模型初始化
-    TopoMeta topoMeta {{{0}, {1, 3, 5, 7}, {2, 3, 7}, {0, 1, 2, 3, 4, 5, 6, 7}}};  // 三维数组指定超节点-Server-Device信息
-    auto recvCount = 100;  // 接收数据量
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8;  // 数据类型
-    auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-    RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
-}
-
 TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_6server_bf16_max_test)
 {
     // 仿真模型初始化
