@@ -58,6 +58,7 @@ static CcuResult InitResource(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     ctx.outputMem.resize(ctx.rankSize);
     ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
     ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.inputOmniSliceSizeVec.resize(ctx.rankSize);
     return CCU_SUCCESS;
 }
 
@@ -78,6 +79,9 @@ static CcuResult LoadArgs(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     }
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));
+    }
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceSizeVec[i], argId++));
     }
     return CCU_SUCCESS;
 }
@@ -117,6 +121,8 @@ static CcuResult DoScatter(ScatterOmniPipeMesh1DMem2MemContext &ctx)
 
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
         uint64_t mask = 1ULL << rankIdx;
+        ctx.sliceSize = ctx.inputOmniSliceSizeVec[rankIdx];
+
         CCU_IF(ctx.sliceSize != 0)
         {
             if (rankIdx == ctx.rankId) {
