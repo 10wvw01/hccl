@@ -116,7 +116,9 @@ HcclResult InsTempScatterMesh1D::KernelRun(const OpParam& param, const TemplateD
     CHK_RET(PreCopy(tempAlgParams, templateResource.threads));
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        HCCL_ERROR("[BUG]:threadNum_:%u\n", threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        HCCL_ERROR("[BUG]:subThreads:%u, notifyIdxMainToSub_:%u\n", subThreads.size(), notifyIdxMainToSub_.size());
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     CHK_RET(RunMesh(templateResource.channels, templateResource.threads, tempAlgParams));
