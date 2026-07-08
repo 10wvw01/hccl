@@ -91,7 +91,7 @@ aclrtStream stream;
 aclrtCreateStream(&stream);
 
 // 执行Reduce，将所有rank对应位置的sendBuf相加后，再把结果发送到root节点的recvBuf
-HcclReduce(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, HCCL_REDUCE_SUM, Ranrootk, hcclComm, stream);
+HcclReduce(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, HCCL_REDUCE_SUM, rootRank, hcclComm, stream);
 // 阻塞等待任务流中的集合通信任务执行完成
 aclrtSynchronizeStream(stream);
 
