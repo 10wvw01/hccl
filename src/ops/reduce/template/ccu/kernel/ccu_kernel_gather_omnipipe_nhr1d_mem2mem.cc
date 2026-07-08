@@ -41,7 +41,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
         return CCU_E_INTERNAL;
     }
     
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
+    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]", ctx.arg->channelCount, ctx.localSize);
     
     ctx.input.resize(ctx.localSize + 1);
     ctx.scratch.resize(ctx.localSize + 1);
@@ -188,7 +188,7 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     
     CCU_CHK_RET(PreSync(ctx));
     
-    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
     CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
