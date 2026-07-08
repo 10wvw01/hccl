@@ -164,18 +164,6 @@ enum templateType{
 - bandwidth
 - latency
 
-参考：NCCL包含的字段有
-- collective: allreduce,allgather等
-- size_bytes：数据量
-- algorithm： NCCL的算法，tree、ring等
-- protocal： LL、LL128等
-- channels: gpu特有的channels数量
-- nodes： server数
-- ranks： 总卡数
-- pipeOps： pipeline操作的数量，gpu特有
-- regBuff：是否使用注册内存
-- bandwidth_gbps: 上述配置下的算法带宽
-- latency_us: 上述配置下的耗时，与算法带宽可以二者择一
 
 ##### output tuner.conf文件的格式
 需要包含的字段：
@@ -199,19 +187,6 @@ enum templateType{
 - args (optional)
   - 算法中需要使用的配置（例如，all2all并发度，splitRatio等，可扩展）
 
-
-参考：NCCL的输出主要是合并数据量，选择最优的算法，输出里面不包含bandwidth和latency信息。
-输出的字段有：
-- collective: allreduce,allgather等
-- ***min_bytes：最小数据量***
-- ***max_bytes：最大数据量***
-- algorithm： NCCL的算法，tree、ring等
-- protocal： LL、LL128等
-- channels: gpu特有的channels数量
-- nodes： server数
-- ranks： 总卡数
-- pipeOps： pipeline操作的数量，gpu特有
-- regBuff：是否使用注册内存
 
 
 #### 运行tuner plugin，加载最优配置文件，就可以得到调优后的最优曲线
