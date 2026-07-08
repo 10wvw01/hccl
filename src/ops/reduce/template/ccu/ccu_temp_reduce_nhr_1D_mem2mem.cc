@@ -260,9 +260,9 @@ HcclResult CcuTempReduceNHR1DMem2Mem::CalcSliceInfoAllReduce(const u64 dataSize,
     sliceInfoVec.clear();
     sliceInfoVec.resize(templateRankSize_);
 
-    u64 unitAllignSize = DataTypeSizeGet(dataType_);
-    u64 unitPerSlice = dataSize / unitAllignSize / templateRankSize_;
-    HCCL_DEBUG("unitAllignSize[%llu] unitPerSlice[%llu]", unitAllignSize, unitPerSlice);
+    u64 unitAlignSize = DataTypeSizeGet(dataType_);
+    u64 unitPerSlice = dataSize / unitAlignSize / templateRankSize_;
+    HCCL_DEBUG("unitAlignSize[%llu] unitPerSlice[%llu]", unitAlignSize, unitPerSlice);
 
     u64       accumOff = 0;
     SliceInfo currSlice;
@@ -272,11 +272,11 @@ HcclResult CcuTempReduceNHR1DMem2Mem::CalcSliceInfoAllReduce(const u64 dataSize,
             currSlice.size   = dataSize - accumOff;
         } else {
             currSlice.offset = accumOff;
-            currSlice.size   = unitPerSlice * unitAllignSize;
+            currSlice.size   = unitPerSlice * unitAlignSize;
         }
-        CHK_PRT_RET(currSlice.size % unitAllignSize != 0,
-                    HCCL_ERROR("[Calc][SliceInfo]rank[%u] slice size[%llu] is invalid, unitAllignSize[%llu]",
-                               rankIdx, currSlice.size, unitAllignSize),
+        CHK_PRT_RET(currSlice.size % unitAlignSize != 0,
+                    HCCL_ERROR("[Calc][SliceInfo]rank[%u] slice size[%llu] is invalid, unitAlignSize[%llu]",
+                               rankIdx, currSlice.size, unitAlignSize),
                     HcclResult::HCCL_E_INTERNAL);
         sliceInfoVec[rankIdx].push_back(currSlice);
         accumOff += currSlice.size;
