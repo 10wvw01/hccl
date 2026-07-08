@@ -28,7 +28,7 @@ ENABLE_BUILD_AARCH="OFF"
 CANN_3RD_LIB_PATH="${CURRENT_DIR}/third_party"
 CUSTOM_SIGN_SCRIPT="${CURRENT_DIR}/scripts/sign/community_sign_build.py"
 ENABLE_SIGN="false"
-VERSION_INFO="8.5.0"
+VERSION_INFO=$(grep -oP 'VERSION "\K[0-9.]+' "${CURRENT_DIR}/version.cmake" 2>/dev/null || echo "8.5.0")
 ENABLE_EXPERIMENTAL="false"
 ENABLE_UT="off"
 ENABLE_ST="off"
@@ -904,6 +904,11 @@ fi
 
 if [ "${COV}" == "true" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=ON"
+fi
+
+if [ -n "${CCACHE_PROGRAM}" ];then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
 fi
 
 if [ -n "${ascend_package_path}" ];then
