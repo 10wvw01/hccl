@@ -11,34 +11,17 @@
 #ifndef MESH_PRIMITIVES_H
 #define MESH_PRIMITIVES_H
 
+#include "template_utils.h"
 #include "hccl_algorithm.h"
-
-struct TemplateDataParam;
 
 namespace ops_hccl {
 
-// Full AICPU Mesh AllGather communication primitive entry.
-// Slice mode and variable-count metadata are carried by TemplateDataParam.
-HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
+struct TemplateDataParam;
+
+// 构造 Mesh AllGather 的通信描述符，实际 SendRecv 由 template 执行。
+HcclResult RunMeshAllGather(const TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
                             const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<SendRecvInfo> &sendRecvInfos);
-
-#if 0 // 以下算子暂缓：待定长 RunMeshAllGather 样例审过后依次迁移
-HcclResult RunMeshReduceScatter(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
-                                const std::vector<u32> &ranks, u32 myRank);
-
-HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
-
-HcclResult RunMeshGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                         EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
-
-HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
-
-HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                          EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
-#endif // 以下算子暂缓
 
 } // namespace ops_hccl
 
