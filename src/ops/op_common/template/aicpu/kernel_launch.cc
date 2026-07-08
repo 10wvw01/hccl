@@ -514,7 +514,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 }
 
                 // 首次缓存记录通信域与tag关系
-                AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->commName, cacheTag);
+                AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->hcclComm, cacheTag);
             } else { // cache hit
                 // 刷新并下发task
                 // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
@@ -1182,5 +1182,21 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
         return 1;
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
+    return 0;
+}
+
+extern "C" unsigned int HcclLaunchAicpuCacheEvitKernel(HcclComm *comm)
+{
+    if (comm == nullptr) {
+        HCCL_ERROR("%s comm is nullptr", __func__);
+        return 1;
+    }
+    HCCL_INFO("Entry-%s, comm[%p]", __func__, *comm);
+    if (*comm != nullptr) {
+        AicpuTaskCacheCommManager::Instance().evitTaskCache(*comm);
+    } else {
+        AicpuTaskCacheCommManager::Instance().evitAllTaskCache();
+    }
+
     return 0;
 }
