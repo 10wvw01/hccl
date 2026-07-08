@@ -337,6 +337,25 @@ HcclResult HcclThreadAcquireWithStream(
     return simComm->independentOpThreadMgr_->HcclThreadAcquireWithStream(engine, stream, notifyNum, thread);
 }
 
+HcclResult HcclThreadAcquireWithConfig(HcclComm comm, CommEngine engine, uint32_t threadNum, ThreadType type,
+    const ThreadConfig *config, ThreadHandle *threads)
+{
+    auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
+    CHK_PTR_NULL(simComm);
+    for (auto i = 0; i < threadNum; i++) {
+        HcclResult ret = simComm->independentOpThreadMgr_->HcclThreadAcquire(engine, 1, config[i].notifyNumPerThread, &threads[i]);
+        if (ret != HCCL_SUCCESS) {
+            return ret;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+bool HcommIsSupportHcclThreadAcquireWithConfig()
+{
+    return true;
+}
+
 HcclResult HcclEngineCtxGet(HcclComm comm, const char *engineTag, CommEngine engine, void **ctx, uint64_t *size)
 {
     auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
@@ -401,6 +420,19 @@ int32_t HcommThreadNotifyWaitOnThreadWithDefaultTimeout(ThreadHandle thread, uin
     return HcommThreadNotifyWaitOnThread(thread, notifyIdx, 0);
 }
 
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+int32_t HcommSetNotifyWaitTimeOut(float timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+
+int32_t HcommThreadResAcquireTimeOut(float timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+#else
 int32_t HcommSetNotifyWaitTimeOut(uint32_t timeOut)
 {
     static_cast<void>(timeOut);
@@ -412,6 +444,7 @@ int32_t HcommThreadResAcquireTimeOut(uint32_t timeOut)
     static_cast<void>(timeOut);
     return HCCL_SUCCESS;
 }
+ #endif
 
 int32_t HcommThreadNotifyRecordOnThread(ThreadHandle thread, ThreadHandle dstThread, uint32_t dstNotifyIdx)
 {
@@ -798,6 +831,13 @@ int32_t HcommWriteWithNotifyNbiOnThread(ThreadHandle thread, ChannelHandle chann
 {
     HcommWriteOnThread(curThread, channel, dst, src, len);
     HcommChannelNotifyRecordOnThread(curThread, channel, remoteNotifyIdx);
+    return 0;
+}
+
+int32_t HcommWriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+    uint64_t len)
+{
+    return HcommWriteOnThread(thread, channel, dst, src, len);
     return 0;
 }
 

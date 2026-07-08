@@ -7,8 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
- 
+
 #include "aiv_communication_base_v2.h"
  
 using namespace AscendC;
@@ -193,7 +192,7 @@ __aicore__ inline void AivAllGatherV2Mesh1D(KERNEL_ARGS_DEF)
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
- 
+
     op.Process(len, sliceId, outputSliceStride);
     // 执行barrier全同步
     op.BarrierAll();

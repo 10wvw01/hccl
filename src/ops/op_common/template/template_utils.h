@@ -41,6 +41,14 @@ enum class BufferType {
     DEFAULT
 };
 
+enum class BatchSendRecvOpType {
+    RECORD = 0,
+    SEND = 1,
+    RECV = 2,
+    FENCE = 3,
+    DEFAULT
+};
+
 struct DataSlice {
     void* addr_ = nullptr;
     u64 offset_{0}; // Slice相对于input/output的偏移字节数，gather类操作取output，scatter类操作取input
@@ -233,6 +241,7 @@ struct TemplateDataParams {
     u64 outputRepeatStride{0};
     u64 tailSize{0};
     bool enableRemoteMemAccess{false};
+    bool supportSymmetricMemory{false};
     u64 processedDataCount{0};
     u64 root{0};
     HcclDataType dataType{HCCL_DATA_TYPE_INT8};
@@ -245,6 +254,7 @@ struct TemplateDataParams {
     std::vector<u64> sdispls;
     std::vector<u64> rdispls;
     StepSliceInfo stepSliceInfo;
+    BatchSendRecvOpType opType;
 
     std::vector<char> Serialize() const
     {
@@ -259,6 +269,7 @@ struct TemplateDataParams {
         binaryStream << outputRepeatStride;
         binaryStream << tailSize;
         binaryStream << enableRemoteMemAccess;
+        binaryStream << supportSymmetricMemory;
         binaryStream << allRankSliceSize;
         binaryStream << allRankDispls;
         binaryStream << sendCounts;
@@ -269,6 +280,7 @@ struct TemplateDataParams {
         binaryStream << root;
         binaryStream << dataType;
         binaryStream << stepSliceInfo.Serialize();
+        binaryStream << opType;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -287,6 +299,7 @@ struct TemplateDataParams {
         binaryStream >> outputRepeatStride;
         binaryStream >> tailSize;
         binaryStream >> enableRemoteMemAccess;
+        binaryStream >> supportSymmetricMemory;
         binaryStream >> allRankSliceSize;
         binaryStream >> allRankDispls;
         binaryStream >> sendCounts;
@@ -299,6 +312,7 @@ struct TemplateDataParams {
         std::vector<char> stepSliceInfoData;
         binaryStream >> stepSliceInfoData;
         stepSliceInfo.DeSerialize(stepSliceInfoData);
+        binaryStream >> opType;
     }
 };
 

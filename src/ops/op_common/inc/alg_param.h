@@ -74,7 +74,7 @@ constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 // Z axis detour 需要
 constexpr u32 MESH_CHANNELS_NUM = 1;
 
-constexpr uint64_t CCU_MAX_RANK_SIZE = 16;
+constexpr uint64_t CCU_MAX_RANK_SIZE = 128;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
@@ -416,6 +416,7 @@ struct AlgResourceCtxSerializable {
     ThreadHandle unfoldThread = 0; // 展开流thread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
+    bool isHcclThreadAcquireWithConfigSupported = false;
     void* commInfoPtr = nullptr;
     // hostdpu
     void *npu2DpuShmemPtr = nullptr;
@@ -443,6 +444,7 @@ struct AlgResourceCtxSerializable {
         binaryStream << unfoldThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
+        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -476,6 +478,7 @@ struct AlgResourceCtxSerializable {
         binaryStream >> unfoldThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
+        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;

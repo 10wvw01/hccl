@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "omnipipe_data_slice_calc.h"
+#include "comm_engine_utils.h"
 
 namespace ops_hccl {
 constexpr double BANDWIDTH_RATIO_BOUND = 10;
@@ -466,8 +467,8 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
     CommEngine engine = omniPipeScratchParam.engine;
     HCCL_INFO(
         "[CalcOmniPipeScratchInfo] "
-        "dataSize=[%llu],dataTypeSize=[%llu],maxTmpMemSize=[%llu],opMode=[%u],engine=[%u],levelAlgType.size()=[%u]",
-        dataSize, dataTypeSize, maxTmpMemSize, opMode, engine, levelAlgType.size());
+        "dataSize=[%llu],dataTypeSize=[%llu],maxTmpMemSize=[%llu],opMode=[%u],engine=[%s],levelAlgType.size()=[%u]",
+        dataSize, dataTypeSize, maxTmpMemSize, opMode, GetEnumToString(GetCommEngineStatusStrMap(), engine).c_str(), levelAlgType.size());
 
     double xyB = xB;
     if(yB >= xB){
@@ -529,8 +530,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
 
     // 算总的scratch再按比例除得到loop
     u64 allCclBufferSize = 0;
-    if (opMode == OpMode::OPBASE
-        && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
+    if ((engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
         allCclBufferSize = dataSize * xRankSize * yRankSize * zRankSize;
     }
     allCclBufferSize = allCclBufferSize + scratchSize[OmniPipeLevel::OMNIPIPE_LEVEL0] +
@@ -593,8 +593,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
             HCCL_INFO("[CalcOmniPipeScratchInfo] zB<=xyB,scratchSize=[%llu]", scratchSize);
         }
         allCclBufferSize = 0;
-        if (opMode == OpMode::OPBASE
-            && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
+        if ((engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
             allCclBufferSize = maxDataSizePerLoop * xRankSize * yRankSize * zRankSize;
         }
         allCclBufferSize = allCclBufferSize + scratchSize[OmniPipeLevel::OMNIPIPE_LEVEL0] +
@@ -1556,8 +1555,7 @@ OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam
                                             zRSDataSize[maxDataPieceId], levelRankSize, zConnerStep, outerStepNum,
                                             innerStepNum, maxStepNum, xB, yB);
     }
-    if (omniPipeSliceParam.opMode == OpMode::OPBASE
-        && (omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_AICPU_TS
+    if ((omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_AICPU_TS
             || omniPipeSliceParam.engine == CommEngine::COMM_ENGINE_CPU)) {
         xCclBufferBaseOff = dataSizePerLoop[maxDataPieceId] * xRankSize * yRankSize * zRankSize;
         HCCL_INFO("xCclBufferBaseOff=%llu, dataSizePerLoop=%llu, xRankSize=%llu, yRankSize=%llu, zRankSize=%llu",
