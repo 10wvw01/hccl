@@ -20,10 +20,6 @@ namespace ops_hccl {
 
 using RankGroup = std::vector<u32>;
 
-HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
-    std::vector<u64> &sendSliceData, std::vector<u64> &recvSliceData, std::vector<u64> &sendSdispls,
-    std::vector<u64> &localSdispls);
-
 class CcuTempOmni : public CcuAlgTemplateBase {
 public:
     CcuTempOmni() = default;
@@ -45,6 +41,10 @@ public:
         TemplateResource &templateResource, const omni::XmlInfo &xmlInfo, const std::vector<u64> &sendSliceData,
         const std::vector<u64> &recvSliceData, const std::vector<u64> &sendSdispls,
         const std::vector<u64> &localSdispls, uint32_t syncNum);
+
+    HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
+        std::vector<u64> &sendSliceData, std::vector<u64> &recvSliceData, std::vector<u64> &sendSdispls,
+        std::vector<u64> &localSdispls);
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     u64 GetThreadNum() const override;
@@ -72,9 +72,9 @@ private:
     uint32_t syncNum_ = 0;
     uint64_t sliceNum_ = 0;
 
-    HcclResult BuildOmniTaskArgs(const BuffInfo &buffInfo, uint32_t syncIdx,
-        const std::vector<u64> &sendCounts, const std::vector<u64> &recvCounts, const std::vector<u64> &sdispls,
-        const std::vector<u64> &rdispls, const std::vector<u64> &sendSliceData, const std::vector<u64> &recvSliceData,
+    HcclResult BuildOmniTaskArgs(const BuffInfo &buffInfo, uint32_t syncIdx, const std::vector<u64> &sendCounts,
+        const std::vector<u64> &recvCounts, const std::vector<u64> &sdispls, const std::vector<u64> &rdispls,
+        const std::vector<u64> &sendSliceData, const std::vector<u64> &recvSliceData,
         const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls,
         std::vector<uint64_t> &taskArgs) const;
 };

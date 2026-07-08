@@ -165,7 +165,7 @@ HcclResult InsOmniSoleCcuExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLoop
     std::vector<u64> recvSliceData;
     std::vector<u64> sendSdispls;
     std::vector<u64> localSdispls;
-    CHK_RET(BuildOmniSliceMeta(
+    CHK_RET(algTemplate->BuildOmniSliceMeta(
         param, rankSize_, sliceNum, dataCount_, sendSliceData, recvSliceData, sendSdispls, localSdispls));
 
     TemplateDataParams tempAlgParams;

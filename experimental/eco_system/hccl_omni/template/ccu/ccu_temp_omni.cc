@@ -195,13 +195,11 @@ HcclResult CcuTempOmni::PartitionChannels(HcclComm comm, const std::vector<HcclC
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
+HcclResult CcuTempOmni::BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, u64 dataCount,
     std::vector<u64> &sendSliceData, std::vector<u64> &recvSliceData, std::vector<u64> &sendSdispls,
     std::vector<u64> &localSdispls)
 {
-    if (sliceNum == 0) {
-        return HCCL_SUCCESS;
-    }
+    HCCL_INFO("[BuildOmniSliceMeta] BEGIN");
 
     const u64 *scPtr = static_cast<const u64 *>(param.all2AllVDataDes.sendCounts);
     const u64 *rcPtr = static_cast<const u64 *>(param.all2AllVDataDes.recvCounts);
@@ -230,7 +228,7 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
             sendSdispls.push_back(rankIdx * perSliceCount);
             localSdispls.push_back(i * perSliceCount);
 
-            HCCL_DEBUG("BuildOmniSliceMeta dataCount is not 0, sliceIdx %u, ratio %u, perSliceCount %u, rankIdx %u, "
+            HCCL_ERROR("BuildOmniSliceMeta dataCount is not 0, sliceIdx %u, ratio %u, perSliceCount %u, rankIdx %u, "
                        "sendSliceData %u, "
                        "recvSliceData "
                        "%u, sendSdispls %u, localSdispls %u",
@@ -256,7 +254,7 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
         sendSdispls.push_back(sendBase * slotInRank);
         localSdispls.push_back(sendSdispls[rankIdx] + sendBase * slotInRank);
 
-        HCCL_DEBUG(
+        HCCL_ERROR(
             "BuildOmniSliceMeta dataCount is 0, sliceIdx %u, ratio %u, rankIdx %u, sendSliceData %u, recvSliceData "
             "%u, sendSdispls %u, localSdispls %u",
             i, ratio, rankIdx, sendSliceData[i], recvSliceData[i], sendSdispls[i], localSdispls[i]);
