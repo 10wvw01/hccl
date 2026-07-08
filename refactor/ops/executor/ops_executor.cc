@@ -40,7 +40,7 @@ HcclResult OpsExecutor::Orchestrate(
     InitRes(resCtx);
     // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
-    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_);//dataCount_
+    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_); // dataCount_
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
@@ -50,7 +50,7 @@ HcclResult OpsExecutor::Orchestrate(
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
         InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount, tailCount);
-        OrchestrateLoop(resCtx, algo_.algoExecDesc, algoExecDataDesc);
+        OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
     }
@@ -82,8 +82,6 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     cclBufferInfo_.ptr = resCtx.cclMem.addr;
     cclBufferInfo_.size = resCtx.cclMem.size;
     cclBufferInfo_.buffetType = BufferType::HCCL_BUFFER;
-
-    algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
     mainThread_ = threads_.at(0);
     // TODO：考虑不同Executor
@@ -93,8 +91,8 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     // TODO：加rankSize数组初始化
 }
 
-std::vector<std::map<u32, std::vector<ChannelInfo>>>
-    OpsExecutor::RestoreChannelMap(const AlgResourceCtxSerializable &resCtx)
+std::vector<std::map<u32, std::vector<ChannelInfo>>> OpsExecutor::RestoreChannelMap(
+    const AlgResourceCtxSerializable &resCtx)
 {
     const AlgHierarchyInfoForAllLevel &algHierarchyInfo = resCtx.algHierarchyInfo;
     std::vector<std::map<u32, std::vector<ChannelInfo>>> rankIdToChannelInfo(algHierarchyInfo.infos.size());
@@ -268,12 +266,10 @@ HcclResult OpsExecutor::CalcRes(AlgResourceRequest &resourceRequest)
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::GenTemplateRes(
-    const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource)
+HcclResult OpsExecutor::GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource)
 {
     templateResource.channels = channelTable_.at(subCommIndex);
     templateResource.threads = subThreads_.at(subCommIndex);
-    templateResource.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     // 其他参数待确认是否还需要保留
     return HCCL_SUCCESS;
 }
@@ -300,7 +296,7 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
     }
 }
 
-inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx,
+inline void OpsExecutor::GenTemplateDataParams(
     AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams)
 {
     templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
@@ -310,9 +306,9 @@ inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable 
     templateDataParams.buffInfo.outBuffType = algoExecDataDesc.outputBufferType;
     templateDataParams.buffInfo.hcclBuffType = algoExecDataDesc.cclBufferType;
     templateDataParams.dataType = dataInfo_.dataType;
-    templateDataParams.sliceCount = algoExecDataDesc.dataCount;
+    templateDataParams.sliceCount = algoExecDataDesc.sliceCount;
     // todo 待支持tailcount
-    templateDataParams.tailCount = algoExecDataDesc.dataCount;
+    templateDataParams.tailCount = algoExecDataDesc.tailCount;
     templateDataParams.dataOffset = algoExecDataDesc.dataOffset;
     templateDataParams.cclBufferOffset = algoExecDataDesc.scratchOffset;
     templateDataParams.reduceOp = dataInfo_.reduceOp;
@@ -326,22 +322,23 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
 {
     size_t childrenSize = algoExecDesc.children.size();
     u32 dataSplitRatioSum = std::accumulate(algoExecDesc.dataSplitRatio.begin(), algoExecDesc.dataSplitRatio.end(), 0);
+    float dataSplitRatio = algoExecDataDesc.dataSplitRatio.at(childrenId) / dataSplitRatioSum;
     childrenAlgoExecDataDesc.at(childrenId) = algoExecDataDesc;
     // 根据algoExecDesc中的数据切分比例切分
     childrenAlgoExecDataDesc.at(childrenId).dataOffset
         = childrenId == 0
               ? algoExecDataDesc.dataOffset
               : (childrenAlgoExecDataDesc.at(childrenId - 1).dataOffset
-                    + childrenAlgoExecDataDesc.at(childrenId - 1).dataCount
+                    + childrenAlgoExecDataDesc.at(childrenId - 1).sliceCount
                           * childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputData.size() * dataTypeSize_);
-    u64 dataCount = algoExecDataDesc.dataCount * algoExecDataDesc.dataSplitRatio.at(childrenId) / dataSplitRatioSum;
+    u64 sliceCount = algoExecDataDesc.sliceCount *  dataSplitRatio;
     if (childrenId == childrenSize - 1) {
-        dataCount = algoExecDataDesc.dataCount;
+        sliceCount = algoExecDataDesc.sliceCount;
         for (size_t i = 0; i < childrenSize - 1; i++) {
-            dataCount = dataCount - childrenAlgoExecDataDesc.at(i).dataCount;
+            sliceCount -= childrenAlgoExecDataDesc.at(i).sliceCount;
         }
     }
-    childrenAlgoExecDataDesc.at(childrenId).dataCount = dataCount;
+    childrenAlgoExecDataDesc.at(childrenId).sliceCount = sliceCount;
     childrenAlgoExecDataDesc.at(childrenId).scratchOffset
         = childrenId == 0 ? algoExecDataDesc.scratchOffset
                           : (childrenAlgoExecDataDesc.at(childrenId - 1).scratchOffset
@@ -384,27 +381,25 @@ inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
     algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.back().ranksForOutputData;
 }
 
-HcclResult OpsExecutor::RunTemplateDesc(
-    const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
+HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
     std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
-    CHK_RET(GenTemplateRes(resCtx, templateExeDes->subCommIndex, templateResource));
+    CHK_RET(GenTemplateRes(templateExeDes->subCommIndex, templateResource));
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
-    GenTemplateDataParams(resCtx, algoExecDataDesc, templateDataParams);
+    GenTemplateDataParams(algoExecDataDesc, templateDataParams);
     std::vector<u32> ranksForOutputData;
     CHK_RET(baseTemplate.KernelRun(templateDataParams, templateResource, ranksForOutputData));
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
     float scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
     algoExecDataDesc.scratchSize = std::ceil(
-        algoExecDataDesc.dataCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple);
+        algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple);
 }
 
-HcclResult OpsExecutor::OrchestrateLoop(
-    const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
+HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
     size_t childrenSize = algoExecDesc.children.size();
     std::vector<AlgoExecDataDesc> childrenAlgoExecDataDesc;
@@ -422,11 +417,11 @@ HcclResult OpsExecutor::OrchestrateLoop(
         VariantType &v = algoExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-            CHK_RET(RunTemplateDesc(resCtx, templateExeDes, childrenAlgoExecDataDesc.at(i)));
+            CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(i)));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            CHK_RET(OrchestrateLoop(resCtx, **algoDescPtr, childrenAlgoExecDataDesc.at(i)));
+            CHK_RET(OrchestrateLoop(**algoDescPtr, childrenAlgoExecDataDesc.at(i)));
         } else {
             return HCCL_ERR_INVALID_TYPE; // 或者其他错误码
         }

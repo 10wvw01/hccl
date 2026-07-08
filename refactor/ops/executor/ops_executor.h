@@ -16,10 +16,8 @@ public:
 private:
     HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, float inputRatio, float &outputRatio, u32 &subCommMask);
     HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, float inputRatio, float &outputRatio);
-    HcclResult OrchestrateLoop(
-        const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
-    HcclResult GenTemplateRes(
-        const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource);
+    HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
     inline void UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
@@ -34,8 +32,7 @@ private:
     inline void MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
     // 处理单个 TemplateExecDesc 子节点：实例化template、生成资源/数据参数、计算stride、KernelRun
-    HcclResult RunTemplateDesc(
-        const AlgResourceCtxSerializable &resCtx, TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
 
 protected:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
@@ -79,7 +76,7 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
