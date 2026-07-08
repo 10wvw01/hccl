@@ -84,8 +84,10 @@ enum class HcclAlgEngineType {
 };
 
 enum class HcclAlgExecPolicy {
+    SOLE,
     SEQUENCE,
     PARALLEL,
+    CONCURRENT,
 };
 
 enum class HcclAlgShotMode {
@@ -96,6 +98,21 @@ enum class HcclAlgShotMode {
 enum class HcclAlgJettyMode {
     SINGLE_JETTY,
     MULTIPLE_JETTY,
+};
+
+// AICPU 模式 AllGather 算法枚举，对应 all_gather_auto_selector.cc 中 SelectAicpuAlgo 的 11 种算法
+enum class HcclAicpuAllGatherAlgoType {
+    AICPU_ALLGATHER_OMNIPIPE_UBOE,                  // InsV2AllGatherOmniPipeUboe
+    AICPU_ALLGATHER_NHR,                            // InsAllGatherNHR
+    AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_UBOE,       // InsAllGatherParallelMesh1DNHRUboe
+    AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D,            // InsAllGatherSequenceNHRMesh1D
+    AICPU_ALLGATHER_PARALLEL_MESH1D_NHR,            // InsAllGatherParallelMesh1DNHR
+    AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR,          // InsAllGatherMesh1D1DZAxisDetour
+    AICPU_ALLGATHER_MESH1D,                         // InsAllGatherMesh1D
+    AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_PCIE,       // InsAllGatherParallelMesh1DNHRPcie
+    AICPU_ALLGATHER_OMNIPIPE_PCIE,                  // InsV2AllGatherOmniPipePcie
+    AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherConcurrentMesh1DNHR
+    AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY, // InsAllGatherParallelMesh1DNHRMultiJetty
 };
 
 struct TemplateDesc {

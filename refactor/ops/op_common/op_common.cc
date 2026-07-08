@@ -54,4 +54,55 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     return HCCL_SUCCESS;
 }
 
+HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+    HcclAlgorithm &alg)
+{
+    //判断通信域状态
+    HcclCommStatus commStatus = HCCL_COMM_STATUS_INVALID;
+    if (HcommIsSupportHcclCommGetStatus()) {
+        CHK_RET(HcclCommGetStatus(param.commName, &commStatus));
+        if (commStatus != HCCL_COMM_STATUS_READY) {
+            HCCL_ERROR("commStatus is not ready!, commStatus = %d", static_cast<int>(commStatus));
+            return HCCL_E_SUSPENDING;
+        }
+    }
+    HCCL_INFO("Start to execute Selector.");
+    param.hcclComm = comm;
+    // 获取基础拓扑
+    CHK_RET(HcclCalcTopoInfo(comm, param, topoInfo));
+
+    // 检查非对称拓扑支持情况，非对称场景仅 AllGather/AllReduce/ReduceScatter 可用
+    CHK_RET(CheckAsymmetricTopoSupport(param.opType, topoInfo.get()));
+
+    // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
+    std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
+    // ExecuteSelector::Run 内部调用 AutoSelectorBase::Select 输出 HcclAlgorithm
+    CHK_RET(collAlgSelector->Run(param, topoInfo.get(), alg));
+    CHK_RET(SetCommEngine(param));
+    // AIV_ONLY 模式下禁止回退到非 AIV 引擎，未选中 AIV 时直接返回不支持。
+    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY && param.engine != CommEngine::COMM_ENGINE_AIV) {
+        HCCL_ERROR("[HcclExecOp] opType[%d] currently do not select aiv mode, aiv only not support.",
+            static_cast<int>(param.opType));
+        return HCCL_E_NOT_SUPPORT;
+    }
+    // 如果一开始读取到的Engine不是aicpu，经过算法选择后回退到aipcu，则需要重新LoadAICPUKernel
+    if ((param.engine == CommEngine::COMM_ENGINE_AICPU_TS) || (param.engine == CommEngine::COMM_ENGINE_CPU)) {
+        HCCL_DEBUG("[Selector] is aicpu mode");
+        CHK_RET(LoadAICPUKernel()); // 该函数内部有防止重复加载的逻辑
+    }
+    // 如果一开始读取到的Engine不是aiv，经过算法选择后回退到aiv，则需要重新RegisterKernel
+    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+        HCCL_DEBUG("[Selector] is aiv mode");
+        CHK_RET(RegisterKernel()); // 该函数内部有防止重复加载的逻辑
+    }
+    // SetOpParamAlgTag 依赖 algName 字符串，待后续 algName 字符串来源明确后补充
+    // CHK_RET(SetOpParamAlgTag(param, algName));
+    // 设定执行超时时间
+    CHK_RET(SetExecTimeout(param));
+    // 获取多维度切分比例
+    CHK_RET(SetMultipleDimensionSplitRatio(param));
+    HCCL_INFO("Success to execute Selector.");
+    return HCCL_SUCCESS;
+}
+
 }  // namespace ops_hccl
