@@ -20,6 +20,7 @@ CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
 ASAN="false"
 COV="false"
+REFACTOR_OPS="ON"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
 STATIC_MODE="false"  # 新增变量，用于控制是否静态编译
 ENABLE_BUILD_DEVICE="OFF"
@@ -513,12 +514,23 @@ function build_hccl() {
     # 设置 hcc 编译器工具链
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
+    # refactor 模块开关（当前仅 executor+op_common 可编译）
+    local refactor_options=""
+    if [ "${REFACTOR_OPS}" = "ON" ]; then
+        refactor_options="-DREFACTOR_OPS=ON"
+        refactor_options="${refactor_options} -DREFACTOR_OP_COMMON=ON"
+        refactor_options="${refactor_options} -DREFACTOR_EXECUTOR=ON"
+        [ "${REFACTOR_API}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_API=ON"
+        [ "${REFACTOR_SELECTOR}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
+        [ "${REFACTOR_TEMPLATE}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_TEMPLATE=ON"
+    fi
+
     # 创建构建目录
     mk_dir "${BUILD_DIR}"
     cd "${BUILD_DIR}"
 
     # 配置
-    cmake -S ../ -B . ${CUSTOM_OPTION}
+    cmake -S ../ -B . ${CUSTOM_OPTION} ${refactor_options}
     if [ $? -ne 0 ]; then
         log "Error: cmake config failed"
         return 1
@@ -575,6 +587,8 @@ function usage() {
   echo "                   Enable experimental features"
   echo "    --static"
   echo "                   Enable static library build mode"
+  echo "    --refactor     Enable refactor code compilation (default: ON)"
+  echo "    --no-refactor  Disable refactor code compilation"
   echo ""
 }
 
@@ -607,6 +621,14 @@ while [[ $# -gt 0 ]]; do
         ;;
     --pkg)
         # 跳过 --pkg，不做处理
+        shift
+        ;;
+    --refactor)
+        REFACTOR_OPS="ON"
+        shift
+        ;;
+    --no-refactor)
+        REFACTOR_OPS="OFF"
         shift
         ;;
     --cann_3rd_lib_path=*)
