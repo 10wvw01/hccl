@@ -26,7 +26,6 @@ static CcuResult ParseKernelArg(
     ctx.rankId = kernelArg->rankId;
     ctx.rootId = kernelArg->rootId;
     ctx.dataType = kernelArg->opParam.DataDes.dataType;
-    ctx.subRankIdx2RankIdx = kernelArg->subRankIdx2RankIdx;
     ctx.ifRealRoot = kernelArg->ifRealRoot;
     ctx.myrealrank = kernelArg->myrealrank;
     return CCU_SUCCESS;
@@ -84,10 +83,10 @@ static CcuResult LoadArgs(ScatterOmniPipeMesh1DMem2MemContext &ctx)
 
 static CcuResult PostSync(ScatterOmniPipeMesh1DMem2MemContext &ctx)
 {
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
     return CCU_SUCCESS;
@@ -98,14 +97,14 @@ static CcuResult PreSync(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     HCCL_DEBUG("[CcuScatterOmniPipeMesh1DMem2MemKernel] PreSync realRank[%u] ctx.arg->channelCount[%u]", ctx.myrealrank,
         ctx.arg->channelCount);
 
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::WriteVariableWithNotify(
             ctx.arg->channels[i], ctx.output[ctx.arg->rankId], OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID));
         CCU_CHK_RET(ccu::WriteVariableWithNotify(
             ctx.arg->channels[i], ctx.token[ctx.arg->rankId], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID));
     }
     uint32_t allBit = (1 << OUTPUT_XN_ID) | (1 << TOKEN_XN_ID);
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit));
     }
     return CCU_SUCCESS;

@@ -31,12 +31,11 @@ public:
 
     u64 GetThreadNum() const override;
     HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
-    u32 RemoteRankId2RankId(const u32 remoteRankId) const;
     HcclResult RunScatterMeshDispatch(const TemplateDataParams &templateDataParams, TemplateResource &templateResource,
         uint64_t inputAddr, uint64_t outputAddrBase, uint64_t outBuffBaseOff, uint64_t token);
     HcclResult RunLocalCopy(const TemplateDataParams &templateDataParams, TemplateResource &templateResource,
         uint64_t inputAddrBase, uint64_t outputAddrBase);
-    HcclResult LaunchOneRepeat(const StepSliceInfo &stepSliceInfo, TemplateResource &templateResource, uint32_t rpt,
+    HcclResult LaunchOneRepeat(const StepSliceInfo &stepSliceInfo, TemplateResource &templateResource, uint64_t rpt,
         uint64_t repeatNum, bool ifNewRoot, uint64_t inputAddr, uint64_t outputAddr, uint64_t token);
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource &templateResource) override;
@@ -46,7 +45,7 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     void SetRoot(u32 root);
     void UnsetRoot(u32 rank);
-    void BuildSliceStrideVec(const StepSliceInfo &stepSliceInfo, uint32_t rpt, uint64_t repeatNum, bool ifNewRoot,
+    void BuildSliceStrideVec(const StepSliceInfo &stepSliceInfo, uint64_t rpt, uint64_t repeatNum, bool ifNewRoot,
         uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceStrideVec,
         std::vector<uint64_t> &outputOmniSliceStrideVec);
 
@@ -55,7 +54,6 @@ public:
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
     bool isLastStep_ = false;
-    std::vector<uint64_t> targetPeerIdxVec_;
 };
 
 } // namespace ops_hccl
