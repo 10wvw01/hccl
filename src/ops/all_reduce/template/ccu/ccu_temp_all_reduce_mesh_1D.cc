@@ -50,10 +50,10 @@ HcclResult CcuTempAllReduceMesh1D::CalcSliceInfo(const u64 dataSize, RankSliceIn
     std::vector<SliceInfo> tmp(subCommRanks_.size());
     sliceInfoVec.resize(templateRankSize_, tmp);
 
-    u64 unitAllignSize = DataTypeSizeGet(dataType_);
-    u64 chunkSize      = RoundUp(dataSize, (templateRankSize_ * unitAllignSize)) * unitAllignSize;
-    HCCL_INFO("chunkSize[%llu], dataSize[%llu], templateRankSize_[%u], unitAllignSize[%llu]", chunkSize, dataSize,
-              templateRankSize_, unitAllignSize);
+    u64 unitAlignSize = DataTypeSizeGet(dataType_);
+    u64 chunkSize      = RoundUp(dataSize, (templateRankSize_ * unitAlignSize)) * unitAlignSize;
+    HCCL_INFO("chunkSize[%llu], dataSize[%llu], templateRankSize_[%u], unitAlignSize[%llu]", chunkSize, dataSize,
+              templateRankSize_, unitAlignSize);
     u64 accumOff = 0;
     for (u32 rankIdx = 0; rankIdx < templateRankSize_; rankIdx++) {
         u64       currChunkSize  = ((dataSize - accumOff) > chunkSize) ? chunkSize : (dataSize - accumOff);
