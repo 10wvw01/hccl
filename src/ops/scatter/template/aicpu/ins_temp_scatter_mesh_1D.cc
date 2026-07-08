@@ -34,6 +34,7 @@ u64 InsTempScatterMesh1D::GetThreadNum() const
 void InsTempScatterMesh1D::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
 {
     notifyIdxMainToSub.clear();
+    HCCL_ERROR("[BUG]:templateRankSize_:%u", templateRankSize_);
     u32 threadNum = templateRankSize_ > 1 ? templateRankSize_ - 1 : 1;
     u32 slaveThreadNum = threadNum - 1;
     for (u32 slaveThreadIdx = 0; slaveThreadIdx < slaveThreadNum; slaveThreadIdx++) {
@@ -115,14 +116,26 @@ HcclResult InsTempScatterMesh1D::KernelRun(const OpParam& param, const TemplateD
     HCCL_INFO("[InsTempScatterMesh1D] Run Start");
     CHK_RET(PreCopy(tempAlgParams, templateResource.threads));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
+        HCCL_ERROR("[BUG]:threadNum_:%u\n", threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        HCCL_ERROR("[BUG]:subThreads:%u, notifyIdxMainToSub_:%u\n", subThreads.size(), notifyIdxMainToSub_.size());
+        u32 realSubCnt = subThreads.size();
+        while (notifyIdxMainToSub_.size() < realSubCnt) {
+            notifyIdxMainToSub_.push_back(0);
+            HCCL_ERROR("[BUG]:in the circle\n");
+        }
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     CHK_RET(RunMesh(templateResource.channels, templateResource.threads, tempAlgParams));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+        u32 realSubCnt = subThreads.size();
+        while (notifyIdxSubToMain_.size() < realSubCnt) {
+            int idx = notifyIdxSubToMain_.back();
+            notifyIdxSubToMain_.push_back(idx + 1);
+        }
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     CHK_RET(PostCopy(tempAlgParams, templateResource.threads));
