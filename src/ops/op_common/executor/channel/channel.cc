@@ -275,6 +275,7 @@ HcclResult ProcessLinkForProtocol(HcclComm comm, const std::vector<CommProtocol>
                 CHK_RET(CreateChannelFromLink(comm, myRank, remoteRank, netLayer, idx, linkList[idx],
                     funcName, channels));
                 protocolFound = true;
+                break;
             }
         }
         if (protocolFound) {
@@ -606,7 +607,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的的链路
+                continue; // 跨框场景，nhr算法只取layer1的链路
             }
             CommLink *linkList = nullptr;
             u32 listSize;
@@ -792,6 +793,7 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
     }
     HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, netLayer=%u, linkList.size()=%zu, execptMesh=%d, isIsolation=%d",
  	  	         myRank, remoteRank, netLayer, linkList.size(), execptMesh, isIsolation);
+    std::vector<HcclChannelDesc> tempChannels;
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
     // 9.1.0 之前不使用 ProcessLinksForChannelMutiJetty 等新 API，
     // 且 CommAddr.eid 字段也不存在；整函数在 8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用，
@@ -819,14 +821,16 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
         "and topoType %u.",
         myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType);
         if (topoType == CommTopo::COMM_TOPO_CLOS && IsPortEqual(linkList[idx].srcEndpointDesc, linkList[idx].dstEndpointDesc, isIsolation)) {
-            channels.push_back(channelDesc);
+            tempChannels.push_back(channelDesc);
         } else if (topoType == CommTopo::COMM_TOPO_1DMESH && execptMesh) {
             HCCL_INFO("[CalcChannelRequestMeshClos] Clear clos channels and add mesh channel.");
-            channels.clear();
-            channels.push_back(channelDesc);
+            tempChannels.clear();
+            tempChannels.push_back(channelDesc);
             break;
         }
     }
+    channels.insert(channels.end(), tempChannels.begin(), tempChannels.end());
+    HCCL_INFO("[ProcessLinksForChannelMutiJetty] myRank=%u, remoteRank=%u, channel.size=%zu, ", myRank, remoteRank, channels.size());
 #endif 
 #endif
     return HCCL_SUCCESS;
@@ -897,8 +901,14 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
     u32 localRank = std::distance(subcommInfo[0].begin(), it);
     u32 localRankSize = subcommInfo[0].size();
     CHK_RET(CalcNHRChannelConnect(localRank, localRankSize, INVALID_VALUE_RANKID, connectRanks));
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     CommProtocol expectedProtocol = param.engine == CommEngine::COMM_ENGINE_AIV ? 
                        CommProtocol::COMM_PROTOCOL_UB_MEM : CommProtocol::COMM_PROTOCOL_UBC_CTP;
+#else
+    // 8.5.0 CANN 无 UBC_CTP/UB_MEM 枚举值；
+    // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；8.5.0 下用 HCCS 协议占位仅为可编
+    CommProtocol expectedProtocol = CommProtocol::COMM_PROTOCOL_HCCS;
+#endif
     for (u32 rankIdx: connectRanks) {
         size_t channelCountBefore = channels.size();
         uint32_t *netLayers;
@@ -908,7 +918,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的的链路
+                continue; // 跨框场景，nhr算法只取layer1的链路
             }
             CommLink *linkList = nullptr;
             u32 listSize;
@@ -944,8 +954,14 @@ HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& pa
                  HCCL_ERROR("[CollAlgFactory] [channel] Rank [%d] is not in commInfo.", topoInfo->userRank),
                  HcclResult::HCCL_E_PARA);
     u32 myRank = topoInfo->userRank;
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     CommProtocol expectedProtocol = param.engine == CommEngine::COMM_ENGINE_AIV ? 
                        CommProtocol::COMM_PROTOCOL_UB_MEM : CommProtocol::COMM_PROTOCOL_UBC_CTP;
+#else
+    // 8.5.0 CANN 无 UBC_CTP/UB_MEM 枚举值；
+    // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；8.5.0 下用 HCCS 协议占位仅为可编
+    CommProtocol expectedProtocol = CommProtocol::COMM_PROTOCOL_HCCS;
+#endif
     for (u32 rank: subcommInfo[COMM_LEVEL0]) {
         if (rank == topoInfo->userRank) {
             continue;

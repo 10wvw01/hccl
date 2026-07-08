@@ -38,7 +38,7 @@
 
 ### 1. 环境要求
 
-本样例支持以下昇腾产品，组网为单机N卡（N>=2）：
+本样例支持以下昇腾产品，组网要求为支持UB协议的Mesh互联，N卡（N>=2）：
 
 - <term>Ascend 950PR</term> / <term>Ascend 950DT</term>
 
@@ -75,7 +75,8 @@ source /usr/local/Ascend/cann/set_env.sh
 # 指定路径安装，${install_path}表示CANN-Toolkit包实际安装路径
 # source ${install_path}/cann/set_env.sh
 ```
-set_env.sh 是 环境初始化脚本，负责配置 PATH、LD_LIBRARY_PATH、PYTHONPATH 等环境变量，使编译器和运行时能正确找到昇腾 NPU 的工具链、库文件和算子库。
+
+set_env.sh是环境初始化脚本，负责配置PATH、LD_LIBRARY_PATH、PYTHONPATH等环境变量，使编译器和运行时能正确找到昇腾 NPU 的工具链、库文件和算子库。
 
 ## 二、编译自定义算子包
 
@@ -147,6 +148,9 @@ make
 在 `examples/05_custom_ops_allgather/ccu/testcase` 代码目录下执行如下命令：
  	 
 ```bash
+# 设置环境变量：HCCL_OP_EXPANSION_MODE 用于指定通信算子的展开模式，取值 CCU_SCHED 表示启用 CCU 调度模式
+export HCCL_OP_EXPANSION_MODE="CCU_SCHED"
+
 # 运行测试样例
 make test
 
