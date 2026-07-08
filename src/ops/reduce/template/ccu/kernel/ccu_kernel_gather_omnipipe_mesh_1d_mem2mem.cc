@@ -53,6 +53,8 @@ static CcuResult InitResource(GatherOmniPipeMesh1DMem2MemContext &ctx)
     
     ctx.inputMem.resize(ctx.rankSize);
     ctx.outputMem.resize(ctx.rankSize);
+    ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
     
     return CCU_SUCCESS;
 }
@@ -66,13 +68,17 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.rankId], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.localCopyFlag, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.peerId, argId++));
-
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
+    }
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));
+    }
     return CCU_SUCCESS;
 }
 
@@ -115,12 +121,10 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
         }
 
         CCU_IF(ctx.sliceSize != 0) {
-            CCU_IF(ctx.peerId == rankIdx) {
+            if (ctx.rankId != rankIdx) {
                 ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
                 HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx,ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize);
-            }
-            HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] 122");
-            CCU_IF(ctx.peerId != rankIdx) {
+            } else {
                 ccu::EventRecord(ctx.event, rankMask);
             }
         }
@@ -144,11 +148,11 @@ static CcuResult DoRepeatGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
         }
         ctx.inputMem[curId].token = ctx.token[curId];
         ctx.inputMem[curId].addr = ctx.input[curId];
-        ctx.inputMem[curId].addr += ctx.inputOmniPipeSliceStride;
+        ctx.inputMem[curId].addr += ctx.inputOmniSliceStrideVec[curId];
 
         ctx.outputMem[curId].token = ctx.token[curId];
         ctx.outputMem[curId].addr = ctx.output;
-        ctx.outputMem[curId].addr += ctx.outputOmniPipeSliceStride;
+        ctx.outputMem[curId].addr += ctx.outputOmniSliceStrideVec[curId];
     }
     
     CCU_IF(ctx.ifNewRoot == true)

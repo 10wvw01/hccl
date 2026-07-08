@@ -44,7 +44,7 @@ public:
     void UnsetRoot(u32 rank);
     
     uint32_t mySubCommRank_ = 0;
-    uint32_t subCommRootId_ = 1000;
+    uint32_t subCommRootId_ = UINT32_MAX;
     uint32_t rankId_ = 0;
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
