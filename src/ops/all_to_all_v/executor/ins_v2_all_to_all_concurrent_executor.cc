@@ -24,6 +24,8 @@ constexpr uint32_t CONST_1 = 1;
 constexpr uint32_t CONST_2 = 2;
 constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
+constexpr u32 MESH_BW = 100;
+constexpr u32 CLOS_BW = 112;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllToAllConcurrentExecutor()
@@ -240,6 +242,8 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     // 按topo切分数据：0为topo 0，1为topo 1
     uint32_t factorMesh = rankSize_ - 1;
     uint32_t factorClos = CONST_4;                // 端口数获取
+    factorMesh = MESH_BW;
+    factorClos = CLOS_BW;
     uint32_t factor = factorMesh + factorClos;
     for (u64 i = 0; i < rankSize_; i++) {
         uint64_t sendQuotient = sendCounts_[i] / factor;
