@@ -338,7 +338,8 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     double eqBwLevel0SC = BW_OMNI_UBX_CCU_SCHED_SC_MESH;
     double eqBwLevel1SC = BW_OMNI_UBX_CCU_SCHED_SC_CLOS;
     eqBwLevel1SC = rankSizeLevel1_ > 1 ? eqBwLevel1SC / (rankSizeLevel1_ - 1) : eqBwLevel1SC;
-    endpointAttrBwAvgSC = {eqBwLevel0SC, eqBwLevel1SC, 1.0};
+    // endpointAttrBwAvgSC = {eqBwLevel0SC, eqBwLevel1SC, 1.0};
+    endpointAttrBwAvgSC = {4.0, 3.0, 1.0};
 
     // AG带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
     double eqBwLevel0AG = BW_OMNI_UBX_CCU_SCHED_AG_MESH;
