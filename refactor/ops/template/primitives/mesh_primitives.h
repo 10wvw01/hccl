@@ -23,6 +23,7 @@ HcclResult RunMeshAllGather(const ::TemplateDataParam &tempAlgParams, TemplateRe
                             const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<SendRecvInfo> &sendRecvInfos);
 
+#if 0 // 以下算子暂缓：待定长 RunMeshAllGather 样例审过后依次迁移
 HcclResult RunMeshReduceScatter(const ::TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
                                 const std::vector<u32> &ranks, u32 myRank);
 
@@ -37,6 +38,7 @@ HcclResult RunMeshAllToAll(const TemplateDataParams &tempAlgParams, TemplateReso
 
 HcclResult RunMeshBarrier(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                           EngineType engineType, const std::vector<u32> &ranks, u32 myRank);
+#endif // 以下算子暂缓
 
 } // namespace ops_hccl
 
