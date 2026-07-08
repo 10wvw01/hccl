@@ -96,6 +96,9 @@ add_library(scatter_aicpu_kernel SHARED
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/barrier/template/aicpu/ins_temp_barrier_mesh_1D.cc
 
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/mini_reduce/mini_reduce_op.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/mini_reduce/template/aicpu/ins_temp_mini_reduce_mesh_1D.cc
+
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/executor/reduce_sole_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/executor/reduce_parallel_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce/template/aicpu/reduce_mesh_1D.cc

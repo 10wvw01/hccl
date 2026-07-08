@@ -8,19 +8,15 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-add_subdirectory(scatter)
-add_subdirectory(op_common)
-add_subdirectory(reduce_scatter)
-add_subdirectory(all_gather)
-add_subdirectory(all_to_all_v)
-add_subdirectory(broadcast)
-add_subdirectory(all_reduce)
-add_subdirectory(send)
-add_subdirectory(recv)
-add_subdirectory(reduce_scatter_v)
-add_subdirectory(all_gather_v)
-add_subdirectory(reduce)
-add_subdirectory(batch_send_recv)
-add_subdirectory(interface_graph_mode)
-add_subdirectory(barrier)
-add_subdirectory(mini_reduce)
+# MiniReduce - 学习用 mini task, 最简单的 Reduce 算法实现
+# 包含: 1个算子入口 + 1个执行器 + 1个AICPU算法模板
+
+set(src_list
+    ${CMAKE_CURRENT_SOURCE_DIR}/mini_reduce_op.cc
+)
+
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()
