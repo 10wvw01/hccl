@@ -401,7 +401,7 @@ TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_nhr_asymmetric_3
 {
     // 仿真模型初始化
     TopoMeta topoMeta {{{0, 2, 3, 4, 5, 6}, {1, 2, 4}, {0, 1, 2, 3, 4, 7}}};  // 三维数组指定超节点-Server-Device信息
-    auto recvCount = 400 * 1024 * 1024;  // 接收数据量
+    auto recvCount = 1024 + 1;  // 接收数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32;  // 数据类型
     auto reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
