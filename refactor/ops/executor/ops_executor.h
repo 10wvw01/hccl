@@ -2,9 +2,46 @@
 #include <memory>
 #include <vector>
 
-#include "hccl_algorithm.h"
+#include <hccl/hccl_res.h>
 
+// 循环依赖：hccl_algorithm.h 在定义 AlgoExecDesc 之前就通过 std::shared_ptr<AlgoExecDesc>
+// 引用了它，且其末尾 HcclAlgorithm::GetEngine/GetExecutor 又分别需要 BaseLauncher/OpsExecutor，
+// 故在此先做前置声明，避免反向 include 引发未定义错误。
 namespace ops_hccl {
+class BaseLauncher;
+class OpsExecutor;
+struct TemplateResource;
+struct TemplateDataParams;
+struct AlgoExecDesc;        // 前置声明：被 hccl_algorithm.h 的 std::shared_ptr<AlgoExecDesc> 引用
+struct AlgoExecDataDesc;
+struct AlgResourceCtxSerializable;
+struct AlgHierarchyInfoForAllLevel;
+struct ChannelInfo;
+enum class BufferType : int;
+} // namespace ops_hccl
+
+#include "hccl_algorithm.h"
+namespace ops_hccl {
+
+// 占位 BaseTemplate / GetTemplate：refactor/ops/template/ 真实头文件尚未稳定
+// （base_template.h 默认构造函数未初始化引用成员、CalcRes 缺 return、template_factory.h
+//  缺少 namespace 包裹；具体子类仍为抽象类），此处先给出最小占位让 .cc 编译通过。
+class BaseTemplate {
+public:
+    virtual ~BaseTemplate() = default;
+    virtual HcclResult CalcRes(HcclComm /*comm*/, AlgResourceRequest &req) {
+        req = {};
+        return HCCL_SUCCESS;
+    }
+    virtual float CalcScratchMultiple(BufferType /*in*/, BufferType /*out*/) { return 0.0f; }
+    virtual HcclResult KernelRun(TemplateDataParams &, TemplateResource &, std::vector<u32> &outRanks) {
+        outRanks.clear();
+        return HCCL_SUCCESS;
+    }
+};
+inline BaseTemplate GetTemplate(HcclAlgEngineType, TemplateDesc, const std::vector<u32> &, u32) {
+    return BaseTemplate{};
+}
 
 struct TemplateResource {
     std::map<u32, std::vector<ChannelInfo>> channels;

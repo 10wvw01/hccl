@@ -36,6 +36,11 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayer
     // TODO：topoMatch暂不修改参数
     algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo_);
     // 算rankSize
+    u32 topoLevel = algHierarchyInfo_.infos.size();
+    rankSize_ = 1;    
+    for(size_t i =0; i < topoLevel; i++){
+        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
+    }
     return HCCL_SUCCESS;
 }
 
@@ -68,7 +73,7 @@ HcclResult OpsExecutor::Orchestrate(
 u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
 {
     if (scratchMultiple_ == 0 || dataTypeSize_ == 0) {
-        return dataCount;
+        return std::max(dataCount, 1ULL);
     }
     // CCL buffer scratch容量约束：每element需要scratchMultiple_倍dataTypeSize_的scratch空间
     u64 maxByCcl = cclBufferInfo_.size / (static_cast<u64>(scratchMultiple_) * dataTypeSize_);
@@ -76,10 +81,12 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
     u64 maxByUb = UB_MAX_DATA_SIZE / dataTypeSize_;
     // 取最小值（总量、CCL scratch、UB传输三者约束）
     u64 resCount = std::min({dataCount, maxByCcl, maxByUb});
-
-    resCount = resCount / rankSize_ * rankSize_;
-    // 对齐
-    return resCount;
+    // 如果不是allgather需要对齐,其他情况一定能够保证resCount > ranksize
+    if(algo_.hcclCmdType != HCCL_CMD_ALLGATHER){
+        resCount = resCount / rankSize_ * rankSize_;
+    }
+    // 保护：保证至少返回 1，避免 Orchestrate 中 (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop 除零
+    return std::max(resCount, 1ULL);
 }
 
 // 公共工具类函数
@@ -170,7 +177,7 @@ HcclResult OpsExecutor::CalcResRecursion(
     AlgoExecDesc &algoExecDesc, float inputRatio, float &outputRatio, u32 &subCommMask)
 {
     size_t childrenSize = algoExecDesc.children.size();
-    u32 subCommMask = 0;
+    u32 localSubCommMask = 0;
     std::vector<float> childrenInputRatio(childrenSize, inputRatio);
     std::vector<float> childrenOutputRatio(childrenSize);
     for (size_t i = 0; i < childrenSize; ++i) {
@@ -197,10 +204,11 @@ HcclResult OpsExecutor::CalcResRecursion(
         } else {
             return HCCL_E_INTERNAL;
         }
-        subCommMask |= childrenSubCommMask;
+        localSubCommMask |= childrenSubCommMask;
     }
     // 需要将本节点的subCommMask插入到map表中
-    UpdateSubCommMask(algoExecDesc, subCommMask);
+    UpdateSubCommMask(algoExecDesc, localSubCommMask);
+    subCommMask = localSubCommMask;
     outputRatio = (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL)
                       ? (std::accumulate(childrenOutputRatio.begin(), childrenOutputRatio.end(), 0))
                       : childrenOutputRatio.at(childrenSize - 1);
@@ -210,23 +218,24 @@ HcclResult OpsExecutor::CalcResRecursion(
 HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes, float inputRatio, float &outputRatio)
 {
     int subCommIndex = templateExeDes.subCommIndex;
-    std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[subCommIndex];
+    std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
+    float dataSplitRatio = inputRatio;  // 占位：refactor 阶段尚未在模板资源申请阶段引入子节点比例
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
     CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest));
-    maxSlaveThreadNum_.at(subCommIndex) = max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
+    maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
     maxNotifyNumOnMainThread_.at(subCommIndex)
-        = max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
+        = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
     auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
-    maxNotifyNumPerThread_.at(subCommIndex) = max(maxNotifyNumPerThread_.at(subCommIndex), *it);
-    float ScratchMultiple
-        = static_cast<float> baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
-    ScratchMultiple = ScratchMultiple * dataSplitRatio;
-    maxSubScratchMutiple_.at(subCommIndex) = max(maxSubScratchMutiple_.at(subCommIndex), ScratchMultiple);
-    // 如果原语是allgather累乘，否则累除
+    maxNotifyNumPerThread_.at(subCommIndex) = std::max(maxNotifyNumPerThread_.at(subCommIndex), *it);
+    float scratchMultiple = static_cast<float>(baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER,
+                                                                                  BufferType::HCCL_BUFFER));
+    scratchMultiple = scratchMultiple * dataSplitRatio;
+    maxSubScratchMutiple_.at(subCommIndex) = std::max(maxSubScratchMutiple_.at(subCommIndex), scratchMultiple);
+    // 如果原语是 allgather 累乘，否则累除
     outputRatio = (templateExeDes.templateDesc.hcclCmdType == HCCL_CMD_ALLGATHER)
-                      ? (inputRatio * templateRanks.size())
-                      : (inputRatio / templateRanks.size());
+                      ? (inputRatio * static_cast<float>(templateRanks.size()))
+                      : (inputRatio / static_cast<float>(templateRanks.size()));
     requestChannels_.at(subCommIndex) = tempRequest.channels.at(0);
     return HCCL_SUCCESS;
 }
@@ -395,7 +404,7 @@ inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
 
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
-    std::vector<RankInfo> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex];
+    std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
@@ -408,7 +417,8 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
     float scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
     algoExecDataDesc.scratchSize = std::ceil(
-        algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple);
+        static_cast<double>(algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() *
+        dataTypeSize_ * scratchMutiple));
     return HCCL_SUCCESS;
 }
 
