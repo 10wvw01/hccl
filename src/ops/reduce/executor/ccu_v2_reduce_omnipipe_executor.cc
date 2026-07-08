@@ -169,8 +169,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     AlgResourceRequest resGReqLevelX;
     CHK_RET(gAlgTempLevelX.CalcRes(comm, param, topoInfo, resGReqLevelX));
     AlgResourceRequest resGReqLevelY;
+    gAlgTempLevelY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
     CHK_RET(gAlgTempLevelY.CalcRes(comm, param, topoInfo, resGReqLevelY));
-    gAlgTempLevelY.SetRoot(param.root);
+    
 
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelX, resourceRequest, 0));
     CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelY, resourceRequest, 1));
@@ -325,8 +326,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	CcuRsAlgTemplateY rsAlgTempY(param, myRank_, subCommRanks1);
     CcuGAlgTemplateX gAlgTempX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempY(param, myRank_, subCommRanks1);
-    gAlgTempX.SetRoot(param.root);
-    gAlgTempY.SetRoot(param.root);
+    // gAlgTempX.SetRoot(param.root);
+    // gAlgTempY.SetRoot(param.root);
 
     // levelThreads_.resize(CCU_OMNIPIPE_LEVEL_NUM);
     // levelThreads_[CCU_OMNIPIPE_LEVEL0].push_back(threads_[0]);
@@ -505,7 +506,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
             gAlgTempX.SetRoot(myRank_);
-            gAlgTempY.SetRoot(myRank_);
+            gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
             if (i == 0) { // 第一步
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -622,6 +623,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                CcuTempGatherOmniPipeNHR1DMem2Mem);
 }
