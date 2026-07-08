@@ -169,6 +169,9 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
 
     resourceRequest.slaveThreadNum = 0;
     resourceRequest.notifyNumOnMainThread = 0;
+    // 对称内存要求所有层的 channel 合并到一次 HcclChannelAcquire（pending 一次性交换/回填），
+    // 否则多层多次建链只有首层 peer 会被回填，后续层 remoteMems 为空。此处合并进唯一 channels[0]。
+    resourceRequest.channels.clear();
 
     for (auto& temp : tempMap) {
         AlgResourceRequest resReqlevel;
@@ -179,7 +182,13 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                                                   resReqlevel.notifyNumPerThread.begin(),
                                                   resReqlevel.notifyNumPerThread.end());
         resourceRequest.notifyNumOnMainThread++;
-        resourceRequest.channels.push_back(resReqlevel.channels[0]);
+        if (!resReqlevel.channels.empty()) {
+            if (resourceRequest.channels.empty()) {
+                resourceRequest.channels.resize(1);
+            }
+            resourceRequest.channels[0].insert(resourceRequest.channels[0].end(),
+                resReqlevel.channels[0].begin(), resReqlevel.channels[0].end());
+        }
     }
 
     return HCCL_SUCCESS;
@@ -248,14 +257,24 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap;
     CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo_,
             subCommRanks0, subCommRanks1, subCommRanks2, tempMap, &resCtx.topoInfo));
-
-    // 为temp分配thread
+    // 保存各层 rank 列表，供 RestoreChannelMap 按 remoteRank 归层使用（channels 已扁平合并为一次建链）
+    subCommRanks0_ = subCommRanks0;
+    subCommRanks1_ = subCommRanks1;
+    subCommRanks2_ = subCommRanks2;
     threads_ = resCtx.threads;
     controlThread_ = threads_.at(0);
     levelThreads_.resize(OMNIPIPE_LEVEL_NUM);
 
     // 先初始化remoteRankToChannelInfo_，然后为nhr赋值多channel，最后再计算资源，这样计算线程资源的时候就能获取到多channel需要的线程数
     CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    for (u32 level = 0; level < remoteRankToChannelInfo_.size(); ++level) {
+        u32 channelCount = 0;
+        for (const auto& rankChannels : remoteRankToChannelInfo_[level]) {
+            channelCount += rankChannels.second.size();
+        }
+        HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate] level[%u] remoteRanks[%u] channels[%u]",
+            level, remoteRankToChannelInfo_[level].size(), channelCount);
+    }
     // todo 这边写死了
     if (rankSizeLevel1_ > 1) {
         tempMap[OMNIPIPE_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
@@ -281,26 +300,32 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     const AlgResourceCtxSerializable& resCtx, std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo) const
 {
     rankIdToChannelInfo.resize(OMNIPIPE_LEVEL_NUM);
-    u32 level = 0;
-    if (rankSizeLevel0_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL0][remoteRank].push_back(channel);
-        }
-        level++;
+    if (resCtx.channels.empty()) {
+        return HCCL_SUCCESS;
     }
-    if (rankSizeLevel1_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL1][remoteRank].push_back(channel);
+    // channels 已扁平合并到 channels[0]（一次建链）。按 remoteRank 归到对应 Omnipipe 层
+    // （同一对端 rank 只会出现在一层子通信域里）。
+    auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
+        for (u32 v : group) { if (v == r) { return true; } }
+        return false;
+    };
+    auto tryLevel = [&](u32 i, uint64_t rankSize, const std::vector<std::vector<u32>>& subComms,
+                        u32 remoteRank, const ChannelInfo& ch) -> bool {
+        if (rankSize <= 1) { return false; }
+        for (const auto& group : subComms) {
+            if (contains(group, static_cast<u32>(myRank_)) && contains(group, remoteRank)) {
+                rankIdToChannelInfo[i][remoteRank].push_back(ch);
+                return true;
+            }
         }
-        level++;
-    }
-    if (rankSizeLevel2_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL2][remoteRank].push_back(channel);
-        }
+        return false;
+    };
+    for (const auto& channel : resCtx.channels[0]) {
+        u32 rr = channel.remoteRank;
+        if (tryLevel(OMNIPIPE_LEVEL0, rankSizeLevel0_, subCommRanks0_, rr, channel)) { continue; }
+        if (tryLevel(OMNIPIPE_LEVEL1, rankSizeLevel1_, subCommRanks1_, rr, channel)) { continue; }
+        if (tryLevel(OMNIPIPE_LEVEL2, rankSizeLevel2_, subCommRanks2_, rr, channel)) { continue; }
+        HCCL_WARNING("[RestoreChannelMap] remoteRank[%u] not found in any active level, dropped.", rr);
     }
     return HCCL_SUCCESS;
 }
@@ -429,6 +454,20 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         tempResMap[temp.first].npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         tempResMap[temp.first].dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
+        tempAlgParamMap[temp.first].buffInfo.inputPtr = param.inputPtr;
+        tempAlgParamMap[temp.first].buffInfo.outputPtr = param.outputPtr;
+        tempAlgParamMap[temp.first].supportSymmetricMemory = false;
+    }
+    // RS can read from peer user-input only before any partial reduction has been produced.
+    // Later levels must consume the ccl-buffer partial result from the previous level.
+    if (param.supportSymmetricMemory) {
+        if (rankSizeLevel2_ > 1 && tempAlgParamMap.count(OMNIPIPE_LEVEL2) > 0) {
+            tempAlgParamMap[OMNIPIPE_LEVEL2].supportSymmetricMemory = true;
+        } else if (rankSizeLevel0_ > 1 && tempAlgParamMap.count(OMNIPIPE_LEVEL0) > 0) {
+            tempAlgParamMap[OMNIPIPE_LEVEL0].supportSymmetricMemory = true;
+        } else if (rankSizeLevel1_ > 1 && tempAlgParamMap.count(OMNIPIPE_LEVEL1) > 0) {
+            tempAlgParamMap[OMNIPIPE_LEVEL1].supportSymmetricMemory = true;
+        }
     }
 
     TemplateDataParams tempParamLocalcopy;

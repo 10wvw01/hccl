@@ -53,10 +53,15 @@ private:
     HcclResult RunReduceScatter(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                 const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParam);
+    HcclResult RunReduceScatterSymmetric(const std::map<u32, std::vector<ChannelInfo>> &channels,
+                                         const std::vector<ThreadHandle> &threads,
+                                         const TemplateDataParams &tempAlgParam);
     u64 processSize_{0};
     u64 count_{0};
+    void *inputSymWindow_{nullptr};
+    u64 inputOffset_{0};
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif // INS_TEMP_REDUCE_SCATTER_OMNIPIPE_MESH_1D_H

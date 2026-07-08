@@ -9,6 +9,9 @@
  */
 
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempReduceScatterOmniPipeMesh1D::InsTempReduceScatterOmniPipeMesh1D(
@@ -144,20 +147,51 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
     }
     threadNum_ = templateResource.threads.size();
     dataType_ = param.DataDes.dataType;
+    inputSymWindow_ = param.inputSymWindow;
+    inputOffset_ = param.inputOffset;
+    supportSymmetricMemory_ = tempAlgParams.supportSymmetricMemory;
+    // 对称内存: kernel 执行前校验本层每个 peer 的远端 input 指针是否已回填，
+    // 定位 HcclSymWinGetPeerPointer 取不到对端地址（remoteMems 未回填）的问题。
+    if (supportSymmetricMemory_ && templateRankSize_ > 1) {
+        u32 validCnt = 0;
+        u32 nilCnt = 0;
+        for (u32 peer : subCommRanks_[0]) {
+            if (peer == myRank_) { continue; }
+            void* inPtr = nullptr;
+            HcclResult rIn = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, peer, &inPtr);
+            if (rIn == HCCL_SUCCESS && inPtr != nullptr) {
+                validCnt++;
+            } else {
+                nilCnt++;
+                HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] peer=%u remote input pointer not backfilled: ret=%d addr=%p",
+                           myRank_, peer, rIn, inPtr);
+            }
+        }
+        HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] backfill check: validPeers=%u invalidPeers=%u, %s",
+                   myRank_, validCnt, nilCnt,
+                   nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
+                              : "all peers backfilled");
+    }
     HCCL_INFO("[%s]Run Start", __func__);
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
-    CHK_RET(RunReduceScatter(templateResource.channels, templateResource.threads, tempAlgParams));
+    if (supportSymmetricMemory_) {
+        CHK_RET(RunReduceScatterSymmetric(templateResource.channels, templateResource.threads, tempAlgParams));
+    } else {
+        CHK_RET(RunReduceScatter(templateResource.channels, templateResource.threads, tempAlgParams));
+    }
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     // 这个PostReduce处理的是当前轴的规约任务
-    PostReduce(tempAlgParams, templateResource.threads);
+    if (!supportSymmetricMemory_) {
+        CHK_RET(PostReduce(tempAlgParams, templateResource.threads));
+    }
     HCCL_INFO("[%s]Run End", __func__);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -273,6 +307,82 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatter(const std::map<u
 
         CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[queIdx]),
                     HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D] RunReduceScatter Send failed"),
+                    HcclResult::HCCL_E_INTERNAL);
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatterSymmetric(
+    const std::map<u32, std::vector<ChannelInfo>>& channels,
+    const std::vector<ThreadHandle>& threads,
+    const TemplateDataParams& tempAlgParam)
+{
+    HCCL_INFO("MT start to RunReduceScatterSymmetric, channels.size()=%u", channels.size());
+    CHK_PRT_RET(inputSymWindow_ == nullptr,
+                HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] inputSymWindow is null"),
+                HcclResult::HCCL_E_INTERNAL);
+
+    u32 myAlgRank = 0;
+    auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
+    if (iter != subCommRanks_[0].end()) {
+        myAlgRank = std::distance(subCommRanks_[0].begin(), iter);
+    } else {
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] subCommRanks_ or myRank_ is error.");
+        return HCCL_E_INTERNAL;
+    }
+
+    void* localCclBuffAddr = tempAlgParam.buffInfo.hcclBuff.addr;
+    for (u32 queIdx = 0; queIdx < threadNum_; queIdx++) {
+        u32 nextRank = (myAlgRank + 1 + queIdx) % templateRankSize_;
+        u32 remoteRank = subCommRanks_[0][nextRank];
+        CHK_PRT_RET(channels.count(remoteRank) == 0 || channels.at(remoteRank).empty(),
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] "
+                               "remoteRank[%u] is not in channels.", remoteRank),
+                    HcclResult::HCCL_E_INTERNAL);
+
+        const ChannelInfo& linkRemote = channels.at(remoteRank)[0];
+        void* remoteIn = nullptr;
+        HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, remoteRank, &remoteIn);
+        CHK_PRT_RET(ret != HCCL_SUCCESS || remoteIn == nullptr,
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] "
+                               "HcclSymWinGetPeerPointer failed, remoteRank[%u] ret[%d] in[%p]",
+                               remoteRank, ret, remoteIn),
+                    HcclResult::HCCL_E_INTERNAL);
+        HCCL_INFO("[RunReduceScatterSymmetric][rank=%u] remoteRank=%u remoteInputAddr=%p sliceCnt=%zu",
+                  myRank_, remoteRank, remoteIn,
+                  tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size());
+
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+        for (u32 repeatIdx = 0; repeatIdx < tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size();
+             repeatIdx++) {
+            u64 rxSrcCurrent = tempAlgParam.buffInfo.inBuffBaseOff +
+                               tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank] +
+                               tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            u64 rxDstCurrent = tempAlgParam.buffInfo.outBuffBaseOff +
+                               tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank] +
+                               tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            rxSrcSlices.emplace_back(remoteIn, rxSrcCurrent,
+                                     tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
+                                     tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            rxDstSlices.emplace_back(localCclBuffAddr, rxDstCurrent,
+                                     tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
+                                     tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            HCCL_DEBUG("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] myRank[%u] remoteRank[%u] "
+                       "rxSrcOff[%llu] rxDstOff[%llu] sliceSize[%llu] count[%llu]",
+                       myRank_, remoteRank, rxSrcCurrent, rxDstCurrent,
+                       tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
+                       tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+        }
+
+        std::vector<DataSlice> emptySlices;
+        SlicesList txSlices(emptySlices, emptySlices);
+        SlicesList rxSlices(rxSrcSlices, rxDstSlices);
+        TxRxSlicesList sendRecvSlices(txSlices, rxSlices);
+        TxRxChannels sendRecvChannels(linkRemote, linkRemote);
+        SendRecvReduceInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_, reduceOp_);
+        CHK_PRT_RET(SendRecvReadReduce(sendRecvInfo, threads[queIdx]),
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D] RunReduceScatterSymmetric ReadReduce failed"),
                     HcclResult::HCCL_E_INTERNAL);
     }
     return HcclResult::HCCL_SUCCESS;

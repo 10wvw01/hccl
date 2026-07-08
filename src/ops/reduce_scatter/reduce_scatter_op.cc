@@ -148,7 +148,7 @@ HcclResult CheckReduceScatterInputPara(const HcclComm comm, const void* sendBuf,
 
 static HcclResult PrepareReduceScatterParam(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount,
     HcclDataType dataType, HcclReduceOp op, HcclComm comm, aclrtStream stream, u32 userRankSize,
- 	OpMode opMode)
+    OpMode opMode)
 {
     u32 perDataSize = DATATYPE_SIZE_TABLE[dataType];
     u64 outputSize = recvCount * perDataSize;
@@ -175,6 +175,20 @@ static HcclResult PrepareReduceScatterParam(OpParam &param, void *sendBuf, void 
     param.deviceType = deviceType;
 
     return HCCL_SUCCESS;
+}
+
+bool ReduceScatterSupportSymmetricMemory(OpParam &opParam)
+{
+    size_t inputOffset = 0;
+    HcclResult ret = HcclCommSymWinGet(opParam.hcclComm, opParam.inputPtr, opParam.inputSize,
+        &opParam.inputSymWindow, &inputOffset);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.inputSymWindow == nullptr,
+                HCCL_INFO("[%s] input[%p] size[%llu] is not support symmetric memory",
+                    __func__, opParam.inputPtr, opParam.inputSize), false);
+
+    opParam.supportSymmetricMemory = true;
+    opParam.inputOffset = inputOffset;
+    return true;
 }
 
 HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
@@ -214,6 +228,10 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
         HCCL_WARNING("[%s] ranksize == 1, enter SingleRankProc", __func__);
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
+    }
+    if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE &&
+        param.engine == CommEngine::COMM_ENGINE_AICPU_TS && algName.find("OmniPipe") != std::string::npos) {
+        ReduceScatterSupportSymmetricMemory(param);
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName));
     HCCL_INFO("Execute ReduceScatterOutPlace success.");
