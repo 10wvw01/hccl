@@ -85,16 +85,26 @@ HcclResult InsTempAllGatherMesh1D::KernelRun(const OpParam &param, const Templat
         return HcclResult::HCCL_SUCCESS;
     }
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        u32 notifyCnt = notifyIdxMainToSub_.size();
+        if (subThreads.size() > notifyCnt) {
+            subThreads.resize(notifyCnt);
+            HCCL_INFO("[BUG_TRUNCATE]: truncate subThreads to %u", notifyCnt);
+        }
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
 
     CHK_RET(RunAllGatherMesh(templateResource.threads, templateResource.channels));
 
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+        u32 notifyCnt = notifyIdxMainToSub_.size();
+        if (subThreads.size() > notifyCnt) {
+            subThreads.resize(notifyCnt);
+            HCCL_INFO("[BUG_TRUNCATE]: truncate subThreads to %u", notifyCnt);
+        }
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     HCCL_INFO("[InsTempAllGatherMesh1D] Run End");
