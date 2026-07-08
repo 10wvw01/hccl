@@ -50,7 +50,7 @@ HcclResult ScatterCommExecutor::CalcResRequest(HcclComm comm, const OpParam& par
     CHK_RET(CalcLevel1ChannelRequest(param, topoInfo, algHierarchyInfo, algType, level1Channels));
     resourceRequest.channels.push_back(level1Channels);
 
-    HCCL_INFO("[ScatterRingExecutor][CalcResRequest]slaveThreadNum[%u] notifyNumPerThread[%u] notifyNumOnMainThread[%u]"
+    HCCL_INFO("[ScatterCommExecutor][CalcResRequest]slaveThreadNum[%u] notifyNumPerThread[%u] notifyNumOnMainThread[%u]"
         " level0Channels[%u] level1Channels[%u].",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread.size(), resourceRequest.notifyNumOnMainThread,
         level0Channels.size(), level1Channels.size());
