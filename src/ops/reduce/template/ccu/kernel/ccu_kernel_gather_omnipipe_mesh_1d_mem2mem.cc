@@ -53,8 +53,9 @@ static CcuResult InitResource(GatherOmniPipeMesh1DMem2MemContext &ctx)
     
     ctx.inputMem.resize(ctx.rankSize);
     ctx.outputMem.resize(ctx.rankSize);
-    ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.sliceSizeOmniSliceStrideVec.resize(ctx.rankSize);
     ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
     
     return CCU_SUCCESS;
 }
@@ -73,6 +74,9 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.sliceSizeOmniSliceStrideVec[i], argId++));
+    }
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
     }
@@ -119,7 +123,7 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
             ccu::EventRecord(ctx.event, rankMask);
             continue;
         }
-
+        ctx.sliceSize = ctx.sliceSizeOmniSliceStrideVec[rankIdx];
         CCU_IF(ctx.sliceSize != 0) {
             if (ctx.rankId != rankIdx) {
                 ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);

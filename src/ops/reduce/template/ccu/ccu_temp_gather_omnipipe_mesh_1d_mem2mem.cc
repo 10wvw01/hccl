@@ -184,10 +184,12 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
         // inputOmniPipeSliceStrides[peerId][rpt] 第peerId个卡要发到root的第rpt个数据片
             // 判断是不是本端自己的卡
         for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[0].size(); ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
+            std::vector<uint64_t> sliceSizeOmniSliceStrideVec = {};
             std::vector<uint64_t> inputOmniSliceStrideVec = {};
             std::vector<uint64_t> outputOmniSliceStrideVec = {};
             sliceSize = stepSliceInfo.stepSliceSize[0][rpt];
             for(uint32_t peerId = 0; peerId < templateRankSize_; ++peerId) {
+                sliceSizeOmniSliceStrideVec.push_back(stepSliceInfo.stepSliceSize[peerId][rpt]);
                 inputOmniSliceStrideVec.push_back(stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt]);
                 outputOmniSliceStrideVec.push_back(stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt]);
             }
@@ -206,11 +208,12 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                 isLastStep_, 
                 ifNewRoot
             };
+            taskArgs.insert(taskArgs.end(), sliceSizeOmniSliceStrideVec.begin(), sliceSizeOmniSliceStrideVec.end());
             taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
             taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
             // if (ifNewRoot && sliceSize!=0) {
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-                        " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d]]",
+                        " sliceSize=%llu localCopyFlag=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d]]",
                         rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_);
         
             // }
