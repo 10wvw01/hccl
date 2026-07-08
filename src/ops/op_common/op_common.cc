@@ -549,6 +549,19 @@ HcclResult SetOpParamFallbackTag(OpParam &param, const std::string &algName)
     return HCCL_SUCCESS;
 }
 
+HcclResult ReportProfilingInfo(HcclComm comm, uint64_t beginTime)
+{
+    bool isGroupEnabled = false;
+    if (HcommIsSupportHcclGroupStatusGet()) {
+        CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+    }
+    if (!isGroupEnabled) {
+        CHK_RET(HcclProfilingReportOp(comm, beginTime));
+    }
+
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclExecOp(HcclComm comm, OpParam &param,
                       std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName, const ResPackGraphMode &resPack)
 {
@@ -676,8 +689,10 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         }
         CHK_RET(executor->Orchestrate(param, *resCtxHost));
     }
+
     // op上报
-    CHK_RET(HcclProfilingReportOp(comm, beginTime));
+    CHK_RET(ReportProfilingInfo(comm, beginTime));
+
     HCCL_INFO("Execute HcclExecOp success.");
     return HCCL_SUCCESS;
 }
@@ -815,6 +830,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         HCCL_ERROR("[HcclAicpuKernelEntranceLaunch] HcclReportAicpuKernel failed, beginTime %lu, kernelNameCStr %s, ret %d ", beginTime, kernelNameCStr, ret);
         return ret;
     }
+
     // Host stream等待Device的通知
     AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
     u32 hostNotifyWaitTime = IsHcommDefaultTimeoutSupported() ? timeout.hostNotifyTimeout :
