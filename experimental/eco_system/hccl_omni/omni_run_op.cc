@@ -230,8 +230,6 @@ HcclResult OmniRunOutPlaceCommon(const void *sendBuf, const void *sendCounts, co
     std::unique_ptr<OpParam, decltype(deleter)> paramPtr(tmpParamPtr, deleter);
     OpParam &param = *paramPtr;
 
-    HCCL_ERROR("[OmniRunOutPlaceCommon] varMemSize [%llu] size [%llu]", varMemSize, sizeof(OpParam) + varMemSize);
-
     CHK_RET(OmniRunConstructOpParam(sendBuf, sendCounts, sdispls, recvBuf, recvCounts, rdispls, dataType, comm, stream,
         tag, opType, rankSize, opMode, varMemSize, param, xmlPath, omniDataCount));
 

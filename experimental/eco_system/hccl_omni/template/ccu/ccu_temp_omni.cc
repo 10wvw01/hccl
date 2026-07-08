@@ -221,14 +221,20 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
         return HCCL_E_PARA;
     }
 
-    if (dataCount != 0) {
+    if (dataCount != 0) { // 均分
         const u64 perSliceCount = dataCount / sliceNum;
         for (u32 i = 0; i < sliceNum; i++) {
             sendSliceData.push_back(perSliceCount);
             recvSliceData.push_back(perSliceCount);
             u32 rankIdx = i % ratio;
             sendSdispls.push_back(rankIdx * perSliceCount);
-            localSdispls.push_back(rankIdx * perSliceCount);
+            localSdispls.push_back(i * perSliceCount);
+
+            HCCL_DEBUG("BuildOmniSliceMeta dataCount is not 0, sliceIdx %u, ratio %u, perSliceCount %u, rankIdx %u, "
+                       "sendSliceData %u, "
+                       "recvSliceData "
+                       "%u, sendSdispls %u, localSdispls %u",
+                i, ratio, perSliceCount, rankIdx, sendSliceData[i], recvSliceData[i], sendSdispls[i], localSdispls[i]);
         }
         return HCCL_SUCCESS;
     }
@@ -238,7 +244,7 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
         return HCCL_E_PARA;
     }
 
-    for (u32 i = 0; i < sliceNum; i++) {
+    for (u32 i = 0; i < sliceNum; i++) { // 非均分
         const u32 rankIdx = i / ratio;
         const u32 slotInRank = i % ratio;
         const u64 sendBase = scPtr[rankIdx] / ratio;
@@ -249,6 +255,11 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
         recvSliceData.push_back(recvBase + (slotInRank < recvRem ? 1 : 0));
         sendSdispls.push_back(sendBase * slotInRank);
         localSdispls.push_back(sendSdispls[rankIdx] + sendBase * slotInRank);
+
+        HCCL_DEBUG(
+            "BuildOmniSliceMeta dataCount is 0, sliceIdx %u, ratio %u, rankIdx %u, sendSliceData %u, recvSliceData "
+            "%u, sendSdispls %u, localSdispls %u",
+            i, ratio, rankIdx, sendSliceData[i], recvSliceData[i], sendSdispls[i], localSdispls[i]);
     }
 
     return HCCL_SUCCESS;
@@ -257,8 +268,7 @@ HcclResult BuildOmniSliceMeta(const OpParam &param, u32 rankSize, u64 sliceNum, 
 HcclResult CcuTempOmni::BuildOmniTaskArgs(const BuffInfo &buffInfo, uint32_t syncIdx,
     const std::vector<u64> &sendCounts, const std::vector<u64> &recvCounts, const std::vector<u64> &sdispls,
     const std::vector<u64> &rdispls, const std::vector<u64> &sendSliceData, const std::vector<u64> &recvSliceData,
-    const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls,
-    std::vector<uint64_t> &taskArgs) const
+    const std::vector<u64> &sendSdispls, const std::vector<u64> &localSdispls, std::vector<uint64_t> &taskArgs) const
 {
     taskArgs.clear();
     taskArgs.push_back(PointerToAddr(buffInfo.inputPtr) + buffInfo.inBuffBaseOff);
@@ -429,13 +439,13 @@ HcclResult CcuTempOmni::KernelRun(const OpParam &param, const TemplateDataParams
     HCCL_INFO("[CcuTempOmni] rankid [%u] KernelRun begin", mySubCommRank_);
 
     buffInfo_ = templateDataParams.buffInfo;
-    sliceNum_ = xmlInfo.vecNormalInstruction.empty() ? sliceNum_
-                                                      : xmlInfo.vecNormalInstruction[0].sendRecvInfo.sliceNum;
+    sliceNum_
+        = xmlInfo.vecNormalInstruction.empty() ? sliceNum_ : xmlInfo.vecNormalInstruction[0].sendRecvInfo.sliceNum;
 
     std::vector<uint64_t> taskArgs;
     CHK_RET(BuildOmniTaskArgs(buffInfo_, syncIdx, templateDataParams.sendCounts, templateDataParams.recvCounts,
-        templateDataParams.sdispls, templateDataParams.rdispls, sendSliceData, recvSliceData, sendSdispls,
-        localSdispls, taskArgs));
+        templateDataParams.sdispls, templateDataParams.rdispls, sendSliceData, recvSliceData, sendSdispls, localSdispls,
+        taskArgs));
 
     auto argSize = taskArgs.size();
 
@@ -515,8 +525,8 @@ HcclResult CcuTempOmni::FastLaunch(const OpParam &param, const TemplateFastLaunc
     std::vector<u64> recvSliceData;
     std::vector<u64> sendSdispls;
     std::vector<u64> localSdispls;
-    CHK_RET(BuildOmniSliceMeta(param, tempRankSize_, sliceNum_, param.dataCount, sendSliceData, recvSliceData,
-        sendSdispls, localSdispls));
+    CHK_RET(BuildOmniSliceMeta(
+        param, tempRankSize_, sliceNum_, param.dataCount, sendSliceData, recvSliceData, sendSdispls, localSdispls));
 
     BuffInfo buffInfo = tempFastLaunchCtx.buffInfo;
     buffInfo.inputPtr = param.inputPtr;
@@ -534,9 +544,8 @@ HcclResult CcuTempOmni::FastLaunch(const OpParam &param, const TemplateFastLaunc
         mySubCommRank_, taskArgs[0], taskArgs[1], taskArgs[2], taskArgs[3], taskArgs[4], taskArgs.size());
 
     for (u32 i = 0; i < tempFastLaunchCtx.ccuKernelSubmitInfos.size(); i++) {
-        CcuResult launchRet = HcommCcuKernelLaunch(
-            tempFastLaunchCtx.threads[i], tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle, taskArgs.data(),
-            taskArgs.size());
+        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[i],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[i].kernelHandle, taskArgs.data(), taskArgs.size());
         if (launchRet != CCU_SUCCESS) {
             HCCL_ERROR("[CcuTempOmni::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);

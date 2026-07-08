@@ -49,12 +49,10 @@ HcclResult InsOmniSoleCcuExecutor<AlgTopoMatch, InsAlgTemplate>::InitCommInfo(
     // dataCount_ 来自 OpParamBlob.dataCount（经 omni_run 透传至 param.dataCount）：
     // 非 0 表示等分，按 dataCount_/sliceNum 切分；0 表示不等分，按 sendCounts/recvCounts 切分。
     dataCount_ = param.dataCount;
-    dataSize_ = dataCount_ * dataTypeSize_;
     HCCL_INFO("[InsOmniSoleCcuExecutor][InitCommInfo] myRank [%u], rankSize [%u], devType [%u], dataType_ [%u], "
               "dataCount_ [%llu]",
         myRank_, rankSize_, devType_, dataType_, dataCount_);
 
-    HCCL_INFO("[InsOmniSoleCcuExecutor][InitCommInfo] dataTypeSize_ [%u], dataSize_ [%llu]", dataTypeSize_, dataSize_);
     return HCCL_SUCCESS;
 }
 
@@ -279,6 +277,6 @@ HcclResult InsOmniSoleCcuExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunch(
 #endif
 
 #ifndef AICPU_COMPILE
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, OmniRunCcu, InsOmniSoleCcuExecutor, TopoMatchUBX, CcuTempOmni);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, OmniRunCcu, InsOmniSoleCcuExecutor, TopoMatchUBX, CcuTempOmni);
 #endif
 } // namespace ops_hccl
