@@ -57,11 +57,11 @@ DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, Threa
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
     ChannelHandle channel, uint32_t localNotifyIdx);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitWithDefaultTimeout, ChannelHandle channel, uint32_t localNotifyIdx);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char* tag, bool* isHit);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheStart, const char* tag, void** addrs, uint64_t* sizes, const uint64_t count);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheEnd, const char* tag);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheExecute, const char* tag, void** addrs, uint64_t* sizes, const uint64_t count);
-DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char* tag);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheLookup, const char *tag, bool *isHit);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheStart, const char *tag, void **addrs, uint64_t* sizes, uint64_t count);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheEnd, const char *tag);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheExecute, const char *tag, void **addrs, uint64_t *sizes, uint64_t count);
+DEFINE_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char *tag);
 
 using HcclHcommBatchTransferOnThreadFunc =
     int32_t (*)(ThreadHandle, ChannelHandle, const HcclHcommBatchTransferDesc *, uint32_t);
