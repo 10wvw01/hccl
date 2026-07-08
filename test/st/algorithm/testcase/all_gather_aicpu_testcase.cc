@@ -332,7 +332,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_nhr_4server_asymmetric_f
 TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_nhr_8server_asymmetric_bfp16_small_data_test)
 {
     // 仿真模型初始化
-    TopoMeta topoMeta{{{2, 4, 6, 7}, {1, 2, 5}, {3, 7}, {1}, {2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {7}}};  // 三维数组指定超节点-Server-Device信息
+    TopoMeta topoMeta{{{2, 4, 6, 7}, {1, 2, 5}, {3, 7}, {1}, {2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}, {7}}};
 
     // 算子执行参数设置
     auto sendCount = 100;                               // 单卡数据量
@@ -354,7 +354,8 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_nhr_6server_asymmetric_f
 TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_nhr_7server_asymmetric_fp8e8m0_small_data_test)
 {
     // 仿真模型初始化
-    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {1, 2}}};  // 三维数组指定超节点-Server-Device信息
+    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5},
+                       {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {1, 2}}};
 
     // 算子执行参数设置
     auto sendCount = 100;                // 单卡数据量

@@ -226,7 +226,8 @@ TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_small_data)
 
 TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_mid_data)
 {
-    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {0, 1}, {0}}};
+    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5},
+                       {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {0, 1}, {0}}};
     u64 dataCount = 1048575;
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_BFP16;
     u32 dataTypeSize = 2;

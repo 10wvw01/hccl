@@ -233,7 +233,8 @@ TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_10m_hif8)
 // asymmetric topology
 TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_100_fp32)
 {
-    TopoMeta topoMeta {{{0}, {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {2}, {7}}};  // 三维数组指定超节点-Server-Device信息
+    TopoMeta topoMeta {{{0}, {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5}, 
+                        {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {2}, {7}}};
     u64 sendCount = 100;  // 接收数据量
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;  // 数据类型
     RunAllGatherDPUA5(topoMeta, sendCount, dataType);
@@ -241,8 +242,7 @@ TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_100_fp32)
 
 TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_10m_int8)
 {
-    TopoMeta topoMeta {{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {2, 3, 4}, {4, 5, 6}}};  // 三维数组指定超节点-Server-Device信息
-    u64 sendCount = 10 * 1024 * 1024;  // 接收数据量
+    TopoMeta topoMeta {{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {2, 3, 4}, {4, 5, 6}}};
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;  // 数据类型
     RunAllGatherDPUA5(topoMeta, sendCount, dataType);
 }
@@ -297,7 +297,8 @@ TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_10m_bfp16)
 
 TEST_F(ST_ALL_GATHER_DPU_TEST, host_dpu_opbase_all_gather_asymmetric_1_fp8e5m2)
 {
-    TopoMeta topoMeta {{{2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {4, 7}, {7}}};  // 三维数组指定超节点-Server-Device信息
+    TopoMeta topoMeta {{{2, 3}, {0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5},
+                        {0, 1, 2, 3, 4}, {0, 1, 2, 3}, {0, 1, 2}, {4, 7}, {7}}};
     u64 sendCount = 1;  // 接收数据量
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP8E5M2;  // 数据类型
     RunAllGatherDPUA5(topoMeta, sendCount, dataType);

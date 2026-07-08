@@ -327,7 +327,8 @@ TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_int32_sum)
 
 TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_int16_sum)
 {
-    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5, 6, 7}}};
+    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5}, 
+                       {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5, 6, 7}}};
     u64 dataCount = 100;
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
     u32 dataTypeSize = 2;
@@ -338,7 +339,8 @@ TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_int16_sum)
 
 TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_int16_max)
 {
-    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}}};
+    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5},
+                       {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5, 6, 7}, {0}}};
     u64 dataCount = 100;
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT16;
     u32 dataTypeSize = 2;
@@ -382,7 +384,7 @@ TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_fp32_max)
 
 TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_fp32_max_1)
 {
-    TopoMeta topoMeta{{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20,21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
+    TopoMeta topoMeta{{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20, 21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
     u64 dataCount = 100;
     HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_FP32;
     u32 dataTypeSize = 4;
