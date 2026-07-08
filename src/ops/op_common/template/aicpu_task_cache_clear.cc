@@ -43,11 +43,11 @@ HcclResult AicpuCacheEvitKernelLaunch(HcclComm comm)
     ret = aclrtCreateStreamWithConfig(&stream, 0, ACL_STREAM_FAST_SYNC);
     if (ret != ACL_SUCCESS) {
         HCCL_ERROR("[%s] create stream failed, errNo[0x%016llx]", __func__, ret);
-        return HCCL_E_INTERNAL;
+        return HCCL_E_RUNTIME;
     }
 
     // 下发kernel
-    constexpr u16 kernelLaunchTimeout = 10; // 单位秒
+    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒
     aclrtLaunchKernelCfg cfg;
     aclrtLaunchKernelAttr attr;
     attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
@@ -63,18 +63,18 @@ HcclResult AicpuCacheEvitKernelLaunch(HcclComm comm)
         return HCCL_E_RUNTIME;
     };
 
-    constexpr u16 streamTimeout = 8 * 1000; // 单位毫秒
+    constexpr u16 streamTimeout = 60; // 单位毫秒
     ret = aclrtSynchronizeStreamWithTimeout(stream, streamTimeout);
     if (ret != ACL_SUCCESS) {
         HCCL_ERROR("[%s] sync stream failed, errNo[0x%016llx]", __func__, ret);
         aclrtDestroyStream(stream);
-        return HCCL_E_INTERNAL;
+        return HCCL_E_RUNTIME;
     }
 
     ret = aclrtDestroyStream(stream);
     if (ret != ACL_SUCCESS) {
         HCCL_ERROR("[%s] destroy stream failed, errNo[0x%016llx]", __func__, ret);
-        return HCCL_E_INTERNAL;
+        return HCCL_E_RUNTIME;
     }
     return HCCL_SUCCESS;
 }
@@ -84,9 +84,15 @@ HcclResult AicpuTaskCacheCommStateCallback(HcclComm comm, HcclCommStatePhase sta
     (void)args;
     HCCL_INFO("[%s] comm[%p] state[%d]", __func__, comm, state);
     if (state == HCCL_COMM_STATE_PHASE_DESTROY_POST) {
-        // 调用device接口，清理缓存
+        // 通信域销毁，调用device接口，清理通信域相关缓存
         CHK_PRT(AicpuCacheEvitKernelLaunch(comm));
+    } else if (state == HCCL_COMM_STATE_PHASE_RESUME_POST) {
+        // 快恢场景，清除所有缓存
+        CHK_PRT(AicpuCacheEvitKernelLaunch(nullptr));
+    } else {
+        // ignore
     }
+
     return HCCL_SUCCESS;
 }
 

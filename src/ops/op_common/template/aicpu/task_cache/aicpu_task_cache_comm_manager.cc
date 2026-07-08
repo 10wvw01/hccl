@@ -23,36 +23,9 @@ AicpuTaskCacheCommManager &AicpuTaskCacheCommManager::Instance()
 
 void AicpuTaskCacheCommManager::AddCommTagMap(HcclComm comm, const std::string &tagName)
 {
+    HCCL_DEBUG("[%s] comm[%p] tagName[%s]", __func__, comm, tagName.c_str());
     std::unique_lock<std::shared_timed_mutex> lock(mutex_);
     commToTagMap_[comm].push_back(tagName);
-}
-
-const std::vector<std::string> &AicpuTaskCacheCommManager::GetTagsByCommName(HcclComm comm) const
-{
-    std::shared_lock<std::shared_timed_mutex> lock(mutex_);
-    auto it = commToTagMap_.find(comm);
-    if (it != commToTagMap_.end()) {
-        return it->second;
-    }
-    static const std::vector<std::string> emptyVec;
-    return emptyVec;
-}
-
-std::vector<HcclComm> AicpuTaskCacheCommManager::GetAllCommNames() const
-{
-    std::shared_lock<std::shared_timed_mutex> lock(mutex_);
-    std::vector<HcclComm> commNames;
-    commNames.reserve(commToTagMap_.size());
-    for (const auto &pair : commToTagMap_) {
-        commNames.push_back(pair.first);
-    }
-    return commNames;
-}
-
-void AicpuTaskCacheCommManager::RemoveCommTagMapByCommName(HcclComm comm)
-{
-    std::unique_lock<std::shared_timed_mutex> lock(mutex_);
-    commToTagMap_.erase(comm);
 }
 
 void AicpuTaskCacheCommManager::evitTaskCache(HcclComm comm)

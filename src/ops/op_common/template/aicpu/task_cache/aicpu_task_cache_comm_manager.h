@@ -26,10 +26,11 @@ public:
 
     // 记录通信域与tag的关系
     void AddCommTagMap(HcclComm comm, const std::string &tagName);
-    const std::vector<std::string> &GetTagsByCommName(HcclComm comm) const;
-    std::vector<HcclComm> GetAllCommNames() const;
-    void RemoveCommTagMapByCommName(HcclComm comm);
+
+    // 清除特定通信域的缓存
     void evitTaskCache(HcclComm comm);
+
+    // 清除所有缓存
     void evitAllTaskCache();
 
 private:
