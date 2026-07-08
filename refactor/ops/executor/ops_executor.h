@@ -12,10 +12,8 @@ public:
     HcclResult Orchestrate(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(
-        AlgoExecDesc &algoExecDesc, u32 rankSizeForInputData, u32 &rankSizeForOutputData, u32 &subCommMask);
-    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, const AlgoExecDesc &algoExecDesc,
-        u32 childrenRankSizeForInputData, float dataSplitRatio, u32 &childrenRankSizeForOutputData);
+    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, float inputRatio, float &outputRatio, u32 &subCommMask);
+    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, float inputRatio, float &outputRatio);
     HcclResult OrchestrateLoop(
         const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(
@@ -80,8 +78,6 @@ protected:
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
     std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
-
-    std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
