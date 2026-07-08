@@ -75,10 +75,10 @@ struct GatherOmniPipeNHR1DMem2MemContext {
     
     ccu::Variable isStepOne;
     ccu::Variable isLastStep;
-    ccu::Variable ifNewRoot;
 
     std::vector<ccu::Variable> inputOmniSliceStrideVec;
     std::vector<ccu::Variable> outputOmniSliceStrideVec;
+    std::vector<ccu::Variable> sliceSizeOmniSliceStrideVec;
     
     std::vector<ccu::RemoteAddr> inputMem;
     std::vector<ccu::LocalAddr> outputMem;
