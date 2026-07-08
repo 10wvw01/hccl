@@ -83,9 +83,22 @@ HcclResult InsTempReduceScatterOrderPreservedGroup::KernelRun(
     // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
     CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
 
-    // 步骤2: 执行AllToAll操作（内部按 distance 对称分批，每批 PreSync/PostSync 配对，避免线程复用时的 notify 死锁）
-    // 注：与 Level1 不同，这里不再额外加外层 PostSyncInterThreads，因为 RunAllToAll 内部已对每批做完整同步。
+    // 多线程同步：如果线程数大于1，等待子线程就绪，为all2all做准备
+    if (threadNum_ > 1) {
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
+    }
+
+    // 步骤2: 执行AllToAll操作（按 distance 对称分配线程，一次性下发所有任务）
     CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
+
+    // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
+    if (threadNum_ > 1) {
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
+    }
 
     if (dataType_ == HCCL_DATA_TYPE_FP64 || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
         // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
@@ -215,8 +228,7 @@ HcclResult InsTempReduceScatterOrderPreservedGroup::RunAllToAll(
     // ============================================================
     // 派发一次发送：本端 userIn 的某块 → 远端 cclBuff 的某块
     // ============================================================
-    auto sendOneSlice = [&](u32 dstRank, const ThreadHandle &thread,
-                            u32 batchNo, u32 opNoInBatch) -> HcclResult {
+    auto sendOneSlice = [&](u32 dstRank, const ThreadHandle &thread) -> HcclResult {
         // 算法 rank → 物理 rank → 拿 channel
         u32 dstPhyRank = subCommRanks_[0][dstRank];
         auto chIter = channels.find(dstPhyRank);
@@ -244,68 +256,37 @@ HcclResult InsTempReduceScatterOrderPreservedGroup::RunAllToAll(
         };
 
         CHK_RET(SendRecvWrite(sendInfo, thread));
-        HCCL_INFO("[RunAllToAll] batch[%u], opNo[%u], dstRank[%u], sliceSize[%llu]",
-            batchNo, opNoInBatch, dstRank, sliceSize);
+        HCCL_INFO("[RunAllToAll] dstRank[%u], sliceSize[%llu]", dstRank, sliceSize);
         return HCCL_SUCCESS;
     };
 
-    // 按 distance 对称分批：A 的 right(+d)=B 与 B 的 left(-d)=A 用同一 distance，
-    // 必落在同一批次，notify 不跨批等待，避免大卡数场景的死锁。
-    // 同一 distance 的 left/right 必须同批，塞不下则整体留到下一批。
-    std::vector<ThreadHandle> slaveThreads(threads.begin() + 1, threads.begin() + threadNum_);
-    GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-    GetNotifyIdxSubToMain(notifyIdxSubToMain_);
-
-    HCCL_INFO("[RunAllToAll] multi-thread, slaveThreadNum[%u], notifyIdxMainToSub size[%zu], "
-        "notifyIdxSubToMain size[%zu]", slaveThreadNum, notifyIdxMainToSub_.size(),
-        notifyIdxSubToMain_.size());
-
+    // 按 distance 对称分配线程，一次性下发所有任务，不做中途阻塞同步
+    // 线程轮转：threads[1..slaveThreadNum]，主线程不参与派 op
+    u32 queIdx = 1;
     const u32 N = templateRankSize_;
-    const u32 maxDistance = N / 2;              // distance 取 1..maxDistance
-    const u32 maxOpsPerBatch = slaveThreadNum;  // 保守：只用从线程，不溢出到主线程
-    u32 batchNo = 0;
-    u32 distance = 1;
+    std::vector<bool> visited(N, false);
 
-    while (distance <= maxDistance) {
-        // ---- 开新批次：唤醒从线程 ----
-        CHK_RET(PreSyncInterThreads(threads[0], slaveThreads, notifyIdxMainToSub_));
+    for (u32 distance = 1; distance <= N / 2; distance++) {
+        u32 rightRank = (myAlgRank + distance) % N;
+        u32 leftRank  = (myAlgRank + N - distance) % N;
 
-        u32 opNoInBatch = 0; // 本批次已派几个 op
-        while (distance <= maxDistance) {
-            // 本 distance 的两个对端（distance = N/2 时重合，只发一次）
-            u32 rightRank = (myAlgRank + distance) % N;
-            u32 leftRank  = (myAlgRank + N - distance) % N;
-            bool isDiagonal = (leftRank == rightRank);  // N 偶数且 distance=N/2，对角线
-            u32 opCountThisDistance = isDiagonal ? 1 : 2;
-
-            // 守护：本 distance 必须整组塞进同批次，塞不下就换下一批
-            // (opNoInBatch > 0 的判断避免死循环：批次空时即使塞不下也强塞)
-            if (opNoInBatch + opCountThisDistance > maxOpsPerBatch && opNoInBatch > 0) {
-                break;
-            }
-
-            // 派 right op（线程轮转：threads[1..slaveThreadNum]，主线程不参与派 op）
-            CHK_RET(sendOneSlice(rightRank, threads[opNoInBatch + 1], batchNo, opNoInBatch));
-            opNoInBatch++;
-
-            // 派 left op（与 right 不同时才派）
-            if (!isDiagonal) {
-                CHK_RET(sendOneSlice(leftRank, threads[opNoInBatch + 1], batchNo, opNoInBatch));
-                opNoInBatch++;
-            }
-
-            distance++;
-
-            // 本批次满了就换下一批
-            if (opNoInBatch >= maxOpsPerBatch) {
-                break;
+        if (!visited[rightRank]) {
+            CHK_RET(sendOneSlice(rightRank, threads[queIdx]));
+            visited[rightRank] = true;
+            queIdx++;
+            if (queIdx >= threadNum_) {
+                queIdx = 1;
             }
         }
 
-        // ---- 本批次结束：等从线程完成 ----
-        CHK_RET(PostSyncInterThreads(threads[0], slaveThreads, notifyIdxSubToMain_));
-        HCCL_INFO("[RunAllToAll] batch[%u] completed, opsInBatch[%u]", batchNo, opNoInBatch);
-        batchNo++;
+        if (leftRank != rightRank && !visited[leftRank]) {
+            CHK_RET(sendOneSlice(leftRank, threads[queIdx]));
+            visited[leftRank] = true;
+            queIdx++;
+            if (queIdx >= threadNum_) {
+                queIdx = 1;
+            }
+        }
     }
 
     HCCL_INFO("[RunAllToAll] End");
