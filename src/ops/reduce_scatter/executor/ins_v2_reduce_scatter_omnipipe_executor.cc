@@ -91,7 +91,7 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
             }
         }
         subCommRanks1 = {closRanks};
-        omniNeedSetStepNum_ = (subCommRanks1[0].size() == 4) ? OmniNeedSetStepNum::OMNIPIPE_UBX_16P
+        omniNeedSetStepNum_ = (subCommRanks1[0].size() == RANK_SIZE_LEVEL_4) ? OmniNeedSetStepNum::OMNIPIPE_UBX_16P
                                                         : OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
         if (!algHierarchyInfo_.infos[1].empty()){
             subCommRanks2 = algHierarchyInfo_.infos[1];
@@ -153,7 +153,7 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     // 初始化一些基本成员变量
     InitCommInfo(param, topoInfo, algHierarchyInfo);
 
-    if (algHierarchyInfo_.infos.size() == 3 &&
+    if (algHierarchyInfo_.infos.size() == HIERARCHY_SIZE_3 &&
         !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
         topoType_ = TopoType::THREE_LEVEL;
     } else {
@@ -268,7 +268,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, tempMap);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor "
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor "
                            "kernel run failed",
                            HCCL_ERROR_CODE(ret)),
                 ret);

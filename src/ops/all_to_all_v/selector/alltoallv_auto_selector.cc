@@ -37,7 +37,11 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             HCCL_WARNING("[Algo][AlltoAllVAutoSelector] rankSize > 64 is not supported yet for ccu_schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
-        selectAlgName = "CcuAlltoAllVMesh1D2Die";
+        if (topoInfo->userRankSize <= CONST_4) {
+            selectAlgName = "CcuAlltoAllVMesh1D";
+        } else {
+            selectAlgName = "CcuAlltoAllVMesh1D2Die";
+        }
     } else {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
@@ -130,23 +134,6 @@ SelectorStatus AlltoAllVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllVAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
-        return SelectorStatus::NOT_MATCH;
-    }
-    void *cclBufferAddr;
-    uint64_t cclBufferSize;
-    CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[AlltoAllVAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllVDataDes.sendType];
-    u64* sendCounts = reinterpret_cast<u64*>(opParam.all2AllVDataDes.sendCounts);
-    u64 totalSize = sendCounts[0] * dataTypeSize * topoInfo->userRankSize;
-    if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
-        HCCL_DEBUG("[AlltoAllVAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
-            __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
-        return SelectorStatus::NOT_MATCH;
-    }
-    if (totalSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllVAutoSelector][%s] totalSize[%llu] too large for cclBufferSize [%llu]", __func__, totalSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;
     }
     selectAlgName = "AivAlltoAllVMesh1D";
