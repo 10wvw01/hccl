@@ -9,23 +9,15 @@ OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
       rankSize_(param.rankSize),
       root_(param.root)
 {
+    opMode_ = param.opMode;
     dataInfo_.inputPtr = param.inputPtr;
     dataInfo_.inputSize = param.inputSize;
     dataInfo_.outputPtr = param.outputPtr;
     dataInfo_.outputSize = param.outputSize;
     dataInfo_.reduceOp = param.reduceOp;
-    // TODO: DataDesUnion赋值
+    dataInfo.dataType = param.dataType;
 
-    dataTypeSize_ = DATATYPE_SIZE_TABLE[baseOpParam.dataType];
-    dataSize_ = dataCount_ * dataTypeSize_;
-    opMode_ = param.opMode;
-
-    bufferInfo_.inputBuffer.ptr = inputPtr;
-    bufferInfo_.inputBuffer.size = inputSize;
-    bufferInfo_.inputBuffer.bufferType = BufferType::INPUT;
-    bufferInfo_.outputBuffer.ptr = outputPtr;
-    bufferInfo_.outputBuffer.size = outputSize;
-    bufferInfo_.outputBuffer.bufferType = BufferType::OUTPUT;
+    dataTypeSize_ = DATATYPE_SIZE_TABLE[param.dataType];
 }
 
 OpsExecutor::~OpsExecutor()
@@ -48,7 +40,7 @@ HcclResult OpsExecutor::Orchestrate(
     InitRes(resCtx);
     // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
-    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_);
+    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_);//dataCount_
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
