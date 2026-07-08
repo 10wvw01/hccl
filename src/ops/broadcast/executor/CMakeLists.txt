@@ -15,7 +15,9 @@ set(src_list
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_broadcast_sequence_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_broadcast_sequence_executor_aicpu_3level.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_broadcast_omnipipe_2d_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../../../ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D.cc
     )
 endif()
 
