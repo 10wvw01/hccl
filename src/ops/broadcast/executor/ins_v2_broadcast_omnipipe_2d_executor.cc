@@ -338,7 +338,8 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     double eqBwLevel0SC = BW_OMNI_UBX_CCU_SCHED_SC_MESH;
     double eqBwLevel1SC = BW_OMNI_UBX_CCU_SCHED_SC_CLOS;
     eqBwLevel1SC = rankSizeLevel1_ > 1 ? eqBwLevel1SC / (rankSizeLevel1_ - 1) : eqBwLevel1SC;
-    endpointAttrBwAvgSC = {eqBwLevel0SC, eqBwLevel1SC, 1.0};
+    // endpointAttrBwAvgSC = {eqBwLevel0SC, eqBwLevel1SC, 1.0};
+    endpointAttrBwAvgSC = {4.0, 3.0, 1.0};
 
     // AG带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
     double eqBwLevel0AG = BW_OMNI_UBX_CCU_SCHED_AG_MESH;
@@ -541,11 +542,19 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             } else if (i != 0) {
                 // 中间步: 同y轴非root往x轴方向发送部分转发数据(mesh/templateX)
                 HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
-                if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
-                    HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
-                    scatterAlgTempX.SetRoot(myRank_);
-                    CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
-                        omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                if (endpointAttrBwAvgSC[0] <= endpointAttrBwAvgSC[1]) {
+                    if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
+                        HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
+                        scatterAlgTempX.SetRoot(myRank_);
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
+                            omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    }
+                } else {
+                    algTempY.ifDoTask_ = true;
+                    if (isSameXAxisAsRoot && rankSizeLevel1_ > 1) {
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(
+                            tempScatterAlgParamsY, omniPipeSliceInfoSC.dataSliceLevel1[i], processedDataCount, resCtx, param));
+                    }
                 }
             }
 
