@@ -40,7 +40,7 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
         if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE || topoInfo->userRankSize > CCU_SCHEDULE_SCATTER_MAX_RANK_SIZE) {
-            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] or rankSize[%llu] exceeds limit, "
+            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] or rankSize[%u] exceeds limit, "
                         "fallback to aicpu.", dataSize, topoInfo->userRankSize);
             return SelectorStatus::NOT_MATCH;
         }
