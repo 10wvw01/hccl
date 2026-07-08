@@ -15,6 +15,9 @@
 
 namespace ops_hccl {
 
+// 512-byte alignment constant for multi-Jetty data partitioning
+constexpr uint64_t ALGIN_NUM = 512;
+
 // Helper: compute per-slice process count (in elements) for variable-length AlltoAllV
 // When sendCounts/recvCounts are available, returns counts[sliceIdx]; else falls back to sliceSize/dtypeSize
 // Note: For multi-loop scenarios, counts[] represents the total count per slice, not the remaining count.
@@ -159,7 +162,7 @@ static void *GetRemoteAddrBySliceType(omni::BufferTypeTmp sliceType, const Templ
 
 OmniTempAicpu::OmniTempAicpu(const OpParam &param, const u32 rankId, // 传通信域的rankId，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
-    : InsAlgTemplateBase(param, rankId, subCommRanks)
+    : InsAlgTemplateBase(param, rankId, subCommRanks), roundRobinIndex_(0)
 {
 }
 
@@ -563,74 +566,119 @@ HcclResult OmniTempAicpu::HandleSendRecvWrite(const omni::OmniNormalInstruction 
         return HCCL_E_INTERNAL;
     }
     auto recvIt = channels.find(remoteRecvRank);
-    if (recvIt == channels.end() || it->second.empty()) {
+    if (recvIt == channels.end() || recvIt->second.empty()) {
         HCCL_ERROR("[HandleSendRecvWrite] Channel not found for remote recv rank: %lu", remoteRecvRank);
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
-    }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
-    const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
-    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
+    HCCL_DEBUG("HandleSendRecvWrite remoteRank channel size is %u remoteRecvRank size %u",
+        it->second.size(), recvIt->second.size());
+
+    uint32_t linkNum = it->second.size(); // 多jetty的数量
     uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
 
-    HCCL_DEBUG("YHB: HandleSendRecvWrite thread %u myRank_ %u remoteRank %u remoteRecvRank %u sliceNum %u rrIndex %u "
-               "rrSize %u",
-        signalInfo.sendRecvInfo.threadIdx, myRank_, remoteRank, remoteRecvRank, sliceNum, roundRobinIndex_,
-        it->second.size());
-
-    // 准备发送数据切片
-    std::vector<DataSlice> txSrcSlices;
-    std::vector<DataSlice> txDstSlices;
-
-    HCCL_INFO("YHB-CHECKER: [HandleSendRecvWrite] count(%u)", signalInfo.sendRecvInfo.srcSliceInfo.size());
-    for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
-        auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
-        void *srcAddr = GetBufferAddrBySliceType(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, sliceNum);
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvWrite] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-        // Per-slice process count 支持不等分 AlltoAllV
-        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
-        uint64_t processSize = processCount * dtypeSize;
-        txSrcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
-
-        auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
-        void *dstAddr
-            = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvWrite] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-        txDstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
+    // 计算当前 slice 的总数据大小（使用第一个 srcSlice 的 processCount 作为基准）
+    uint64_t totalSliceSize = 0;
+    if (!signalInfo.sendRecvInfo.srcSliceInfo.empty()) {
+        uint64_t processCount = GetSliceProcessCount(
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceType, tempAlgParams,
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceIdx, dtypeSize);
+        totalSliceSize = processCount * dtypeSize;
     }
 
-    HCCL_DEBUG("myRank_[%u] remoteRank[%u]", myRank_, remoteRank);
+    uint64_t sendSizePerJetty = totalSliceSize / linkNum;  // 每个 jetty 理论发送量
+    uint64_t remainSize = totalSliceSize;
+    uint64_t processedSize = 0;
 
-    // 准备接收数据切片
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
+    HCCL_DEBUG("HandleSendRecvWrite myrank %u to remote rank %u, link num %u, totalSliceSize %llu",
+        myRank_, remoteRank, linkNum, totalSliceSize);
 
-    // 执行发送接收写操作
-    TxRxChannels txRxChannels(channel, recvChannel);
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
+        const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
 
-    TxRxSlicesList txRxSlicesList(SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
-        SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices)));
+        uint64_t currentSize = 0;
+        uint64_t currentCount = 0;
 
-    if (signalInfo.opType == omni::OP_SEND_RECV_WRITE) {
-        SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
-        CHK_RET(static_cast<HcclResult>(SendRecvWrite(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_SEND_RECV_WRITE_REDUCE) {
-        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList), tempAlgParams.dataType,
-            signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(SendRecvWriteReduce(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleSendRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        if (totalSliceSize < ALGIN_NUM) { // 小块优化：slice 总大小 < 512B 时只用一个 jetty
+            currentSize = totalSliceSize;
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = 0;
+        } else {
+            // 512 字节对齐
+            currentSize = (sendSizePerJetty + ALGIN_NUM - 1) / ALGIN_NUM * ALGIN_NUM;
+            if (currentSize > remainSize) { // 尾块
+                currentSize = remainSize;
+            }
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = remainSize - currentSize;
+        }
+
+        // 准备发送数据切片
+        std::vector<DataSlice> txSrcSlices;
+        std::vector<DataSlice> txDstSlices;
+
+        for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
+            auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
+            void *srcAddr = GetBufferAddrBySliceType(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, sliceNum);
+            if (!srcAddr) {
+                HCCL_ERROR("[HandleSendRecvWrite] Invalid source address sliceType %u", srcSlice.sliceType);
+                return HCCL_E_INTERNAL;
+            }
+            srcAddr = static_cast<char *>(srcAddr) + processedSize;
+            txSrcSlices.push_back(DataSlice(srcAddr, 0, currentSize, currentCount));
+
+            auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
+            void *dstAddr = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
+            if (!dstAddr) {
+                HCCL_ERROR("[HandleSendRecvWrite] Invalid destination address");
+                return HCCL_E_INTERNAL;
+            }
+            dstAddr = static_cast<char *>(dstAddr) + processedSize;
+            txDstSlices.push_back(DataSlice(dstAddr, 0, currentSize, currentCount));
+        }
+
+        // 准备接收数据切片
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+
+        // 执行发送接收写操作
+        TxRxChannels txRxChannels(channel, recvChannel);
+        TxRxSlicesList txRxSlicesList(SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
+            SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices)));
+
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleSendRecvWrite] Thread index %u out of range (size %lu), linkNum %u, signal threadIdx %lu",
+                threadIdx, threads.size(), linkNum, signalInfo.sendRecvInfo.threadIdx);
+            return HCCL_E_INTERNAL;
+        }
+
+        if (signalInfo.opType == omni::OP_SEND_RECV_WRITE) {
+            SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
+            CHK_RET(static_cast<HcclResult>(SendRecvWrite(sendRecvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRecvWrite] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_SEND_RECV_WRITE_REDUCE) {
+            SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
+                tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(SendRecvWriteReduce(sendRecvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRecvWrite] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleSendRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        }
+
+        processedSize += currentSize;
+        HCCL_DEBUG("[HandleSendRecvWrite] currentSize [%llu], remainSize [%llu], processedSize [%llu]",
+            currentSize, remainSize, processedSize);
+        if (remainSize == 0) {
+            break;
+        }
     }
+
     return HCCL_SUCCESS;
 }
 
@@ -646,58 +694,104 @@ HcclResult OmniTempAicpu::HandleSendWrite(const omni::OmniNormalInstruction &sig
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
-    }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
-    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
+    uint32_t linkNum = it->second.size(); // 多jetty的数量
     uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
 
-    // 准备发送数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
+    // 计算当前 slice 的总数据大小（使用第一个 srcSlice 的 processCount 作为基准）
+    uint64_t totalSliceSize = 0;
+    if (!signalInfo.sendRecvInfo.srcSliceInfo.empty()) {
+        uint64_t processCount = GetSliceProcessCount(
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceType, tempAlgParams,
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceIdx, dtypeSize);
+        totalSliceSize = processCount * dtypeSize;
+    }
 
-    for (const auto &srcSlice : signalInfo.sendRecvInfo.srcSliceInfo) {
-        void *srcAddr = GetBufferAddrBySliceType(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, sliceNum);
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendWrite] Invalid source address");
+    uint64_t sendSizePerJetty = totalSliceSize / linkNum;
+    uint64_t remainSize = totalSliceSize;
+    uint64_t processedSize = 0;
+
+    HCCL_DEBUG("HandleSendWrite myrank %u to remote rank %u, link num %u, totalSliceSize %llu",
+        myRank_, remoteRank, linkNum, totalSliceSize);
+
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
+
+        uint64_t currentSize = 0;
+        uint64_t currentCount = 0;
+
+        if (totalSliceSize < ALGIN_NUM) { // 小块优化
+            currentSize = totalSliceSize;
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = 0;
+        } else {
+            // 512 字节对齐
+            currentSize = (sendSizePerJetty + ALGIN_NUM - 1) / ALGIN_NUM * ALGIN_NUM;
+            if (currentSize > remainSize) {
+                currentSize = remainSize;
+            }
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = remainSize - currentSize;
+        }
+
+        // 准备发送数据切片
+        std::vector<DataSlice> srcSlices;
+        std::vector<DataSlice> dstSlices;
+
+        for (const auto &srcSlice : signalInfo.sendRecvInfo.srcSliceInfo) {
+            void *srcAddr = GetBufferAddrBySliceType(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, sliceNum);
+            if (!srcAddr) {
+                HCCL_ERROR("[HandleSendWrite] Invalid source address");
+                return HCCL_E_INTERNAL;
+            }
+            srcAddr = static_cast<char *>(srcAddr) + processedSize;
+            srcSlices.push_back(DataSlice(srcAddr, 0, currentSize, currentCount));
+        }
+
+        for (uint32_t i = 0; i < signalInfo.sendRecvInfo.dstSliceInfo.size(); ++i) {
+            const auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
+            void *dstAddr = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
+            if (!dstAddr) {
+                HCCL_ERROR("[HandleSendWrite] Invalid destination address");
+                return HCCL_E_INTERNAL;
+            }
+            dstAddr = static_cast<char *>(dstAddr) + processedSize;
+            dstSlices.push_back(DataSlice(dstAddr, 0, currentSize, currentCount));
+        }
+
+        // 执行发送写操作
+        SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleSendWrite] Thread index %u out of range (size %lu), linkNum %u, signal threadIdx %lu",
+                threadIdx, threads.size(), linkNum, signalInfo.sendRecvInfo.threadIdx);
             return HCCL_E_INTERNAL;
         }
-        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
-        uint64_t processSize = processCount * dtypeSize;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
-    }
 
-    for (uint32_t i = 0; i < signalInfo.sendRecvInfo.dstSliceInfo.size(); ++i) {
-        const auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
-        void *dstAddr
-            = GetRemoteAddrBySliceType(dstSlice.sliceType, tempAlgParams, channel, dstSlice.sliceIdx, sliceNum);
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendWrite] Invalid destination address");
-            return HCCL_E_INTERNAL;
+        if (signalInfo.opType == omni::OP_SEND_WRITE) {
+            DataInfo sendInfo(channel, std::move(sendSliceList));
+            CHK_RET(static_cast<HcclResult>(SendWrite(sendInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendWrite] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_SEND_WRITE_REDUCE) {
+            DataReduceInfo sendInfo(channel, std::move(sendSliceList), tempAlgParams.dataType,
+                signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(SendWriteReduce(sendInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendWrite] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleSendWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
         }
-        // dstSlice processCount 应与对应 srcSlice 一致，确保发送和写入数据量匹配
-        uint64_t processCount = (i < signalInfo.sendRecvInfo.srcSliceInfo.size())
-                                    ? GetSliceProcessCount(signalInfo.sendRecvInfo.srcSliceInfo[i].sliceType,
-                                          tempAlgParams, signalInfo.sendRecvInfo.srcSliceInfo[i].sliceIdx, dtypeSize)
-                                    : tempAlgParams.sliceSize / dtypeSize;
-        uint64_t processSize = processCount * dtypeSize;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
+
+        processedSize += currentSize;
+        HCCL_DEBUG("[HandleSendWrite] currentSize [%llu], remainSize [%llu], processedSize [%llu]",
+            currentSize, remainSize, processedSize);
+        if (remainSize == 0) {
+            break;
+        }
     }
 
-    // 执行发送写操作
-    SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
-    if (signalInfo.opType == omni::OP_SEND_WRITE) {
-        DataInfo sendInfo(channel, std::move(sendSliceList));
-        CHK_RET(static_cast<HcclResult>(SendWrite(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_SEND_WRITE_REDUCE) {
-        DataReduceInfo sendInfo(
-            channel, std::move(sendSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(SendWriteReduce(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleSendWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
-    }
     return HCCL_SUCCESS;
 }
 
@@ -713,33 +807,43 @@ HcclResult OmniTempAicpu::HandleRecvWrite(const omni::OmniNormalInstruction &sig
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
-    }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
+    uint32_t linkNum = it->second.size(); // 多jetty的数量
     uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
-    // 准备接收数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
+    // RecvWrite 不需要数据分片（接收端由远端写入），但需要为每个 jetty 分配独立 channel 和 thread
+    // 每个 jetty 的 RecvWrite 独立等待远端写入完成
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
 
-    // RecvWrite 当前不使用 src/dst slices（接收端由远端写入），保留固定 sliceSize 逻辑
-    uint64_t processCount = tempAlgParams.sliceSize / dtypeSize;
-    uint64_t processSize = processCount * dtypeSize;
+        // 准备接收数据切片（RecvWrite 不填充 slices，由远端写入）
+        std::vector<DataSlice> srcSlices;
+        std::vector<DataSlice> dstSlices;
 
-    // 执行接收写操作
-    SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
-    if (signalInfo.opType == omni::OP_RECV_WRITE) {
-        DataInfo recvInfo(channel, std::move(recvSliceList));
-        CHK_RET(static_cast<HcclResult>(RecvWrite(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_RECV_WRITE_REDUCE) {
-        DataReduceInfo recvInfo(
-            channel, std::move(recvSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleRecvWrite] Thread index %u out of range (size %lu), linkNum %u, signal threadIdx %lu",
+                threadIdx, threads.size(), linkNum, signalInfo.sendRecvInfo.threadIdx);
+            return HCCL_E_INTERNAL;
+        }
+
+        if (signalInfo.opType == omni::OP_RECV_WRITE) {
+            DataInfo recvInfo(channel, std::move(recvSliceList));
+            CHK_RET(static_cast<HcclResult>(RecvWrite(recvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleRecvWrite] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_RECV_WRITE_REDUCE) {
+            DataReduceInfo recvInfo(channel, std::move(recvSliceList), tempAlgParams.dataType,
+                signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(RecvWriteReduce(recvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleRecvWrite] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleRecvWrite] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        }
     }
+
     return HCCL_SUCCESS;
 }
 
@@ -756,67 +860,117 @@ HcclResult OmniTempAicpu::HandleSendRecvRead(const omni::OmniNormalInstruction &
         return HCCL_E_INTERNAL;
     }
     auto recvIt = channels.find(remoteRecvRank);
-    if (recvIt == channels.end() || it->second.empty()) {
+    if (recvIt == channels.end() || recvIt->second.empty()) {
         HCCL_ERROR("[HandleSendRecvRead] Channel not found for remote recv rank: %lu", remoteRecvRank);
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
-    }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
-    const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
-    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
+    HCCL_DEBUG("HandleSendRecvRead remoteRank channel size is %u remoteRecvRank size %u",
+        it->second.size(), recvIt->second.size());
+
+    uint32_t linkNum = it->second.size();
     uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
 
-    // 准备发送数据切片
-    std::vector<DataSlice> txSrcSlices;
-    std::vector<DataSlice> txDstSlices;
-
-    // 准备接收数据切片
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
-
-    for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
-        auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
-        void *srcAddr
-            = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleSendRecvRead] Invalid source address");
-            return HCCL_E_INTERNAL;
-        }
-        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
-        uint64_t processSize = processCount * dtypeSize;
-        rxSrcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
-
-        auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
-        void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, sliceNum);
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleSendRecvRead] Invalid destination address");
-            return HCCL_E_INTERNAL;
-        }
-        uint64_t dstProcessCount
-            = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
-        uint64_t dstProcessSize = dstProcessCount * dtypeSize;
-        rxDstSlices.push_back(DataSlice(dstAddr, 0, dstProcessSize, dstProcessCount));
+    // 计算当前 slice 的总数据大小（使用第一个 srcSlice 的 processCount 作为基准）
+    uint64_t totalSliceSize = 0;
+    if (!signalInfo.sendRecvInfo.srcSliceInfo.empty()) {
+        uint64_t processCount = GetSliceProcessCount(
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceType, tempAlgParams,
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceIdx, dtypeSize);
+        totalSliceSize = processCount * dtypeSize;
     }
 
-    // 执行发送接收读操作
-    TxRxChannels txRxChannels(channel, recvChannel);
-    TxRxSlicesList txRxSlicesList(SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
-        SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices)));
+    uint64_t sendSizePerJetty = totalSliceSize / linkNum;
+    uint64_t remainSize = totalSliceSize;
+    uint64_t processedSize = 0;
 
-    if (signalInfo.opType == omni::OP_SEND_RECV_READ) {
-        SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
-        CHK_RET(static_cast<HcclResult>(SendRecvRead(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_SEND_RECV_READ_REDUCE) {
-        SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList), tempAlgParams.dataType,
-            signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(SendRecvReadReduce(sendRecvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleSendRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+    HCCL_DEBUG("HandleSendRecvRead myrank %u to remote rank %u, link num %u, totalSliceSize %llu",
+        myRank_, remoteRank, linkNum, totalSliceSize);
+
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
+        const ChannelInfo &recvChannel = recvIt->second[roundRobinIndex_];
+
+        uint64_t currentSize = 0;
+        uint64_t currentCount = 0;
+
+        if (totalSliceSize < ALGIN_NUM) {
+            currentSize = totalSliceSize;
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = 0;
+        } else {
+            currentSize = (sendSizePerJetty + ALGIN_NUM - 1) / ALGIN_NUM * ALGIN_NUM;
+            if (currentSize > remainSize) {
+                currentSize = remainSize;
+            }
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = remainSize - currentSize;
+        }
+
+        // 准备发送数据切片（Read 模式下 txSlices 通常为空）
+        std::vector<DataSlice> txSrcSlices;
+        std::vector<DataSlice> txDstSlices;
+
+        // 准备接收数据切片
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+
+        for (uint32_t i = 0; i < signalInfo.sendRecvInfo.srcSliceInfo.size(); ++i) {
+            auto &srcSlice = signalInfo.sendRecvInfo.srcSliceInfo[i];
+            void *srcAddr = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
+            if (!srcAddr) {
+                HCCL_ERROR("[HandleSendRecvRead] Invalid source address");
+                return HCCL_E_INTERNAL;
+            }
+            srcAddr = static_cast<char *>(srcAddr) + processedSize;
+            rxSrcSlices.push_back(DataSlice(srcAddr, 0, currentSize, currentCount));
+
+            auto &dstSlice = signalInfo.sendRecvInfo.dstSliceInfo[i];
+            void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, sliceNum);
+            if (!dstAddr) {
+                HCCL_ERROR("[HandleSendRecvRead] Invalid destination address");
+                return HCCL_E_INTERNAL;
+            }
+            dstAddr = static_cast<char *>(dstAddr) + processedSize;
+            rxDstSlices.push_back(DataSlice(dstAddr, 0, currentSize, currentCount));
+        }
+
+        // 执行发送接收读操作
+        TxRxChannels txRxChannels(channel, recvChannel);
+        TxRxSlicesList txRxSlicesList(SlicesList(std::move(txSrcSlices), std::move(txDstSlices)),
+            SlicesList(std::move(rxSrcSlices), std::move(rxDstSlices)));
+
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleSendRecvRead] Thread index %u out of range (size %lu)", threadIdx, threads.size());
+            return HCCL_E_INTERNAL;
+        }
+
+        if (signalInfo.opType == omni::OP_SEND_RECV_READ) {
+            SendRecvInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList));
+            CHK_RET(static_cast<HcclResult>(SendRecvRead(sendRecvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRecvRead] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_SEND_RECV_READ_REDUCE) {
+            SendRecvReduceInfo sendRecvInfo(std::move(txRxChannels), std::move(txRxSlicesList),
+                tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(SendRecvReadReduce(sendRecvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRecvRead] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleSendRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        }
+
+        processedSize += currentSize;
+        HCCL_DEBUG("[HandleSendRecvRead] currentSize [%llu], remainSize [%llu], processedSize [%llu]",
+            currentSize, remainSize, processedSize);
+        if (remainSize == 0) {
+            break;
+        }
     }
+
     return HCCL_SUCCESS;
 }
 
@@ -832,35 +986,40 @@ HcclResult OmniTempAicpu::HandleSendRead(const omni::OmniNormalInstruction &sign
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
+    uint32_t linkNum = it->second.size();
+
+    // SendRead 不需要数据分片（发送端由远端读取），为每个 jetty 分配独立 channel 和 thread
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
+
+        // SendRead 不填充 slices（发送端等待远端读取）
+        std::vector<DataSlice> srcSlices;
+        std::vector<DataSlice> dstSlices;
+        SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
+
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleSendRead] Thread index %u out of range (size %lu)", threadIdx, threads.size());
+            return HCCL_E_INTERNAL;
+        }
+
+        if (signalInfo.opType == omni::OP_SEND_READ) {
+            DataInfo sendInfo(channel, std::move(sendSliceList));
+            CHK_RET(static_cast<HcclResult>(SendRead(sendInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRead] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_SEND_READ_REDUCE) {
+            DataReduceInfo sendInfo(channel, std::move(sendSliceList), tempAlgParams.dataType,
+                signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(SendReadReduce(sendInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleSendRead] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleSendRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
+        }
     }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
-    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
-    uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
 
-    // 准备发送数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
-
-    // SendRead 当前不填充 slices，保留固定 sliceSize 逻辑
-    uint64_t processCount = tempAlgParams.sliceSize / dtypeSize;
-    uint64_t processSize = processCount * dtypeSize;
-
-    // 执行发送读操作
-    SlicesList sendSliceList(std::move(srcSlices), std::move(dstSlices));
-
-    if (signalInfo.opType == omni::OP_SEND_READ) {
-        DataInfo sendInfo(channel, std::move(sendSliceList));
-        CHK_RET(static_cast<HcclResult>(SendRead(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_SEND_READ_REDUCE) {
-        DataReduceInfo sendInfo(
-            channel, std::move(sendSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(SendReadReduce(sendInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleSendRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
-    }
     return HCCL_SUCCESS;
 }
 
@@ -876,54 +1035,101 @@ HcclResult OmniTempAicpu::HandleRecvRead(const omni::OmniNormalInstruction &sign
         return HCCL_E_INTERNAL;
     }
 
-    if (++roundRobinIndex_ >= it->second.size()) {
-        roundRobinIndex_ = 0;
-    }
-    roundRobinIndex_ = 0;
-    const ChannelInfo &channel = it->second[roundRobinIndex_];
-    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
+    uint32_t linkNum = it->second.size();
     uint64_t dtypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    uint64_t sliceNum = signalInfo.sendRecvInfo.sliceNum;
 
-    // 准备接收数据切片
-    std::vector<DataSlice> srcSlices;
-    std::vector<DataSlice> dstSlices;
+    // 计算当前 slice 的总数据大小
+    uint64_t totalSliceSize = 0;
+    if (!signalInfo.sendRecvInfo.srcSliceInfo.empty()) {
+        uint64_t processCount = GetSliceProcessCount(
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceType, tempAlgParams,
+            signalInfo.sendRecvInfo.srcSliceInfo[0].sliceIdx, dtypeSize);
+        totalSliceSize = processCount * dtypeSize;
+    }
 
-    for (const auto &srcSlice : signalInfo.sendRecvInfo.srcSliceInfo) {
-        void *srcAddr
-            = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
-        if (!srcAddr) {
-            HCCL_ERROR("[HandleRecvRead] Invalid source address");
+    uint64_t sendSizePerJetty = totalSliceSize / linkNum;
+    uint64_t remainSize = totalSliceSize;
+    uint64_t processedSize = 0;
+
+    HCCL_DEBUG("HandleRecvRead myrank %u from remote rank %u, link num %u, totalSliceSize %llu",
+        myRank_, remoteRank, linkNum, totalSliceSize);
+
+    for (u32 idx = 0; idx < linkNum; idx++) {
+        if (++roundRobinIndex_ >= it->second.size()) {
+            roundRobinIndex_ = 0;
+        }
+        const ChannelInfo &channel = it->second[roundRobinIndex_];
+
+        uint64_t currentSize = 0;
+        uint64_t currentCount = 0;
+
+        if (totalSliceSize < ALGIN_NUM) {
+            currentSize = totalSliceSize;
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = 0;
+        } else {
+            currentSize = (sendSizePerJetty + ALGIN_NUM - 1) / ALGIN_NUM * ALGIN_NUM;
+            if (currentSize > remainSize) {
+                currentSize = remainSize;
+            }
+            currentCount = (dtypeSize > 0) ? currentSize / dtypeSize : 0;
+            remainSize = remainSize - currentSize;
+        }
+
+        // 准备接收数据切片
+        std::vector<DataSlice> srcSlices;
+        std::vector<DataSlice> dstSlices;
+
+        for (const auto &srcSlice : signalInfo.sendRecvInfo.srcSliceInfo) {
+            void *srcAddr = GetRemoteAddrBySliceType(srcSlice.sliceType, tempAlgParams, channel, srcSlice.sliceIdx, sliceNum);
+            if (!srcAddr) {
+                HCCL_ERROR("[HandleRecvRead] Invalid source address");
+                return HCCL_E_INTERNAL;
+            }
+            srcAddr = static_cast<char *>(srcAddr) + processedSize;
+            srcSlices.push_back(DataSlice(srcAddr, 0, currentSize, currentCount));
+        }
+
+        for (const auto &dstSlice : signalInfo.sendRecvInfo.dstSliceInfo) {
+            void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, sliceNum);
+            if (!dstAddr) {
+                HCCL_ERROR("[HandleRecvRead] Invalid destination address");
+                return HCCL_E_INTERNAL;
+            }
+            dstAddr = static_cast<char *>(dstAddr) + processedSize;
+            dstSlices.push_back(DataSlice(dstAddr, 0, currentSize, currentCount));
+        }
+
+        // 执行接收读操作
+        SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
+        u32 threadIdx = (signalInfo.sendRecvInfo.threadIdx - 1) * linkNum + idx + 1;
+        if (threadIdx >= threads.size()) {
+            HCCL_ERROR("[HandleRecvRead] Thread index %u out of range (size %lu)", threadIdx, threads.size());
             return HCCL_E_INTERNAL;
         }
-        uint64_t processCount = GetSliceProcessCount(srcSlice.sliceType, tempAlgParams, srcSlice.sliceIdx, dtypeSize);
-        uint64_t processSize = processCount * dtypeSize;
-        srcSlices.push_back(DataSlice(srcAddr, 0, processSize, processCount));
-    }
 
-    for (const auto &dstSlice : signalInfo.sendRecvInfo.dstSliceInfo) {
-        void *dstAddr = GetBufferAddrBySliceType(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, sliceNum);
-        if (!dstAddr) {
-            HCCL_ERROR("[HandleRecvRead] Invalid destination address");
-            return HCCL_E_INTERNAL;
+        if (signalInfo.opType == omni::OP_RECV_READ) {
+            DataInfo recvInfo(channel, std::move(recvSliceList));
+            CHK_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleRecvRead] threadidx %u", threadIdx);
+        } else if (signalInfo.opType == omni::OP_RECV_READ_REDUCE) {
+            DataReduceInfo recvInfo(channel, std::move(recvSliceList), tempAlgParams.dataType,
+                signalInfo.sendRecvInfo.reduceType);
+            CHK_RET(static_cast<HcclResult>(RecvReadReduce(recvInfo, threads[threadIdx])));
+            HCCL_DEBUG("[HandleRecvRead] threadidx %u (reduce)", threadIdx);
+        } else {
+            HCCL_ERROR("[HandleRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
         }
-        uint64_t processCount = GetSliceProcessCount(dstSlice.sliceType, tempAlgParams, dstSlice.sliceIdx, dtypeSize);
-        uint64_t processSize = processCount * dtypeSize;
-        dstSlices.push_back(DataSlice(dstAddr, 0, processSize, processCount));
+
+        processedSize += currentSize;
+        HCCL_DEBUG("[HandleRecvRead] currentSize [%llu], remainSize [%llu], processedSize [%llu]",
+            currentSize, remainSize, processedSize);
+        if (remainSize == 0) {
+            break;
+        }
     }
 
-    // 执行接收读操作
-    SlicesList recvSliceList(std::move(srcSlices), std::move(dstSlices));
-
-    if (signalInfo.opType == omni::OP_RECV_READ) {
-        DataInfo recvInfo(channel, std::move(recvSliceList));
-        CHK_RET(static_cast<HcclResult>(RecvRead(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else if (signalInfo.opType == omni::OP_RECV_READ_REDUCE) {
-        DataReduceInfo recvInfo(
-            channel, std::move(recvSliceList), tempAlgParams.dataType, signalInfo.sendRecvInfo.reduceType);
-        CHK_RET(static_cast<HcclResult>(RecvReadReduce(recvInfo, threads[signalInfo.sendRecvInfo.threadIdx])));
-    } else {
-        HCCL_ERROR("[HandleRecvRead] Invalid opcode %s", omni::OpTypeToString(signalInfo.opType).c_str());
-    }
     return HCCL_SUCCESS;
 }
 
