@@ -86,10 +86,9 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
 
 HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
 {
-    bufferInfo_.cclBuffer = Buffer;
-    bufferInfo_.cclBuffer.ptr = resCtx.cclMem.addr;
-    bufferInfo_.cclBuffer.size = resCtx.cclMem.size;
-    bufferInfo_.cclBuffer.buffetType = BufferType::HCCL_BUFFER;
+    cclBufferInfo_.ptr = resCtx.cclMem.addr;
+    cclBufferInfo_.size = resCtx.cclMem.size;
+    cclBufferInfo_.buffetType = BufferType::HCCL_BUFFER;
 
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     threads_ = resCtx.threads;
@@ -311,7 +310,7 @@ inline void OpsExecutor::GenTemplateDataParams(const AlgResourceCtxSerializable 
 {
     templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
     templateDataParams.outputBufferPtr = dataInfo_.outputPtr;
-    templateDataParams.cclBufferPtr = resCtx.cclMem;
+    templateDataParams.cclBufferPtr = cclBufferInfo_.ptr;
     templateDataParams.buffInfo.inBuffType = algoExecDataDesc.inputBufferType;
     templateDataParams.buffInfo.outBuffType = algoExecDataDesc.outputBufferType;
     templateDataParams.buffInfo.hcclBuffType = algoExecDataDesc.cclBufferType;

@@ -9,27 +9,24 @@ public:
 
     virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    HcclResult Orchestrate(
-        const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
+    HcclResult Orchestrate(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
     HcclResult CalcResRecursion(
         AlgoExecDesc &algoExecDesc, u32 rankSizeForInputData, u32 &rankSizeForOutputData, u32 &subCommMask);
     HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, const AlgoExecDesc &algoExecDesc,
         u32 childrenRankSizeForInputData, float dataSplitRatio, u32 &childrenRankSizeForOutputData);
-    HcclResult PrepareResForTemplate();
     HcclResult OrchestrateLoop(
         const AlgResourceCtxSerializable &resCtx, AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(
         const AlgResourceCtxSerializable &resCtx, const u32 subCommIndex, TemplateResource &templateResource);
-    inline void GenTemplateDataParams(const AlgResourceCtxSerializable &resCtx, AlgoExecDataDesc &algoExecDataDesc,
-        TemplateDataParams &templateDataParams);
+    inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
     inline void UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount);
-    inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc,
-        u32 childrenId, std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+    inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
+        std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     // 聚合子节点执行结果到当前节点：scratchSize按策略聚合（PARALLEL求和，SEQUENCE取最大），
@@ -73,7 +70,7 @@ protected:
 
     // 资源信息
     // [Buffer资源]
-    BufferInfo bufferInfo_;
+    BufferInfo cclBufferInfo_;
     // [线程资源]
     ThreadHandle mainThread_;
     std::vector<ThreadHandle> threads_;
@@ -82,7 +79,7 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
@@ -97,12 +94,6 @@ protected:
 };
 
 struct BufferInfo {
-    Buffer inputBuffer;
-    Buffer outputBuffer;
-    Buffer cclBuffer;
-};
-
-struct Buffer {
     void *ptr;
     u64 size;
     BufferType bufferType;
