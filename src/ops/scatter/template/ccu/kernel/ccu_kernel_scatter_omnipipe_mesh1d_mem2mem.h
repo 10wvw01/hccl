@@ -51,6 +51,7 @@ struct ScatterOmniPipeMesh1DMem2MemContext {
     ccu::Variable isLastPiece;
     std::vector<ccu::Variable> inputOmniSliceStrideVec;
     std::vector<ccu::Variable> outputOmniSliceStrideVec;
+    std::vector<ccu::Variable> inputOmniSliceSizeVec;
 
     std::vector<ccu::LocalAddr> inputMem;
     std::vector<ccu::RemoteAddr> outputMem;
