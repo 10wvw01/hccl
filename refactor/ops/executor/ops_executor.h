@@ -79,7 +79,7 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     // Channel资源表，vector层表示不同拓扑层级，map层key表示remoteRank，value为channel信息
-    std::vector < std::map<u32, std::vector<ChannelInfo>> channelTable_;
+    std::vector <std::map<u32, std::vector<ChannelInfo>> channelTable_;
 
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
