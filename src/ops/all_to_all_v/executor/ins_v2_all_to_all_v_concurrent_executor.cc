@@ -216,7 +216,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     // ubx机型algHierarchyInfo的level0存在两个topo，4p及以下使用clos topo与mesh topo分别建链
     std::vector<HcclChannelDesc> channelDescs0;
-    CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0, channelDescs0, CommTopo::COMM_TOPO_CLOS));
+    CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0, channelDescs0, CommTopo::COMM_TOPO_1DMESH));
     resReq0.ccuKernelInfos[0].channels = channelDescs0;
 
     std::vector<uint32_t> jettyNums;

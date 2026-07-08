@@ -167,9 +167,6 @@ void InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
         portNum0 = MESH_BW;
         portNum1 = CLOS_BW;
     }
-    // } else if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-
-    // }
     double splitData = static_cast<double>(portNum0) / (portNum0 + portNum1);
     splitDataSize.push_back(splitData);
     splitDataSize.push_back(1 - splitData);
