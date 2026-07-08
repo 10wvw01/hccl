@@ -49,15 +49,14 @@ public:
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
     bool isLastStep_ = false;
-    bool ifNewRoot = false;
+    // bool ifNewRoot = false;
 
     u64 localCopyFlag = 0;
     bool isSameXAxis = false;
     bool isSameYAxis = false;
-    // u64 currentStep_ = 0;
-    // u64 totalStep_ = 0;
     u64 subRoot;
     bool isloopOne_ = false;
+    bool ifDoTask_ = false;
 
 protected:
     HcclResult CalcNHRInfo(std::vector<NHRStepInfo> &stepInfoVector) const;

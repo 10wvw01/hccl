@@ -41,7 +41,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
         return CCU_E_INTERNAL;
     }
     
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
+    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]", ctx.arg->channelCount, ctx.localSize);
     
     ctx.input.resize(ctx.localSize + 1);
     ctx.scratch.resize(ctx.localSize + 1);
@@ -71,7 +71,6 @@ static CcuResult LoadArgs(GatherOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniSliceStrideVec[i], argId++));
     }
@@ -186,11 +185,11 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    CCU_CHK_RET(PreSync(ctx));
+    // CCU_CHK_RET(PreSync(ctx));
     
-    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
-    CCU_CHK_RET(PostSync(ctx));
+    // CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
