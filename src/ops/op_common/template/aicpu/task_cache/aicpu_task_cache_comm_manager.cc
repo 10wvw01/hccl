@@ -10,26 +10,27 @@
 
 #include "aicpu_task_cache_comm_manager.h"
 #include "log.h"
+#include "hcomm_primitives_dl.h"
 #include <mutex>
 
 namespace ops_hccl {
 
-AicpuTaskCacheCommManager& AicpuTaskCacheCommManager::Instance()
+AicpuTaskCacheCommManager &AicpuTaskCacheCommManager::Instance()
 {
     static AicpuTaskCacheCommManager instance;
     return instance;
 }
 
-void AicpuTaskCacheCommManager::AddCommTagMap(const std::string& commName, const std::string& tagName)
+void AicpuTaskCacheCommManager::AddCommTagMap(HcclComm comm, const std::string &tagName)
 {
     std::unique_lock<std::shared_timed_mutex> lock(mutex_);
-    commToTagMap_[commName].push_back(tagName);
+    commToTagMap_[comm].push_back(tagName);
 }
 
-const std::vector<std::string>& AicpuTaskCacheCommManager::GetTagsByCommName(const std::string& commName) const
+const std::vector<std::string> &AicpuTaskCacheCommManager::GetTagsByCommName(HcclComm comm) const
 {
     std::shared_lock<std::shared_timed_mutex> lock(mutex_);
-    auto it = commToTagMap_.find(commName);
+    auto it = commToTagMap_.find(comm);
     if (it != commToTagMap_.end()) {
         return it->second;
     }
@@ -37,10 +38,10 @@ const std::vector<std::string>& AicpuTaskCacheCommManager::GetTagsByCommName(con
     return emptyVec;
 }
 
-std::vector<std::string> AicpuTaskCacheCommManager::GetAllCommNames() const
+std::vector<HcclComm> AicpuTaskCacheCommManager::GetAllCommNames() const
 {
     std::shared_lock<std::shared_timed_mutex> lock(mutex_);
-    std::vector<std::string> commNames;
+    std::vector<HcclComm> commNames;
     commNames.reserve(commToTagMap_.size());
     for (const auto &pair : commToTagMap_) {
         commNames.push_back(pair.first);
@@ -48,10 +49,39 @@ std::vector<std::string> AicpuTaskCacheCommManager::GetAllCommNames() const
     return commNames;
 }
 
-void AicpuTaskCacheCommManager::RemoveCommTagMapByCommName(const std::string &commName)
+void AicpuTaskCacheCommManager::RemoveCommTagMapByCommName(HcclComm comm)
 {
     std::unique_lock<std::shared_timed_mutex> lock(mutex_);
-    commToTagMap_.erase(commName);
+    commToTagMap_.erase(comm);
+}
+
+void AicpuTaskCacheCommManager::evitTaskCache(HcclComm comm)
+{
+    std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+    auto it = commToTagMap_.find(comm);
+    if (it != commToTagMap_.end()) {
+        if (HcommIsSupportHcommAicpuTsTaskCacheClear()) {
+            for (const auto &tag : it->second) {
+                HCCL_INFO("[evitTaskCache] comm[%p] clear cache tag[%s]", comm, tag.c_str());
+                CHK_PRT(static_cast<HcclResult>(HcommAicpuTsTaskCacheClear(tag.c_str())));
+            }
+        }
+        commToTagMap_.erase(comm);
+    }
+}
+
+void AicpuTaskCacheCommManager::evitAllTaskCache()
+{
+    std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+    if (HcommIsSupportHcommAicpuTsTaskCacheClear()) {
+        for (const auto &pair : commToTagMap_) {
+            for (const auto &tag : pair.second) {
+                HCCL_INFO("[evitAllTaskCache] clear cache tag[%s]", tag.c_str());
+                CHK_PRT(static_cast<HcclResult>(HcommAicpuTsTaskCacheClear(tag.c_str())));
+            }
+        }
+    }
+    commToTagMap_.clear();
 }
 
 } // namespace ops_hccl
