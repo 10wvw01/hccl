@@ -76,6 +76,7 @@ endfunction(generate_stub)
 
 if(ENABLE_BUILD_AARCH)
     set(STUBS
+        hcomm
         ccl_kernel
     )
     foreach(STUB ${STUBS})
