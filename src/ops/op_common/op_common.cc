@@ -835,11 +835,18 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     CHK_PTR_NULL(comm);
     std::string kernelName = "HcclLaunchAicpuKernel";
     char* kernelNameCStr = const_cast<char*>(kernelName.c_str());
-    HcclResult ret = HcclReportAicpuKernel(comm, beginTime, kernelNameCStr);
-    if (ret != HCCL_SUCCESS) {
-        HCCL_ERROR("[HcclAicpuKernelEntranceLaunch] HcclReportAicpuKernel failed, beginTime %lu, kernelNameCStr %s, ret %d ", beginTime, kernelNameCStr, ret);
-        return ret;
+    bool isGroupEnabled = false;
+    if (HcommIsSupportHcclGroupStatusGet()) {
+        CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
     }
+    if (!isGroupEnabled) {
+        HcclResult ret = HcclReportAicpuKernel(comm, beginTime, kernelNameCStr);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("[HcclAicpuKernelEntranceLaunch] HcclReportAicpuKernel failed, beginTime %lu, kernelNameCStr %s, ret %d ", beginTime, kernelNameCStr, ret);
+            return ret;
+        }
+    }
+
     // Host stream等待Device的通知
     AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
     u32 hostNotifyWaitTime = IsHcommDefaultTimeoutSupported() ? timeout.hostNotifyTimeout :
