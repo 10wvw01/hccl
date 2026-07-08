@@ -125,7 +125,7 @@ struct TemplateDataParam {
     BufferType cclBufferType;
 
     HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
-    u64 sliceCount{0}; // 传入根节点的每个loop的count，后续不变
+    u64 sliceCount{0}; // 传入根节点的每个loop的每个rank的count
     u64 tailCount{0};
 
     u64 dataOffset{0};
