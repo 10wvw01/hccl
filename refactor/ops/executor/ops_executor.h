@@ -123,7 +123,7 @@ private:
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
-    inline void UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
+    inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
     inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount);
@@ -154,7 +154,6 @@ protected:
     u32 root_ = INVALID_VALUE_RANKID;
     // dataInfo
     DataInfo dataInfo_;
-    u64 dataCount_ = 0;
     u64 dataTypeSize_ = 0;
     u32 scratchMultiple_ = 0;
     // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
