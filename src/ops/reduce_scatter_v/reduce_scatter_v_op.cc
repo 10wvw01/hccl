@@ -44,13 +44,6 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     // A3是：export HCCL_OP_EXPANSION_MODE="AI_CPU"，A5的接口还没提供
     CHK_RET(InitEnvConfig());
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
-    }
-
     // 参数校验等工作;
     // 校验入参
     CHK_RET(CheckReduceScatterVInputParam(comm, sendBuf, recvBuf, recvCount, sendCounts, sendDispls, stream));
@@ -70,6 +63,7 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), tag.c_str());
     CHK_RET(CheckCount(recvCount));
     CHK_RET(CheckDataType(dataType, true));
+    CHK_RET(CheckReduceOp(dataType, op));
 
     /* 接口交互信息日志 */
     CHK_RET(ReduceScatterVEntryLog(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, stream, tag, rankSize, "HcclReduceScatterV"));
@@ -115,6 +109,7 @@ HcclResult HcclReduceScatterVGraphMode(void *sendBuf,  const void *sendCounts, c
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), opTag.c_str());
     CHK_RET(CheckCount(recvCount));
     CHK_RET(CheckDataType(dataType, true));
+    CHK_RET(CheckReduceOp(dataType, op));
 
     // 拼装ResPackGraphMode
     ResPackGraphMode resPack;
@@ -179,7 +174,7 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
 {
     u32 perDataSize = DATATYPE_SIZE_TABLE[dataType];
     u64 outputSize = recvCount * perDataSize;
-    HCCL_INFO("PrepareReduceScatterVParam[outputSize]:[%u]", outputSize);
+    HCCL_INFO("PrepareReduceScatterVParam[outputSize]:[%llu]", outputSize);
 
     CHK_RET(HcclGetCommName(comm, param.commName));
     param.stream = stream;
@@ -204,9 +199,9 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
     const void *temp = sendCounts;
     param.vDataDes.counts = const_cast<void*>(temp);
 
-    HCCL_INFO("PrepareReduceScatterVParam: sendBuf:[%u]", sendBuf);
-    HCCL_INFO("PrepareReduceScatterVParam: recvBuf:[%u]", recvBuf);
-    HCCL_INFO("PrepareReduceScatterVParam: recvCount:[%u]", recvCount);
+    HCCL_INFO("PrepareReduceScatterVParam: sendBuf:[%p]", sendBuf);
+    HCCL_INFO("PrepareReduceScatterVParam: recvBuf:[%p]", recvBuf);
+    HCCL_INFO("PrepareReduceScatterVParam: recvCount:[%llu]", recvCount);
 
     // 参数准备
     u32 rankNum = 2;
@@ -224,11 +219,11 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
     param.varMemSize = varMemSize;
 
     for (u64 i=0; i < countsAndDispls.size();++i) {
-        HCCL_INFO("PrepareReduceScatterVParam: countsAndDispls[%u]:[%u]", i, countsAndDispls[i]);
+        HCCL_INFO("PrepareReduceScatterVParam: countsAndDispls[%llu]:[%llu]", i, countsAndDispls[i]);
     }
 
     // 从源内存地址按字节直接拷贝数据到目标地址
-    memcpy_s(param.varData, varMemSize, countsAndDispls.data(), varMemSize);
+    CHK_SAFETY_FUNC_RET(memcpy_s(param.varData, varMemSize, countsAndDispls.data(), varMemSize));
     const u64* varData = reinterpret_cast<const u64*>(param.varData);
 
     param.opType = HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V;
@@ -286,6 +281,13 @@ HcclResult ReduceScatterVOutPlaceCommon(void *sendBuf, const void *sendDispls, c
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(HcclGetOpExpansionMode(comm, param));
+
+    // 9.0.0 ccu模式走老流程
+    if (opMode == OpMode::OPBASE && GetHcommVersion() == CANN_VERSION(9, 0, 0) &&
+        param.engine == CommEngine::COMM_ENGINE_CCU) {
+        return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
+    }
+
     CHK_RET(Selector(comm, param, topoInfo, algName));
 
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
