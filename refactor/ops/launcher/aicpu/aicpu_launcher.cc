@@ -14,6 +14,9 @@
 #include "ops_executor.h"
 #include "log.h"
 
+#include "alg_data_trans_wrapper.h"
+#include "template_utils.h"
+
 namespace ops_hccl {
 
 /**
@@ -99,6 +102,100 @@ HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, OpsExecutor &execut
     HCCL_INFO("[AiCpuLauncher][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
     return HCCL_SUCCESS;
+}
+
+
+// ───────────── 辅助: Rank → Channel 映射 ─────────────
+static const ChannelInfo* LookupChannel(const std::map<u32, std::vector<ChannelInfo>> &channels, u32 rank)
+{
+    auto it = channels.find(rank);
+    if (it == channels.end() || it->second.empty()) {
+        return nullptr;
+    }
+    return &it->second[0];
+}
+
+// ───────────── 主 Send ─────────────
+HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
+    // Step 1: 方向判断
+    //   enableRemoteMemAccess && buffType==OUTPUT → READ (从远端拉取到本地 output)
+    //   其他场景 → WRITE (推送数据到远端)
+    TransferDirection direction =
+        (ctx.enableRemoteMemAccess && ctx.buffType == BufferType::OUTPUT)
+            ? TransferDirection::READ : TransferDirection::WRITE;
+
+    // Step 2: 获取线程 (调用者控制线程分配, 置于 threads[0])
+    if (ctx.templateRes.threads.empty()) {
+        HCCL_ERROR("[AiCpuLauncher][Send] threads is empty");
+        return HCCL_E_INTERNAL;
+    }
+    const ThreadHandle &thread = ctx.templateRes.threads[0];
+
+    // Step 3: Rank → Channel 映射
+    u32 dstRank = ctx.txRxSlicesList.dstRankId_;
+    u32 srcRank = ctx.txRxSlicesList.srcRankId_;
+    const auto &channels = ctx.templateRes.channels;
+
+    const ChannelInfo *txCh = LookupChannel(channels, dstRank);  // 发送目标 channel
+    const ChannelInfo *rxCh = LookupChannel(channels, srcRank);  // 接收来源 channel
+
+    // Step 4: 判断双向 / 单向
+    bool hasTx = !ctx.txRxSlicesList.txSlicesList_.srcSlices_.empty();
+    bool hasRx = !ctx.txRxSlicesList.rxSlicesList_.srcSlices_.empty();
+    bool isBidirectional = hasTx && hasRx && txCh != nullptr && rxCh != nullptr;
+
+    bool hasReduce = (ctx.reduceOp != HCCL_REDUCE_RESERVED);
+
+    // Step 5: 路由到底层 wrapper 函数
+    if (isBidirectional) {
+        // 双向: 构造 SendRecvInfo, 使用 SendRecv* 系列
+        TxRxChannels channelPair(*txCh, *rxCh);
+        TxRxSlicesList slicesList(ctx.txRxSlicesList.txSlicesList_,
+                                  ctx.txRxSlicesList.rxSlicesList_);
+
+        if (direction == TransferDirection::WRITE) {
+            if (hasReduce) {
+                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
+                return SendRecvWriteReduce(reduceInfo, thread);
+            }
+            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
+            return SendRecvWrite(info, thread);
+        } else {
+            if (hasReduce) {
+                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
+                return SendRecvReadReduce(reduceInfo, thread);
+            }
+            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
+            return SendRecvRead(info, thread);
+        }
+    } else {
+        // 单向: 构造 DataInfo, 使用 Send*/Recv* 系列
+        u32 rank = (direction == TransferDirection::WRITE) ? dstRank : srcRank;
+        const ChannelInfo *ch = LookupChannel(channels, rank);
+        if (ch == nullptr) {
+            HCCL_ERROR("[AiCpuLauncher][Send] channel not found for rank[%u]", rank);
+            return HCCL_E_INTERNAL;
+        }
+        const SlicesList &slices = (direction == TransferDirection::WRITE)
+            ? ctx.txRxSlicesList.txSlicesList_
+            : ctx.txRxSlicesList.rxSlicesList_;
+
+        if (direction == TransferDirection::WRITE) {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*ch, slices, ctx.dataType, ctx.reduceOp);
+                return SendWriteReduce(reduceInfo, thread);
+            }
+            DataInfo info(*ch, slices, ctx.dataType);
+            return SendWrite(info, thread);
+        } else {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*ch, slices, ctx.dataType, ctx.reduceOp);
+                return SendReadReduce(reduceInfo, thread);
+            }
+            DataInfo info(*ch, slices, ctx.dataType);
+            return SendRead(info, thread);
+        }
+    }
 }
 
 }  // namespace ops_hccl
