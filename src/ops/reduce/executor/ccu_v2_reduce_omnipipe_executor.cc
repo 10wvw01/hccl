@@ -146,6 +146,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     AlgResourceRequest& resourceRequest)
 {
     // 初始化一些基本成员变量
+    HCCL_DEBUG("start CalcRes");
     CHK_RET(InitCommInfo(param, topoInfo, algHierarchyInfo));
 
     // 初始化通信域subCommRanks
@@ -183,7 +184,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
     // resourceRequest.notifyNumPerThread.emplace_back(1);
     HCCL_DEBUG("[%s] slaveThreadNum:%d, notifyNumOnMainThread:%d", __func__, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
-
+    HCCL_DEBUG("end CalcRes");
     return HCCL_SUCCESS;
 }
  
