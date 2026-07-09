@@ -26,7 +26,6 @@ static CcuResult ParseKernelArg(
     ctx.rankId = kernelArg->rankId;
     ctx.rootId = kernelArg->rootId;
     ctx.dataType = kernelArg->opParam.DataDes.dataType;
-    ctx.subRankIdx2RankIdx = kernelArg->subRankIdx2RankIdx;
     ctx.ifRealRoot = kernelArg->ifRealRoot;
     ctx.myrealrank = kernelArg->myrealrank;
     return CCU_SUCCESS;
