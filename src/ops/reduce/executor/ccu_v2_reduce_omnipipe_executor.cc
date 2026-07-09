@@ -146,6 +146,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     AlgResourceRequest& resourceRequest)
 {
     // 初始化一些基本成员变量
+    HCCL_DEBUG("start CalcRes");
     CHK_RET(InitCommInfo(param, topoInfo, algHierarchyInfo));
 
     // 初始化通信域subCommRanks
@@ -183,7 +184,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
     // resourceRequest.notifyNumPerThread.emplace_back(1);
     HCCL_DEBUG("[%s] slaveThreadNum:%d, notifyNumOnMainThread:%d", __func__, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
-
+    HCCL_DEBUG("end CalcRes");
     return HCCL_SUCCESS;
 }
  
@@ -329,20 +330,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     gAlgTempX.SetRoot(myRank_);
     gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
 
-    // levelThreads_.resize(CCU_OMNIPIPE_LEVEL_NUM);
-    // levelThreads_[CCU_OMNIPIPE_LEVEL0].push_back(threads_[0]);
-    // levelThreads_[CCU_OMNIPIPE_LEVEL1].push_back(threads_[1]);
-
     // 公共参数初始化
 	TemplateDataParams tempAlgParamsCommon;
 	tempAlgParamsCommon.buffInfo.inputPtr = param.inputPtr;
 	tempAlgParamsCommon.buffInfo.outputPtr = param.outputPtr;
-	// tempAlgParamsCommon.buffInfo.inputSize = param.inputSize;
-	// tempAlgParamsCommon.buffInfo.outputSize = param.outputSize;
 	tempAlgParamsCommon.buffInfo.hcclBuff = resCtx.cclMem;
     tempAlgParamsCommon.buffInfo.hcclBuffSize = resCtx.cclMem.size;
-	// tempAlgParamsCommon.inputSliceStride = dataSize_;
-	// tempAlgParamsCommon.outputSliceStride = dataSize_;
 
     // 资源模板初始化
     TemplateResource templateResourceCommon;

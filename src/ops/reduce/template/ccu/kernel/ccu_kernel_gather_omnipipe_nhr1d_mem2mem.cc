@@ -106,8 +106,6 @@ static CcuResult PreSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
 
 static CcuResult PostSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
 {
-    const auto *arg = ctx.arg;
-    
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
@@ -122,12 +120,12 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 {
     ccu::RemoteAddr src;
     ccu::LocalAddr dst;
-    u32                    &toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
-    u32                    &fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-    ChannelHandle          &sendChannel      = ctx.arg->channels[toRankIdx];
-    ChannelHandle          &recvChannel      = ctx.arg->channels[fromRankIdx];
-    const std::vector<u32> &sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
-    const std::vector<u32> &recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
+    u32                    toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+    u32                    fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+    ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
+    ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
+    const std::vector<u32> sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
+    const std::vector<u32> recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
     // 发送端：先通知接收方可以读取自己的数据
     if (sendSliceIdxList.size() != 0) {
@@ -158,7 +156,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
             dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
 
             CCU_IF(ctx.sliceSize != 0) {
-                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
+                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event, 1 << i);
             }
             CCU_IF(ctx.sliceSize == 0) {
                 ccu::EventRecord(ctx.event, 1 << i);
@@ -190,11 +188,11 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
-    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
-    // CCU_CHK_RET(PostSync(ctx));
+    CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
