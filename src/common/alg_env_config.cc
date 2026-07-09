@@ -829,9 +829,11 @@ HcclResult ParseOpExpansion()
             "HCCL_OP_EXPANSION_MODE is set to [%s], which is incorrect. Please check", opExpansionModeEnv.c_str());
         return HCCL_E_PARA;
     }
-    HCCL_INFO("environmental variable HCCL_OP_EXPANSION_MODE is [%s], aicpuUnfold[%u], aivMode[%u], enableFfts[%u]",
+    HCCL_INFO("environmental variable HCCL_OP_EXPANSION_MODE is [%s], aicpuUnfold[%u], aicpuCacheEnable[%u], "
+        "aivMode[%u], enableFfts[%u]",
         opExpansionModeEnv.c_str(),
         g_algEnvConfig.aicpuUnfold,
+        g_algEnvConfig.aicpuCacheEnable,
         g_algEnvConfig.aivMode,
         g_algEnvConfig.enableFfts);
     return HCCL_SUCCESS;
