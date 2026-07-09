@@ -80,7 +80,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     // 注意: 这里继承A3, 不支持同时为0的场景
     if (inputSize == 0 && outputSize == 0) {
         isInplace = true;
-        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is overlapping with outputSize[%u] -> isInplace[%d]",
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%llu] is overlapping with outputSize[%llu] -> isInplace[%d]",
             inputSize, outputSize, isInplace);
         return HCCL_SUCCESS;
     }
@@ -139,7 +139,7 @@ bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &res
             if (channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_CTP &&
                 channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_TP &&
                 channel.protocol != CommProtocol::COMM_PROTOCOL_UBOE) {
-                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%] not supported",
+                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%d] not supported",
                     channel.protocol);
                 return false;
             }

@@ -18,10 +18,10 @@ namespace ops_hccl {
 class AicpuTaskCachePolicy {
 public:
     static HcclResult IsAicpuTaskCacheEnable(
-        const OpParam &param, const AlgResourceCtxSerializable &resCtxHost, bool &isCacheEnable);
+        const OpParam &param, const AlgResourceCtxSerializable &resCtx, bool &isCacheEnable);
 
 private:
-    static bool IsTopoSupported(const AlgResourceCtxSerializable &resCtxHost);
+    static bool IsTopoSupported(const AlgResourceCtxSerializable &resCtx);
     static HcclResult IsInplaceForCache(const OpParam &param, const uint32_t rankSize, bool &isInplace);
     static HcclResult ParseOpParamForCache(const OpParam &param, HcclDataType &sendType, HcclDataType &recvType,
         uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails &topoInfo);

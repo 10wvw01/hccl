@@ -28,6 +28,6 @@ public:
     static HcclResult GetAicpuTaskCacheTag(const OpParam &param, uint64_t inputSize, std::string &cacheTag);
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif
