@@ -136,36 +136,36 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
-    if (recvSliceIdxList.size() != 0) {
-        u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-        u32  recvSliceIdx = 0;
-        ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
-        src.token                        = ctx.token[ctx.myRankIdx];
-        dst.token                        = ctx.token[fromRankIdx];
+    // if (recvSliceIdxList.size() != 0) {
+        // u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+        // u32  recvSliceIdx = 0;
+        // ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
+        // src.token                        = ctx.token[ctx.myRankIdx];
+        // dst.token                        = ctx.token[fromRankIdx];
 
-        ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
-        u32 recvSliceIdxSize = recvSliceIdxList.size();
-        for (u32 i = 0; i < recvSliceIdxSize; i++) {
-            recvSliceIdx = recvSliceIdxList[i];
-            if (nhrStepInfo.fromRank == recvSliceIdx) {
-                src.addr = ctx.input[fromRankIdx];
-            } else {
-                src.addr = ctx.scratch[fromRankIdx];
-            }
-            src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+        // ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
+        // u32 recvSliceIdxSize = recvSliceIdxList.size();
+        // for (u32 i = 0; i < recvSliceIdxSize; i++) {
+        //     recvSliceIdx = recvSliceIdxList[i];
+        //     if (nhrStepInfo.fromRank == recvSliceIdx) {
+        //         src.addr = ctx.input[fromRankIdx];
+        //     } else {
+        //         src.addr = ctx.scratch[fromRankIdx];
+        //     }
+        //     src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
 
-            dst.addr = ctx.output;
-            dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
+        //     dst.addr = ctx.output;
+        //     dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
 
-            CCU_IF(ctx.sliceSize != 0) {
-                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
-            }
-            CCU_IF(ctx.sliceSize == 0) {
-                ccu::EventRecord(ctx.event, 1 << i);
-            }
-        }
-        ccu::EventWait(ctx.event, (1 << recvSliceIdxSize) - 1);
-    }
+        //     CCU_IF(ctx.sliceSize != 0) {
+        //         ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
+        //     }
+        //     CCU_IF(ctx.sliceSize == 0) {
+        //         ccu::EventRecord(ctx.event, 1 << i);
+        //     }
+        // }
+        // ccu::EventWait(ctx.event, (1 << recvSliceIdxSize) - 1);
+    // }
 
     HCCL_INFO("[DoGatherOmniPipeNHRSingleStep] step %u, toRank=%u, fromRank=%u, sendSliceNum=%lu",
         nhrStepInfo.step, nhrStepInfo.toRank, nhrStepInfo.fromRank, sendSliceIdxList.size());
@@ -190,11 +190,11 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    // CCU_CHK_RET(PreSync(ctx));
+    CCU_CHK_RET(PreSync(ctx));
     
-    // CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
+    CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
-    // CCU_CHK_RET(PostSync(ctx));
+    CCU_CHK_RET(PostSync(ctx));
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
