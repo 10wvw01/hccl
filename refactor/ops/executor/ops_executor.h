@@ -9,10 +9,10 @@
 #include "hccl_algorithm.h"
 #include "template/base_template.h"
 #include "template/template_factory.h"
-// 循环依赖：hccl_algorithm.h 在定义 AlgoExecDesc 之前就通过 std::shared_ptr<AlgoExecDesc>
-// 引用了它，且其末尾 HcclAlgorithm::GetEngine/GetExecutor 又分别需要 BaseLauncher/OpsExecutor，
-// 故在此先做前置声明，避免反向 include 引发未定义错误。
+#include "utils/utils.h"
+
 namespace ops_hccl {
+
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -118,7 +118,7 @@ protected:
     std::vector<u32> maxNotifyNumPerThread_;
 
     // 递归后用于保存算法执行所需要的流同步信息
-    std::map<const AlgoExecDesc*, u32> execDescSubCommMask_;
+    std::map<const AlgoExecDesc *, u32> execDescSubCommMask_;
 };
 
 } // namespace ops_hccl
