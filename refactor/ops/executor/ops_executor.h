@@ -9,10 +9,10 @@
 #include "hccl_algorithm.h"
 #include "template/base_template.h"
 #include "template/template_factory.h"
-// 循环依赖：hccl_algorithm.h 在定义 AlgoExecDesc 之前就通过 std::shared_ptr<AlgoExecDesc>
-// 引用了它，且其末尾 HcclAlgorithm::GetEngine/GetExecutor 又分别需要 BaseLauncher/OpsExecutor，
-// 故在此先做前置声明，避免反向 include 引发未定义错误。
+#include "utils/utils.h"
+
 namespace ops_hccl {
+
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -69,17 +69,12 @@ private:
     inline void MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
-
-protected:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
-
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
-
     u64 GetMaxProcCntPerLoop(u64 dataCount);
 
     // 通信域指针
     HcclComm hcclComm_;
-
     // algo
     HcclAlgorithm algo_;
 
@@ -90,7 +85,7 @@ protected:
     // dataInfo
     DataInfo dataInfo_;
     u64 dataTypeSize_ = 0;
-    u32 scratchMultiple_ = 0;
+    float scratchMultiple_ = 0.0;
     // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
     std::vector<float> maxSubScratchMutiple_;
     // config
@@ -110,7 +105,6 @@ protected:
     std::vector<u32> notifyNumOnSubMainThread_;
     // [Channel资源]
     std::vector<std::map<u32, std::vector<ChannelInfo>>> channelTable_;
-
     std::vector<std::vector<HcclChannelDesc>> requestChannels_;
 
     std::vector<u32> maxSlaveThreadNum_;
@@ -118,7 +112,7 @@ protected:
     std::vector<u32> maxNotifyNumPerThread_;
 
     // 递归后用于保存算法执行所需要的流同步信息
-    std::map<const AlgoExecDesc*, u32> execDescSubCommMask_;
+    std::map<const AlgoExecDesc *, u32> execDescSubCommMaskMap_;
 };
 
 } // namespace ops_hccl

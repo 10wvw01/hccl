@@ -84,10 +84,8 @@ enum class HcclAlgEngineType {
 };
 
 enum class HcclAlgExecPolicy {
-    SOLE,
     SEQUENCE,
     PARALLEL,
-    CONCURRENT,
 };
 
 enum class HcclAlgShotMode {
@@ -157,9 +155,9 @@ struct TemplateExecDesc {
 struct AlgoExecDesc;
 using VariantType = std::variant<TemplateExecDesc, std::shared_ptr<AlgoExecDesc>>;
 struct AlgoExecDesc {
-    HcclAlgExecPolicy execPolicy;                  // 描述children的并行策略：串行/并行
+    HcclAlgExecPolicy execPolicy; // 描述children的并行策略：串行/并行
     std::vector<VariantType> children;
-    std::vector<u32> dataSplitRatio;        // 并行数据切分比例，元素个数必须和children个数一致,例如1:1:1
+    std::vector<u32> dataSplitRatio; // 并行数据切分比例，元素个数必须和children个数一致,例如1:1:1
 };
 
 class OpsExecutor;
