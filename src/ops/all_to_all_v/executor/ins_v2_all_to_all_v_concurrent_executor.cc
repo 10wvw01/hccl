@@ -307,7 +307,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     A2ASendRecvInfo sendRecvInfoTempClos;
     A2ASendRecvInfo sendRecvInfoTempMesh;
-    CHK_RET(SplitA2ASendRecvInfo(sendRecvInfoTempClos, sendRecvInfoTempMesh));
+    CHK_RET(SplitA2ASendRecvInfo(param, sendRecvInfoTempClos, sendRecvInfoTempMesh));
     algTemplateClos->SetA2ASendRecvInfo(sendRecvInfoTempClos);
     algTemplateMesh->SetA2ASendRecvInfo(sendRecvInfoTempMesh);
 
@@ -426,7 +426,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     CHK_RET(SetAlltoAllLocalSendRecvInfo(param));
     A2ASendRecvInfo sendRecvInfoTemp0;
     A2ASendRecvInfo sendRecvInfoTemp1;
-    CHK_RET(SplitA2ASendRecvInfo(sendRecvInfoTemp0, sendRecvInfoTemp1));
+    CHK_RET(SplitA2ASendRecvInfo(param, sendRecvInfoTemp0, sendRecvInfoTemp1));
     tempAlg0.SetA2ASendRecvInfo(sendRecvInfoTemp0);
     tempAlg1.SetA2ASendRecvInfo(sendRecvInfoTemp1);
 
