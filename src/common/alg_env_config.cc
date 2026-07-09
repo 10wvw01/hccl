@@ -797,8 +797,8 @@ HcclResult ParseOpExpansion()
             HCCL_WARNING("910 do not support AICPU unfold.");
         } else {
             g_algEnvConfig.aicpuUnfold = true;
-            
         }
+        
         // A5默认开启aicpu task cache
         if (deviceType == DevType::DEV_TYPE_950) {
             g_algEnvConfig.aicpuCacheEnable = 1;
