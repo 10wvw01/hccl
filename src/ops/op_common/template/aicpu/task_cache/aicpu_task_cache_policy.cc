@@ -15,11 +15,11 @@
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, const uint32_t rankSize, 
-    const AlgResourceCtxSerializable &resCtxHost, bool isCapture, bool &isCacheEnable)
+HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, bool &isCacheEnable)
 {
     isCacheEnable = false;
-    if (!GetExternalInputHcclAicpuCacheEnable()) {
+    if (!param.aicpuCacheEnable) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] AICPU_CacheDisable is not supported");
         return HCCL_SUCCESS;
     }
@@ -37,7 +37,7 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     }
 
     // aclgraph 不支持
-    if (isCapture) {
+    if (param.isCapture) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] aclgraph is not supported");
         return HCCL_SUCCESS;
     }
@@ -50,14 +50,14 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
 
     // 屏蔽inplace场景
     bool isInplace = false;
-    CHK_RET(IsInplaceForCache(param, rankSize, isInplace));
+    CHK_RET(IsInplaceForCache(param, resCtx.topoInfo.userRankSize, isInplace));
     if (isInplace) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] inplace case is not supported for operator unfolding "
                   "cache");
         return HCCL_SUCCESS;
     }
 
-    if(!IsTopoSupported(resCtxHost)) {
+    if(!IsTopoSupported(resCtx)) {
         return HCCL_SUCCESS;
     }
 
@@ -126,9 +126,9 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     return HCCL_SUCCESS;
 }
 
-bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtxHost)
+bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtx)
 {
-    for (const auto& levelChannels : resCtxHost.channels) {
+    for (const auto& levelChannels : resCtx.channels) {
         for (const auto& channel : levelChannels) {
             if (!channel.isValid) {
                 continue;

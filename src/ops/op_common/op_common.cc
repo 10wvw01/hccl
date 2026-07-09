@@ -665,11 +665,9 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
         ThreadHandle unfoldThread;
         CHK_RET(GetUnfoldThreadInfo(comm, param, unfoldThread));
         // 根据主流的捕获状态决定展开流的状态
-        bool isCapture = false;
-        CHK_RET(CaptureSlaveStreams(comm, param.stream, {mainThread, unfoldThread}, isCapture));
+        CHK_RET(CaptureSlaveStreams(comm, param.stream, {mainThread, unfoldThread}, param.isCapture));
         // aicpu task cache使能
-        CHK_RET(AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(param, topoInfo->userRankSize, *resCtxHost.get(),
-            isCapture, param.aicpuCacheEnable));
+        param.aicpuCacheEnable = GetExternalInputHcclAicpuCacheEnable();
         CHK_RET(HcclAicpuKernelEntranceLaunch(comm, param, cpuTsThread, exportedCpuTsThread, notifyNumOnMainThread,
             resCtxSequence, algName, unfoldThread));
     } else if (param.engine == COMM_ENGINE_AIV) {

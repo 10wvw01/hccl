@@ -584,6 +584,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u32 dataCount = 0; // 算子上报dfx的数据量
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
     bool aicpuCacheEnable = false;
+    bool isCapture = false;
     u64 varMemSize{0};
     u8 varData[0];
 };

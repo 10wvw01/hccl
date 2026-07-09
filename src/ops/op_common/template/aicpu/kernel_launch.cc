@@ -33,6 +33,7 @@
 #include "aicpu_task_cache_key.h"
 #include "aicpu_task_cache_comm_manager.h"
 #include "aicpu_task_cache_utils.h"
+#include "aicpu_task_cache_policy.h"
 #include "ins_send_executor.h"
 #include "ins_recv_executor.h"
 
@@ -458,7 +459,8 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         ThreadHandle exportedAicpuTsThread = param->opThread;
 
         // 检查aicpu task cache使能约束
-        bool enableCache = param->aicpuCacheEnable;
+        bool enableCache = false;
+        CHK_RET(AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(*param, *resCtxPtr, enableCache));
 
         // 打印算子信息用于调试
         static uint64_t opUnfoldIdx = 0;
