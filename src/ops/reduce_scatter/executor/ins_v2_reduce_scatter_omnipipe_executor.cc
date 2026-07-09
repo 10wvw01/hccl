@@ -96,12 +96,18 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         return HCCL_SUCCESS;
     }
 
+    const u32 peerThreadNum = static_cast<u32>(rankSize_ - 1);
+    resourceRequest.notifyNumOnMainThread = peerThreadNum;
+    resourceRequest.slaveThreadNum = peerThreadNum;
+    resourceRequest.notifyNumPerThread.assign(peerThreadNum, 1);
+
     std::vector<HcclChannelDesc> channels;
     std::vector<std::vector<u32>> fullSubCommInfo = BuildFullRankSubComm(static_cast<u32>(rankSize_));
     CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, fullSubCommInfo, channels));
     resourceRequest.channels.push_back(channels);
-    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][CalcSymmetricDirectRes] rankSize[%u], channels[%u]",
-              static_cast<u32>(rankSize_), static_cast<u32>(channels.size()));
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][CalcSymmetricDirectRes] rankSize[%u], channels[%u], "
+              "peerThreadNum[%u]",
+              static_cast<u32>(rankSize_), static_cast<u32>(channels.size()), peerThreadNum);
     return HCCL_SUCCESS;
 }
 
@@ -438,12 +444,35 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                     HcclResult::HCCL_E_INTERNAL);
     }
 
+    std::vector<ThreadHandle> peerThreads;
+    std::vector<u32> notifyIdxMainToPeer;
+    std::vector<u32> notifyIdxPeerToMain;
+    if (rankSize_ > 1) {
+        const u32 peerThreadNum = static_cast<u32>(rankSize_ - 1);
+        CHK_PRT_RET(threads_.size() < static_cast<size_t>(peerThreadNum + 1),
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] thread size[%u] is "
+                               "less than required[%u]",
+                               static_cast<u32>(threads_.size()), peerThreadNum + 1),
+                    HcclResult::HCCL_E_INTERNAL);
+        peerThreads.assign(threads_.begin() + 1, threads_.begin() + 1 + peerThreadNum);
+        notifyIdxMainToPeer.assign(peerThreadNum, 0);
+        notifyIdxPeerToMain.reserve(peerThreadNum);
+        for (u32 idx = 0; idx < peerThreadNum; ++idx) {
+            notifyIdxPeerToMain.push_back(idx);
+        }
+    }
+
     const u64 sliceBytes = dataCount_ * dataTypeSize_;
     const u64 myInputOffset = static_cast<u64>(myRank_) * sliceBytes;
     DataSlice localSrc(param.inputPtr, myInputOffset, sliceBytes, dataCount_);
     DataSlice localDst(param.outputPtr, 0, sliceBytes, dataCount_);
     CHK_RET(LocalCopy(controlThread_, localSrc, localDst));
 
+    if (!peerThreads.empty()) {
+        CHK_RET(PreSyncInterThreads(controlThread_, peerThreads, notifyIdxMainToPeer));
+    }
+
+    u32 peerThreadIdx = 0;
     for (u32 remoteRank = 0; remoteRank < static_cast<u32>(rankSize_); ++remoteRank) {
         if (remoteRank == myRank_) {
             continue;
@@ -474,12 +503,15 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         const ChannelInfo& linkRemote = channelIter->second[0];
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvReduceInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_, reduceOp_);
-        HcclResult reduceRet = SendRecvReadReduce(sendRecvInfo, controlThread_);
+        HcclResult reduceRet = SendRecvReadReduce(sendRecvInfo, peerThreads.at(peerThreadIdx++));
         CHK_PRT_RET(reduceRet != HCCL_SUCCESS,
                     HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] "
                                "SendRecvReadReduce failed, remoteRank[%u], ret[%d]",
                                remoteRank, reduceRet),
                     reduceRet);
+    }
+    if (!peerThreads.empty()) {
+        CHK_RET(PostSyncInterThreads(controlThread_, peerThreads, notifyIdxPeerToMain));
     }
     HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] End");
     return HCCL_SUCCESS;
