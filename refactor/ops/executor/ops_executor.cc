@@ -1,12 +1,11 @@
 #include "ops_executor.h"
 
-#include <algorithm>
-#include <climits>
-#include <cmath>
-#include <numeric>
-
 constexpr u64 UB_MAX_DATA_SIZE = 256 * 1024 * 1024; // 256MB, UB单次最大传输量
+HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
+                               const std::vector<u32> &notifyIdxMainToSub);
 
+HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
+                                const std::vector<u32> &notifyIdxSubToMain);
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
     : algo_(algo),
@@ -37,8 +36,8 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayer
     algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo_);
     // 算rankSize
     u32 topoLevel = algHierarchyInfo_.infos.size();
-    rankSize_ = 1;    
-    for(size_t i =0; i < topoLevel; i++){
+    rankSize_ = 1;
+    for (size_t i = 0; i < topoLevel; i++) {
         rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
     }
     return HCCL_SUCCESS;
@@ -51,13 +50,18 @@ HcclResult OpsExecutor::Orchestrate(
     InitRes(resCtx);
     // 切分数据阶段（子类实现GetMaxProCntPerLoop函数）
     // maxProcessCount表示每次循环能处理的数据量，该数据量定义与入参dataCount保持一致（不同op有区别）
-    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount_); // dataCount_
+    u64 dataCount = dataInfo_.inputSize / dataTypeSize_;
+    if (dataCount == 0) {
+        HCCL_ERROR("[OpsExecutor] dataCount is zero");
+        return HCCL_SUCCESS;
+    }
+    u64 maxProcCntPerLoop = GetMaxProcCntPerLoop(dataCount);
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
-    u64 loopTimes = (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
+    u64 loopTimes = (dataCount + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
-        u64 processCount = (loopIdx == loopTimes - 1) ? dataCount_ % maxProcCntPerLoop : maxProcCntPerLoop;
-        u64 tailCount = (loopIdx == loopTimes - 1) ? processCount % rankSize_ : 0;
+        u64 processCount = (loopIdx == loopTimes - 1) ? (dataCount % maxProcCntPerLoop) : maxProcCntPerLoop;
+        u64 tailCount = (loopIdx == loopTimes - 1) ? (processCount % rankSize_) : 0;
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
         InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount, tailCount);
@@ -82,8 +86,8 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
     // 取最小值（总量、CCL scratch、UB传输三者约束）
     u64 resCount = std::min({dataCount, maxByCcl, maxByUb});
     // 如果不是allgather需要对齐,其他情况一定能够保证resCount > ranksize
-    if(algo_.hcclCmdType != HCCL_CMD_ALLGATHER){
-        resCount = resCount / rankSize_ * rankSize_;
+    if (algo_.hcclCmdType != HCCL_CMD_ALLGATHER) {
+        resCount = (resCount / rankSize_) * rankSize_;
     }
     // 保护：保证至少返回 1，避免 Orchestrate 中 (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop 除零
     return std::max(resCount, 1ULL);
@@ -137,8 +141,7 @@ HcclResult OpsExecutor::PreSyncBySubCommMask(const AlgoExecDesc &execDesc)
             syncNotifyOnAlgoExec.emplace_back(notifyNumOnSubMainThread_.at(i) - 1);
         }
     }
-    // TODO: PreSyncInterThreads
-    return HCCL_SUCCESS;
+    return PreSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnAlgoExec);    
 }
 
 HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
@@ -157,8 +160,7 @@ HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
             syncNotifyOnMain.emplace_back(i);
         }
     }
-    // TODO: PostSyncInterThreads
-    return HCCL_SUCCESS;
+    return PostSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnMain);
 }
 
 // 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
@@ -207,7 +209,7 @@ HcclResult OpsExecutor::CalcResRecursion(
         localSubCommMask |= childrenSubCommMask;
     }
     // 需要将本节点的subCommMask插入到map表中
-    UpdateSubCommMask(algoExecDesc, localSubCommMask);
+    UpdateSubCommMaskMap(algoExecDesc, localSubCommMask);
     subCommMask = localSubCommMask;
     outputRatio = (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL)
                       ? (std::accumulate(childrenOutputRatio.begin(), childrenOutputRatio.end(), 0))
@@ -219,7 +221,6 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes, 
 {
     int subCommIndex = templateExeDes.subCommIndex;
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
-    float dataSplitRatio = inputRatio;  // 占位：refactor 阶段尚未在模板资源申请阶段引入子节点比例
     BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
     CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest));
@@ -228,19 +229,20 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes, 
         = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
     auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
     maxNotifyNumPerThread_.at(subCommIndex) = std::max(maxNotifyNumPerThread_.at(subCommIndex), *it);
-    float scratchMultiple = static_cast<float>(baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER,
-                                                                                  BufferType::HCCL_BUFFER));
-    scratchMultiple = scratchMultiple * dataSplitRatio;
+    float scratchMultiple
+        = static_cast<float>(baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER));
+    scratchMultiple = scratchMultiple * inputRatio;
     maxSubScratchMutiple_.at(subCommIndex) = std::max(maxSubScratchMutiple_.at(subCommIndex), scratchMultiple);
     // 如果原语是 allgather 累乘，否则累除
     outputRatio = (templateExeDes.templateDesc.hcclCmdType == HCCL_CMD_ALLGATHER)
                       ? (inputRatio * static_cast<float>(templateRanks.size()))
                       : (inputRatio / static_cast<float>(templateRanks.size()));
+    // todo 需要确认一下这个地方细节
     requestChannels_.at(subCommIndex) = tempRequest.channels.at(0);
     return HCCL_SUCCESS;
 }
 
-inline void OpsExecutor::UpdateSubCommMask(AlgoExecDesc &algoExecDesc, const u32 subCommMask)
+inline void OpsExecutor::UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask)
 {
     auto it = execDescSubCommMask_.find(&algoExecDesc);
     if (it != execDescSubCommMask_.end()) {
@@ -300,7 +302,8 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
     algoExecDataDesc.tailCount = tailCount;
 
     algoExecDataDesc.inputBufferType = BufferType::INPUT;
-    algoExecDataDesc.outputBufferType = (algo_.hcclCmdType == HCCL_CMD_BROADCAST) ? BufferType::INPUT : BufferType::OUTPUT;
+    algoExecDataDesc.outputBufferType
+        = (algo_.hcclCmdType == HCCL_CMD_BROADCAST) ? BufferType::INPUT : BufferType::OUTPUT;
     algoExecDataDesc.cclBufferType = BufferType::HCCL_BUFFER;
 
     if (algo_.hcclCmdType == HCCL_CMD_ALLGATHER) {
@@ -325,7 +328,6 @@ inline void OpsExecutor::GenTemplateDataParams(
     templateDataParams.cclBufferType = algoExecDataDesc.cclBufferType;
     templateDataParams.dataType = dataInfo_.dataType;
     templateDataParams.sliceCount = algoExecDataDesc.sliceCount;
-    // todo 待支持tailcount
     templateDataParams.tailCount = algoExecDataDesc.tailCount;
     templateDataParams.dataOffset = algoExecDataDesc.dataOffset;
     templateDataParams.cclBufferOffset = algoExecDataDesc.scratchOffset;
@@ -349,7 +351,7 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
               : (childrenAlgoExecDataDesc.at(childrenId - 1).dataOffset
                     + childrenAlgoExecDataDesc.at(childrenId - 1).sliceCount
                           * childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputData.size() * dataTypeSize_);
-    u64 sliceCount = algoExecDataDesc.sliceCount *  dataSplitRatio;
+    u64 sliceCount = algoExecDataDesc.sliceCount * dataSplitRatio;
     if (childrenId == childrenSize - 1) {
         sliceCount = algoExecDataDesc.sliceCount;
         for (size_t i = 0; i < childrenSize - 1; i++) {
@@ -416,9 +418,8 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     CHK_RET(baseTemplate.KernelRun(templateDataParams, templateResource, ranksForOutputData));
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
     float scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
-    algoExecDataDesc.scratchSize = std::ceil(
-        static_cast<double>(algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() *
-        dataTypeSize_ * scratchMutiple));
+    algoExecDataDesc.scratchSize = std::ceil(static_cast<double>(
+        algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple));
     return HCCL_SUCCESS;
 }
 
