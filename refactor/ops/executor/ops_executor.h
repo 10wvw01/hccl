@@ -13,11 +13,6 @@
 // 引用了它，且其末尾 HcclAlgorithm::GetEngine/GetExecutor 又分别需要 BaseLauncher/OpsExecutor，
 // 故在此先做前置声明，避免反向 include 引发未定义错误。
 namespace ops_hccl {
-
-struct AlgResourceCtxSerializable;
-struct AlgHierarchyInfoForAllLevel;
-struct ChannelInfo;
-
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
