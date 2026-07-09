@@ -18,8 +18,6 @@
 #include <unordered_set>
 #include <memory>
 #include <functional>
-#include <functional>
-#include <memory>
 #include <hccl/hccl_comm.h>
 #include "hccl_common.h"
 #include "hccl_types.h"

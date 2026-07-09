@@ -13,7 +13,6 @@
 #include <string>
 #include <algorithm>
 #include <cstdint>
-#include <string>
 #include <array>
 #include "log.h"
 #include "adapter_error_manager_pub.h"

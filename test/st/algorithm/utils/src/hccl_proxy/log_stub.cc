@@ -15,7 +15,6 @@
 #include <string>
 #include <sys/time.h>
 #include <time.h>
-#include <cstdio>
 #include <unistd.h>
 #include <securec.h>
 

@@ -19,7 +19,6 @@
 #include "executor_v2_base.h"
 #include "alg_type.h"
 #include "execute_selector.h"
-#include "alg_param.h"
 
 #ifdef __cplusplus
 extern "C" {
