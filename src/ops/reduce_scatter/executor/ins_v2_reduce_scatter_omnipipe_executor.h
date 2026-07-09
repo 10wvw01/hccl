@@ -51,6 +51,11 @@ protected:
     HcclResult InitExectorInfo(const OpParam &param);
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap);
+    HcclResult CalcSymmetricDirectRes(HcclComm comm, const OpParam &param,
+        const TopoInfoWithNetLayerDetails *topoInfo, AlgResourceRequest &resourceRequest) const;
+    HcclResult RestoreSymmetricDirectChannelMap(const AlgResourceCtxSerializable &resCtx,
+        std::map<u32, std::vector<ChannelInfo>> &rankIdToChannelInfo) const;
+    HcclResult OrchestrateSymmetricDirect(const OpParam &param, const AlgResourceCtxSerializable &resCtx);
     HcclResult InitCommInfo(
         const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo, const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
     HcclResult PrepareResForTemplateLevel(u32 level, std::shared_ptr<InsAlgTemplateBase> &tempBase);

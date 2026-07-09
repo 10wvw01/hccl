@@ -15,10 +15,27 @@
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "topo_match_pcie_mix.h"
 #include "omnipipe_template_utils.h"
+#include "alg_data_trans_wrapper.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 namespace ops_hccl {
 constexpr uint32_t HIERARCHY_SIZE_3 = 3;
 constexpr uint64_t RANK_SIZE_LEVEL_2 = 2;
 constexpr uint64_t RANK_SIZE_LEVEL_4 = 4;
+
+namespace {
+std::vector<std::vector<u32>> BuildFullRankSubComm(u32 rankSize)
+{
+    std::vector<std::vector<u32>> subCommInfo(1);
+    subCommInfo[0].reserve(rankSize);
+    for (u32 rank = 0; rank < rankSize; ++rank) {
+        subCommInfo[0].push_back(rank);
+    }
+    return subCommInfo;
+}
+} // namespace
+
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
                                    InsAlgTemplate2>::InsV2ReduceScatterOmniPipeExecutor()
@@ -58,6 +75,33 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     devType_ = topoInfo->deviceType;
     AlgTopoMatch topoMatch;
     CHK_RET(topoMatch.MatchTopo(comm, topoInfo, algHierarchyInfo));
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
+HcclResult
+InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
+                                   InsAlgTemplate2>::CalcSymmetricDirectRes(
+    HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+    AlgResourceRequest& resourceRequest) const
+{
+    resourceRequest.notifyNumOnMainThread = 0;
+    resourceRequest.slaveThreadNum = 0;
+    resourceRequest.notifyNumPerThread.clear();
+    resourceRequest.channels.clear();
+
+    if (rankSize_ <= 1) {
+        HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][CalcSymmetricDirectRes] rankSize[%u], no peer channel needed.",
+                  static_cast<u32>(rankSize_));
+        return HCCL_SUCCESS;
+    }
+
+    std::vector<HcclChannelDesc> channels;
+    std::vector<std::vector<u32>> fullSubCommInfo = BuildFullRankSubComm(static_cast<u32>(rankSize_));
+    CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, fullSubCommInfo, channels));
+    resourceRequest.channels.push_back(channels);
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][CalcSymmetricDirectRes] rankSize[%u], channels[%u]",
+              static_cast<u32>(rankSize_), static_cast<u32>(channels.size()));
     return HCCL_SUCCESS;
 }
 
@@ -160,6 +204,10 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         topoType_ = TopoType::UBX_2LEVEL;
     }
 
+    if (param.supportSymmetricMemory) {
+        return CalcSymmetricDirectRes(comm, param, topoInfo, resourceRequest);
+    }
+
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
     std::vector<std::vector<u32>> subCommRanks2;
@@ -242,6 +290,17 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;
     threads_ = resCtx.threads;
+    controlThread_ = threads_.at(0);
+
+    if (param.supportSymmetricMemory) {
+        HcclResult ret = OrchestrateSymmetricDirect(param, resCtx);
+        CHK_PRT_RET(ret != HCCL_SUCCESS,
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] symmetric "
+                               "reduce scatter direct kernel run failed",
+                               HCCL_ERROR_CODE(ret)),
+                    ret);
+        return HCCL_SUCCESS;
+    }
     
     if (algHierarchyInfo_.infos.size() == HIERARCHY_SIZE_3 &&
         !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
@@ -330,7 +389,109 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     return HCCL_SUCCESS;
 }
 
-// 将计算出的单步slice信息初始化到templateParam中
+// Symmetric memory RS directly reduces peer input slices into local user output.
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
+HcclResult
+InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
+                                   InsAlgTemplate2>::RestoreSymmetricDirectChannelMap(
+    const AlgResourceCtxSerializable& resCtx, std::map<u32, std::vector<ChannelInfo>>& rankIdToChannelInfo) const
+{
+    rankIdToChannelInfo.clear();
+    if (resCtx.channels.empty()) {
+        return HCCL_SUCCESS;
+    }
+    for (const auto& channel : resCtx.channels[0]) {
+        if (channel.remoteRank == myRank_) {
+            continue;
+        }
+        rankIdToChannelInfo[channel.remoteRank].push_back(channel);
+    }
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
+HcclResult
+InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
+                                   InsAlgTemplate2>::OrchestrateSymmetricDirect(
+    const OpParam& param, const AlgResourceCtxSerializable& resCtx)
+{
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] Start");
+    if (dataCount_ == 0) {
+        return HCCL_SUCCESS;
+    }
+
+    CHK_PRT_RET(param.inputPtr == nullptr || param.outputPtr == nullptr,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] input/output ptr is null, "
+                           "input[%p], output[%p]",
+                           param.inputPtr, param.outputPtr),
+                HcclResult::HCCL_E_PARA);
+    CHK_PRT_RET(rankSize_ > 1 && param.inputSymWindow == nullptr,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] inputSymWindow is null"),
+                HcclResult::HCCL_E_INTERNAL);
+
+    std::map<u32, std::vector<ChannelInfo>> remoteRankToChannelInfo;
+    CHK_RET(RestoreSymmetricDirectChannelMap(resCtx, remoteRankToChannelInfo));
+    if (rankSize_ > 1) {
+        CHK_PRT_RET(remoteRankToChannelInfo.empty(),
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] no peer channel"),
+                    HcclResult::HCCL_E_INTERNAL);
+    }
+
+    const u64 sliceBytes = dataCount_ * dataTypeSize_;
+    const u64 myInputOffset = static_cast<u64>(myRank_) * sliceBytes;
+    DataSlice localSrc(param.inputPtr, myInputOffset, sliceBytes, dataCount_);
+    DataSlice localDst(param.outputPtr, 0, sliceBytes, dataCount_);
+    CHK_RET(LocalCopy(controlThread_, localSrc, localDst));
+
+    for (u32 remoteRank = 0; remoteRank < static_cast<u32>(rankSize_); ++remoteRank) {
+        if (remoteRank == myRank_) {
+            continue;
+        }
+        auto channelIter = remoteRankToChannelInfo.find(remoteRank);
+        CHK_PRT_RET(channelIter == remoteRankToChannelInfo.end() || channelIter->second.empty(),
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] missing channel for "
+                               "remoteRank[%u]",
+                               remoteRank),
+                    HcclResult::HCCL_E_INTERNAL);
+
+        void* remoteInput = nullptr;
+        HcclResult ret = HcclSymWinGetPeerPointer(param.inputSymWindow, param.inputOffset, remoteRank, &remoteInput);
+        CHK_PRT_RET(ret != HCCL_SUCCESS || remoteInput == nullptr,
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] "
+                               "HcclSymWinGetPeerPointer failed, remoteRank[%u], ret[%d], input[%p]",
+                               remoteRank, ret, remoteInput),
+                    ret != HCCL_SUCCESS ? ret : HcclResult::HCCL_E_INTERNAL);
+
+        std::vector<DataSlice> emptySlices;
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+        rxSrcSlices.emplace_back(remoteInput, myInputOffset, sliceBytes, dataCount_);
+        rxDstSlices.emplace_back(param.outputPtr, 0, sliceBytes, dataCount_);
+        SlicesList txSlices(emptySlices, emptySlices);
+        SlicesList rxSlices(rxSrcSlices, rxDstSlices);
+        TxRxSlicesList sendRecvSlices(txSlices, rxSlices);
+        const ChannelInfo& linkRemote = channelIter->second[0];
+        TxRxChannels sendRecvChannels(linkRemote, linkRemote);
+        SendRecvReduceInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_, reduceOp_);
+        HcclResult reduceRet = SendRecvReadReduce(sendRecvInfo, controlThread_);
+        CHK_PRT_RET(reduceRet != HCCL_SUCCESS,
+                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] "
+                               "SendRecvReadReduce failed, remoteRank[%u], ret[%d]",
+                               remoteRank, reduceRet),
+                    reduceRet);
+    }
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] End");
+    return HCCL_SUCCESS;
+#else
+    (void)param;
+    (void)resCtx;
+    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] symmetric memory is not supported "
+               "before CANN 9.0.0");
+    return HcclResult::HCCL_E_NOT_SUPPORT;
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+}
+
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 HcclResult
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
@@ -603,7 +764,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterO
                        InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipe,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatchUBX, InsTempReduceScatterOmniPipeMesh1D,
-                       InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
+                       InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeMesh1dDpu);
 
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipeUboe,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatch3Level, InsTempReduceScatterOmniPipeMesh1D,
