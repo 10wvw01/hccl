@@ -31,7 +31,6 @@ public:
 
     u64 GetThreadNum() const override;
     HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
-    u32 RemoteRankId2RankId(const u32 remoteRankId) const;
     HcclResult RunScatterMeshDispatch(const TemplateDataParams &templateDataParams, TemplateResource &templateResource,
         uint64_t inputAddr, uint64_t outputAddrBase, uint64_t outBuffBaseOff, uint64_t token);
     HcclResult RunLocalCopy(const TemplateDataParams &templateDataParams, TemplateResource &templateResource,
@@ -55,7 +54,6 @@ public:
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
     bool isLastStep_ = false;
-    std::vector<uint64_t> targetPeerIdxVec_;
 };
 
 } // namespace ops_hccl
