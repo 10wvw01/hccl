@@ -433,7 +433,6 @@ TEST_F(ST_BROADCAST_TEST, st_broadcast_a5_aicpu_Mesh1DNHR_bigdata_test)
     auto root = 11;  // root节点
     auto dataTypeSize = sizeof(int8_t);
     RunBroadcastTest(topoMeta, rankSize, count, dataType, root, dataTypeSize);
-
 }
 
 // asymmetric topology
