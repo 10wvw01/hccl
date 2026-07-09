@@ -38,7 +38,7 @@ public:
         uint64_t inputAddr, uint64_t outputAddrBase, uint64_t outBuffBaseOff, uint64_t token);
     HcclResult RunLocalCopy(const TemplateDataParams &templateDataParams, TemplateResource &templateResource,
         uint64_t inputAddrBase, uint64_t outputAddrBase);
-    HcclResult LaunchOneRepeat(const StepSliceInfo &stepSliceInfo, TemplateResource &templateResource, uint32_t rpt,
+    HcclResult LaunchOneRepeat(const StepSliceInfo &stepSliceInfo, TemplateResource &templateResource, u64 rpt,
         uint64_t repeatNum, bool ifNewRoot, uint64_t inputAddr, uint64_t outputAddr, uint64_t token);
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &templateDataParams,
         TemplateResource &templateResource) override;
@@ -46,7 +46,7 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     void SetRoot(u32 root);
     void UnsetRoot(u32 rank);
-    void BuildSliceInfoVec(const StepSliceInfo &stepSliceInfo, uint32_t rpt, uint64_t repeatNum, bool ifDoTask,
+    void BuildSliceInfoVec(const StepSliceInfo &stepSliceInfo, u64 rpt, uint64_t repeatNum, bool ifDoTask,
         uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceSizeVec,
         std::vector<uint64_t> &inputOmniSliceStrideVec, std::vector<uint64_t> &outputOmniSliceStrideVec);
 
@@ -60,8 +60,8 @@ public:
 
 protected:
     HcclResult CalcNHRInfo(std::vector<NHRStepInfo> &stepInfoVector) const;
-    u32 GetNHRStepNum(u32 rankSize) const;
-    HcclResult GetStepInfo(u32 step, u32 nSteps, NHRStepInfo &stepInfo) const;
+    u64 GetNHRStepNum(u32 rankSize) const;
+    HcclResult GetStepInfo(u64 step, u64 nSteps, NHRStepInfo &stepInfo) const;
     uint32_t RemoteRankId2RankId(const uint32_t remoteRankId) const;
 };
 
