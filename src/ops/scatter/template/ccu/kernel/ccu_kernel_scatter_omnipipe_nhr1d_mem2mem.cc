@@ -86,13 +86,13 @@ static CcuResult LoadArgs(ScatterOmniPipeNHR1DMem2MemContext &ctx)
 static CcuResult PreSync(ScatterOmniPipeNHR1DMem2MemContext &ctx)
 {
     uint32_t allBit = (1 << OUTPUT_XN_ID) | (1 << TOKEN_XN_ID);
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::WriteVariableWithNotify(
             ctx.arg->channels[i], ctx.output[ctx.myRankIdx], OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID));
         CCU_CHK_RET(ccu::WriteVariableWithNotify(
             ctx.arg->channels[i], ctx.token[ctx.myRankIdx], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID));
     }
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, allBit));
     }
     return CCU_SUCCESS;
@@ -100,10 +100,10 @@ static CcuResult PreSync(ScatterOmniPipeNHR1DMem2MemContext &ctx)
 
 static CcuResult PostSync(ScatterOmniPipeNHR1DMem2MemContext &ctx)
 {
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
-    for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
+    for (uint64_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyWait(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
     return CCU_SUCCESS;
@@ -125,7 +125,7 @@ static CcuResult DoScatterOmniPipeNHRSend(ScatterOmniPipeNHR1DMem2MemContext &ct
     src.token = ctx.token[ctx.myRankIdx];
     dst.token = ctx.token[toRankIdx];
 
-    for (u32 i = 0; i < nhrStepInfo.txSliceIdxs.size(); i++) {
+    for (uint64_t i = 0; i < nhrStepInfo.txSliceIdxs.size(); i++) {
         u32 sendSliceIdx = nhrStepInfo.txSliceIdxs[i];
         ctx.sliceSize = ctx.inputOmniSliceSizeVec[sendSliceIdx];
         if (ctx.ifRealRoot) {

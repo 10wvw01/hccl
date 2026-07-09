@@ -44,8 +44,8 @@ void CalScatter2DOffset(
         ySOffset[stepNum - 1] = 0;
     }
 
-    for (int i = 0; i < stepNum; i++) {
-        HCCL_DEBUG("[CalScatter2DOffset] xSOffset[%d]=[%llu],ySOffset[%d]=[%llu]", i, xSOffset[i], i, ySOffset[i]);
+    for (u64 i = 0; i < stepNum; i++) {
+        HCCL_DEBUG("[CalScatter2DOffset] xSOffset[%llu]=[%llu],ySOffset[%llu]=[%llu]", i, xSOffset[i], i, ySOffset[i]);
     }
     HCCL_DEBUG("[CalScatter2DOffset] end");
 }
@@ -158,8 +158,8 @@ u64 CalScatterDataSize2D(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, double xB
     }
 
     HCCL_DEBUG("[CalScatterDataSize2D] step=[%llu]", step);
-    for (int i = 0; i < step; i++) {
-        HCCL_DEBUG("[CalScatterDataSize2D] xStepP2pDataSize[%d]=[%llu],yStepP2pDataSize[%d]=[%llu]", i,
+    for (u64 i = 0; i < step; i++) {
+        HCCL_DEBUG("[CalScatterDataSize2D] xStepP2pDataSize[%llu]=[%llu],yStepP2pDataSize[%llu]=[%llu]", i,
             xStepP2pDataSize[i], i, yStepP2pDataSize[i]);
     }
     HCCL_DEBUG("[CalScatterDataSize2D] end");
@@ -251,11 +251,11 @@ std::vector<u64> CalcScatterScratchSize(u64 *xSDataSize, u64 *ySDataSize, u64 *z
     std::vector<std::vector<u64>> sStepDataSize = CalScatterDataSizeStep(
         xSDataSize, ySDataSize, zSDataSize, levelRankSize, cornerStep, outerStepNum, innerStepNum, maxStepNum, xB, yB);
 
-    for (int axis = 0; axis < levelAlgType.size(); axis++) {
+    for (u64 axis = 0; axis < levelAlgType.size(); axis++) {
         // 判断是不是aicpu+mesh，是的话需要预留scratch
         if (levelAlgType[axis] > 0
             && (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_CPU)) {
-            for (int i = 0; i < sStepDataSize[axis].size(); i++) {
+            for (u64 i = 0; i < sStepDataSize[axis].size(); i++) {
                 if (scratchSize[axis] < sStepDataSize[axis][i] * levelRankSize[axis] && levelRankSize[axis] > 1) {
                     scratchSize[axis] = sStepDataSize[axis][i] * levelRankSize[axis];
                 }
@@ -290,11 +290,11 @@ void CalcScatterCornerStep(int innerStepNum, int outerStepNum, double xB, double
 void PushScatterZStepSize(std::vector<std::vector<u64>> &scatterStepDataSize, u64 *zScatterDataSize, int zCornerStep,
     int outerStepNum, u64 xRankSize, u64 yRankSize)
 {
-    for (int osn = 0; osn < zCornerStep; osn++) {
+    for (u64 osn = 0; osn < zCornerStep; osn++) {
         scatterStepDataSize[OmniPipeLevel::OMNIPIPE_LEVEL2].push_back(
             zScatterDataSize[osn] * (xRankSize * yRankSize - 1));
     }
-    for (int osn = zCornerStep; osn < outerStepNum; osn++) {
+    for (u64 osn = zCornerStep; osn < outerStepNum; osn++) {
         scatterStepDataSize[OmniPipeLevel::OMNIPIPE_LEVEL2].push_back(zScatterDataSize[osn]);
     }
 }
@@ -303,8 +303,8 @@ void PushScatterAxisStepSize(std::vector<std::vector<u64>> &scatterStepDataSize,
     int axisInCornerStep, int innerStepNum, int xyCornerStep, int outerStepNum, u64 maxStepNum, u64 crossAxisRankSize,
     u64 zRankSize, int axisLevel)
 {
-    for (int osn = 0; osn < xyCornerStep; osn++) {
-        for (int isn = 0; isn < axisInCornerStep; isn++) {
+    for (u64 osn = 0; osn < xyCornerStep; osn++) {
+        for (u64 isn = 0; isn < axisInCornerStep; isn++) {
             if (crossAxisRankSize > 1) {
                 scatterStepDataSize[axisLevel].push_back(
                     axisScatterDataSize[osn * maxStepNum + isn] * (zRankSize - 1) * (crossAxisRankSize - 1));
@@ -312,7 +312,7 @@ void PushScatterAxisStepSize(std::vector<std::vector<u64>> &scatterStepDataSize,
                 scatterStepDataSize[axisLevel].push_back(axisScatterDataSize[osn * maxStepNum + isn] * (zRankSize - 1));
             }
         }
-        for (int isn = axisInCornerStep; isn < innerStepNum; isn++) {
+        for (u64 isn = axisInCornerStep; isn < innerStepNum; isn++) {
             if (crossAxisRankSize > 1) {
                 scatterStepDataSize[axisLevel].push_back(axisScatterDataSize[osn * maxStepNum + isn] * (zRankSize - 1));
             } else {
@@ -320,8 +320,8 @@ void PushScatterAxisStepSize(std::vector<std::vector<u64>> &scatterStepDataSize,
             }
         }
     }
-    for (int osn = xyCornerStep; osn < outerStepNum; osn++) {
-        for (int isn = 0; isn < axisInCornerStep; isn++) {
+    for (u64 osn = xyCornerStep; osn < outerStepNum; osn++) {
+        for (u64 isn = 0; isn < axisInCornerStep; isn++) {
             if (crossAxisRankSize > 1) {
                 scatterStepDataSize[axisLevel].push_back(
                     axisScatterDataSize[osn * maxStepNum + isn] * (crossAxisRankSize - 1));
@@ -329,7 +329,7 @@ void PushScatterAxisStepSize(std::vector<std::vector<u64>> &scatterStepDataSize,
                 scatterStepDataSize[axisLevel].push_back(axisScatterDataSize[osn * maxStepNum + isn]);
             }
         }
-        for (int isn = axisInCornerStep; isn < innerStepNum; isn++) {
+        for (u64 isn = axisInCornerStep; isn < innerStepNum; isn++) {
             if (crossAxisRankSize > 1) {
                 scatterStepDataSize[axisLevel].push_back(axisScatterDataSize[osn * maxStepNum + isn]);
             } else {
@@ -372,16 +372,16 @@ std::vector<std::vector<u64>> CalScatterDataSizeStep(u64 *xScatterDataSize, u64 
     PushScatterAxisStepSize(scatterStepDataSize, yScatterDataSize, yInCornerStep, innerStepNum, xyCornerStep,
         outerStepNum, maxStepNum, xRankSize, zRankSize, OmniPipeLevel::OMNIPIPE_LEVEL1);
 
-    for (int i = 0; i < outerStepNum; i++) {
-        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[2][%d]=[%llu],", i,
+    for (u64 i = 0; i < outerStepNum; i++) {
+        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[2][%llu]=[%llu],", i,
             scatterStepDataSize[OmniPipeLevel::OMNIPIPE_LEVEL2][i]);
     }
-    for (int i = 0; i < outerStepNum * innerStepNum; i++) {
-        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[0][%d]=[%llu],", i,
+    for (u64 i = 0; i < outerStepNum * innerStepNum; i++) {
+        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[0][%llu]=[%llu],", i,
             scatterStepDataSize[OmniPipeLevel::OMNIPIPE_LEVEL0][i]);
     }
-    for (int i = 0; i < outerStepNum * innerStepNum; i++) {
-        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[1][%d]=[%llu],", i,
+    for (u64 i = 0; i < outerStepNum * innerStepNum; i++) {
+        HCCL_DEBUG("[CalScatterDataSizeStep] scatterStepDataSize[1][%llu]=[%llu],", i,
             scatterStepDataSize[OmniPipeLevel::OMNIPIPE_LEVEL1][i]);
     }
     HCCL_DEBUG("[CalScatterDataSizeStep] end");
@@ -468,7 +468,7 @@ void PushScatterZDiagSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDa
         struct StepSliceInfo stepSliceInfotmp;
         BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
-        for (int oneDid = 0; oneDid < zRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
             u64 outputslicestride = 0;
             std::vector<u64> sliceCountMultRankPiece;
             std::vector<u64> sliceSizeMultRankPiece;
@@ -512,7 +512,7 @@ void PushScatterZSameAxisSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 
         struct StepSliceInfo stepSliceInfotmp;
         BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
-        for (int oneDid = 0; oneDid < zRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
             std::vector<u64> sliceSizeMultRankPiece;
             std::vector<u64> sliceCountMultRankPiece;
             std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
@@ -582,7 +582,7 @@ void PushScatterXInnerCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx, 
         struct StepSliceInfo stepSliceInfotmp;
         BuffInfoAssign(bitmp, 0, 0, xCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             std::vector<u64> sliceSizeMultRankPiece;
             std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
             std::vector<u64> sliceCountMultRankPiece;
@@ -610,7 +610,7 @@ void PushScatterXInnerSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx
         struct StepSliceInfo stepSliceInfotmp;
         BuffInfoAssign(bitmp, 0, 0, xCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
             std::vector<u64> sliceSizeMultRankPiece;
             std::vector<u64> sliceCountMultRankPiece;
@@ -659,7 +659,7 @@ void PushScatterXOuterLECornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> sliceSizeMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             if (oneDid == rootx) {
                 continue;
             }
@@ -673,7 +673,7 @@ void PushScatterXOuterLECornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx
                 }
             }
         }
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, oneDid, rooty, 0);
         }
@@ -775,7 +775,7 @@ void PushScatterXOuterLESameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             if (oneDid == rootx)
                 continue;
             u64 pieceId = rootz * xRankSize * yRankSize + rooty * xRankSize + oneDid;
@@ -783,7 +783,7 @@ void PushScatterXOuterLESameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
                 perLoop, total, dataTypeSize, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece);
         }
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             if (oneDid == rooty) {
                 PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                     inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
@@ -815,7 +815,7 @@ void PushScatterXOuterGTCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             if (oneDid == rootx)
                 continue;
             for (u64 cornerSlice = 0; cornerSlice < yRankSize; cornerSlice++) {
@@ -828,7 +828,7 @@ void PushScatterXOuterGTCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx
                 }
             }
         }
-        for (int one = 0; one < yRankSize; one++) {
+        for (u64 one = 0; one < yRankSize; one++) {
             PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, one, rooty, 0);
         }
@@ -876,7 +876,7 @@ void PushScatterXOuterGTSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> sliceCountMultRankPiece;
-        for (int one = 0; one < xRankSize; one++) {
+        for (u64 one = 0; one < xRankSize; one++) {
             if (one == rootx)
                 continue;
             u64 pieceId = rootz * xRankSize * yRankSize + rooty * xRankSize + one;
@@ -884,7 +884,7 @@ void PushScatterXOuterGTSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
                 perLoop, total, dataTypeSize, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece);
         }
-        for (int one = 0; one < yRankSize; one++) {
+        for (u64 one = 0; one < yRankSize; one++) {
             if (one == rooty) {
                 PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                     inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
@@ -946,7 +946,7 @@ void PushScatterYInnerCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevely, 
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             PushScatterYInnerCornerOneDiag(sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, osn, isn, ySDataSize,
                 xySOffset, ySOffset, perLoop, total, dataTypeSize, maxDataPieceId, xRankSize, yRankSize, zRankSize,
@@ -972,7 +972,7 @@ void PushScatterYInnerSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLevely
         struct BuffInfo bitmp;
         BuffInfoAssign(bitmp, 0, 0, yCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
             std::vector<u64> sliceSizeMultRankPiece;
             std::vector<u64> sliceCountMultRankPiece;
@@ -1021,7 +1021,7 @@ void PushScatterYOuterLECornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevely
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             if (oneDid == rooty)
                 continue;
             for (u64 cornerDataSlice = 0; cornerDataSlice < xRankSize; cornerDataSlice++) {
@@ -1034,7 +1034,7 @@ void PushScatterYOuterLECornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevely
                 }
             }
         }
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, oneDid, rootx, 0);
         }
@@ -1085,7 +1085,7 @@ void PushScatterYOuterLESameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> sliceCountMultRankPiece;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             if (oneDid == rooty)
                 continue;
             u64 pieceId = rootz * xRankSize * yRankSize + oneDid * xRankSize + rootx;
@@ -1093,7 +1093,7 @@ void PushScatterYOuterLESameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
                 perLoop, total, dataTypeSize, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece);
         }
-        for (int oneDid = 0; oneDid < xRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < xRankSize; oneDid++) {
             if (oneDid == rootx) {
                 PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                     inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
@@ -1124,7 +1124,7 @@ void PushScatterYOuterGTCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevely
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> sliceSizeMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             if (oneDid == rooty) {
                 continue;
             }
@@ -1138,7 +1138,7 @@ void PushScatterYOuterGTCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevely
                 }
             }
         }
-        for (int oneRank = 0; oneRank < xRankSize; oneRank++) {
+        for (u64 oneRank = 0; oneRank < xRankSize; oneRank++) {
             PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, oneRank, rootx, 0);
         }
@@ -1240,7 +1240,7 @@ void PushScatterYOuterGTSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
         std::vector<u64> sliceCountMultRankPiece;
         std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
         std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-        for (int oneDid = 0; oneDid < yRankSize; oneDid++) {
+        for (u64 oneDid = 0; oneDid < yRankSize; oneDid++) {
             if (oneDid == rooty)
                 continue;
             u64 pieceId = rootz * xRankSize * yRankSize + oneDid * xRankSize + rootx;
@@ -1248,7 +1248,7 @@ void PushScatterYOuterGTSameAxisOneOsn(std::vector<StepSliceInfo> &dataSliceLeve
                 perLoop, total, dataTypeSize, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                 inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece);
         }
-        for (int rankx = 0; rankx < xRankSize; rankx++) {
+        for (u64 rankx = 0; rankx < xRankSize; rankx++) {
             if (rankx == rootx) {
                 PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
                     inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
@@ -1270,7 +1270,7 @@ ScatterTopoInfo InitScatterTopoInfo(OmniPipeSliceParam &omniPipeSliceParam, uint
     std::vector<u64> levelRankSize = omniPipeSliceParam.levelRankSize;
     std::vector<u64> dataSize = omniPipeSliceParam.dataWholeSize;
     info.maxDataPieceId = 0;
-    for (int i = 0; i < dataSize.size(); i++) {
+    for (u64 i = 0; i < dataSize.size(); i++) {
         if (dataSize[info.maxDataPieceId] < dataSize[i]) {
             info.maxDataPieceId = i;
         }
@@ -1320,13 +1320,13 @@ void ZeroInitScatterDataArrays(u64 rankSize, u64 zSDataSize[][MAX_STEP_NUM], u64
     u64 zSOffset[][MAX_STEP_NUM], u64 xSOffset[][MAX_STEP_NUM][MAX_STEP_NUM],
     u64 ySOffset[][MAX_STEP_NUM][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM])
 {
-    for (int rs = 0; rs < rankSize; rs++) {
-        for (int i = 0; i < MAX_STEP_NUM; i++) {
+    for (u64 rs = 0; rs < rankSize; rs++) {
+        for (u64 i = 0; i < MAX_STEP_NUM; i++) {
             zSDataSize[rs][i] = 0;
             xySDataSize[rs][i] = 0;
             zSOffset[rs][i] = 0;
             xySOffset[rs][i] = 0;
-            for (int j = 0; j < MAX_STEP_NUM; j++) {
+            for (u64 j = 0; j < MAX_STEP_NUM; j++) {
                 xSDataSize[rs][i][j] = 0;
                 ySDataSize[rs][i][j] = 0;
                 xSOffset[rs][i][j] = 0;
@@ -1415,7 +1415,7 @@ void CalcScatterAllRankDataSize(const ScatterTopoInfo &topo, ScatterStepState &s
     u64 slowRankSize = state.isZSlowAxis ? topo.zRankSize : (topo.xRankSize * topo.yRankSize);
     u64 fastRankSize = state.isZSlowAxis ? (topo.xRankSize * topo.yRankSize) : topo.zRankSize;
 
-    for (int rs = 0; rs < topo.rankSize; rs++) {
+    for (u64 rs = 0; rs < topo.rankSize; rs++) {
         bool ifroot;
         bool isSameAxis;
         CheckRootOrSameAxisAsRoot(topo.xRankSize, topo.yRankSize, topo.zRankSize, root, rs, ifroot, isSameAxis);
