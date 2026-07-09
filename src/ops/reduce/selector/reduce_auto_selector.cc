@@ -215,6 +215,8 @@ SelectorStatus ReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDet
             } else {
                 selectAlgName = "ReduceParallelNHRNHRUboe";
             }
+        } else if (topoInfo->Level1Nhr) {
+            selectAlgName = "ReduceNHR";
         } else if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "ReduceAicpuReduceNHR";
         } else if (topoInfo->deviceNumPerModule > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
