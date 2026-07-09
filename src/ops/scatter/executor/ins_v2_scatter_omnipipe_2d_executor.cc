@@ -322,7 +322,7 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     std::vector<std::vector<u32>> subCommRanks1;
     subCommRanks1.resize(1);
-    for (int i = myRank_ % rankSizeLevel0_; i < algHierarchyInfo.infos[0][1].size(); i += rankSizeLevel0_) {
+    for (u64 i = myRank_ % rankSizeLevel0_; i < algHierarchyInfo.infos[0][1].size(); i += rankSizeLevel0_) {
         subCommRanks1[0].push_back(algHierarchyInfo.infos[0][1][i]);
         HCCL_DEBUG("subCommRanks1 localRank[%u] push_back[%u]", myRank_, resCtx.algHierarchyInfo.infos[0][1][i]);
     }
