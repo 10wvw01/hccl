@@ -165,7 +165,7 @@ SelectorStatus BroadcastAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
                 selectAlgName = "InsBroadcastNHR";
             } else {
@@ -174,7 +174,11 @@ SelectorStatus BroadcastAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsBroadcastNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            selectAlgName = "InsBroadcastParallelMesh1DNHR";
+            if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+                selectAlgName = "InsBroadcastSequenceMesh1DNHRNHR";
+            } else {
+                selectAlgName = "InsBroadcastSequenceMesh1DNHR";
+            }
         } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
             selectAlgName = "InsBroadcastNHR";
         } else {
