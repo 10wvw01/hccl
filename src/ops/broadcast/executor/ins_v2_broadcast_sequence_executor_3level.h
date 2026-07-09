@@ -78,6 +78,7 @@ protected:
     uint64_t rootIdx2_{0};
 
     bool skipLevel1_{false};
+    bool skipLevel2_{false};
 
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
