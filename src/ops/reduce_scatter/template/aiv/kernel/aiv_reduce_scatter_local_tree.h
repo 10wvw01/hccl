@@ -25,9 +25,7 @@ public:
         lenPerRank_ = len;
         inputStride_ = inputStride;
         rankSizeU32_ = static_cast<uint32_t>(rankSize_);
-        blockIdx_ = static_cast<uint32_t>(GetBlockIdx());
-        blockNum_ = static_cast<uint32_t>(GetBlockNum());
-        valid_ = rankSizeU32_ > 0 && blockNum_ >= rankSizeU32_;
+        valid_ = rankSizeU32_ > 0 && numBlocks_ >= rankSizeU32_;
     }
 
     __aicore__ inline void Process(uint32_t sliceId)
@@ -55,8 +53,6 @@ private:
     uint64_t lenPerRank_ = 0;
     uint64_t inputStride_ = 0;
     uint32_t rankSizeU32_ = 0;
-    uint32_t blockIdx_ = 0;
-    uint32_t blockNum_ = 0;
 
     __aicore__ inline uint64_t LocalPublishOffset(uint32_t targetRank)
     {
@@ -176,6 +172,32 @@ __aicore__ inline void AivReduceScatterV2LocalTree(KERNEL_ARGS_DEF)
     }
     op.Process(sliceId);
     op.BarrierAll();
+}
+
+template<typename T>
+__aicore__ inline void AivReduceScatterV2LocalTreeSuperKernel(SUPERKERNEL_ARGS_DEF)
+{
+    AivReduceScatterLocalTree<T> op;
+    op.Init(SUPERKERNEL_CLASS_INIT);
+
+    uint64_t maxCountPerLoop = op.cclBufferSize_ / (2 * op.rankSize_) / UB_ALIGN_SIZE * UB_ALIGN_SIZE / sizeof(T);
+    uint64_t countLeft = op.len_;
+    int32_t loopTag = op.tag_;
+
+    while (countLeft > 0) {
+        uint64_t curCount = (countLeft > maxCountPerLoop) ? maxCountPerLoop : countLeft;
+        uint64_t curSize = curCount * sizeof(T);
+
+        op.len_ = curCount;
+        op.InitCoreInfo(curCount, op.inputSliceStride_);
+        op.Process(loopTag);
+        op.BarrierAll();
+
+        countLeft -= curCount;
+        op.input_ += curSize;
+        op.output_ += curSize;
+        loopTag += curSize / UB_DB_DATA_BATCH_SIZE + 1;
+    }
 }
 
 #endif // AIV_REDUCE_SCATTER_LOCAL_TREE_H

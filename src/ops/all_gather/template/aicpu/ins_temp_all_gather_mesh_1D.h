@@ -34,10 +34,10 @@ public:
                          TemplateResource &templateResource) override;
     HcclResult CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
                        AlgResourceRequest &resourceRequest) override;
-    virtual HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
+    HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
-    virtual u64 GetThreadNum() const override;
+    u64 GetThreadNum() const override;
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub) override;
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 protected:
@@ -46,6 +46,10 @@ protected:
     virtual HcclResult LocalDataCopy(const std::vector<ThreadHandle> &threads);
     HcclResult PostLocalCopy(const std::vector<ThreadHandle> &threads);
     TemplateDataParams tempAlgParams_;
+    u64 inputOffset_{0};
+    u64 outputOffset_{0};
+    void *inputSymWindow_;
+    void *outputSymWindow_;
 };
 
 }  // namespace ops_hccl

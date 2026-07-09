@@ -74,7 +74,7 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, AlgTemplate>::Orchestrate(
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR(
-            "[ReduceSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce excutor kernel run failed", HCCL_ERROR_CODE(ret)),
+            "[ReduceSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce executor kernel run failed", HCCL_ERROR_CODE(ret)),
         ret);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -187,7 +187,7 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
     const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[ReduceSoleExecutor] loopTimes==1, save fast launch ctx.");
-    u32 threadNum = 1;
+    u32 threadNum = templateAlgRes.submitInfos.size();
     u32 ccuKernelNum = templateAlgRes.submitInfos.size();
     if (ccuKernelNum < 1) {
         HCCL_INFO("[ReduceSoleExecutor] ccu kernel num is 0, no need to save.");
@@ -210,12 +210,17 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
     ccuFastLaunchCtx->threadNum = threadNum;
     ccuFastLaunchCtx->notifyNumOnMainThread = notifyNumOnMainThread;
     ThreadHandle *threads = ccuFastLaunchCtx->GetThreadHandlePtr();
-    threads[0] = templateAlgRes.threads[0];
+    for (int i = 0; i < threadNum; i++)
+    {
+        threads[i] = templateAlgRes.threads[i];
+    }
 
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
+    for (int i = 0; i < ccuKernelNum; i++) {
+        kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 

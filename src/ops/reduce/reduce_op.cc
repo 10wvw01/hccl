@@ -45,7 +45,7 @@ HcclResult HcclReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return reduce success"), HCCL_SUCCESS);
 
     std::string opTag;
-    CHK_RET(ReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, op, stream, opTag));
+    CHK_RET(ReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, root, op, stream, opTag));
 
     CHK_RET(ReduceEntryLog(sendBuf, recvBuf, count, dataType, op, root, stream, opTag, "HcclReduce"));
 
@@ -73,14 +73,17 @@ HcclResult HcclReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t count, Hcc
     CHK_PRT_RET(count == 0, HCCL_WARNING("input count is 0, return reduce success"), HCCL_SUCCESS);
 
     std::string opTag;
-    CHK_RET(ReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, op, stream, opTag));
+    CHK_RET(ReduceInitAndCheck(comm, sendBuf, recvBuf, count, dataType, root, op, stream, opTag));
 
     CHK_RET(HcclCheckTag(tag));
 
     // 拼装ResPackGraphMode
     ResPackGraphMode resPack;
     // 设置tag
-    strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
+    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
+        HCCL_ERROR("failed to fill reduce resPack.tag");
+        return HCCL_E_INTERNAL;
+    }
     // 设置streams
     if (streams != nullptr && streamCount > 0) {
         for (size_t i = 0; i < streamCount; i++) {
@@ -91,13 +94,13 @@ HcclResult HcclReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t count, Hcc
     resPack.scratchMemAddr = scratchMemAddr;
     resPack.scratchMemSize = scratchMemSize;
 
-    CHK_RET(ReduceEntryLog(sendBuf, recvBuf, count, dataType, op, root, stream, opTag, "HcclReduceGraphMode"));
+    CHK_RET(ReduceEntryLog(sendBuf, recvBuf, count, dataType, op, root, stream, opTag, "HcclReduceGraphMode", true));
 
     // 执行
     CHK_RET_AND_PRINT_IDE(ReduceOutPlaceGraphMode(sendBuf, recvBuf, count, dataType, op, root, comm, stream,
         std::string(tag), resPack), tag);
 
-    CHK_RET(LogHcclExit("HcclReduceGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclReduceGraphMode", opTag.c_str(), startut, true));
 
     return HCCL_SUCCESS;
 }
@@ -129,7 +132,7 @@ HcclResult CheckReduceInputPara(const HcclComm comm, const void* sendBuf, const 
     return HCCL_SUCCESS;
 }
 
-HcclResult ReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType,
+HcclResult ReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t root,
     HcclReduceOp op, const aclrtStream stream, std::string &opTag)
 {
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
@@ -151,6 +154,7 @@ HcclResult ReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint6
     CHK_RET(HcclGetRankSize(comm, &rankSize));
     u32 userRank = INVALID_VALUE_RANKID;
     CHK_RET(HcclGetRankId(comm, &userRank));
+    CHK_RET(HcomCheckUserRank(rankSize, root));
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), opTag.c_str());
     return HCCL_SUCCESS;
 }
@@ -182,9 +186,9 @@ HcclResult ReduceConstructOpParam(void *sendBuf, void *recvBuf, uint64_t count, 
     u64 totalSize = count * perDataSize;
 
     CHK_RET(HcclGetCommName(comm, param.commName));
-    param.stream = stream;
     param.reduceType = op;
     param.opMode = opMode;
+    param.stream = stream;
 
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
@@ -226,9 +230,23 @@ HcclResult ReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count, Hc
     
     CHK_RET(HcclGetOpExpansionMode(comm, param));
 
+    // 9.0.0 ccu模式走老流程
+    if (opMode == OpMode::OPBASE && GetHcommVersion() == CANN_VERSION(9, 0, 0) &&
+        param.engine == CommEngine::COMM_ENGINE_CCU) {
+        return HcclReduceInner(sendBuf, recvBuf, count, dataType, op, root, comm, stream);
+    }
+
     CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
     if ((opMode == OpMode::OPBASE) && ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
         return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
+    }
+
+    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+        bool aivCacheHit = false;
+        CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
+        if (aivCacheHit) {
+            return HCCL_SUCCESS;
+        }
     }
 
     if (userRankSize == 1) {
@@ -249,9 +267,9 @@ HcclResult ReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count, Hc
 }
 
 HcclResult ReduceEntryLog(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
-    uint32_t root, aclrtStream stream, const std::string &tag, const std::string &opName)
+    uint32_t root, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;

@@ -24,8 +24,14 @@
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
+#include "topo_match_squeeze_2d.h"
 
 namespace ops_hccl {
+
+constexpr int INT_0 = 0;
+constexpr int INT_1 = 1;
+constexpr int INT_2 = 2;
+constexpr int INT_3 = 3;
 
 template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
     typename AlgTemplate3>
@@ -348,15 +354,15 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
                                                resCtx_.ccuKernels.begin() + resCtx_.ccuKernelNum[0] + resCtx_.ccuKernelNum[1] + resCtx_.ccuKernelNum[2] + resCtx_.ccuKernelNum[3]);
         }
     } else {
-        tempAlgResArr_.at(stage * 2).channels = intraLinks_;
-        tempAlgResArr_.at(stage * 2 + 1).channels = interLinks_;
+        tempAlgResArr_.at(stage * INT_2).channels = intraLinks_;
+        tempAlgResArr_.at(stage * INT_2 + INT_1).channels = interLinks_;
     }
 
-    tempAlgResArr_.at(stage * 2).threads = intraThreads_;
-    tempAlgResArr_.at(stage * 2).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * INT_2).threads = intraThreads_;
+    tempAlgResArr_.at(stage * INT_2).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
-    tempAlgResArr_.at(stage * 2 + 1).threads = interThreads_;
-    tempAlgResArr_.at(stage * 2 + 1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
+    tempAlgResArr_.at(stage * INT_2 + INT_1).threads = interThreads_;
+    tempAlgResArr_.at(stage * INT_2 + INT_1).aivCommInfoPtr = resCtx_.aivCommInfoPtr;
 
     return HCCL_SUCCESS;
 }
@@ -485,12 +491,33 @@ HcclResult
     ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::OrchestrateLoop(
         u32 loopTimes, u64 maxCountPerLoop)
 {
+    u64 alignSize = AICPU_ALIGN_SIZE;
     u64 processedCount = 0;
-    for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
-        u64 currCount = (loopIndex + 1 == loopTimes) ? (dataCount_ - loopIndex * maxCountPerLoop) : maxCountPerLoop;
-        dataCountPerLoop_.at(0) = static_cast<u64>(currCount * multipleDimensionSplitRatio_);
-        dataCountPerLoop_.at(1) = currCount - dataCountPerLoop_.at(0);
-        dataOffsetPerLoop_.at(0) = loopIndex * maxCountPerLoop * dataTypeSize_;
+    u32 loopIndex = 0;
+    while (processedCount < dataCount_) {
+        u64 remainingCount = dataCount_ - processedCount;
+        u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
+        u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
+        currCount = std::min(currCount, maxCountPerLoop);
+        u64 currCountPart0 = static_cast<u64>(currCount * multipleDimensionSplitRatio_);
+        u64 currCountPart1 = currCount - currCountPart0;
+        if (remainingLoopTimes > 1) {
+            u64 alignedCountPart0 = currCountPart0;
+            u64 alignedCountPart1 = currCountPart1;
+            alignedCountPart0 = alignedCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            alignedCountPart1 = alignedCountPart1 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            if (alignedCountPart0 + alignedCountPart1 > 0) {
+                currCountPart0 = alignedCountPart0;
+                currCountPart1 = alignedCountPart1;
+            }
+        }
+        CHK_PRT_RET(currCountPart0 + currCountPart1 == 0,
+                    HCCL_ERROR("[ReduceParallelExecutor][OrchestrateLoop] currCount is 0"),
+                    HcclResult::HCCL_E_INTERNAL);
+        dataCountPerLoop_.at(0) = currCountPart0;
+        dataCountPerLoop_.at(1) = currCountPart1;
+        u64 currProcessedCount = currCountPart0 + currCountPart1;
+        dataOffsetPerLoop_.at(0) = processedCount * dataTypeSize_;
         dataOffsetPerLoop_.at(1) = dataOffsetPerLoop_.at(0) + dataCountPerLoop_.at(0) * dataTypeSize_;
 
         u32 stageNum = 2;
@@ -504,31 +531,31 @@ HcclResult
 #ifndef AICPU_COMPILE
                 if (loopTimes == 1 && param_.engine == CommEngine::COMM_ENGINE_CCU) {
                     if (stageIdx == 0 && stepIdx == 0) {
-                        ccuKernelLaunchNumRSIntra0_ = tempAlgResArr_.at(0).submitInfos.size();
-                        ccuKernelLaunchNumRSInter1_ = tempAlgResArr_.at(1).submitInfos.size();
+                        ccuKernelLaunchNumRSIntra0_ = tempAlgResArr_.at(INT_0).submitInfos.size();
+                        ccuKernelLaunchNumRSInter1_ = tempAlgResArr_.at(INT_1).submitInfos.size();
                     } else if (stageIdx == 0 && stepIdx == 1) {
-						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
-                        ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
+						ccuKernelLaunchNumRSIntra1_ = tempAlgResArr_.at(INT_0).submitInfos.size() - ccuKernelLaunchNumRSIntra0_;
+                        ccuKernelLaunchNumRSInter0_ = tempAlgResArr_.at(INT_1).submitInfos.size() - ccuKernelLaunchNumRSInter1_;
                     } else if (stageIdx == 1 && stepIdx == 0) {
-						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(2).submitInfos.size();
-                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(3).submitInfos.size();
+						ccuKernelLaunchNumAGIntra1_ = tempAlgResArr_.at(INT_2).submitInfos.size();
+                        ccuKernelLaunchNumAGInter0_ = tempAlgResArr_.at(INT_3).submitInfos.size();
                     } else if (stageIdx == 1 && stepIdx == 1 && param_.opMode != OpMode::OFFLOAD) {
-						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
-    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
+						ccuKernelLaunchNumAGIntra0_ = tempAlgResArr_.at(INT_2).submitInfos.size() - ccuKernelLaunchNumAGIntra1_;
+    					ccuKernelLaunchNumAGInter1_ = tempAlgResArr_.at(INT_3).submitInfos.size() - ccuKernelLaunchNumAGInter0_;
                         CHK_RET(FastLaunchSaveCtx());
                     }
                 }
 #endif
             }
         }
-        if (myRank_ != root_) {
-            continue;
+        if (myRank_ == root_) {
+            const DataSlice srcSlice(resCtx_.cclMem.addr, 0, currProcessedCount * dataTypeSize_);
+            const DataSlice dstSlice(param_.outputPtr, processedCount * dataTypeSize_, currProcessedCount * dataTypeSize_);
+            CHK_RET(LocalCopy(threads_.at(0), srcSlice, dstSlice));
         }
-        const DataSlice srcSlice(resCtx_.cclMem.addr, 0, currCount * dataTypeSize_);
-        const DataSlice dstSlice(param_.outputPtr, processedCount * dataTypeSize_, currCount * dataTypeSize_);
-        CHK_RET(LocalCopy(threads_.at(0), srcSlice, dstSlice));
 
-        processedCount += currCount;
+        processedCount += currProcessedCount;
+        loopIndex++;
     }
 
     return HCCL_SUCCESS;
@@ -760,6 +787,9 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh
     InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelMesh1DNHRPcie, ReduceParallelExecutor,
     TopoMatchPcieMix, InsTempReduceScatterMesh1D, InsTempReduceScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
+
+REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_REDUCE, ReduceParallelNHRNHRUboe, ReduceParallelExecutor,
+    TopoMatchSqueeze2D, InsTempReduceScatterNHR, InsTempReduceScatterNHR, InsTempAllGatherNHR, InsTempAllGatherNHR);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 #ifndef AICPU_COMPILE

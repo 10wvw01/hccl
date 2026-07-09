@@ -95,7 +95,7 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
-    if (dataType_ == HcclDataType::HCCL_DATA_TYPE_FP64) {
+    if (dataType_ == HCCL_DATA_TYPE_FP64 || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
         // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
@@ -317,8 +317,6 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunLocalReduce(
     u64 sliceSize = memBlockInfo.size[myAlgRank];
     u64 count = sliceSize / DATATYPE_SIZE_TABLE[dataType_];
 
-
-
     // ========== 树形Reduce主循环 ==========
     // remainingBlocks: 当前待处理的数据块数量
     u32 remainingBlocks = templateRankSize_;
@@ -340,8 +338,8 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::RunLocalReduce(
             // 虚拟索引映射到实际peerRank（数据来源rank）
             // peerRank表示该数据块来自哪个rank
             // 例如: myAlgRank=0, srcVirtualIdx=4 -> srcPeerRank=4
-            u32 srcPeerRank = (myAlgRank + srcVirtualIdx) % templateRankSize_;
-            u32 dstPeerRank = (myAlgRank + dstVirtualIdx) % templateRankSize_;
+            u32 srcPeerRank = srcVirtualIdx;
+            u32 dstPeerRank = dstVirtualIdx;
 
             u32 srcOutputIndex = CalcOutputIndex(srcPeerRank, myAlgRank);
             u32 dstOutputIndex = CalcOutputIndex(dstPeerRank, myAlgRank);
@@ -389,8 +387,8 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::PostCopy(
         HCCL_DEBUG("[PostCopy] myAlgRank[%u] sliceSize is 0, skip.", myAlgRank);
         return HCCL_SUCCESS;
     }
-
-    u32 outputIndex = CalcOutputIndex(myAlgRank, myAlgRank);
+    // 保序规约后，结果落在peerRank=0的位置（dstVirtualIdx始终为0）
+    u32 outputIndex = CalcOutputIndex(0, myAlgRank);
     // 计算源地址偏移量（临时缓冲区中的归约结果位置）
     u64 srcOffset = memBlockInfo.outputOffsets[outputIndex];
     // 目标偏移量为0（用户输出缓冲区起始位置）

@@ -42,14 +42,14 @@ public:
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 
 protected:
-    HcclResult GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo &stepInfo);
+    virtual HcclResult GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo &stepInfo);
     u32 GetRankFromMap(const u32 algRankIdx) const;
     TemplateDataParams tempAlgParams_;
     bool isDmaRead_{false};
 private:
     bool CanReadLastStepToOutput() const;
     bool IsLastStepReadSlice(u32 algRank) const;
-    HcclResult PreprareDataSplitForMultiChannel(const TemplateResource &templateResource);
+    HcclResult PrepareDataSplitForMultiChannel(const TemplateResource &templateResource);
     HcclResult LocalDataCopy(const std::vector<ThreadHandle> &threads, const u32 &channelIdx);
     HcclResult PostLocalCopy(const ThreadHandle &thread, const u32 &channelIdx);
     struct SliceCalcInfo {

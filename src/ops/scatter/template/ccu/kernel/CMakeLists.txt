@@ -11,8 +11,12 @@
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_scatter_mesh1d.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_scatter_nhr1d_mem2mem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_scatter_omnipipe_mesh1d_mem2mem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ccu_kernel_scatter_omnipipe_nhr1d_mem2mem.cc    
 )
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

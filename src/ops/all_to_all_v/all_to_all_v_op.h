@@ -55,7 +55,7 @@ HcclResult GenResPack(const char* tag, void** streams, const size_t streamCount,
     void* scratchMemAddr, const uint64_t scratchMemSize, ResPackGraphMode &resPack);
 HcclResult CalcInputOutputSize(const u64* sendCountsData, const u64* recvCountsData,
     const u64* sdisplsData, const u64* rdisplsData, const u32 userRankSize, u64 &inputSize, u64 &outputSize);
-HcclResult ContructVarData(const u64* sendCountsData, const u64* recvCountsData, const u64* sdisplsData,
+HcclResult ConstructVarData(const u64* sendCountsData, const u64* recvCountsData, const u64* sdisplsData,
     const u64* rdisplsData, const u32 userRankSize, const u32 rankSize, OpParam &param);
 HcclResult CheckAlltoAllInputPara(const HcclComm comm, const void *sendBuf, const uint64_t sendCount,
     const HcclDataType sendType, const void *recvBuf, const uint64_t recvCount,
@@ -80,12 +80,12 @@ HcclResult AlltoAllVOutPlaceGraphMode(const void *sendBuf, const void *sendCount
     const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, const ResPackGraphMode &resPack);
 HcclResult AlltoAllEntryLog(const void *sendBuf, const void *recvBuf, uint64_t sendCount, uint64_t recvCount,
-    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName);
+    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog = false);
 HcclResult AlltoAllVEntryLog(const void *sendBuf, const void *recvBuf, const void *sendCounts, const void *recvCounts,
     const void *sdispls, const void *rdispls, HcclDataType sendType, HcclDataType recvType, aclrtStream stream,
-    const std::string &tag, const u32 totalRanks, const std::string &opName);
+    const std::string &tag, const u32 totalRanks, const std::string &opName, bool forceLog = false);
 HcclResult AlltoAllVCEntryLog(const void *sendBuf, const void *recvBuf, const void *sendCountMatrix,
-    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName);
+    HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog = false);
 
 }
 

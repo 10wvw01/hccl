@@ -53,7 +53,7 @@ HcclResult HcclSetOpParamGraphModeOpType(OpParamGraphMode *opParam, const char *
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    strncpy_s(paramPtr->opType, sizeof(paramPtr->opType), opType, sizeof(paramPtr->opType) - 1);
+    CHK_SAFETY_FUNC_RET(strncpy_s(paramPtr->opType, sizeof(paramPtr->opType), opType, sizeof(paramPtr->opType) - 1));
     return HCCL_SUCCESS;
 }
 
@@ -64,7 +64,7 @@ HcclResult HcclSetOpParamGraphModeDataCount(OpParamGraphMode *opParam, const u64
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->dataCount, sizeof(paramPtr->dataCount), dataCount, sizeof(u64));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->dataCount, sizeof(paramPtr->dataCount), dataCount, sizeof(u64)));
     return HCCL_SUCCESS;
 }
 
@@ -86,7 +86,7 @@ HcclResult HcclSetOpParamGraphModeRankSize(OpParamGraphMode *opParam, const u32 
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->rankSize, sizeof(paramPtr->rankSize), rankSize, sizeof(u32));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->rankSize, sizeof(paramPtr->rankSize), rankSize, sizeof(u32)));
     return HCCL_SUCCESS;
 }
 
@@ -97,7 +97,7 @@ HcclResult HcclSetOpParamGraphModeHCCLBufferSize(OpParamGraphMode *opParam, cons
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->hcclBufferSize, sizeof(paramPtr->hcclBufferSize), hcclBufferSize, sizeof(u64));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->hcclBufferSize, sizeof(paramPtr->hcclBufferSize), hcclBufferSize, sizeof(u64)));
     return HCCL_SUCCESS;
 }
 HcclResult HcclSetAivSelectOpParamGraphMode(OpParamGraphMode *opParam, u32 aivCoreLimit)
@@ -207,6 +207,7 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     s32 deviceLogicId = 0;
     CHK_PRT_RET(aclrtGetDevice(&deviceLogicId) != ACL_SUCCESS,
         HCCL_WARNING("[HcclSelectAlgGraphMode] device is not set."), HCCL_SUCCESS);
+    
     HcclComm hcclComm = nullptr;
     CHK_RET(HcomGetCommHandleByGroup(group, &hcclComm));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
@@ -328,8 +329,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
 
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
-        param.all2AllVDataDes.sendType = dataType;
         param.all2AllVDataDes.recvType = dataType;
+        param.all2AllVDataDes.sendType = dataType;
 
         u64 arrSize = rankSize * sizeof(u64);
         void *sendCountsHost = nullptr;
@@ -341,8 +342,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
         ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
         ACLCHECK(aclrtMallocHost(&rdisplsHost, arrSize));
 
-        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
         u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost);
+        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
         u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost);
         u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost);
 
@@ -355,8 +356,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
             dataCountOffset += count;
         }
 
-        param.all2AllVDataDes.sendCounts = sendCountsHost;
         param.all2AllVDataDes.recvCounts = recvCountsHost;
+        param.all2AllVDataDes.sendCounts = sendCountsHost;
         param.all2AllVDataDes.sdispls = sdisplsHost;
         param.all2AllVDataDes.rdispls = rdisplsHost;
     }
@@ -488,6 +489,13 @@ HcclResult HcclCalcAivResOffline(ResResponseGraphMode *resResponse, OpParamGraph
     if (resResponse == nullptr || paramPtr == nullptr || paramPtr->aivCoreLimit == 0) {
         return HCCL_E_PARA;
     }
+    constexpr u64 AIV_WORKSPACE_MEM_SIZE = 512;
+    constexpr u32 AIV_STREAM_NUM = 0;
+    constexpr u32 AIV_TASK_NUM = 3;
+
+    resResponse->opMemSize = std::max(resResponse->opMemSize, AIV_WORKSPACE_MEM_SIZE);
+    resResponse->streamNum = std::max(resResponse->streamNum, AIV_STREAM_NUM);
+    resResponse->taskNum = std::max(resResponse->taskNum, AIV_TASK_NUM);
     resResponse->aivCoreNum = paramPtr->aivCoreLimit;
     return HCCL_SUCCESS;
 }

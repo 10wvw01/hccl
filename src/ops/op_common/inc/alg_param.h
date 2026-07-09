@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <unordered_set>
+#include <memory>
 #include <functional>
 #include <functional>
 #include <memory>
@@ -28,11 +29,8 @@
 #include "hccl_rank_graph_dl.h"
 #include "hccl_host_comm_dl.h"
 #include "binary_stream.h"
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-#include "hccl_ccu_res.h"
-#else
-typedef void *CcuKernelHandle; // 8.5.0 下无 hccl_ccu_res.h，用 opaque 占位
-#endif
+#include "hccl_ccu_res_dl.h"
+#include "ccu_types_dl.h"
 
 namespace ops_hccl {
 
@@ -60,7 +58,7 @@ constexpr u32 LOCAL_NOTIFY_IDX_ZERO = 0;
 constexpr u32 NOTIFY_IDX_ACK = 0;
 constexpr u32 NOTIFY_IDX_DATA_SIGNAL = 1;
 constexpr u32 NOTIFY_IDX_FIN_ACK = 2;
-constexpr u32 CUSTOM_TIMEOUT = 1800;
+constexpr u32 CUSTOM_TIMEOUT = 1836;
 constexpr u32 TIME_S_TO_US = 1000000;
 constexpr u32 MAX_LENGTH = 128;
 constexpr u32 ALG_MAX_LENGTH = 128;
@@ -75,6 +73,8 @@ constexpr uint64_t GE_PARALLEL = 36;
 constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 // Z axis detour 需要
 constexpr u32 MESH_CHANNELS_NUM = 1;
+
+constexpr uint64_t CCU_MAX_RANK_SIZE = 128;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
@@ -165,9 +165,11 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     Level0Shape level0Topo;
     bool Level0Nhr{false};
     bool Level1Nhr{false};
+    bool Level1Hd{false};
     bool is2DieFullMesh{false};
     bool level0PcieMix{false};
     bool level0BigClosRange{false};
+    bool level2Uboe{false};
     u32 topoInstDetailsOfLayerSize = 0;
     Level0MeshType level0MeshType;
     NetLayerDetails netLayerDetails;
@@ -197,9 +199,11 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream << level0Topo;
         binaryStream << Level0Nhr;
         binaryStream << Level1Nhr;
+        binaryStream << Level1Hd;
         binaryStream << is2DieFullMesh;
         binaryStream << level0PcieMix;
         binaryStream << level0BigClosRange;
+        binaryStream << level2Uboe;
         binaryStream << topoInstDetailsOfLayerSize;
         binaryStream << level0MeshType;
         binaryStream << netLayerDetails.netLayerNum;
@@ -243,9 +247,11 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> level0Topo;
         binaryStream >> Level0Nhr;
         binaryStream >> Level1Nhr;
+        binaryStream >> Level1Hd;
         binaryStream >> is2DieFullMesh;
         binaryStream >> level0PcieMix;
         binaryStream >> level0BigClosRange;
+        binaryStream >> level2Uboe;
         binaryStream >> topoInstDetailsOfLayerSize;
         binaryStream >> level0MeshType;
         binaryStream >> netLayerDetails.netLayerNum;
@@ -264,22 +270,37 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     }
 };
 
+struct CcuKernelArgBase {
+    ChannelHandle channels[CCU_MAX_RANK_SIZE];
+    uint32_t      channelCount;
+};
+
 // ccu kernel register所需信息
 struct CcuKernelInfo {
     // kernel资源组序号，group号不同时，资源复用
     u32 resGroup = 0;
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-    // kernel构造函数
-    hcomm::KernelCreator creator;
-    // KernelArg实例
-    std::shared_ptr<hcomm::CcuKernelArg> kernelArg;
-#endif
+    // kernel名 string？
+    char kernelFuncName[64];
+    // kernel函数
+    void* kernelFunc;
+    // KernelArg实例指针
+    void *kernelArg;
     // kernel所需channel
     std::vector<HcclChannelDesc> channels;
+
+private:
+    std::shared_ptr<CcuKernelArgBase> kernelArgSmartPtr;
+
+public:
+    template<typename T>
+    void setKernelArg(std::shared_ptr<T> arg) {
+        kernelArgSmartPtr = std::static_pointer_cast<CcuKernelArgBase>(arg);
+        kernelArg = static_cast<void*>(arg.get());
+    }
 };
 
 // 算法taskArg入参最大个数，用于快速下发缓存
-#define CCU_MAX_TASK_ARG_NUM 30
+#define CCU_MAX_TASK_ARG_NUM 48
 
 struct CcuKernelSubmitInfo {
     CcuKernelHandle kernelHandle;
@@ -389,12 +410,15 @@ struct AlgResourceCtxSerializable {
     HcclMem cclMem; // 跨Rank缓存Buffer
     u32 notifyNumOnMainThread; // 主流上的notify数量
     u32 slaveThreadNum; // 需要的thread数量
+    u32 waitTimeout = 0; // Device侧notify wait默认超时时间
+    u32 fullTimeout = 0; // Device侧队列满/资源申请超时时间
     std::vector<u32> notifyNumPerThread; // 每个thread需要的notify数量
     void* aivCommInfoPtr = nullptr;
     std::vector<ThreadHandle> threads;
     ThreadHandle unfoldThread = 0; // 展开流thread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
+    bool isHcclThreadAcquireWithConfigSupported = false;
     void* commInfoPtr = nullptr;
     // hostdpu
     void *npu2DpuShmemPtr = nullptr;
@@ -414,12 +438,15 @@ struct AlgResourceCtxSerializable {
         binaryStream << cclMem;
         binaryStream << notifyNumOnMainThread;
         binaryStream << slaveThreadNum;
+        binaryStream << waitTimeout;
+        binaryStream << fullTimeout;
         binaryStream << notifyNumPerThread;
         binaryStream << commInfoPtr;
         binaryStream << threads;
         binaryStream << unfoldThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
+        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -445,12 +472,15 @@ struct AlgResourceCtxSerializable {
         binaryStream >> cclMem;
         binaryStream >> notifyNumOnMainThread;
         binaryStream >> slaveThreadNum;
+        binaryStream >> waitTimeout;
+        binaryStream >> fullTimeout;
         binaryStream >> notifyNumPerThread;
         binaryStream >> commInfoPtr;
         binaryStream >> threads;
         binaryStream >> unfoldThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
+        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;
@@ -485,6 +515,11 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u64 inputSize = 0;
     void* outputPtr = nullptr;
     u64 outputSize = 0;
+    void* inputSymWindow = nullptr;
+    void* outputSymWindow = nullptr;
+    bool supportSymmetricMemory{false};
+    u64 inputOffset = 0;
+    u64 outputOffset = 0;
     HcclMem hcclBuff;   // 当前仅快速下发时使用此处的地址
     HcclReduceOp reduceType = HcclReduceOp::HCCL_REDUCE_RESERVED;
     u32 root = INVALID_VALUE_RANKID;
@@ -493,6 +528,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     OpMode opMode;
     bool   enableDetour{false};
     bool   isMc2{false};
+    bool   cacheValid{false};
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
     AlgType algType;
@@ -537,7 +573,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     bool isZeroCopy = false;
     char algName[OP_ALG_LENGTH] = "";
     HcclOpExpansionMode commOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
-    OpExecuteConfig opExecuteConfig;
+    OpExecuteConfig opExecuteConfig{OpExecuteConfig::DEFAULT};
     u32 numBlocksLimit = 0;
     bool isAivClearEnable = false;
     u64 ctxSize = 0;

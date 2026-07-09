@@ -55,7 +55,9 @@ HcclResult HcclBatchSendRecv(HcclSendRecvItem *sendRecvInfo, uint32_t itemNum, H
     const string tag = "BatchSendRecv_" + string(commName);
     CHK_RET(HcclCheckTag(tag.c_str()));
     CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, userRank), tag.c_str());
-
+    for (u32 i = 0; i < itemNum; i++) {
+        CHK_RET_AND_PRINT_IDE(HcomCheckUserRank(rankSize, sendRecvInfo[i].remoteRank), tag.c_str());
+    }
     /* 接口交互信息日志 */
     CHK_RET(BatchSendRecvEntryLog(itemNum, stream, tag, "HcclBatchSendRecv"));
 
@@ -122,7 +124,7 @@ HcclResult BatchSendRecvOutPlace(HcclSendRecvItem *sendRecvInfo, uint32_t itemNu
 
     // 参数准备
     param.varMemSize = varMemSize;
-    memcpy_s(param.varData, varMemSize, sendRecvInfo, varMemSize);
+    CHK_SAFETY_FUNC_RET(memcpy_s(param.varData, varMemSize, sendRecvInfo, varMemSize));
     param.batchSendRecvDataDes.itemNum = itemNum;
     param.batchSendRecvDataDes.sendRecvItemsPtr = 
         reinterpret_cast<HcclSendRecvItem*>(param.varData);

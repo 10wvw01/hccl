@@ -37,7 +37,7 @@ HcclResult AivTempScatterMesh1D::CalcRes(HcclComm comm, const OpParam& param, co
     std::vector<HcclChannelDesc> level0Channels;
     if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         std::vector<HcclChannelDesc> myChannelDescs;
-        CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_1DMESH));
+        CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, true));
         for(auto channel : myChannelDescs) {
             if(channel.channelProtocol == COMM_PROTOCOL_UB_MEM) {
                 level0Channels.push_back(channel);
@@ -50,6 +50,15 @@ HcclResult AivTempScatterMesh1D::CalcRes(HcclComm comm, const OpParam& param, co
     resourceRequest.channels.push_back(level0Channels);
     HCCL_WARNING("Resource calculation is temporarily not performed in the template.");
     return HCCL_SUCCESS;
+}
+
+HcclResult AivTempScatterMesh1D::CalNumBlocks(u32& numBlocks, u64 dataSize, u32 numBlocksLimit)
+{
+    (void) dataSize;
+    (void) numBlocksLimit;
+    numBlocks = MAX_NUM_BLOCKS;
+    HCCL_INFO("[AivTempScatterMesh1D] Actually use core num[%u]", numBlocks);
+    return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult AivTempScatterMesh1D::KernelRun(const OpParam& param,
@@ -92,6 +101,9 @@ HcclResult AivTempScatterMesh1D::KernelRun(const OpParam& param,
             aivScatterArgs.topo_[TOPO_LEN_Z_OFFSET + i] = subCommRanks_[MAX_DIM_NUM - 1][i];
         }
     }
+
+    u64 dataSize = tempAlgParams.inputSliceStride;
+    CHK_RET(CalNumBlocks(aivScatterArgs.numBlocks, dataSize, param.numBlocksLimit));
 
     aivScatterArgs.inputSliceStride = tempAlgParams.inputSliceStride;
     aivScatterArgs.outputSliceStride = tempAlgParams.outputSliceStride;

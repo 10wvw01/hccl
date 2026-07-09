@@ -20,6 +20,8 @@
 #include "alg_type.h"
 #include "execute_selector.h"
 #include "acl/acl_rt.h"
+#include "ccu_primitives_dl.hpp"
+#include "ccu_log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +33,10 @@ extern "C" {
 
 namespace ops_hccl {
 HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName, const ResPackGraphMode &resPack = ResPackGraphMode());
+
+bool IsStreamInCaptureMode(aclrtStream stream);
+
+bool IsAivCacheSupported(const OpParam &param);
 
 HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string &algName,
                                 std::unique_ptr<InsCollAlgBase> &executor,
@@ -94,6 +100,8 @@ HcclResult SetOpParamFastLaunchTag(OpParam &param);
 bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccuFastLaunchCtx);
 
 HcclResult HcclExecOpCcuFastLaunch(HcclComm comm, OpParam &param, const CcuFastLaunchCtx *ccuFastLaunchCtx);
+
+HcclResult HcclAivCacheCheckAndReplay(HcclComm comm, OpParam &param, bool &cacheHit);
 
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence);
@@ -176,11 +184,11 @@ HcclResult HcclRegstryBuff(HcclComm comm, const char *memTag, void *bufferPtr, u
 
 HcclResult HcclGetRemoteBuff(HcclComm comm, ChannelHandle channel, const char *memTag, void **bufferPtr, uint64_t *bufferSize);
 
-HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut);
+HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startut, bool forceLog = false);
 
 HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
-HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam);
+HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam, bool ifCreate);
 
 HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
 
@@ -188,6 +196,8 @@ HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetai
 
 HcclResult SetExecTimeout(OpParam &param);
 bool IsHostDpu(HcclComm comm);
+
+bool IsBarrierHostDpu(HcclComm comm);
 }  // namespace ops_hccl
 
 #endif

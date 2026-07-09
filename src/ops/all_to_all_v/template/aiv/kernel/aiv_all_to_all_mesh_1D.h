@@ -21,7 +21,7 @@ public:
     {
         uint64_t smallDataSize = 512 * 1024;
         dataSize_ = len_ * sizeof(T);
-        coreIdx_ = GetBlockIdx();
+        coreIdx_ = blockIdx_;
         // 小数据量情况下，缩减实际使用核数
         if (dataSize_ <= smallDataSize && numBlocks_ > rankSize_) {
             coreNum_ = rankSize_;
@@ -30,13 +30,13 @@ public:
         }
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
     }
- 
+
     __aicore__ inline void Process()
     {
         if (coreIdx_ >= coreNum_) {
             return;
         }
- 
+
         if (coreNum_ >= rankSize_) {
             ProcessMultiCore();
         } else {

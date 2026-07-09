@@ -52,8 +52,26 @@ protected:
     HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
         std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest) const;
 
-private:
+    HcclResult UbxLastStepLocalCopy(const OpParam& param, const OmniPipeSliceInfo& omniPipeSliceInfo, 
+        const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo,
+        std::map<u32, TemplateDataParams>& tempAlgParamMap, const u64 processedDataCount, int step) const;
 
+    HcclResult UbxLocalCopy(const OpParam& param, const OmniPipeSliceInfo& omniPipeSliceInfo, 
+        const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo, std::map<u32, TemplateDataParams>& tempAlgParamMap, 
+        const u64 processedDataCount, int step) const;
+
+private:
+    enum class TopoType { UBX_2LEVEL, THREE_LEVEL };
+    TopoType topoType_ = TopoType::UBX_2LEVEL;
+
+    HcclResult BuildSubCommAndTempMap(
+        const OpParam& param,
+        const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+        std::vector<std::vector<u32>>& subCommRanks0,
+        std::vector<std::vector<u32>>& subCommRanks1,
+        std::vector<std::vector<u32>>& subCommRanks2,
+        std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
+        const TopoInfoWithNetLayerDetails* topoInfo);
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
     OpMode opMode_;
@@ -77,6 +95,9 @@ private:
     std::vector<std::vector<u32>> subCommRanks0_;
     std::vector<std::vector<u32>> subCommRanks1_;
     std::vector<std::vector<u32>> subCommRanks2_;
+
+    OmniNeedSetStepNum omniNeedSetStepNum_ = OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
+    bool omniUbxLastStepRead_ = false;
 };
 }
 #endif
