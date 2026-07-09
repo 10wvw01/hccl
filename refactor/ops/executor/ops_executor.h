@@ -7,7 +7,8 @@
 #include <numeric>
 #include <hccl/hccl_res.h>
 #include "hccl_algorithm.h"
-
+#include "template/base_template.h"
+#include "template/template_factory.h"
 // 循环依赖：hccl_algorithm.h 在定义 AlgoExecDesc 之前就通过 std::shared_ptr<AlgoExecDesc>
 // 引用了它，且其末尾 HcclAlgorithm::GetEngine/GetExecutor 又分别需要 BaseLauncher/OpsExecutor，
 // 故在此先做前置声明，避免反向 include 引发未定义错误。
@@ -16,18 +17,6 @@ namespace ops_hccl {
 struct AlgResourceCtxSerializable;
 struct AlgHierarchyInfoForAllLevel;
 struct ChannelInfo;
-
-struct TemplateResource {
-    std::map<u32, std::vector<ChannelInfo>> channels;
-    std::vector<ThreadHandle> threads;
-    void *aivCommInfoPtr = nullptr;
-};
-
-enum class BufferType {
-    INPUT,
-    OUTPUT,
-    HCCL_BUFFER,
-};
 
 struct BufferInfo {
     void *ptr = nullptr;
@@ -56,51 +45,6 @@ struct AlgoExecDataDesc {
     BufferType outputBufferType{BufferType::OUTPUT};
     BufferType cclBufferType{BufferType::HCCL_BUFFER};
 };
-
-struct TemplateDataParams {
-    void *inputBufferPtr = nullptr;
-    void *outputBufferPtr = nullptr;
-    void *cclBufferPtr = nullptr;
-    BufferType inputBufferType = BufferType::INPUT;
-    BufferType outputBufferType = BufferType::OUTPUT;
-    BufferType cclBufferType = BufferType::HCCL_BUFFER;
-
-    HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
-    u64 sliceCount{0};
-    u64 tailCount{0};
-
-    u64 dataOffset{0};
-    u64 cclBufferOffset{0};
-
-    HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};
-    u32 root{INVALID_VALUE_RANKID};
-
-    bool enableRemoteMemAccess{false};
-
-    std::vector<u32> ranksForInputData;
-};
-
-
-// 占位 BaseTemplate / GetTemplate：refactor/ops/template/ 真实头文件尚未稳定
-// （base_template.h 默认构造函数未初始化引用成员、CalcRes 缺 return、template_factory.h
-//  缺少 namespace 包裹；具体子类仍为抽象类），此处先给出最小占位让 .cc 编译通过。
-class BaseTemplate {
-
-public:
-    virtual ~BaseTemplate() = default;
-    virtual HcclResult CalcRes(HcclComm /*comm*/, AlgResourceRequest &req) {
-        req = {};
-        return HCCL_SUCCESS;
-    }
-    virtual float CalcScratchMultiple(BufferType /*in*/, BufferType /*out*/) { return 0.0f; }
-    virtual HcclResult KernelRun(TemplateDataParams &, TemplateResource &, std::vector<u32> &outRanks) {
-        outRanks.clear();
-        return HCCL_SUCCESS;
-    }
-};
-inline BaseTemplate GetTemplate(HcclAlgEngineType, TemplateDesc, const std::vector<u32> &, u32) {
-    return BaseTemplate{};
-}
 
 class OpsExecutor {
 public:

@@ -221,16 +221,16 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes, 
 {
     int subCommIndex = templateExeDes.subCommIndex;
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
-    BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes.templateDesc, templateRanks, myRank_);
+    std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(algo_.engineType, templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
-    CHK_RET(baseTemplate.CalcRes(hcclComm_, tempRequest));
+    CHK_RET(baseTemplate->CalcRes(hcclComm_, tempRequest));
     maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
     maxNotifyNumOnMainThread_.at(subCommIndex)
         = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
     auto it = std::max_element(tempRequest.notifyNumPerThread.begin(), tempRequest.notifyNumPerThread.end());
     maxNotifyNumPerThread_.at(subCommIndex) = std::max(maxNotifyNumPerThread_.at(subCommIndex), *it);
     float scratchMultiple
-        = static_cast<float>(baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER));
+        = static_cast<float>(baseTemplate->CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER));
     scratchMultiple = scratchMultiple * inputRatio;
     maxSubScratchMutiple_.at(subCommIndex) = std::max(maxSubScratchMutiple_.at(subCommIndex), scratchMultiple);
     // 如果原语是 allgather 累乘，否则累除
@@ -407,7 +407,7 @@ inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
-    BaseTemplate baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
+    std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
     CHK_RET(GenTemplateRes(templateExeDes->subCommIndex, templateResource));
@@ -415,9 +415,9 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
     std::vector<u32> ranksForOutputData;
-    CHK_RET(baseTemplate.KernelRun(templateDataParams, templateResource, ranksForOutputData));
+    CHK_RET(baseTemplate->KernelRun(templateDataParams, templateResource, ranksForOutputData));
     algoExecDataDesc.ranksForOutputData = ranksForOutputData;
-    float scratchMutiple = baseTemplate.CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
+    float scratchMutiple = baseTemplate->CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
     algoExecDataDesc.scratchSize = std::ceil(static_cast<double>(
         algoExecDataDesc.sliceCount * algoExecDataDesc.ranksForInputData.size() * dataTypeSize_ * scratchMutiple));
     return HCCL_SUCCESS;
