@@ -46,7 +46,7 @@ uint64_t GetLoopParam(uint64_t loopCtxId, uint64_t gsaOffset, uint64_t loopIterN
 {
     DevType deviceType;
     CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
         constexpr uint16_t ctxIdBitNum = 8;
         constexpr uint16_t ctxIdShiftBit = 45;
         constexpr uint16_t gsaBitNum = 32;
@@ -66,7 +66,7 @@ uint64_t GetLoopIterNum(uint64_t iterNum)
 {
     DevType deviceType;
     CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
         return 0;
     } else {
         constexpr uint16_t iterNumBitNum = 13;
@@ -78,7 +78,7 @@ uint64_t GetLoopIterNum(uint64_t iterNum)
 uint64_t GetLoopGsaOffset(uint64_t gsaOffset){
     DevType deviceType;
     CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
         return 0;
     }
     else{
@@ -92,7 +92,7 @@ uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t
 {
     DevType deviceType;
     CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
         constexpr uint16_t repeatBitNum       = 7;
         constexpr uint16_t repeatNumShiftBit  = 55;
         constexpr uint16_t repeatLoopBitNum   = 7;
