@@ -1,3 +1,0 @@
-[ge.es.plugins]
-hccl = es_hccl:get_module
-

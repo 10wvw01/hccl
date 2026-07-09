@@ -1,3 +1,0 @@
-repository='https://gitcode.com/cann/cmake.git'
-module=''
-tag='origin'
