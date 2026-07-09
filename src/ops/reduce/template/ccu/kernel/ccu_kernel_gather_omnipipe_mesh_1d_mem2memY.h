@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
-#define HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
+#ifndef HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
+#define HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
 
 #include <vector>
 #include <ios>
@@ -20,7 +20,7 @@
 
 namespace ops_hccl {
 
-struct CcuKernelArgGatherOmniPipeMesh1DMem2Mem : CcuKernelArgBase {
+struct CcuKernelArgGatherOmniPipeMesh1DMem2MemY : CcuKernelArgBase {
     uint64_t rankSize;
     uint32_t rankId;
     uint32_t rootId;
@@ -30,8 +30,8 @@ struct CcuKernelArgGatherOmniPipeMesh1DMem2Mem : CcuKernelArgBase {
     uint32_t myrealrank;
 };
 
-struct GatherOmniPipeMesh1DMem2MemContext {
-    CcuKernelArgGatherOmniPipeMesh1DMem2Mem* arg;
+struct GatherOmniPipeMesh1DMem2MemContextY {
+    CcuKernelArgGatherOmniPipeMesh1DMem2MemY* arg;
     uint64_t rankSize{0};
     uint32_t rankId{0};
     uint32_t rootId{0};
@@ -56,8 +56,8 @@ struct GatherOmniPipeMesh1DMem2MemContext {
     ccu::Event event;
 };
 
-CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg);
+CcuResult CcuGatherOmniPipeMesh1DMem2MemKernelY(CcuKernelArg arg);
 
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
+#endif // HCCL_CCU_KERNEL_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H

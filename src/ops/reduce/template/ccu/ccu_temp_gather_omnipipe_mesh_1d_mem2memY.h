@@ -8,22 +8,22 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
-#define HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
+#ifndef HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
+#define HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
 
 namespace ops_hccl {
 
-class CcuTempGatherOmniPipeMesh1DMem2Mem : public CcuAlgTemplateBase {
+class CcuTempGatherOmniPipeMesh1DMem2MemY : public CcuAlgTemplateBase {
 public:
-    CcuTempGatherOmniPipeMesh1DMem2Mem() = default;
-    explicit CcuTempGatherOmniPipeMesh1DMem2Mem(const OpParam& param,
+    CcuTempGatherOmniPipeMesh1DMem2MemY() = default;
+    explicit CcuTempGatherOmniPipeMesh1DMem2MemY(const OpParam& param,
                                                  const u32 rankId,
                                                  const std::vector<std::vector<u32>>& subCommRanks);
 
-    ~CcuTempGatherOmniPipeMesh1DMem2Mem() override;
+    ~CcuTempGatherOmniPipeMesh1DMem2MemY() override;
 
     std::string Describe() const override
     {
@@ -44,11 +44,12 @@ public:
     void UnsetRoot(u32 rank);
     
     uint32_t mySubCommRank_ = 0;
-    uint32_t subCommRootId_ = UINT32_MAX;
     uint32_t rankId_ = 0;
+    uint32_t subCommRootId_ = UINT32_MAX;
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
     bool isLastStep_ = false;
+    bool ifNewRoot = false;
 
     u64 localCopyFlag = 0;
     bool isSameXAxis = false;
@@ -61,4 +62,4 @@ public:
 
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEM_H
+#endif // HCCL_CCU_TEMP_GATHER_OMNIPIPE_MESH_1D_MEM2MEMY_H
