@@ -45,26 +45,6 @@ typedef struct {
 #define COMM_ADDR_EID_LEN 36
 #endif /* CANN_VERSION_NUM < CANN_VERSION(9, 0, 0) */
 
-#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
-#define COMM_PROTOCOL_UBOE    ((CommProtocol)7)
-typedef enum {
-    THREAD_TYPE_INVALID = -1,
-    THREAD_TYPE_TS = 0
-} ThreadType;
-
-typedef struct {
-    uint32_t notifyNumPerThread;
-} ThreadConfig;
-
-static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
-{
-    for (uint32_t i = 0; i < num; i++) {
-        config[i].notifyNumPerThread = 0;
-    }
-    return 0;
-}
-
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,10 +62,6 @@ DECL_WEAK_FUNC(HcclResult, HcclCommMemReg, HcclComm comm, const char* memTag, co
 DECL_WEAK_FUNC(HcclResult, HcclEngineCtxDestroy, HcclComm comm, const char* ctxTag, CommEngine engine);
 
 DECL_SUPPORT_FLAG(HcclThreadExportToCommEngine);
-
-DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
-    ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
-DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
 // 动态库管理接口（大驼峰命名）
 void HcclResDlInit(void* libHcommHandle);
 
