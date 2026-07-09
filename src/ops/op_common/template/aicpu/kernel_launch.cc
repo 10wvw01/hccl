@@ -407,6 +407,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
         }
         if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
+            HCCL_INFO("[KernelLaunch] DEBUG: calling HcclSetNotifyWaitTimeOut with waitTimeout[%u], fullTimeout[%u]", resCtxPtr->waitTimeout, resCtxPtr->fullTimeout);
             CHK_RET(HcclSetNotifyWaitTimeOut(resCtxPtr->waitTimeout));
         }
         HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]", __func__, thread,

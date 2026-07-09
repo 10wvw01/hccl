@@ -134,8 +134,10 @@ HcclResult HcclSetNotifyWaitTimeOut(uint32_t timeout)
         return HCCL_E_NOT_SUPPORT;
     }
 #ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+    HCCL_INFO("[HcclSetNotifyWaitTimeOut] HCOMM_TIMEOUT_FLOAT_TYPE IS DEFINED. timeout[%u] -> float[%f]", timeout, static_cast<float>(timeout));
     return static_cast<HcclResult>(HcommSetNotifyWaitTimeOut(static_cast<float>(timeout)));
 #else
+    HCCL_INFO("[HcclSetNotifyWaitTimeOut] HCOMM_TIMEOUT_FLOAT_TYPE NOT DEFINED. timeout[%u]", timeout);
     return static_cast<HcclResult>(HcommSetNotifyWaitTimeOut(timeout));
 #endif
 }
