@@ -21,7 +21,8 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 ((used, section (".ascend.meta." #kernel_name))) \
 = {{F_TYPE_KTYPE, sizeof(unsigned int), K_TYPE_AIV}}
 
-constexpr uint32_t MAX_RANK_SIZE = 128; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡数
+constexpr uint32_t MAX_RANK_SIZE_V = 64;
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
 constexpr uint64_t FLAG_ADDR_OFFSET = 40 * 1024;
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
@@ -32,10 +33,10 @@ constexpr uint64_t LOW_16_BITS = 0xFFFF;
 constexpr uint64_t DATA_LIMIT = 512 * 1024;
 
 struct ExtraArgs {
-    uint64_t sendCounts[MAX_RANK_SIZE] = {};
-    uint64_t sendDispls[MAX_RANK_SIZE] = {};
-    uint64_t recvCounts[MAX_RANK_SIZE] = {};
-    uint64_t recvDispls[MAX_RANK_SIZE] = {};
+    uint64_t sendCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t sendDispls[MAX_RANK_SIZE_V] = {};
+    uint64_t recvCounts[MAX_RANK_SIZE_V] = {};
+    uint64_t recvDispls[MAX_RANK_SIZE_V] = {};
 };
 
 using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
@@ -77,7 +78,7 @@ GM_ADDR buffIn, \
 uint64_t input, uint64_t output, uint32_t rank, uint32_t sendRecvRemoteRank, uint32_t rankSize, uint64_t xRankSize,  uint64_t yRankSize, uint64_t zRankSize, uint64_t len, \
 uint32_t dataType, uint32_t reduceOp, uint32_t root, uint32_t sliceId, \
 uint64_t inputSliceStride, uint64_t outputSliceStride, uint64_t repeatNum, uint64_t inputRepeatStride, uint64_t outputRepeatStride, \
-bool isOpBase, \
+uint32_t numBlocks, bool isOpBase, \
 GM_ADDR headCountMem, \
 GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter
 
@@ -88,7 +89,7 @@ KERNEL_ARGS_DEF, ExtraArgs extraArgs
 buffIn, \
 input, output, rank, sendRecvRemoteRank, rankSize, xRankSize, yRankSize, zRankSize, len, dataType, reduceOp, root, sliceId, \
 inputSliceStride, outputSliceStride, repeatNum, inputRepeatStride, outputRepeatStride, \
-isOpBase, \
+numBlocks, isOpBase, \
 headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter
 
 #define EXTERN_KERNEL_ARGS_CALL \
@@ -98,7 +99,7 @@ KERNEL_ARGS_CALL, extraArgs
 buffIn, input, output,\
 rank, sendRecvRemoteRank, rankSize, xRankSize, yRankSize, zRankSize, len, dataType, reduceOp, root, \
 inputSliceStride, outputSliceStride, repeatNum, inputRepeatStride, outputRepeatStride, \
-headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter
+headCountMem, tailCountMem, addOneMem, counterMemSize, isEnableCounter, numBlocks
 
 #define SUPERKERNEL_LITE_ARGS_DEF \
 uint64_t args_offset
@@ -170,7 +171,7 @@ public:
                                 uint32_t dataType, uint32_t reduceOp, uint32_t root,
                                 uint64_t inputSliceStride, uint64_t outputSliceStride, uint64_t repeatNum, uint64_t inputRepeatStride, uint64_t outputRepeatStride,
                                 GM_ADDR headCountMem,
-                                GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter,
+                                GM_ADDR tailCountMem, GM_ADDR addOneMem, uint32_t counterMemSize, bool isEnableCounter, uint32_t numBlocks,
                                 bool useDoubleBuffer)
     {
         rank_ = rank;
@@ -186,7 +187,7 @@ public:
         output_ = output;
         dataType_ = dataType;
         useDoubleBuffer_ = useDoubleBuffer;
-        numBlocks_ = block_num;
+        numBlocks_ = numBlocks;
 
         inputSliceStride_ = inputSliceStride;
         outputSliceStride_ = outputSliceStride;
@@ -281,7 +282,7 @@ public:
 
     __aicore__ inline void GetTag(GM_ADDR buffIn)
     {
-        uint64_t blockIdx = GetBlockIdx();
+        uint64_t blockIdx = blockIdx_;
         LocalTensor<uint32_t> localIn = inOutQue.AllocTensor<uint32_t>();
         GlobalTensor<uint32_t> ipcBufferGlobal;
         ipcBufferGlobal.SetGlobalBuffer((__gm__ uint32_t*)(buffIn));
@@ -365,6 +366,7 @@ public:
     uint32_t tag_;
     uint32_t curTag_{0};
     int32_t numBlocks_;
+    uint32_t blockIdx_ = GetBlockIdx(); // 在构造函数中初始化，以免漏初始化
 
     uint64_t inputSliceStride_;
     uint64_t outputSliceStride_;
@@ -420,7 +422,7 @@ __aicore__ inline void AivCommBase::Barrier(uint32_t step)
     // 用10个flag
     uint32_t flagOffset = 2 * 1024 * 1024 - (step % 2 + 1) * FLAG_SIZE * rankSize_;
     __gm__ int32_t *ctrlFlagsGM;
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 1; i < rankSize_; i++) {
             uint32_t targetRank = (rank_ + i) % rankSize_; 
@@ -447,7 +449,7 @@ __aicore__ inline void AivCommBase::ClearFlag()
     // 用10个flag
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_]);
     __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + CLEAR_BUFFER_OFFSET);
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         CpGM2GM(ctrlFlagsGM, emtpyGM, BUFFER_AREA / sizeof(int32_t));
     }
 }
@@ -456,7 +458,7 @@ __aicore__ inline void AivCommBase::BlockSync()
 {
     uint32_t flagOffset = SYNC_BUFFER_OFFSET + 2 * FLAG_SIZE * numBlocks_;
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_] + flagOffset);
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         //通知其他核
         pipe_barrier(PIPE_ALL);
         for (int i = 1; i < numBlocks_; i++) {
@@ -465,8 +467,8 @@ __aicore__ inline void AivCommBase::BlockSync()
         pipe_barrier(PIPE_ALL);
     } else {
         //接收通知并清零
-        WaitSignalValue(ctrlFlagsGM + GetBlockIdx() * FLAG_SIZE, localCheckTensor, 1);
-        SetSignalValue(ctrlFlagsGM +  GetBlockIdx() * FLAG_SIZE, localSetTensor, 0);
+        WaitSignalValue(ctrlFlagsGM + blockIdx_ * FLAG_SIZE, localCheckTensor, 1);
+        SetSignalValue(ctrlFlagsGM +  blockIdx_ * FLAG_SIZE, localSetTensor, 0);
         pipe_barrier(PIPE_ALL);
     }
 }
@@ -492,7 +494,7 @@ __aicore__ inline void AivCommBase::ClearGM()
 {
     uint32_t emptyOffset = AIV_FLAG_EMPTY_OFFSET - FLAG_ADDR_OFFSET;
     uint32_t blockCount = BASE_FLAG_OFFSET / numBlocks_;
-    uint32_t blockOffset = blockCount * block_idx;
+    uint32_t blockOffset = blockCount * blockIdx_;
     CpGM2GM(GM_OUT[rank_] + blockOffset, GM_OUT[rank_] + blockOffset + emptyOffset, blockCount);
 }
 
@@ -505,10 +507,10 @@ __aicore__ inline void AivCommBase::BarrierForFirstOP()
     // 每个核分配多个rank
     uint32_t perCoreRankNum = rankSize_ / numBlocks_;
     uint32_t remainRankNum = rankSize_ % numBlocks_;
-    uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-    uint32_t startRank = block_idx < remainRankNum
-                        ? (perCoreRankNum + 1) * block_idx
-                        : perCoreRankNum * block_idx + remainRankNum;
+    uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+    uint32_t startRank = blockIdx_ < remainRankNum
+                        ? (perCoreRankNum + 1) * blockIdx_
+                        : perCoreRankNum * blockIdx_ + remainRankNum;
     for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
         uint64_t flag_offset = BASE_FLAG_OFFSET + rank * FLAG_SIZE;
         Record(rank_, flag_offset / FLAG_SIZE, DOUBLE);
@@ -529,7 +531,7 @@ __aicore__ inline void AivCommBase::SendRecvBarrierForFirstOP(uint32_t myRank, u
     ClearGM();
     SyncAll<true>();
 
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
@@ -556,10 +558,10 @@ __aicore__ inline void AivCommBase::BarrierAll()
     // 每个核分配多个rank
     uint32_t perCoreRankNum = rankSize_ / numBlocks_;
     uint32_t remainRankNum = rankSize_ % numBlocks_;
-    uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-    uint32_t startRank = block_idx < remainRankNum
-                        ? (perCoreRankNum + 1) * block_idx
-                        : perCoreRankNum * block_idx + remainRankNum;
+    uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+    uint32_t startRank = blockIdx_ < remainRankNum
+                        ? (perCoreRankNum + 1) * blockIdx_
+                        : perCoreRankNum * blockIdx_ + remainRankNum;
     uint64_t flag_offset = BASE_FLAG_OFFSET + rank_ * FLAG_SIZE;
     for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
         Record(rank, flag_offset / FLAG_SIZE, 1);
@@ -576,7 +578,7 @@ __aicore__ inline void AivCommBase::BarrierAll()
 __aicore__ inline void AivCommBase::SendRecvBarrierAll(uint32_t myRank, uint32_t remoteRank)
 {
     SyncAll<true>();
-    if (GetBlockIdx() == 0) {
+    if (blockIdx_ == 0) {
         pipe_barrier(PIPE_ALL);
         for (int i = 0; i < rankSize_; i++) {
             if (i == myRank || i == remoteRank) {
@@ -622,14 +624,29 @@ template<typename T>
 __aicore__ inline void AivCommBase::DataCopyGM2UB(const LocalTensor<T>& dstLocal, const GlobalTensor<T>& srcGlobal,
                                                   const uint32_t calCount)
 {
-    copy_gm_to_ubuf_align_v2((__ubuf__ uint8_t*)dstLocal.GetPhyAddr(), (__gm__ uint8_t*)srcGlobal.GetPhyAddr(), 0, 1, calCount * sizeof(T), 0,0,0, 0,0,0);
+    if ((calCount * sizeof(T)) % UB_ALIGN_SIZE == 0) {
+        DataCopy(dstLocal, srcGlobal, calCount);
+    } else {
+        // 结构体DataCopyExtParams最后一个参数是rsv保留位
+        DataCopyExtParams copyParams{1, calCount * (uint32_t)sizeof(T), 0, 0, 0};
+        DataCopyPadExtParams<T> padParams;
+        padParams.isPad = true;
+        padParams.leftPadding = 0;
+        padParams.rightPadding = 1;
+        DataCopyPad(dstLocal, srcGlobal, copyParams, padParams);
+    }
 }
 
 template<typename T>
 __aicore__ inline void AivCommBase::DataCopyUB2GM(const GlobalTensor<T>& dstGlobal, const LocalTensor<T>& srcLocal,
                                                   const uint32_t calCount)
 {
-    copy_ubuf_to_gm_align_v2(reinterpret_cast<const __gm__ uint8_t*>(dstGlobal.GetPhyAddr()), reinterpret_cast<__ubuf__ uint8_t*>(srcLocal.GetPhyAddr()), 0, 1, calCount * sizeof(T), 0,0,0);
+    if ((calCount * sizeof(T)) % UB_ALIGN_SIZE == 0) {
+        DataCopy(dstGlobal, srcLocal, calCount);
+    } else {
+        DataCopyExtParams copyParams{1, calCount * (uint32_t)sizeof(T), 0, 0, 0};
+        DataCopyPad(dstGlobal, srcLocal, copyParams);
+    }
 }
 
 template<typename T>

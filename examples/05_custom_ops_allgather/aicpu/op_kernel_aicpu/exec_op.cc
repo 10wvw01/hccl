@@ -16,7 +16,7 @@
 namespace ops_hccl_allgather {
 constexpr uint64_t HCCL_MIN_SLICE_ALIGN = 128;
 constexpr uint64_t UB_MAX_DATA_SIZE = 256*1024*1024;
-constexpr uint32_t CUSTOM_TIMEOUT = 1800;
+constexpr uint32_t CUSTOM_TIMEOUT = 1836;
 constexpr uint32_t NOTIFY_IDX_ACK = 0;
 constexpr uint32_t NOTIFY_IDX_DATA_SIGNAL = 1;
 constexpr uint32_t NOTIFY_IDX_FIN_ACK = 2;
@@ -35,7 +35,7 @@ static HcclResult ThreadSyncBefore(const std::vector<ThreadHandle> &threads)
 static HcclResult ThreadSyncAfter(const std::vector<ThreadHandle> &threads)
 {
     for (uint32_t i = 1; i < threads.size(); i++) {
-        CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(threads[i], i, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(threads[0], i - 1, CUSTOM_TIMEOUT)));
     }
     for (uint32_t i = 1; i < threads.size(); i++) {
         CHK_RET(static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(threads[i], threads[0], i - 1)));

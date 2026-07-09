@@ -13,6 +13,8 @@
 
 namespace ops_hccl {
 
+constexpr u32 TOPO_LEVEL_1 = 1;
+constexpr u32 TOPO_LEVEL_3 = 3;
 constexpr u64 RSV_CCU_8P_MIN_DATA_SIZE = 32 * 1024 * 1024;
 
 SelectorStatus ReduceScatterVAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
@@ -21,6 +23,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNet
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu ms 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu ms does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // MS 模式不支持 int8
     CHK_PRT_RET(opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
         HCCL_WARNING("[ReduceScatterVAutoSelector] dataType[%d] is not supported yet for ccu_ms mode.",
@@ -94,6 +100,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoW
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu schedule 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu schedule does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // ccu 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_WARNING("[ReduceScatterVAutoSelector] ReduceOp[%d] is not supported yet for ccu schedule mode.",
@@ -186,32 +196,14 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
                                                       std::string &selectAlgName) const
 {
     (void)configAlgMap;
-    CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
-        HCCL_ERROR("[Algo][ReduceScatterVAutoSelector] ReduceOp [PROD] is not supported yet for aicpu mode."),
-        SelectorStatus::NOT_MATCH);
-    if (Is64BitDataType(opParam.vDataDes.dataType)) {
-        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] INT64, UINT64 or FP64 are not yet supported for all mode.");
+    if (Is64BitDataType(opParam.vDataDes.dataType) && opParam.vDataDes.dataType != HcclDataType::HCCL_DATA_TYPE_INT64) {
+        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] UINT64 or FP64 are not yet supported for aicpu mode.");
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->topoLevelNums > 1) {
-        HCCL_WARNING("[ReduceScatterVAutoSelector] layerNum > 1 is not supported yet for aicpu_schedule mode.");
-        return SelectorStatus::NOT_MATCH;
-    } else {
-        return SelectMeshAlgoAicpu(topoInfo, opParam, selectAlgName);
-    }
-
-    return SelectorStatus::MATCH;
-}
-
-SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
-                                                          std::string &selectAlgName) const
-{
-    (void) opParam;
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D){
+    if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
         selectAlgName = "InsReduceScatterVMesh1D";
     } else {
-        HCCL_WARNING("[ReduceScatterVAutoSelector] topo not match");
         return SelectorStatus::NOT_MATCH;
     }
     return SelectorStatus::MATCH;
@@ -222,7 +214,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLa
                                                        std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
-    HCCL_DEBUG("[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode, reverting to AICPU mode.");
+    HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode.");
     return SelectorStatus::NOT_MATCH;
 }
 

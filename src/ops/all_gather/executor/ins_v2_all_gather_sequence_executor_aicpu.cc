@@ -15,7 +15,7 @@
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #include "coll_alg_v2_exec_registry.h"
 
@@ -319,6 +319,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
 
         // 框间的数据偏移和搬运计算
         GenInterTemplateParams(interTempDataParams, processedDataCount, currDataCount, loop);
+        CHK_RET(SplitData(currDataCount, rankSizeLevel1_, interTempDataParams));
         CHK_RET(interTempAlg.KernelRun(param, interTempDataParams, templateResourceInter));
 
         // 框内的数据偏移和搬运量计算
@@ -362,7 +363,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FastLaunch(
-        const OpParam &param, const CcuFastLaunchCtx *ctx)
+        const OpParam &param, const CcuFastLaunchCtx *resCtx)
 {
     HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunch] Start");
     InsAlgTemplate1 interTempAlg{};
@@ -371,27 +372,27 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     TemplateFastLaunchCtx tempFastLaunchCtxInter;
     TemplateFastLaunchCtx tempFastLaunchCtxIntra;
 
-    ThreadHandle *threads = ctx->GetThreadHandlePtr();
-    threads_.assign(threads, threads + ctx->threadNum);
+    ThreadHandle *threads = resCtx->GetThreadHandlePtr();
+    threads_.assign(threads, threads + resCtx->threadNum);
 
-    CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
+    CcuKernelSubmitInfo *ccuKernelSubmitInfos = resCtx->GetCcuKernelSubmitInfoPtr();
 
     // 第一步: 框间NHR（ccu模式下用output作为中转）
-    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunch] inter ccuKernelNum[%llu]", ctx->ccuKernelNum[0]);
+    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunch] inter ccuKernelNum[%llu]", resCtx->ccuKernelNum[0]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtxInter, param.inputPtr, param.outputPtr, param.hcclBuff));
     tempFastLaunchCtxInter.threads = threads_;
-    tempFastLaunchCtxInter.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[0]);
-    ccuKernelSubmitInfos += ctx->ccuKernelNum[0];
-    if (ctx->ccuKernelNum[0] > 0) {
+    tempFastLaunchCtxInter.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + resCtx->ccuKernelNum[0]);
+    ccuKernelSubmitInfos += resCtx->ccuKernelNum[0];
+    if (resCtx->ccuKernelNum[0] > 0) {
         CHK_RET(interTempAlg.FastLaunch(param, tempFastLaunchCtxInter));
     }
 
     // 第二步: 框内Mesh（ccu模式下input=output，isInputOutputEqual=1）
-    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunch] intra ccuKernelNum[%llu]", ctx->ccuKernelNum[1]);
+    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunch] intra ccuKernelNum[%llu]", resCtx->ccuKernelNum[1]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtxIntra, param.outputPtr, param.outputPtr, param.hcclBuff));
     tempFastLaunchCtxIntra.threads = threads_;
-    tempFastLaunchCtxIntra.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[1]);
-    if (ctx->ccuKernelNum[1] > 0) {
+    tempFastLaunchCtxIntra.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + resCtx->ccuKernelNum[1]);
+    if (resCtx->ccuKernelNum[1] > 0) {
         CHK_RET(intraTempAlg.FastLaunch(param, tempFastLaunchCtxIntra));
     }
 
@@ -399,6 +400,27 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     return HCCL_SUCCESS;
 }
 #endif
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
+HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::SplitData(
+    const u64 dataCount, const u64 rankSize, TemplateDataParams &tempAlgParams)
+{
+    u32 sliceNum = rankSize;
+    tempAlgParams.allRankSliceSize.clear();
+    tempAlgParams.allRankDispls.clear();
+    tempAlgParams.allRankProcessedDataCount.clear();
+    tempAlgParams.allRankSliceSize.reserve(sliceNum);
+    tempAlgParams.allRankDispls.reserve(sliceNum);
+    tempAlgParams.allRankProcessedDataCount.reserve(sliceNum);
+
+    u64 sliceSize = dataCount * dataTypeSize_;
+    for (u32 i = 0; i < sliceNum; i++) {
+        tempAlgParams.allRankDispls.emplace_back(i * sliceSize);
+        tempAlgParams.allRankSliceSize.emplace_back(sliceSize);
+        tempAlgParams.allRankProcessedDataCount.emplace_back(dataCount);
+    }
+    return HCCL_SUCCESS;
+}
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER,

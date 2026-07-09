@@ -15,9 +15,12 @@ set(src_list
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_broadcast_sequence_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_broadcast_omnipipe_2d_executor.cc
     )
 endif()
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

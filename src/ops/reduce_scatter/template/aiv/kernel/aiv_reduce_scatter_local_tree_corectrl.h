@@ -25,9 +25,7 @@ public:
         lenPerRank_ = len;
         inputStride_ = inputStride;
         rankSizeU32_ = static_cast<uint32_t>(rankSize_);
-        blockIdx_ = static_cast<uint32_t>(GetBlockIdx());
-        blockNum_ = static_cast<uint32_t>(GetBlockNum());
-        valid_ = rankSizeU32_ > 0 && blockNum_ > 0 && blockNum_ < rankSizeU32_;
+        valid_ = rankSizeU32_ > 0 && numBlocks_ > 0 && numBlocks_ < rankSizeU32_;
         if (!valid_) {
             return;
         }
@@ -61,8 +59,6 @@ private:
     uint64_t lenPerRank_ = 0;
     uint64_t inputStride_ = 0;
     uint32_t rankSizeU32_ = 0;
-    uint32_t blockIdx_ = 0;
-    uint32_t blockNum_ = 0;
     uint32_t publishBegin_ = 0;
     uint32_t publishEnd_ = 0;
     uint32_t fetchBegin_ = 0;
@@ -80,8 +76,8 @@ private:
 
     __aicore__ inline void SplitLogicalRange(uint32_t total, uint32_t &begin, uint32_t &end)
     {
-        const uint32_t baseCnt = total / blockNum_;
-        const uint32_t extra = total % blockNum_;
+        const uint32_t baseCnt = total / numBlocks_;
+        const uint32_t extra = total % numBlocks_;
         const uint32_t myCnt = baseCnt + (blockIdx_ < extra ? 1u : 0u);
         begin = baseCnt * blockIdx_ + (blockIdx_ < extra ? blockIdx_ : extra);
         end = begin + myCnt;
@@ -156,7 +152,7 @@ private:
                 break;
             }
 
-            for (uint32_t offset = blockIdx_; offset < powerOf2; offset += blockNum_) {
+            for (uint32_t offset = blockIdx_; offset < powerOf2; offset += numBlocks_) {
                 const uint32_t backIdx = powerOf2 + offset;
                 if (backIdx < curBlocks) {
                     const uint64_t frontOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + LocalStageOffset(offset);
@@ -197,6 +193,33 @@ __aicore__ inline void AivReduceScatterV2LocalTreeCoreCtrl(KERNEL_ARGS_DEF)
     SyncAll<true>();
     op.Process(sliceId);
     op.BarrierAll();
+}
+
+template<typename T>
+__aicore__ inline void AivReduceScatterV2LocalTreeCoreCtrlSuperKernel(SUPERKERNEL_ARGS_DEF)
+{
+    AivReduceScatterLocalTreeCoreCtrl<T> op;
+    op.Init(SUPERKERNEL_CLASS_INIT);
+
+    uint64_t maxCountPerLoop = op.cclBufferSize_ / (2 * op.rankSize_) / UB_ALIGN_SIZE * UB_ALIGN_SIZE / sizeof(T);
+    uint64_t countLeft = op.len_;
+    int32_t loopTag = op.tag_;
+
+    while (countLeft > 0) {
+        uint64_t curCount = (countLeft > maxCountPerLoop) ? maxCountPerLoop : countLeft;
+        uint64_t curSize = curCount * sizeof(T);
+
+        op.len_ = curCount;
+        op.InitCoreInfo(curCount, op.inputSliceStride_);
+        SyncAll<true>();
+        op.Process(loopTag);
+        op.BarrierAll();
+
+        countLeft -= curCount;
+        op.input_ += curSize;
+        op.output_ += curSize;
+        loopTag += curSize / UB_DB_DATA_BATCH_SIZE + 1;
+    }
 }
 
 #endif // AIV_REDUCE_SCATTER_LOCAL_TREE_CORECTRL_H

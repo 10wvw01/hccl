@@ -16,13 +16,17 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/op_common.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/dlhcomm_function.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/exec_timeout_manager.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ccu_log.cc
 )
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/omnipipe_data_slice_calc.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/omnipipe_scatter_data_slice_calc.cc
     )
 endif()
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

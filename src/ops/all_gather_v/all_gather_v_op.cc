@@ -40,7 +40,7 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
     // 参数校验等工作
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     u32 userRank = INVALID_VALUE_RANKID;
     bool allRecvCountsZero = false;
@@ -56,7 +56,7 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
     CHK_RET(CheckCount(sendCount));
     CHK_RET(CheckDataType(dataType, false));
             
-    CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, tag, "HcclAllGatherV"));
+    CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, tag, rankSize, "HcclAllGatherV"));
 
     // 执行AllGatherV
     CHK_RET_AND_PRINT_IDE(AllGatherVOutPlace(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, comm, stream, tag), tag.c_str());
@@ -71,6 +71,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
 {
  	HCCL_INFO("Start to run execute HcclAllGatherVGraphMode");
  	// 根据group获取通信域
+ 	CHK_PTR_NULL(group);
  	HcclComm comm = nullptr;
     HCCL_INFO("[HcclAllGatherVGraphMode] get group name: %s", group);
  	CHK_RET(HcomGetCommHandleByGroup(group, &comm));
@@ -78,7 +79,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
  	// 检查入参指针有效性
- 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream));
+ 	CHK_RET(CheckAllGatherVInputPara(comm, recvCounts, recvDispls, stream, sendBuf, sendCount));
  	// tag有效性,是否过长
  	char commName[COMM_INDENTIFIER_MAX_LENGTH];
  	CHK_RET(HcclGetCommName(comm, commName));
@@ -102,7 +103,10 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	// 拼装ResPackGraphMode
  	ResPackGraphMode resPack;
  	// 设置tag
- 	strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1);
+    if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
+        HCCL_ERROR("failed to fill all_gather_v resPack.tag");
+        return HCCL_E_INTERNAL;
+    }
  	// 设置streams
  	if (streams != nullptr && streamCount > 0) {
  	  	for (size_t i = 0; i < streamCount; i++) {
@@ -113,16 +117,17 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
  	resPack.scratchMemAddr = scratchMemAddr;
  	resPack.scratchMemSize = scratchMemSize;
 
- 	CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, "HcclAllGatherVGraphMode"));  	 
+    CHK_RET(AllGatherVEntryLog(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, stream, opTag, rankSize, "HcclAllGatherVGraphMode", true));
  	// 执行AllGatherV
  	CHK_RET_AND_PRINT_IDE(AllGatherVOutPlaceGraphMode(sendBuf, recvBuf, sendCount, recvCounts, recvDispls, dataType, comm, stream, tag, resPack), opTag);
- 	CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut));
+    CHK_RET(LogHcclExit("HcclAllGatherVGraphMode", opTag.c_str(), startut, true));
 
  	return HCCL_SUCCESS;
 }
  	
 namespace ops_hccl {
-HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls, const aclrtStream stream)
+HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts, const void *recvDispls,
+    const aclrtStream stream, void *sendBuf, uint64_t sendCount)
 {
     // 入参合法性校验
     RPT_INPUT_ERR(comm == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
@@ -137,6 +142,11 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
     RPT_INPUT_ERR(stream == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),\
         std::vector<std::string>({"HcclAllGatherV", "nullptr", "stream", "non-null pointer"}));
     CHK_PTR_NULL(stream);
+    if (sendCount > 0) {
+        RPT_INPUT_ERR(sendBuf == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
+            std::vector<std::string>({"HcclAllGatherV", "nullptr", "sendBuf", "non-null pointer"}));
+        CHK_PTR_NULL(sendBuf);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -223,7 +233,7 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
     const uint64_t *displsPtr = reinterpret_cast<const uint64_t *>(recvDispls);
     std::copy(countsPtr, countsPtr + userRankSize, merged.begin());
     std::copy(displsPtr, displsPtr + userRankSize, merged.begin() + userRankSize);
-    memcpy_s(param.varData, varMemSize, merged.data(), varMemSize);
+    CHK_SAFETY_FUNC_RET(memcpy_s(param.varData, varMemSize, merged.data(), varMemSize));
     param.opType = HcclCMDType::HCCL_CMD_ALLGATHER_V;
     param.enableDetour = false;
     param.deviceType = deviceType;
@@ -234,6 +244,12 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
  	}
 
     CHK_RET(HcclGetOpExpansionMode(comm, param));
+
+    // 9.0.0 ccu模式走老流程
+    if (GetHcommVersion() == CANN_VERSION(9, 0, 0) && param.engine == CommEngine::COMM_ENGINE_CCU) {
+        return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
+    }
+
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(Selector(comm, param, topoInfo, algName));
@@ -246,21 +262,19 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
 }
 
 HcclResult AllGatherVEntryLog(void *sendBuf, void *recvBuf, uint64_t sendCount, const void *recvCounts, const void *recvDispls,
-    HcclDataType dataType, aclrtStream stream, const std::string &tag, const std::string &opName)
+    HcclDataType dataType, aclrtStream stream, const std::string &tag, const u32 totalRanks, const std::string &opName, bool forceLog)
 {
-    if (GetExternalInputHcclEnableEntryLog()) {
+    if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
         ACLCHECK(aclrtGetDevice(&deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
-        char stackLogBuffer[LOG_TMPBUF_SIZE];
-        s32 ret = snprintf_s(stackLogBuffer, LOG_TMPBUF_SIZE, LOG_TMPBUF_SIZE - 1U,
-            "tag[%s], sendBuf[%p], recvBuf[%p], sendCount[%llu], recvCounts[%p], recvDispls[%p], dataType[%s], streamId[%d], deviceLogicId[%d]",
-            tag.c_str(), sendBuf, recvBuf, sendCount, recvCounts, recvDispls, GetDataTypeEnumStr(dataType).c_str(), streamId, deviceLogicId);
+        HCCL_RUN_INFO("Entry-%s: tag[%s], sendBuf[%p], recvBuf[%p], sendCount[%llu], dataType[%s], streamId[%d], deviceLogicId[%d]",
+            opName.c_str(), tag.c_str(), sendBuf, recvBuf, sendCount,
+            GetDataTypeEnumStr(dataType).c_str(), streamId, deviceLogicId);
 
-        CHK_PRT_CONT(ret == -1, HCCL_WARNING("Failed to build log info, tag[%s].", tag.c_str()));
-        std::string logInfo = "Entry-" + opName + ":" + std::string(stackLogBuffer);
-        HCCL_RUN_INFO("%s", logInfo.c_str());
+        PrintEntryArrayLog(opName, tag, "recvCounts", recvCounts, totalRanks);
+        PrintEntryArrayLog(opName, tag, "recvDispls", recvDispls, totalRanks);
     }
     return HCCL_SUCCESS;
 }
@@ -308,7 +322,7 @@ HcclResult AllGatherVOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t se
     const uint64_t *displsPtr = reinterpret_cast<const uint64_t *>(recvDispls);
     std::copy(countsPtr, countsPtr + userRankSize, merged.begin());
     std::copy(displsPtr, displsPtr + userRankSize, merged.begin() + userRankSize);
-    memcpy_s(param.varData, varMemSize, merged.data(), varMemSize);
+    CHK_SAFETY_FUNC_RET(memcpy_s(param.varData, varMemSize, merged.data(), varMemSize));
     param.opType = HcclCMDType::HCCL_CMD_ALLGATHER_V, param.enableDetour = false, param.deviceType = deviceType;
  	if (userRankSize == 1) {
  	  	HCCL_WARNING("[%s] rankSize == 1, enter SingleRankProc", __func__);

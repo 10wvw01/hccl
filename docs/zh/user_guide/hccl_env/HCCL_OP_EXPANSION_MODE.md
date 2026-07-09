@@ -11,6 +11,15 @@
 
     **注意**：
 
+    - "AI_CPU"配置将在后续版本废弃，使用“AICPU_TS”代替。当前版本中，“AICPU_TS”配置的功能与“AI_CPU”完全一致。
+    - 图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
+
+  - **AICPU_TS（默认值）**：代表通信算子在AI CPU展开，Device侧根据硬件型号自动选择相应的调度器。
+
+    该配置项支持Broadcast、Reduce、AllReduce、Scatter、ReduceScatter、ReduceScatterV、AllGather、AllGatherV、AlltoAll、AlltoAllV、AlltoAllVC、Send、Recv、BatchSendRecv算子。
+
+    **注意**：
+
     图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
 
   - **AIV**：代表通信算子在Vector Core展开，执行也在Vector Core。Ascend 950PR不支持此配置。
@@ -22,15 +31,18 @@
 
     - 该配置项下，AllReduce、ReduceScatter、AllGather、AlltoAll算子支持控核能力，建议业务根据实际使用场景中计算算子与通信算子的并发情况进行Vector Core核数的配置。
 
-  - **CCU_MS**：代表通信算子在CCU展开，使用MS（Memory Slice）模式。Ascend 950PR不支持此配置。
+  - **CCU_MS**：代表通信算子在CCU展开，使用CcuBuffer进行内存读写。Ascend 950PR不支持此配置。
 
-    MS模式为与多个远端通信时，使用CCU片上Memory Slice作为中转，用于节省内存读写带宽，Memory Slice的特点是大小较小，但速度较快。
+    此模式下，当CCU与多个远端通信时，使用CcuBuffer作为中转，用于节省内存读写带宽，CcuBuffer的特点是大小较小，但速度较快。
 
     当CCU资源不足时，系统会自动切换为AI_CPU模式。
+    - 该配置项仅支持Broadcast、Reduce、AllReduce、ReduceScatter、AllGather、AllGatherV、ReduceScatterV算子，当前仅支持单机场景。
+      - 针对Broadcast、AllGather、AllGatherV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、bfp16。
+      - 针对Reduce、AllReduce、ReduceScatter、ReduceScatterV算子，数据类型支持int16、int32、float16、float32、bfp16。
 
-  - **CCU_SCHED（默认值）**：代表通信算子在CCU展开，使用调度模式。
+  - **CCU_SCHED**：代表通信算子在CCU展开，使用调度模式。
 
-    调度模式指使用CCU作为调度器，向UB引擎调度UB WQE任务。调度模式下不使用CCU的片上MS，直接在两个rank间进行HBM到HBM的数据传输。
+    调度模式指使用CCU作为调度器，向UB引擎调度UB WQE任务。调度模式下不使用CcuBuffer，直接在两个rank间进行片上内存到片上内存的数据传输。
 
     针对单机通信场景的AllReduce、ReduceScatter、Reduce算子，当数据量超过一定值时，为防止性能下降，系统会自动切换为AI_CPU模式（该阈值并非固定，会根据算子运行模式及网络规模等因素有所调整）。
 

@@ -93,6 +93,13 @@ HcclResult ParseExecTimeout()
         return HCCL_E_PARA;
     }
 
+    if (execTimeOut > static_cast<double>(UINT32_MAX)) {
+        g_algEnvConfig.execTimeOutSet = false;
+        g_algEnvConfig.execTimeout = 0;
+        HCCL_WARNING("[ParseExecTimeout] HCCL_EXEC_TIMEOUT[%s] is too large, use default.",
+            execTimeOutEnv.c_str());
+        return HCCL_E_PARA;
+    }
     g_algEnvConfig.execTimeOutSet = true;
     g_algEnvConfig.execTimeout = execTimeOut;
     return HCCL_SUCCESS;
@@ -150,6 +157,12 @@ bool GetExternalInputMultipleDimensionSplitRatio(double &multipleDimensionSplitR
 
     multipleDimensionSplitRatio = g_algEnvConfig.multipleDimensionSplitRatio;
     return true;
+}
+
+bool GetExternalInputTaskExceptionEnable()
+{
+    std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
+    return g_algEnvConfig.taskExceptionEnable;
 }
 
 /* 入口 */
@@ -999,6 +1012,16 @@ HcclResult ParseDfsConfig()
         }
         if (itemPair[0] == "inconsistent_check") {
             CHK_RET(ParseInconsistentCheckSwitch(itemPair[1]));
+        } else if (itemPair[0] == "task_exception") {
+            if (itemPair[1] == "off") {
+                g_algEnvConfig.taskExceptionEnable = false;
+                HCCL_INFO("[ParseDfsConfig] task_exception disabled");
+            } else if (itemPair[1] == "on") {
+                g_algEnvConfig.taskExceptionEnable = true;
+            } else {
+                HCCL_ERROR("[ParseDfsConfig] invalid task_exception value[%s]", itemPair[1].c_str());
+                return HCCL_E_PARA;
+            }
         }
     }
     return HCCL_SUCCESS;

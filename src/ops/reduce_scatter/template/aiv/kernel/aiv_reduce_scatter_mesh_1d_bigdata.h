@@ -30,7 +30,7 @@ public:
     __aicore__ inline void Producer(uint64_t len, uint64_t inputStride)
     {
         // 每个核负责len数据，一块数据切成cutNum块
-        uint64_t targetRank = GetBlockIdx();
+        uint64_t targetRank = blockIdx_;
 
         uint64_t dataPerCore = len / cutNum;
         uint64_t remainder = len % cutNum;
@@ -53,7 +53,7 @@ public:
                 CpGM2GM((__gm__ T *)cclInOffset, (__gm__ T *)usrInOffset, sendCurCount);
                 PipeBarrier<PIPE_ALL>();
                 // 每个核写flag
-                Record(rank_, GetBlockIdx() * cutNum + coreIndex, curTag);
+                Record(rank_, blockIdx_ * cutNum + coreIndex, curTag);
             }
         }
     }
@@ -61,7 +61,7 @@ public:
     __aicore__ inline void Consumer(uint64_t len)
     {
         // stage2的核分成rankSize份，每一份有cutNum，并发去读其他所有卡的数据
-        uint64_t blockInedx = GetBlockIdx() - coreNumStage1;
+        uint64_t blockInedx = blockIdx_ - coreNumStage1;
         uint32_t coreNumPerRank = coreNumStage2 / rankSize_;
         uint32_t targetRank = blockInedx / coreNumPerRank;
         uint32_t coreIndex = (blockInedx - (targetRank * coreNumPerRank))  % coreNumPerRank;
@@ -124,9 +124,9 @@ public:
         cutNum = coreNumStage2 / rankSize_;
         curTag = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
         cclBufferStride = len * rankSize_ * sizeof(T); // cclIn和cclOut的分界
-        if (GetBlockIdx() < coreNumStage1) {
+        if (blockIdx_ < coreNumStage1) {
             Producer(len, inputStride);
-        } else if (GetBlockIdx() < curStageCoreNum) {
+        } else if (blockIdx_ < curStageCoreNum) {
             Consumer(len);
         }
     }
@@ -149,4 +149,28 @@ __aicore__ inline void AivReduceScatterV2Mesh1DBigData(KERNEL_ARGS_DEF)
     }
     op.Process(sliceId, len, inputSliceStride);
     op.BarrierAll();
+}
+
+template<typename T>
+__aicore__ inline void AivReduceScatterV2Mesh1DBigDataSuperKernel(SUPERKERNEL_ARGS_DEF)
+{
+    AivReduceScatterMesh1DBigData<T> op;
+    op.Init(SUPERKERNEL_CLASS_INIT);
+
+    uint64_t maxCountPerLoop = op.cclBufferSize_ / (2 * op.rankSize_) / UB_ALIGN_SIZE * UB_ALIGN_SIZE / sizeof(T);
+    uint64_t countLeft = op.len_;
+    int32_t loopTag = op.tag_;
+
+    while (countLeft > 0) {
+        uint64_t curCount = (countLeft > maxCountPerLoop) ? maxCountPerLoop : countLeft;
+        uint64_t curSize = curCount * sizeof(T);
+
+        op.Process(loopTag, curCount, op.inputSliceStride_);
+        op.BarrierAll();
+
+        countLeft -= curCount;
+        op.input_ += curSize;
+        op.output_ += curSize;
+        loopTag += curSize / UB_DB_DATA_BATCH_SIZE + 1;
+    }
 }

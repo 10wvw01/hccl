@@ -325,6 +325,9 @@ HcclResult InsV2AllGatherPipelinedExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     u64 intraScratchOffset = 0;
     u64 interScratchOffset = scratchMultipleIntra * scratchMemBlockSize;
     u64 maxCountPerLoop = (std::min(scratchMemBlockSize, static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_ / 10) * 10;
+    CHK_PRT_RET(maxCountPerLoop == 0,
+                HCCL_ERROR("[InsV2AllGatherPipelinedExecutor][OrchestrateLoop] maxCountPerLoop is 0"),
+                HcclResult::HCCL_E_INTERNAL);
 
     u64 alignSize = AICPU_ALIGN_SIZE;
     u64 dataCountPerLoopAixs0 = static_cast<u64>(dataSplitSize[0] * maxCountPerLoop);

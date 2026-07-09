@@ -29,6 +29,10 @@ DEFINE_WEAK_FUNC(int32_t, HcommReadReduceOnThread, ThreadHandle thread, ChannelH
     HcommDataType dataType, HcommReduceOp reduceOp);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyRecord, ChannelHandle channel, uint32_t remoteNotifyIdx);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWait, ChannelHandle channel, uint32_t localNotifyIdx, uint32_t timeout);
+DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyRecordOnThread, ThreadHandle thread, ThreadHandle dstThread, uint32_t dstNotifyIdx);
+DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThread, ThreadHandle thread, uint32_t notifyIdx, uint32_t timeOut);
+DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyRecordOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t remoteNotifyIdx);
+DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t localNotifyIdx, uint32_t timeOut);
 DEFINE_WEAK_FUNC(HcclResult, HcommSymWinGetPeerPointer, HcclCommSymWindow winHandle, size_t offset, uint32_t peerRank, void** ptr);
 DEFINE_WEAK_FUNC(int32_t, HcommThreadSynchronize, ThreadHandle thread);
 DEFINE_WEAK_FUNC(int32_t, HcommSendRequest, uint64_t handle, const char* msgTag, const void* src, size_t sizeByte, uint32_t* msgId);
@@ -38,6 +42,21 @@ DEFINE_WEAK_FUNC(int32_t, HcommChannelFence, ChannelHandle channel);
 DEFINE_WEAK_FUNC(int32_t, HcommFenceOnThread, ThreadHandle thread);
 DEFINE_WEAK_FUNC(int32_t, HcommChannelFenceOnThread, ThreadHandle thread, ChannelHandle channel);
 DEFINE_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
+DEFINE_WEAK_FUNC(HcclResult, HcclSymWinGetPeerPointer, HcclCommSymWindow winHandle,
+    size_t offset, uint32_t peerRank, void** ptr);
+DEFINE_WEAK_FUNC(HcclResult, HcclCommSymWinGet, HcclComm comm, void *ptr, size_t size,
+    HcclCommSymWindow *winHandle, size_t *offset);
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+DEFINE_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, float timeOut);
+DEFINE_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, float timeOut);
+#else
+DEFINE_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, uint32_t timeOut);
+DEFINE_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, uint32_t timeOut);
+#endif
+DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread, uint32_t notifyIdx);
+DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
+    ChannelHandle channel, uint32_t localNotifyIdx);
+DEFINE_WEAK_FUNC(int32_t, HcommChannelNotifyWaitWithDefaultTimeout, ChannelHandle channel, uint32_t localNotifyIdx);
 
 using HcclHcommBatchTransferOnThreadFunc =
     int32_t (*)(ThreadHandle, ChannelHandle, const HcclHcommBatchTransferDesc *, uint32_t);
@@ -73,6 +92,10 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommReadReduceOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyRecord);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWait);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyRecordOnThread);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThread);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyRecordOnThread);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommSymWinGetPeerPointer);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadSynchronize);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommSendRequest);
@@ -82,6 +105,13 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommFenceOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelFenceOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadJoin);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcclSymWinGetPeerPointer);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcclCommSymWinGet);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadResAcquireTimeOut);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommSetNotifyWaitTimeOut);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThreadWithDefaultTimeout);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitWithDefaultTimeout);
     g_HcommBatchTransferOnThread = reinterpret_cast<HcclHcommBatchTransferOnThreadFunc>(
         dlsym(libHcommHandle, "HcommBatchTransferOnThread"));
     if (g_HcommBatchTransferOnThread == nullptr) {
@@ -90,4 +120,64 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     } else {
         g_HcommBatchTransferOnThreadSupported = true;
     }
+}
+
+bool IsHcommDefaultTimeoutSupported()
+{
+    return HcommIsSupportHcommSetNotifyWaitTimeOut() &&
+           HcommIsSupportHcommThreadNotifyWaitOnThreadWithDefaultTimeout();
+}
+
+HcclResult HcclSetNotifyWaitTimeOut(uint32_t timeout)
+{
+    if (!HcommIsSupportHcommSetNotifyWaitTimeOut()) {
+        return HCCL_E_NOT_SUPPORT;
+    }
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+    return static_cast<HcclResult>(HcommSetNotifyWaitTimeOut(static_cast<float>(timeout)));
+#else
+    return static_cast<HcclResult>(HcommSetNotifyWaitTimeOut(timeout));
+#endif
+}
+
+HcclResult HcclThreadResAcquireTimeOut(uint32_t timeout)
+{
+    if (!HcommIsSupportHcommThreadResAcquireTimeOut()) {
+        return HCCL_E_NOT_SUPPORT;
+    }
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+    return static_cast<HcclResult>(HcommThreadResAcquireTimeOut(static_cast<float>(timeout)));
+#else
+    return static_cast<HcclResult>(HcommThreadResAcquireTimeOut(timeout));
+#endif
+}
+
+HcclResult HcclThreadNotifyWaitOnThreadDefault(ThreadHandle thread, uint32_t notifyIdx, uint32_t fallbackTimeout)
+{
+    if (HcommIsSupportHcommSetNotifyWaitTimeOut() &&
+        HcommIsSupportHcommThreadNotifyWaitOnThreadWithDefaultTimeout()) {
+        return static_cast<HcclResult>(HcommThreadNotifyWaitOnThreadWithDefaultTimeout(thread, notifyIdx));
+    }
+    return static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, notifyIdx, fallbackTimeout));
+}
+
+HcclResult HcclChannelNotifyWaitOnThreadDefault(ThreadHandle thread, ChannelHandle channel,
+    uint32_t localNotifyIdx, uint32_t fallbackTimeout)
+{
+    if (HcommIsSupportHcommSetNotifyWaitTimeOut() &&
+        HcommIsSupportHcommChannelNotifyWaitOnThreadWithDefaultTimeout()) {
+        return static_cast<HcclResult>(
+            HcommChannelNotifyWaitOnThreadWithDefaultTimeout(thread, channel, localNotifyIdx));
+    }
+    return static_cast<HcclResult>(
+        HcommChannelNotifyWaitOnThread(thread, channel, localNotifyIdx, fallbackTimeout));
+}
+
+HcclResult HcclChannelNotifyWaitDefault(ChannelHandle channel, uint32_t localNotifyIdx, uint32_t fallbackTimeout)
+{
+    if (HcommIsSupportHcommSetNotifyWaitTimeOut() &&
+        HcommIsSupportHcommChannelNotifyWaitWithDefaultTimeout()) {
+        return static_cast<HcclResult>(HcommChannelNotifyWaitWithDefaultTimeout(channel, localNotifyIdx));
+    }
+    return static_cast<HcclResult>(HcommChannelNotifyWait(channel, localNotifyIdx, fallbackTimeout));
 }
