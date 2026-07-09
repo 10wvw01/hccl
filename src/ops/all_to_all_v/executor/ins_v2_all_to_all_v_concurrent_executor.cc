@@ -24,6 +24,8 @@ constexpr uint32_t CONST_1 = 1;
 constexpr uint32_t CONST_2 = 2;
 constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
+constexpr u32 MESH_BW = 112;
+constexpr u32 CLOS_BW = 110;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllToAllVConcurrentExecutor()
@@ -108,12 +110,16 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::SplitA2ASendRecvInfo(
-    A2ASendRecvInfo &sendRecvInfoFirst, A2ASendRecvInfo &sendRecvInfoLast)
+    const OpParam &param, A2ASendRecvInfo &sendRecvInfoFirst, A2ASendRecvInfo &sendRecvInfoLast)
 {
     HCCL_DEBUG("[SplitA2ASendRecvInfo] rank[%u], userRankSize[%u]", myRank_, rankSize_);
 
     uint32_t factorMesh = rankSize_ - 1;
     uint32_t factorClos = CONST_4;
+    if (param.engine == CommEngine::COMM_ENGINE_CCU) {
+        factorMesh = MESH_BW;
+        factorClos = CLOS_BW;
+    }
     uint32_t factor = factorMesh + factorClos;
     // 初始化sendRecvInfoFirst
     sendRecvInfoFirst.sendCounts.resize(rankSize_, 0);
