@@ -51,6 +51,16 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
 HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBuf, const void *recvCounts,
     u32 &rankSize, u32 &userRank, bool &allRecvCountsZero);
 
+// 计算 AllGatherV 输出缓冲需要覆盖的字节跨度
+// recvCounts 表示各 rank 接收元素个数数组
+// recvDispls 表示各 rank 接收数据在输出缓冲中的元素偏移数组
+// rankSize 表示通信域内 rank 数量
+// perDataSize 表示单个数据元素的字节数
+// outputSize 表示计算得到的输出字节跨度
+// 返回值表示计算是否成功，溢出时返回参数错误
+HcclResult CalcAllGatherVOutputSize(const void *recvCounts, const void *recvDispls, u32 rankSize, u32 perDataSize,
+    u64 &outputSize);
+
 HcclResult AllGatherVExecOp(HcclComm comm, OpParam &param);
 
 HcclResult CheckCountAGV(const u64 count);

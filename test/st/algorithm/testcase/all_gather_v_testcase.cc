@@ -10,6 +10,7 @@
 #include "v_testcase_common.h"
 #include "gtest/gtest.h"
 
+#include "all_gather_v/all_gather_v_op.h"
 #include "alg_env_config.h"
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
@@ -35,8 +36,16 @@ static HcclResult AllGatherVDispatch(u32 rankId, u64 totalCount, VDataDesTag vDa
 {
     void *sendBuf = nullptr;
     void *recvBuf = nullptr;
-    u64 sendBufSize = vDataDes.counts[rankId] * sizeof(vDataDes.dataType);
-    u64 recvBufSize = totalCount * sizeof(vDataDes.dataType);
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[vDataDes.dataType];
+    u64 sendBufSize = vDataDes.counts[rankId] * dataTypeSize;
+    u64 recvBufSize = totalCount * dataTypeSize;
+    u64 outputSize = 0;
+    HcclResult ret = CalcAllGatherVOutputSize(vDataDes.counts.data(), vDataDes.displs.data(),
+        static_cast<u32>(vDataDes.counts.size()), dataTypeSize, outputSize);
+    if (ret != HCCL_SUCCESS) { return ret; }
+    if (outputSize > recvBufSize) {
+        recvBufSize = outputSize;
+    }
     aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
     aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
     return HcclAllGatherV(sendBuf, vDataDes.counts[rankId], recvBuf, vDataDes.counts.data(),
@@ -77,6 +86,27 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_6rank_fp16_equal
     vDataDes.counts = {200, 200, 200, 200, 200, 200};
     vDataDes.displs = {0, 200, 400, 600, 800, 1000};
     vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
+
+    RunAllGatherVMultilevel(topoMeta, vDataDes);
+}
+
+TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_output_size_displs_gap_test)
+{
+    std::vector<u64> recvCounts = {1, 1};
+    std::vector<u64> recvDispls = {0, 4};
+    u64 outputSize = 0;
+    EXPECT_EQ(HCCL_SUCCESS, CalcAllGatherVOutputSize(recvCounts.data(), recvDispls.data(),
+        static_cast<u32>(recvCounts.size()), sizeof(int32_t), outputSize));
+    EXPECT_EQ(20, outputSize);
+}
+
+TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2rank_int32_displs_gap_test)
+{
+    TopoMeta topoMeta{{{0, 1}}};
+    VDataDesTag vDataDes;
+    vDataDes.counts = {1, 1};
+    vDataDes.displs = {0, 4};
+    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
 
     RunAllGatherVMultilevel(topoMeta, vDataDes);
 }

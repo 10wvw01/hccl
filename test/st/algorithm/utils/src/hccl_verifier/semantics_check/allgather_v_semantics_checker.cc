@@ -18,12 +18,12 @@ HcclResult TaskCheckAllGatherVSemantics(std::map<RankId, RankMemorySemantics> &a
 {
     u32 rankSize = allRankMemSemantics.size();
 
-    u64 outputSize = 0;
+    u64 totalDataSize = 0;
     // AllGatherV 输入不等长
     for (u32 i = 0; i < rankSize; i++) {
         u64 curCounts = vDataDes.counts[i];
         u64 curLength = curCounts * SIZE_TABLE[vDataDes.dataType];
-        outputSize += curLength;
+        totalDataSize += curLength;
     }
 
     for (RankId rankId = 0; rankId < rankSize; rankId++) {
@@ -33,20 +33,25 @@ HcclResult TaskCheckAllGatherVSemantics(std::map<RankId, RankMemorySemantics> &a
             return HcclResult::HCCL_E_PARA;
         }
 
-        u64    totalSize   = 0;
-        RankId curRankId   = 0;
-        u64    curDataSize = 0;
+        u64    checkedDataSize = 0;
+        RankId curRankId      = 0;
+        u64    curDataSize    = 0;
         for (auto &ele : allRankMemSemantics[rankId][BufferType::OUTPUT]) {
-            u64 inputSize = vDataDes.counts[curRankId] * SIZE_TABLE[vDataDes.dataType];
-            while (!inputSize) {
+            while (curRankId < rankSize && vDataDes.counts[curRankId] == 0) {
                 curRankId++;
-                inputSize = vDataDes.counts[curRankId] * SIZE_TABLE[vDataDes.dataType];
             }
+            if (curRankId >= rankSize) {
+                HCCL_ERROR("[rankId:%u]Unexpected extra buffer semantic: cur buffer semantic is %s",
+                    rankId, ele.Describe().c_str());
+                return HcclResult::HCCL_E_PARA;
+            }
+            u64 inputSize = vDataDes.counts[curRankId] * SIZE_TABLE[vDataDes.dataType];
+            u64 expectedStartAddr = vDataDes.displs[curRankId] * SIZE_TABLE[vDataDes.dataType] + curDataSize;
 
-            if (ele.startAddr != totalSize) {
+            if (ele.startAddr != expectedStartAddr) {
                 HCCL_ERROR("[rankId:%u]Missing buffer semantic: "
                 "expected startAddr is %llu, while cur buffer semantic startAddr is %llu, cur buffer semantic is %s",
-                    rankId, totalSize, ele.startAddr, ele.Describe().c_str());
+                    rankId, expectedStartAddr, ele.startAddr, ele.Describe().c_str());
                 return HcclResult::HCCL_E_PARA;
             }
 
@@ -85,12 +90,12 @@ HcclResult TaskCheckAllGatherVSemantics(std::map<RankId, RankMemorySemantics> &a
                 return HcclResult::HCCL_E_PARA;
             }
 
-            totalSize += ele.size;
+            checkedDataSize += ele.size;
         }
-        if (totalSize != outputSize) {
+        if (checkedDataSize != totalDataSize) {
             HCCL_ERROR("[rankId:%u]Missing buffer semantics in tail: already checked total size is %llu, "
-                "while outputSize is %llu, rankSize is %u",
-                rankId, totalSize, outputSize, rankSize);
+                "while totalDataSize is %llu, rankSize is %u",
+                rankId, checkedDataSize, totalDataSize, rankSize);
             return HcclResult::HCCL_E_PARA;
         }
     }

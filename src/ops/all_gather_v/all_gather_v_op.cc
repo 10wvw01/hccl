@@ -12,6 +12,7 @@
 #include "op_common_ops.h"
 #include <algorithm>
 #include <future>
+#include <limits>
 #include <map>
 #include <string>
 
@@ -169,6 +170,28 @@ HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBu
     CHK_RET(HcclGetRankId(comm, &userRank));
     return HCCL_SUCCESS;
 }
+
+HcclResult CalcAllGatherVOutputSize(const void *recvCounts, const void *recvDispls, u32 rankSize, u32 perDataSize,
+    u64 &outputSize)
+{
+    CHK_PTR_NULL(recvCounts);
+    CHK_PTR_NULL(recvDispls);
+    outputSize = 0;
+    const u64 maxU64 = std::numeric_limits<u64>::max();
+    const u64 *u64RecvCount = reinterpret_cast<const u64 *>(recvCounts);
+    const u64 *u64RecvDispls = reinterpret_cast<const u64 *>(recvDispls);
+    for (u32 i = 0; i < rankSize; i++) {
+        CHK_PRT_RET(u64RecvDispls[i] > maxU64 - u64RecvCount[i],
+            HCCL_ERROR("[CalcAllGatherVOutputSize] recvDispls[%llu] plus recvCounts[%llu] overflow, rankId[%u]",
+                u64RecvDispls[i], u64RecvCount[i], i), HCCL_E_PARA);
+        u64 recvEnd = u64RecvDispls[i] + u64RecvCount[i];
+        CHK_PRT_RET(perDataSize != 0 && recvEnd > maxU64 / perDataSize,
+            HCCL_ERROR("[CalcAllGatherVOutputSize] output size overflow, recvEnd[%llu], perDataSize[%u], rankId[%u]",
+                recvEnd, perDataSize, i), HCCL_E_PARA);
+        outputSize = std::max(outputSize, recvEnd * perDataSize);
+    }
+    return HCCL_SUCCESS;
+}
  
 HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,const void *recvCounts,const void *recvDispls,
     HcclDataType dataType, HcclComm comm, aclrtStream stream, const std::string &tag)
@@ -179,10 +202,7 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
     u32 perDataSize = DATATYPE_SIZE_TABLE[dataType];
     u64 inputSize = sendCount * perDataSize;    // all gather v 每个rank上一份数据
     u64 outputSize = 0;  
-    const u64 *u64RecvCount = reinterpret_cast<const u64 *>(recvCounts);
-    for (u64 i = 0; i < userRankSize; i++) {
-        outputSize += u64RecvCount[i] * perDataSize;
-    }  // 结果为recvCount中的数据之和
+    CHK_RET(CalcAllGatherVOutputSize(recvCounts, recvDispls, userRankSize, perDataSize, outputSize));
 
     // 申请OpParam参数结构体内存
     u64 varMemSize = (userRankSize + userRankSize) * sizeof(u64);
@@ -287,9 +307,7 @@ HcclResult AllGatherVOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t se
  	u32 perDataSize = DATATYPE_SIZE_TABLE[dataType];
  	u64 inputSize = sendCount * perDataSize;    // all gather v 每个rank上一份数据
  	u64 outputSize = 0;  
-    const u64 *u64RecvCount = reinterpret_cast<const u64 *>(recvCounts);
-    const u64 *u64RecvDispls = reinterpret_cast<const u64 *>(recvDispls);
-    for (u64 i = 0; i < userRankSize; i++) {outputSize = (outputSize > (u64RecvDispls[i] + u64RecvCount[i]) * perDataSize) ? outputSize : (u64RecvDispls[i] + u64RecvCount[i]) * perDataSize;}// 结果为最大的displs加recvcount 	 
+    CHK_RET(CalcAllGatherVOutputSize(recvCounts, recvDispls, userRankSize, perDataSize, outputSize));
  	u64 varMemSize = (userRankSize + userRankSize) * sizeof(u64);
  	void* paramMem = malloc(sizeof(OpParam) + varMemSize);
  	if (!paramMem) {
