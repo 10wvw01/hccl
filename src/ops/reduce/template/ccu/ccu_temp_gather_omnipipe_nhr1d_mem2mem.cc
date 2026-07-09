@@ -162,13 +162,13 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
 
     if (localCopyFlag == 0) {
         uint64_t sliceSize;
-        uint64_t inputOmniPipeSliceStride;
-        uint64_t outputOmniPipeSliceStride;
+        // uint64_t inputOmniPipeSliceStride;
+        // uint64_t outputOmniPipeSliceStride;
         uint64_t repeatNum = stepSliceInfo.stepSliceSize[0].size();
         for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
             sliceSize = stepSliceInfo.stepSliceSize[0][rpt];//peerId为0,默认发送大小都一致
-            inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_][rpt];
-            outputOmniPipeSliceStride = stepSliceInfo.outputOmniPipeSliceStride[mySubCommRank_][rpt];
+            // inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[mySubCommRank_][rpt];
+            // outputOmniPipeSliceStride = stepSliceInfo.outputOmniPipeSliceStride[mySubCommRank_][rpt];
             // bool ifNewRoot = (subCommRootId_ == mySubCommRank_);
             std::vector<uint64_t> inputOmniSliceStrideVec = {};
             std::vector<uint64_t> outputOmniSliceStrideVec = {};
@@ -181,8 +181,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                     inputOmniSliceStrideVec.push_back(inputOmniSliceStrideTmp);
                     outputOmniSliceStrideVec.push_back(outputOmniSliceStrideTmp);
                     sliceSizeOmniSliceStrideVec.push_back(sliceSizeOmniSliceStrideTmp);
-                    HCCL_INFO("[zjq checkSliceStride] myrank:%d,mySubCommRank_:%d, ridx:%d,rpt:%d,inputOmniSliceStrideTmp:%d", myRank_, mySubCommRank_,
-                                ridx,rpt, inputOmniSliceStrideTmp);
+                    HCCL_INFO("[zjq checkSliceStride] myrank:%d,mySubCommRank_:%d, ridx:%d,rpt:%d,inputOmniSliceStrideTmp:%d, outputOmniSliceStrideTmp:%d, sliceSizeOmniSliceStrideTmp:%d, sliceSize:%d", myRank_, mySubCommRank_, ridx,rpt, inputOmniSliceStrideTmp, outputOmniSliceStrideTmp, sliceSizeOmniSliceStrideTmp, sliceSize);
                 }  
             }else {
                 sliceSize = 0;
@@ -200,8 +199,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                 token, 
                 localCopyFlag, 
                 sliceSize, 
-                inputOmniPipeSliceStride, 
-                outputOmniPipeSliceStride, 
+                // inputOmniPipeSliceStride, 
+                // outputOmniPipeSliceStride, 
                 isStepOne_, 
                 isLastStep_
             };

@@ -59,7 +59,7 @@ void CcuTempGatherOmniPipeMesh1DMem2Mem::UnsetRoot(u32 rank)
 {
     HCCL_INFO("[CcuTempGatherOmniPipeMesh1DMem2Mem][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
     if (!ifRealRoot_) {
-        subCommRootId_ = 1000;
+        subCommRootId_ = UINT32_MAX;
     }
 }
 
@@ -225,57 +225,6 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
             }
         }
     } 
-    // if (localCopyFlag == 0) {
-    //     // 当前卡就是root卡，receive其他所有卡
-    //     // 当前卡不是root卡，直接结束
-    //     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start5:%d",stepSliceInfo.inputOmniPipeSliceStride.size());
-    //     uint64_t sliceSize;
-    //     uint64_t inputOmniPipeSliceStride;
-    //     uint64_t outputOmniPipeSliceStride;
-    //     // 遍历peer对端的卡
-    //     auto inputOmniPipeSliceStrides = stepSliceInfo.inputOmniPipeSliceStride;
-    //     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerIdSize=%u", inputOmniPipeSliceStrides.size()); // 这里子通信域里的第几个卡
-    //     // inputOmniPipeSliceStrides[peerId][rpt] 第peerId个卡要发到root的第rpt个数据片
-    //     for (uint32_t peerId = 0; peerId < inputOmniPipeSliceStrides.size(); ++peerId) { // size其实是子通信域卡数
-    //         // 判断是不是本端自己的卡
-    //         HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] peerId=%u size=%d", peerId, inputOmniPipeSliceStrides[peerId].size());
-    //         for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[peerId].size(); ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
-    //             sliceSize = stepSliceInfo.stepSliceSize[peerId][rpt];
-
-    //             inputOmniPipeSliceStride = stepSliceInfo.inputOmniPipeSliceStride[peerId][rpt]; // 远端的输入offset
-    //             outputOmniPipeSliceStride = stepSliceInfo.outputOmniPipeSliceStride[peerId][rpt]; // 远端的输出offset
-
-    //             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] sliceSize=%u", sliceSize);
-    //             // 自己是逻辑root卡 && 自己不和自己通信
-    //             bool ifNewRoot = (subCommRootId_ == mySubCommRank_ && peerId != subCommRootId_); // 判断是不是root，需不需要做搬运  
-    //             std::vector<uint64_t> taskArgs = {
-    //                 inputAddr, 
-    //                 outputAddr,
-    //                 token, 
-    //                 localCopyFlag, 
-    //                 sliceSize, 
-    //                 inputOmniPipeSliceStride, 
-    //                 outputOmniPipeSliceStride, 
-    //                 isStepOne_, 
-    //                 isLastStep_, 
-    //                 ifNewRoot,
-    //                 peerId
-    //             };
-    //             // if (ifNewRoot && sliceSize!=0) {
-    //             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
-    //                         " sliceSize=%llu localCopyFlag=%llu inputOmniPipeSliceStride=%llu outputOmniPipeSliceStride=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d] peerId[%d]",
-    //                         rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, inputOmniPipeSliceStride,outputOmniPipeSliceStride, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_, peerId);
-            
-    //             // }
-    //             uint64_t argSize = taskArgs.size();
-    //             CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
-    //             if (launchRet != CCU_SUCCESS) {
-    //                 HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
-    //                 return ConvertCcuToHccl(launchRet);
-    //             }
-    //         }
-    //     }
-    // } 
     else if (localCopyFlag == 1) {
         HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
         DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
