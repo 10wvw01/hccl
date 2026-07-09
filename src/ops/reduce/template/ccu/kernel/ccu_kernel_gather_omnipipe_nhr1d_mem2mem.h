@@ -70,8 +70,8 @@ struct GatherOmniPipeNHR1DMem2MemContext {
     std::vector<ccu::Variable> token;
     ccu::Variable localCopyFlag;
     ccu::Variable sliceSize;
-    ccu::Variable inputOmniPipeSliceStride;
-    ccu::Variable outputOmniPipeSliceStride;
+    // ccu::Variable inputOmniPipeSliceStride;
+    // ccu::Variable outputOmniPipeSliceStride;
     
     ccu::Variable isStepOne;
     ccu::Variable isLastStep;
