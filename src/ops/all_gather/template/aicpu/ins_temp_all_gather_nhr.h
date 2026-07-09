@@ -32,12 +32,20 @@ public:
 
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
                          TemplateResource &templateResource) override;
+    HcclResult PrepareStepRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
+                              TemplateResource &templateResource);
+    HcclResult RunNHRStep(const std::vector<ThreadHandle> &threads,
+                          const std::map<u32, std::vector<ChannelInfo>> &channels,
+                          u32 channelIdx, u32 step, AicpuNHRStepInfo &stepInfo);
+    HcclResult FinalizeStepRun(const std::vector<ThreadHandle> &threads, u32 channelIdx,
+                               bool copyToOutput);
     HcclResult CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
                        AlgResourceRequest &resourceRequest) override;
     HcclResult GetRes(AlgResourceRequest &resourceRequest) const override;
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     u64 GetThreadNum() const override;
+    u32 GetChannelNum() const;
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub) override;
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override;
 
