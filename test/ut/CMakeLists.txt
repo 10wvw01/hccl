@@ -12,4 +12,10 @@ set(UT_COMMON_INCLUDE_LIST
     ${CANN_3RD_LIB_PATH}/gtest/include/
 )
 
-add_subdirectory(common/prepare_ut_env)
+option(REFACTOR_UT_ONLY "Only build refactor UT, skip other UT" OFF)
+
+if(NOT REFACTOR_UT_ONLY)
+    add_subdirectory(common/prepare_ut_env)
+endif()
+
+add_subdirectory(refactor)

@@ -1,11 +1,5 @@
 #include "ops_executor.h"
 
-constexpr u64 UB_MAX_DATA_SIZE = 256 * 1024 * 1024; // 256MB, UB单次最大传输量
-HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
-                               const std::vector<u32> &notifyIdxMainToSub);
-
-HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
-                                const std::vector<u32> &notifyIdxSubToMain);
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
     : algo_(algo),
