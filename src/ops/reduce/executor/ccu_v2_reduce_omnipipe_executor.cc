@@ -146,6 +146,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     AlgResourceRequest& resourceRequest)
 {
     // 初始化一些基本成员变量
+    HCCL_DEBUG("start CalcRes");
     CHK_RET(InitCommInfo(param, topoInfo, algHierarchyInfo));
 
     // 初始化通信域subCommRanks
@@ -162,28 +163,28 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     resourceRequest.slaveThreadNum = 0; //ccu内部没有从流和notify
     resourceRequest.notifyNumOnMainThread = 0;
 
-    AlgResourceRequest resRsReqLevelX;
-    CHK_RET(rsAlgTempLevelX.CalcRes(comm, param, topoInfo, resRsReqLevelX));
-    AlgResourceRequest resRsReqLevelY;
-    CHK_RET(rsAlgTempLevelY.CalcRes(comm, param, topoInfo, resRsReqLevelY));
-    AlgResourceRequest resGReqLevelX;
-    CHK_RET(gAlgTempLevelX.CalcRes(comm, param, topoInfo, resGReqLevelX));
-    AlgResourceRequest resGReqLevelY;
-    gAlgTempLevelY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
-    CHK_RET(gAlgTempLevelY.CalcRes(comm, param, topoInfo, resGReqLevelY));
+    // AlgResourceRequest resRsReqLevelX;
+    // CHK_RET(rsAlgTempLevelX.CalcRes(comm, param, topoInfo, resRsReqLevelX));
+    // AlgResourceRequest resRsReqLevelY;
+    // CHK_RET(rsAlgTempLevelY.CalcRes(comm, param, topoInfo, resRsReqLevelY));
+    // AlgResourceRequest resGReqLevelX;
+    // CHK_RET(gAlgTempLevelX.CalcRes(comm, param, topoInfo, resGReqLevelX));
+    // AlgResourceRequest resGReqLevelY;
+    // gAlgTempLevelY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
+    // CHK_RET(gAlgTempLevelY.CalcRes(comm, param, topoInfo, resGReqLevelY));
     
 
-    CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelX, resourceRequest, 0));
-    CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelY, resourceRequest, 1));
-    CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelX, resourceRequest, 2));
-    CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelY, resourceRequest, 3));
+    // CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelX, resourceRequest, 0));
+    // CHK_RET(CalcResLevel(comm, param, topoInfo, resRsReqLevelY, resourceRequest, 1));
+    // CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelX, resourceRequest, 2));
+    // CHK_RET(CalcResLevel(comm, param, topoInfo, resGReqLevelY, resourceRequest, 3));
 
-    resourceRequest.slaveThreadNum += 1; // 需要一个主流和一个从流来并行2d   
-    resourceRequest.notifyNumOnMainThread += 1; 
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
-    // resourceRequest.notifyNumPerThread.emplace_back(1);
-    HCCL_DEBUG("[%s] slaveThreadNum:%d, notifyNumOnMainThread:%d", __func__, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
-
+    // resourceRequest.slaveThreadNum += 1; // 需要一个主流和一个从流来并行2d   
+    // resourceRequest.notifyNumOnMainThread += 1; 
+    // resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+    // // resourceRequest.notifyNumPerThread.emplace_back(1);
+    // HCCL_DEBUG("[%s] slaveThreadNum:%d, notifyNumOnMainThread:%d", __func__, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
+    HCCL_DEBUG("end CalcRes");
     return HCCL_SUCCESS;
 }
  
