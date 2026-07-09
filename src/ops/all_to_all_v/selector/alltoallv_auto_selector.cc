@@ -37,7 +37,11 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             HCCL_WARNING("[Algo][AlltoAllVAutoSelector] rankSize > 64 is not supported yet for ccu_schedule mode.");
             return SelectorStatus::NOT_MATCH;
         }
-        selectAlgName = "CcuAlltoAllVMesh1D2Die";
+        if (topoInfo->userRankSize <= CONST_4) {
+            selectAlgName = "CcuAlltoAllVMesh1D";
+        } else {
+            selectAlgName = "CcuAlltoAllVMesh1D2Die";
+        }
     } else {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
@@ -65,9 +69,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= CONST_4)) { // 同一组4P，走并发算法
                     selectAlgName = "CcuAllToAllVMesh1DConcurrent";
                 } else {
-                    HCCL_DEBUG("[AlltoAllVAutoSelector] algo is not supported yet for ccu_schedule mode, "
-                        "reset to default.");
-                    return SelectorStatus::NOT_MATCH;
+                    selectAlgName = "CcuAllToAllVMesh1DMultiJetty";
                 }
             }
         } else {
@@ -134,7 +136,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllVAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
         return SelectorStatus::NOT_MATCH;
     }
-        selectAlgName = "AivAlltoAllVMesh1D";
+    selectAlgName = "AivAlltoAllVMesh1D";
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
 }

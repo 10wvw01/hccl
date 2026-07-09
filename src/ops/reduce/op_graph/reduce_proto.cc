@@ -32,7 +32,9 @@ static ge::graphStatus HcomReduceInferShapeV2(gert::InferShapeContext *context)
 
     for (uint32_t index = 0; index < inputSize; index++) {
         const auto inputShape = context->GetInputShape(index);
+        OP_CHECK(inputShape == nullptr, CUBE_INNER_ERR_REPORT(opName, "input shape is null"), return GRAPH_FAILED);
         auto outputShape = context->GetOutputShape(index);
+        OP_CHECK(outputShape == nullptr, CUBE_INNER_ERR_REPORT(opName, "output shape is null"), return GRAPH_FAILED);
         *outputShape = *inputShape;
     }
 

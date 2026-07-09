@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -s -shared -Wl,-soname,libes_hccl.so -o libes_hccl.so CMakeFiles/es_hccl_obj.dir/es_hccl_build/generated_code/es_hccl_all_in_one.cpp.o   -L/home/crx/toolkit/cann-9.1.0/lib64  /home/crx/toolkit/cann-9.1.0/lib64/libeager_style_graph_builder_base.so 

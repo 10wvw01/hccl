@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/CMakeFiles/cann-cmake-populate"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/CMakeFiles/cann-cmake-populate.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/CMakeFiles/cann-cmake-populate-complete.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-build.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-configure.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-download.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-install.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-mkdir.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-patch.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-test.rule"
+		},
+		{
+			"file" : "/home/crx/code/hccl_three_sequence_rs/hccl_0701_br_sequence/hccl_2039/build/_deps/cann-cmake-subbuild/cann-cmake-populate-prefix/src/cann-cmake-populate-stamp/cann-cmake-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"cann-cmake-populate"
+		],
+		"name" : "cann-cmake-populate"
+	}
+}

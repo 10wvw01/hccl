@@ -1,0 +1,2 @@
+/usr/bin/ar qc libes_hccl.a CMakeFiles/es_hccl_obj.dir/es_hccl_build/generated_code/es_hccl_all_in_one.cpp.o
+/usr/bin/ranlib libes_hccl.a

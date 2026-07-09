@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>Scatter Mesh1D Z 轴绕路 数据流（CLOS 双链路）</title>
+<style>
+  body { margin: 0; background: #f1f5f9; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #1e293b; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #475569; font-size: 14px; margin-bottom: 18px; }
+  svg { width: 100%; height: auto; background: #ffffff; border-radius: 10px; box-shadow: 0 1px 4px rgba(15,23,42,.08); }
+  .legend { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; color: #334155; }
+  .legend .item { display: flex; align-items: center; gap: 8px; }
+  .sw { width: 16px; height: 12px; border-radius: 3px; display: inline-block; }
+  .notes { margin-top: 18px; font-size: 13px; color: #475569; line-height: 1.7; background: #ffffff; border-left: 3px solid #ea580c; padding: 12px 16px; border-radius: 6px; }
+  .notes b { color: #1e293b; }
+  code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Scatter Mesh1D Z 轴绕路 — 数据流图（CLOS 双链路）</h1>
+  <div class="sub">RunMesh full split：mesh 0.5 + clos 0.5（clos 内 port2:port6 = 2:6）→ 三链路并行：mesh 50% / port2 12.5% / port6 37.5%，对端原位拼接。</div>
+
+  <svg viewBox="0 0 1140 660" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ah0" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#2563eb"/></marker>
+      <marker id="ah2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#d97706"/></marker>
+      <marker id="ah6" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#ea580c"/></marker>
+      <marker id="ahg" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#64748b"/></marker>
+    </defs>
+
+    <text x="570" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">RunMesh 通道通用化（full split · CLOS 双链路）</text>
+
+    <!-- Topology hint: 3 parallel links -->
+    <rect x="300" y="50" width="540" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="570" y="70" text-anchor="middle" font-size="12" fill="#64748b">Root ↔ Peer 三条并行链路</text>
+    <line x1="330" y1="88" x2="400" y2="88" stroke="#2563eb" stroke-width="2.5"/>
+    <text x="408" y="92" font-size="11" fill="#2563eb">level0 mesh</text>
+    <line x1="520" y1="88" x2="590" y2="88" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6 3"/>
+    <text x="598" y="92" font-size="11" fill="#d97706">CLOS port2</text>
+    <line x1="710" y1="88" x2="780" y2="88" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="6 3"/>
+    <text x="788" y="92" font-size="11" fill="#ea580c">CLOS port6</text>
+
+    <!-- Root / Peer labels -->
+    <text x="210" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Root rank（本端）</text>
+    <text x="930" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Peer rank（对端）</text>
+
+    <!-- Root buffer -->
+    <rect x="80" y="145" width="260" height="380" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="210" y="168" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">INPUT / CCL buffer</text>
+    <text x="210" y="185" text-anchor="middle" font-size="11" fill="#64748b">取 peer P 的分片</text>
+    <text x="210" y="208" text-anchor="middle" font-size="11" fill="#475569">↓ CalcDataSplitByPortGroupZAxisDetour</text>
+    <text x="210" y="222" text-anchor="middle" font-size="10" fill="#64748b">mesh 0.5 / clos 0.5；clos 内 port2:port6=2:6</text>
+
+    <!-- Root segments: total h=270, y=232..502 ; mesh 135 / port2 34 / port6 101 -->
+    <rect x="100" y="232" width="220" height="135" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="210" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">level0 mesh 段</text>
+    <text x="210" y="308" text-anchor="middle" font-size="12" fill="#1e40af">[0, 0.5T)</text>
+    <text x="210" y="328" text-anchor="middle" font-size="11" fill="#1e40af">50%</text>
+
+    <rect x="100" y="367" width="220" height="34" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+    <text x="210" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">CLOS port2 段 [0.5T, 0.625T) · 12.5%</text>
+
+    <rect x="100" y="401" width="220" height="101" rx="6" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="210" y="440" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">CLOS port6 段</text>
+    <text x="210" y="460" text-anchor="middle" font-size="12" fill="#9a3412">[0.625T, T)</text>
+    <text x="210" y="480" text-anchor="middle" font-size="11" fill="#9a3412">37.5%</text>
+
+    <!-- Peer buffer -->
+    <rect x="800" y="145" width="260" height="380" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="930" y="168" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">远端 CCL / OUTPUT buffer</text>
+    <text x="930" y="185" text-anchor="middle" font-size="11" fill="#64748b">peer P 的槽位</text>
+    <text x="930" y="208" text-anchor="middle" font-size="11" fill="#475569">↓ 原位连续拼接（无需 PostCopy 重组）</text>
+    <text x="930" y="222" text-anchor="middle" font-size="10" fill="#64748b">三段写不同 offset → 拼成 [0, T)</text>
+
+    <rect x="820" y="232" width="220" height="135" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+    <text x="930" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">[0, 0.5T)</text>
+    <text x="930" y="312" text-anchor="middle" font-size="11" fill="#1e40af">← level0 写入</text>
+
+    <rect x="820" y="367" width="220" height="34" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+    <text x="930" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">[0.5T, 0.625T) ← port2 写入</text>
+
+    <rect x="820" y="401" width="220" height="101" rx="6" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="930" y="440" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">[0.625T, T)</text>
+    <text x="930" y="464" text-anchor="middle" font-size="11" fill="#9a3412">← port6 写入</text>
+
+    <text x="930" y="520" text-anchor="middle" font-size="11" fill="#334155">= peer P 完整分片 [0, T)</text>
+
+    <!-- Channel arrows (mid-y of each segment) -->
+    <!-- mesh mid y = 299.5 -->
+    <line x1="320" y1="300" x2="816" y2="300" stroke="#2563eb" stroke-width="2.5" marker-end="url(#ah0)"/>
+    <text x="568" y="291" text-anchor="middle" font-size="12" font-weight="600" fill="#2563eb">SendWrite · level0 mesh · 50%</text>
+
+    <!-- port2 mid y = 384 -->
+    <line x1="320" y1="384" x2="816" y2="384" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6 3" marker-end="url(#ah2)"/>
+    <text x="568" y="375" text-anchor="middle" font-size="11" font-weight="600" fill="#d97706">SendWrite · level1 CLOS · port2 · 12.5%（2/8）</text>
+
+    <!-- port6 mid y = 451.5 -->
+    <line x1="320" y1="452" x2="816" y2="452" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="6 3" marker-end="url(#ah6)"/>
+    <text x="568" y="443" text-anchor="middle" font-size="12" font-weight="600" fill="#ea580c">SendWrite · level1 CLOS · port6 · 37.5%（6/8）</text>
+
+    <!-- PreCopy (left, root) -->
+    <line x1="20" y1="335" x2="76" y2="335" stroke="#64748b" stroke-width="2" marker-end="url(#ahg)"/>
+    <text x="20" y="322" font-size="11" fill="#475569">PreCopy</text>
+    <text x="20" y="355" font-size="10" fill="#64748b">input→CCL (root)</text>
+
+    <!-- PostCopy (right, peer/non-root) -->
+    <line x1="1064" y1="335" x2="1120" y2="335" stroke="#64748b" stroke-width="2" marker-end="url(#ahg)"/>
+    <text x="1070" y="322" font-size="11" fill="#475569">PostCopy</text>
+    <text x="1066" y="355" font-size="10" fill="#64748b">CCL→output (non-root)</text>
+
+    <!-- thread note -->
+    <text x="570" y="555" text-anchor="middle" font-size="12" fill="#475569">对每个 peer 重复；channelsPerRank_ = 1(level0) + 2(CLOS) = 3，每 (peer × channel) 一线程</text>
+
+    <!-- MESH_1D degradation note -->
+    <rect x="80" y="575" width="980" height="60" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+    <text x="100" y="597" font-size="12" fill="#9a3412" font-weight="600">退化（MESH_1D）</text>
+    <text x="100" y="617" font-size="12" fill="#9a3412">channelsPerRank_ == 1 → 无 CLOS 链路、ratio=1.0，全数据走 level0 单通道，行为等价 plain ScatterMesh1D（向后兼容）。</text>
+  </svg>
+
+  <div class="legend">
+    <div class="item"><span class="sw" style="background:#dbeafe;border:1px solid #2563eb"></span>level0 mesh（框内 mesh，50%）</div>
+    <div class="item"><span class="sw" style="background:#fef3c7;border:1px solid #d97706"></span>level1 CLOS · port2（2/8，12.5%）</div>
+    <div class="item"><span class="sw" style="background:#ffedd5;border:1px solid #ea580c"></span>level1 CLOS · port6（6/8，37.5%）</div>
+  </div>
+
+  <div class="notes">
+    <b>关键点</b><br>
+    • <b>切分</b>：每 peer 分片由 <code>CalcDataSplitByPortGroupZAxisDetour</code> 两级切——level0/level1 = 0.5/0.5；clos 50% 再按端口号 2:6 分给 port2/port6。<br>
+    • <b>比例</b>：mesh 50% / port2 = 50%×2/8 = 12.5% / port6 = 50%×6/8 = 37.5%，合计 100%。<br>
+    • <b>连续 offset</b>：mesh <code>[0, 0.5T)</code> → port2 <code>[0.5T, 0.625T)</code> → port6 <code>[0.625T, T)</code>，write 各链路写不同 offset → 原位拼接，无需 PostCopy 重组。<br>
+    • <b>write 模式</b>：root 主动写远端；root 与 non-root 切分确定性一致。<br>
+    • <b>尾块</b>：<code>tailSize</code> 同样跨三链路切分；scatter 写远端无同 buffer 自拷贝，<code>[400,404)</code> 自交叠类不适用，风险在切分确定性/count（须 <code>count%rankSize==1</code> 用例覆盖）。
+  </div>
+</div>
+</body>
+</html>

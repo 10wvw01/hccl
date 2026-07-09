@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 660" width="1140" height="660" font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <rect x="0" y="0" width="1140" height="660" fill="#ffffff"/>
+  <defs>
+    <marker id="ah0" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#2563eb"/></marker>
+    <marker id="ah2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#d97706"/></marker>
+    <marker id="ah6" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#ea580c"/></marker>
+    <marker id="ahg" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 z" fill="#64748b"/></marker>
+  </defs>
+
+  <text x="570" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">RunMesh 通道通用化（full split · CLOS 双链路）</text>
+
+  <rect x="300" y="50" width="540" height="52" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="570" y="70" text-anchor="middle" font-size="12" fill="#64748b">Root ↔ Peer 三条并行链路</text>
+  <line x1="330" y1="88" x2="400" y2="88" stroke="#2563eb" stroke-width="2.5"/>
+  <text x="408" y="92" font-size="11" fill="#2563eb">level0 mesh</text>
+  <line x1="520" y1="88" x2="590" y2="88" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6 3"/>
+  <text x="598" y="92" font-size="11" fill="#d97706">CLOS port2</text>
+  <line x1="710" y1="88" x2="780" y2="88" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="6 3"/>
+  <text x="788" y="92" font-size="11" fill="#ea580c">CLOS port6</text>
+
+  <text x="210" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Root rank（本端）</text>
+  <text x="930" y="130" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a">Peer rank（对端）</text>
+
+  <rect x="80" y="145" width="260" height="380" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="210" y="168" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">INPUT / CCL buffer</text>
+  <text x="210" y="185" text-anchor="middle" font-size="11" fill="#64748b">取 peer P 的分片</text>
+  <text x="210" y="208" text-anchor="middle" font-size="11" fill="#475569">↓ CalcDataSplitByPortGroupZAxisDetour</text>
+  <text x="210" y="222" text-anchor="middle" font-size="10" fill="#64748b">mesh 0.5 / clos 0.5；clos 内 port2:port6=2:6</text>
+
+  <rect x="100" y="232" width="220" height="135" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="210" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">level0 mesh 段</text>
+  <text x="210" y="308" text-anchor="middle" font-size="12" fill="#1e40af">[0, 0.5T)</text>
+  <text x="210" y="328" text-anchor="middle" font-size="11" fill="#1e40af">50%</text>
+
+  <rect x="100" y="367" width="220" height="34" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="210" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">CLOS port2 段 [0.5T, 0.625T) · 12.5%</text>
+
+  <rect x="100" y="401" width="220" height="101" rx="6" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="210" y="440" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">CLOS port6 段</text>
+  <text x="210" y="460" text-anchor="middle" font-size="12" fill="#9a3412">[0.625T, T)</text>
+  <text x="210" y="480" text-anchor="middle" font-size="11" fill="#9a3412">37.5%</text>
+
+  <rect x="800" y="145" width="260" height="380" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="930" y="168" text-anchor="middle" font-size="13" font-weight="600" fill="#334155">远端 CCL / OUTPUT buffer</text>
+  <text x="930" y="185" text-anchor="middle" font-size="11" fill="#64748b">peer P 的槽位</text>
+  <text x="930" y="208" text-anchor="middle" font-size="11" fill="#475569">↓ 原位连续拼接（无需 PostCopy 重组）</text>
+  <text x="930" y="222" text-anchor="middle" font-size="10" fill="#64748b">三段写不同 offset → 拼成 [0, T)</text>
+
+  <rect x="820" y="232" width="220" height="135" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="930" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">[0, 0.5T)</text>
+  <text x="930" y="312" text-anchor="middle" font-size="11" fill="#1e40af">← level0 写入</text>
+
+  <rect x="820" y="367" width="220" height="34" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="930" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">[0.5T, 0.625T) ← port2 写入</text>
+
+  <rect x="820" y="401" width="220" height="101" rx="6" fill="#ffedd5" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="930" y="440" text-anchor="middle" font-size="13" font-weight="600" fill="#9a3412">[0.625T, T)</text>
+  <text x="930" y="464" text-anchor="middle" font-size="11" fill="#9a3412">← port6 写入</text>
+
+  <text x="930" y="520" text-anchor="middle" font-size="11" fill="#334155">= peer P 完整分片 [0, T)</text>
+
+  <line x1="320" y1="300" x2="816" y2="300" stroke="#2563eb" stroke-width="2.5" marker-end="url(#ah0)"/>
+  <text x="568" y="291" text-anchor="middle" font-size="12" font-weight="600" fill="#2563eb">SendWrite · level0 mesh · 50%</text>
+
+  <line x1="320" y1="384" x2="816" y2="384" stroke="#d97706" stroke-width="2.5" stroke-dasharray="6 3" marker-end="url(#ah2)"/>
+  <text x="568" y="375" text-anchor="middle" font-size="11" font-weight="600" fill="#d97706">SendWrite · level1 CLOS · port2 · 12.5%（2/8）</text>
+
+  <line x1="320" y1="452" x2="816" y2="452" stroke="#ea580c" stroke-width="2.5" stroke-dasharray="6 3" marker-end="url(#ah6)"/>
+  <text x="568" y="443" text-anchor="middle" font-size="12" font-weight="600" fill="#ea580c">SendWrite · level1 CLOS · port6 · 37.5%（6/8）</text>
+
+  <line x1="20" y1="335" x2="76" y2="335" stroke="#64748b" stroke-width="2" marker-end="url(#ahg)"/>
+  <text x="20" y="322" font-size="11" fill="#475569">PreCopy</text>
+  <text x="20" y="355" font-size="10" fill="#64748b">input→CCL (root)</text>
+
+  <line x1="1064" y1="335" x2="1120" y2="335" stroke="#64748b" stroke-width="2" marker-end="url(#ahg)"/>
+  <text x="1070" y="322" font-size="11" fill="#475569">PostCopy</text>
+  <text x="1066" y="355" font-size="10" fill="#64748b">CCL→output (non-root)</text>
+
+  <text x="570" y="555" text-anchor="middle" font-size="12" fill="#475569">对每个 peer 重复；channelsPerRank_ = 1(level0) + 2(CLOS) = 3，每 (peer × channel) 一线程</text>
+
+  <rect x="80" y="575" width="980" height="60" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="100" y="597" font-size="12" fill="#9a3412" font-weight="600">退化（MESH_1D）</text>
+  <text x="100" y="617" font-size="12" fill="#9a3412">channelsPerRank_ == 1 → 无 CLOS 链路、ratio=1.0，全数据走 level0 单通道，行为等价 plain ScatterMesh1D（向后兼容）。</text>
+</svg>

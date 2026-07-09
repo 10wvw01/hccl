@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Broadcast 三级 2×2×2 数据流图</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f6f7f9;color:#0f172a;margin:0;padding:24px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  .sub{color:#475569;font-size:13px;margin-bottom:16px;line-height:1.6;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:14px;}
+  .legend .item{display:flex;align-items:center;gap:6px;}
+  .swatch{width:18px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.12);display:inline-block;}
+  .pipe{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:16px;}
+  .chip{padding:3px 10px;border-radius:10px;font-weight:600;}
+  .chip.in{background:#dbeafe;color:#1e40af;border:1px solid #3b82f6;}
+  .chip.ccl{background:#ffedd5;color:#9a3412;border:1px solid #f97316;}
+  .chip.out{background:#dcfce7;color:#166534;border:1px solid #22c55e;}
+  .arr{color:#64748b;font-weight:700;}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:14px;}
+  .head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
+  .num{font-weight:700;color:#2563eb;}
+  .name{font-weight:600;font-size:15px;}
+  .trans{font-size:12px;background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:10px;}
+  .part{font-size:12px;color:#64748b;}
+  .note{font-size:11.5px;color:#64748b;margin-top:6px;line-height:1.5;}
+  svg{display:block;max-width:100%;height:auto;}
+  .lvltag{font-size:11px;color:#475569;margin-bottom:2px;}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0"><defs>
+  <marker id="mS" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6 z" fill="#dc2626"/></marker>
+  <marker id="mAG" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6 z" fill="#0d9488"/></marker>
+</defs></svg>
+
+<h1>Broadcast 三级序列 · 2×2×2 拓扑数据流图</h1>
+<div class="sub">
+8 ranks（rank0=root），总数据 8 单位。三级 Scatter（下行切分）+ 三级 AllGather（上行合并）= 6 步。<br>
+Z 轴绕路默认<b>关闭</b>（plain mesh，每级单通道），仅展示三级数据流。rank 排列：上行=supernode0(L2=0)，下行=supernode1(L2=1)；横向相邻=L0 peer，隔一格=L1 peer，纵向=L2 peer。
+</div>
+
+<div class="legend">
+  <div class="item"><span class="swatch" style="background:#dbeafe;border-color:#3b82f6"></span>INPUT buffer</div>
+  <div class="item"><span class="swatch" style="background:#ffedd5;border-color:#f97316"></span>CCL buffer</div>
+  <div class="item"><span class="swatch" style="background:#dcfce7;border-color:#22c55e"></span>OUTPUT buffer</div>
+  <div class="item"><span class="swatch" style="background:#f1f5f9;border-color:#cbd5e1"></span>空闲/无数据</div>
+  <div class="item">➤ <span style="color:#dc2626;font-weight:600">红单箭头</span> = Scatter（root→leaf，单向发送）</div>
+  <div class="item">⇄ <span style="color:#0d9488;font-weight:600">青双箭头</span> = AllGather（对交换，双方合一）</div>
+</div>
+
+<div class="pipe">
+  <span class="chip in">INPUT</span><span class="arr">─ScatterL0(L0)▶</span>
+  <span class="chip ccl">CCL</span><span class="arr">─ScatterL1(L1)▶</span>
+  <span class="chip ccl">CCL</span><span class="arr">─ScatterL2(L2)▶</span>
+  <span class="chip ccl">CCL</span><span class="arr">─AGL2(L2)▶</span>
+  <span class="chip ccl">CCL</span><span class="arr">─AGL1(L1)▶</span>
+  <span class="chip ccl">CCL</span><span class="arr">─AGL0(L0)▶</span>
+  <span class="chip out">OUTPUT</span>
+</div>
+
+<div class="card" id="topo"></div>
+<div id="stages"></div>
+
+<script>
+const RANKS=[0,1,2,3,4,5,6,7];
+// 4 cols x 2 rows. top row = supernode0 (L2=0); bottom = supernode1 (L2=1)
+const POS={0:{x:40,y:46},1:{x:250,y:46},2:{x:460,y:46},3:{x:670,y:46},
+           4:{x:40,y:118},5:{x:250,y:118},6:{x:460,y:118},7:{x:670,y:118}};
+const BW=160,BH=52;
+const cx=r=>POS[r].x+BW/2, cy=r=>POS[r].y+BH/2;
+const BUF={INPUT:{f:'#dbeafe',s:'#3b82f6'},CCL:{f:'#ffedd5',s:'#f97316'},
+           OUTPUT:{f:'#dcfce7',s:'#22c55e'},IDLE:{f:'#f1f5f9',s:'#cbd5e1'}};
+
+function box(r,slice,buf,dim){
+  const c=BUF[buf]||BUF.IDLE, p=POS[r], op=dim?'opacity:0.35;':'';
+  return `<g style="${op}">
+    <rect x="${p.x}" y="${p.y}" width="${BW}" height="${BH}" rx="6" fill="${c.f}" stroke="${c.s}" stroke-width="1.5"/>
+    <text x="${p.x+10}" y="${p.y+19}" font-size="13" font-weight="700" fill="#0f172a">r${r}</text>
+    <text x="${p.x+BW-10}" y="${p.y+19}" text-anchor="end" font-size="10" font-weight="600" fill="${c.s}">${buf}</text>
+    <text x="${p.x+BW/2}" y="${p.y+41}" text-anchor="middle" font-size="12.5" fill="#334155">${slice||''}</text>
+  </g>`;
+}
+
+function linkPath(level,a,b){
+  if(level==='L0') return `M ${POS[a].x+BW} ${cy(a)} L ${POS[b].x} ${cy(b)}`;
+  if(level==='L2') return `M ${cx(a)} ${POS[a].y+BH} L ${cx(b)} ${POS[b].y}`;
+  const top=POS[a].y<60, x1=POS[a].x+BW, y1=cy(a), x2=POS[b].x, y2=cy(b);
+  const mx=(x1+x2)/2, my=top?POS[a].y-18:POS[a].y+BH+18;
+  return `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`;
+}
+
+function arrows(st){
+  return st.pairs.map(([a,b])=>{
+    const d=linkPath(st.level,a,b);
+    if(st.mode==='scatter')
+      return `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="2.5" marker-end="url(#mS)"/>`;
+    return `<path d="${d}" fill="none" stroke="#0d9488" stroke-width="2.5" marker-start="url(#mAG)" marker-end="url(#mAG)"/>`;
+  }).join('');
+}
+
+function srcChip(src){
+  if(!src) return '';
+  const c=BUF[src.buf], p=POS[src.r];
+  const x=p.x+10, y=p.y-30;
+  return `<g>
+    <rect x="${x}" y="${y}" width="140" height="22" rx="4" fill="${c.f}" stroke="${c.s}" stroke-width="1.2"/>
+    <text x="${x+70}" y="${y+15}" text-anchor="middle" font-size="11" font-weight="600" fill="${c.s}">${src.buf} ${src.slice}</text>
+    <path d="M ${cx(src.r)} ${y+22} L ${cx(src.r)} ${p.y}" fill="none" stroke="${c.s}" stroke-width="1.5" marker-end="url(#mS)"/>
+  </g>`;
+}
+
+// ---- topology overview ----
+(function topo(){
+  const links=[
+    ...[[0,1],[2,3],[4,5],[6,7]].map(([a,b])=>({a,b,lvl:'L0',col:'#3b82f6'})),
+    ...[[0,2],[1,3],[4,6],[5,7]].map(([a,b])=>({a,b,lvl:'L1',col:'#7c3aed'})),
+    ...[[0,4],[1,5],[2,6],[3,7]].map(([a,b])=>({a,b,lvl:'L2',col:'#b45309'}))
+  ];
+  const lp=links.map(o=>`<path d="${linkPath(o.lvl,o.a,o.b)}" fill="none" stroke="${o.col}" stroke-width="1.8" opacity="0.75"/>`).join('');
+  const bx=RANKS.map(r=>box(r,'','IDLE',false)).join('');
+  const tags=[{t:'L0 横向相邻',c:'#3b82f6',x:300,y:8},
+              {t:'L1 隔一格',c:'#7c3aed',x:300,y:188},
+              {t:'L2 纵向',c:'#b45309',x:720,y:8}];
+  const tg=tags.map(o=>`<text x="${o.x}" y="${o.y}" font-size="11" font-weight="600" fill="${o.c}">${o.t}</text>`).join('');
+  document.getElementById('topo').innerHTML=
+    `<div class="head"><span class="num">◇</span><span class="name">拓扑总览：8 ranks 与三级链路</span></div>
+     <div class="lvltag">L0=框内 mesh(横向相邻) · L1=框间(隔一格) · L2=跨 supernode(纵向)</div>
+     <svg viewBox="0 0 870 195" width="870" height="195">${lp}${tg}${bx}</svg>`;
+})();
+
+// ---- stages ----
+const stages=[
+ {n:1,name:'ScatterL0',trans:'INPUT → CCL',part:'仅 root frame (L2=0,L1=0)：r0,r1',
+  level:'L0',mode:'scatter',pairs:[[0,1]],src:{r:0,buf:'INPUT',slice:'[0:8]'},
+  states:{0:{s:'[0:4]',b:'CCL'},1:{s:'[4:8]',b:'CCL'}},idle:[2,3,4,5,6,7],
+  note:'r0 从 INPUT[0:8] 读取，按 level0 切半：自留 [0:4]，发 [4:8] 给 r1，均写入 CCL。'},
+
+ {n:2,name:'ScatterL1',trans:'CCL → CCL',part:'仅 root supernode (L2=0)：r0,r1,r2,r3',
+  level:'L1',mode:'scatter',pairs:[[0,2],[1,3]],
+  states:{0:{s:'[0:2]',b:'CCL'},1:{s:'[4:6]',b:'CCL'},2:{s:'[2:4]',b:'CCL'},3:{s:'[6:8]',b:'CCL'}},idle:[4,5,6,7],
+  note:'各 frame 持有者把 4 单位再按 level1 切半，发给 L1 peer（隔一格）。r0→r2, r1→r3。'},
+
+ {n:3,name:'ScatterL2',trans:'CCL → CCL',part:'全部 8 ranks',
+  level:'L2',mode:'scatter',pairs:[[0,4],[1,5],[2,6],[3,7]],
+  states:{0:{s:'[0:1]',b:'CCL'},1:{s:'[4:5]',b:'CCL'},2:{s:'[2:3]',b:'CCL'},3:{s:'[6:7]',b:'CCL'},
+          4:{s:'[1:2]',b:'CCL'},5:{s:'[5:6]',b:'CCL'},6:{s:'[3:4]',b:'CCL'},7:{s:'[7:8]',b:'CCL'}},idle:[],
+  note:'跨 supernode（纵向）切半：每个 rank 最终持有 1 单位，即自己的 slice。下行切分结束。'},
+
+ {n:4,name:'AGL2',trans:'CCL → CCL',part:'全部 8 ranks',
+  level:'L2',mode:'ag',pairs:[[0,4],[1,5],[2,6],[3,7]],
+  states:{0:{s:'[0:2]',b:'CCL'},1:{s:'[4:6]',b:'CCL'},2:{s:'[2:4]',b:'CCL'},3:{s:'[6:8]',b:'CCL'},
+          4:{s:'[0:2]',b:'CCL'},5:{s:'[4:6]',b:'CCL'},6:{s:'[2:4]',b:'CCL'},7:{s:'[6:8]',b:'CCL'}},idle:[],
+  note:'level2 对（纵向）交换各自 1 单位 → 各得 2 单位。上行合并开始。'},
+
+ {n:5,name:'AGL1',trans:'CCL → CCL',part:'全部 8 ranks',
+  level:'L1',mode:'ag',pairs:[[0,2],[1,3],[4,6],[5,7]],
+  states:{0:{s:'[0:4]',b:'CCL'},1:{s:'[4:8]',b:'CCL'},2:{s:'[0:4]',b:'CCL'},3:{s:'[4:8]',b:'CCL'},
+          4:{s:'[0:4]',b:'CCL'},5:{s:'[4:8]',b:'CCL'},6:{s:'[0:4]',b:'CCL'},7:{s:'[4:8]',b:'CCL'}},idle:[],
+  note:'level1 对（隔一格）交换 2 单位 → 各得 4 单位。'},
+
+ {n:6,name:'AGL0',trans:'CCL → OUTPUT',part:'全部 8 ranks',
+  level:'L0',mode:'ag',pairs:[[0,1],[2,3],[4,5],[6,7]],
+  states:{0:{s:'[0:8]',b:'OUTPUT'},1:{s:'[0:8]',b:'OUTPUT'},2:{s:'[0:8]',b:'OUTPUT'},3:{s:'[0:8]',b:'OUTPUT'},
+          4:{s:'[0:8]',b:'OUTPUT'},5:{s:'[0:8]',b:'OUTPUT'},6:{s:'[0:8]',b:'OUTPUT'},7:{s:'[0:8]',b:'OUTPUT'}},idle:[],
+  note:'level0 对（横向相邻）交换 4 单位 → 各得完整 8 单位，写入 OUTPUT。广播完成。'}
+];
+
+document.getElementById('stages').innerHTML = stages.map(st=>{
+  const bx=RANKS.map(r=>{
+    const dim=st.idle.includes(r), s=st.states[r];
+    return box(r, s?s.s:'', s?s.b:'IDLE', dim);
+  }).join('');
+  const ar=arrows(st);
+  const src=srcChip(st.src);
+  return `<div class="card">
+    <div class="head">
+      <span class="num">步骤 ${st.n}</span>
+      <span class="name">${st.name}</span>
+      <span class="trans">${st.trans}</span>
+      <span class="part">参与：${st.part}</span>
+    </div>
+    <div class="lvltag">活动链路：${st.level} · ${st.mode==='scatter'?'单向 Scatter':'双向 AllGather'}</div>
+    <svg viewBox="0 0 870 195" width="870" height="195">${ar}${src}${bx}</svg>
+    <div class="note">${st.note}</div>
+  </div>`;
+}).join('');
+</script>
+</body>
+</html>

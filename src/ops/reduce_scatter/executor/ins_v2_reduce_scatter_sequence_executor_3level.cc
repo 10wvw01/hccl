@@ -16,6 +16,7 @@
 namespace ops_hccl {
 
 constexpr u32 SEQUENCE_EXECUTOR_LEVEL_NUM = 3;
+constexpr u32 OMNIPIPE_LEVEL2_IDX = 2;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::
@@ -163,7 +164,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor3Level][Orchestrate] myRank[%u] errNo[0x%016llx] "
-            "Reduce scatter excutor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
+            "Reduce scatter executor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
 
@@ -283,7 +284,6 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
         CHK_RET(algTemplateLevel0->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
     }
 
-
     TemplateDataParams tempAlgParamsLevel1;
     tempAlgParamsLevel1.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsLevel1.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
@@ -320,7 +320,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
         CHK_RET(GenTempResource(resCtx, 1, algTemplateLevel1, templateResource1));
     }
     TemplateResource templateResource2;
-    CHK_RET(GenTempResource(resCtx, 2, algTemplateLevel2, templateResource2));
+    CHK_RET(GenTempResource(resCtx, OMNIPIPE_LEVEL2_IDX, algTemplateLevel2, templateResource2));
 
     u64 maxCountPerLoop = tempAlgParamsLevel2.buffInfo.hcclBuff.size / templateScratchMultiplier / HCCL_MIN_SLICE_ALIGN
         * HCCL_MIN_SLICE_ALIGN / dataTypeSize_;

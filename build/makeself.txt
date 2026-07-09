@@ -1,0 +1,1 @@
+--gzip --complevel 4 --nomd5 --sha256 --nooverwrite --chown --tar-format gnu --tar-extra --numeric-owner --tar-quietly cann-hccl_9.1.0_linux-x86_64.run "CANN_HCCL_RUN_PACKAGE"
