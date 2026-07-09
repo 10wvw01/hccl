@@ -89,9 +89,18 @@ HcclResult TopoMatchMultilevel::TopoForLayer0(
                 ranks_y.assign(ranks, ranks + rankNum);
             }
         }
-        algHierarchyInfo.infos[0].push_back(ranks_x);
-        algHierarchyInfo.infos[0].push_back(ranks_y);
-        layer0Size = ranks_x.size() * ranks_y.size();
+        if (ranks_x.size() != 0) {
+            algHierarchyInfo.infos[0].push_back(ranks_x);
+            layer0Size = ranks_x.size();
+        }
+        if (ranks_y.size() != 0) {
+            algHierarchyInfo.infos[0].push_back(ranks_y);
+            if (layer0Size == 0) {
+                layer0Size = ranks_y.size();
+            } else {
+                layer0Size *= ranks_y.size();
+            }
+        }
     }
 #endif
     return HcclResult::HCCL_SUCCESS;
