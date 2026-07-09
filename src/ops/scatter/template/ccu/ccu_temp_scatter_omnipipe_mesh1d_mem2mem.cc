@@ -30,7 +30,6 @@ CcuTempScatterOmniPipeMesh1DMem2Mem::CcuTempScatterOmniPipeMesh1DMem2Mem(
         mySubCommRank_ = std::distance(ranks.begin(), it);
     }
     ifRealRoot_ = (rankId == param.root);
-    targetPeerIdxVec_.assign(templateRankSize_ - 1, templateRankSize_);
     std::string ranksStr = "";
     for (auto r : ranks) {
         ranksStr += std::to_string(r) + ", ";
@@ -81,17 +80,6 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::GetRes(AlgResourceRequest &resou
     return HCCL_SUCCESS;
 }
 
-uint32_t CcuTempScatterOmniPipeMesh1DMem2Mem::RemoteRankId2RankId(const u32 remoteRankId) const
-{
-    u32 subCommRankId = 0;
-    std::vector<u32> ranks = subCommRanks_[0];
-    auto it = std::find(ranks.begin(), ranks.end(), remoteRankId);
-    if (it != ranks.end()) {
-        subCommRankId = std::distance(ranks.begin(), it);
-    }
-    return subCommRankId;
-}
-
 HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpParam &param,
     const TopoInfoWithNetLayerDetails *topoInfo, AlgResourceRequest &resourceRequest)
 {
@@ -122,21 +110,12 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpP
         }
     }
     HCCL_DEBUG("[CcuTempScatterOmniPipeMesh1DMem2Mem][%s] Get Mesh channels Success.", __func__);
-    std::map<u32, u32> subRankIdx2RankIdx;
-    for (u32 i = 0; i < channelDescs.size(); i++) {
-        u32 remoteRank = channelDescs[i].remoteRank;
-        u32 subRankIdx = RemoteRankId2RankId(remoteRank);
-        subRankIdx2RankIdx[subRankIdx] = remoteRank;
-    }
-    subRankIdx2RankIdx[mySubCommRank_] = myRank_;
-
     auto kernelArg = std::make_shared<CcuKernelArgScatterOmniPipeMesh1DMem2Mem>();
     kernelArg->rankSize = subCommRanks_[0].size();
     kernelArg->rankId = mySubCommRank_;
     kernelArg->rootId = subCommRootId_;
     kernelArg->opParam = param;
     kernelArg->subCommRanks = subCommRanks_;
-    kernelArg->subRankIdx2RankIdx = subRankIdx2RankIdx;
     kernelArg->ifRealRoot = ifRealRoot_;
     kernelArg->myrealrank = myRank_;
 
@@ -150,7 +129,7 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpP
 }
 
 HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::LaunchOneRepeat(const StepSliceInfo &stepSliceInfo,
-    TemplateResource &templateResource, uint32_t rpt, uint64_t repeatNum, bool ifNewRoot, uint64_t inputAddr,
+    TemplateResource &templateResource, uint64_t rpt, uint64_t repeatNum, bool ifNewRoot, uint64_t inputAddr,
     uint64_t outputAddr, uint64_t token)
 {
     uint64_t sliceSize = 0;
@@ -161,14 +140,14 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::LaunchOneRepeat(const StepSliceI
     BuildSliceStrideVec(
         stepSliceInfo, rpt, repeatNum, ifNewRoot, sliceSize, inputOmniSliceStrideVec, outputOmniSliceStrideVec);
 
-    for (uint32_t i = 0; i < inputOmniSliceStrideVec.size(); i++) {
-        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceStrideVec[%d] = %llu "
+    for (uint64_t i = 0; i < inputOmniSliceStrideVec.size(); i++) {
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%llu] sliceSize[%llu] inputOmniSliceStrideVec[%llu] = %llu "
                    "isStepone[%d] isLastStep[%d] isFirstPiece[%d] isLastPiece[%d]",
             myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceStrideVec[i], isStepOne_, isLastStep_,
             isFirstPiece, isLastPiece);
     }
-    for (uint32_t i = 0; i < outputOmniSliceStrideVec.size(); i++) {
-        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] outputOmniSliceStrideVec[%d] = %llu "
+    for (uint64_t i = 0; i < outputOmniSliceStrideVec.size(); i++) {
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%llu] sliceSize[%llu] outputOmniSliceStrideVec[%llu] = %llu "
                    "isStepone[%d] isLastStep[%d] isFirstPiece[%d] isLastPiece[%d]",
             myRank_, subCommRootId_, rpt, sliceSize, i, outputOmniSliceStrideVec[i], isStepOne_, isLastStep_,
             isFirstPiece, isLastPiece);
@@ -209,7 +188,7 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::RunScatterMeshDispatch(const Tem
                "repeatNum[%llu]",
         __func__, myRank_, mySubCommRank_, subCommRootId_, ifNewRoot, isStepOne_, isLastStep_, repeatNum);
 
-    for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
+    for (uint64_t rpt = 0; rpt < repeatNum; ++rpt) {
         HcclResult ret
             = LaunchOneRepeat(stepSliceInfo, templateResource, rpt, repeatNum, ifNewRoot, inputAddr, outputAddr, token);
         if (ret != HcclResult::HCCL_SUCCESS) {
@@ -272,12 +251,12 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::KernelRun(
     return HcclResult::HCCL_SUCCESS;
 }
 
-void CcuTempScatterOmniPipeMesh1DMem2Mem::BuildSliceStrideVec(const StepSliceInfo &stepSliceInfo, uint32_t rpt,
+void CcuTempScatterOmniPipeMesh1DMem2Mem::BuildSliceStrideVec(const StepSliceInfo &stepSliceInfo, uint64_t rpt,
     uint64_t repeatNum, bool ifNewRoot, uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceStrideVec,
     std::vector<uint64_t> &outputOmniSliceStrideVec)
 {
     if (!ifNewRoot) {
-        for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
+        for (uint64_t ridx = 0; ridx < templateRankSize_; ridx++) {
             outputOmniSliceStrideVec.push_back(0);
             inputOmniSliceStrideVec.push_back(0);
         }
@@ -285,7 +264,7 @@ void CcuTempScatterOmniPipeMesh1DMem2Mem::BuildSliceStrideVec(const StepSliceInf
     }
     uint64_t originIndex = 0;
     sliceSize = stepSliceInfo.stepSliceSize[myRank_ / templateRankSize_][rpt];
-    for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
+    for (uint64_t ridx = 0; ridx < templateRankSize_; ridx++) {
         if (ridx == subCommRootId_) {
             outputOmniSliceStrideVec.push_back(0);
             inputOmniSliceStrideVec.push_back(0);
