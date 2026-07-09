@@ -190,26 +190,7 @@ HcclResult InsTempAllGatherNHR::RunNHRStep(const std::vector<ThreadHandle> &thre
     const ChannelInfo &channelRecv = channels.at(fromRankKey)[channelIdx];
     const ChannelInfo &channelSend = channels.at(toRankKey)[channelIdx];
 
-    std::vector<DataSlice> txSrcSlices;
-    std::vector<DataSlice> txDstSlices;
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
-    CHK_RET(BuildNormalStepSlices(channelSend, channelRecv, stepInfo, channelIdx,
-        txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
-
-    TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
-    TxRxChannels sendRecvChannels(channelSend, channelRecv);
-    SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
-    if (isDmaRead_) {
-        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
-            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
-            HcclResult::HCCL_E_INTERNAL);
-    } else {
-        CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[channelIdx]),
-            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
-            HcclResult::HCCL_E_INTERNAL);
-    }
-    return HcclResult::HCCL_SUCCESS;
+    return RunNormalStep(threads, channelSend, channelRecv, stepInfo, channelIdx, step);
 }
 
 HcclResult InsTempAllGatherNHR::FinalizeStepRun(const std::vector<ThreadHandle> &threads, u32 channelIdx,
@@ -358,6 +339,32 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
     return HcclResult::HCCL_SUCCESS;
 }
 
+HcclResult InsTempAllGatherNHR::RunNormalStep(const std::vector<ThreadHandle> &threads,
+    const ChannelInfo &channelSend, const ChannelInfo &channelRecv,
+    const AicpuNHRStepInfo &stepInfo, u32 channelIdx, u32 step)
+{
+    std::vector<DataSlice> txSrcSlices;
+    std::vector<DataSlice> txDstSlices;
+    std::vector<DataSlice> rxSrcSlices;
+    std::vector<DataSlice> rxDstSlices;
+    CHK_RET(BuildNormalStepSlices(channelSend, channelRecv, stepInfo, channelIdx,
+        txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
+
+    TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
+    TxRxChannels sendRecvChannels(channelSend, channelRecv);
+    SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
+    if (isDmaRead_) {
+        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
+            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
+            HcclResult::HCCL_E_INTERNAL);
+    } else {
+        CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[channelIdx]),
+            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
+            HcclResult::HCCL_E_INTERNAL);
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
 HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &threads,
     const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 &channelIdx,
     u32 step, u32 nSteps, bool &postLocalCopyLaunched)
@@ -386,27 +393,7 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
         return HCCL_SUCCESS;
     }
 
-    std::vector<DataSlice> txSrcSlices;
-    std::vector<DataSlice> txDstSlices;
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
-    CHK_RET(BuildNormalStepSlices(channelSend, channelRecv, stepInfo, channelIdx,
-        txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
-
-    TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
-    TxRxChannels sendRecvChannels(channelSend, channelRecv);
-    SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList, dataType_);
-
-    if (isDmaRead_) {
-        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
-            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
-            HcclResult::HCCL_E_INTERNAL);
-    } else {
-        CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[channelIdx]),
-            HCCL_ERROR("[InsTempAllGatherNHR] sendrecv batch failed (step=%u)", step),
-            HcclResult::HCCL_E_INTERNAL);
-    }
-    return HCCL_SUCCESS;
+    return RunNormalStep(threads, channelSend, channelRecv, stepInfo, channelIdx, step);
 }
 
 HcclResult InsTempAllGatherNHR::RunAllGatherNHR(const std::vector<ThreadHandle> &threads,

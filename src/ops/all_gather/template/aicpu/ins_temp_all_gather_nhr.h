@@ -98,6 +98,9 @@ private:
         return BuildStepSlices(channelSend, channelRecv, stepInfo, channelIdx,
             StepBuildMode::NORMAL, txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices);
     }
+    HcclResult RunNormalStep(const std::vector<ThreadHandle> &threads, const ChannelInfo &channelSend,
+                             const ChannelInfo &channelRecv, const AicpuNHRStepInfo &stepInfo,
+                             u32 channelIdx, u32 step);
     HcclResult RunLastStepWriteThenRead(const std::vector<ThreadHandle> &threads, const ChannelInfo &channelSend,
                                         const ChannelInfo &channelRecv, const AicpuNHRStepInfo &stepInfo,
                                         const u32 &channelIdx, u32 step, bool &postLocalCopyLaunched);
