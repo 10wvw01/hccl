@@ -30,6 +30,14 @@ public:
     HcclResult KernelRun(const OpParam& param, const TemplateDataParams& tempAlgParams,
                          TemplateResource& templateResource) override;
 
+    // 计算 OmniPipe last-step read 访问用户输出缓冲时使用的字节偏移
+    // baseOff 表示当前分片在缓冲区内的基础偏移
+    // stepStride 表示当前 rank 在本 step 内的起始偏移
+    // processedDataCount 表示前序 loop 已处理的数据个数
+    // dataTypeSize 表示单个数据元素的字节数
+    // 返回值表示叠加 step 偏移和已处理数据量后的字节偏移
+    static u64 CalcOmniLastStepReadOffset(u64 baseOff, u64 stepStride, u64 processedDataCount, u32 dataTypeSize);
+
 private:
     HcclResult RunAllGatherMesh(const std::vector<ThreadHandle>& threads,
                                 const std::map<u32, std::vector<ChannelInfo>>& channels) override;

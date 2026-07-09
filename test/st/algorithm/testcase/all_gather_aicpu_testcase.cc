@@ -16,6 +16,7 @@
 #include "check_utils.h"
 #include <thread>
 #include "alg_env_config.h"
+#include "ins_temp_all_gather_omnipipe_mesh_1D.h"
 
 using namespace HcclSim;
 using namespace ops_hccl;
@@ -226,6 +227,17 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_nhr_6rank_fp8e8m0_big_da
 
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP8E8M0;  // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_omnipipe_last_step_read_offset_test)
+{
+    constexpr u64 baseOff = 32;
+    constexpr u64 stepStride = 4096;
+    constexpr u64 processedDataCount = 128;
+    constexpr u32 dataTypeSize = sizeof(uint16_t);
+    EXPECT_EQ(stepStride + baseOff + processedDataCount * dataTypeSize,
+              InsTempAllGatherOmniPipeMesh1D::CalcOmniLastStepReadOffset(
+                  baseOff, stepStride, processedDataCount, dataTypeSize));
 }
 
 TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_nhr_mesh1d_2x2rank_small_data_test)
