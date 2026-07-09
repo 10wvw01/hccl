@@ -154,7 +154,7 @@ struct TemplateExecDesc {
 //     executeType: PARALLEL,
 //     templates = [NHR, MESH]
 // }
-
+struct AlgoExecDesc;
 using VariantType = std::variant<TemplateExecDesc, std::shared_ptr<AlgoExecDesc>>;
 struct AlgoExecDesc {
     HcclAlgExecPolicy execPolicy;                  // 描述children的并行策略：串行/并行
@@ -162,6 +162,8 @@ struct AlgoExecDesc {
     std::vector<u32> dataSplitRatio;        // 并行数据切分比例，元素个数必须和children个数一致,例如1:1:1
 };
 
+class OpsExecutor;
+class BaseLauncher;
 /**
  * 算法描述对象，由上游 Selector 选定后注入。
  * 提供 GetEngine/GetExecutor 能力，供 HcclExecOp 入口获取引擎与执行器。
