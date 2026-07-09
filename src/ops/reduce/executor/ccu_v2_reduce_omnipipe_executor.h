@@ -95,9 +95,6 @@ protected:
 
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
-    bool isRoot{false};
-    bool isSameXAxis{false};
-    bool isSameYAxis{false};
     
     u64 subCommRootId_{0};
 
@@ -111,34 +108,9 @@ protected:
 
 /// 对角算法专用
 private:
-    // std::vector<ThreadHandle> rsLevel0Threads_;
-    // std::vector<ThreadHandle> rsLevel1Threads_;
-    // ThreadHandle              rsControlThread_;
-    // std::vector<ThreadHandle> rsTemplateMainXYThreads_;
-    // std::vector<u32>          rsNotifyIdxControlToTemplates_;
-    // std::vector<u32>          rsNotifyIdxTemplatesToControl_;
-
-    // ThreadHandle controlThread_;
-
     std::vector<std::vector<ThreadHandle>> levelThreads_;
-    // std::vector<ThreadHandle> tempMainThreadsLevel01RS_;
-    // std::vector<u32> ntfIdxCtrlToTempLevel01RS_;
-    // std::vector<u32> ntfIdxTempToCtrlLevel01RS_;
     bool isSameXAxisAsRoot = false;  //和root同x轴
     bool isSameYAxisAsRoot = false;  //和root同y轴
-
-
-
-    // std::vector<std::vector<ThreadHandle>> levelThreadsAG_;
-    // std::vector<ThreadHandle> tempMainThreadsLevel01AG_;
-    // std::vector<u32> ntfIdxCtrlToTempLevel01AG_;
-    // std::vector<u32> ntfIdxTempToCtrlLevel01AG_;
-
-    // std::vector<ThreadHandle> tempMainThreadsLevel0AG_;
-    // std::vector<u32> ntfIdxCtrlToTempLevel0AG_;
-    // std::vector<u32> ntfIdxTempToCtrlLevel0AG_;
-    
-
 };
 }
 
