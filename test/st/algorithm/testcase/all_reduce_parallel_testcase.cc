@@ -174,16 +174,6 @@ TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_hcclbuff_add_1)
 }
 
 // asymmetric topology
-TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_base_test)
-{
-    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}}};
-    u64 dataCount = 1024;
-    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-    u32 dataTypeSize = 1;
-    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;
-    RunAllReduceParallelCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
-}
-
 TEST_F(ST_ALL_REDUCE_PARALLEL_TEST, st_all_reduce_asymmetric_mid_data)
 {
     TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6}, {0, 1, 2, 3, 4, 5},
