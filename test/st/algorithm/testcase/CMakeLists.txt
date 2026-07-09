@@ -64,6 +64,7 @@ function(add_st_test OP_NAME OP_SRC)
             $<BUILD_INTERFACE:intf_pub>
         )
 
+
         target_compile_options(${target} PRIVATE
             -std=c++14
             -Werror
