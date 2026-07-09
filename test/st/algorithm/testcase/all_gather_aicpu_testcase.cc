@@ -14,6 +14,7 @@
 #include "hccl.h"
 #include "hccl_verifier.h"
 #include "check_utils.h"
+#include <algorithm>
 #include <thread>
 #include "alg_env_config.h"
 
@@ -34,6 +35,7 @@ protected:
     {
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
         unsetenv("HCCL_OP_EXPANSION_MODE");
+        unsetenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD");
     }
 
     static void SetUpTestCase() {}
@@ -106,6 +108,50 @@ void RunAllGatherAicpuA5(const TopoMeta &topoInfo, const u64 &sendCount, const H
     SimWorld::Global()->Deinit();
 }
 
+// 运行 AllGather AICPU 并注入本地拷贝失败
+// topoInfo 表示仿真拓扑
+// sendCount 表示单 rank 发送元素个数
+// dataType 表示发送和接收数据类型
+// 返回值表示是否观测到非成功返回码
+bool RunAllGatherAicpuLocalCopyFailure(const TopoMeta &topoInfo, const u64 &sendCount, const HcclDataType &dataType)
+{
+    SimWorld::Global()->Init(topoInfo, DevType::DEV_TYPE_950);
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_INDEPENDENT_OP", "1", 1);
+    setenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD", "1", 1);
+
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE_ALL_GATHER_ST[dataType];
+    auto rankSize = AnalyseRankSize(topoInfo);
+    std::vector<HcclResult> results(rankSize, HCCL_SUCCESS);
+    std::vector<std::thread> threads;
+    for (auto rankIdx = 0; rankIdx < rankSize; ++rankIdx) {
+        threads.emplace_back([=, &results]() {
+            aclrtSetDevice(rankIdx);
+            aclrtStream stream = nullptr;
+            aclrtCreateStream(&stream);
+            HcclComm comm = nullptr;
+            HcclResult ret = HcclCommInitClusterInfo("./ranktable.json", rankIdx, &comm);
+            if (ret == HCCL_SUCCESS) {
+                void *sendBuf = nullptr;
+                void *recvBuf = nullptr;
+                u64 sendBufSize = sendCount * dataTypeSize;
+                u64 recvBufSize = sendCount * dataTypeSize * rankSize;
+                aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+                aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+                ret = HcclAllGather(sendBuf, recvBuf, sendCount, dataType, comm, stream);
+                HcclCommDestroy(comm);
+            }
+            results[rankIdx] = ret;
+        });
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+    SimWorld::Global()->Deinit();
+    unsetenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD");
+    return std::any_of(results.begin(), results.end(), [](HcclResult ret) { return ret != HCCL_SUCCESS; });
+}
+
 TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_2rank_int64_small_data_test)
 {
     // 仿真模型初始化
@@ -115,6 +161,15 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_2rank_int64_smal
     auto sendCount = 100;                                // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64;  // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_localcopy_fail_retcode_test)
+{
+    TopoMeta topoMeta{{{0, 1}}};
+    auto sendCount = 100;
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64;
+
+    EXPECT_TRUE(RunAllGatherAicpuLocalCopyFailure(topoMeta, sendCount, dataType));
 }
 
 TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_3rank_int64_small_data_test)
