@@ -9,7 +9,6 @@
  */
 #ifndef INS_TEMP_SEND_DPU
 #define INS_TEMP_SEND_DPU
-#include <cstring>
 #include "alg_v2_template_base.h"
 #include "alg_v2_template_register.h"
 #include "alg_param.h"
@@ -40,7 +39,7 @@ public:
         TemplateResource &resource) override;
     HcclResult DPUKernelRun(const TemplateDataParams &tempAlgParam,
         const std::map<u32, std::vector<ChannelInfo>> &channels, const u32 myRank,
-        const std::vector<std::vector<uint32_t>> &subCommRanks);
+        const std::vector<std::vector<uint32_t>> &subCommRanks) override;
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain) override{};
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub) override{};
 

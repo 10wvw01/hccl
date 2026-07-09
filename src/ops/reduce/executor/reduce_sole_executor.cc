@@ -16,11 +16,11 @@
 #include "topo_match_1d.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_reduce_mesh_1D.h"
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_mesh_1D.h"
 #include "ccu_temp_reduce_nhr_1D_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 namespace ops_hccl {
@@ -74,7 +74,7 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, AlgTemplate>::Orchestrate(
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR(
-            "[ReduceSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce excutor kernel run failed", HCCL_ERROR_CODE(ret)),
+            "[ReduceSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce executor kernel run failed", HCCL_ERROR_CODE(ret)),
         ret);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -184,10 +184,10 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, AlgTemplate>::OrchestrateLoop(
 #ifndef AICPU_COMPILE
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
-    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread)
+    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[ReduceSoleExecutor] loopTimes==1, save fast launch ctx.");
-    u32 threadNum = 1;
+    u32 threadNum = templateAlgRes.submitInfos.size();
     u32 ccuKernelNum = templateAlgRes.submitInfos.size();
     if (ccuKernelNum < 1) {
         HCCL_INFO("[ReduceSoleExecutor] ccu kernel num is 0, no need to save.");
@@ -210,12 +210,17 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
     ccuFastLaunchCtx->threadNum = threadNum;
     ccuFastLaunchCtx->notifyNumOnMainThread = notifyNumOnMainThread;
     ThreadHandle *threads = ccuFastLaunchCtx->GetThreadHandlePtr();
-    threads[0] = templateAlgRes.threads[0];
+    for (int i = 0; i < threadNum; i++)
+    {
+        threads[i] = templateAlgRes.threads[i];
+    }
 
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
+    for (int i = 0; i < ccuKernelNum; i++) {
+        kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 
@@ -254,16 +259,16 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, ReduceAicpuReduceNHR, ReduceSoleE
 
 #ifndef AICPU_COMPILE
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, AivReduceMesh1D, ReduceSoleExecutor, TopoMatch1D, AivTempReduceMesh1D);
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(
     HcclCMDType::HCCL_CMD_REDUCE, CcuReduceMesh1DMem2Mem, ReduceSoleExecutor, TopoMatch1D, CcuTempReduceMesh1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE, CcuReduceMesh1D, ReduceSoleExecutor, TopoMatch1D, CcuTempReduceMesh1D);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(
     HcclCMDType::HCCL_CMD_REDUCE, CcuReduceNHR1DMem2Mem, ReduceSoleExecutor, TopoMatch1D, CcuTempReduceNHR1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }  // namespace ops_hccl

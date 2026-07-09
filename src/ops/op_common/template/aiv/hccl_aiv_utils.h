@@ -19,9 +19,9 @@
 #include "alg_param.h"
 
 namespace ops_hccl {
-constexpr u32 MAX_RANK_SIZE = 128; // 注意要和device侧的一致
- 
-constexpr s32 TOPO_LEN = 64;
+constexpr u32 MAX_RANK_SIZE = 512; // 注意要和device侧的一致
+ constexpr u32 MAX_RANK_SIZE_V = 64; // 注意要和device侧的一致
+constexpr s32 TOPO_LEN = MAX_RANK_SIZE; // 当前一级拓扑，暂时和MAX_RANK_SIZE保持一致
 
 constexpr u32 AIV_TAG_ADDR_OFFSET = 16 * 1024;
 constexpr u32 AIV_TOPO_ADDR_OFFSET = 32 * 1024;
@@ -33,6 +33,13 @@ constexpr u32 AIV_TAG_BUFF_LEN = 33 * 1024 * 1024;
 constexpr u32 AIV_MAX_CCL_LOOP_NUM = 16;
 
 constexpr u32 AIV_ATTRNUM_THREE = 3;
+
+constexpr u32 AIV_CACHE_CTX_TAG_MAX_LENGTH = 64;
+constexpr u32 AIV_CACHE_INDEX_MAX_ENTRY = 8192;
+constexpr u32 AIV_CACHE_INDEX_CLEAR_PERCENT = 20;
+constexpr u64 FNV_OFFSET_BASIS = 14695981039346656037ULL;
+constexpr u64 FNV_PRIME = 1099511628211ULL;
+constexpr char AIV_CACHE_INDEX_CTX_TAG[] = "AivCacheIndex";
 
 enum class KernelArgsType {
     ARGS_TYPE_SERVER = 0, // kernel参数为单机内
@@ -54,10 +61,10 @@ using AivKernelInfo = struct AivKernelInfoDef {
 
 // 非均匀算子AlltoAllV/AlltoAllVC/AllGatherV/ReduceScatterV需要的额外参数信息，A3场景
 struct ExtraArgs {
-    u64 sendCounts[MAX_RANK_SIZE] = {};
-    u64 sendDispls[MAX_RANK_SIZE] = {};
-    u64 recvCounts[MAX_RANK_SIZE] = {};
-    u64 recvDispls[MAX_RANK_SIZE] = {};
+    u64 sendCounts[MAX_RANK_SIZE_V] = {};
+    u64 sendDispls[MAX_RANK_SIZE_V] = {};
+    u64 recvCounts[MAX_RANK_SIZE_V] = {};
+    u64 recvDispls[MAX_RANK_SIZE_V] = {};
 };
 
 // 算子计数信息
@@ -73,6 +80,7 @@ struct OpCounterInfo {
 struct AivOpArgs {
     HcclCMDType cmdType = HcclCMDType::HCCL_CMD_MAX;
     std::string comm = {};
+    HcclComm hcclComm = nullptr;
     u32 numBlocks = MAX_NUM_BLOCKS;
     rtStream_t stream = nullptr;
     uint64_t beginTime = 0;
@@ -106,31 +114,34 @@ struct AivOpArgs {
 // AIV Cache Definitions
 struct AivOpCacheArgs {
     std::string commName;
-    std::string algName;
     u64 count;
     HcclDataType dataType;
     HcclCMDType opType;
     HcclReduceOp reduceOp;
     u32 root;
-    // For AlltoAll
-    HcclDataType sendType;
-    HcclDataType recvType;
-    u64 sendCount;
-    u64 recvCount;
 
     bool operator<(const AivOpCacheArgs& other) const {
         if (commName != other.commName) return commName < other.commName;
-        if (algName != other.algName) return algName < other.algName;
         if (count != other.count) return count < other.count;
         if (dataType != other.dataType) return dataType < other.dataType;
         if (opType != other.opType) return opType < other.opType;
         if (reduceOp != other.reduceOp) return reduceOp < other.reduceOp;
-        if (root != other.root) return root < other.root;
-        if (sendType != other.sendType) return sendType < other.sendType;
-        if (recvType != other.recvType) return recvType < other.recvType;
-        if (sendCount != other.sendCount) return sendCount < other.sendCount;
-        return recvCount < other.recvCount;
+        return root < other.root;
     }
+};
+
+struct AivCacheCtxHeader {
+    u64 keyHash;
+    u32 insCount;
+    u32 algNameLen;
+    // 后续内存布局: char algName[algNameLen] + AivInstruction[insCount]
+};
+
+struct AivCacheIndexCtx {
+    u32 head = 0; // 起始位置
+    u32 tail = 0; // 尾巴位置
+    u32 size = 0; // 当前元素数
+    char ctxTags[AIV_CACHE_INDEX_MAX_ENTRY][AIV_CACHE_CTX_TAG_MAX_LENGTH];
 };
 
 struct AivInstruction {
@@ -145,6 +156,8 @@ extern thread_local std::shared_ptr<InsQueue> g_recordingQueue;
 extern thread_local bool g_recordOnlyMode;
 extern thread_local u64 g_baseInputAddr;
 extern thread_local u64 g_baseOutputAddr;
+extern thread_local HcclComm g_aivCurrentComm;
+extern thread_local std::string g_aivCurrentCommName;
 
 using AivSuperKernelArgs = struct AivSuperKernelArgsDef {
     const void* buffersIn = nullptr; // 注册的CCLIN地址，所有卡可访问
@@ -186,6 +199,24 @@ HcclResult UnRegisterAivKernel();
 HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 argsSize);
  
 HcclResult ExecuteKernelLaunch(const AivOpArgs &opArgs);
+
+void ProcessAivExceptionCallBack(aclrtExceptionInfo *exceptionInfo);
+
+u64 CalcAivCacheKeyHash(const AivOpCacheArgs &cacheKey);
+
+HcclResult BuildAivCacheCtxTag(u64 keyHash, std::string &ctxTag);
+
+HcclResult GetOrCreateAivCacheIndexCtx(HcclComm comm, AivCacheIndexCtx **indexCtx);
+
+HcclResult EvictAivCacheIfNeeded(HcclComm comm, AivCacheIndexCtx *indexCtx);
+
+HcclResult LookupAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, bool &cacheHit,
+                             std::string &algName, AivInstruction *&instructions, u32 &insCount);
+
+HcclResult ReplayAivInstructions(const AivInstruction *instructions, u32 insCount, OpParam &param);
+
+HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, const std::string &algName,
+                            AivCacheIndexCtx *indexCtx);
 }
  
 #endif // HCCL_AIV_UTILS_H

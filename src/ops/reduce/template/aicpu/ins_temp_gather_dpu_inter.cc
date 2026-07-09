@@ -58,12 +58,12 @@ HcclResult InsTempGatherDpuInter::KernelRun(const OpParam& param, const Template
 
     // 转换成eager-mode，保障AICPU指令下发执行完成
     if (HcommBatchModeEnd(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempGatherDpuInter] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
     if (HcommThreadSynchronize(templateResource.threads[0]) != 0) {
-        HCCL_ERROR("HcommThreadSynchronize failed");
+        HCCL_ERROR("[InsTempGatherDpuInter] HcommThreadSynchronize failed");
         return HCCL_E_INTERNAL;
     }
 
@@ -78,28 +78,28 @@ HcclResult InsTempGatherDpuInter::KernelRun(const OpParam& param, const Template
     u32 sendMsgId = 0;
     if (HcommSendRequest(reinterpret_cast<uint64_t>(templateResource.npu2DpuShmemPtr), param.algTag,
         static_cast<void*>(dpuRunInfoSeqData.data()), dpuRunInfoSeqData.size(), &sendMsgId) != 0) {
-        HCCL_ERROR("HcommSendRequest failed");
+        HCCL_ERROR("[InsTempGatherDpuInter] HcommSendRequest failed");
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
+    HCCL_INFO("[InsTempGatherDpuInter] HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
 
     // 等待DPU数据传输，然后回写结果回来
     void *recvData = nullptr;
     u32 recvMsgId = 0;
     if (HcommWaitResponse(reinterpret_cast<uint64_t>(templateResource.dpu2NpuShmemPtr), recvData, 0, &recvMsgId) != 0) {
-        HCCL_ERROR("HcommWaitResponse failed");
+        HCCL_ERROR("[InsTempGatherDpuInter] HcommWaitResponse failed");
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
+    HCCL_INFO("[InsTempGatherDpuInter] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
 
     if (recvMsgId != sendMsgId) {
-        HCCL_ERROR("recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
+        HCCL_ERROR("[InsTempGatherDpuInter] recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
         return HCCL_E_INTERNAL;
     }
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempGatherDpuInter] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -127,8 +127,8 @@ HcclResult InsTempGatherDpuInter::GetStepInfo(uint32_t step, uint32_t nSteps, Ai
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], rankIdx));
     stepInfo.txSliceIdxs.clear();
     stepInfo.rxSliceIdxs.clear();
-    stepInfo.step = step;
     stepInfo.myRank = rankIdx;
+    stepInfo.step = step;
 
     // 计算通信对象
     uint32_t deltaRank = 1 << (nSteps - 1 - step);
@@ -141,9 +141,9 @@ HcclResult InsTempGatherDpuInter::GetStepInfo(uint32_t step, uint32_t nSteps, Ai
     uint32_t txSliceIdx = rankIdx;
     uint32_t rxSliceIdx = (rankIdx - (1 << (nSteps - 1 - step)) + templateRankSize_) % templateRankSize_;
 
-    stepInfo.nSlices = nSlices;
     stepInfo.toRank = sendTo;
     stepInfo.fromRank = recvFrom;
+    stepInfo.nSlices = nSlices;
 
     for (uint32_t i = 0; i < nSlices; i++) {
         stepInfo.txSliceIdxs.push_back(txSliceIdx);
@@ -213,19 +213,19 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
             auto rxChannel = channels.at(GetRankFromMap(stepInfo.fromRank));
             auto txChannel = channels.at(GetRankFromMap(stepInfo.toRank));
             
-            void *sendCclBuffAddr = txChannel[0].remoteCclMem.addr;
             void *recvCclBuffAddr = rxChannel[0].remoteCclMem.addr;
+            void *sendCclBuffAddr = txChannel[0].remoteCclMem.addr;
 
             for (u32 i = 0; i < stepInfo.nSlices; ++i) {
                 const u32 txIdx = stepInfo.txSliceIdxs[i];
                 const u32 rxIdx = stepInfo.rxSliceIdxs[i];
 
-                u64 sendOffset = scratchBase + tempAlgParams.allRankDispls.at(txIdx);
                 u64 sendSize = tempAlgParams.allRankSliceSize.at(txIdx);
+                u64 sendOffset = scratchBase + tempAlgParams.allRankDispls.at(txIdx);
                 u64 sendCount = tempAlgParams.allRankProcessedDataCount.at(txIdx);
 
-                u64 recvOffset = scratchBase + tempAlgParams.allRankDispls.at(rxIdx);
                 u64 recvSize = tempAlgParams.allRankSliceSize.at(rxIdx);
+                u64 recvOffset = scratchBase + tempAlgParams.allRankDispls.at(rxIdx);
                 u64 recvCount = tempAlgParams.allRankProcessedDataCount.at(rxIdx);
 
                 // 无需发送和接收数据

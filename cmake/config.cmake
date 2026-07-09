@@ -74,7 +74,7 @@ function(generate_stub STUB)
     endif() 
 endfunction(generate_stub) 
 
-if(AARCH_MODE)
+if(ENABLE_BUILD_AARCH)
     set(STUBS
         hcomm 
         ccl_kernel
@@ -86,12 +86,22 @@ if(AARCH_MODE)
             generate_stub(${STUB}) 
         endif() 
     endforeach()
-elseif(KERNEL_MODE AND BUILD_OPEN_PROJECT)
+elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
     # Device aicpu 构建：8.5.0 CANN 下 devlib/device/libccl_kernel.so 不存在，需要生成桩库
+    # 解析 CANN 安装路径（与下方 ASCEND_CANN_PACKAGE_PATH 解析一致）。
+    # 此处 ASCEND_CANN_PACKAGE_PATH 尚未赋值，需补充 env 兜底，否则无法探测
+    # devlib/device/libccl_kernel.so 是否存在，导致缺该库的版本（如 9.0.0）漏生成桩库。
     if(CUSTOM_ASCEND_CANN_PACKAGE_PATH)
-        set(_hccl_devlib_dir ${CUSTOM_ASCEND_CANN_PACKAGE_PATH}/devlib/device)
+        set(_hccl_cann_path ${CUSTOM_ASCEND_CANN_PACKAGE_PATH})
     elseif(DEFINED ASCEND_CANN_PACKAGE_PATH)
-        set(_hccl_devlib_dir ${ASCEND_CANN_PACKAGE_PATH}/devlib/device)
+        set(_hccl_cann_path ${ASCEND_CANN_PACKAGE_PATH})
+    elseif(DEFINED ENV{ASCEND_HOME_PATH})
+        set(_hccl_cann_path $ENV{ASCEND_HOME_PATH})
+    elseif(DEFINED ENV{ASCEND_OPP_PATH})
+        get_filename_component(_hccl_cann_path "$ENV{ASCEND_OPP_PATH}/.." ABSOLUTE)
+    endif()
+    if(DEFINED _hccl_cann_path)
+        set(_hccl_devlib_dir ${_hccl_cann_path}/devlib/device)
     endif()
     if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libccl_kernel.so)
         if(NOT TARGET ccl_kernel)
@@ -120,40 +130,6 @@ set(ASCEND_MOCKCPP_PACKAGE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 #     message(FATAL_ERROR "${THIRD_PARTY_NLOHMANN_PATH} does not exist, please check the setting of THIRD_PARTY_NLOHMANN_PATH.")
 # endif()
 
-# ------------------------------------------------------------
-# 前向兼容：探测 CANN 版本号，设置 HCCL_CANN_COMPAT_850
-# ------------------------------------------------------------
-set(HCCL_CANN_VERSION_NUM 0)
-set(_hccl_cann_version_header "${ASCEND_CANN_PACKAGE_PATH}/include/version/cann_version.h")
-message(STATUS "Checking CANN version header: ${_hccl_cann_version_header}")
-if(EXISTS "${_hccl_cann_version_header}")
-    file(STRINGS "${_hccl_cann_version_header}" _hccl_cann_ver_line
-         REGEX "^#define[ \t]+CANN_VERSION_NUM[ \t]+")
-    message(STATUS "CANN version line: [${_hccl_cann_ver_line}]")
-    if(_hccl_cann_ver_line)
-        # 形如: #define CANN_VERSION_NUM ((8 * 10000000) + (5 * 100000) + (0 * 1000))
-        string(REGEX MATCH
-               "\\(([0-9]+) \\* 10000000\\) \\+ \\(([0-9]+) \\* 100000\\) \\+ \\(([0-9]+) \\* 1000\\)"
-               _ "${_hccl_cann_ver_line}")
-        message(STATUS "Matched: m1=[${CMAKE_MATCH_1}] m2=[${CMAKE_MATCH_2}] m3=[${CMAKE_MATCH_3}]")
-        if(NOT CMAKE_MATCH_1 STREQUAL "" AND NOT CMAKE_MATCH_2 STREQUAL "" AND NOT CMAKE_MATCH_3 STREQUAL "")
-            math(EXPR HCCL_CANN_VERSION_NUM
-                 "${CMAKE_MATCH_1} * 10000000 + ${CMAKE_MATCH_2} * 100000 + ${CMAKE_MATCH_3} * 1000")
-        endif()
-    endif()
-endif()
-message(STATUS "Detected CANN_VERSION_NUM = ${HCCL_CANN_VERSION_NUM}")
-if(HCCL_CANN_VERSION_NUM GREATER 0 AND HCCL_CANN_VERSION_NUM LESS 90000000)
-    set(HCCL_CANN_COMPAT_850 ON)
-    message(STATUS "HCCL_CANN_COMPAT_850 = ON (forward-compat mode for CANN < 9.0.0)")
-else()
-    set(HCCL_CANN_COMPAT_850 OFF)
-endif()
-# 把版本号作为编译期宏，供 .cc/.h 内 `#if CANN_VERSION_NUM >= 90000000` 直接判断
-if(HCCL_CANN_VERSION_NUM GREATER 0)
-    add_compile_definitions(CANN_VERSION_NUM=${HCCL_CANN_VERSION_NUM})
-endif()
-
 #execute_process(COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/scripts/check_version_compatiable.sh
 #                             ${ASCEND_CANN_PACKAGE_PATH}
 #                             hccl
@@ -176,15 +152,19 @@ endif ()
 set(HI_PYTHON                     "python3"                       CACHE   STRING   "python executor")
 
 message(STATUS "config.cmake KERNEL_MODE=${KERNEL_MODE} BUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}")
-if(BUILD_OPEN_PROJECT AND KERNEL_MODE)
-    set(PRODUCT_SIDE                  device)
-else()
-    set(PRODUCT_SIDE                  host)
-endif()
+
+#Device 构建安装目录
+set(HCCL_DEVICE_BUILD_PATH ${CMAKE_BINARY_DIR}/device_build)
+set(HCCL_DEVICE_INSTALL_PATH ${CMAKE_BINARY_DIR}/device_install)
+
 set(INSTALL_LIBRARY_DIR ${CMAKE_SYSTEM_PROCESSOR}-linux/lib64)
 set(INSTALL_INCLUDE_DIR ${CMAKE_SYSTEM_PROCESSOR}-linux/include)
 set(INSTALL_AICPU_KERNEL_JSON_DIR opp/built-in/op_impl/aicpu)
 set(INSTALL_DEVICE_TAR_DIR compat)
+
+set(INSTALL_OPGRAPH_LIBRARY_DIR opp/built-in/op_graph/lib/linux/${CMAKE_SYSTEM_PROCESSOR})
+set(INSTALL_OPGRAPH_INCLUDE_DIR opp/built-in/op_graph/inc)
+set(WHL_INSTALL_DIR ops_hccl)
 
 if (ENABLE_TEST)
     set(CMAKE_SKIP_RPATH FALSE)

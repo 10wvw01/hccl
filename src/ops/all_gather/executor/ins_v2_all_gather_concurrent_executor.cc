@@ -20,12 +20,12 @@
 
 #ifndef AICPU_COMPILE
 // CCU template 头文件
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D.h"
 #include "ccu_temp_all_gather_nhr_1D_multi_jetty_mem2mem.h"
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 namespace ops_hccl {
@@ -107,9 +107,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         std::vector<HcclChannelDesc> temp1Channels;
         CommTopo temp0PriorityTopo = COMM_TOPO_1DMESH;
         CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, temp0HierarchyInfo, temp0Channels, temp0PriorityTopo));
-        CommTopo temp1PriorityTopo = COMM_TOPO_CLOS;
-        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, temp1HierarchyInfo, temp1Channels, temp1PriorityTopo));
-
+        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, temp1Channels)); 
         CHK_PRT_RET(temp0Channels.size() != temp1Channels.size(),
             HCCL_ERROR("[InsV2AllGatherConcurrentExecutor][CalcRes] temp0Channels.size()[%zu] is not equal to temp1Channels.size()[%zu]",
                     temp0Channels.size(), temp1Channels.size()),
@@ -137,6 +135,7 @@ void InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParams.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParams.count = dataCountPerLoop;
     tempAlgParams.sliceSize = dataCountPerLoop * dataTypeSize_;
+    tempAlgParams.tailSize = dataCountPerLoop * dataTypeSize_;
     tempAlgParams.buffInfo.inBuffBaseOff = dataOffset;
     tempAlgParams.buffInfo.outBuffBaseOff = dataOffset;
     tempAlgParams.buffInfo.hcclBuffBaseOff = scratchOffset;
@@ -434,16 +433,16 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherConc
                               TopoMatchUBX, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConcurrentMesh1DNHRMem, InsV2AllGatherConcurrentExecutor,
     TopoMatchUBX, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMultiJettyMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConcurrentMesh1DNHR,
                                InsV2AllGatherConcurrentExecutor, TopoMatchUBX, CcuTempAllGatherMesh1D,
                                CcuTempAllGatherNHR1DMultiJettyMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 }  // namespace

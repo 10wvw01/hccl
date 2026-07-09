@@ -9,16 +9,72 @@
  */
 #include "inconsistent_check.h"
 #include "hcom.h"
+#include "alg_env_config.h"
 #include "adapter_error_manager_pub.h"
 #include "hccl_res_expt_dl.h"
 
 namespace ops_hccl {
-HcclResult CompareOpExchangeInfos(HcclComm comm, const OpExchangeInfo &exchangeInfo,
+bool NeedInconsistentCheck(HcclComm comm, const OpParam& param)
+{
+    if (HcommIsSupportHcclCommAddExchangeInfo() && (comm != nullptr)) {
+        // 以下场景不校验参数一致性，其余场景均校验：
+        // inconsistentCheckSwitch为off
+        // inconsistentCheckSwitch为first或空，单算子模式下非首次下发且非增量建链模式，当前以context是否存在作为首次下发判断依据
+        bool noCheck = (GetInconsistentCheckSwitch() == 0) && (param.opMode == OpMode::OPBASE) &&
+            CheckCtxStatus(comm, param);
+        bool increCreateChannelFlag = (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) &&
+            (param.opMode == OpMode::OPBASE);
+        if (GetInconsistentCheckSwitch() == -1 || (noCheck && !increCreateChannelFlag)) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CheckCtxStatus(HcclComm comm, const OpParam& param)
+{
+    void *ctx = nullptr;
+    uint64_t size = 0;
+    switch (param.engine) {
+        case CommEngine::COMM_ENGINE_CPU:
+            return (HcclEngineCtxGet(comm, param.algTag,
+                    CommEngine::COMM_ENGINE_AICPU_TS, &ctx, &size) == HCCL_SUCCESS);
+        case CommEngine::COMM_ENGINE_AIV:
+            return (HcclEngineCtxGet(comm, param.algTag,
+                    CommEngine::COMM_ENGINE_CPU_TS, &ctx, &size) == HCCL_SUCCESS);
+        default:
+            return (HcclEngineCtxGet(comm, param.algTag,
+                    param.engine, &ctx, &size) == HCCL_SUCCESS);
+    }
+}
+
+HcclResult CompareOpExchangeInfos(HcclComm comm, const OpParam& param, const AlgResourceRequest &resRequest,
+    const OpExchangeInfo &exchangeInfo)
+{
+    CHK_PTR_NULL(comm);
+    if (HcommIsSupportHcclCommGetExchangeInfo()) {
+        if (param.engine != COMM_ENGINE_CCU) {
+            for (u32 level = 0; level < resRequest.channels.size(); level++) {
+                CHK_RET(InconsistentCheckParams(comm, exchangeInfo, resRequest.channels[level]));
+            }
+        } else {
+            for (auto &kernelInfo: resRequest.ccuKernelInfos) {
+                CHK_RET(InconsistentCheckParams(comm, exchangeInfo, kernelInfo.channels));
+            }
+        }
+        HCCL_RUN_INFO("[CompareOpExchangeInfos] all exchangeInfos checked successfully. algTag[%s]", param.algTag);
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult InconsistentCheckParams(HcclComm comm, const OpExchangeInfo &exchangeInfo,
     const std::vector<HcclChannelDesc> &channels)
 {
     CHK_PTR_NULL(comm);
     if (channels.empty()) {
-        HCCL_INFO("[CompareOpExchangeInfos] channels is empty.");
+        HCCL_INFO("[InconsistentCheckParams] channels is empty.");
         return HCCL_SUCCESS;
     }
     for (auto &channel : channels) {
@@ -27,14 +83,14 @@ HcclResult CompareOpExchangeInfos(HcclComm comm, const OpExchangeInfo &exchangeI
         CHK_RET(HcclCommGetExchangeInfo(comm, channel.remoteRank, sizeof(OpExchangeInfo),
             reinterpret_cast<void*>(&rmtExchangeInfo), &rmtDataLen));
         if (rmtDataLen == 0) {
-            HCCL_INFO("[CompareOpExchangeInfos] rmtDataLen is 0. Skip. remoteRank[%u]", channel.remoteRank);
+            HCCL_INFO("[InconsistentCheckParams] rmtDataLen is 0. Skip. remoteRank[%u]", channel.remoteRank);
             continue;
         } else if (rmtDataLen != sizeof(OpExchangeInfo)) {
-            HCCL_ERROR("[CompareOpExchangeInfos] locDataLen is not equal to rmtDataLen. remoteRank[%u]", 
+            HCCL_ERROR("[InconsistentCheckParams] locDataLen is not equal to rmtDataLen. remoteRank[%u]", 
                 channel.remoteRank);
             return HCCL_E_PARA;
         }
-        HCCL_INFO("[CompareOpExchangeInfos] check OpExchangeInfo from remoteRank[%u]", channel.remoteRank);
+        HCCL_INFO("[InconsistentCheckParams] check OpExchangeInfo from remoteRank[%u]", channel.remoteRank);
         if (exchangeInfo.cclBufferSize != rmtExchangeInfo.cclBufferSize) {
             CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "HcclBufferSize",
                 std::to_string(exchangeInfo.cclBufferSize), std::to_string(rmtExchangeInfo.cclBufferSize)));
@@ -44,10 +100,6 @@ HcclResult CompareOpExchangeInfos(HcclComm comm, const OpExchangeInfo &exchangeI
                 rmtExchangeInfo.root));
         }
         CHK_RET(InconsistentCheckOpType(exchangeInfo, rmtExchangeInfo.opType));
-        if (exchangeInfo.engine != rmtExchangeInfo.engine) {
-            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "CommEngine",
-                static_cast<uint32_t>(exchangeInfo.engine), static_cast<uint32_t>(rmtExchangeInfo.engine)));
-        }
         if (exchangeInfo.opExecuteConfig != rmtExchangeInfo.opExecuteConfig) {
             CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpExecuteConfig",
                 static_cast<uint32_t>(exchangeInfo.opExecuteConfig),
@@ -66,20 +118,24 @@ HcclResult CompareOpExchangeInfos(HcclComm comm, const OpExchangeInfo &exchangeI
                 std::to_string(rmtExchangeInfo.count)));
         }
         if (exchangeInfo.aivCoreLimit != rmtExchangeInfo.aivCoreLimit) {
-            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "AivCoreLimit", exchangeInfo.aivCoreLimit,
-                rmtExchangeInfo.aivCoreLimit));
+            HCCL_RUN_WARNING("[InconsistentCheckParams]op information aivCoreLimit check fail."
+                " expectValue[%u] remotePara[%u]", exchangeInfo.aivCoreLimit, rmtExchangeInfo.aivCoreLimit);
         }
         if (strncmp(exchangeInfo.group, rmtExchangeInfo.group, MAX_LENGTH) != 0) {
             CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "GroupName", exchangeInfo.group,
                 rmtExchangeInfo.group));
         }
         if (strncmp(exchangeInfo.tag, rmtExchangeInfo.tag, TAG_LENGTH) != 0) {
-            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpTag", exchangeInfo.tag,
-                rmtExchangeInfo.tag));
+            bool isGroupEnabled = false;
+            if (HcommIsSupportHcclGroupStatusGet()) {
+                CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+            }
+            if (!isGroupEnabled) {
+                CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpTag", exchangeInfo.tag, rmtExchangeInfo.tag));
+            }
         }
-        HCCL_INFO("[CompareOpExchangeInfos] success. remoteRank[%u]", channel.remoteRank);
+        HCCL_INFO("[InconsistentCheckParams] success. remoteRank[%u]", channel.remoteRank);
     }
-    HCCL_INFO("[CompareOpExchangeInfos] all exchangeInfos checked successfully. tag[%s]", exchangeInfo.tag);
     return HCCL_SUCCESS;
 }
 
@@ -87,16 +143,23 @@ HcclResult InconsistentCheckOpType(const OpExchangeInfo &exchangeInfo, const Hcc
 {
     HcclCMDType locOpType = exchangeInfo.opType;
     if (locOpType == HcclCMDType::HCCL_CMD_SEND || locOpType == HcclCMDType::HCCL_CMD_RECEIVE) {
+        bool isGroupEnabled = false;
+        if (HcommIsSupportHcclGroupStatusGet()) {
+            CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
+        }
+        if (isGroupEnabled) {
+            return HCCL_SUCCESS;
+        }
         // HcclCMDType::HCCL_CMD_SEND和HcclCMDType::HCCL_CMD_RECEIVE的枚举值需确保大于等于0
         uint32_t expectValue = static_cast<uint32_t>(HcclCMDType::HCCL_CMD_SEND) +
             static_cast<uint32_t>(HcclCMDType::HCCL_CMD_RECEIVE) - static_cast<uint32_t>(locOpType);
         if ((rmtOpType != HcclCMDType::HCCL_CMD_SEND && rmtOpType != HcclCMDType::HCCL_CMD_RECEIVE) ||
             locOpType == rmtOpType) {
-            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "HcclCMDType", expectValue,
+            CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpType", expectValue,
                 static_cast<uint32_t>(rmtOpType)));
         }
     } else if (locOpType != rmtOpType) {
-        CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "HcclCMDType",
+        CHK_RET(ReportOpExchangeInfoCheckFailed(exchangeInfo, "OpType",
             static_cast<uint32_t>(locOpType), static_cast<uint32_t>(rmtOpType)));
     }
     return HCCL_SUCCESS;

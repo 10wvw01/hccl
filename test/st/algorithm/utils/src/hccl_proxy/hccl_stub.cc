@@ -337,6 +337,25 @@ HcclResult HcclThreadAcquireWithStream(
     return simComm->independentOpThreadMgr_->HcclThreadAcquireWithStream(engine, stream, notifyNum, thread);
 }
 
+HcclResult HcclThreadAcquireWithConfig(HcclComm comm, CommEngine engine, uint32_t threadNum, ThreadType type,
+    const ThreadConfig *config, ThreadHandle *threads)
+{
+    auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
+    CHK_PTR_NULL(simComm);
+    for (auto i = 0; i < threadNum; i++) {
+        HcclResult ret = simComm->independentOpThreadMgr_->HcclThreadAcquire(engine, 1, config[i].notifyNumPerThread, &threads[i]);
+        if (ret != HCCL_SUCCESS) {
+            return ret;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+bool HcommIsSupportHcclThreadAcquireWithConfig()
+{
+    return true;
+}
+
 HcclResult HcclEngineCtxGet(HcclComm comm, const char *engineTag, CommEngine engine, void **ctx, uint64_t *size)
 {
     auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
@@ -395,6 +414,37 @@ int32_t HcommThreadNotifyWaitOnThread(ThreadHandle thread, uint32_t notifyIdx, u
 
     return HCCL_SUCCESS;
 }
+
+int32_t HcommThreadNotifyWaitOnThreadWithDefaultTimeout(ThreadHandle thread, uint32_t notifyIdx)
+{
+    return HcommThreadNotifyWaitOnThread(thread, notifyIdx, 0);
+}
+
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+int32_t HcommSetNotifyWaitTimeOut(float timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+
+int32_t HcommThreadResAcquireTimeOut(float timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+#else
+int32_t HcommSetNotifyWaitTimeOut(uint32_t timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+
+int32_t HcommThreadResAcquireTimeOut(uint32_t timeOut)
+{
+    static_cast<void>(timeOut);
+    return HCCL_SUCCESS;
+}
+#endif
 
 int32_t HcommThreadNotifyRecordOnThread(ThreadHandle thread, ThreadHandle dstThread, uint32_t dstNotifyIdx)
 {
@@ -784,6 +834,13 @@ int32_t HcommWriteWithNotifyNbiOnThread(ThreadHandle thread, ChannelHandle chann
     return 0;
 }
 
+int32_t HcommWriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+    uint64_t len)
+{
+    return HcommWriteOnThread(thread, channel, dst, src, len);
+    return 0;
+}
+
 HcclResult HcclDevMemAcquire(HcclComm comm, const char *memTag, uint64_t *size, void **addr, bool *newCreated)
 {
     // 不真实分配host和dpu间通信的共享内存
@@ -921,6 +978,17 @@ int32_t HcommChannelNotifyWait(ChannelHandle channel, uint32_t localNotifyIdx, u
     return -1;
 }
 
+int32_t HcommChannelNotifyWaitOnThreadWithDefaultTimeout(ThreadHandle thread, ChannelHandle channel,
+    uint32_t localNotifyIdx)
+{
+    return HcommChannelNotifyWaitOnThread(thread, channel, localNotifyIdx, 0);
+}
+
+int32_t HcommChannelNotifyWaitWithDefaultTimeout(ChannelHandle channel, uint32_t localNotifyIdx)
+{
+    return HcommChannelNotifyWait(channel, localNotifyIdx, 0);
+}
+
 int32_t HcommFlush()
 {
     HCCL_ERROR("[%s] not support.", __func__);
@@ -937,11 +1005,6 @@ HcclResult HcommSymWinGetPeerPointer(HcclCommSymWindow winHandle, size_t offset,
 {
     HCCL_ERROR("[%s] not support.", __func__);
     return HCCL_E_NOT_SUPPORT;
-}
-
-bool HcommIsSupportHcommBatchTransferOnThread()
-{
-    return false;
 }
 
 HcclResult HcclCommAddExchangeInfo(HcclComm comm, const void *data, uint32_t length)
@@ -961,6 +1024,36 @@ HcclResult HcclCommResetExchangeInfo(HcclComm comm)
 {
     HCCL_WARNING("[%s] not support.", __func__);
     return HCCL_SUCCESS;
+}
+
+bool HcommIsSupportHcommBatchTransferOnThread()
+{
+    return false;
+}
+
+bool HcommIsSupportHcommThreadResAcquireTimeOut()
+{
+    return false;
+}
+
+bool HcommIsSupportHcommSetNotifyWaitTimeOut()
+{
+    return false;
+}
+
+bool HcommIsSupportHcommThreadNotifyWaitOnThreadWithDefaultTimeout()
+{
+    return false;
+}
+
+bool HcommIsSupportHcommChannelNotifyWaitOnThreadWithDefaultTimeout()
+{
+    return false;
+}
+
+bool HcommIsSupportHcommChannelNotifyWaitWithDefaultTimeout()
+{
+    return false;
 }
 
 #ifdef __cplusplus

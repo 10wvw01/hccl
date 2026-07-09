@@ -24,7 +24,7 @@ public:
     __aicore__ inline void InitCoreInfo(uint64_t len) //len is input length
     {
         // 每个核处理 len/curStageCoreNum 个数据
-        uint64_t targetRank = GetBlockIdx();
+        uint64_t targetRank = blockIdx_;
         uint64_t dataPerRank = len / rankSize_;
         uint64_t remainderPerRank = len % rankSize_;
         // 数据对不齐的情况
@@ -59,14 +59,14 @@ public:
                 CpGM2GM((__gm__ T *)cclInOffset, (__gm__ T *)usrInOffset, sendCurCount);
                 PipeBarrier<PIPE_ALL>();
                 // 每个核写flag
-                Record(rank_, GetBlockIdx() * cutNum + coreIndex, curTag_);
+                Record(rank_, blockIdx_ * cutNum + coreIndex, curTag_);
             }
         }
     }
  
     __aicore__ inline void Run(uint64_t len, uint64_t stride)
     {
-        uint64_t blockInedx = GetBlockIdx() - coreNumStage1;
+        uint64_t blockInedx = blockIdx_ - coreNumStage1;
         // 然后stage2的核分成rankSize份，每一份有cutNum个核，每个核去读对端的rankSize份数据
         uint32_t coreNumPerRank = coreNumStage2 / rankSize_;
         uint32_t targetRank = blockInedx / coreNumPerRank;
@@ -115,17 +115,18 @@ public:
  
     __aicore__ inline void Process(uint64_t count, uint64_t sliceId, uint64_t stride)
     {
+        uint32_t rankMultiple = 2;
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
-        if (count * sizeof(T) >= DATA_LIMIT && numBlocks_ >= 2 * rankSize_) {
+        if (count * sizeof(T) >= DATA_LIMIT && numBlocks_ >= rankMultiple * rankSize_) {
             // 核数大于等于2倍ranksize
             curStageCoreNum = numBlocks_ / rankSize_ * rankSize_; // 总的核数
             coreNumStage1 = rankSize_;
             coreNumStage2 = curStageCoreNum - coreNumStage1;
             cutNum = coreNumStage2 / rankSize_;
 
-            if (GetBlockIdx() < coreNumStage1) {
+            if (blockIdx_ < coreNumStage1) {
                 InitCoreInfo(count);
-            } else if (GetBlockIdx() < curStageCoreNum) {
+            } else if (blockIdx_ < curStageCoreNum) {
                 Run(count, stride);
             }
         } else {
@@ -141,7 +142,7 @@ public:
         if (curNumBlocks > rankSize_) {
             curNumBlocks = rankSize_;
         }
-        if (block_idx >= curNumBlocks) {
+        if (blockIdx_ >= curNumBlocks) {
             SyncAll<true>();
             return;
         }
@@ -149,18 +150,18 @@ public:
         auto input = reinterpret_cast<__gm__ T *>(input_);
         uint64_t dataTypeSize = sizeof(T);
         uint64_t countPerCore = count / curNumBlocks;
-        uint64_t curCountCore = block_idx == curNumBlocks - 1 ? count - countPerCore * (curNumBlocks - 1) : countPerCore;
-        auto gmIn = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank_]) + block_idx * countPerCore * dataTypeSize);
-        CpGM2GM(gmIn, input + block_idx * countPerCore, curCountCore);
+        uint64_t curCountCore = blockIdx_ == curNumBlocks - 1 ? count - countPerCore * (curNumBlocks - 1) : countPerCore;
+        auto gmIn = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank_]) + blockIdx_ * countPerCore * dataTypeSize);
+        CpGM2GM(gmIn, input + blockIdx_ * countPerCore, curCountCore);
         SyncAll<true>();
 
         // 每个核分配多个rank搬运数据从gm到对端output
         uint32_t perCoreRankNum = rankSize_ / curNumBlocks;
         uint32_t remainRankNum = rankSize_ % curNumBlocks;
-        uint32_t curCoreRankNum = block_idx < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
-        uint32_t startRank = block_idx < remainRankNum
-                           ? (perCoreRankNum + 1) * block_idx
-                           : perCoreRankNum * block_idx + remainRankNum;
+        uint32_t curCoreRankNum = blockIdx_ < remainRankNum ? perCoreRankNum + 1 : perCoreRankNum;
+        uint32_t startRank = blockIdx_ < remainRankNum
+                           ? (perCoreRankNum + 1) * blockIdx_
+                           : perCoreRankNum * blockIdx_ + remainRankNum;
         for (uint32_t rank = startRank; rank < startRank + curCoreRankNum; rank++) {
             Record(rank, rank_, curTag_);
         }
@@ -192,7 +193,7 @@ __aicore__ inline void AivAllGatherV2Mesh1D(KERNEL_ARGS_DEF)
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
- 
+
     op.Process(len, sliceId, outputSliceStride);
     // 执行barrier全同步
     op.BarrierAll();

@@ -32,7 +32,8 @@ public:
 
 private:
     HcclResult RunAllGatherMesh(const std::vector<ThreadHandle>& threads,
-                                const std::map<u32, std::vector<ChannelInfo>>& channels);
+                                const std::map<u32, std::vector<ChannelInfo>>& channels) override;
+    bool omniLastStepRead_ = false;
 };
 
 }  // namespace ops_hccl

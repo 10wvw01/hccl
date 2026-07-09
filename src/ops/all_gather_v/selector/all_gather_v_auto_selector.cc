@@ -13,7 +13,7 @@
  
 namespace ops_hccl {
 constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
- 
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 SelectorStatus AllGatherVAutoSelector::SelectCcuMsAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
     std::string &selectAlgName) const
@@ -36,10 +36,14 @@ SelectorStatus AllGatherVAutoSelector::SelectCcuScheduleAlgo(
     HCCL_INFO("hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
  
-    if (topoInfo->topoLevelNums  == 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
+    // ccu schedule 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][AllGatherVAutoSelector] ccu schedule does not support inplace allgatherv."),
+        SelectorStatus::NOT_MATCH);
+    if (topoInfo->topoLevelNums == 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
         selectAlgName = "CcuAllGatherVMesh1D";
     } else {
-        HCCL_WARNING("[AllGatherVAutoSelector] topo not match");
+        HCCL_WARNING("[AllGatherVAutoSelector] ccu_schedule not supported for multi-level AllGatherV yet");
         return SelectorStatus::NOT_MATCH;
     }
     return SelectorStatus::MATCH;
@@ -58,10 +62,9 @@ SelectorStatus AllGatherVAutoSelector::SelectAicpuAlgo(
     HCCL_INFO("hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
  
-    if (topoInfo->topoLevelNums  == 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
+    if (topoInfo->topoLevelNums >= 1 && topoInfo->topoLevelNums <= TOPO_LEVEL_NUM_3) {
         selectAlgName = "InsAllGatherVMesh1D";
     } else {
-        HCCL_WARNING("[AllGatherVAutoSelector] topo not match");
         return SelectorStatus::NOT_MATCH;
     }
     return SelectorStatus::MATCH;
@@ -71,7 +74,7 @@ SelectorStatus AllGatherVAutoSelector::SelectAivAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
     std::string &selectAlgName) const
 {
-    HCCL_WARNING("[Algo][AllGatherVAutoSelector] allgatherv is not supported yet for aiv mode, reset to default.");
+    HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[Algo][AllGatherVAutoSelector] allgatherv is not supported yet for aiv mode, reset to default.");
     return SelectorStatus::NOT_MATCH;
     HCCL_DEBUG("[AllGatherVAutoSelector][%s] end", __func__);
 }

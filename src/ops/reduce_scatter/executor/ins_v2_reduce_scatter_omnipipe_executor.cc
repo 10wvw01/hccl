@@ -9,11 +9,16 @@
  */
 
 #include "ins_v2_reduce_scatter_omnipipe_executor.h"
+#include "topo_match_3_level.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1d_dpu.h"
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "topo_match_pcie_mix.h"
+#include "omnipipe_template_utils.h"
 namespace ops_hccl {
+constexpr uint32_t HIERARCHY_SIZE_3 = 3;
+constexpr uint64_t RANK_SIZE_LEVEL_2 = 2;
+constexpr uint64_t RANK_SIZE_LEVEL_4 = 4;
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
                                    InsAlgTemplate2>::InsV2ReduceScatterOmniPipeExecutor()
@@ -57,6 +62,89 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
+HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::BuildSubCommAndTempMap(
+    const OpParam& param,
+    const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+    std::vector<std::vector<u32>>& subCommRanks0,
+    std::vector<std::vector<u32>>& subCommRanks1,
+    std::vector<std::vector<u32>>& subCommRanks2,
+    std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
+    const TopoInfoWithNetLayerDetails* topoInfo)
+{
+    subCommRanks0.clear();
+    subCommRanks1.clear();
+    subCommRanks2.clear();
+    tempMap.clear();
+
+    HCCL_INFO("[BuildSubCommAndTempMap]infos,%s", ThreeDVecToStrOmni(algHierarchyInfo_.infos).c_str());
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        std::vector<u32> closRanks;
+        if (!algHierarchyInfo_.infos[0].empty() && !algHierarchyInfo_.infos[0][0].empty()) {
+            subCommRanks0 = {algHierarchyInfo_.infos[0][0]};
+            u32 meshSize = algHierarchyInfo_.infos[0][0].size();
+            if (!algHierarchyInfo_.infos[0][1].empty()) {
+                for (auto rank : algHierarchyInfo_.infos[0][1]) {
+                    if (rank % meshSize == topoInfo->userRank % meshSize) {
+                        closRanks.push_back(rank);
+                    }
+                }
+            }
+        }
+        subCommRanks1 = {closRanks};
+        omniNeedSetStepNum_ = (subCommRanks1[0].size() == RANK_SIZE_LEVEL_4) ? OmniNeedSetStepNum::OMNIPIPE_UBX_16P
+                                                        : OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
+        if (!algHierarchyInfo_.infos[1].empty()){
+            subCommRanks2 = algHierarchyInfo_.infos[1];
+        } else {
+            subCommRanks2.emplace_back(std::vector<u32>{myRank_});
+        }
+    } else if (topoType_ == TopoType::THREE_LEVEL) {
+        if (!algHierarchyInfo.infos[0].empty() && !algHierarchyInfo.infos[0][0].empty()) {
+            subCommRanks0.push_back(algHierarchyInfo.infos[0][0]);
+        } else {
+            subCommRanks0.emplace_back(std::vector<u32>{myRank_});
+        }
+        if (!algHierarchyInfo.infos[1].empty() && !algHierarchyInfo.infos[1][0].empty()) {
+            subCommRanks1.push_back(algHierarchyInfo.infos[1][0]);
+        } else {
+            subCommRanks1.emplace_back(std::vector<u32>{myRank_});
+        }
+        if (!algHierarchyInfo.infos[2].empty() && !algHierarchyInfo.infos[2][0].empty()) {
+            subCommRanks2.push_back(algHierarchyInfo.infos[2][0]);
+        } else {
+            subCommRanks2.emplace_back(std::vector<u32>{myRank_});
+        }
+    } else {
+        if (!algHierarchyInfo_.infos[0].empty()) {
+            subCommRanks0 = algHierarchyInfo_.infos[0];
+        }
+        if (!algHierarchyInfo_.infos[1].empty()) {
+            subCommRanks1 = algHierarchyInfo_.infos[1];
+        }
+        subCommRanks2.emplace_back(std::vector<u32>{myRank_});
+    }
+
+    rankSizeLevel0_ = subCommRanks0[0].size();
+    rankSizeLevel1_ = subCommRanks1[0].size();
+    rankSizeLevel2_ = subCommRanks2[0].size();
+
+    rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
+    rankIdxLevel1_ = myRank_ % (rankSizeLevel0_ * rankSizeLevel1_) / rankSizeLevel0_;
+    rankIdxLevel2_ = myRank_ / (rankSizeLevel0_ * rankSizeLevel1_);
+
+    if (rankSizeLevel0_ > 1) {
+        tempMap[OMNIPIPE_LEVEL0] = std::make_shared<InsAlgTemplate0>(param, myRank_, subCommRanks0);
+    }
+    if (rankSizeLevel1_ > 1) {
+        tempMap[OMNIPIPE_LEVEL1] = std::make_shared<InsAlgTemplate1>(param, myRank_, subCommRanks1);
+    }
+    if (rankSizeLevel2_ > 1) {
+        tempMap[OMNIPIPE_LEVEL2] = std::make_shared<InsAlgTemplate2>(param, myRank_, subCommRanks2);
+    }
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::CalcRes(
     HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
     const AlgHierarchyInfoForAllLevel& algHierarchyInfo, AlgResourceRequest& resourceRequest)
@@ -65,84 +153,33 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     // 初始化一些基本成员变量
     InitCommInfo(param, topoInfo, algHierarchyInfo);
 
-    // 处理分层
-    // 计算subCommRanks
-    std::vector<std::vector<u32>> subCommRanks0;  // 这个数组就算x轴为1也有值    
-    std::vector<std::vector<u32>> subCommRanks1;
-    std::vector<std::vector<u32>> subCommRanks2;
-
-    subCommRanks0.clear();
-    subCommRanks1.clear();
-    subCommRanks2.clear();
-
-    if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        subCommRanks0 = {algHierarchyInfo_.infos[0][0]};
-        std::vector<u32> closRanks;
-        u32 meshSize = algHierarchyInfo_.infos[0][0].size();
-        for(auto rank : algHierarchyInfo_.infos[0][1]) {
-            if(rank % meshSize == topoInfo->userRank % meshSize) {
-                closRanks.push_back(rank);
-            }
-        }
-        subCommRanks1 = {closRanks};
-        subCommRanks2 = algHierarchyInfo_.infos[1];
+    if (algHierarchyInfo_.infos.size() == HIERARCHY_SIZE_3 &&
+        !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
+        topoType_ = TopoType::THREE_LEVEL;
     } else {
-        subCommRanks0 = algHierarchyInfo_.infos[0];
-        subCommRanks1 = algHierarchyInfo_.infos[1];
-        subCommRanks2.emplace_back(std::vector<u32>{myRank_});
+        topoType_ = TopoType::UBX_2LEVEL;
     }
 
-    rankSizeLevel0_ = subCommRanks0[0].size();
-    rankSizeLevel1_ = subCommRanks1[0].size();
-    rankSizeLevel2_ = subCommRanks2[0].size();
+    std::vector<std::vector<u32>> subCommRanks0;
+    std::vector<std::vector<u32>> subCommRanks1;
+    std::vector<std::vector<u32>> subCommRanks2;
+    std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap;
+    CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo,
+            subCommRanks0, subCommRanks1, subCommRanks2, tempMap, topoInfo));
 
-    // 初始化resourceRequest，思路是只要rankSize>1就给他初始化，注意下后面会不会有空指针
-    AlgResourceRequest resReqlevel0;
-    AlgResourceRequest resReqlevel1;
-    AlgResourceRequest resReqlevel2;
     resourceRequest.slaveThreadNum = 0;
     resourceRequest.notifyNumOnMainThread = 0;
 
-    if (rankSizeLevel0_ > 1) {
-        HCCL_INFO("rankSizeLevel0_ > 1, generate resource for temp0");
-        std::shared_ptr<InsAlgTemplate0> level0TempAlg =
-            std::make_shared<InsAlgTemplate0>(param, topoInfo->userRank, subCommRanks0);
-        CHK_RET(level0TempAlg->CalcRes(comm, param, topoInfo, resReqlevel0));
-        resourceRequest.slaveThreadNum += 1 + resReqlevel0.slaveThreadNum;
-        resourceRequest.notifyNumPerThread.emplace_back(resReqlevel0.notifyNumOnMainThread + 1);
+    for (auto& temp : tempMap) {
+        AlgResourceRequest resReqlevel;
+        CHK_RET(temp.second->CalcRes(comm, param, topoInfo, resReqlevel));
+        resourceRequest.slaveThreadNum += 1 + resReqlevel.slaveThreadNum;
+        resourceRequest.notifyNumPerThread.emplace_back(resReqlevel.notifyNumOnMainThread + 1);
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-                                                  resReqlevel0.notifyNumPerThread.begin(),
-                                                  resReqlevel0.notifyNumPerThread.end());
+                                                  resReqlevel.notifyNumPerThread.begin(),
+                                                  resReqlevel.notifyNumPerThread.end());
         resourceRequest.notifyNumOnMainThread++;
-        resourceRequest.channels.push_back(resReqlevel0.channels[0]);
-    }
-
-    if (rankSizeLevel1_ > 1) {
-        HCCL_INFO("rankSizeLevel1_ > 1, generate resource for temp1");
-        std::shared_ptr<InsAlgTemplate1> level1TempAlg =
-            std::make_shared<InsAlgTemplate1>(param, topoInfo->userRank, subCommRanks1);
-        CHK_RET(level1TempAlg->CalcRes(comm, param, topoInfo, resReqlevel1));
-        resourceRequest.slaveThreadNum += 1 + resReqlevel1.slaveThreadNum;
-        resourceRequest.notifyNumPerThread.emplace_back(resReqlevel1.notifyNumOnMainThread + 1);
-        resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-                                                  resReqlevel1.notifyNumPerThread.begin(),
-                                                  resReqlevel1.notifyNumPerThread.end());
-        resourceRequest.notifyNumOnMainThread++;
-        resourceRequest.channels.push_back(resReqlevel1.channels[0]);
-    }
-
-    if (rankSizeLevel2_ > 1) {
-        HCCL_INFO("rankSizeLevel2_ > 1, generate resource for temp2");
-        std::shared_ptr<InsAlgTemplate2> level2TempAlg =
-            std::make_shared<InsAlgTemplate2>(param, topoInfo->userRank, subCommRanks2);
-        CHK_RET(level2TempAlg->CalcRes(comm, param, topoInfo, resReqlevel2));
-        resourceRequest.slaveThreadNum += 1 + resReqlevel2.slaveThreadNum;
-        resourceRequest.notifyNumPerThread.emplace_back(resReqlevel2.notifyNumOnMainThread + 1);
-        resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-                                                  resReqlevel2.notifyNumPerThread.begin(),
-                                                  resReqlevel2.notifyNumPerThread.end());
-        resourceRequest.notifyNumOnMainThread++;
-        resourceRequest.channels.push_back(resReqlevel2.channels[0]);
+        resourceRequest.channels.push_back(resReqlevel.channels[0]);
     }
 
     return HCCL_SUCCESS;
@@ -174,10 +211,6 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         notifyIdxCtrlToTempLevel01_.push_back(levelTempRequest.notifyNumOnMainThread);
         notifyIdxTempToCtrlLevel01_.push_back(tempMainThreadsLevel01_.size() + tempMainThreadsLevel2_.size() - 1);
     } else {
-        HCCL_DEBUG("levelTempRequest.notifyNumOnMainThread=%u, tempMainThreadsLevel01_.size()=%u, "
-                   "tempMainThreadsLevel2_.size()=%u",
-                   levelTempRequest.notifyNumOnMainThread, tempMainThreadsLevel01_.size(),
-                   tempMainThreadsLevel2_.size());
         notifyIdxCtrlToTempLevel2_.push_back(levelTempRequest.notifyNumOnMainThread);
         notifyIdxTempToCtrlLevel2_.push_back(tempMainThreadsLevel01_.size() + tempMainThreadsLevel2_.size() - 1);
     }
@@ -201,70 +234,41 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     reduceOp_ = param.reduceType;
     threads_ = resCtx.threads;
     
-    // 计算subCommRanks
-    int index = 0;
+    if (algHierarchyInfo_.infos.size() == HIERARCHY_SIZE_3 &&
+        !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
+        topoType_ = TopoType::THREE_LEVEL;
+    } else {
+        topoType_ = TopoType::UBX_2LEVEL;
+    }
+
+    // 计算subCommRanks和template
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
-    std::vector<std::vector<u32>> subCommRanks2;    
-
-    subCommRanks0.clear();
-    subCommRanks1.clear();
-    subCommRanks2.clear();
-
-    if(resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
-        subCommRanks0 = {algHierarchyInfo_.infos[0][0]};
-        std::vector<u32> closRanks;
-        u32 meshSize = algHierarchyInfo_.infos[0][0].size();
-        for(auto rank : algHierarchyInfo_.infos[0][1]) {
-            if(rank % meshSize == resCtx.topoInfo.userRank % meshSize) {
-                closRanks.push_back(rank);
-            }
-        }
-        subCommRanks1 = {closRanks};
-        subCommRanks2 = algHierarchyInfo_.infos[1];
-    } else {
-        subCommRanks0 = algHierarchyInfo_.infos[0];
-        subCommRanks1 = algHierarchyInfo_.infos[1];
-        subCommRanks2.emplace_back(std::vector<u32>{myRank_});
-    }
-
-    // 处理分层
-    rankSizeLevel0_ = subCommRanks0[0].size();
-    rankSizeLevel1_ = subCommRanks1[0].size();
-    rankSizeLevel2_ = subCommRanks2[0].size();
-
-    HCCL_DEBUG("algHierarchyInfo_.infos[1].size() = %u, algHierarchyInfo_.infos[1][0].size() = %u",
-               algHierarchyInfo_.infos[1].size(), algHierarchyInfo_.infos[1][0].size());
-    rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
-    rankIdxLevel1_ = myRank_ % (rankSizeLevel0_ * rankSizeLevel1_) / rankSizeLevel0_;
-    rankIdxLevel2_ = myRank_ / (rankSizeLevel0_ * rankSizeLevel1_);
-
-    // 改成智能指针，初始化
+    std::vector<std::vector<u32>> subCommRanks2;
     std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap;
-    if (rankSizeLevel0_ > 1) {
-        tempMap[OMNIPIPE_LEVEL0] = std::make_shared<InsAlgTemplate0>(param, myRank_, subCommRanks0);
-    }
-    if (rankSizeLevel1_ > 1) {
-        tempMap[OMNIPIPE_LEVEL1] = std::make_shared<InsAlgTemplate1>(param, myRank_, subCommRanks1);
-    }
-    if (rankSizeLevel2_ > 1) {
-        tempMap[OMNIPIPE_LEVEL2] = std::make_shared<InsAlgTemplate2>(param, myRank_, subCommRanks2);
-    }
-    HCCL_DEBUG("tempMap.size()=%u", tempMap.size());
+    CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo_,
+            subCommRanks0, subCommRanks1, subCommRanks2, tempMap, &resCtx.topoInfo));
+
     // 为temp分配thread
     threads_ = resCtx.threads;
     controlThread_ = threads_.at(0);
     levelThreads_.resize(OMNIPIPE_LEVEL_NUM);
+
+    // 先初始化remoteRankToChannelInfo_，然后为nhr赋值多channel，最后再计算资源，这样计算线程资源的时候就能获取到多channel需要的线程数
+    CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    // todo 这边写死了
+    if (rankSizeLevel1_ > 1) {
+        tempMap[OMNIPIPE_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+    }
+
     for (auto& temp : tempMap) {
         CHK_RET(PrepareResForTemplateLevel(temp.first, temp.second));
     }
 
-    CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
-
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, tempMap);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor "
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor "
                            "kernel run failed",
                            HCCL_ERROR_CODE(ret)),
                 ret);
@@ -274,7 +278,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2>
 HcclResult
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::RestoreChannelMap(
-    const AlgResourceCtxSerializable& resCtx, std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo)
+    const AlgResourceCtxSerializable& resCtx, std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo) const
 {
     rankIdToChannelInfo.resize(OMNIPIPE_LEVEL_NUM);
     u32 level = 0;
@@ -306,20 +310,10 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1,
                                    InsAlgTemplate2>::GenTemplateAlgParamsByDimData(TemplateDataParams& tempAlgParams,
-                                                                                   const StepSliceInfo& stepSliceInfo)
+                                                                                   const StepSliceInfo& stepSliceInfo) const
 {
     // rs特殊处理，过程中的所有step都在ccl中进行数据搬运，在template中只使用ccl的起始地址就可以了，in和out不用赋值
-    tempAlgParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-    tempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
-    // 这三个值使用时，第一步从in->hccl，第二步确定性计算按序ccl->out进行规约
-    tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff;
-    tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
-    tempAlgParams.buffInfo.hcclBuffBaseOff = stepSliceInfo.buffInfo.hcclBuffBaseOff;
-    // 统一赋值，直接透传
-    tempAlgParams.stepSliceInfo = stepSliceInfo;
-    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
-              "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
-              tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff);
+    CHK_RET(FillOmniPipeTemplateAlgParams(tempAlgParams, stepSliceInfo));
     return HCCL_SUCCESS;
 }
 
@@ -330,24 +324,19 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     std::map<u32, std::shared_ptr<InsAlgTemplateBase>> tempMap)
 {
     HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop] Start");
-
-    HCCL_DEBUG("Start Step Calc!");
     // 1.计算带宽
-    double bw_ag_l0=BW_OMNI_DEFAULT;
-    double bw_ag_l1=BW_OMNI_DEFAULT;
-    double bw_ag_l2=BW_OMNI_DEFAULT;
-    double bw_rs_l0=BW_OMNI_DEFAULT;
-    double bw_rs_l1=BW_OMNI_DEFAULT;
-    double bw_rs_l2=BW_OMNI_DEFAULT;
+    double bw_rs_l0 = BW_OMNI_DEFAULT;
+    double bw_rs_l1 = BW_OMNI_DEFAULT;
+    double bw_rs_l2 = BW_OMNI_DEFAULT;
 
     if (resCtx.topoInfo.level0PcieMix) {
-        if (rankSizeLevel1_==2) {
-            bw_ag_l1=BW_OMNI_PCIE_EIGHT_AG_CLOS;
-            bw_rs_l1=BW_OMNI_PCIE_EIGHT_RS_CLOS;
-        } else if (rankSizeLevel1_==4) {
-            bw_ag_l1=BW_OMNI_PCIE_SIXTEEN_AG_CLOS;
-            bw_rs_l1=BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
+        if (rankSizeLevel1_==RANK_SIZE_LEVEL_2) {
+            bw_rs_l1 = BW_OMNI_PCIE_EIGHT_RS_CLOS;
+        } else if (rankSizeLevel1_==RANK_SIZE_LEVEL_4) {
+            bw_rs_l1 = BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
         }
+    } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS) {
+        bw_rs_l1 = BW_OMNI_UBX_RS_CLOS;
     }
 
     //计算等价带宽
@@ -359,7 +348,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     //level1为nhr
     //level2, ranksize = 1
     eqBw1 = rankSizeLevel1_ > 1 ? eqBw1 / (rankSizeLevel1_ - 1) : eqBw1;
-    eqBw2 = rankSizeLevel1_ > 1 ? eqBw2 / (rankSizeLevel1_ - 1) : eqBw2;
+    eqBw2 = rankSizeLevel2_ > 1 ? eqBw2 / (rankSizeLevel2_ - 1) : eqBw2;
 
     std::vector<double> endpointAttrBwNew{eqBw0, eqBw1, eqBw2};
 
@@ -391,7 +380,6 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
     u64 maxCountPerLoop = loopInfo[0];
     u64 loopTimes = loopInfo[1];
-    HCCL_DEBUG("loopInfo[0](maxCountPerLoop)=%u, loopInfo[1](loopTimes)=%u", maxCountPerLoop, loopTimes);
 
     // 3、计算n-1次loop的slice信息
     OmniPipeSliceParam sliceParam;
@@ -412,6 +400,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     sliceParam.dataTypeSize = dataTypeSize_;
     sliceParam.opMode = param.opMode;
     sliceParam.engine = param.engine;
+    sliceParam.needSetStepNum = omniNeedSetStepNum_;
     OmniPipeSliceInfo alignSliceInfo = CalcRSOmniPipeSliceInfo(sliceParam);
 
     // 4、计算第n次的loop的slice信息
@@ -491,16 +480,8 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
             HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop]Step [%u] in level2", i);
             if (rankSizeLevel2_ > 1) {
                 HCCL_DEBUG("rankSizeLevel2_ > 1");
-                // 初始化机间template param
                 GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2], omnipipeSliceInfo.dataSliceLevel2[i]);
-                // level2前同步
-                HCCL_DEBUG("tempMainThreadsLevel2_.size=%u, notifyIdxCtrlToTempLevel2_.size=%u, "
-                           "notifyIdxCtrlToTempLevel2_.size=%u",
-                           tempMainThreadsLevel2_.size(), notifyIdxCtrlToTempLevel2_.size(),
-                           notifyIdxCtrlToTempLevel2_.size());
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel2_, notifyIdxCtrlToTempLevel2_));
-                // 执行机间template任务
-                HCCL_DEBUG("PreSyncInterThreads z success?");
                 CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2], tempResMap[OMNIPIPE_LEVEL2]));
             }
             // 5.4 for内层2d
@@ -559,11 +540,16 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipeMultilevel,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatchMultilevel, InsTempReduceScatterOmniPipeMesh1D,
-                       InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeMesh1dDpu);
+                       InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipePcie,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatchPcieMix, InsTempReduceScatterOmniPipeMesh1D,
                        InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipe,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatchUBX, InsTempReduceScatterOmniPipeMesh1D,
                        InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
+
+REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipeUboe,
+                       InsV2ReduceScatterOmniPipeExecutor, TopoMatch3Level, InsTempReduceScatterOmniPipeMesh1D,
+                       InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1D);
+
 }  // namespace ops_hccl

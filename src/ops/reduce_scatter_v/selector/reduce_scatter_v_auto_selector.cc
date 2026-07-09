@@ -13,12 +13,20 @@
 
 namespace ops_hccl {
 
+constexpr u32 TOPO_LEVEL_1 = 1;
+constexpr u32 TOPO_LEVEL_3 = 3;
+constexpr u64 RSV_CCU_8P_MIN_DATA_SIZE = 32 * 1024 * 1024;
+
 SelectorStatus ReduceScatterVAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
                                                     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu ms 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu ms does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // MS 模式不支持 int8
     CHK_PRT_RET(opParam.vDataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
         HCCL_WARNING("[ReduceScatterVAutoSelector] dataType[%d] is not supported yet for ccu_ms mode.",
@@ -92,6 +100,10 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoW
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
+    // ccu schedule 模式不支持 inplace 场景
+    CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
+        HCCL_WARNING("[Algo][ReduceScatterVAutoSelector] ccu schedule does not support inplace reduce_scatter_v."),
+        SelectorStatus::NOT_MATCH);
     // ccu 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_WARNING("[ReduceScatterVAutoSelector] ReduceOp[%d] is not supported yet for ccu schedule mode.",
@@ -133,17 +145,34 @@ SelectorStatus ReduceScatterVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoW
 SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWithNetLayerDetails* topoInfo,
     const OpParam &opParam, std::string &selectAlgName) const
 {
+    const u64* varData = reinterpret_cast<const u64*>(opParam.varData);
+    // 从0长数组中还原出任务信息
+    std::vector<u64> sendCounts;
+    sendCounts.assign(varData, varData + topoInfo->userRankSize);
+    u64 inputCount = 0;
+    for (u64 i = 0; i < topoInfo->userRankSize; i++) {
+        inputCount += sendCounts[i];
+    }
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.vDataDes.dataType];
+    u64 inputDataSize = inputCount * perDataSize;
+    
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[ReduceScatterVAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
-        } else {
+        } else if (inputDataSize < RSV_CCU_8P_MIN_DATA_SIZE) {
             selectAlgName = "CcuReduceScatterVMesh1D";
+        } else {
+            return SelectorStatus::NOT_MATCH;
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        // MESH_1D 即可链接所有卡， 使用 MESH_1D 算法
         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
-            // MESH_1D 即可链接所有卡， 使用 MESH_1D 算法
-            selectAlgName = "CcuReduceScatterVMesh1D";
+            if (inputDataSize < RSV_CCU_8P_MIN_DATA_SIZE) {
+                selectAlgName = "CcuReduceScatterVMesh1D";
+            } else {
+                return SelectorStatus::NOT_MATCH;
+            }
         } else {
             HCCL_WARNING("[ReduceScatterVAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
                 topoInfo->level0Topo);
@@ -167,32 +196,14 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNet
                                                       std::string &selectAlgName) const
 {
     (void)configAlgMap;
-    CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
-        HCCL_ERROR("[Algo][ReduceScatterVAutoSelector] ReduceOp [PROD] is not supported yet for aicpu mode."),
-        SelectorStatus::NOT_MATCH);
-    if (Is64BitDataType(opParam.vDataDes.dataType)) {
-        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] INT64, UINT64 or FP64 are not yet supported for all mode.");
+    if (Is64BitDataType(opParam.vDataDes.dataType) && opParam.vDataDes.dataType != HcclDataType::HCCL_DATA_TYPE_INT64) {
+        HCCL_ERROR("[SelectAicpuAlgo] [ReduceScatterVAutoSelector] UINT64 or FP64 are not yet supported for aicpu mode.");
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->topoLevelNums > 1) {
-        HCCL_WARNING("[ReduceScatterVAutoSelector] layerNum > 1 is not supported yet for aicpu_schedule mode.");
-        return SelectorStatus::NOT_MATCH;
-    } else {
-        return SelectMeshAlgoAicpu(topoInfo, opParam, selectAlgName);
-    }
-
-    return SelectorStatus::MATCH;
-}
-
-SelectorStatus ReduceScatterVAutoSelector::SelectMeshAlgoAicpu(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
-                                                          std::string &selectAlgName) const
-{
-    (void) opParam;
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D){
+    if (topoInfo->topoLevelNums >= TOPO_LEVEL_1 && topoInfo->topoLevelNums <= TOPO_LEVEL_3) {
         selectAlgName = "InsReduceScatterVMesh1D";
     } else {
-        HCCL_WARNING("[ReduceScatterVAutoSelector] topo not match");
         return SelectorStatus::NOT_MATCH;
     }
     return SelectorStatus::MATCH;
@@ -203,7 +214,7 @@ SelectorStatus ReduceScatterVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLa
                                                        std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
-    HCCL_DEBUG("[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode, reverting to AICPU mode.");
+    HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[Algo][ReduceScatterVAutoSelector] is not supported yet for AIV mode.");
     return SelectorStatus::NOT_MATCH;
 }
 

@@ -11,7 +11,6 @@
 #ifndef INS_TEMP_ALL_GATHER_OMNIPIPE_NHR_H
 #define INS_TEMP_ALL_GATHER_OMNIPIPE_NHR_H
 
-#include <cstring>
 #include "ins_temp_all_gather_nhr.h"
 
 namespace ops_hccl {
@@ -32,7 +31,15 @@ public:
 
 private:
     HcclResult RunAllGatherNHR(const std::vector<ThreadHandle>& threads,
-                               const std::map<u32, std::vector<ChannelInfo>>& channels);
+                               const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
+
+    HcclResult DoLastStepCopyNhr(const std::vector<ThreadHandle>& threads,
+                               const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
+    u64 dataTypeSize_{0};
+    std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
+    std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
+    bool omniLastStepRead_ = false;
+    bool lastStepNhrCopy_ = false;
 };
 }  // namespace ops_hccl
 #endif  // INS_TEMP_ALL_GATHER_OMNIPIPE_NHR_H

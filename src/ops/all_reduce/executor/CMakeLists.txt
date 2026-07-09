@@ -10,9 +10,9 @@
 
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sole_executor.cc
-    # ${CMAKE_CURRENT_SOURCE_DIR}/ins_all_reduce_parallel_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_parallel_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sequence_executor_aicpu.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sequence_executor_aicpu_3level.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_two_shot_sole_executor.cc
 )
 if(NOT HCCL_CANN_COMPAT_850)
@@ -21,9 +21,13 @@ if(NOT HCCL_CANN_COMPAT_850)
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_allreduce_sequence2die_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_sequence_executor.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_omnipipe_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_order_preserved_executor.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/ins_v2_all_reduce_omnipipe_2d_executor.cc
     )
 endif()
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

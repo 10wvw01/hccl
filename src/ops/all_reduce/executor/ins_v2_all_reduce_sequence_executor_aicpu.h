@@ -30,7 +30,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 class InsV2AllReduceSequenceExecutorAicpu : public InsCollAlgBase {
 public:
     explicit InsV2AllReduceSequenceExecutorAicpu();
-    ~InsV2AllReduceSequenceExecutorAicpu() = default;
+    ~InsV2AllReduceSequenceExecutorAicpu() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
@@ -41,6 +41,14 @@ public:
     
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
                                     AlgHierarchyInfoForAllLevel& algHierarchyInfo) override;
+
+#ifndef AICPU_COMPILE
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *resCtx) override;
+    HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgResStepOne,
+                                 const TemplateResource &templateAlgResStepTwo,
+                                 const TemplateResource &templateAlgResStepThree,
+                                 const TemplateResource &templateAlgResStepFour, u32 notifyNumOnMainThread);
+#endif
 
 protected:
     /* *************** 算法编排 *************** */
@@ -60,7 +68,7 @@ protected:
         const u64 sliceSize, const u64 tailSize, TemplateDataParams &tempAlgParamsStepFour) const;
     template <typename InsAlgTemplate>
     HcclResult GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
-        const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempReousrce) const;
+        const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempResource) const;
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
@@ -72,6 +80,19 @@ protected:
     uint64_t inCclBuffSize_{0};
     uint64_t outCclBuffOffset_{0};
     uint64_t inCclBuffOffset_{0};
+
+    u64 scratchBlockSize_{0};
+    CommEngine engine_{CommEngine::COMM_ENGINE_AICPU};
+
+    u32 ccuKernelLaunchNumStepOne_{0};
+    u32 ccuKernelLaunchNumStepTwo_{0};
+    u32 ccuKernelLaunchNumStepThree_{0};
+    u32 ccuKernelLaunchNumStepFour_{0};
+
+    std::vector<CcuKernelHandle> stepOneCcuKernels_;
+    std::vector<CcuKernelHandle> stepTwoCcuKernels_;
+    std::vector<CcuKernelHandle> stepThreeCcuKernels_;
+    std::vector<CcuKernelHandle> stepFourCcuKernels_;
 
     AlgHierarchyInfoForAllLevel algHierarchyInfo_;
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;

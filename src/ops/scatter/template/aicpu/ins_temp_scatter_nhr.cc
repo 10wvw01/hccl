@@ -37,9 +37,29 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     CHK_PTR_NULL(topoInfo);
 
     std::vector<HcclChannelDesc> level0Channels;
-    CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level0Channels));
+    std::vector<HcclChannelDesc> myChannelDescs;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+ 	u64 dataSize = param.DataDes.count * perDataSize;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        bool isIsolation =
+                !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize <= SMALL_SIZE_512KB);
+            CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation));
+        for (auto channel : myChannelDescs) {
+            if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                level0Channels.push_back(channel);
+            }
+        }
+    } else {
+        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, level0Channels));
+    }
     resourceRequest.channels.push_back(level0Channels);
     channelsPerRank_ = CalcChannelsPerRank(level0Channels);
+    if (channelsPerRank_ > MAX_JETTY_NUM) {
+        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
+            __func__, channelsPerRank_, MAX_JETTY_NUM);
+    } else {
+        HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
+    }
     CHK_RET(GetRes(resourceRequest));
     return HCCL_SUCCESS;
 }
@@ -71,19 +91,19 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
     stepInfo.txSliceIdxs.clear();
     stepInfo.rxSliceIdxs.clear();
     stepInfo.nSlices = 0;
+    stepInfo.step = step;
     stepInfo.toRank = rankSize;
     stepInfo.fromRank = rankSize;
-    stepInfo.step = step;
     stepInfo.myRank = myRank_;
 
     u32 deltaRoot = (rootAlgRank + rankSize - myAlgRank) % rankSize;
     u32 deltaRankPair = 1 << step;
 
-    // 数据份数和数据编号增量
+    // ScatterNHR 数据份数和数据编号增量
     u32 nSlices = (rankSize - 1 + (1 << step)) / (1 << (step + 1));
     u32 deltaSliceIndex = 1 << (step + 1);
 
-    // 判断是否是2的幂
+    // ScatterNHR 判断是否是2的幂
     u32 nRanks = 0;  // 本步需要进行收/发的rank数
     bool isPerfect = (rankSize & (rankSize - 1)) == 0;
     if (!isPerfect && step == nSteps - 1) {
@@ -92,7 +112,7 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
         nRanks = deltaRankPair;
     }
 
-    if (deltaRoot < nRanks) {  // 需要发
+    if (deltaRoot < nRanks) {  // ScatterNHR 需要发
         HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] Need to Send: deltaRoot[%u], nRanks[%d]", deltaRoot, nRanks);
         u32 sendTo = (myAlgRank + rankSize - deltaRankPair) % rankSize;
         u32 txSliceIdx = sendTo;
@@ -120,7 +140,7 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult InsTempScatterNHR::PreprareDataSplitForMultiChannel(const TemplateResource &templateResource, const TemplateDataParams &tempAlgParams) {
+HcclResult InsTempScatterNHR::PrepareDataSplitForMultiChannel(const TemplateResource &templateResource, const TemplateDataParams &tempAlgParams) {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u64 totalDataCount = tempAlgParams.sliceSize / dataTypeSize;
     std::vector<u64> elemCountOut;
@@ -147,9 +167,9 @@ HcclResult InsTempScatterNHR::KernelRun(const OpParam& param, const TemplateData
     bool isPcieProtocal = IsPcieProtocol(templateResource.channels);  // 判断是否存在pcie链路
     isDmaRead_ = isPcieProtocal;  // 是否使用Read模式
     HCCL_DEBUG("[InsTempScatterNHR] Use Dma Read[%d]", isDmaRead_);
-    CHK_RET(PreprareDataSplitForMultiChannel(templateResource, tempAlgParams));
+    CHK_RET(PrepareDataSplitForMultiChannel(templateResource, tempAlgParams));
     
-    HCCL_INFO("[InsTempScatterNHR] queNum_ =  [%d], threads size = [%d]", threadNum_, templateResource.threads.size());
+    HCCL_INFO("[InsTempScatterNHR] queNum_ = [%d], threads size = [%d]", threadNum_, templateResource.threads.size());
     HCCL_INFO("[InsTempScatterNHR] Run Start");
     CHK_PRT_RET(templateResource.threads.empty(), 
  	            HCCL_ERROR("[InsTempScatterNHR][KernelRun] threads is empty"), 
@@ -162,13 +182,13 @@ HcclResult InsTempScatterNHR::KernelRun(const OpParam& param, const TemplateData
     CHK_PTR_NULL(tempAlgParams.buffInfo.outputPtr);
     CHK_RET(PreCopy(tempAlgParams, templateResource.threads));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     CHK_RET(RunNHR(templateResource.channels, templateResource.threads, tempAlgParams));
     if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.begin() + threadNum_);
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
@@ -210,10 +230,10 @@ HcclResult InsTempScatterNHR::PostCopy(
     const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) const
 {
     u32 myAlgRank;
+    GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u32 curSliceSize = tempAlgParams.tailSize !=0 && myAlgRank == templateRankSize_ - 1? tempAlgParams.tailSize : processSize_;
     u32 curCount = curSliceSize / dataTypeSize;
-    GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
     for (u32 r = 0; r < tempAlgParams.repeatNum; r++) {
         u64 srcOffset = r * templateRankSize_ * tempAlgParams.sliceSize + tempAlgParams.buffInfo.hcclBuffBaseOff +
                         myAlgRank * tempAlgParams.sliceSize;
@@ -404,13 +424,13 @@ HcclResult InsTempScatterNHR::BatchSR(AicpuNHRStepInfo &stepInfo, const std::map
     }
     return HcclResult::HCCL_SUCCESS;
 }
-void InsTempScatterNHR::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMianToSub)
+void InsTempScatterNHR::GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub)
 {
-    notifyIdxMianToSub.clear();
+    notifyIdxMainToSub.clear();
     u32 threadNum = GetThreadNum();
     u32 slaveThreadNum = threadNum - 1;
     for (u32 slaveThreadIdx = 0; slaveThreadIdx < slaveThreadNum; slaveThreadIdx++) {
-        notifyIdxMianToSub.push_back(0);
+        notifyIdxMainToSub.push_back(0);
     }
 }
 

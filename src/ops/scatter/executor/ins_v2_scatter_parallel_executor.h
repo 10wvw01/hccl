@@ -12,8 +12,6 @@
 #define HCCLV2_INS_V2_SCATTER_PARALLEL_EXECUTOR_H
 
 #include "alg_param.h"
-#include "channel.h"
-#include "alg_v2_template_base.h"
 #include "utils.h"
 #include "log.h"
 #include "workflow.h"
@@ -24,6 +22,8 @@
 #include "topo_match_multilevel.h"
 #include "topo_match_pcie_mix.h"
 #include "topo_match_ubx.h"
+#include "channel.h"
+#include "alg_v2_template_base.h"
 
 namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -43,7 +43,7 @@ public:
     HcclResult PreSyncInterTemplates();
     HcclResult PostSyncInterTemplates();
 #ifndef AICPU_COMPILE
-    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *resCtx) override;
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *ctx) override;
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgResIntra,
                                  const TemplateResource &templateAlgResInter, u32 notifyNumOnMainThread);
 #endif
@@ -53,13 +53,13 @@ protected:
     HcclResult PrepareResForTemplate(InsAlgTemplate0 &tempAlgIntra);
     HcclResult GenInsQuesHost(
         const OpParam &param, const AlgResourceCtxSerializable &resCtx, InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter);
-    void GenTemplateAlgParamsIntra0(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAixs0, const u64 scratchOffset,
+    void GenTemplateAlgParamsIntra0(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAxis0, const u64 scratchOffset,
         TemplateDataParams &tempAlgParamsIntra0) const;
-    void GenTemplateAlgParamsIntra1(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAixs1, const u64 scratchOffset,
+    void GenTemplateAlgParamsIntra1(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAxis1, const u64 scratchOffset,
         TemplateDataParams &tempAlgParamsIntra1) const;
-    void GenTemplateAlgParamsInter0(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAixs0, const u64 scratchOffset,
+    void GenTemplateAlgParamsInter0(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAxis0, const u64 scratchOffset,
         TemplateDataParams &tempAlgParamsInter0) const;
-    void GenTemplateAlgParamsInter1(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAixs1, const u64 scratchOffset,
+    void GenTemplateAlgParamsInter1(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 dataCountPerLoopAxis1, const u64 scratchOffset,
         TemplateDataParams &tempAlgParamsInter1) const;
 
     void GetParallelDataSplit(std::vector<double> &splitDataSize) const;
@@ -79,7 +79,6 @@ protected:
     std::vector<ThreadHandle> requiredThreads_;
     std::vector<ThreadHandle> intraThreads_;
     std::vector<ThreadHandle> interThreads_;
-    // std::vector<ThreadHandle> syncThreads_;
     std::map<u32, std::vector<ChannelInfo>> intraChannelInfo_;
     std::map<u32, std::vector<ChannelInfo>> interChannelInfo_;
 
@@ -87,7 +86,6 @@ protected:
     std::vector<ThreadHandle> threads_;
     std::vector<std::vector<u32>> temp0HierarchyInfo_;
     std::vector<std::vector<u32>> temp1HierarchyInfo_;
-
 };
 }  // namespace ops_hccl
 

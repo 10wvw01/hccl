@@ -9,7 +9,6 @@
  */
 #include "alg_data_trans_wrapper.h"
 #include "channel.h"
-#include "hccl_ccu_res.h"
 #include "ins_v2_all_to_all_concurrent_executor.h"
 #include "aicpu/ins_temp_all_to_all_v_mesh_1D.h"
 
@@ -104,8 +103,8 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     std::vector<HcclChannelDesc> channelDescs0, channelDescs1;
     CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0,
                                                     channelDescs0, CommTopo::COMM_TOPO_1DMESH));
-    CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks1,
-                                                    channelDescs1, CommTopo::COMM_TOPO_CLOS));
+    CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks1,
+                                                    channelDescs1, false, false));
 
     if ((param.engine == CommEngine::COMM_ENGINE_CCU)) {
         resReq0.ccuKernelInfos[0].channels = channelDescs0;
@@ -154,7 +153,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     algHierarchyInfo_ = resCtx.algHierarchyInfo;
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[InsV2AllToAllConcurrentExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor "
+                HCCL_ERROR("[InsV2AllToAllConcurrentExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor "
                 "kernel run failed", HCCL_ERROR_CODE(ret)),
                 ret);
     return HcclResult::HCCL_SUCCESS;
@@ -481,7 +480,6 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
                                          static_cast<u32>(templateAlgRes1.submitInfos.size())};
     std::vector<std::vector<CcuKernelSubmitInfo>> submitInfosList = {templateAlgRes0.submitInfos, templateAlgRes1.submitInfos};
     return FastLaunchSaveCtxTwoTemplate(param, threadNum, ccuKernelNum, threads_, ccuKernelNumList, submitInfosList, notifyNumOnMainThread);
-    
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -565,14 +563,14 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALLV,
                                 InsTempAlltoAllVMesh1D,
                                 InsTempAlltoAllVMesh1D);
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
                                 CcuAllToAllMesh1DConcurrent,
                                 InsV2AllToAllConcurrentExecutor,
                                 TopoMatchUBX,
                                 CcuTempAllToAllMesh1dMultiJetty,
                                 CcuTempAllToAllMesh1dMultiJetty);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 }

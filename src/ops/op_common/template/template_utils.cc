@@ -45,7 +45,7 @@ HcclResult CalcDataSplitByPortGroupCommon(const u64 totalDataCount,
 
     std::vector<u32> portGroups;
     u32 totalPorts = 0;
-    u32 taskCount =  ((int)channels.size() > channelsPerRank) ? channelsPerRank : (int)channels.size();
+    u32 taskCount =  (static_cast<int>(channels.size()) > channelsPerRank) ? channelsPerRank : static_cast<int>(channels.size());
     for (u32 i = 0; i < taskCount; i++) {
         const auto &ch = channels[i];
         portGroups.push_back(ch.portGroupSize);
@@ -141,5 +141,28 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
               level0DataRatio, elemCountOut.size());
 
     return HcclResult::HCCL_SUCCESS;
+}
+bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType)
+{
+    CHK_PRT_RET(topoInfo->netLayerDetails.localNetInsSizeOfLayer.size() <= netLayer,
+        HCCL_WARNING("[BaseSelector][IsLayerAllConnetedWithTopo] localNetInsSizeOfLayer size[%u] <= netLayer[%u]",
+        topoInfo->netLayerDetails.localNetInsSizeOfLayer.size(), netLayer), false);
+    u32 localRankSize = topoInfo->netLayerDetails.localNetInsSizeOfLayer[netLayer];
+
+    CHK_PRT_RET(topoInfo->topoInstDetailsOfLayer.size() <= netLayer,
+        HCCL_WARNING("[BaseSelector][IsLayerAllConnetedWithTopo] topoInstDetailsOfLayer size[%u] <= netLayer[%u]",
+        topoInfo->topoInstDetailsOfLayer.size(), netLayer), false);
+
+    auto rankNumForTopoTypeItr = topoInfo->topoInstDetailsOfLayer[netLayer].rankNumForTopoType.find(topoType);
+    if (rankNumForTopoTypeItr == topoInfo->topoInstDetailsOfLayer[netLayer].rankNumForTopoType.end()) {
+        return false;
+    }
+
+    for (auto topoRankNum : rankNumForTopoTypeItr->second) {
+        if (topoRankNum == localRankSize) {
+            return true;
+        }
+    }
+    return false;
 }
 }

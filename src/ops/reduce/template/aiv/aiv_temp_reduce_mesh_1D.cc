@@ -47,7 +47,7 @@ HcclResult AivTempReduceMesh1D::CalcRes(HcclComm comm, const OpParam& param, con
     std::vector<HcclChannelDesc> level0Channels;
     if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         std::vector<HcclChannelDesc> myChannelDescs;
-        CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_1DMESH));
+        CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, true));
         for(auto channel : myChannelDescs) {
             if(channel.channelProtocol == COMM_PROTOCOL_UB_MEM) {
                 level0Channels.push_back(channel);
@@ -65,6 +65,7 @@ HcclResult AivTempReduceMesh1D::CalcRes(HcclComm comm, const OpParam& param, con
 HcclResult AivTempReduceMesh1D::CalNumBlocks(u32& numBlocks, u64 dataSize, u32 numBlocksLimit)
 {
     (void) dataSize;
+    HCCL_INFO("[AivTempReduceMesh1D] Limit core num[%u]", numBlocksLimit);
     numBlocks = numBlocksLimit;
     HCCL_INFO("[AivTempReduceMesh1D] Actually use core num[%u]", numBlocks);
     return HcclResult::HCCL_SUCCESS;

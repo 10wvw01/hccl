@@ -10,10 +10,10 @@
 
 #include "ins_v2_reduce_scatter_v_sole_executor.h"
 #include "ins_temp_reduce_scatter_v_mesh_1D.h"
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_v_mesh_1D_mem2mem.h"
 
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
@@ -63,7 +63,7 @@ HcclResult InsV2ReduceScatterVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orches
 HCCL_INFO("[InsV2ReduceScatterVSoleExecutor][Orchestrate] Orchestrate Start3");
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2ReduceScatterVSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor kernel run failed",
+        HCCL_ERROR("[InsV2ReduceScatterVSoleExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -172,9 +172,9 @@ HcclResult InsV2ReduceScatterVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orches
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V, InsReduceScatterVMesh1D, InsV2ReduceScatterVSoleExecutor, TopoMatch1D,
     InsTempReduceScatterVMesh1D);
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V, CcuReduceScatterVMesh1D, InsV2ReduceScatterVSoleExecutor, TopoMatch1D,
     CcuTempReduceScatterVMesh1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }

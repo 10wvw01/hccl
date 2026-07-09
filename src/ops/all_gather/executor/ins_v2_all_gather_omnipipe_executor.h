@@ -28,7 +28,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 class InsV2AllGatherOmniPipeExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllGatherOmniPipeExecutor();
-    ~InsV2AllGatherOmniPipeExecutor() = default;
+    ~InsV2AllGatherOmniPipeExecutor() override = default;
     /* *************** 资源计算 *************** */
     // 这些函数为ExecutorBase纯虚函数，必须重写
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
@@ -40,7 +40,7 @@ public:
                                     AlgHierarchyInfoForAllLevel &algHierarchyInfo) override;
 
 protected:
-    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo);
+    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo) const;
 
     HcclResult InitCommInfo(const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
                             const AlgHierarchyInfoForAllLevel& algHierarchyInfo);
@@ -50,10 +50,28 @@ protected:
         std::vector<std::map<u32, std::vector<ChannelInfo>>> &rankIdToChannelInfo) const override;
     HcclResult PrepareResForTemplateLevel(u32 level, std::shared_ptr<InsAlgTemplateBase> &tempBase);
     HcclResult CalcResLevel(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
-        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest);
+        std::shared_ptr<InsAlgTemplateBase> tempAlg, AlgResourceRequest &resourceRequest) const;
+
+    HcclResult UbxLastStepLocalCopy(const OpParam& param, const OmniPipeSliceInfo& omniPipeSliceInfo, 
+        const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo,
+        std::map<u32, TemplateDataParams>& tempAlgParamMap, const u64 processedDataCount, int step) const;
+
+    HcclResult UbxLocalCopy(const OpParam& param, const OmniPipeSliceInfo& omniPipeSliceInfo, 
+        const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo, std::map<u32, TemplateDataParams>& tempAlgParamMap, 
+        const u64 processedDataCount, int step) const;
 
 private:
+    enum class TopoType { UBX_2LEVEL, THREE_LEVEL };
+    TopoType topoType_ = TopoType::UBX_2LEVEL;
 
+    HcclResult BuildSubCommAndTempMap(
+        const OpParam& param,
+        const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
+        std::vector<std::vector<u32>>& subCommRanks0,
+        std::vector<std::vector<u32>>& subCommRanks1,
+        std::vector<std::vector<u32>>& subCommRanks2,
+        std::map<u32, std::shared_ptr<InsAlgTemplateBase>>& tempMap,
+        const TopoInfoWithNetLayerDetails* topoInfo);
     std::vector<uint64_t> rankSizeLevel_;
     std::vector<uint64_t> rankIdxLevel_;
     OpMode opMode_;
@@ -77,6 +95,9 @@ private:
     std::vector<std::vector<u32>> subCommRanks0_;
     std::vector<std::vector<u32>> subCommRanks1_;
     std::vector<std::vector<u32>> subCommRanks2_;
+
+    OmniNeedSetStepNum omniNeedSetStepNum_ = OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
+    bool omniUbxLastStepRead_ = false;
 };
 }
 #endif

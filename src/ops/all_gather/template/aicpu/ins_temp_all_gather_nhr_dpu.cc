@@ -9,6 +9,7 @@
  */
 
 #include "ins_temp_all_gather_nhr_dpu.h"
+#include "dpu_alg_nhr_opt_wrapper.h"
 #include "alg_data_trans_wrapper.h"
 #include "dpu_alg_data_trans_wrapper.h"
 #include "channel.h"
@@ -59,12 +60,12 @@ HcclResult InsTempAllGatherNHRDPU::KernelRun(const OpParam& param,
 
     // 转换成eager-mode，保障AICPU指令下发执行完成
     if (HcommBatchModeEnd(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
     if (HcommThreadSynchronize(templateResource.threads[0]) != 0) {
-        HCCL_ERROR("HcommThreadSynchronize failed");
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] HcommThreadSynchronize failed");
         return HCCL_E_INTERNAL;
     }
 
@@ -79,28 +80,28 @@ HcclResult InsTempAllGatherNHRDPU::KernelRun(const OpParam& param,
     u32 sendMsgId = 0;
     if (HcommSendRequest(reinterpret_cast<uint64_t>(templateResource.npu2DpuShmemPtr), param.algTag,
         static_cast<void*>(dpuRunInfoSeqData.data()), dpuRunInfoSeqData.size(), &sendMsgId) != 0) {
-        HCCL_ERROR("HcommSendRequest failed");
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] HcommSendRequest failed");
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
+    HCCL_INFO("[InsTempAllGatherNHRDPU] HcommSendRequest run over, sendMsgId[%u]", sendMsgId);
 
     // 等待DPU数据传输，然后回写结果回来
     void *recvData = nullptr;
     u32 recvMsgId = 0;
     if (HcommWaitResponse(reinterpret_cast<uint64_t>(templateResource.dpu2NpuShmemPtr), recvData, 0, &recvMsgId) != 0) {
-        HCCL_ERROR("HcommWaitResponse failed");
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] HcommWaitResponse failed");
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
+    HCCL_INFO("[InsTempAllGatherNHRDPU] HcommWaitResponse run over, recvMsgId[%u]", recvMsgId);
 
     if (recvMsgId != sendMsgId) {
-        HCCL_ERROR("recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] recvMsgId[%u] not equal to sendMsgId[%u]", recvMsgId, sendMsgId);
         return HCCL_E_INTERNAL;
     }
 
     // 将执行模式转换回到batch
     if (HcommBatchModeStart(param.algTag) != HCCL_SUCCESS) {
-        HCCL_ERROR("failed set eager mode, tag is %s.", param.algTag);
+        HCCL_ERROR("[InsTempAllGatherNHRDPU] failed set eager mode, tag is %s.", param.algTag);
         return HCCL_E_INTERNAL;
     }
 
@@ -127,10 +128,10 @@ HcclResult InsTempAllGatherNHRDPU::GetStepInfo(uint32_t step, uint32_t nSteps, A
 {
     uint32_t rankIdx = 0;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], rankIdx));
-    stepInfo.txSliceIdxs.clear();
-    stepInfo.rxSliceIdxs.clear();
     stepInfo.step = step;
     stepInfo.myRank = rankIdx;
+    stepInfo.txSliceIdxs.clear();
+    stepInfo.rxSliceIdxs.clear();
 
     // 计算通信对象
     uint32_t deltaRank = 1 << (nSteps - 1 - step);
@@ -144,8 +145,8 @@ HcclResult InsTempAllGatherNHRDPU::GetStepInfo(uint32_t step, uint32_t nSteps, A
     uint32_t rxSliceIdx = (rankIdx - (1 << (nSteps - 1 - step)) + templateRankSize_) % templateRankSize_;
 
     stepInfo.nSlices = nSlices;
-    stepInfo.toRank = sendTo;
     stepInfo.fromRank = recvFrom;
+    stepInfo.toRank = sendTo;
 
     for (uint32_t i = 0; i < nSlices; i++) {
         stepInfo.txSliceIdxs.push_back(txSliceIdx);
@@ -193,9 +194,6 @@ HcclResult InsTempAllGatherNHRDPU::RunNHR(const TemplateDataParams& tempAlgParam
     const uint32_t nSteps = GetNHRStepNum(templateRankSize_);
 
     for (uint32_t rpt = 0; rpt < tempAlgParams.repeatNum; ++rpt) {
-        const uint64_t scratchRepeatStride = tempAlgParams.sliceSize * templateRankSize_;
-        const uint64_t scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
-
         for (uint32_t step = 0; step < nSteps; ++step) {
             AicpuNHRStepInfo stepInfo;
             CHK_RET(GetStepInfo(step, nSteps, stepInfo));
@@ -203,65 +201,11 @@ HcclResult InsTempAllGatherNHRDPU::RunNHR(const TemplateDataParams& tempAlgParam
             HCCL_DEBUG("[InsTempAllGatherNHRDPU] rank[%d] rankSize[%u] recvFrom[%u] sendTo[%u] step[%u] nSteps[%u] nSlices[%u]",
                 myRank_, templateRankSize_, stepInfo.fromRank, stepInfo.toRank, step, nSteps, stepInfo.nSlices);
 
-            auto rxChannel = channels.at(GetRankFromMap(stepInfo.fromRank));
-            auto txChannel = channels.at(GetRankFromMap(stepInfo.toRank));
-
-            std::vector<DataSlice> txSrcSlices;
-            std::vector<DataSlice> txDstSlices;
-            std::vector<DataSlice> rxSrcSlices;
-            std::vector<DataSlice> rxDstSlices;
-            void *sendCclBuffAddr = txChannel[0].remoteCclMem.addr;
-            void *recvCclBuffAddr = rxChannel[0].remoteCclMem.addr;
-
-            for (u32 i = 0; i < stepInfo.nSlices; ++i) {
-                const u32 txIdx = stepInfo.txSliceIdxs[i];
-                const u32 rxIdx = stepInfo.rxSliceIdxs[i];
-
-                const u64 txScratchOff = scratchBase + tempAlgParams.sliceSize * txIdx;
-                const u64 rxScratchOff = scratchBase + tempAlgParams.sliceSize * rxIdx;
-
-                txSrcSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, txScratchOff, tempAlgParams.sliceSize,
-                                         tempAlgParams.count);
-                txDstSlices.emplace_back(sendCclBuffAddr, txScratchOff, tempAlgParams.sliceSize, tempAlgParams.count);
-                rxSrcSlices.emplace_back(recvCclBuffAddr, rxScratchOff, tempAlgParams.sliceSize, tempAlgParams.count);
-                rxDstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, rxScratchOff, tempAlgParams.sliceSize,
-                                         tempAlgParams.count);
-            }
-            // write模式使用tx,rx地址不生效，仅使用对端link做Post/Wait
-            // read 模式使用rx, tx地址不生效，仅使用对端link做Post/Wait
-            if (txChannel[0].remoteRank == rxChannel[0].remoteRank) {
-                TxRxChannels sendRecvChannels(txChannel[0], rxChannel[0]);
-                TxRxSlicesList sendRecvSlicesList({txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices});
-                SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-
-                CHK_PRT_RET(SendRecvWrite(sendRecvInfo),
-                    HCCL_ERROR("[InsTempAllGatherNHRDPU] SendRecvWrite failed (step=%u, rpt=%u)", step, rpt),
-                    HcclResult::HCCL_E_INTERNAL);
-            } else if (txChannel[0].remoteRank < rxChannel[0].remoteRank) {
-                SlicesList sendSliceList(txSrcSlices, txDstSlices);
-                DataInfo sendInfo(txChannel[0], sendSliceList);
-                CHK_PRT_RET(SendWrite(sendInfo),
-                            HCCL_ERROR("[InsTempAllGatherNhrDpuInter][RunNHR] Send failed (step=%u, rpt=%u)", step, rpt),
-                            HcclResult::HCCL_E_INTERNAL);
-
-                SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
-                        DataInfo recvInfo(rxChannel[0], recvSliceList);
-                        CHK_PRT_RET(RecvWrite(recvInfo),
-                            HCCL_ERROR("[InsTempAllGatherNhrDpuInter][RunNHR] Recv failed (step=%u, rpt=%u)", step, rpt),
-                            HcclResult::HCCL_E_INTERNAL);
-            } else {
-                SlicesList recvSliceList(rxSrcSlices, rxDstSlices);
-                    DataInfo recvInfo(rxChannel[0], recvSliceList);
-                    CHK_PRT_RET(RecvWrite(recvInfo),
-                        HCCL_ERROR("[InsTempAllGatherNhrDpuInter][RunNHR] Recv failed (step=%u, rpt=%u)", step, rpt),
-                        HcclResult::HCCL_E_INTERNAL);
-
-                SlicesList sendSliceList(txSrcSlices, txDstSlices);
-                DataInfo sendInfo(txChannel[0], sendSliceList);
-                CHK_PRT_RET(SendWrite(sendInfo),
-                            HCCL_ERROR("[InsTempAllGatherNhrDpuInter][RunNHR] Send failed (step=%u, rpt=%u)", step, rpt),
-                            HcclResult::HCCL_E_INTERNAL);
-            }
+            stepInfo.toRank = GetRankFromMap(stepInfo.toRank);
+            stepInfo.fromRank = GetRankFromMap(stepInfo.fromRank);
+            HCCL_INFO("[InsTempAllGatherNHRDPU][RunNHR] converted toRank=%u fromRank=%u channelsSize=%zu",
+                stepInfo.toRank, stepInfo.fromRank, channels.size());
+            CHK_RET(BatchTransferNHR(stepInfo, channels, tempAlgParams, rpt, myRank_, templateRankSize_));
         }
     }
 #endif

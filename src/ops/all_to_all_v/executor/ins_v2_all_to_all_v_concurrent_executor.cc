@@ -11,10 +11,10 @@
 #include "channel.h"
 #include "ins_v2_all_to_all_v_concurrent_executor.h"
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_to_all_v_mesh_1D_multi_jetty.h"
 #include "ccu_kernel_all_to_all_v_mesh1d_multi_jetty.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #include "alg_data_trans_wrapper.h"
 
@@ -74,7 +74,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     localSendRecvInfo_.recvOffset.resize(rankSize_, 0);
 
     CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize_ * sizeof(u64),
-    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][OrchestrateLoop] param.varMemSize [%llu] is invalid",
+    HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][SetAlltoAllLocalSendRecvInfo] param.varMemSize [%llu] is invalid",
         param.varMemSize), HCCL_E_PARA);
 
     const u64* data = reinterpret_cast<const u64*>(param.varData);
@@ -220,26 +220,30 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     resReq0.ccuKernelInfos[0].channels = channelDescs0;
 
     std::vector<uint32_t> jettyNums;
-    CHK_RET(SetJettyNums(jettyNums, true));
+    CHK_RET(SetJettyNums(jettyNums, false));
 #if !defined(HCCL_CANN_COMPAT_850)
-    resReq0.ccuKernelInfos[0].kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>(subCommRanks0[0].size(),
-                                                                                    topoInfo->userRank,
-                                                                                    param,
-                                                                                    subCommRanks0,
-                                                                                    jettyNums);
+    auto kernelArg0 = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>();
+    kernelArg0->rankSize = subCommRanks0[0].size();
+    kernelArg0->rankId = topoInfo->userRank;
+    kernelArg0->opParam = param;
+    kernelArg0->subCommRanks = subCommRanks0;
+    kernelArg0->jettyNums = jettyNums;
+    resReq0.ccuKernelInfos[0].setKernelArg(kernelArg0);
 #endif
 
     std::vector<HcclChannelDesc> channelDescs1;
-    CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks1, channelDescs1, CommTopo::COMM_TOPO_1DMESH));
+    CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks1, channelDescs1, false, false));
     resReq1.ccuKernelInfos[0].channels = channelDescs1;
 
     CHK_RET(SetJettyNums(jettyNums, false));
 #if !defined(HCCL_CANN_COMPAT_850)
-    resReq1.ccuKernelInfos[0].kernelArg = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>(subCommRanks1[0].size(),
-                                                                                    topoInfo->userRank,
-                                                                                    param,
-                                                                                    subCommRanks1,
-                                                                                    jettyNums);
+    auto kernelArg1 = std::make_shared<CcuKernelArgAllToAllVMesh1DMultiJetty>();
+    kernelArg1->rankSize = subCommRanks1[0].size();
+    kernelArg1->rankId = topoInfo->userRank;
+    kernelArg1->opParam = param;
+    kernelArg1->subCommRanks = subCommRanks1;
+    kernelArg1->jettyNums = jettyNums;
+    resReq1.ccuKernelInfos[0].setKernelArg(kernelArg1);
 #endif
 
     resourceRequest.ccuKernelNum.emplace_back(resReq0.ccuKernelNum[0]);
@@ -340,12 +344,12 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     ret = algTemplateClos->KernelRun(param, tempAlgParamsClos, templateAlgResClos);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][Orchestrate]errNo[0x%016llx] alltoallv concurrent excutor kernel 0 run failed",
+        HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][Orchestrate]errNo[0x%016llx] alltoallv concurrent executor kernel 0 run failed",
             HCCL_ERROR_CODE(ret)), ret);
 
     ret = algTemplateMesh->KernelRun(param, tempAlgParamsMesh, templateAlgResMesh);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][Orchestrate]errNo[0x%016llx] alltoallv concurrent excutor kernel 1 run failed",
+        HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][Orchestrate]errNo[0x%016llx] alltoallv concurrent executor kernel 1 run failed",
             HCCL_ERROR_CODE(ret)), ret);
 
     CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain));
@@ -385,7 +389,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FastLaunch(
-        const OpParam &param, const CcuFastLaunchCtx *ctx)
+        const OpParam &param, const CcuFastLaunchCtx *resCtx)
 {
     HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunch] Start");
     InsAlgTemplate0 tempAlg0{};
@@ -393,8 +397,8 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     TemplateFastLaunchCtx tempFastLaunchCtx0, tempFastLaunchCtx1;
 
-    ThreadHandle *threads = ctx->GetThreadHandlePtr();
-    threads_.assign(threads, threads + ctx->threadNum);
+    ThreadHandle *threads = resCtx->GetThreadHandlePtr();
+    threads_.assign(threads, threads + resCtx->threadNum);
     u64 temp0ThreadsNum = tempAlg0.GetThreadNum();
     if (temp0ThreadsNum > threads_.size()) {
         HCCL_ERROR("[InsV2AllToAllVConcurrentExecutor][FastLaunch] temp0ThreadsNum[%llu] exceeds available threads[%llu]",
@@ -420,8 +424,8 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     tempAlg0.SetA2ASendRecvInfo(sendRecvInfoTemp0);
     tempAlg1.SetA2ASendRecvInfo(sendRecvInfoTemp1);
 
-    CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
-    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunch] temp0 ccuKernelNum[%llu]", ctx->ccuKernelNum[0]);
+    CcuKernelSubmitInfo *ccuKernelSubmitInfos = resCtx->GetCcuKernelSubmitInfoPtr();
+    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunch] temp0 ccuKernelNum[%llu]", resCtx->ccuKernelNum[0]);
 
     std::vector<ThreadHandle> subThreads;
     subThreads.emplace_back(temp1ThreadMain_);
@@ -430,18 +434,18 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtx0, param.inputPtr, param.outputPtr, param.hcclBuff));
     tempFastLaunchCtx0.threads = temp0Threads_;
-    tempFastLaunchCtx0.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[0]);
-    ccuKernelSubmitInfos += ctx->ccuKernelNum[0];
-    if (ctx->ccuKernelNum[0] > 0) {
+    tempFastLaunchCtx0.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + resCtx->ccuKernelNum[0]);
+    ccuKernelSubmitInfos += resCtx->ccuKernelNum[0];
+    if (resCtx->ccuKernelNum[0] > 0) {
         CHK_RET(tempAlg0.FastLaunch(param, tempFastLaunchCtx0));
     }
 
-    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunch] temp1 ccuKernelNum[%llu]", ctx->ccuKernelNum[1]);
+    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunch] temp1 ccuKernelNum[%llu]", resCtx->ccuKernelNum[1]);
     CHK_RET(SetTempFastLaunchAddr(tempFastLaunchCtx1, param.inputPtr, param.outputPtr, param.hcclBuff));
     tempFastLaunchCtx1.threads = temp1Threads_;
-    tempFastLaunchCtx1.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + ctx->ccuKernelNum[1]);
-    ccuKernelSubmitInfos += ctx->ccuKernelNum[1];
-    if (ctx->ccuKernelNum[1] > 0) {
+    tempFastLaunchCtx1.ccuKernelSubmitInfos.assign(ccuKernelSubmitInfos, ccuKernelSubmitInfos + resCtx->ccuKernelNum[1]);
+    ccuKernelSubmitInfos += resCtx->ccuKernelNum[1];
+    if (resCtx->ccuKernelNum[1] > 0) {
         CHK_RET(tempAlg1.FastLaunch(param, tempFastLaunchCtx1));
     }
 
@@ -454,14 +458,14 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 #endif
 
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALLV,
                                 CcuAllToAllVMesh1DConcurrent,
                                 InsV2AllToAllVConcurrentExecutor,
                                 TopoMatchUBX,
                                 CcuTempAllToAllVMesh1DMultiJetty,
                                 CcuTempAllToAllVMesh1DMultiJetty);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 }

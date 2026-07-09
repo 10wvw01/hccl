@@ -132,7 +132,7 @@ namespace ops_hccl
         templateResource.npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         templateResource.dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         u64 resDataSize = dataSize_;
-        maxTmpMemSize_ = std::min<u64>(UB_MAX_DATA_SIZE, resCtx.cclMem.size); // maxTmpMemSize_取ub和ccl的最小值
+        maxTmpMemSize_ = resCtx.cclMem.size;
         u64 maxRoundTransferSize = (maxTmpMemSize_ / dataTypeSize_) * dataTypeSize_;
         while (resDataSize > 0)
         {
@@ -146,7 +146,7 @@ namespace ops_hccl
         return HCCL_SUCCESS;
     }
 
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
     REGISTER_EXECUTOR_IMPL_NO_TOPOMATCH(HcclCMDType::HCCL_CMD_SEND, InsSendDPU, InsV2SendSoleExecutor, InsTempSendDpu);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 } // namespace ops_hccl

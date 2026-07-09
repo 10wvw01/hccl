@@ -36,6 +36,10 @@ target_link_libraries(hccl-model-proxy PUBLIC
     scatter_aicpu_kernel
 )
 
+target_link_libraries(hccl-model-proxy PRIVATE
+    $<BUILD_INTERFACE:intf_pub>
+)
+
 if (BUILD_OPEN_PROJECT)
     target_link_libraries(hccl-model-proxy PUBLIC
         ${ASCEND_HOME_PATH}/lib64/libc_sec.so
@@ -59,6 +63,7 @@ if (BUILD_OPEN_PROJECT)
         ${ASCEND_HOME_PATH}/hcomm/include/hccl
         ${ASCEND_HOME_PATH}/include/hccl
         ${ASCEND_HOME_PATH}/include/hcomm
+        ${ASCEND_HOME_PATH}/include/hcomm/ccu
         ${ASCEND_HOME_PATH}/pkg_inc/hccl
         ${ASCEND_HOME_PATH}/pkg_inc/hcomm/ccu
 
@@ -69,6 +74,7 @@ if (BUILD_OPEN_PROJECT)
         ${HCCL_DEV_BASE}/src/ops/inc
         ${HCCL_DEV_BASE}/src/ops/op_common/inc
         ${HCCL_DEV_BASE}/src/common/hcomm_dlsym
+        ${HCCL_DEV_BASE}/src/common/hcomm_dlsym/ccu
     )
 endif()
 

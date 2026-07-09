@@ -13,11 +13,11 @@
 #include "ins_temp_scatter_nhr.h"
 #ifndef AICPU_COMPILE
 #include "aiv_temp_scatter_mesh_1D.h"
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_scatter_mesh1d.h"
 #include "ccu_temp_scatter_nhr1d_mem2mem.h"
 #include "ccu_kernel_scatter_nhr1d_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
 namespace ops_hccl {
@@ -67,7 +67,7 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate(
 
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2ScatterSoleExecutor][Orchestrate]errNo[0x%016llx] Scatter excutor kernel run failed",
+        HCCL_ERROR("[InsV2ScatterSoleExecutor][Orchestrate]errNo[0x%016llx] Scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -168,7 +168,7 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
 #ifndef AICPU_COMPILE
     template <typename AlgTopoMatch, typename InsAlgTemplate>
     HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
-            const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread)
+            const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
     {
         HCCL_INFO("[InsV2ScatterSoleExecutor] loopTimes==1, save fast launch ctx.");
         u32 threadNum = templateAlgRes.submitInfos.size();;
@@ -203,7 +203,9 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
         // 3 ccu kernel handle, taskArg入参
         ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
         CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-        kernelSubmitInfos[0] = templateAlgRes.submitInfos[0];
+        for (int i = 0; i < ccuKernelNum; i++) {
+            kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
+        }
         return HCCL_SUCCESS;
     }
 
@@ -240,14 +242,14 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_SCATTER, InsScatterNHR, InsV2ScatterSoleE
 #ifndef AICPU_COMPILE
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_SCATTER, AivScatterMesh1D, InsV2ScatterSoleExecutor, TopoMatch1D,
     AivTempScatterMesh1D);
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 // ccu template
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_SCATTER, CcuScatterMesh1D, InsV2ScatterSoleExecutor, TopoMatch1D, CcuTempScatterMesh1D);
-#endif /* !HCCL_CANN_COMPAT_850 */
-#if !defined(HCCL_CANN_COMPAT_850)
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_SCATTER, CcuScatterNHRMem2Mem1D, InsV2ScatterSoleExecutor, TopoMatch1D, CcuTempScatterNHR1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 #endif
 }  // namespace ops_hccl

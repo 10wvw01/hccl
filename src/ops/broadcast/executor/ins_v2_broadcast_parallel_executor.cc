@@ -15,12 +15,13 @@
 #include "ins_temp_scatter_nhr.h"
 #include "topo_match_multilevel.h"
 #include "topo_match_pcie_mix.h"
-#if !defined(HCCL_CANN_COMPAT_850)
+#include "topo_match_squeeze_2d.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_scatter_mesh1d.h"
 #include "ccu_temp_scatter_nhr1d_mem2mem.h"
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #include <cmath>
 
 namespace ops_hccl {
@@ -76,8 +77,8 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
    // 计算资源
     AlgResourceRequest intraTempRequest;
     AlgResourceRequest interTempRequest;
-    AlgResourceRequest intraTempRequest1;
-    AlgResourceRequest interTempRequest1;
+    AlgResourceRequest intraTempRequest0;
+    AlgResourceRequest interTempRequest0;
     AlgResourceRequest intraTempRequestFinal;
     AlgResourceRequest interTempRequestFinal;
 
@@ -95,8 +96,8 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
     CHK_RET(algTemplate0->CalcRes(comm, param, topoInfo, intraTempRequest));
     CHK_RET(algTemplate1->CalcRes(comm, param, topoInfo, interTempRequest));
-    CHK_RET(algTemplate2->CalcRes(comm, param, topoInfo, intraTempRequest1));
-    CHK_RET(algTemplate3->CalcRes(comm, param, topoInfo, interTempRequest1)); 
+    CHK_RET(algTemplate2->CalcRes(comm, param, topoInfo, intraTempRequest0));
+    CHK_RET(algTemplate3->CalcRes(comm, param, topoInfo, interTempRequest0)); 
 
     for (auto &KernelInfo : intraTempRequest.ccuKernelInfos) {
         KernelInfo.resGroup = 0;
@@ -104,37 +105,38 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     for (auto &KernelInfo : interTempRequest.ccuKernelInfos) {
         KernelInfo.resGroup = 0;
     }
-    for (auto &KernelInfo : intraTempRequest1.ccuKernelInfos) {
+    for (auto &KernelInfo : intraTempRequest0.ccuKernelInfos) {
         KernelInfo.resGroup = 1;
     }
-    for (auto &KernelInfo : interTempRequest1.ccuKernelInfos) {
+    for (auto &KernelInfo : interTempRequest0.ccuKernelInfos) {
         KernelInfo.resGroup = 1;
     }
 
     u32 slaveThreadNumIntra = intraTempRequest.slaveThreadNum;
-    if(intraTempRequest.slaveThreadNum >= intraTempRequest1.slaveThreadNum){
+    if(intraTempRequest.slaveThreadNum >= intraTempRequest0.slaveThreadNum){
         intraTempRequestFinal.notifyNumPerThread = intraTempRequest.notifyNumPerThread;
     } else {
-        slaveThreadNumIntra = intraTempRequest1.slaveThreadNum;
-        intraTempRequestFinal.notifyNumPerThread = intraTempRequest1.notifyNumPerThread;
+        slaveThreadNumIntra = intraTempRequest0.slaveThreadNum;
+        intraTempRequestFinal.notifyNumPerThread = intraTempRequest0.notifyNumPerThread;
     }
     u32 slaveThreadNumInter = interTempRequest.slaveThreadNum;
-    if(interTempRequest.slaveThreadNum >= interTempRequest1.slaveThreadNum){
+    if(interTempRequest.slaveThreadNum >= interTempRequest0.slaveThreadNum){
         interTempRequestFinal.notifyNumPerThread = interTempRequest.notifyNumPerThread;
     } else {
-        slaveThreadNumInter = interTempRequest1.slaveThreadNum;
-        interTempRequestFinal.notifyNumPerThread = interTempRequest1.notifyNumPerThread;
+        slaveThreadNumInter = interTempRequest0.slaveThreadNum;
+        interTempRequestFinal.notifyNumPerThread = interTempRequest0.notifyNumPerThread;
     }
 
-    resourceRequest.notifyNumOnMainThread = 2;  // 用于两个template间同步
+    u32 threadNum = 2;
+    resourceRequest.notifyNumOnMainThread = threadNum;  // 用于broadcast两个template间同步
     resourceRequest.slaveThreadNum = slaveThreadNumIntra + slaveThreadNumInter + 4;
     resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest.notifyNumOnMainThread + 1);
-    resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest1.notifyNumOnMainThread + 1);
+    resourceRequest.notifyNumPerThread.emplace_back(intraTempRequest0.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               intraTempRequestFinal.notifyNumPerThread.begin(),
                                               intraTempRequestFinal.notifyNumPerThread.end());
     resourceRequest.notifyNumPerThread.emplace_back(interTempRequest.notifyNumOnMainThread + 1);
-    resourceRequest.notifyNumPerThread.emplace_back(interTempRequest1.notifyNumOnMainThread + 1);
+    resourceRequest.notifyNumPerThread.emplace_back(interTempRequest0.notifyNumOnMainThread + 1);
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               interTempRequestFinal.notifyNumPerThread.begin(),
                                               interTempRequestFinal.notifyNumPerThread.end());
@@ -156,14 +158,14 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         // // ccu allgather
         HCCL_INFO("[InsBroadcastParallelExecutor][CalcRes] intraTemplate1 has [%d] kernels.", intraTempRequest.ccuKernelNum[0]);
         resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
-                                            intraTempRequest1.ccuKernelInfos.begin(),
-                                            intraTempRequest1.ccuKernelInfos.end());
-        resourceRequest.ccuKernelNum.emplace_back(intraTempRequest1.ccuKernelNum[0]);
+                                            intraTempRequest0.ccuKernelInfos.begin(),
+                                            intraTempRequest0.ccuKernelInfos.end());
+        resourceRequest.ccuKernelNum.emplace_back(intraTempRequest0.ccuKernelNum[0]);
         HCCL_INFO("[InsBroadcastParallelExecutor][CalcRes] interTemplate1 has [%d] kernels.", interTempRequest.ccuKernelNum[0]);
         resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
-                                            interTempRequest1.ccuKernelInfos.begin(),
-                                            interTempRequest1.ccuKernelInfos.end());
-        resourceRequest.ccuKernelNum.emplace_back(interTempRequest1.ccuKernelNum[0]);
+                                            interTempRequest0.ccuKernelInfos.begin(),
+                                            interTempRequest0.ccuKernelInfos.end());
+        resourceRequest.ccuKernelNum.emplace_back(interTempRequest0.ccuKernelNum[0]);
     }
 
     HCCL_DEBUG("[InsBroadcastParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
@@ -238,7 +240,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, tempAlgIntra, tempAlgInter, tempAlgIntra1, tempAlgInter1);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsBroadcastParallelExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor kernel run failed",
+        HCCL_ERROR("[InsBroadcastParallelExecutor][Orchestrate]errNo[0x%016llx] Broadcast executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -287,15 +289,14 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::PrepareResForTemplate(
     InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate1 &tempAlgInter, InsAlgTemplate2 &tempAlgIntra1)
 {
-
     AlgResourceRequest intraTempRequest;
     AlgResourceRequest interTempRequest;
     AlgResourceRequest intraTempRequest1;
     tempAlgIntra.GetRes(intraTempRequest);
     tempAlgInter.GetRes(interTempRequest);
     tempAlgIntra1.GetRes(intraTempRequest1);
-    auto intraThreadsNum = intraTempRequest.slaveThreadNum + 1;
     auto intraThreadsNum1 = intraTempRequest1.slaveThreadNum + 1;
+    auto intraThreadsNum = intraTempRequest.slaveThreadNum + 1;
     auto intraThreadsNumFinal = std::max(intraThreadsNum, intraThreadsNum1);
     auto intraNotifyOnMainThread = intraTempRequest.notifyNumOnMainThread;
     auto interNotifyOnMainThread = interTempRequest.notifyNumOnMainThread;
@@ -331,7 +332,6 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::PrepareResForTemplate23(
     InsAlgTemplate0 &tempAlgIntra, InsAlgTemplate2 &tempAlgIntra1, InsAlgTemplate3 &tempAlgInter1)
 {
-
     AlgResourceRequest intraTempRequest;
     AlgResourceRequest interTempRequest1;
     AlgResourceRequest intraTempRequest1;
@@ -541,7 +541,11 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     HCCL_DEBUG("[InsBroadcastParallelExecutor][OrchestrateLoop] dataCount_[%lu], myRank_[%d], sliceCountUB[%d], sliceCountUB0[%d], sliceCount[%d]",
               dataCount_, myRank_, sliceCountUB, sliceCountUB0, sliceCount);
 
+    u64 alignSize = AICPU_ALIGN_SIZE;
     u64 sliceCountPart0 = static_cast<u64>(float(sliceCount) * dataSplitSize.at(0));
+    if (sliceCountPart0 * dataTypeSize_ >= alignSize) {
+        sliceCountPart0 = sliceCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+    }
     u64 sliceCountPart1 = sliceCount - sliceCountPart0;
 
     if(sliceCount == 0){
@@ -550,10 +554,6 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
     // 计算循环次数
     u32 loopTimes = dataCount_ / sliceCount + ((dataCount_ % sliceCount == 0) ? 0 : 1);
-    // 计算尾块
-    u64 finalSliceCount = dataCount_ - (loopTimes - 1) * sliceCount;
-    u64 finalSliceCountPart0 = static_cast<u64>(float(finalSliceCount) * dataSplitSize.at(0));
-    u64 finalSliceCountPart1 = finalSliceCount - finalSliceCountPart0;
     // 计算Scratch偏移，数据尾块必然小于常规块，不用额外计算尾块时的Scratch偏移
     u64 scratchOffsetCountIntraStage0 = 0;
     u64 scratchOffsetCountInterStage0 = sliceCountPart0 * multipleIntra;
@@ -572,16 +572,41 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     TemplateDataParams tempAlgParamsInter11;
     TemplateDataParams tempAlgParamsIntra11;
 
-    for (u32 loopIndex = 0; loopIndex < loopTimes; loopIndex++) {
-        u64 currCountPart0 = (loopIndex == loopTimes - 1) ? finalSliceCountPart0 : sliceCountPart0;
-        u64 currCountPart1 = (loopIndex == loopTimes - 1) ? finalSliceCountPart1 : sliceCountPart1;
-        u64 dataOffset0 = loopIndex * sliceCount * dataTypeSize_;
+    u64 processedCount = 0;
+    u32 loopIndex = 0;
+    while (processedCount < dataCount_) {
+        u64 remainingCount = dataCount_ - processedCount;
+        u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
+        u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
+        currCount = std::min(currCount, sliceCount);
+        u64 currCountPart0 = static_cast<u64>(float(currCount) * dataSplitSize.at(0));
+        u64 currCountPart1 = currCount - currCountPart0;
+        if (remainingLoopTimes > 1 || currCountPart0 > sliceCountPart0) {
+            u64 alignedCountPart0 = currCountPart0;
+            u64 alignedCountPart1 = currCountPart1;
+            alignedCountPart0 = alignedCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            alignedCountPart1 = alignedCountPart1 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
+            if (alignedCountPart0 + alignedCountPart1 > 0) {
+                currCountPart0 = alignedCountPart0;
+                currCountPart1 = alignedCountPart1;
+            }
+        }
+        const u64 currProcessedCount = currCountPart0 + currCountPart1;
+        CHK_PRT_RET(currProcessedCount == 0,
+                    HCCL_ERROR("[InsBroadcastParallelExecutor][OrchestrateLoop] currCount is 0"),
+                    HcclResult::HCCL_E_INTERNAL);
+#ifndef AICPU_COMPILE
+        const bool saveCcuFastLaunchCtx = loopTimes == 1 && loopIndex == 0 && processedCount == 0 &&
+            currProcessedCount == dataCount_ && param.engine == CommEngine::COMM_ENGINE_CCU &&
+            param.opMode != OpMode::OFFLOAD;
+#endif
+        u64 dataOffset0 = processedCount * dataTypeSize_;
         u64 dataOffset1 = dataOffset0 + currCountPart0 * dataTypeSize_;
         // 计算算法模板所需资源
         TemplateResource intraTempAlgRes;
         TemplateResource interTempAlgRes;
         CHK_RET(PrepareResForTemplate(tempAlgIntra, tempAlgInter, tempAlgIntra1));
-        PrepareResForTemplateResource(param, resCtx, intraTempAlgRes, interTempAlgRes, true);
+        CHK_RET(PrepareResForTemplateResource(param, resCtx, intraTempAlgRes, interTempAlgRes, true));
 
         // 第一步开始前同步
         CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
@@ -590,12 +615,12 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         HCCL_DEBUG("[InsBroadcastParallelExecutor][OrchestrateLoop] RunTemplateInter1 myRank_[%d], dataOffset0[%d], currCountPart0[%d], scratchOffsetCountInterStage0[%d] "
                     "dataOffset1[%d], currCountPart1[%d]",
                    myRank_, dataOffset0, currCountPart0, scratchOffsetCountInterStage0, dataOffset1, currCountPart1);
-        RunTemplateIntra0(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountIntraStage0, tempAlgParamsIntra0, intraTempAlgRes, tempAlgIntra);
-        RunTemplateInter1(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountInterStage0, tempAlgParamsInter1, interTempAlgRes, tempAlgInter);
+        CHK_RET(RunTemplateIntra0(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountIntraStage0, tempAlgParamsIntra0, intraTempAlgRes, tempAlgIntra));
+        CHK_RET(RunTemplateInter1(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountInterStage0, tempAlgParamsInter1, interTempAlgRes, tempAlgInter));
         // 第一步做完后回到主流做尾同步
         CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 #ifndef AICPU_COMPILE
-    if (loopTimes == 1 && param.engine == CommEngine::COMM_ENGINE_CCU) {
+    if (saveCcuFastLaunchCtx) {
         ccuKernelLaunchNumIntra0_ = intraTempAlgRes.submitInfos.size();
         ccuKernelLaunchNumInter1_ = interTempAlgRes.submitInfos.size();
     }
@@ -607,17 +632,17 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         for (int i = 0; i < temp0HierarchyInfo_[0].size(); i++) {
             tempVirtRankMapInter_.insert(std::make_pair(temp0HierarchyInfo_[0][i], i));
         }
-        RunTemplateInter0(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountInterStage1, tempAlgParamsInter0, interTempAlgRes, tempAlgInter);
+        CHK_RET(RunTemplateInter0(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountInterStage1, tempAlgParamsInter0, interTempAlgRes, tempAlgInter));
 
         //server 内地址偏移
         for (int i = 0; i < temp1HierarchyInfo_[0].size(); i++) {
             tempVirtRankMapIntra_.insert(std::make_pair(temp1HierarchyInfo_[0][i], i));
         }
-        RunTemplateIntra1(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountIntraStage1, tempAlgParamsIntra1, intraTempAlgRes, tempAlgIntra);
+        CHK_RET(RunTemplateIntra1(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountIntraStage1, tempAlgParamsIntra1, intraTempAlgRes, tempAlgIntra));
         // 尾同步
         CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 #ifndef AICPU_COMPILE
-    if (loopTimes == 1 && param.engine == CommEngine::COMM_ENGINE_CCU) {
+    if (saveCcuFastLaunchCtx) {
         ccuKernelLaunchNumInter0_ = interTempAlgRes.submitInfos.size() - ccuKernelLaunchNumInter1_;
         ccuKernelLaunchNumIntra1_ = intraTempAlgRes.submitInfos.size() - ccuKernelLaunchNumIntra0_;
     }
@@ -626,31 +651,33 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         TemplateResource intraTempAlgRes1;
         TemplateResource interTempAlgRes1;
         CHK_RET(PrepareResForTemplate23(tempAlgIntra, tempAlgIntra1, tempAlgInter1));
-        PrepareResForTemplateResource(param, resCtx, intraTempAlgRes1, interTempAlgRes1, false);
+        CHK_RET(PrepareResForTemplateResource(param, resCtx, intraTempAlgRes1, interTempAlgRes1, false));
 
         // 第三步开始前同步
         CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
-        RunTemplateInter01(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountInterStage1, tempAlgParamsInter01, interTempAlgRes1, tempAlgInter1);
-        RunTemplateIntra11(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountIntraStage1, tempAlgParamsIntra11, intraTempAlgRes1, tempAlgIntra1);
+        CHK_RET(RunTemplateInter01(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountInterStage1, tempAlgParamsInter01, interTempAlgRes1, tempAlgInter1));
+        CHK_RET(RunTemplateIntra11(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountIntraStage1, tempAlgParamsIntra11, intraTempAlgRes1, tempAlgIntra1));
         // 尾同步
         CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 #ifndef AICPU_COMPILE
-    if (loopTimes == 1 && param.engine == CommEngine::COMM_ENGINE_CCU) {
+    if (saveCcuFastLaunchCtx) {
         ccuKernelLaunchNumInter01_ = interTempAlgRes1.submitInfos.size();
         ccuKernelLaunchNumIntra11_ = intraTempAlgRes1.submitInfos.size();
     }
 #endif
         // 第四步开始前同步
         CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
-        RunTemplateIntra01(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountIntraStage0, tempAlgParamsIntra01, intraTempAlgRes1, tempAlgIntra1);
-        RunTemplateInter11(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountInterStage0, tempAlgParamsInter11, interTempAlgRes1, tempAlgInter1);
+        CHK_RET(RunTemplateIntra01(param, resCtx, dataOffset0, currCountPart0, scratchOffsetCountIntraStage0, tempAlgParamsIntra01, intraTempAlgRes1, tempAlgIntra1));
+        CHK_RET(RunTemplateInter11(param, resCtx, dataOffset1, currCountPart1, scratchOffsetCountInterStage0, tempAlgParamsInter11, interTempAlgRes1, tempAlgInter1));
         // 第四步做完后回到主流做尾同步
         CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 #ifndef AICPU_COMPILE
-    if (loopTimes == 1 && param.engine == CommEngine::COMM_ENGINE_CCU && param.opMode != OpMode::OFFLOAD) {
+    if (saveCcuFastLaunchCtx) {
         CHK_RET(FastLaunchSaveCtx(param, intraTempAlgRes, interTempAlgRes, intraTempAlgRes1, interTempAlgRes1, resCtx.notifyNumOnMainThread));
     }
 #endif
+        processedCount += currProcessedCount;
+        loopIndex++;
     }
 
     HCCL_INFO("[InsBroadcastParallelExecutor][OrchestrateLoop] End.myRank[%u]", myRank_);
@@ -846,7 +873,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::RunTemplateIntra0(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 currCountPart, const u64 scratchOffsetCount,
-    TemplateDataParams &dataParams, TemplateResource& templateResource, InsAlgTemplate0 &tempAlgIntra)
+    TemplateDataParams &dataParams, TemplateResource& templateResource, InsAlgTemplate0 &tempAlgIntra) const
 {
     // server内topo包含root_的rank进行展开，其它rank不展开
     if (intraLocalRoot_ == root_ && currCountPart > 0) {
@@ -862,7 +889,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateIntra0(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate0 &tempAlgIntra)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate0 &tempAlgIntra) const
 {
     if (kernelNum > 0) {
         //数据0的server内的mesh算法
@@ -891,7 +918,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateInter1(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate1 &tempAlgInter)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate1 &tempAlgInter)  const
 {
     if (kernelNum > 0) {
         //数据1的server间的nhr算法
@@ -921,7 +948,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateInter0(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate1 &tempAlgInter)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate1 &tempAlgInter)  const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateInter0] kernelNum[%u]", kernelNum);
@@ -950,7 +977,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateIntra1(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate0 &tempAlgIntra)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate0 &tempAlgIntra)  const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateIntra1] kernelNum[%u]", kernelNum);
@@ -978,7 +1005,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateInter01(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate3 &tempAlgInter1)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate3 &tempAlgInter1) const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateInter01] kernelNum[%u]", kernelNum);
@@ -1006,7 +1033,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateIntra11(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate2 &tempAlgIntra1)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate2 &tempAlgIntra1) const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateIntra11] kernelNum[%u]", kernelNum);
@@ -1033,7 +1060,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateIntra01(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate2 &tempAlgIntra1)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxIntra, InsAlgTemplate2 &tempAlgIntra1) const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateIntra01] kernelNum[%u]", kernelNum);
@@ -1045,7 +1072,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::RunTemplateInter11(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset, const u64 currCountPart, const u64 scratchOffsetCount,
-    TemplateDataParams &dataParams, TemplateResource& templateResource, InsAlgTemplate3 &tempAlgInter1)
+    TemplateDataParams &dataParams, TemplateResource& templateResource, InsAlgTemplate3 &tempAlgInter1) const
 {
     if (currCountPart > 0) {
         //数据1的server间的nhr算法
@@ -1060,7 +1087,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchTemplateInter11(
-    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate3 &tempAlgInter1)
+    const OpParam &param, const u32 kernelNum, TemplateFastLaunchCtx &tempFastLaunchCtxInter, InsAlgTemplate3 &tempAlgInter1) const
 {
     if (kernelNum > 0) {
         HCCL_INFO("[InsBroadcastParallelExecutor][FastLaunchTemplateInter11] kernelNum[%u]", kernelNum);
@@ -1070,7 +1097,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 }
 
 // 算法注册
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, InsBroadcastParallelMesh1DNHR, InsBroadcastParallelExecutor,
     TopoMatchMultilevel, InsTempScatterMesh1D, InsTempScatterNHR, InsTempAllGatherMesh1D, InsTempAllGatherNHR);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, InsBroadcastParallelMesh1DNHRUBX, InsBroadcastParallelExecutor,
@@ -1078,13 +1105,15 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, InsBroadcastPar
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, InsBroadcastParallelMesh1DNHRPcie,
     InsBroadcastParallelExecutor, TopoMatchPcieMix, InsTempScatterMesh1D, InsTempScatterNHR,
     InsTempAllGatherMesh1D, InsTempAllGatherNHR);
-#endif /* !HCCL_CANN_COMPAT_850 */
+REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, InsBroadcastParallelNHRNHRUboe, InsBroadcastParallelExecutor,
+    TopoMatchSqueeze2D, InsTempScatterNHR, InsTempScatterNHR, InsTempAllGatherNHR, InsTempAllGatherNHR);
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #ifndef AICPU_COMPILE
-#if !defined(HCCL_CANN_COMPAT_850)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, CcuBroadcastParallelMesh1DNHR, InsBroadcastParallelExecutor,
     TopoMatchMultilevel, CcuTempScatterMesh1D, CcuTempScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_BROADCAST, CcuBroadcastParallelMesh1DNHRUBX, InsBroadcastParallelExecutor,
     TopoMatchUBX, CcuTempScatterMesh1D, CcuTempScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
-#endif /* !HCCL_CANN_COMPAT_850 */
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 }  // namespace Hccl

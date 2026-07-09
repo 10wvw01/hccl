@@ -85,15 +85,15 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestr
     }
 
     dataType_ = param.all2AllVDataDes.sendType;
-    dataTypeSize_ = DATATYPE_SIZE_TABLE[dataType_];
     rankSize_ = resCtx.topoInfo.userRankSize;
+    dataTypeSize_ = DATATYPE_SIZE_TABLE[dataType_];
     sendTypeSize_ = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
     recvTypeSize_ = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
     dataSize_ = dataCount_ * dataTypeSize_;
 
     // Init sendRevc data for alltoall/alltoallV/alltoallVC algorithm
     CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize_ * sizeof(u64),
-        HCCL_ERROR("[CalcAlltoAllVSendRecvInfo] param.varMemSize [%llu] is invalid", param.varMemSize),
+        HCCL_ERROR("[InsV2AivAlltoAllVSoleExecutor] param.varMemSize [%llu] is invalid", param.varMemSize),
         HCCL_E_PARA);
     localSendRecvInfo_.sendCounts.resize(rankSize_, 0);
     localSendRecvInfo_.sendDispls.resize(rankSize_, 0);
@@ -116,7 +116,7 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestr
 
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AivAlltoAllVSoleExecutor][Orchestrate]errNo[0x%016llx] AlltoAll excutor kernel run failed",
+        HCCL_ERROR("[InsV2AivAlltoAllVSoleExecutor][Orchestrate]errNo[0x%016llx] AlltoAll executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     HCCL_INFO("[InsV2AivAlltoAllVSoleExecutor][Orchestrate] Orchestrate End.");
     return HCCL_SUCCESS;
@@ -130,7 +130,7 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestr
     HCCL_INFO("[InsV2AivAlltoAllVSoleExecutor][OrchestrateLoop] Start");
 
     TemplateResource templateAlgRes;
-    if (remoteRankToChannelInfo_.size() > 0) {
+    if (param.engine != CommEngine::COMM_ENGINE_AIV && remoteRankToChannelInfo_.size() > 0) {
         templateAlgRes.channels = remoteRankToChannelInfo_[0];
     }
     if (param.engine == COMM_ENGINE_CCU) {
@@ -165,7 +165,7 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestr
     }
 
     std::vector<std::vector<u32>> tempAlgHierachyInfo;
-    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix && param.engine != CommEngine::COMM_ENGINE_AIV) {
         tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[1];
     } else {
         tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[0];
@@ -224,7 +224,7 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestr
 #ifndef AICPU_COMPILE
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
-    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread)
+    const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[InsV2AivAlltoAllVSoleExecutor] loopTimes==1, save fast launch ctx.");
     u32 threadNum = 1;
@@ -256,7 +256,9 @@ HcclResult InsV2AivAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaun
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernels = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    kernels[0] = templateAlgRes.submitInfos[0];
+    for (int i = 0; i < ccuKernelNum; i++) {
+        kernels[i] = templateAlgRes.submitInfos[i];
+    }
     return HCCL_SUCCESS;
 }
 

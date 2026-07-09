@@ -35,7 +35,7 @@ public:
             sendCurCount = dataPerCore;
         }
         sendInputOffset = input_ + (extraArgsPerLoop.sendDispls[targetRank] + innerDispls)  * sizeof(T);
-        sendOutputOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank * cclBufferCountPerRank + innerDispls) * sizeof(T);
+        sendOutputOffset = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank * cclBufferCountPerRank + innerDisplsForCcl) * sizeof(T);
  
         //接收数据的编排
         dataPerCore = extraArgsPerLoop.recvCounts[targetRank] / coreNumPerRank;
@@ -47,7 +47,7 @@ public:
             innerDispls = coreIndex * dataPerCore + remainder;
             recvCurCount = dataPerCore;
         }
-        recvInputOffset = reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (rank_ * cclBufferCountPerRank + innerDispls) * sizeof(T);
+        recvInputOffset = reinterpret_cast<uint64_t>(GM_IN[targetRank]) + (rank_ * cclBufferCountPerRank + innerDisplsForCcl) * sizeof(T);
         recvOutputOffset = output_ + (extraArgsPerLoop.recvDispls[targetRank] + innerDispls) * sizeof(T);
     }
  
@@ -56,7 +56,7 @@ public:
         if (sendCurCount == 0) {
             return;
         }
-        uint64_t flag_offset = block_idx;
+        uint64_t flag_offset = blockIdx_;
         uint32_t tagTemp = loop;
         if (loop == 0) {
             tagTemp = curTag_;
@@ -75,7 +75,7 @@ public:
         if (recvCurCount == 0) {
             return;
         }
-        uint64_t flag_offset = block_idx + coreCount;
+        uint64_t flag_offset = blockIdx_ + coreCount;
         WaitFlag(rank_, flag_offset, loop);
 
         CpGM2GM((__gm__ T *)recvOutputOffset, (__gm__ T *)recvInputOffset, recvCurCount);
@@ -94,15 +94,23 @@ public:
         }
  
         coreCount = coreNumPerRank * rankSize_;
-        if (block_idx >= coreCount) { // 负责每个rank的核数相同，方便读写都能并行
+        if (blockIdx_ >= coreCount) { // 负责每个rank的核数相同，方便读写都能并行
             return;
         }
  
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
         cclBufferCountPerRank = len;
 
-        targetRank = block_idx / coreNumPerRank; // 每个核负责哪个rank的数据
-        coreIndex = (block_idx - (targetRank * coreNumPerRank)) % coreNumPerRank;  // 每个核在当前coreNumPerRank里面的排序
+        targetRank = blockIdx_ / coreNumPerRank; // 每个核负责哪个rank的数据
+        coreIndex = (blockIdx_ - (targetRank * coreNumPerRank)) % coreNumPerRank;  // 每个核在当前coreNumPerRank里面的排序
+
+        uint64_t dataPerCore = cclBufferCountPerRank / coreNumPerRank;
+        uint64_t remainder = cclBufferCountPerRank % coreNumPerRank;
+        if (coreIndex < remainder) { // 这部分核需要多处理一个数据
+            innerDisplsForCcl = coreIndex * dataPerCore + coreIndex;
+        } else {
+            innerDisplsForCcl = coreIndex * dataPerCore + remainder;
+        }
  
         // 前面 coreCount 个位置给 Producer，后面 coreCount 个位置给 Consumer
         // 初始化的时候，先给对端一个flag
@@ -110,7 +118,7 @@ public:
         Record(targetRank, flag_offset, curTag_);
 
         // 然后wait到Consumer位置的flag之后，写个flag 到对端Producer的位置，后续正常循环
-        flag_offset = block_idx + coreCount;
+        flag_offset = blockIdx_ + coreCount;
         WaitFlag(rank_, flag_offset, curTag_);
 
         flag_offset = rank_ * coreNumPerRank + coreIndex;
@@ -130,12 +138,10 @@ public:
         for (uint64_t loop = 0; loop < loopTimes; loop++) {
             ExtraArgs extraArgsPerLoop;
             uint64_t currDataCount = (loop == loopTimes - 1) ? maxSendOrRecvDataCount - processedDataCount : cclBufferCountPerRank;
-            uint32_t sendRecvRank[MAX_RANK_SIZE] = {0};
             for (uint64_t i = 0; i < rankSize_; i++) {
                 if (extraArgs.sendCounts[i] > processedDataCount) {
                     extraArgsPerLoop.sendCounts[i] = min(currDataCount, extraArgs.sendCounts[i] - processedDataCount);
                     extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + processedDataCount;
-                    sendRecvRank[i] = 1;
                 } else {
                     extraArgsPerLoop.sendCounts[i] = 0;
                     extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + extraArgs.sendCounts[i];
@@ -144,7 +150,6 @@ public:
                 if (extraArgs.recvCounts[i] > processedDataCount) {
                     extraArgsPerLoop.recvCounts[i] = min(currDataCount, extraArgs.recvCounts[i] - processedDataCount);
                     extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + processedDataCount;
-                    sendRecvRank[i] = 1;
                 } else {
                     extraArgsPerLoop.recvCounts[i] = 0;
                     extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + extraArgs.recvCounts[i];
@@ -154,11 +159,9 @@ public:
             InitCoreInfo(extraArgsPerLoop);
             Producer(loop); // 写数据
             Consumer(loop); // 读数据
-            SubBarrierAllForAlltoAllV(sendRecvRank, loop);
+            SyncAll<true>();
             processedDataCount += currDataCount;
         }
-        // 本卡的收发全部结束之后，去给其他所有卡写flag
-        PreBarrierAllForAlltoAllV(curTag_, loopTimes);
     }
 
     uint32_t coreCount;
@@ -172,6 +175,7 @@ public:
     uint64_t recvOutputOffset;
     uint64_t recvCurCount;
     uint64_t cclBufferCountPerRank;
+    uint64_t innerDisplsForCcl;
 };
  
 template<typename T>
@@ -183,6 +187,5 @@ __aicore__ inline void AivAlltoAllVV2Mesh1D(KERNEL_ARGS_DEF, ExtraArgs &extraArg
         op.BarrierForFirstOP();
     }
     op.Process(len, sliceId, extraArgs);
-    // wait到本卡所有tag，再结束全流程
-    op.PostBarrierAllForAlltoAllV(op.curTag_);
+    op.BarrierAll();
 }

@@ -325,6 +325,9 @@ HcclResult InsV2AllGatherPipelinedExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     u64 intraScratchOffset = 0;
     u64 interScratchOffset = scratchMultipleIntra * scratchMemBlockSize;
     u64 maxCountPerLoop = (std::min(scratchMemBlockSize, static_cast<u64>(UB_MAX_DATA_SIZE)) / dataTypeSize_ / 10) * 10;
+    CHK_PRT_RET(maxCountPerLoop == 0,
+                HCCL_ERROR("[InsV2AllGatherPipelinedExecutor][OrchestrateLoop] maxCountPerLoop is 0"),
+                HcclResult::HCCL_E_INTERNAL);
 
     u64 alignSize = AICPU_ALIGN_SIZE;
     u64 dataCountPerLoopAixs0 = static_cast<u64>(dataSplitSize[0] * maxCountPerLoop);
@@ -390,9 +393,10 @@ HcclResult InsV2AllGatherPipelinedExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
             CHK_RET(tempAlgIntra.KernelRun(param, tempAlgParamsIntra1, intraTempAlgRes));
 
             const u32 nSteps = GetNHRStepNum(rankSizeLevel1_);
+            const u32 interChannelNum = CalcChannelsPerRank(interTempAlgRes.channels);
             for (u32 step = 0; step < nSteps; ++step) {
                 AicpuNHRStepInfo stepInfo;
-                for (u32 channelIdx = 0; channelIdx < tempAlgInter.GetThreadNum(); channelIdx++) {
+                for (u32 channelIdx = 0; channelIdx < interChannelNum; channelIdx++) {
                     AicpuNHRStepInfo currStepInfo;
                     CHK_RET(tempAlgInter.RunNHRStep(interTempAlgRes.threads, interTempAlgRes.channels, channelIdx,
                                                      step, currStepInfo));
@@ -420,7 +424,7 @@ HcclResult InsV2AllGatherPipelinedExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
             if (hasPendingIntra) {
                 CHK_RET(PostSyncTemplate(INTRA_TEMPLATE_IDX));
             }
-            for (u32 channelIdx = 0; channelIdx < tempAlgInter.GetThreadNum(); channelIdx++) {
+            for (u32 channelIdx = 0; channelIdx < interChannelNum; channelIdx++) {
                 CHK_RET(tempAlgInter.FinalizeStepRun(interTempAlgRes.threads, channelIdx, false));
             }
             CHK_RET(PostSyncTemplate(INTER_TEMPLATE_IDX));

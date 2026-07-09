@@ -161,15 +161,27 @@ HcclResult ScatterExecOp(OpParam &param, void *sendBuf, void *recvBuf, uint64_t 
     HcclComm comm, aclrtStream stream, u32 userRankSize, uint64_t beginTime)
 {
     #ifdef MACRO_DEV_TYPE_NEW
-    if (param.deviceType == DevType::DEV_TYPE_950 && (GetHcommVersion() >= 90000000)) {
+    if (param.deviceType == DevType::DEV_TYPE_950 && (GetHcommVersion() >= CANN_VERSION(9, 0, 0))) {
     #else
     if (param.deviceType == DevType::DEV_TYPE_910_95) {
     #endif
         CHK_RET(HcclGetOpExpansionMode(comm, param));
-        
+
+        // 9.0.0 ccu模式走老流程
+        if (GetHcommVersion() == CANN_VERSION(9, 0, 0) && param.engine == CommEngine::COMM_ENGINE_CCU) {
+            return HcclScatterInner(sendBuf, recvBuf, recvCount, dataType, root, comm, stream);
+        }
+
         CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
         if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
             return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
+        }
+        if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+            bool aivCacheHit = false;
+            CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
+            if (aivCacheHit) {
+                return HCCL_SUCCESS;
+            }
         }
         std::string algName;
         std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
@@ -278,7 +290,7 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
     AlgResourceCtx* resCtx;
 
     if (g_notifiesMap.find(comm) == g_notifiesMap.end()) {
-        g_notifiesMap[comm].fill(0);
+        g_notifiesMap[comm].fill(nullptr);
     }
     ThreadHandle cpuTsThread = 0;
     ThreadHandle exportedAicpuTsThread = 0;
@@ -341,7 +353,7 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
         if (HcommIsProfilingSupported()) {
             beginTime = HcommGetProfilingSysCycleTime();
         } 
-        std::string kernelName = "HcclLaunchAicpuKernel";
+        std::string kernelName = "HcclLaunchAicpuKernelA3";
         aclrtFuncHandle funcHandle;
         aclrtArgsHandle argsHandle;
 
@@ -767,12 +779,12 @@ HcclResult AllocAlgResource(HcclComm comm, const OpParam& param, AlgResourceRequ
     if (!HcommIsExportThreadSupported()) {
         #define ACL_NOTIFY_DEFAULT          0x00000000U
         // 先使用acl接口来分配notify
-        if (g_notifiesMap[comm][0] == 0 && aclrtCreateNotify(&(g_notifiesMap[comm][0]), ACL_NOTIFY_DEFAULT) != ACL_SUCCESS) {
+        if (g_notifiesMap[comm][0] == nullptr && aclrtCreateNotify(&(g_notifiesMap[comm][0]), ACL_NOTIFY_DEFAULT) != ACL_SUCCESS) {
             HCCL_ERROR("failed to alloc notify");
             return HCCL_E_INTERNAL;
         }
 
-        if (g_notifiesMap[comm][1] == 0 && aclrtCreateNotify(&(g_notifiesMap[comm][1]), ACL_NOTIFY_DEFAULT) != ACL_SUCCESS) {
+        if (g_notifiesMap[comm][1] == nullptr && aclrtCreateNotify(&(g_notifiesMap[comm][1]), ACL_NOTIFY_DEFAULT) != ACL_SUCCESS) {
             HCCL_ERROR("failed to alloc notify");
             return HCCL_E_INTERNAL;
         }

@@ -19,6 +19,7 @@
 #include "executor_v2_base.h"
 #include "coll_alg_v2_exec_registry.h"
 #include "hccl_aiv_utils.h"
+#include "aiv_kernel_def.h"
 
 HcclResult HcclCreateOpParamGraphMode(OpParamGraphMode **opParam)
 {
@@ -52,7 +53,7 @@ HcclResult HcclSetOpParamGraphModeOpType(OpParamGraphMode *opParam, const char *
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    strncpy_s(paramPtr->opType, sizeof(paramPtr->opType), opType, sizeof(paramPtr->opType) - 1);
+    CHK_SAFETY_FUNC_RET(strncpy_s(paramPtr->opType, sizeof(paramPtr->opType), opType, sizeof(paramPtr->opType) - 1));
     return HCCL_SUCCESS;
 }
 
@@ -63,7 +64,7 @@ HcclResult HcclSetOpParamGraphModeDataCount(OpParamGraphMode *opParam, const u64
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->dataCount, sizeof(paramPtr->dataCount), dataCount, sizeof(u64));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->dataCount, sizeof(paramPtr->dataCount), dataCount, sizeof(u64)));
     return HCCL_SUCCESS;
 }
 
@@ -85,7 +86,7 @@ HcclResult HcclSetOpParamGraphModeRankSize(OpParamGraphMode *opParam, const u32 
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->rankSize, sizeof(paramPtr->rankSize), rankSize, sizeof(u32));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->rankSize, sizeof(paramPtr->rankSize), rankSize, sizeof(u32)));
     return HCCL_SUCCESS;
 }
 
@@ -96,7 +97,7 @@ HcclResult HcclSetOpParamGraphModeHCCLBufferSize(OpParamGraphMode *opParam, cons
     }
     // 将void*转换为OpParamGraphMode*
     OpParamGraphMode *paramPtr = reinterpret_cast<OpParamGraphMode *>(opParam);
-    memcpy_s(&paramPtr->hcclBufferSize, sizeof(paramPtr->hcclBufferSize), hcclBufferSize, sizeof(u64));
+    CHK_SAFETY_FUNC_RET(memcpy_s(&paramPtr->hcclBufferSize, sizeof(paramPtr->hcclBufferSize), hcclBufferSize, sizeof(u64)));
     return HCCL_SUCCESS;
 }
 HcclResult HcclSetAivSelectOpParamGraphMode(OpParamGraphMode *opParam, u32 aivCoreLimit)
@@ -189,15 +190,23 @@ HcclResult HcclSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit)
 }
 
 HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op, HcclCMDType opType,
-                           u32 aivCoreLimit, bool *ifAiv, char **algName)
+                           u32 aivCoreLimit, bool *ifAiv, char *algName)
 {
     HCCL_INFO("[HcclSelectAlgGraphMode] Start: group[%s] count[%llu] dataType[%u] reduceOp[%u] opType[%u] aivCoreLimit[%u]",
         group, count, dataType, op, opType, aivCoreLimit);
     
+    if (g_aivKernelInfoMap.find(opType) == g_aivKernelInfoMap.end()) {
+        HCCL_INFO("[HcclSelectAlgGraphMode] Unsupported aiv op.");
+        return HCCL_SUCCESS;
+    }
     if (group == nullptr || ifAiv == nullptr || algName == nullptr) {
         HCCL_ERROR("[HcclSelectAlgGraphMode] Invalid parameters");
         return HCCL_E_PARA;
     }
+
+    s32 deviceLogicId = 0;
+    CHK_PRT_RET(aclrtGetDevice(&deviceLogicId) != ACL_SUCCESS,
+        HCCL_WARNING("[HcclSelectAlgGraphMode] device is not set."), HCCL_SUCCESS);
     
     HcclComm hcclComm = nullptr;
     CHK_RET(HcomGetCommHandleByGroup(group, &hcclComm));
@@ -221,7 +230,8 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     param.enableDetour = false;
     param.deviceType = deviceType;
 
-    if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
+    if (opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+        opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
         param.all2AllVDataDes.sendType = dataType;
         param.all2AllVDataDes.recvType = dataType;
@@ -267,15 +277,10 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     
     *ifAiv = (param.engine == CommEngine::COMM_ENGINE_AIV);
     
-    // 分配内存并拷贝字符串
-    *algName = (char*)malloc(localAlgName.size() + 1);
-    if (*algName == nullptr) {
-        HCCL_ERROR("[HcclSelectAlgGraphMode] malloc failed for algName");
-        return HCCL_E_INTERNAL;
-    }
-    strncpy_s(*algName, localAlgName.size() + 1, localAlgName.c_str(), localAlgName.size());
+    // 拷贝字符串
+    strncpy_s(algName, ALG_NAME_MAX_LEN, localAlgName.c_str(), ALG_NAME_MAX_LEN - 1);
     
-    HCCL_INFO("[HcclSelectAlgGraphMode] Success. ifAiv=%d, algName=%s", *ifAiv, *algName);
+    HCCL_INFO("[HcclSelectAlgGraphMode] Success. ifAiv=%d, algName=%s", *ifAiv, algName);
     return HCCL_SUCCESS;
 }
 
@@ -324,8 +329,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
 
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
-        param.all2AllVDataDes.sendType = dataType;
         param.all2AllVDataDes.recvType = dataType;
+        param.all2AllVDataDes.sendType = dataType;
 
         u64 arrSize = rankSize * sizeof(u64);
         void *sendCountsHost = nullptr;
@@ -337,8 +342,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
         ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
         ACLCHECK(aclrtMallocHost(&rdisplsHost, arrSize));
 
-        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
         u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost);
+        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
         u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost);
         u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost);
 
@@ -351,8 +356,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
             dataCountOffset += count;
         }
 
-        param.all2AllVDataDes.sendCounts = sendCountsHost;
         param.all2AllVDataDes.recvCounts = recvCountsHost;
+        param.all2AllVDataDes.sendCounts = sendCountsHost;
         param.all2AllVDataDes.sdispls = sdisplsHost;
         param.all2AllVDataDes.rdispls = rdisplsHost;
     }
@@ -383,8 +388,8 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
 
     // 启用Only录制模式
     ops_hccl::g_recordingQueue = std::make_shared<ops_hccl::InsQueue>();
-    ops_hccl::g_baseInputAddr = (u64)inputPtr;
-    ops_hccl::g_baseOutputAddr = (u64)outputPtr;
+    ops_hccl::g_baseInputAddr = reinterpret_cast<u64>(inputPtr);
+ 	ops_hccl::g_baseOutputAddr = reinterpret_cast<u64>(outputPtr);
     ops_hccl::g_recordOnlyMode = true;
 
     // 计算AlgHierarchyInfo
@@ -484,6 +489,13 @@ HcclResult HcclCalcAivResOffline(ResResponseGraphMode *resResponse, OpParamGraph
     if (resResponse == nullptr || paramPtr == nullptr || paramPtr->aivCoreLimit == 0) {
         return HCCL_E_PARA;
     }
+    constexpr u64 AIV_WORKSPACE_MEM_SIZE = 512;
+    constexpr u32 AIV_STREAM_NUM = 0;
+    constexpr u32 AIV_TASK_NUM = 3;
+
+    resResponse->opMemSize = std::max(resResponse->opMemSize, AIV_WORKSPACE_MEM_SIZE);
+    resResponse->streamNum = std::max(resResponse->streamNum, AIV_STREAM_NUM);
+    resResponse->taskNum = std::max(resResponse->taskNum, AIV_TASK_NUM);
     resResponse->aivCoreNum = paramPtr->aivCoreLimit;
     return HCCL_SUCCESS;
 }

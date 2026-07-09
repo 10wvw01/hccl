@@ -10,6 +10,7 @@
 
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_all_to_all_v_mesh_1D.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ins_temp_ubx_all_to_all_v_mesh_1D.cc
 )
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
@@ -17,6 +18,8 @@ if(NOT HCCL_CANN_COMPAT_850)
     )
 endif()
 
-target_sources(hccl PRIVATE
-    ${src_list}
-)
+if(TARGET hccl)
+    target_sources(hccl PRIVATE
+        ${src_list}
+    )
+endif()

@@ -73,6 +73,8 @@ HcclResult InsTempAllReduceAicpuReduceNHR::KernelRun(
 
     CHK_PRT_RET(
         templateRankSize_ == 0, HCCL_ERROR("[InsTempAllReduceAicpuReduceNHR] rankSize is 0"), HcclResult::HCCL_E_INTERNAL);
+    CHK_PRT_RET(
+        subCommRanks_.size() == 0, HCCL_ERROR("[InsTempAllReduceAicpuReduceNHR] subCommRanks_ is empty"), HcclResult::HCCL_E_INTERNAL);
 
     thread_ = templateResource.threads.at(0);
     buffInfo_ = tempAlgParams.buffInfo;
@@ -241,12 +243,12 @@ HcclResult InsTempAllReduceAicpuReduceNHR::GetStepInfo(u32 step, u32 nSteps, Aic
     stepInfo.step = step;
     stepInfo.myRank = rankIdx;
 
-    // 计算通信对象
+    // AicpuReduceNHR 计算通信对象
     u32 deltaRank = 1 << (nSteps - 1 - step);
     u32 recvFrom = (rankIdx + templateRankSize_ - deltaRank) % templateRankSize_;
     u32 sendTo = (rankIdx + deltaRank) % templateRankSize_;
 
-    // 数据份数和数据编号增量
+    // AicpuReduceNHR 数据份数和数据编号增量
     u32 nSlices = (templateRankSize_ - 1 + (1 << (nSteps - 1 - step))) / (1 << (nSteps - step));
     u32 deltaSliceIndex = 1 << (nSteps - step);
     u32 txSliceIdx = rankIdx;

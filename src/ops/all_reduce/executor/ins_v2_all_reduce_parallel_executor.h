@@ -22,9 +22,9 @@
 #include "config_log.h"
 #include "executor_v2_base.h"
 #include "coll_alg_v2_exec_registry.h"
+#include "topo_match_ubx.h"
 #include "topo_match_base.h"
 #include "topo_match_1d.h"
-#include "topo_match_ubx.h"
 
 namespace ops_hccl {
 
@@ -32,7 +32,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 class InsAllReduceParallelExecutor : public InsCollAlgBase {
 public:
     explicit InsAllReduceParallelExecutor();
-    ~InsAllReduceParallelExecutor() = default;
+    ~InsAllReduceParallelExecutor() override = default;
 
     std::string Describe() const override
     {
@@ -45,7 +45,7 @@ public:
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfo) override;
     #ifndef AICPU_COMPILE
-    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *resCtx) override;
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *ctx) override;
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgResIntra,
                                 const TemplateResource &templateAlgResInter, const TemplateResource &templateAlgResIntra1,
                                 const TemplateResource &templateAlgResInter1, u32 notifyNumOnMainThread);

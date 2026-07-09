@@ -21,7 +21,7 @@
 
 constexpr uint32_t NOTIFY_IDX_ACK = 0;
 constexpr uint32_t NOTIFY_IDX_DATA_SIGNAL = 1;
-constexpr uint32_t CUSTOM_TIMEOUT = 1800;
+constexpr uint32_t CUSTOM_TIMEOUT = 1836;
 
 constexpr uint32_t COMM_INDENTIFIER_MAX_LENGTH = 128;
 constexpr uint32_t OP_NAME_LENGTH = 32;
@@ -49,8 +49,6 @@ struct ChannelInfo {
 };
 
 struct AlgResourceCtx {
-    ThreadHandle aicpuThread;
-    ThreadHandle cpuThreadOnAicpu;
     CommBuffer cclMem;
     uint32_t notifyNumOnMainThread;
     uint32_t slaveThreadNum;
@@ -62,8 +60,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream;
 
-        binaryStream << aicpuThread;
-        binaryStream << cpuThreadOnAicpu;
         binaryStream << cclMem;
         binaryStream << notifyNumOnMainThread;
         binaryStream << slaveThreadNum;
@@ -79,8 +75,6 @@ struct AlgResourceCtx {
     {
         BinaryStream binaryStream(data);
 
-        binaryStream >> aicpuThread;
-        binaryStream >> cpuThreadOnAicpu;
         binaryStream >> cclMem;
         binaryStream >> notifyNumOnMainThread;
         binaryStream >> slaveThreadNum;
@@ -103,6 +97,9 @@ struct OpParam {
     HcclCMDType opType = HcclCMDType::HCCL_CMD_INVALID;
     ThreadHandle cpuThread;
     ThreadHandle aicpuThreadOnCpu;
+    // host cpu thread导出到aicpu引擎的句柄，与stream绑定，每次调用刷新，不随context复用
+    ThreadHandle cpuThreadOnAicpu = 0;
+    uint32_t aicpuRecordCpuIdx = 0;
     void* resCtxDevice = nullptr;
     uint64_t ctxSize = 0;
 };
