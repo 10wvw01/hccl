@@ -480,11 +480,29 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
         // 5.1 RS在每次loop进行之前先将所有数据从usrin拷贝到ccl，2.3已修改下列参数
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
+        auto loopSize = currDataCount * dataTypeSize_;
+        for (auto& temp : tempAlgParamMap) {
+            temp.second.processedDataCount = processedDataCount;
+            temp.second.inputSliceStride = dataCount_ * dataTypeSize_;
+            temp.second.outputSliceStride = loopSize;
+        }
+        const bool level2Symmetric = tempAlgParamMap.count(OMNIPIPE_LEVEL2) > 0 &&
+            tempAlgParamMap[OMNIPIPE_LEVEL2].supportSymmetricMemory;
+        const bool level0Symmetric = tempAlgParamMap.count(OMNIPIPE_LEVEL0) > 0 &&
+            tempAlgParamMap[OMNIPIPE_LEVEL0].supportSymmetricMemory;
+        const bool level1Symmetric = tempAlgParamMap.count(OMNIPIPE_LEVEL1) > 0 &&
+            tempAlgParamMap[OMNIPIPE_LEVEL1].supportSymmetricMemory;
+        HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][ExecutorLoop] loop[%llu] currDataCount[%llu] "
+                  "processedDataCount[%llu] dataCount[%llu] dataTypeSize[%u] inputSliceStride[%llu] "
+                  "compactLoopStride[%llu] supportSymmetricMemory[%d] level2Symmetric[%d] level0Symmetric[%d] "
+                  "level1Symmetric[%d]",
+                  loop, currDataCount, processedDataCount, dataCount_, dataTypeSize_,
+                  dataCount_ * dataTypeSize_, loopSize, param.supportSymmetricMemory,
+                  level2Symmetric, level0Symmetric, level1Symmetric);
         tempParamLocalcopy.buffInfo.inBuffType = BufferType::INPUT;
         tempParamLocalcopy.count = currDataCount;
         tempParamLocalcopy.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
         tempParamLocalcopy.inputSliceStride = dataCount_ * dataTypeSize_;
-        auto loopSize = currDataCount * dataTypeSize_;
         tempParamLocalcopy.buffInfo.outBuffBaseOff = 0;
         tempParamLocalcopy.outputSliceStride = loopSize;
         tempParamLocalcopy.repeatNum = rankSize_;

@@ -15,6 +15,23 @@
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
 namespace ops_hccl {
+namespace {
+HcclResult ConvertCompactOffsetToUserInputOffset(const TemplateDataParams& tempAlgParams, HcclDataType dataType,
+                                                 u64 compactOffset, u64& userInputOffset)
+{
+    CHK_PRT_RET(tempAlgParams.outputSliceStride == 0 || tempAlgParams.inputSliceStride == 0,
+                HCCL_ERROR("[ConvertCompactOffsetToUserInputOffset] invalid stride, inputSliceStride[%llu], "
+                           "outputSliceStride[%llu]",
+                           tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride),
+                HcclResult::HCCL_E_PARA);
+    const u64 rankIdx = compactOffset / tempAlgParams.outputSliceStride;
+    const u64 innerOffset = compactOffset % tempAlgParams.outputSliceStride;
+    userInputOffset = rankIdx * tempAlgParams.inputSliceStride +
+                      tempAlgParams.processedDataCount * DATATYPE_SIZE_TABLE[dataType] + innerOffset;
+    return HcclResult::HCCL_SUCCESS;
+}
+}  // namespace
+
 InsTempReduceScatterOmniPipeNHR::InsTempReduceScatterOmniPipeNHR(
     const OpParam& param, const u32 rankId, // 传通信域的u32，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -60,14 +77,16 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
                 validCnt++;
             } else {
                 nilCnt++;
-                HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] peer=%u remote input pointer not backfilled: ret=%d addr=%p",
-                           myRank_, peer, rIn, inPtr);
+                HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRPeerPtrCheck] rank[%u] peer[%u] "
+                          "remote input pointer not backfilled: ret[%d] addr[%p]",
+                          myRank_, peer, rIn, inPtr);
             }
         }
-        HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] backfill check: validPeers=%u invalidPeers=%u, %s",
-                   myRank_, validCnt, nilCnt,
-                   nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
-                              : "all peers backfilled");
+        HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRPeerPtrCheck] rank[%u] validPeers[%u] "
+                  "invalidPeers[%u] result[%s]",
+                  myRank_, validCnt, nilCnt,
+                  nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
+                             : "all peers backfilled");
     }
 
     threadNum_ = GetThreadNum();
@@ -189,7 +208,17 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRStep0SymmetricDataSize(
             scratchBaseRx += dataOffsetVec_[rxIdx][rpt][channelIdx];
             const u64 rxScOff = scratchBaseRx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
             const u64 splitSize = dataSplitVec_[rxIdx][rpt][channelIdx];
-            rxSrcSlices.emplace_back(recvInputAddr, rxScOff, splitSize, splitSize / dataTypeSize);
+            u64 rxInputOff = 0;
+            CHK_RET(ConvertCompactOffsetToUserInputOffset(tempAlgParams_, dataType_, rxScOff, rxInputOff));
+            HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRStep0Slice] step[%u] myAlgRank[%u] "
+                      "fromAlgRank[%u] rxIdx[%u] rpt[%llu] channelIdx[%u] rxCompactOff[%llu] "
+                      "rxSrcUserInputOff[%llu] rxDstCclOff[%llu] stepInputStride[%llu] inputOmniPipeStride[%llu] "
+                      "channelDataOffset[%llu] splitSize[%llu]",
+                      st.step, st.myRank, st.fromRank, rxIdx, rpt, channelIdx, rxScOff, rxInputOff, rxScOff,
+                      tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx],
+                      tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[rxIdx][rpt],
+                      dataOffsetVec_[rxIdx][rpt][channelIdx], splitSize);
+            rxSrcSlices.emplace_back(recvInputAddr, rxInputOff, splitSize, splitSize / dataTypeSize);
             rxDstSlices.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, rxScOff, splitSize,
                 splitSize / dataTypeSize);
         }
@@ -243,8 +272,13 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
                 HCCL_ERROR("[RS-NHR][RunNHR] HcclSymWinGetPeerPointer failed, recvFromRank[%u] ret[%d] in[%p]",
                     recvFromRank, ret, recvInputAddr),
                 HcclResult::HCCL_E_INTERNAL);
-            HCCL_INFO("[RunNHR-Symmetric][rank=%u] step=%u channelIdx=%u recvFromRank=%u recvInputAddr=%p",
-                      myRank_, st.step, channelIdx, recvFromRank, recvInputAddr);
+            HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRStep0Peer] rank[%u] step[%u] channelIdx[%u] "
+                      "recvFromRank[%u] recvInputAddr[%p] processedDataCount[%llu] inputSliceStride[%llu] "
+                      "compactLoopStride[%llu] inBuffBaseOff[%llu] outBuffBaseOff[%llu] hcclBuffBaseOff[%llu]",
+                      myRank_, st.step, channelIdx, recvFromRank, recvInputAddr,
+                      tempAlgParams_.processedDataCount, tempAlgParams_.inputSliceStride,
+                      tempAlgParams_.outputSliceStride, tempAlgParams_.buffInfo.inBuffBaseOff,
+                      tempAlgParams_.buffInfo.outBuffBaseOff, tempAlgParams_.buffInfo.hcclBuffBaseOff);
             CHK_RET(GetNHRStep0SymmetricDataSize(st, channelIdx, recvInputAddr, dataTypeSize, rptNum,
                 rxSrcSlices, rxDstSlices));
         } else {

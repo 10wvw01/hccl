@@ -14,6 +14,23 @@
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
+namespace {
+HcclResult ConvertCompactOffsetToUserInputOffset(const TemplateDataParams& tempAlgParam, HcclDataType dataType,
+                                                 u64 compactOffset, u64& userInputOffset)
+{
+    CHK_PRT_RET(tempAlgParam.outputSliceStride == 0 || tempAlgParam.inputSliceStride == 0,
+                HCCL_ERROR("[ConvertCompactOffsetToUserInputOffset] invalid stride, inputSliceStride[%llu], "
+                           "outputSliceStride[%llu]",
+                           tempAlgParam.inputSliceStride, tempAlgParam.outputSliceStride),
+                HcclResult::HCCL_E_PARA);
+    const u64 rankIdx = compactOffset / tempAlgParam.outputSliceStride;
+    const u64 innerOffset = compactOffset % tempAlgParam.outputSliceStride;
+    userInputOffset = rankIdx * tempAlgParam.inputSliceStride +
+                      tempAlgParam.processedDataCount * DATATYPE_SIZE_TABLE[dataType] + innerOffset;
+    return HcclResult::HCCL_SUCCESS;
+}
+}  // namespace
+
 InsTempReduceScatterOmniPipeMesh1D::InsTempReduceScatterOmniPipeMesh1D(
     const OpParam& param, const u32 rankId, const std::vector<std::vector<u32>>& subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -163,14 +180,16 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
                 validCnt++;
             } else {
                 nilCnt++;
-                HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] peer=%u remote input pointer not backfilled: ret=%d addr=%p",
-                           myRank_, peer, rIn, inPtr);
+                HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][MeshPeerPtrCheck] rank[%u] peer[%u] "
+                          "remote input pointer not backfilled: ret[%d] addr[%p]",
+                          myRank_, peer, rIn, inPtr);
             }
         }
-        HCCL_ERROR("[SymmetricMemPeerPtrCheck][rank=%u] backfill check: validPeers=%u invalidPeers=%u, %s",
-                   myRank_, validCnt, nilCnt,
-                   nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
-                              : "all peers backfilled");
+        HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][MeshPeerPtrCheck] rank[%u] validPeers[%u] "
+                  "invalidPeers[%u] result[%s]",
+                  myRank_, validCnt, nilCnt,
+                  nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
+                             : "all peers backfilled");
     }
     HCCL_INFO("[%s]Run Start", __func__);
     if (threadNum_ > 1) {
@@ -348,17 +367,24 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatterSymmetric(
                                "HcclSymWinGetPeerPointer failed, remoteRank[%u] ret[%d] in[%p]",
                                remoteRank, ret, remoteIn),
                     HcclResult::HCCL_E_INTERNAL);
-        HCCL_INFO("[RunReduceScatterSymmetric][rank=%u] remoteRank=%u remoteInputAddr=%p sliceCnt=%zu",
+        HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][MeshPeer] rank[%u] remoteRank[%u] remoteInputAddr[%p] "
+                  "sliceCnt[%zu] processedDataCount[%llu] inputSliceStride[%llu] compactLoopStride[%llu] "
+                  "inBuffBaseOff[%llu] outBuffBaseOff[%llu] hcclBuffBaseOff[%llu]",
                   myRank_, remoteRank, remoteIn,
-                  tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size());
+                  tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(),
+                  tempAlgParam.processedDataCount, tempAlgParam.inputSliceStride,
+                  tempAlgParam.outputSliceStride, tempAlgParam.buffInfo.inBuffBaseOff,
+                  tempAlgParam.buffInfo.outBuffBaseOff, tempAlgParam.buffInfo.hcclBuffBaseOff);
 
         std::vector<DataSlice> rxSrcSlices;
         std::vector<DataSlice> rxDstSlices;
         for (u32 repeatIdx = 0; repeatIdx < tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size();
              repeatIdx++) {
-            u64 rxSrcCurrent = tempAlgParam.buffInfo.inBuffBaseOff +
+            u64 rxSrcCompact = tempAlgParam.buffInfo.inBuffBaseOff +
                                tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank] +
                                tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            u64 rxSrcCurrent = 0;
+            CHK_RET(ConvertCompactOffsetToUserInputOffset(tempAlgParam, dataType_, rxSrcCompact, rxSrcCurrent));
             u64 rxDstCurrent = tempAlgParam.buffInfo.outBuffBaseOff +
                                tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank] +
                                tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
@@ -368,11 +394,15 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatterSymmetric(
             rxDstSlices.emplace_back(localCclBuffAddr, rxDstCurrent,
                                      tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
                                      tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
-            HCCL_DEBUG("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatterSymmetric] myRank[%u] remoteRank[%u] "
-                       "rxSrcOff[%llu] rxDstOff[%llu] sliceSize[%llu] count[%llu]",
-                       myRank_, remoteRank, rxSrcCurrent, rxDstCurrent,
-                       tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
-                       tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][MeshSlice] rank[%u] remoteRank[%u] "
+                      "myAlgRank[%u] repeatIdx[%u] rxSrcCompactOff[%llu] rxSrcUserInputOff[%llu] "
+                      "rxDstCclOff[%llu] stepInputStride[%llu] inputOmniPipeStride[%llu] sliceSize[%llu] "
+                      "count[%llu]",
+                      myRank_, remoteRank, myAlgRank, repeatIdx, rxSrcCompact, rxSrcCurrent, rxDstCurrent,
+                      tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank],
+                      tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx],
+                      tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
+                      tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
         }
 
         std::vector<DataSlice> emptySlices;
