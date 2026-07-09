@@ -312,6 +312,9 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
+    selectAlgName = "InsV2ReduceScatterOmniPipe";
+    return SelectorStatus::MATCH;
+
     if (IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize)) {
         CHK_PRT_RET(topoInfo->userRankSize > MAX_RANK_NUM_FOR_ORDER_PRESERVED,
             HCCL_ERROR("[ReduceScatterAutoSelector] OrderPreserved mode not supported for rankSize[%u] > %u, "

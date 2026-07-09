@@ -462,17 +462,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         }
     }
 
-    const u64 sliceBytes = dataCount_ * dataTypeSize_;
-    const u64 myInputOffset = static_cast<u64>(myRank_) * sliceBytes;
-    DataSlice localSrc(param.inputPtr, myInputOffset, sliceBytes, dataCount_);
-    DataSlice localDst(param.outputPtr, 0, sliceBytes, dataCount_);
-    CHK_RET(LocalCopy(controlThread_, localSrc, localDst));
-
-    if (!peerThreads.empty()) {
-        CHK_RET(PreSyncInterThreads(controlThread_, peerThreads, notifyIdxMainToPeer));
-    }
-
-    u32 peerThreadIdx = 0;
+    std::map<u32, void*> remoteRankToInput;
     for (u32 remoteRank = 0; remoteRank < static_cast<u32>(rankSize_); ++remoteRank) {
         if (remoteRank == myRank_) {
             continue;
@@ -491,27 +481,115 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                                "HcclSymWinGetPeerPointer failed, remoteRank[%u], ret[%d], input[%p]",
                                remoteRank, ret, remoteInput),
                     ret != HCCL_SUCCESS ? ret : HcclResult::HCCL_E_INTERNAL);
-
-        std::vector<DataSlice> emptySlices;
-        std::vector<DataSlice> rxSrcSlices;
-        std::vector<DataSlice> rxDstSlices;
-        rxSrcSlices.emplace_back(remoteInput, myInputOffset, sliceBytes, dataCount_);
-        rxDstSlices.emplace_back(param.outputPtr, 0, sliceBytes, dataCount_);
-        SlicesList txSlices(emptySlices, emptySlices);
-        SlicesList rxSlices(rxSrcSlices, rxDstSlices);
-        TxRxSlicesList sendRecvSlices(txSlices, rxSlices);
-        const ChannelInfo& linkRemote = channelIter->second[0];
-        TxRxChannels sendRecvChannels(linkRemote, linkRemote);
-        SendRecvReduceInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_, reduceOp_);
-        HcclResult reduceRet = SendRecvReadReduce(sendRecvInfo, peerThreads.at(peerThreadIdx++));
-        CHK_PRT_RET(reduceRet != HCCL_SUCCESS,
-                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] "
-                               "SendRecvReadReduce failed, remoteRank[%u], ret[%d]",
-                               remoteRank, reduceRet),
-                    reduceRet);
+        remoteRankToInput[remoteRank] = remoteInput;
     }
-    if (!peerThreads.empty()) {
-        CHK_RET(PostSyncInterThreads(controlThread_, peerThreads, notifyIdxPeerToMain));
+
+    CHK_PRT_RET(resCtx.cclMem.addr == nullptr || resCtx.cclMem.size == 0,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] cclMem is invalid, "
+                           "addr[%p], size[%llu]",
+                           resCtx.cclMem.addr, resCtx.cclMem.size),
+                HcclResult::HCCL_E_INTERNAL);
+    CHK_PRT_RET(dataTypeSize_ == 0,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] dataTypeSize is 0"),
+                HcclResult::HCCL_E_INTERNAL);
+
+    const u64 rankSize = static_cast<u64>(rankSize_);
+    const u64 cclBoundCountPerLoop = resCtx.cclMem.size / rankSize / dataTypeSize_;
+    CHK_PRT_RET(cclBoundCountPerLoop == 0,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] cclMem size[%llu] is "
+                           "too small for rankSize[%llu], dataTypeSize[%llu]",
+                           resCtx.cclMem.size, rankSize, dataTypeSize_),
+                HcclResult::HCCL_E_INTERNAL);
+
+    OmniPipeScratchParam scratchParam;
+    scratchParam.endpointAttrBw = {BW_OMNI_DEFAULT, BW_OMNI_DEFAULT, BW_OMNI_DEFAULT};
+    scratchParam.levelRankSize = {rankSize, 1, 1};
+    scratchParam.levelAlgType = {1, 0, 0};
+    scratchParam.dataTypeSize = dataTypeSize_;
+    scratchParam.maxTmpMemSize = resCtx.cclMem.size;
+    scratchParam.opMode = param.opMode;
+    scratchParam.engine = param.engine;
+    scratchParam.needSetStepNum = omniNeedSetStepNum_;
+    scratchParam.dataSize.clear();
+    scratchParam.dataSize.reserve(static_cast<size_t>(rankSize));
+    for (u64 rank = 0; rank < rankSize; ++rank) {
+        scratchParam.dataSize.push_back(dataSize_);
+    }
+    std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
+    CHK_PRT_RET(loopInfo.size() < 2,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] invalid loopInfo size[%u]",
+                           static_cast<u32>(loopInfo.size())),
+                HcclResult::HCCL_E_INTERNAL);
+
+    const u64 calcMaxCountPerLoop = loopInfo[0];
+    const u64 calcLoopTimes = loopInfo[1];
+    const u64 maxCountPerLoop =
+        calcMaxCountPerLoop < cclBoundCountPerLoop ? calcMaxCountPerLoop : cclBoundCountPerLoop;
+    CHK_PRT_RET(maxCountPerLoop == 0,
+                HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] maxCountPerLoop is 0, "
+                           "calcMaxCountPerLoop[%llu], cclBoundCountPerLoop[%llu]",
+                           calcMaxCountPerLoop, cclBoundCountPerLoop),
+                HcclResult::HCCL_E_INTERNAL);
+    const u64 loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] calcMaxCountPerLoop[%llu], "
+              "calcLoopTimes[%llu], cclBoundCountPerLoop[%llu], finalMaxCountPerLoop[%llu], finalLoopTimes[%llu]",
+              calcMaxCountPerLoop, calcLoopTimes, cclBoundCountPerLoop, maxCountPerLoop, loopTimes);
+
+    u64 processedDataCount = 0;
+    for (u64 loop = 0; loop < loopTimes; ++loop) {
+        const u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
+        const u64 loopBytes = currDataCount * dataTypeSize_;
+        const u64 outputOffset = processedDataCount * dataTypeSize_;
+        const u64 inputOffset = (static_cast<u64>(myRank_) * dataCount_ + processedDataCount) * dataTypeSize_;
+        const u64 localCclOffset = static_cast<u64>(myRank_) * loopBytes;
+
+        DataSlice localSrc(param.inputPtr, inputOffset, loopBytes, currDataCount);
+        DataSlice localDst(resCtx.cclMem.addr, localCclOffset, loopBytes, currDataCount);
+        CHK_RET(LocalCopy(controlThread_, localSrc, localDst));
+
+        if (!peerThreads.empty()) {
+            CHK_RET(PreSyncInterThreads(controlThread_, peerThreads, notifyIdxMainToPeer));
+        }
+
+        u32 peerThreadIdx = 0;
+        for (u32 remoteRank = 0; remoteRank < static_cast<u32>(rankSize_); ++remoteRank) {
+            if (remoteRank == myRank_) {
+                continue;
+            }
+            auto channelIter = remoteRankToChannelInfo.find(remoteRank);
+
+            std::vector<DataSlice> emptySlices;
+            std::vector<DataSlice> rxSrcSlices;
+            std::vector<DataSlice> rxDstSlices;
+            rxSrcSlices.emplace_back(remoteRankToInput.at(remoteRank), inputOffset, loopBytes, currDataCount);
+            rxDstSlices.emplace_back(resCtx.cclMem.addr, static_cast<u64>(remoteRank) * loopBytes, loopBytes,
+                                     currDataCount);
+            SlicesList txSlices(emptySlices, emptySlices);
+            SlicesList rxSlices(rxSrcSlices, rxDstSlices);
+            TxRxSlicesList sendRecvSlices(txSlices, rxSlices);
+            const ChannelInfo& linkRemote = channelIter->second[0];
+            TxRxChannels sendRecvChannels(linkRemote, linkRemote);
+            SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_);
+            HcclResult readRet = SendRecvRead(sendRecvInfo, peerThreads.at(peerThreadIdx++));
+            CHK_PRT_RET(readRet != HCCL_SUCCESS,
+                        HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] "
+                                   "SendRecvRead failed, remoteRank[%u], ret[%d]",
+                                   remoteRank, readRet),
+                        readRet);
+        }
+        if (!peerThreads.empty()) {
+            CHK_RET(PostSyncInterThreads(controlThread_, peerThreads, notifyIdxPeerToMain));
+        }
+
+        for (u32 srcRank = 1; srcRank < static_cast<u32>(rankSize_); ++srcRank) {
+            DataSlice reduceSrc(resCtx.cclMem.addr, static_cast<u64>(srcRank) * loopBytes, loopBytes, currDataCount);
+            DataSlice reduceDst(resCtx.cclMem.addr, 0, loopBytes, currDataCount);
+            CHK_RET(LocalReduce(controlThread_, reduceSrc, reduceDst, dataType_, reduceOp_));
+        }
+        DataSlice outputSrc(resCtx.cclMem.addr, 0, loopBytes, currDataCount);
+        DataSlice outputDst(param.outputPtr, outputOffset, loopBytes, currDataCount);
+        CHK_RET(LocalCopy(controlThread_, outputSrc, outputDst));
+        processedDataCount += currDataCount;
     }
     HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateSymmetricDirect] End");
     return HCCL_SUCCESS;
@@ -796,7 +874,7 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterO
                        InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipe,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatchUBX, InsTempReduceScatterOmniPipeMesh1D,
-                       InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeMesh1dDpu);
+                       InsTempReduceScatterOmniPipeNHR, InsTempReduceScatterOmniPipeMesh1dDpu);
 
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsV2ReduceScatterOmniPipeUboe,
                        InsV2ReduceScatterOmniPipeExecutor, TopoMatch3Level, InsTempReduceScatterOmniPipeMesh1D,
