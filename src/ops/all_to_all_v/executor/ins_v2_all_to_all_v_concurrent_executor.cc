@@ -24,8 +24,8 @@ constexpr uint32_t CONST_1 = 1;
 constexpr uint32_t CONST_2 = 2;
 constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
-constexpr u32 MESH_BW = 112;
-constexpr u32 CLOS_BW = 110;
+constexpr u32 MESH_BW = 12;
+constexpr u32 CLOS_BW = 10;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllToAllVConcurrentExecutor()
