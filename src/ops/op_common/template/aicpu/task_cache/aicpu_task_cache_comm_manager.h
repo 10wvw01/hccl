@@ -28,10 +28,10 @@ public:
     void AddCommTagMap(HcclComm comm, const std::string &tagName);
 
     // 清除特定通信域的缓存
-    void evitTaskCache(HcclComm comm);
+    void EvitTaskCache(HcclComm comm);
 
     // 清除所有缓存
-    void evitAllTaskCache();
+    void EvitAllTaskCache();
 
 private:
     AicpuTaskCacheCommManager() = default;

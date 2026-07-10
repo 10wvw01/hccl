@@ -1195,9 +1195,9 @@ extern "C" unsigned int HcclLaunchAicpuCacheEvitKernel(HcclComm *comm)
     }
     HCCL_INFO("Entry-%s, comm[%p]", __func__, *comm);
     if (*comm != nullptr) {
-        AicpuTaskCacheCommManager::Instance().evitTaskCache(*comm);
+        AicpuTaskCacheCommManager::Instance().EvitTaskCache(*comm);
     } else {
-        AicpuTaskCacheCommManager::Instance().evitAllTaskCache();
+        AicpuTaskCacheCommManager::Instance().EvitAllTaskCache();
     }
 
     return 0;
