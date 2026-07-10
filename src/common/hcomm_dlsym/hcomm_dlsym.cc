@@ -27,6 +27,7 @@
 #include <acl/acl.h>
 
 static void* gLibHandle = nullptr;
+static void* gAsccommHandle = nullptr;
 static int gHcommVersion = 0;
 
 int GetHcommVersion(void) {
@@ -62,10 +63,16 @@ bool HcommIsExportThreadSupported()
 void HcommDlInit(void) {
     if (gLibHandle != nullptr) return;
 
-    gLibHandle = dlopen("libhcomm.so", RTLD_NOW);
+    gLibHandle = dlopen("libhcomm.so", RTLD_NOW | RTLD_GLOBAL);
     if (!gLibHandle) {
         fprintf(stderr, "[HcclWrapper] Failed to open libhcomm: %s\n", dlerror());
         return;
+    }
+
+    // CCU launch/primitive 实现已迁移到 libasccomm_ccu_dataplane.so
+    gAsccommHandle = dlopen("libasccomm_ccu_dataplane.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!gAsccommHandle) {
+        fprintf(stderr, "[HcclWrapper] Failed to open libasccomm_ccu_dataplane: %s\n", dlerror());
     }
 
     dlerror();
@@ -79,6 +86,6 @@ void HcommDlInit(void) {
     HcclResExptDlInit(gLibHandle);
     CcuResDlInit(gLibHandle);
     HcclCcuResDlInit(gLibHandle);
-    CcuLaunchDlInit(gLibHandle);
-    CcuPrimitivesImplDlInit(gLibHandle);
+    CcuLaunchDlInit(gAsccommHandle ? gAsccommHandle : gLibHandle);
+    CcuPrimitivesImplDlInit(gAsccommHandle ? gAsccommHandle : gLibHandle);
 }
