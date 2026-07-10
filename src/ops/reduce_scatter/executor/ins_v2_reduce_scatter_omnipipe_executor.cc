@@ -445,6 +445,16 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         tempResMap[temp.first].npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         tempResMap[temp.first].dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
+        if (temp.first == OMNIPIPE_LEVEL0) {
+            // L0 Mesh can directly consume peer user input only when no L2 stage precedes it.
+            tempAlgParamMap[temp.first].supportSymmetricMemory =
+                param.supportSymmetricMemory && rankSizeLevel2_ == 1;
+        } else if (temp.first == OMNIPIPE_LEVEL1) {
+            // NHR 首轮仅可从 peer input 直读：它必须是整个 OmniPipe 的第一个规约轴。
+            // 若 L0/L2 参与，peer CCL 保存的是前序轴的部分和，NHR 必须继续走普通通信。
+            tempAlgParamMap[temp.first].supportSymmetricMemory = param.supportSymmetricMemory &&
+                rankSizeLevel0_ == 1 && rankSizeLevel2_ == 1;
+        }
     }
 
     TemplateDataParams tempParamLocalcopy;
@@ -466,6 +476,13 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         tempParamLocalcopy.outputSliceStride = loopSize;
         tempParamLocalcopy.repeatNum = rankSize_;
         tempParamLocalcopy.sliceSize = loopSize;
+        // NHR 的首轮对称内存直读需要将 CCL 的当前 loop 压缩布局还原为用户 input 布局。
+        // NHR 固定为 OmniPipe level1；GenTemplateAlgParamsByDimData 不会覆盖这两个字段。
+        auto nhrParamIter = tempAlgParamMap.find(OMNIPIPE_LEVEL1);
+        if (nhrParamIter != tempAlgParamMap.end()) {
+            nhrParamIter->second.processedDataCount = processedDataCount;
+            nhrParamIter->second.inputRepeatStride = loopSize;
+        }
         // 这边不论三层为什么拓扑，都使用第一个template去做localcopy
         if (rankSizeLevel0_ > 1) {
             auto temp0 = std::dynamic_pointer_cast<InsAlgTemplate0>(tempMap.begin()->second);

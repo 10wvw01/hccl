@@ -9,12 +9,22 @@
  */
 
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempReduceScatterOmniPipeMesh1D::InsTempReduceScatterOmniPipeMesh1D(
     const OpParam& param, const u32 rankId, const std::vector<std::vector<u32>>& subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
 {
+    // The executor decides whether this level is the first raw-input reduction axis.
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
+    inputSymWindow_ = param.inputSymWindow;
+    outputSymWindow_ = param.outputSymWindow;
+    inputOffset_ = param.inputOffset;
+    outputOffset_ = param.outputOffset;
+    inputTotalSize_ = param.inputSize;
 }
 
 InsTempReduceScatterOmniPipeMesh1D::~InsTempReduceScatterOmniPipeMesh1D()
@@ -91,22 +101,19 @@ void InsTempReduceScatterOmniPipeMesh1D::GetNotifyIdxSubToMain(std::vector<u32>&
 }
 
 HcclResult InsTempReduceScatterOmniPipeMesh1D::DoLocalCopy(const TemplateDataParams& tempAlgParams,
-                                                           const std::vector<ThreadHandle>& threads)
+                                                            const std::vector<ThreadHandle>& threads)
 {
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1D][DoLocalCopy] DoLocalCopy myRank_ = [%u]", myRank_);
     if (tempAlgParams.sliceSize == 0) {
         HCCL_INFO("Rank [%d], get slicesize zero. skip localcopy", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
-    u32 rankIdx = 0;
-    auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
-    if (iter != subCommRanks_[0].end()) {
-        rankIdx = std::distance(subCommRanks_[0].begin(), iter);
-    } else {
-        HCCL_ERROR("[%s]subCommRanks_ or myRank_ is error.", __func__);
-        return HCCL_E_INTERNAL;
+    if (tempAlgParams.buffInfo.inBuffType == BufferType::INPUT) {
+        // 头拷贝将用户 input 的每个全局分片压缩为当前 loop 大小后顺序放入 CCL 原始区。
+        inputLoopBaseOff_ = tempAlgParams.buffInfo.inBuffBaseOff;
+        inputRankStride_ = tempAlgParams.inputSliceStride;
+        inputLoopSize_ = tempAlgParams.outputSliceStride;
     }
-
     // 区分前后搬运
     void* srcAddr;
     void* dstAddr;
@@ -135,8 +142,66 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::DoLocalCopy(const TemplateDataPar
     return HcclResult::HCCL_SUCCESS;
 }
 
+// 对称内存路径复用普通 RunReduceScatter 的 rx 映射：
+// peer input 中原本会被从 peer CCL 读取的切片，直接落到本地原本的 rxDst scratch 地址。
+HcclResult InsTempReduceScatterOmniPipeMesh1D::ReadPeerInputToScratch(
+    const TemplateDataParams& tempAlgParams, const std::vector<ThreadHandle>& threads)
+{
+    auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
+    CHK_PRT_RET(iter == subCommRanks_[0].end(),
+                HCCL_ERROR("[%s] subCommRanks_ or myRank_ is error.", __func__), HCCL_E_INTERNAL);
+    u32 myAlgRank = std::distance(subCommRanks_[0].begin(), iter);
+
+    CHK_PRT_RET(threads.size() != templateRankSize_ - 1,
+                HCCL_ERROR("[%s] thread count[%zu] does not match peer count[%u]", __func__, threads.size(),
+                           templateRankSize_ - 1),
+                HCCL_E_INTERNAL);
+    CHK_PRT_RET(inputLoopSize_ == 0 || inputRankStride_ == 0,
+                HCCL_ERROR("[%s] missing input layout from head local copy", __func__), HCCL_E_INTERNAL);
+
+    void* localCclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
+    for (u32 queIdx = 0; queIdx < templateRankSize_ - 1; ++queIdx) {
+        u32 nextRank = (myAlgRank + 1 + queIdx) % templateRankSize_;
+        u32 remoteRank = subCommRanks_[0][nextRank];
+        void* peerInputAddr = nullptr;
+        HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, remoteRank, &peerInputAddr);
+        CHK_PRT_RET(ret != HCCL_SUCCESS || peerInputAddr == nullptr,
+                    HCCL_ERROR("[%s] HcclSymWinGetPeerPointer failed, peerRank[%u] ret[%d] addr[%p]", __func__,
+                               remoteRank, ret, peerInputAddr),
+                    HCCL_E_INTERNAL);
+
+        for (u32 repeatIdx = 0;
+             repeatIdx < tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++repeatIdx) {
+            // 普通路径的 rxSrcCurrent 指向 peer CCL 的“当前 loop 压缩布局”。
+            // 对称窗口仍是用户 input 的完整布局，需将该偏移还原为全局分片号和 loop 内偏移。
+            u64 packedSrcCurrent = tempAlgParams.buffInfo.inBuffBaseOff +
+                                   tempAlgParams.stepSliceInfo.stepInputSliceStride[myAlgRank] +
+                                   tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            u64 inputRank = packedSrcCurrent / inputLoopSize_;
+            u64 inputOffsetInLoop = packedSrcCurrent % inputLoopSize_;
+            u64 sliceSize = tempAlgParams.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx];
+            u64 srcCurrent = inputLoopBaseOff_ + inputRank * inputRankStride_ + inputOffsetInLoop;
+            CHK_PRT_RET(inputOffsetInLoop + sliceSize > inputLoopSize_ || srcCurrent > inputTotalSize_ ||
+                        sliceSize > inputTotalSize_ - srcCurrent,
+                        HCCL_ERROR("[%s] invalid peer input slice, srcCurrent[%llu] packedOff[%llu] "
+                                   "size[%llu] loopSize[%llu] inputTotalSize[%llu]", __func__, srcCurrent,
+                                   packedSrcCurrent, sliceSize, inputLoopSize_, inputTotalSize_),
+                        HCCL_E_INTERNAL);
+            u64 dstCurrent = tempAlgParams.buffInfo.hcclBuffBaseOff +
+                             tempAlgParams.stepSliceInfo.stepOutputSliceStride[nextRank] +
+                             tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[nextRank][repeatIdx];
+            DataSlice srcSlice(peerInputAddr, srcCurrent, sliceSize,
+                               tempAlgParams.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            DataSlice dstSlice(localCclBuffAddr, dstCurrent, sliceSize,
+                               tempAlgParams.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            CHK_RET(static_cast<HcclResult>(LocalCopy(threads[queIdx], srcSlice, dstSlice)));
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
 HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, const TemplateDataParams& tempAlgParams,
-                                                         TemplateResource& templateResource)
+                                                          TemplateResource& templateResource)
 {
     if (templateRankSize_ == 1) {
         HCCL_INFO("templateRankSize_ ==1");
@@ -150,14 +215,20 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
-    CHK_RET(RunReduceScatter(templateResource.channels, templateResource.threads, tempAlgParams));
+    // 对称内存下将 peer input 直接写到原环形收包的 scratch 位置，保持 PostReduce 的输入布局不变。
+    const bool useSymmetricInput = supportSymmetricMemory_ && tempAlgParams.supportSymmetricMemory;
+    if (useSymmetricInput) {
+        CHK_RET(ReadPeerInputToScratch(tempAlgParams, templateResource.threads));
+    } else {
+        CHK_RET(RunReduceScatter(templateResource.channels, templateResource.threads, tempAlgParams));
+    }
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     // 这个PostReduce处理的是当前轴的规约任务
-    PostReduce(tempAlgParams, templateResource.threads);
+    CHK_RET(PostReduce(tempAlgParams, templateResource.threads));
     HCCL_INFO("[%s]Run End", __func__);
     return HcclResult::HCCL_SUCCESS;
 }
