@@ -156,7 +156,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
             dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
 
             CCU_IF(ctx.sliceSize != 0) {
-                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
+                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event, 1 << i);
             }
             CCU_IF(ctx.sliceSize == 0) {
                 ccu::EventRecord(ctx.event, 1 << i);
