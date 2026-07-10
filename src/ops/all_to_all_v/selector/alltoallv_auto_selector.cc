@@ -18,6 +18,7 @@ constexpr uint32_t INDEX_1 = 1;
 constexpr uint32_t INDEX_2 = 2;
 constexpr uint32_t INDEX_3 = 3;
 constexpr uint32_t CONST_4 = 4;
+constexpr uint32_t TOPO_LEVEL_NUM_3 = 3;
 
 SelectorStatus AlltoAllVAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLayerDetails* topoInfo,
                                                     const OpParam &opParam,
@@ -99,7 +100,9 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
         }
     }
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS) {
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        selectAlgName = "InsAlltoAllVMesh1D";
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS) {
         selectAlgName = "InsAlltoAllVMesh1D";
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         // PCIE-SW定制机型，使用mesh1d算法
