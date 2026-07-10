@@ -327,7 +327,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	CcuRsAlgTemplateY rsAlgTempY(param, myRank_, subCommRanks1);
     CcuGAlgTemplateX gAlgTempX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempY(param, myRank_, subCommRanks1);
-    gAlgTempX.SetRoot(myRank_);
+    gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx);
     gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
 
     // 公共参数初始化
@@ -498,8 +498,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-            gAlgTempX.SetRoot(myRank_);
-            
+            gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); //当前卡的y坐标 * xSize + root的x坐标
             // NHR算法时，root的同y轴都需要执行y轴任务
             if (isSameYAxisAsRoot || myRank_ == param.root) {
                 gAlgTempY.ifDoTask_ = true;
@@ -507,7 +506,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 gAlgTempY.ifDoTask_ = false;
             }
 
-            // gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
             if (i == 0) { // 第一步
                 // 第一步nhr全部卡doTask=true ///其他的只有root和root同列的doTask=true
                 gAlgTempY.ifDoTask_ = true;
@@ -524,12 +522,10 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else if (isSameXAxisAsRoot && !isRoot) { // 1,2
                     HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    // gAlgTempY.UnsetRoot(myRank_);
                 } else if(isRoot){
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
                 } else{//4,5
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
-                    // gAlgTempY.UnsetRoot(myRank_);
                     gAlgTempX.UnsetRoot(myRank_);
                 }
             } else {  // 中间的所有步
