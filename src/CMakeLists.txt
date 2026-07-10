@@ -78,6 +78,10 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/common/hcomm_dlsym/ccu
     ${CMAKE_CURRENT_SOURCE_DIR}/common/op_graph
 
+    # [HCCL-ALGO-Plugin] HcclAlgoPluginMgr及其公共类型头文件目录
+    ${CMAKE_CURRENT_SOURCE_DIR}/algo_plugin
+    ${CMAKE_CURRENT_SOURCE_DIR}/algo_plugin/inc
+
     ${CMAKE_CURRENT_SOURCE_DIR}/ops
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/op_common/inc
@@ -290,6 +294,8 @@ endif()
 
 add_subdirectory(common)
 add_subdirectory(ops)
+# [HCCL-ALGO-Plugin] 新增HcclAlgoPluginMgr子目录
+add_subdirectory(algo_plugin)
 
 
 # 定义AIV算子聚合目标
