@@ -50,11 +50,25 @@ public:
     u64 GetThreadNum() const override;
 
 private:
+    HcclResult ReadPeerInputToScratch(const TemplateDataParams &tempAlgParams,
+                                      const std::vector<ThreadHandle> &threads);
     HcclResult RunReduceScatter(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                 const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParam);
     u64 processSize_{0};
     u64 count_{0};
+
+    // 对称内存：input/output 对称窗口及窗口内偏移，构造时从 OpParam 取一次，供 DoLocalCopy/KernelRun 使用。
+    void *inputSymWindow_ = nullptr;
+    void *outputSymWindow_ = nullptr;
+    u64 inputOffset_{0};
+    u64 outputOffset_{0};
+
+    // 当前 loop 的 input 在用户 buffer 与 CCL 原始区中的两种排布。
+    u64 inputLoopBaseOff_{0};
+    u64 inputRankStride_{0};
+    u64 inputLoopSize_{0};
+    u64 inputTotalSize_{0};
 };
 
 } // namespace Hccl
