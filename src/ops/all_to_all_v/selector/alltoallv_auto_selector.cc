@@ -90,7 +90,9 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     (void)opParam;
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS ||
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+            selectAlgName = "InsAlltoAllVMesh1D";
+        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS ||
             topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             selectAlgName = "InsAlltoAllVMesh1D";
         } else {
