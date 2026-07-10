@@ -177,6 +177,27 @@ static HcclResult PrepareReduceScatterParam(OpParam &param, void *sendBuf, void 
     return HCCL_SUCCESS;
 }
 
+bool ReduceScatterSupportSymmetricMemory(OpParam &opParam)
+{
+    size_t inputOffset = 0;
+    size_t outputOffset = 0;
+
+    HcclResult ret = HcclCommSymWinGet(opParam.hcclComm, opParam.inputPtr, opParam.inputSize,
+                                       &opParam.inputSymWindow, &inputOffset);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.inputSymWindow == nullptr,
+                HCCL_INFO("[%s] input[%p] size[%llu] is not support symmetric memory",
+                    __func__, opParam.inputPtr, opParam.inputSize), false);
+    ret = HcclCommSymWinGet(opParam.hcclComm, opParam.outputPtr, opParam.outputSize,
+                            &opParam.outputSymWindow, &outputOffset);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.outputSymWindow == nullptr,
+                HCCL_INFO("[%s] output[%p] size[%llu] is not support symmetric memory",
+                    __func__, opParam.outputPtr, opParam.outputSize), false);
+    opParam.supportSymmetricMemory = true;
+    opParam.inputOffset = inputOffset;
+    opParam.outputOffset = outputOffset;
+    return true;
+}
+
 HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
     HcclReduceOp op, HcclComm comm, aclrtStream stream, u32 userRankSize)
 {
@@ -214,6 +235,9 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
         HCCL_WARNING("[%s] ranksize == 1, enter SingleRankProc", __func__);
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
+    }
+    if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE) {
+        ReduceScatterSupportSymmetricMemory(param);
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName));
     HCCL_INFO("Execute ReduceScatterOutPlace success.");
