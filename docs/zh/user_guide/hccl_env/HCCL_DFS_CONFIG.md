@@ -20,8 +20,6 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
 
     **说明**：关闭集群心跳监测开关后，通信操作执行超时的异常情况无法探测，集群故障扩散能力丢失，且根节点故障信息不会记录到运行日志中。
 
-    **当前版本Ascend 950PR/Ascend 950DT仅支持配置cluster_heartbeat字段。**
-
 - **stuck_detection**：进程卡死检测开关。
 
     该参数支持两种取值：on（开启进程卡死检测能力）、off（关闭进程卡死检测能力），默认值为on。
@@ -30,11 +28,19 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
 
 - **inconsistent_check**：算子下发不一致检测开关。
 
-    该参数支持三种取值：on（开启进程算子下发不一致检测能力）、first（仅进行首算子一致性检测）、off（关闭进程算子下发不一致检测能力），默认值为first。
+    该参数支持三种取值：on（开启进程算子下发不一致检测能力）、first（仅进行首算子一致性检测）、off（关闭进程算子下发不一致检测能力），默认值为off。
 
     通过此参数可以开启进程算子下发不一致检测能力，但会产生一定的性能劣化。需要注意的是，关闭此开关后，不再主动检测并记录算子下发不一致的问题。
 
     **说明**：此功能不支持检测HcclBatchSendRecv算子和图模式场景，且开启后会生成数据缓存，占用HOST侧内存。
+
+- **task_exception**：task执行异常检测开关。用于在通信算子下发到Device侧异步执行失败时，通过回调函数通知HCCL异常task信息（stream和taskId），HCCL据此检索下发时的task信息，打印失败task的详细信息及其所在算子信息，辅助定位task执行异常问题。
+
+    该参数支持两种取值：on（开启task执行异常检测能力）、off（关闭task执行异常检测能力），默认值为on。
+
+    关闭该开关后，HCCL将不再记录与检索异常task的详细信息，task执行异常相关的维测信息将无法获取。
+
+    **说明**：该功能当前仅支持Ascend 950PR/Ascend 950DT。
 
 - **task_monitor_interval**：算子的展开模式为AI CPU的场景下，开启算子task执行耗时时间监控。
 
@@ -62,7 +68,7 @@ export HCCL_DFS_CONFIG="connection_fault_detection_time:30,cluster_heartbeat:on,
 
 ## 使用约束
 
-无
+**当前版本Ascend 950PR/Ascend 950DT仅支持配置以下三个字段：task_exception、cluster_heartbeat、inconsistent_check。**
 
 ## 支持的型号
 

@@ -34,12 +34,13 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
     HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
     constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
+    constexpr u64 CCU_SCHEDULE_SCATTER_MAX_RANK_SIZE = 64;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
-        if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
-                        "fallback to aicpu.", dataSize);
+        if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE || topoInfo->userRankSize > CCU_SCHEDULE_SCATTER_MAX_RANK_SIZE) {
+            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] or rankSize[%u] exceeds limit, "
+                        "fallback to aicpu.", dataSize, topoInfo->userRankSize);
             return SelectorStatus::NOT_MATCH;
         }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
@@ -110,7 +111,9 @@ SelectorStatus ScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDe
     HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+        if (topoInfo->Level1Nhr) {
+            selectAlgName = "InsScatterNHR";
+        } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsScatterNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsScatterParallelMesh1DNHR";
@@ -169,7 +172,7 @@ SelectorStatus ScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDeta
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 totalSize = opParam.DataDes.count * perDataSize * topoInfo->userRankSize;
     if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
-        totalSize > AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        totalSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
         HCCL_DEBUG("[ScatterAutoSelector][%s] totalSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
             __func__, totalSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
         return SelectorStatus::NOT_MATCH;
