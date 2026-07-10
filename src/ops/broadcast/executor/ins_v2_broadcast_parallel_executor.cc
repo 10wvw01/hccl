@@ -548,9 +548,9 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
     u64 sliceCountPart1 = sliceCount - sliceCountPart0;
 
-    if(sliceCount == 0){
-        HCCL_WARNING("The divisor cannot be zero.");
-        return HcclResult::HCCL_SUCCESS;
+    if (sliceCount == 0) {
+        HCCL_ERROR("[InsBroadcastParallelExecutor][OrchestrateLoop] sliceCount is 0, the divisor cannot be zero.");
+        return HcclResult::HCCL_E_INTERNAL;
     }
     // 计算循环次数
     u32 loopTimes = dataCount_ / sliceCount + ((dataCount_ % sliceCount == 0) ? 0 : 1);

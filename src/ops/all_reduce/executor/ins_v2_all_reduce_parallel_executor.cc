@@ -779,8 +779,8 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
 
     if (sliceCount == 0) {
-        HCCL_WARNING("The divisor cannot be zero.");
-        return HcclResult::HCCL_SUCCESS;
+        HCCL_ERROR("[InsAllReduceParallelExecutor][GenInsQues] sliceCount is 0, the divisor cannot be zero.");
+        return HcclResult::HCCL_E_INTERNAL;
     }
     // 计算循环次数
     u32 loopTimes = dataCount_ / sliceCount + ((dataCount_ % sliceCount == 0) ? 0 : 1);
