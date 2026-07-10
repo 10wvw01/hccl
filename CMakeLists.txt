@@ -133,6 +133,10 @@ elseif(BUILD_OPEN_PROJECT)
     if(ENABLE_EXPERIMENTAL)
         add_subdirectory(experimental/ops/)
     endif()
+    if(REFACTOR_OPS)
+        set(REFACTOR_TEMPLATE ON CACHE BOOL "Build refactor/ops/template" FORCE)
+        add_subdirectory(refactor)
+    endif()
 
     # Device 侧编译构建
     if(ENABLE_DEVICE)

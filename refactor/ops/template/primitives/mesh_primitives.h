@@ -18,7 +18,58 @@ namespace ops_hccl {
 
 struct TemplateDataParams;
 struct TemplateResource;
-struct SendRecvInfo;
+
+struct DataSlice {
+    void *addr_ = nullptr;
+    u64 offset_{0};
+    u64 size_{0};
+    u64 count_{0};
+
+    DataSlice(void *addr, u64 offset, u64 size, u64 count)
+        : addr_(addr), offset_(offset), size_(size), count_(count)
+    {
+    }
+};
+
+struct SlicesList {
+    std::vector<DataSlice> srcSlices_;
+    std::vector<DataSlice> dstSlices_;
+
+    SlicesList(const std::vector<DataSlice> &srcSlices, const std::vector<DataSlice> &dstSlices)
+        : srcSlices_(srcSlices), dstSlices_(dstSlices)
+    {
+    }
+};
+
+struct TxRxChannels {
+    ChannelInfo txChannel_;
+    ChannelInfo rxChannel_;
+
+    TxRxChannels(const ChannelInfo &txLink, const ChannelInfo &rxLink) : txChannel_(txLink), rxChannel_(rxLink)
+    {
+    }
+};
+
+struct TxRxSlicesList {
+    SlicesList txSlicesList_;
+    SlicesList rxSlicesList_;
+
+    TxRxSlicesList(const SlicesList &txSlicesList, const SlicesList &rxSlicesList)
+        : txSlicesList_(txSlicesList), rxSlicesList_(rxSlicesList)
+    {
+    }
+};
+
+struct SendRecvInfo {
+    TxRxChannels sendRecvChannels_;
+    TxRxSlicesList sendRecvSlices_;
+    HcclDataType dataType_;
+
+    SendRecvInfo(const TxRxChannels &sendRecvLinks, const TxRxSlicesList &sendRecvSlices, HcclDataType dataType)
+        : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices), dataType_(dataType)
+    {
+    }
+};
 
 // 构造 Mesh AllGather 的通信描述符，实际 SendRecv 由 template 执行。
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,

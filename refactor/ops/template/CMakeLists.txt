@@ -11,15 +11,17 @@
 # Refactor template sources that should enter the hccl target.
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
+    ${HCCL_DIR}/src/ops/op_common/template
+    ${HCCL_DIR}/src/ops/op_common/template/wrapper
 )
 
 target_sources(hccl PRIVATE
     primitives/mesh_primitives.cc
-    primitives/nhr_primitives.cc
+    # primitives/nhr_primitives.cc
 
-    engines/aicpu/launcher/load_kernel.cc
-    engines/aicpu/launcher/aicpu_launcher.cc
-    engines/aicpu/launcher/kernel_launch.cc
+    # engines/aicpu/launcher/load_kernel.cc
+    # engines/aicpu/launcher/aicpu_launcher.cc
+    # engines/aicpu/launcher/kernel_launch.cc
 
     # engines/aicpu/op_alg/allgather_mesh.cc
     # engines/aicpu/op_alg/allgather_nhr.cc
