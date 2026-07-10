@@ -56,8 +56,8 @@ HcclResult HcclKfcFreeOpArgs(void *opArgs)
     CHK_PTR_NULL(opArgs);
 
     free(opArgs);
-    opArgs = nullptr;
-
+    // NOTE: opArgs is passed by value; setting it to nullptr here only modifies
+    // the local copy. Callers should set their pointer to nullptr after this call.
     return HCCL_SUCCESS;
 }
 
