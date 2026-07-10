@@ -16,76 +16,83 @@ namespace ops_hccl {
 
 namespace {
 
-// 按环状 scratch 布局计算 dataAlgRank 这段数据在 dstAlgRank 下的起始偏移。
-u64 CalcDataOffsetForScratch(u64 baseOffset, const std::vector<u64> &rankDataSizeByAlgRank, u32 dstAlgRank, u32 dataAlgRank)
+struct MeshAllGatherSliceInfo {
+    const TemplateDataParams &tempAlgParams;
+    const ChannelInfo &linkRemote;
+    u64 sliceSize;
+};
+
+struct MeshAllGatherSlicePair {
+    void *firstBufferPtr;
+    void *secondBufferPtr;
+    std::vector<DataSlice> &firstSlices;
+    std::vector<DataSlice> &secondSlices;
+};
+
+// 构造 Mesh AllGather 通信描述前的参数检查。
+inline HcclResult PreCheckMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+                                        const std::vector<u32> &ranks)
 {
-    const u32 rankSize = static_cast<u32>(rankDataSizeByAlgRank.size());
-    const u32 dataPosition = (dataAlgRank + rankSize - dstAlgRank) % rankSize;
-    u64 offset = baseOffset;
-    for (u32 position = 0; position < dataPosition; ++position) {
-        const u32 rankIdx = (dstAlgRank + position) % rankSize;
-        offset += rankDataSizeByAlgRank[rankIdx];
-    }
-    return offset;
+    CHK_PRT_RET(tempAlgParams.ranksForInputData.empty(),
+                HCCL_ERROR("[RunMeshAllGather] ranksForInputData is empty."), HCCL_E_PARA);
+    CHK_PRT_RET(ranks.size() > 1 && templateResource.channels.empty(),
+                HCCL_ERROR("[RunMeshAllGather] channels is empty."), HCCL_E_PARA);
+    return HCCL_SUCCESS;
 }
 
-//  rankId 转换成 algRank。
-HcclResult GetInputDataAlgRanks(const std::vector<u32> &ranksForInputData, const std::vector<u32> &ranks,
-                                std::vector<u32> &algRanksForInputData)
+// 按全局 rankId 计算 CCLBuffer 固定槽位偏移。
+inline u64 CalcRankDataOffset(u64 sliceOffset, u32 rankId, u64 sliceSize)
+{
+    return sliceOffset + static_cast<u64>(rankId) * sliceSize;
+}
+
+// 将输入数据来源 rankId 转成当前 mesh 通信域内的 algRank。
+inline HcclResult GetAlgRanksForInputData(const std::vector<u32> &ranks,
+                                          const std::vector<u32> &ranksForInputData,
+                                          std::vector<u32> &algRanksForInputData)
 {
     algRanksForInputData.clear();
     algRanksForInputData.reserve(ranksForInputData.size());
-    for (u32 blockIdx = 0; blockIdx < ranksForInputData.size(); ++blockIdx) {
-        u32 dataAlgRank = 0;
-        CHK_RET(GetAlgRank(ranksForInputData[blockIdx], ranks, dataAlgRank));
-        algRanksForInputData.emplace_back(dataAlgRank);
+    for (u32 rankId : ranksForInputData) {
+        u32 srcAlgRank = 0;
+        CHK_RET(GetAlgRank(rankId, ranks, srcAlgRank));
+        algRanksForInputData.emplace_back(srcAlgRank);
     }
     return HCCL_SUCCESS;
 }
 
-// 计算每个 algRank 数据总字节数。
-inline void CalcRankDataSize(const TemplateDataParam &tempAlgParams, const std::vector<u32> &algRanksForInputData,
-                             u32 rankSize, u32 myAlgRank, u32 dataTypeSize,
-                             std::vector<u64> &rankDataSizeByAlgRank)
+// 推导对端相同 block 位置上的真实数据来源 rankId。
+inline HcclResult CalcConnectedRankId(const std::vector<u32> &ranks, const std::vector<u32> &algRanksForInputData,
+                                      u32 rankSize, u32 connectedOffset, u32 blockIdx, u32 &rankId)
 {
-    rankDataSizeByAlgRank.assign(rankSize, 0);
-    for (u32 dataAlgRank = 0; dataAlgRank < rankSize; ++dataAlgRank) {
-        const u32 dataPosition = (dataAlgRank + rankSize - myAlgRank) % rankSize;
-        for (u32 blockIdx = 0; blockIdx < algRanksForInputData.size(); ++blockIdx) {
-            const u32 blockDataAlgRank = (algRanksForInputData[blockIdx] + dataPosition) % rankSize;
-            const u64 blockCount = (tempAlgParams.tailCount > 0 && blockDataAlgRank == rankSize - 1) ?
-                tempAlgParams.tailCount : tempAlgParams.sliceCount;
-            rankDataSizeByAlgRank[dataAlgRank] += blockCount * dataTypeSize;
-        }
-    }
+    const u32 curAlgRank = algRanksForInputData[blockIdx];
+    const u32 connectedSrcAlgRank = (curAlgRank + connectedOffset) % rankSize;
+    rankId = ranks[connectedSrcAlgRank];
+    return HCCL_SUCCESS;
 }
 
-// 初始化输出数据归属表，position 0 固定保留本 rank 当前已有数据。
-inline void InitOutputDataRanks(const std::vector<u32> &ranksForInputData, u32 rankSize,
-                                std::vector<u32> &ranksForOutputData)
+// 根据本端输入数据来源和对端相对偏移，生成对端输入数据来源列表。
+// 例如 ranks=[4,8,12,16]，本端已有 rankId=[4,8] 时，先转成 algRank=[0,1]；
+// 若 connectedOffset=2，则对端来源为 algRank=[2,3]，再映射回 rankId=[12,16]。
+inline HcclResult GetConnectedInputRanks(const std::vector<u32> &ranks,
+                                         const std::vector<u32> &algRanksForInputData,
+                                         u32 rankSize, u32 connectedOffset,
+                                         std::vector<u32> &connectedInputRanks)
 {
-    ranksForOutputData.resize(static_cast<size_t>(rankSize) * ranksForInputData.size());
-    for (u32 blockIdx = 0; blockIdx < ranksForInputData.size(); ++blockIdx) {
-        ranksForOutputData[blockIdx] = ranksForInputData[blockIdx];
+    connectedInputRanks.clear();
+    connectedInputRanks.reserve(algRanksForInputData.size());
+    for (u32 blockIdx = 0; blockIdx < algRanksForInputData.size(); ++blockIdx) {
+        u32 rankId = 0;
+        CHK_RET(CalcConnectedRankId(ranks, algRanksForInputData, rankSize, connectedOffset, blockIdx, rankId));
+        connectedInputRanks.emplace_back(rankId);
     }
+    return HCCL_SUCCESS;
 }
 
-inline void UpdateOutputDataRanks(const std::vector<u32> &ranks, const std::vector<u32> &algRanksForInputData,
-                                  u32 connectedDataPosition, std::vector<u32> &ranksForOutputData)
+// 获取对端 rank 的 channel 信息。
+inline HcclResult GetConnectedLink(TemplateResource &templateResource, u32 connectedRank,
+                                   const ChannelInfo *&linkRemote)
 {
-    const u32 rankSize = static_cast<u32>(ranks.size());
-    const u32 blockNum = static_cast<u32>(algRanksForInputData.size());
-    for (u32 blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
-        const u32 dataAlgRank = (algRanksForInputData[blockIdx] + connectedDataPosition) % rankSize;
-        ranksForOutputData[connectedDataPosition * blockNum + blockIdx] = ranks[dataAlgRank];
-    }
-}
-
-// 获取对端的通信链路。
-inline HcclResult GetConnectedLink(TemplateResource &templateResource, const std::vector<u32> &ranks,
-                                   u32 connectedAlgRank, const ChannelInfo *&linkRemote)
-{
-    const u32 connectedRank = ranks[connectedAlgRank];
     CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
                     templateResource.channels.at(connectedRank).empty(),
                 HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", connectedRank), HCCL_E_PARA);
@@ -93,35 +100,53 @@ inline HcclResult GetConnectedLink(TemplateResource &templateResource, const std
     return HCCL_SUCCESS;
 }
 
-// 组装四组 DataSlice 
-inline void GetSendRecvInfo(const TemplateDataParam &tempAlgParams, const ChannelInfo &linkRemote, u64 txDataSize,
-                              u64 rxDataSize, u64 txDstOffset, u64 rxDstOffset, HcclDataType dataType,
-                              u32 dataTypeSize, std::vector<SendRecvInfo> &sendRecvInfos)
+// 追加两组共享 rankId 偏移规则的 DataSlice。
+inline void AddRankDataSlices(const MeshAllGatherSliceInfo &sliceInfo, const std::vector<u32> &rankIds,
+                              MeshAllGatherSlicePair &slicePair)
 {
-    const u64 txSliceCount = txDataSize / dataTypeSize;
-    const u64 rxSliceCount = rxDataSize / dataTypeSize;
+    for (u32 rankId : rankIds) {
+        const u64 dataSize = sliceInfo.sliceSize;
+        const u64 dataOffset =
+            CalcRankDataOffset(sliceInfo.tempAlgParams.sliceOffset, rankId, sliceInfo.sliceSize);
+        slicePair.firstSlices.emplace_back(slicePair.firstBufferPtr, dataOffset, dataSize,
+                                           sliceInfo.tempAlgParams.sliceCount);
+        slicePair.secondSlices.emplace_back(slicePair.secondBufferPtr, dataOffset, dataSize,
+                                            sliceInfo.tempAlgParams.sliceCount);
+    }
+}
+
+// 根据 tx/rx 数据来源列表组装一个对端的 SendRecvInfo。
+inline void GetSendRecvInfo(const MeshAllGatherSliceInfo &sliceInfo, const std::vector<u32> &txRankIds,
+                            const std::vector<u32> &rxRankIds, std::vector<SendRecvInfo> &sendRecvInfos)
+{
     std::vector<DataSlice> txSrcSlicesAll;
     std::vector<DataSlice> txDstSlicesAll;
     std::vector<DataSlice> rxSrcSlicesAll;
     std::vector<DataSlice> rxDstSlicesAll;
-
-    txSrcSlicesAll.emplace_back(tempAlgParams.cclBufferPtr, tempAlgParams.cclBufferOffset, txDataSize, txSliceCount);
-    txDstSlicesAll.emplace_back(linkRemote.remoteCclMem.addr, txDstOffset, txDataSize, txSliceCount);
-    rxSrcSlicesAll.emplace_back(linkRemote.remoteCclMem.addr, tempAlgParams.cclBufferOffset, rxDataSize, rxSliceCount);
-    rxDstSlicesAll.emplace_back(tempAlgParams.cclBufferPtr, rxDstOffset, rxDataSize, rxSliceCount);
-
+    // tx/rx 的本端和远端 buffer 方向相反，但使用相同的 rankId 槽位规则。
+    MeshAllGatherSlicePair txSlicePair{sliceInfo.tempAlgParams.cclBufferPtr,
+                                       sliceInfo.linkRemote.remoteCclMem.addr,
+                                       txSrcSlicesAll, txDstSlicesAll};
+    AddRankDataSlices(sliceInfo, txRankIds, txSlicePair);
+    MeshAllGatherSlicePair rxSlicePair{sliceInfo.linkRemote.remoteCclMem.addr,
+                                       sliceInfo.tempAlgParams.cclBufferPtr,
+                                       rxSrcSlicesAll, rxDstSlicesAll};
+    AddRankDataSlices(sliceInfo, rxRankIds, rxSlicePair);
     TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
-    TxRxChannels sendRecvChannels(linkRemote, linkRemote);
-    sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, dataType);
+    TxRxChannels sendRecvChannels(sliceInfo.linkRemote, sliceInfo.linkRemote);
+    sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, sliceInfo.tempAlgParams.dataType);
 }
 
 } // namespace
 
-HcclResult RunMeshAllGather(const TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
+HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<SendRecvInfo> &sendRecvInfos)
 {
+
     sendRecvInfos.clear();
+
+    CHK_RET(PreCheckMeshAllGather(tempAlgParams, templateResource, ranks));
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         ranksForOutputData = tempAlgParams.ranksForInputData;
         return HCCL_SUCCESS;
@@ -130,38 +155,24 @@ HcclResult RunMeshAllGather(const TemplateDataParam &tempAlgParams, TemplateReso
     const u32 rankSize = static_cast<u32>(ranks.size());
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
-
-    std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
-    if (ranksForInputData.empty()) {
-        ranksForInputData.emplace_back(myRank);
-    }
-
+    std::vector<u32> ranksForInputData;
+    ranksForInputData = tempAlgParams.ranksForInputData;
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     std::vector<u32> algRanksForInputData;
-    CHK_RET(GetInputDataAlgRanks(ranksForInputData, ranks, algRanksForInputData));
-
-    const HcclDataType dataType = tempAlgParams.dataType;
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    std::vector<u64> rankDataSizeByAlgRank;
-    CalcRankDataSize(tempAlgParams, algRanksForInputData, rankSize, myAlgRank, dataTypeSize,
-                     rankDataSizeByAlgRank);
-    InitOutputDataRanks(ranksForInputData, rankSize, ranksForOutputData);
+    CHK_RET(GetAlgRanksForInputData(ranks, ranksForInputData, algRanksForInputData));
 
     for (u32 threadIdx = 0; threadIdx < rankSize - 1; ++threadIdx) {
         const u32 connectedAlgRank = (myAlgRank + 1 + threadIdx) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
+        const u32 connectedOffset = (connectedAlgRank + rankSize - myAlgRank) % rankSize;
         const ChannelInfo *linkRemote = nullptr;
-        CHK_RET(GetConnectedLink(templateResource, ranks, connectedAlgRank, linkRemote));
-
-        const u64 txDataSize = rankDataSizeByAlgRank[myAlgRank];
-        const u64 rxDataSize = rankDataSizeByAlgRank[connectedAlgRank];
-        const u64 txDstOffset = CalcDataOffsetForScratch(tempAlgParams.cclBufferOffset, rankDataSizeByAlgRank, connectedAlgRank,
-                                               myAlgRank);
-        const u64 rxDstOffset = CalcDataOffsetForScratch(tempAlgParams.cclBufferOffset, rankDataSizeByAlgRank, myAlgRank,
-                                               connectedAlgRank);
-        GetSendRecvInfo(tempAlgParams, *linkRemote, txDataSize, rxDataSize, txDstOffset, rxDstOffset, dataType,
-                          dataTypeSize, sendRecvInfos);
-        const u32 connectedDataPosition = (connectedAlgRank + rankSize - myAlgRank) % rankSize;
-        UpdateOutputDataRanks(ranks, algRanksForInputData, connectedDataPosition, ranksForOutputData);
+        CHK_RET(GetConnectedLink(templateResource, connectedRank, linkRemote));
+        // 对端数据来源通过本端数据来源在 algRank 空间内环状平移得到。
+        std::vector<u32> connectedInputRanks;
+        CHK_RET(GetConnectedInputRanks(ranks, algRanksForInputData, rankSize, connectedOffset, connectedInputRanks));
+        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, *linkRemote, sliceSize};
+        GetSendRecvInfo(sliceInfo, ranksForInputData, connectedInputRanks, sendRecvInfos);
     }
     return HCCL_SUCCESS;
 }

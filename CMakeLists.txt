@@ -13,7 +13,7 @@ option(STATIC_MODE "Build static library mode." OFF)
 option(ENABLE_EXPERIMENTAL "Enable experimental features" OFF)
 option(ENABLE_BUILD_DEVICE "Build hccl device project." OFF)
 option(ENABLE_BUILD_AARCH "Build hccl aarch project." OFF)
-option(REFACTOR_OPS "Enable refactored ops path (refactor/ops/)" OFF)
+option(REFACTOR_OPS "Enable refactored ops path (refactor/ops/)" ON)
 message(STATUS "STATIC_MODE=${STATIC_MODE}")
 
 if(STATIC_MODE AND NOT ENABLE_BUILD_DEVICE)

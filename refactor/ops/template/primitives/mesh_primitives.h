@@ -11,15 +11,17 @@
 #ifndef MESH_PRIMITIVES_H
 #define MESH_PRIMITIVES_H
 
-#include "template_utils.h"
+#include <vector>
 #include "hccl_algorithm.h"
 
 namespace ops_hccl {
 
-struct TemplateDataParam;
+struct TemplateDataParams;
+struct TemplateResource;
+struct SendRecvInfo;
 
 // 构造 Mesh AllGather 的通信描述符，实际 SendRecv 由 template 执行。
-HcclResult RunMeshAllGather(const TemplateDataParam &tempAlgParams, TemplateResource &templateResource,
+HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                             const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<SendRecvInfo> &sendRecvInfos);
 
