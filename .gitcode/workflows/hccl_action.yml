@@ -101,7 +101,7 @@ stages:
         with: 
           task_name: 'x86_compile_ubuntu24'
           image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_X86_ubuntu24 }}
-        JOB_x86_compile_monitor:
+      JOB_x86_compile_monitor:
         name: x86_compile_monitor
         uses: .gitcode/workflows/x86_compile_action.yml
         with:
