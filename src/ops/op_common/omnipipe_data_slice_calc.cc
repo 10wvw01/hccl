@@ -1677,7 +1677,7 @@ OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam
             }
         }
     } else {
-        HCCL_INFO("xxx yB < xB");
+        HCCL_DEBUG("[CalcAGOmniPipeSliceInfo] yB < xB, swapping axis for reducescatter 2D offset calculation");
         for (int rs = 0; rs < rankSize; rs++) {
             for (u64 osn = 0; osn < outerStepNum; osn++) {
                 CalReducescatter2DOffset(yRSOffset[rs][osn], xRSOffset[rs][osn], innerStepNum, yRankSize, xRankSize,
