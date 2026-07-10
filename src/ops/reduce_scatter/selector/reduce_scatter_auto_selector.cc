@@ -92,7 +92,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             }
 #endif
             else {
-                selectAlgName = "CcuReduceScatterConcurrentMesh1DNHR";
+                selectAlgName = "CcuReduceScatterMesh1D";//
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式

@@ -132,7 +132,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         } else {
 #ifdef Ascend_950_CCU_V2
             if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-                selectAlgName = "CcuAllReduceConcurrentMs";
+                selectAlgName = "CcuAllReduceMesh1D";//
             }
             else 
 #endif
@@ -294,7 +294,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(const To
     } else {
 #ifdef Ascend_950_CCU_V2
         if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-            selectAlgName = "CcuAllReduceConcurrentSche";
+            selectAlgName = "CcuAllReduceMesh1DMem2Mem";
         } else 
 #endif
         {
