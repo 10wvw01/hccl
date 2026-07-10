@@ -579,15 +579,16 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             u64 rankLoopOffset = 0;
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
             for (u32 i = 0; i < rankSize_; i++) {
-                HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCount);
+                u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
+                HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
                 TemplateDataParams tempAlgParamLocalCopy;
                 tempAlgParamLocalCopy.localCopyFlag = 1;
                 tempAlgParamLocalCopy.buffInfo.outputPtr = param.outputPtr;
                 tempAlgParamLocalCopy.buffInfo.hcclBuff = resCtx.cclMem;
                 tempAlgParamLocalCopy.buffInfo.outBuffType = BufferType::OUTPUT;
 
-                tempAlgParamLocalCopy.count = currDataCount; // 128
-                tempAlgParamLocalCopy.sliceSize = currDataCount * dataTypeSize_ ; // 128*4
+                tempAlgParamLocalCopy.count = currDataCountTmp; // 128
+                tempAlgParamLocalCopy.sliceSize = currDataCountTmp * dataTypeSize_ ; // 128*4
                 tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCount * dataTypeSize_; // i * 512
                 tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
 
@@ -604,7 +605,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
-                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;
+                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
             }
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
                 
