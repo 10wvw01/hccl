@@ -79,7 +79,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     constexpr size_t RESERVED_SIZE = 256; // commId+6个整数, 最多128+70+6个字符, 预留256足够
     cacheTag.reserve(RESERVED_SIZE);  // 复用调用方传入的cacheTag容量, 避免重复分配
     cacheTag.resize(RESERVED_SIZE);
-    char *buf = cacheTag.data();
+    char *buf = &cacheTag[0];
     char *ptr = buf;
     const char *end = buf + RESERVED_SIZE;
     const char delimiter = '-';
