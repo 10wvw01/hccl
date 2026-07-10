@@ -86,6 +86,26 @@ private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;
     HcclComm comm_ = nullptr;
+
+    // ───────────── AICPU 数据传输 wrapper (私有成员函数) ─────────────
+    // 基于 Hcomm*OnThread 系列 AICPU 专用原语, 复制自 alg_data_trans_wrapper.cc
+    // 原文件保留不动, 此处作为成员函数避免符号冲突
+
+    // Write 系列 (非PCIe: 本端主动推送)
+    HcclResult SendWrite(const DataInfo &sendInfo, const ThreadHandle &thread);
+    HcclResult RecvWrite(const DataInfo &recvInfo, const ThreadHandle &thread);
+    HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread);
+    HcclResult SendWriteReduce(const DataReduceInfo &sendInfo, const ThreadHandle &thread);
+    HcclResult RecvWriteReduce(const DataReduceInfo &recvInfo, const ThreadHandle &thread);
+    HcclResult SendRecvWriteReduce(const SendRecvReduceInfo &sendRecvInfo, const ThreadHandle &thread);
+
+    // Read 系列 (PCIe: 本端主动拉取)
+    HcclResult SendRead(const DataInfo &sendInfo, const ThreadHandle &thread);
+    HcclResult RecvRead(const DataInfo &recvInfo, const ThreadHandle &thread);
+    HcclResult SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread);
+    HcclResult SendReadReduce(const DataReduceInfo &sendInfo, const ThreadHandle &thread);
+    HcclResult RecvReadReduce(const DataReduceInfo &recvInfo, const ThreadHandle &thread);
+    HcclResult SendRecvReadReduce(const SendRecvReduceInfo &sendRecvInfo, const ThreadHandle &thread);
 };
 
 }  // namespace ops_hccl
