@@ -42,8 +42,6 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
                       std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                       HcclAlgorithm &alg, const ResPackGraphMode &resPack);
 
-HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
-                    HcclAlgorithm &alg);
 }  // namespace ops_hccl
 
 #endif  // OPS_HCCL_OP_COMMON

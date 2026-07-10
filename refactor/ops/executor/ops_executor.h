@@ -30,8 +30,9 @@ struct DataInfo {
 
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
+    u64 stride{0};
     u64 sliceCount{0};
-    u64 scratchOffset{0};
+    u64 sliceOffset{0};
     u64 scratchSize{0}; // 输出参数
     u64 tailCount{0};
     std::vector<u32> ranksForInputData;
@@ -53,8 +54,8 @@ public:
     HcclResult Orchestrate(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, float inputRatio, float &outputRatio, u32 &subCommMask);
-    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes, float inputRatio, float &outputRatio);
+    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
+    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
@@ -85,9 +86,7 @@ private:
     // dataInfo
     DataInfo dataInfo_;
     u64 dataTypeSize_ = 0;
-    float scratchMultiple_ = 0.0;
-    // vector中第一个元素表示intra，第二个元素表示inter，后续可扩展
-    std::vector<float> maxSubScratchMutiple_;
+    u32 scratchMultiple_ = 0;
     // config
     OpMode opMode_;
 

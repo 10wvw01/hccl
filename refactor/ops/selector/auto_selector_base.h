@@ -14,8 +14,6 @@
 #include <string>
 #include <unordered_map>
 #include "alg_param.h"
-#include "log.h"
-#include "alg_env_config.h"
 #include "hccl_algorithm.h"
 
 namespace ops_hccl {
@@ -23,53 +21,9 @@ namespace ops_hccl {
 constexpr uint64_t SMALL_COUNT_512KB = 512*1024; // Byte, UB协议一次传输的最大size
 constexpr uint64_t LARGE_COUNT_1024KB = 1024*1024; // Byte, 可掩盖多mission尾块开销
 
-constexpr u32 CCU_MS_MODE = 2;
-constexpr double DEFAULT_RANK_SIZE = 8.0;
-constexpr u64 RS_2D_SMALL_DATA_SIZE = 1024 * 1024;
-constexpr u64 RS_M2M_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 CCU_PARALLEL_MAX_DATA_SIZE = 64 * 1024 * 1024;
 
 enum class SelectorStatus { MATCH, NOT_MATCH };
-
-const std::map<HcclCMDType, std::string> OP_TYPE_TO_AICPU_SOLE_ALG_MAP = {
-    {HcclCMDType::HCCL_CMD_ALLGATHER, "InsAllGatherMesh"},
-    {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, "InsReduceScatterNHR"},
-    {HcclCMDType::HCCL_CMD_ALLREDUCE, "InsAllReduceNHR"},
-    {HcclCMDType::HCCL_CMD_ALLTOALL, "InsAlltoAllMesh"},
-    {HcclCMDType::HCCL_CMD_ALLTOALLV, "InsAlltoAllvMesh"},
-    {HcclCMDType::HCCL_CMD_ALLTOALLVC, "InsAlltoAllvcMesh"},
-};
-
-const std::map<HcclCMDType, std::string> OP_TYPE_TO_CCU_1D_ALG_MAP = {
-    {HcclCMDType::HCCL_CMD_ALLGATHER, "CcuAllGatherMesh1D"},
-    {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, "CcuReduceScatterMesh1D"},
-    {HcclCMDType::HCCL_CMD_ALLREDUCE, "CcuAllReduceMesh1D"},
-    {HcclCMDType::HCCL_CMD_REDUCE, "CcuReduceMesh1D"},
-    {HcclCMDType::HCCL_CMD_ALLTOALL, "CcuAlltoAllMesh1D"},
-    {HcclCMDType::HCCL_CMD_ALLTOALLV, "CcuAlltoAllVMesh1D"},
-    {HcclCMDType::HCCL_CMD_HALF_ALLTOALLV, "CcuHalfAll2AllVMesh1D"},
-};
-
-const std::map<HcclCMDType, std::string> OP_TYPE_TO_CCU_2D_ALG_MAP = {
-    {HcclCMDType::HCCL_CMD_ALLGATHER, "CcuAllGatherMesh2D"},
-    {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, "CcuReduceScatterMesh2D"},
-    {HcclCMDType::HCCL_CMD_ALLREDUCE, "CcuAllReduceMesh2DOneShot"},
-    {HcclCMDType::HCCL_CMD_REDUCE, "CcuReduceMesh2D"},
-    {HcclCMDType::HCCL_CMD_ALLTOALL, "CcuAlltoAllMesh2D"},
-};
-
-const std::map<HcclCMDType, std::string> OP_TYPE_TO_DPU_ALG_MAP = {
-
-};
-
-const std::unordered_map<std::string, std::string> RES_RESUSE_ALG = {
-    {"InsReduceScatterMesh1D", "InsReduceScatterMeshClass"},
-    {"InsReduceScatterMesh1DMeshChunk", "InsReduceScatterMeshClass"},
-    {"InsAllReduceMesh1DOneShot", "InsAllReduceMeshClass"},
-    {"InsAllReduceMesh1DTwoShot", "InsAllReduceMeshClass"},
-    {"InsSend", "InsSendRecv"},
-    {"InsRecv", "InsSendRecv"}
-};
 
 class AutoSelectorBase {
 public:
@@ -120,13 +74,5 @@ inline bool Is64BitDataType(const HcclDataType dataType)
 }
 
 } // namespace Hccl
-
-// AIV_ONLY 额外打 ERROR（前缀 Failed to select AIV algorithm while configured as AIV_ONLY.，直接报错不回退，原因同 BASE_LOG）
-#define HCCL_AIV_NOT_MATCH_LOG(opParam, BASE_LOG, fmt, ...) do { \
-    BASE_LOG(fmt, ##__VA_ARGS__); \
-    if ((opParam).opExecuteConfig == OpExecuteConfig::AIV_ONLY) { \
-        HCCL_ERROR("Failed to select AIV algorithm while configured as AIV_ONLY. " fmt, ##__VA_ARGS__); \
-    } \
-} while (0)
 
 #endif

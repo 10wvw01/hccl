@@ -11,6 +11,7 @@
 #include "auto_selector_base.h"
 #include "selector_registry.h"
 #include "op_common.h"
+#include "alg_env_config.h"
 
 namespace ops_hccl {
 
@@ -20,43 +21,8 @@ SelectorStatus AutoSelectorBase::Select(OpParam &opParam, TopoInfoWithNetLayerDe
     HCCL_DEBUG("[AutoSelectorBase][%s] start, OpExecuteConfig is %d.", __func__, opParam.opExecuteConfig);
     std::map<HcclCMDType, std::vector<HcclAlgoType>> configAlgMap = GetExternalInputHcclAlgoConfigAllType();
     SelectorStatus ret = SelectorStatus::NOT_MATCH;
-    bool hostDPUOnly = false;
-    if ((CheckHostDPUOnly(opParam.hcclComm, topoInfo, hostDPUOnly) == HCCL_SUCCESS) && hostDPUOnly) {
-        opParam.opExecuteConfig = OpExecuteConfig::HOSTCPU;
-        opParam.engine = CommEngine::COMM_ENGINE_CPU;
-        return SelectDPUAlgo(topoInfo, opParam, configAlgMap, alg);
-    }
-    if (opParam.opExecuteConfig == OpExecuteConfig::CCU_MS) {
-        ret = SelectCcuMsAlgo(topoInfo, opParam, configAlgMap, alg);
-        if (ret == SelectorStatus::NOT_MATCH) {
-            opParam.opExecuteConfig = OpExecuteConfig::CCU_SCHED;
-        } else {
-            return ret;
-        }
-    }
-    if (opParam.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
-        ret = SelectCcuScheduleAlgo(topoInfo, opParam, configAlgMap, alg);
-        if (ret == SelectorStatus::NOT_MATCH) {
-            opParam.opExecuteConfig = OpExecuteConfig::CCU_FAIL;
-        } else {
-            return ret;
-        }
-    }
-    if (ProcessAivConfig(opParam, topoInfo, configAlgMap, alg, ret)) {
-        return ret;
-    }
+    
     if (IsStarsState(opParam.opExecuteConfig)) {
-        // level0是PCIE混合的场景，且CLOS规模大于8，alltoall算子选择AIV_ONLY算法
-        if (topoInfo->level0PcieMix && topoInfo->level0BigClosRange &&
-            (opParam.opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
-             opParam.opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
-             opParam.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC)) {
-            opParam.opExecuteConfig = OpExecuteConfig::AIV_ONLY;
-            (void)ProcessAivConfig(opParam, topoInfo, configAlgMap, alg, ret);
-            HCCL_INFO("[Algo][AutoSelectorBase] OpExecuteConfig is %d.",
-                opParam.opExecuteConfig);
-            return ret;
-        }
         ret = SelectAicpuAlgo(topoInfo, opParam, configAlgMap, alg);
         if (ret == SelectorStatus::MATCH) {
             opParam.opExecuteConfig = OpExecuteConfig::AICPU_TS;
