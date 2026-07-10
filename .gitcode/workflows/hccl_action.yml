@@ -1,6 +1,13 @@
-#force
 name: hccl_action
- 
+
+concurrency: 
+  max: 5 
+  exceed-action: QUEUE 
+  enable: true 
+  preemption:
+    enable: true 
+    events: [mr_id] 
+
 on:  
   pr_comment:
       types: [ created ]
