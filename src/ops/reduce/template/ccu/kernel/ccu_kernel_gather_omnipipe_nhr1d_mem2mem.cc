@@ -106,8 +106,6 @@ static CcuResult PreSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
 
 static CcuResult PostSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
 {
-    const auto *arg = ctx.arg;
-    
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         CCU_CHK_RET(ccu::NotifyRecord(ctx.arg->channels[i], CKE_IDX_0, 1 << POST_SYNC_ID));
     }
@@ -122,12 +120,12 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 {
     ccu::RemoteAddr src;
     ccu::LocalAddr dst;
-    u32                    &toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
-    u32                    &fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-    ChannelHandle          &sendChannel      = ctx.arg->channels[toRankIdx];
-    ChannelHandle          &recvChannel      = ctx.arg->channels[fromRankIdx];
-    const std::vector<u32> &sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
-    const std::vector<u32> &recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
+    u32                    toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+    u32                    fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+    ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
+    ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
+    const std::vector<u32> sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
+    const std::vector<u32> recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
     // 发送端：先通知接收方可以读取自己的数据
     if (sendSliceIdxList.size() != 0) {
@@ -136,36 +134,36 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
-    // if (recvSliceIdxList.size() != 0) {
-        // u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-        // u32  recvSliceIdx = 0;
-        // ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
-        // src.token                        = ctx.token[ctx.myRankIdx];
-        // dst.token                        = ctx.token[fromRankIdx];
+    if (recvSliceIdxList.size() != 0) {
+        u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+        u32  recvSliceIdx = 0;
+        ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
+        src.token                        = ctx.token[ctx.myRankIdx];
+        dst.token                        = ctx.token[fromRankIdx];
 
-        // ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
-        // u32 recvSliceIdxSize = recvSliceIdxList.size();
-        // for (u32 i = 0; i < recvSliceIdxSize; i++) {
-        //     recvSliceIdx = recvSliceIdxList[i];
-        //     if (nhrStepInfo.fromRank == recvSliceIdx) {
-        //         src.addr = ctx.input[fromRankIdx];
-        //     } else {
-        //         src.addr = ctx.scratch[fromRankIdx];
-        //     }
-        //     src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+        ccu::NotifyWait(recvChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
+        u32 recvSliceIdxSize = recvSliceIdxList.size();
+        for (u32 i = 0; i < recvSliceIdxSize; i++) {
+            recvSliceIdx = recvSliceIdxList[i];
+            if (nhrStepInfo.fromRank == recvSliceIdx) {
+                src.addr = ctx.input[fromRankIdx];
+            } else {
+                src.addr = ctx.scratch[fromRankIdx];
+            }
+            src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
 
-        //     dst.addr = ctx.output;
-        //     dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
+            dst.addr = ctx.output;
+            dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
 
-        //     CCU_IF(ctx.sliceSize != 0) {
-        //         ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event);
-        //     }
-        //     CCU_IF(ctx.sliceSize == 0) {
-        //         ccu::EventRecord(ctx.event, 1 << i);
-        //     }
-        // }
-        // ccu::EventWait(ctx.event, (1 << recvSliceIdxSize) - 1);
-    // }
+            CCU_IF(ctx.sliceSize != 0) {
+                ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event, 1 << i);
+            }
+            CCU_IF(ctx.sliceSize == 0) {
+                ccu::EventRecord(ctx.event, 1 << i);
+            }
+        }
+        ccu::EventWait(ctx.event, (1 << recvSliceIdxSize) - 1);
+    }
 
     HCCL_INFO("[DoGatherOmniPipeNHRSingleStep] step %u, toRank=%u, fromRank=%u, sendSliceNum=%lu",
         nhrStepInfo.step, nhrStepInfo.toRank, nhrStepInfo.fromRank, sendSliceIdxList.size());
