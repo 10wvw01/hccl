@@ -213,6 +213,7 @@ if(BUILD_OPEN_PROJECT)
 
         # hcomm头文件
         ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
+        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu/hcomm/ccu
         ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
         ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
         ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
@@ -277,6 +278,7 @@ else()
         ${TOP_DIR}/hcomm/include
         ${TOP_DIR}/hcomm/include/hccl
         ${TOP_DIR}/hcomm/include/ccu
+        ${TOP_DIR}/hcomm/include/ccu/hcomm/ccu
     )
 endif()
 
