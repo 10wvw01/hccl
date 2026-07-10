@@ -125,7 +125,8 @@ static void InitScratchMem(ReduceMesh1DTwoShotMem2MemContext &ctx)
     ccu::Variable scratchOffset;
     scratchOffset = 0;
     for (uint32_t k = 0; k < ctx.arg->rankSize; k++) {
-        ctx.scratchMem[k].addr = ctx.scratch[ctx.arg->rankId] + scratchOffset;
+        ctx.scratchMem[k].addr = ctx.scratch[ctx.arg->rankId];
+        ctx.scratchMem[k].addr += scratchOffset;
         ctx.scratchMem[k].token = ctx.token[ctx.arg->rankId];
         scratchOffset += ctx.normalSliceSize;
     }
@@ -161,9 +162,11 @@ static CcuResult DoScatterWrite(ReduceMesh1DTwoShotMem2MemContext &ctx)
             ccu::EventRecord(ctx.events[eventIdx], rankMask);
         } else {
             ctx.peerSliceSize = (peerId == arg->rankSize - 1) ? ctx.lastSliceSize : ctx.normalSliceSize;
-            ctx.myInput.addr = ctx.input[arg->rankId] + inputOffset;
+            ctx.myInput.addr = ctx.input[arg->rankId];
+            ctx.myInput.addr += inputOffset;
             ctx.myInput.token = ctx.token[arg->rankId];
-            ctx.remoteScratch.addr = ctx.scratch[peerId] + ctx.myScratchOffset;
+            ctx.remoteScratch.addr = ctx.scratch[peerId];
+            ctx.remoteScratch.addr += ctx.myScratchOffset;
             ctx.remoteScratch.token = ctx.token[peerId];
             CCU_IF(ctx.peerSliceSize != 0) {
                 ccu::Write(arg->channels[channelIdx], ctx.remoteScratch, ctx.myInput, ctx.peerSliceSize,
@@ -176,7 +179,8 @@ static CcuResult DoScatterWrite(ReduceMesh1DTwoShotMem2MemContext &ctx)
         inputOffset += ctx.normalSliceSize;
     }
 
-    ctx.myInput.addr = ctx.input[arg->rankId] + ctx.myScratchOffset;
+    ctx.myInput.addr = ctx.input[arg->rankId];
+    ctx.myInput.addr += ctx.myScratchOffset;
     ctx.myInput.token = ctx.token[arg->rankId];
     CCU_IF(ctx.mySliceSize != 0) {
         CCU_CHK_RET(GroupCopy(ctx, ctx.scratchMem[arg->rankId], ctx.myInput, ctx.goSize));
@@ -226,12 +230,14 @@ static CcuResult DoGather(ReduceMesh1DTwoShotMem2MemContext &ctx)
     CCU_IF(ctx.mySliceSize != 0)
     {
         if (arg->rankId == arg->rootId) {
-            ctx.myOutput.addr = ctx.output[arg->rankId] + ctx.myScratchOffset;
+            ctx.myOutput.addr = ctx.output[arg->rankId];
+            ctx.myOutput.addr += ctx.myScratchOffset;
             ctx.myOutput.token = ctx.token[arg->rankId];
             CCU_CHK_RET(GroupCopy(ctx, ctx.myOutput, ctx.myScratchResult, ctx.goSize));
         } else {
             uint16_t channelToRoot = (arg->rootId < arg->rankId) ? arg->rootId : arg->rootId - 1;
-            ctx.remoteOutput.addr = ctx.output[arg->rootId] + ctx.myScratchOffset;
+            ctx.remoteOutput.addr = ctx.output[arg->rootId];
+            ctx.remoteOutput.addr += ctx.myScratchOffset;
             ctx.remoteOutput.token = ctx.token[arg->rootId];
             ccu::Write(arg->channels[channelToRoot], ctx.remoteOutput, ctx.myScratchResult, ctx.mySliceSize,
                        ctx.events[0], 1);

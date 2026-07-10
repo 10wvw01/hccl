@@ -151,6 +151,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
             return SelectorStatus::NOT_MATCH;
         }
     } else {
+        selectAlgName = "CcuReduceMesh1DTwoShotMem2Mem";
         return SelectMeshAlgoCcuSchedule(topoInfo, opParam, selectAlgName);
     }
     HCCL_INFO("[ReduceAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
