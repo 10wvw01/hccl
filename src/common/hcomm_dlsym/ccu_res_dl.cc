@@ -9,14 +9,21 @@
  */
 
 #include "ccu_res_dl.h"
+#include "ccu_launch_dl.h"
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-
-DEFINE_WEAK_FUNC(CcuResult, HcommCcuGetMemToken, uint64_t srcVa, uint64_t size, uint64_t *tokenInfo);
+CcuResult HcommCcuGetMemToken(uint64_t srcVa, uint64_t size, uint64_t *tokenInfo)
+{
+    if (g_AsccommCcuGetMemToken == nullptr) {
+        fprintf(stderr, "[HcclWrapper] %s not resolved\n", __func__);
+        return CCU_E_UNAVAIL;
+    }
+    return g_AsccommCcuGetMemToken(srcVa, size, tokenInfo);
+}
 
 // 初始化
 void CcuResDlInit(void* libHcommHandle) {
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommCcuGetMemToken);
+    (void)libHcommHandle;
 }
