@@ -117,13 +117,13 @@ TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_3layer_2pod_1server_4rank_
 }
 
 // asymmetric topology
-TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_asymmetric_fp64_test)
+TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_asymmetric_int8_test)
 {
     TopoMeta topoMeta{{{0, 1, 2, 3, 4}, {0, 1}, {0, 1, 2}}, {{0, 1, 2, 3}}};
     VDataDesTag vDataDes;
     vDataDes.counts = {700, 700, 600, 600, 500, 500, 400, 400, 300, 300, 200, 200, 100, 100};
     vDataDes.displs = {0, 700, 1400, 2000, 2600, 3100, 3600, 4000, 4400, 4700, 5000, 5200, 5400, 5500};
-    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP64;
+    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
 
     RunReduceScatterVMultilevel(topoMeta, vDataDes);
 }

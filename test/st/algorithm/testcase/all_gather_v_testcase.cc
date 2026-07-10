@@ -12,6 +12,10 @@
 
 #include "alg_env_config.h"
 
+constexpr u32 DATATYPE_SIZE_TABLE_AGV[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
+    2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
+    8, 2, 16, 2, 1, 1, 1, 1};
+
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 
 protected:
@@ -35,8 +39,9 @@ static HcclResult AllGatherVDispatch(u32 rankId, u64 totalCount, VDataDesTag vDa
 {
     void *sendBuf = nullptr;
     void *recvBuf = nullptr;
-    u64 sendBufSize = vDataDes.counts[rankId] * sizeof(vDataDes.dataType);
-    u64 recvBufSize = totalCount * sizeof(vDataDes.dataType);
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE_AGV[vDataDes.dataType];
+    u64 sendBufSize = vDataDes.counts[rankId] * dataTypeSize;
+    u64 recvBufSize = totalCount * dataTypeSize;
     aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
     aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
     return HcclAllGatherV(sendBuf, vDataDes.counts[rankId], recvBuf, vDataDes.counts.data(),
