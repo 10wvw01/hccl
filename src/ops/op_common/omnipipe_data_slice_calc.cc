@@ -63,9 +63,9 @@ std::vector<OmniPipeSplitSliceInfo> OmniPipeSplitSliceInfoListAssign(const std::
         if (i < dataWholeSize.size()) {
             curSliceSize = dataWholeSize[i];
             curSliceCount = curSliceSize / dataTypeSize;
+            offsetSize = offsetSize + dataWholeSize[i];
         }
         omniPipeSplitSliceInfoList.emplace_back(offsetSize, curSliceSize, curSliceCount);
-        offsetSize = offsetSize + dataWholeSize[i];
     }
     return omniPipeSplitSliceInfoList;
 }
