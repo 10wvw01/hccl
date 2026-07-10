@@ -264,9 +264,9 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()
 
 /**
  * 全局 AICPU AllGather 算法表。
- * key: HcclAicpuAllGatherAlgoType 枚举值
- * value: 对应的 HcclAlgorithm 实例（hcclCmdType=HCCL_CMD_ALLGATHER, engineType=AICPU,
- *        topoMatch 为对应 executor 类模板参数的 TopoMatch 子类实例指针）
+ * 以 HcclAicpuAllGatherAlgoType 枚举值为数组下标，元素为对应的 HcclAlgorithm 实例
+ * （hcclCmdType=HCCL_CMD_ALLGATHER, engineType=AICPU，topoMatch 为对应 executor 类模板参数的
+ * TopoMatch 子类实例指针）。数组定义顺序必须与 HcclAicpuAllGatherAlgoType 枚举顺序保持一致。
  *
  * TopoMatch 子类与算法对应关系（源自 src/ops/all_gather/executor/ 注册宏）：
  *   TopoMatch1D         - InsAllGatherMesh1D, InsAllGatherMesh1D1DZAxisDetour, InsAllGatherNHR
@@ -276,37 +276,26 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()
  *   TopoMatchPcieMix    - InsAllGatherParallelMesh1DNHRPcie, InsV2AllGatherOmniPipePcie
  *   TopoMatchSqueeze2D  - InsAllGatherParallelMesh1DNHRUboe
  */
-const std::map<HcclAicpuAllGatherAlgoType, HcclAlgorithm> g_aicpuAllGatherAlgoMap = {
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_UBOE,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch3Level>())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_NHR,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherNhrAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_UBOE,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchSqueeze2D>(),
-            MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
-            MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
-            MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
-            MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
-            MakeAicpuAllGatherMesh1DAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_PCIE,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>(),
-            MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_PCIE,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
-            MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc())},
-    {HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY,
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
-            MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc())},
+const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)] = {
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch3Level>()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherNhrAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchSqueeze2D>(),
+        MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
+        MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
+        MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
+        MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
+        MakeAicpuAllGatherMesh1DAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>(),
+        MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
+        MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
+    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
+        MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()),
 };
 
 

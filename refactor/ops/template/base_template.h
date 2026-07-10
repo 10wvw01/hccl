@@ -31,14 +31,12 @@ struct TemplateDataParams {
     BufferType inputBufferType = BufferType::INPUT;
     BufferType outputBufferType = BufferType::OUTPUT;
     BufferType cclBufferType = BufferType::HCCL_BUFFER;
-
     HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
-    u64 sliceCount{0};
-    u64 tailCount{0};
-
     u64 dataOffset{0};
-    u64 cclBufferOffset{0};
-
+    u64 sliceCount{0};
+    u64 sliceOffset{0};
+    u64 tailCount{0};
+    u64 stride{0};
     HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};
     u32 root{INVALID_VALUE_RANKID};
 

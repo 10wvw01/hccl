@@ -10,6 +10,7 @@
 
 #include "all_gather_op.h"
 #include "op_common_ops.h"
+#include "execute_selector.h"
 #include <algorithm>
 #include <future>
 #include <map>
