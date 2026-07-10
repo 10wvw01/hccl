@@ -162,20 +162,27 @@ namespace ops_hccl
                                             const std::vector<std::vector<uint32_t>> &subCommRanks)
     {
 #ifndef AICPU_COMPILE
-        if (subCommRanks.empty() || subCommRanks[0].size() < 2)
+        if (subCommRanks.empty() || subCommRanks[0].size() != 2)
         {
-            HCCL_ERROR("[InsTempSendDpu] [DPUKernelRun] no rank at all!");
+            HCCL_ERROR("[InsTempSendDpu] [DPUKernelRun] invalid rank size[%zu]!",
+                subCommRanks.empty() ? 0 : subCommRanks[0].size());
             return HCCL_E_PARA;
         }
         u32 recvRank{0};
-        for (auto rankId : subCommRanks[0])
+        if (subCommRanks[0][0] == myRank)
         {
-            if (rankId != myRank)
-            {
-                recvRank = rankId;
-                HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank is [%u].", myRank, recvRank);
-            }
+            recvRank = subCommRanks[0][1];
         }
+        else if (subCommRanks[0][1] == myRank)
+        {
+            recvRank = subCommRanks[0][0];
+        }
+        else
+        {
+            HCCL_ERROR("[InsTempSendDpu] [DPUKernelRun] my rank[%u] not found in subCommRanks!", myRank);
+            return HCCL_E_PARA;
+        }
+        HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank is [%u].", myRank, recvRank);
         auto channelIter = channels.find(recvRank);
         if (channelIter == channels.end() || channelIter->second.empty())
         {

@@ -101,6 +101,7 @@ namespace ops_hccl
         thread_ = resCtx.threads.front();
         algHierarchyInfo_.infos.resize(1);
         algHierarchyInfo_.infos[0].resize(1);
+        algHierarchyInfo_.infos[0][0].clear();
         algHierarchyInfo_.infos[0][0].push_back(myRank_);
         algHierarchyInfo_.infos[0][0].push_back(sendRank_);
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
