@@ -16,6 +16,8 @@
 #include "hccl_common.h"
 #include "hccl_rank_graph.h"
 #include "acl/acl.h"
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <iostream>
 #include "sim_communicator.h"
@@ -466,6 +468,10 @@ int32_t HcommThreadNotifyRecordOnThread(ThreadHandle thread, ThreadHandle dstThr
 
 int32_t HcommLocalCopyOnThread(ThreadHandle thread, void *dst, const void *src, uint64_t len)
 {
+    const char *failLocalCopy = std::getenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD");
+    if (failLocalCopy != nullptr && std::strcmp(failLocalCopy, "1") == 0) {
+        return HCCL_E_INTERNAL;
+    }
     CHK_PTR_NULL(dst);
     CHK_PTR_NULL(src);
 

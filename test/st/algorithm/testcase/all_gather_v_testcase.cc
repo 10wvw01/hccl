@@ -11,6 +11,7 @@
 #include "gtest/gtest.h"
 
 #include "alg_env_config.h"
+#include <algorithm>
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
 
@@ -19,6 +20,7 @@ protected:
     {
         unsetenv("HCCL_OP_EXPANSION_MODE");
         unsetenv("HCCL_ENABLE_OPEN_AICPU");
+        unsetenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD");
     }
     void SetUp() override
     {
@@ -48,6 +50,48 @@ static void RunAllGatherVMultilevel(const TopoMeta &topoInfo, VDataDesTag vDataD
     RunVMultilevelTest(topoInfo, vDataDes, nullptr, AllGatherVDispatch, CheckAllGatherV);
 }
 
+// 运行 AllGatherV AICPU 并注入本地拷贝失败
+// topoInfo 表示仿真拓扑
+// vDataDes 表示 AllGatherV 的 counts、displs 和数据类型
+// 返回值表示是否观测到非成功返回码
+static bool RunAllGatherVLocalCopyFailure(const TopoMeta &topoInfo, VDataDesTag vDataDes)
+{
+    SimWorld::Global()->Init(topoInfo, DevType::DEV_TYPE_950);
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD", "1", 1);
+
+    auto rankSize = AnalyseRankSize(topoInfo);
+    std::vector<HcclResult> results(rankSize, HCCL_SUCCESS);
+    std::vector<std::thread> threads;
+    for (u32 rankId = 0; rankId < rankSize; ++rankId) {
+        threads.emplace_back([=, &results]() {
+            aclrtSetDevice(rankId);
+            aclrtStream stream = nullptr;
+            aclrtCreateStream(&stream);
+            HcclComm comm = nullptr;
+            HcclResult ret = HcclCommInitClusterInfo("./ranktable.json", rankId, &comm);
+            if (ret == HCCL_SUCCESS) {
+                void *sendBuf = nullptr;
+                void *recvBuf = nullptr;
+                u64 sendBufSize = vDataDes.counts[rankId] * sizeof(int32_t);
+                u64 recvBufSize = (vDataDes.displs.back() + vDataDes.counts.back()) * sizeof(int32_t);
+                aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+                aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+                ret = HcclAllGatherV(sendBuf, vDataDes.counts[rankId], recvBuf, vDataDes.counts.data(),
+                    vDataDes.displs.data(), vDataDes.dataType, comm, stream);
+                HcclCommDestroy(comm);
+            }
+            results[rankId] = ret;
+        });
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+    SimWorld::Global()->Deinit();
+    unsetenv("HCCL_ST_FAIL_LOCAL_COPY_ON_THREAD");
+    return std::any_of(results.begin(), results.end(), [](HcclResult ret) { return ret != HCCL_SUCCESS; });
+}
+
 TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_aicpu_test)
 {
     TopoMeta topoMeta{{{0, 1}}};
@@ -57,6 +101,17 @@ TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_aicpu_test)
     vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_FP16;
 
     RunAllGatherVMultilevel(topoMeta, vDataDes);
+}
+
+TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_mesh_1d_localcopy_fail_retcode_test)
+{
+    TopoMeta topoMeta{{{0, 1}}};
+    VDataDesTag vDataDes;
+    vDataDes.counts = {100, 100};
+    vDataDes.displs = {0, 100};
+    vDataDes.dataType = HcclDataType::HCCL_DATA_TYPE_INT32;
+
+    EXPECT_TRUE(RunAllGatherVLocalCopyFailure(topoMeta, vDataDes));
 }
 
 TEST_F(ST_ALL_GATHER_V_TEST, st_all_gather_v_a5_multilevel_2pod_4rank_int32_equal_test)
