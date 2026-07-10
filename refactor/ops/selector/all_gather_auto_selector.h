@@ -13,7 +13,7 @@
 
 #include "auto_selector_base.h"
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 
 class AllGatherAutoSelector : public AutoSelectorBase {
 private:
@@ -42,5 +42,5 @@ private:
                                    HcclAlgorithm &alg) const override;
 };
 
-}  // namespace ops_hccl
+} } // namespace refactor::ops_hccl
 #endif

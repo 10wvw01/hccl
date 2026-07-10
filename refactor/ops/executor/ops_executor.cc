@@ -37,8 +37,7 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayer
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::Orchestrate(
-    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx)
+HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
 {
     // 初始化资源信息
     InitRes(resCtx);
@@ -349,8 +348,7 @@ inline void OpsExecutor::UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, Alg
             = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
     }
     childrenAlgoExecDataDesc.at(childrenId).outputBufferType
-        = (childrenId < childrenSize - 1) ? childrenAlgoExecDataDesc.at(childrenId).cclBufferType
-                                          : childrenAlgoExecDataDesc.at(childrenId).outputBufferType;
+        = (childrenId == childrenSize - 1) ? algoExecDataDesc.outputBufferType : algoExecDataDesc.cclBufferType;
     return;
 }
 

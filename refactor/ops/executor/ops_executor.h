@@ -51,7 +51,7 @@ public:
 
     virtual HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    HcclResult Orchestrate(const AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceCtxSerializable &resCtx);
+    HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
 private:
     HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
