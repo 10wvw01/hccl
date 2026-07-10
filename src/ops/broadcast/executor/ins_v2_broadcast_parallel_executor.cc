@@ -524,25 +524,25 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     }
 
     // 按照intraData0+interData1，以及intraData1+interData0两种方式分别计算，取multiple最大需求
-    float multiple0 = dataSplitSize.at(0) * float(multipleIntra) + dataSplitSize.at(1) * float(multipleInter);
-    float multiple1 = dataSplitSize.at(1) * float(multipleIntra) + dataSplitSize.at(0) * float(multipleInter);
-    float multiple = std::max(multiple0, multiple1);
+    double multiple0 = dataSplitSize.at(0) * double(multipleIntra) + dataSplitSize.at(1) * double(multipleInter);
+    double multiple1 = dataSplitSize.at(1) * double(multipleIntra) + dataSplitSize.at(0) * double(multipleInter);
+    double multiple = std::max(multiple0, multiple1);
 
     // 数据切分
     u64 sliceCountUB = std::min(static_cast<u64>(UB_MAX_DATA_SIZE) / dataTypeSize_, dataCount_);
-    float onceSliceCountPercent = std::max(dataSplitSize.at(0) * float(1.0 / intraLocalRankSize_), dataSplitSize.at(1) * float(1.0 / interLocalRankSize_));
+    double onceSliceCountPercent = std::max(dataSplitSize.at(0) * double(1.0 / intraLocalRankSize_), dataSplitSize.at(1) * double(1.0 / interLocalRankSize_));
     u64 sliceCountUB0 = onceSliceCountPercent > 0 ? std::floor(sliceCountUB / onceSliceCountPercent) : sliceCountUB;
     u64 sliceCount = sliceCountUB;
     if (multiple > 0 && maxTmpMemSize_ > 0) {
         u64 scratchCount = maxTmpMemSize_ / dataTypeSize_;  // 按照count来切分
-        sliceCount = std::min(static_cast<u64>(float(scratchCount) / multiple), sliceCountUB0);
+        sliceCount = std::min(static_cast<u64>(std::floor(double(scratchCount) / multiple)), sliceCountUB0);
         sliceCount = std::min(sliceCount, dataCount_);
     }
     HCCL_DEBUG("[InsBroadcastParallelExecutor][OrchestrateLoop] dataCount_[%lu], myRank_[%d], sliceCountUB[%d], sliceCountUB0[%d], sliceCount[%d]",
               dataCount_, myRank_, sliceCountUB, sliceCountUB0, sliceCount);
 
     u64 alignSize = AICPU_ALIGN_SIZE;
-    u64 sliceCountPart0 = static_cast<u64>(float(sliceCount) * dataSplitSize.at(0));
+    u64 sliceCountPart0 = static_cast<u64>(std::floor(double(sliceCount) * dataSplitSize.at(0)));
     if (sliceCountPart0 * dataTypeSize_ >= alignSize) {
         sliceCountPart0 = sliceCountPart0 * dataTypeSize_ / alignSize * alignSize / dataTypeSize_;
     }
@@ -579,7 +579,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
         u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
         currCount = std::min(currCount, sliceCount);
-        u64 currCountPart0 = static_cast<u64>(float(currCount) * dataSplitSize.at(0));
+        u64 currCountPart0 = static_cast<u64>(std::floor(double(currCount) * dataSplitSize.at(0)));
         u64 currCountPart1 = currCount - currCountPart0;
         if (remainingLoopTimes > 1 || currCountPart0 > sliceCountPart0) {
             u64 alignedCountPart0 = currCountPart0;
@@ -792,7 +792,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
     dataCount_ = param.DataDes.count;
-    u64 SliceCountPart0 = static_cast<u64>(float(dataCount_) * dataSplitSize.at(0));
+    u64 SliceCountPart0 = static_cast<u64>(std::floor(double(dataCount_) * dataSplitSize.at(0)));
     u64 SliceCountPart1 = dataCount_ - SliceCountPart0;
 
     //第一步开始前同步
