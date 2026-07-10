@@ -12,6 +12,7 @@
 
 #include <cstdlib>
 #include <dlfcn.h>
+#include <cstring> 
 
 #include "log.h"
 
@@ -213,7 +214,7 @@ void FillHcclAlgoPluginParam(const OpParam& param, const TopoInfoWithNetLayerDet
     pluginParam.sendBuf = param.inputPtr;
     pluginParam.recvBuf = param.outputPtr;
     pluginParam.stream = param.stream;
-    pluginParam.remoteRank = param.remoteRank;
+    pluginParam.remoteRank = param.sendRecvRemoteRank;
     if (topoInfo != nullptr) {
         pluginParam.topoType = static_cast<int>(topoInfo->level0Topo);
         SafeCopyStr(pluginParam.topoName, sizeof(pluginParam.topoName), TopoShapeToName(topoInfo->level0Topo));
