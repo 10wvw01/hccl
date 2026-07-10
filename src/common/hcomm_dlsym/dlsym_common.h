@@ -153,8 +153,8 @@ extern "C" {
     type func_name(__VA_ARGS__) __attribute__((weak)); \
     type func_name(__VA_ARGS__) \
     { \
-        HCCL_COMPAT_ERROR("[HcclWrapper] %s not supported", __func__); \
         return (type)(-1); \
+        HCCL_COMPAT_ERROR("[HcclWrapper] %s not supported", __func__); \
     }
 
 #define DECL_SUPPORT_FLAG(func_name) \
