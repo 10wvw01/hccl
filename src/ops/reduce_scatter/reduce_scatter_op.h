@@ -42,6 +42,10 @@ namespace ops_hccl {
 HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
     HcclReduceOp op, HcclComm comm, aclrtStream stream, u32 userRankSize);
 
+// 尝试为 input/output 获取对称内存窗口，成功时置位 opParam.supportSymmetricMemory 并记录窗口/偏移。
+// 与 AllGatherSupportSymmetricMemory 对齐：只有 input/output 均落在对称窗口内才返回 true。
+bool ReduceScatterSupportSymmetricMemory(OpParam &opParam);
+
 HcclResult ReduceScatterOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
  	HcclReduceOp op, HcclComm comm, aclrtStream stream, const std::string &tag, const ResPackGraphMode &resPack);
 
