@@ -53,27 +53,28 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
 
     HcclResult ret = HCCL_SUCCESS;
 
-    // 非主线设备类型注册 ScatterOpInfo（保持原有设备类型分发逻辑）
-    #ifdef MACRO_DEV_TYPE_NEW
+// 非主线设备类型注册 ScatterOpInfo（保持原有设备类型分发逻辑）
+#ifdef MACRO_DEV_TYPE_NEW
     if (param.deviceType != DevType::DEV_TYPE_950) {
-    #else
+#else
     if (param.deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+#endif
         ScatterOpInfo opInfo;
         if (CreateScatter(const_cast<OpParam *>(&param), &opInfo) != HCCL_SUCCESS) {
             HCCL_ERROR("%s CreateScatter fail", __func__);
             return HCCL_E_INTERNAL;
         }
-        if (HcommIsSupportHcommRegOpInfo() &&
-            HcommRegOpInfo(param.commName, reinterpret_cast<void *>(&opInfo), sizeof(ScatterOpInfo)) != HCCL_SUCCESS) {
-            HCCL_ERROR("%s HcommRegOpInfo fail, commName[%s], algTag[%s], size[%u]",
-                __func__, param.commName, opInfo.algTag, sizeof(ScatterOpInfo));
+        if (HcommIsSupportHcommRegOpInfo()
+            && HcommRegOpInfo(param.commName, reinterpret_cast<void *>(&opInfo), sizeof(ScatterOpInfo))
+                   != HCCL_SUCCESS) {
+            HCCL_ERROR("%s HcommRegOpInfo fail, commName[%s], algTag[%s], size[%u]", __func__, param.commName,
+                opInfo.algTag, sizeof(ScatterOpInfo));
             return HCCL_E_INTERNAL;
         }
-        if (HcommIsSupportHcommRegOpTaskException() &&
-            HcommRegOpTaskException(param.commName, ops_hccl::GetScatterOpInfo) != HCCL_SUCCESS) {
-            HCCL_ERROR("%s HcommRegOpTaskException fail, commName[%s], algTag[%s]",
-                __func__, param.commName, param.algTag);
+        if (HcommIsSupportHcommRegOpTaskException()
+            && HcommRegOpTaskException(param.commName, ops_hccl::GetScatterOpInfo) != HCCL_SUCCESS) {
+            HCCL_ERROR(
+                "%s HcommRegOpTaskException fail, commName[%s], algTag[%s]", __func__, param.commName, param.algTag);
             return HCCL_E_INTERNAL;
         }
     }
@@ -81,8 +82,8 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
     // 1. 还原变长数据指针（resCtx 直接使用传入的，无需反序列化）
     if (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
         ret = RestoreVarDataBatchSendRecv(const_cast<OpParam &>(param));
-    } else if (param.opType == HCCL_CMD_ALLTOALLV || param.opType == HCCL_CMD_ALLTOALLVC ||
-               param.opType == HCCL_CMD_ALLTOALL) {
+    } else if (param.opType == HCCL_CMD_ALLTOALLV || param.opType == HCCL_CMD_ALLTOALLVC
+               || param.opType == HCCL_CMD_ALLTOALL) {
         ret = RestoreVarDataAlltoAllV(const_cast<OpParam &>(param), resCtx);
     } else if (param.opType == HCCL_CMD_REDUCE_SCATTER_V) {
         ret = RestoreVarDataReduceScatterV(const_cast<OpParam &>(param), resCtx);
@@ -114,8 +115,8 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
 
     // 4. 上报主流和第一个 task（wait 之前）
     if (HcommProfilingReportKernelStartTask(thread, param.commName) != HCCL_SUCCESS) {
-        HCCL_ERROR("%s failed to report MainStream And FirstTask, thread %lu, commName %s.",
-            __func__, thread, param.commName);
+        HCCL_ERROR(
+            "%s failed to report MainStream And FirstTask, thread %lu, commName %s.", __func__, thread, param.commName);
         return HCCL_E_INTERNAL;
     }
 
@@ -127,17 +128,12 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
             maxNotifyNum = resCtx.notifyNumPerThread[i];
         }
     }
-    HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]",
-        __func__, thread, maxNotifyNum, CUSTOM_TIMEOUT);
+    HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]", __func__, thread, maxNotifyNum,
+        CUSTOM_TIMEOUT);
     CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, maxNotifyNum, CUSTOM_TIMEOUT)));
 
     // 6. 执行算法编排：使用调用方传入的 executor，无需通过 registry 重新获取
-    OpsExecutorParam executorParam{};
-    executorParam.baseOpParam.myRank = param.myRank;
-    executorParam.baseOpParam.rankSize = param.rankSize;
-    executorParam.baseOpParam.root = param.root;
-    // Todo: 填充 dataType/dataCount/reduceOp/varData 及 configParam/bufferParam
-    if (executor.Orchestrate(executorParam, resCtx.algHierarchyInfo, resCtx) != HCCL_SUCCESS) {
+    if (executor.Orchestrate(resCtx) != HCCL_SUCCESS) {
         HCCL_ERROR("orchestrate failed for alg:%s", param.algName);
         return HCCL_E_INTERNAL;
     }
@@ -150,15 +146,15 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
 
     // 8. 主 thread 通知 Host stream 完成
     constexpr u32 DEFAULT_NOTIFY_IDX = 0;
-    HCCL_DEBUG("[%s]Notify record on srcThread[%llu], dstThread[%llu], notifyIdx[%u]",
-        __func__, thread, exportedAicpuTsThread, DEFAULT_NOTIFY_IDX);
-    CHK_RET(static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(
-        thread, exportedAicpuTsThread, DEFAULT_NOTIFY_IDX)));
+    HCCL_DEBUG("[%s]Notify record on srcThread[%llu], dstThread[%llu], notifyIdx[%u]", __func__, thread,
+        exportedAicpuTsThread, DEFAULT_NOTIFY_IDX);
+    CHK_RET(
+        static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(thread, exportedAicpuTsThread, DEFAULT_NOTIFY_IDX)));
 
     // 9. 上报主流和最后一个 task（notify 之后）
     if (HcommProfilingReportKernelEndTask(thread, param.commName) != HCCL_SUCCESS) {
-        HCCL_ERROR("%s failed to report MainStream And LastTask, thread %lu, commName %s.",
-            __func__, thread, param.commName);
+        HCCL_ERROR(
+            "%s failed to report MainStream And LastTask, thread %lu, commName %s.", __func__, thread, param.commName);
         return HCCL_E_INTERNAL;
     }
 
@@ -171,8 +167,7 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
         HCCL_ERROR("%s HcommReleaseComm fail, commName[%s]", __func__, param.commName);
         return HCCL_E_INTERNAL;
     }
-    HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]",
-        __func__, param.tag, param.algTag, param.commName);
+    HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param.tag, param.algTag, param.commName);
     return HCCL_SUCCESS;
 }
 
@@ -183,9 +178,7 @@ HcclResult RestoreVarDataBatchSendRecv(OpParam &param)
     if (param.varMemSize != itemNum * sendRecvItemSize) {
         HCCL_ERROR("param.varMemSize[%lu] is not equal to itemNum[%lu] multiply [HcclSendRecvItem] size[%lu]."
                    "Failed to restore end recv info for BatchSendRecv!",
-            param.varMemSize,
-            itemNum,
-            sendRecvItemSize);
+            param.varMemSize, itemNum, sendRecvItemSize);
         return HCCL_E_PARA;
     }
     param.batchSendRecvDataDes.sendRecvItemsPtr = reinterpret_cast<HcclSendRecvItem *>(param.varData);
@@ -198,10 +191,7 @@ HcclResult RestoreVarDataAlltoAllV(OpParam &param, const AlgResourceCtxSerializa
     CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64),
         HCCL_ERROR("[RestoreVarDataAlltoAllV] param.varMemSize [%llu] is invalid,"
                    " ALL_TO_ALL_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize,
-            ALL_TO_ALL_V_VECTOR_NUM,
-            rankSize,
-            sizeof(u64)),
+            param.varMemSize, ALL_TO_ALL_V_VECTOR_NUM, rankSize, sizeof(u64)),
         HCCL_E_PARA);
 
     constexpr u32 ALL_TO_ALL_V_OFFSET_SCOUNTS = 0;
@@ -225,10 +215,7 @@ HcclResult RestoreVarDataReduceScatterV(OpParam &param, const AlgResourceCtxSeri
     CHK_PRT_RET(param.varMemSize != REDUCE_SCATTER_V_VECTOR_NUM * rankSize * sizeof(u64),
         HCCL_ERROR("[RestoreVarDataReduceScatterV] param.varMemSize [%llu] is invalid,"
                    "REDUCE_SCATTER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize,
-            REDUCE_SCATTER_V_VECTOR_NUM,
-            rankSize,
-            sizeof(u64)),
+            param.varMemSize, REDUCE_SCATTER_V_VECTOR_NUM, rankSize, sizeof(u64)),
         HCCL_E_PARA);
 
     u64 *data = reinterpret_cast<u64 *>(param.varData);
@@ -244,10 +231,7 @@ HcclResult RestoreVarDataAllGatherV(OpParam &param, const AlgResourceCtxSerializ
     CHK_PRT_RET(param.varMemSize != ALL_GATHER_V_VECTOR_NUM * rankSize * sizeof(u64),
         HCCL_ERROR("[RestoreVarDataAllGatherV] param.varMemSize [%llu] is invalid,"
                    "ALL_GATHER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize,
-            ALL_GATHER_V_VECTOR_NUM,
-            rankSize,
-            sizeof(u64)),
+            param.varMemSize, ALL_GATHER_V_VECTOR_NUM, rankSize, sizeof(u64)),
         HCCL_E_PARA);
 
     u64 *data = reinterpret_cast<u64 *>(param.varData);
@@ -262,4 +246,4 @@ HcclResult RestoreVarDataAllGatherV(OpParam &param, const AlgResourceCtxSerializ
     return HCCL_SUCCESS;
 }
 
-}  // namespace ops_hccl
+} // namespace ops_hccl
