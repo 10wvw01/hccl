@@ -179,7 +179,15 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                                                   resReqlevel.notifyNumPerThread.begin(),
                                                   resReqlevel.notifyNumPerThread.end());
         resourceRequest.notifyNumOnMainThread++;
-        resourceRequest.channels.push_back(resReqlevel.channels[0]);
+        // 将每层的 channel 合并进唯一的 channels[0]，使 op_common 只发起一次 HcclChannelAcquire，
+        // 避免对称内存 pending 在多层多次建链下只覆盖首层、后续层 remoteMems 为空的问题。
+        if (!resReqlevel.channels.empty()) {
+            if (resourceRequest.channels.empty()) {
+                resourceRequest.channels.resize(1);
+            }
+            resourceRequest.channels[0].insert(resourceRequest.channels[0].end(),
+                resReqlevel.channels[0].begin(), resReqlevel.channels[0].end());
+        }
     }
 
     return HCCL_SUCCESS;
@@ -254,8 +262,35 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     controlThread_ = threads_.at(0);
     levelThreads_.resize(OMNIPIPE_LEVEL_NUM);
 
-    // 先初始化remoteRankToChannelInfo_，然后为nhr赋值多channel，最后再计算资源，这样计算线程资源的时候就能获取到多channel需要的线程数
-    CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    // channels 已扁平合并到 channels[0]（一次建链，避免对称内存多层多次建链只回填首层、后续层 remoteMems 为空）。
+    // 直接用本函数已算出的 local subCommRanks0/1/2，按 remoteRank 归到对应 Omnipipe 层，
+    // 不再走 RestoreChannelMap（其签名固定无法传入 subCommRanks，且 channels 已非按层分）。
+    remoteRankToChannelInfo_.assign(OMNIPIPE_LEVEL_NUM, {});
+    if (!resCtx.channels.empty()) {
+        auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
+            for (u32 v : group) { if (v == r) { return true; } }
+            return false;
+        };
+        const std::vector<std::vector<std::vector<u32>>*> subComms = {&subCommRanks0, &subCommRanks1, &subCommRanks2};
+        const std::vector<uint64_t> levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_};
+        auto tryLevel = [&](u32 i, u32 remoteRank, const ChannelInfo& ch) -> bool {
+            if (levelRankSize[i] <= 1) { return false; }
+            for (const auto& group : *subComms[i]) {
+                if (contains(group, static_cast<u32>(myRank_)) && contains(group, remoteRank)) {
+                    remoteRankToChannelInfo_[i][remoteRank].push_back(ch);
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (const auto& channel : resCtx.channels[0]) {
+            u32 rr = channel.remoteRank;
+            if (tryLevel(OMNIPIPE_LEVEL0, rr, channel)) { continue; }
+            if (tryLevel(OMNIPIPE_LEVEL1, rr, channel)) { continue; }
+            if (tryLevel(OMNIPIPE_LEVEL2, rr, channel)) { continue; }
+            HCCL_WARNING("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate] remoteRank[%u] not found in any active level, dropped.", rr);
+        }
+    }
     // todo 这边写死了
     if (rankSizeLevel1_ > 1) {
         tempMap[OMNIPIPE_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
@@ -280,28 +315,9 @@ HcclResult
 InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2>::RestoreChannelMap(
     const AlgResourceCtxSerializable& resCtx, std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo) const
 {
+    // channels 已扁平合并为 channels[0]，归层逻辑改在 Orchestrate 内联完成
+    // （Orchestrate 里 subCommRanks 是 local，可直接用，无需成员）。此处仅满足基类虚函数契约。
     rankIdToChannelInfo.resize(OMNIPIPE_LEVEL_NUM);
-    u32 level = 0;
-    if (rankSizeLevel0_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL0][remoteRank].push_back(channel);
-        }
-        level++;
-    }
-    if (rankSizeLevel1_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL1][remoteRank].push_back(channel);
-        }
-        level++;
-    }
-    if (rankSizeLevel2_ > 1) {
-        for (auto& channel : resCtx.channels[level]) {
-            u32 remoteRank = channel.remoteRank;
-            rankIdToChannelInfo[OMNIPIPE_LEVEL2][remoteRank].push_back(channel);
-        }
-    }
     return HCCL_SUCCESS;
 }
 
