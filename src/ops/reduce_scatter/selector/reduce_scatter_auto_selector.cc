@@ -312,6 +312,9 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
+    selectAlgName = "InsV2ReduceScatterOmniPipe";
+    return SelectorStatus::MATCH;
+
     if (IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize)) {
         if (topoInfo->userRankSize > MAX_RANK_NUM_FOR_ORDER_PRESERVED) {
             // 内部reducescatter中采用分组all2all

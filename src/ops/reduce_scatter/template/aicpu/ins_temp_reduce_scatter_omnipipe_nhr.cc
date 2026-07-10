@@ -10,8 +10,28 @@
 
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "omnipipe_template_utils.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
 namespace ops_hccl {
+namespace {
+HcclResult ConvertCompactOffsetToUserInputOffset(const TemplateDataParams& tempAlgParams, HcclDataType dataType,
+                                                 u64 compactOffset, u64& userInputOffset)
+{
+    CHK_PRT_RET(tempAlgParams.outputSliceStride == 0 || tempAlgParams.inputSliceStride == 0,
+                HCCL_ERROR("[ConvertCompactOffsetToUserInputOffset] invalid stride, inputSliceStride[%llu], "
+                           "outputSliceStride[%llu]",
+                           tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride),
+                HcclResult::HCCL_E_PARA);
+    const u64 rankIdx = compactOffset / tempAlgParams.outputSliceStride;
+    const u64 innerOffset = compactOffset % tempAlgParams.outputSliceStride;
+    userInputOffset = rankIdx * tempAlgParams.inputSliceStride +
+                      tempAlgParams.processedDataCount * DATATYPE_SIZE_TABLE[dataType] + innerOffset;
+    return HcclResult::HCCL_SUCCESS;
+}
+}  // namespace
+
 InsTempReduceScatterOmniPipeNHR::InsTempReduceScatterOmniPipeNHR(
     const OpParam& param, const u32 rankId, // 传通信域的u32，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -41,6 +61,33 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     tempAlgParams_       = tempAlgParams;
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
+    inputSymWindow_ = param.inputSymWindow;
+    inputOffset_ = param.inputOffset;
+    supportSymmetricMemory_ = tempAlgParams.supportSymmetricMemory;
+    // 对称内存: kernel 执行前校验本层每个 peer 的远端 input 指针是否已回填，
+    // 定位 HcclSymWinGetPeerPointer 取不到对端地址（remoteMems 未回填）的问题。
+    if (supportSymmetricMemory_ && templateRankSize_ > 1) {
+        u32 validCnt = 0;
+        u32 nilCnt = 0;
+        for (u32 peer : subCommRanks_[0]) {
+            if (peer == myRank_) { continue; }
+            void* inPtr = nullptr;
+            HcclResult rIn = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, peer, &inPtr);
+            if (rIn == HCCL_SUCCESS && inPtr != nullptr) {
+                validCnt++;
+            } else {
+                nilCnt++;
+                HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRPeerPtrCheck] rank[%u] peer[%u] "
+                          "remote input pointer not backfilled: ret[%d] addr[%p]",
+                          myRank_, peer, rIn, inPtr);
+            }
+        }
+        HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRPeerPtrCheck] rank[%u] validPeers[%u] "
+                  "invalidPeers[%u] result[%s]",
+                  myRank_, validCnt, nilCnt,
+                  nilCnt > 0 ? "some peers not backfilled (HcclSymWinGetPeerPointer would return invalid)"
+                             : "all peers backfilled");
+    }
 
     threadNum_ = GetThreadNum();
 
@@ -149,6 +196,36 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRDataSize(const AicpuNHRStepInf
     return HcclResult::HCCL_SUCCESS;
 }
 
+HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRStep0SymmetricDataSize(
+    const AicpuNHRStepInfo& st, const u32 channelIdx, void* recvInputAddr, const u32 dataTypeSize, const u64 rptNum,
+    std::vector<DataSlice>& rxSrcSlices, std::vector<DataSlice>& rxDstSlices)
+{
+    for (u32 i = 0; i < st.nSlices; ++i) {
+        const u32 rxIdx = st.rxSliceIdxs[i];
+        for (u64 rpt = 0; rpt < rptNum; ++rpt) {
+            u64 scratchBaseRx = tempAlgParams_.buffInfo.inBuffBaseOff +
+                                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[rxIdx][rpt];
+            scratchBaseRx += dataOffsetVec_[rxIdx][rpt][channelIdx];
+            const u64 rxScOff = scratchBaseRx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
+            const u64 splitSize = dataSplitVec_[rxIdx][rpt][channelIdx];
+            u64 rxInputOff = 0;
+            CHK_RET(ConvertCompactOffsetToUserInputOffset(tempAlgParams_, dataType_, rxScOff, rxInputOff));
+            HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRStep0Slice] step[%u] myAlgRank[%u] "
+                      "fromAlgRank[%u] rxIdx[%u] rpt[%llu] channelIdx[%u] rxCompactOff[%llu] "
+                      "rxSrcUserInputOff[%llu] rxDstCclOff[%llu] stepInputStride[%llu] inputOmniPipeStride[%llu] "
+                      "channelDataOffset[%llu] splitSize[%llu]",
+                      st.step, st.myRank, st.fromRank, rxIdx, rpt, channelIdx, rxScOff, rxInputOff, rxScOff,
+                      tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx],
+                      tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[rxIdx][rpt],
+                      dataOffsetVec_[rxIdx][rpt][channelIdx], splitSize);
+            rxSrcSlices.emplace_back(recvInputAddr, rxInputOff, splitSize, splitSize / dataTypeSize);
+            rxDstSlices.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, rxScOff, splitSize,
+                splitSize / dataTypeSize);
+        }
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
 HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx)
 {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
@@ -185,14 +262,38 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 
         void* sendCclBuffAddr = linkSend.remoteCclMem.addr;
         void* recvCclBuffAddr = linkRecv.remoteCclMem.addr;
-        // RS：在 SCRATCH 上进行规约交换
-        CHK_RET(GetNHRDataSize(st, channelIdx, sendCclBuffAddr, recvCclBuffAddr, dataTypeSize, rptNum, 
-                    txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
+        const bool isSymmetricStep0 = supportSymmetricMemory_ && st.step == 0;
+        if (isSymmetricStep0) {
+            CHK_PRT_RET(inputSymWindow_ == nullptr,
+                HCCL_ERROR("[RS-NHR][RunNHR] inputSymWindow is null"), HcclResult::HCCL_E_INTERNAL);
+            void* recvInputAddr = nullptr;
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &recvInputAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || recvInputAddr == nullptr,
+                HCCL_ERROR("[RS-NHR][RunNHR] HcclSymWinGetPeerPointer failed, recvFromRank[%u] ret[%d] in[%p]",
+                    recvFromRank, ret, recvInputAddr),
+                HcclResult::HCCL_E_INTERNAL);
+            HCCL_INFO("[ReduceScatterOmniPipeSymmetricAddrCheck][NHRStep0Peer] rank[%u] step[%u] channelIdx[%u] "
+                      "recvFromRank[%u] recvInputAddr[%p] processedDataCount[%llu] inputSliceStride[%llu] "
+                      "compactLoopStride[%llu] inBuffBaseOff[%llu] outBuffBaseOff[%llu] hcclBuffBaseOff[%llu]",
+                      myRank_, st.step, channelIdx, recvFromRank, recvInputAddr,
+                      tempAlgParams_.processedDataCount, tempAlgParams_.inputSliceStride,
+                      tempAlgParams_.outputSliceStride, tempAlgParams_.buffInfo.inBuffBaseOff,
+                      tempAlgParams_.buffInfo.outBuffBaseOff, tempAlgParams_.buffInfo.hcclBuffBaseOff);
+            CHK_RET(GetNHRStep0SymmetricDataSize(st, channelIdx, recvInputAddr, dataTypeSize, rptNum,
+                rxSrcSlices, rxDstSlices));
+        } else {
+            CHK_RET(GetNHRDataSize(st, channelIdx, sendCclBuffAddr, recvCclBuffAddr, dataTypeSize, rptNum,
+                txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
+        }
 
         SendRecvReduceInfo info{
             { linkSend, linkRecv }, { { txSrcSlices, txDstSlices }, { rxSrcSlices, rxDstSlices } }, dataType_, reduceOp_
         };
-        if (isPcieProtocal) {
+        if (isSymmetricStep0 && !isPcieProtocal) {
+            CHK_PRT_RET(SendRecvBatchReadReduce(info, threads[channelIdx]),
+                HCCL_ERROR("[RS-NHR][RunNHR] SendRecvReadReduce failed (step=%u)", st.step),
+                HcclResult::HCCL_E_INTERNAL);
+        } else if (isPcieProtocal) {
             CHK_PRT_RET(SendRecvReadReduce(info, threads[channelIdx]),
                 HCCL_ERROR("[RS-NHR][RunNHR] SendRecvReduce failed (step=%u)", st.step), HcclResult::HCCL_E_INTERNAL);
         } else {
@@ -246,4 +347,4 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetStepInfoList(std::vector<AicpuNHR
     return HcclResult::HCCL_SUCCESS;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl

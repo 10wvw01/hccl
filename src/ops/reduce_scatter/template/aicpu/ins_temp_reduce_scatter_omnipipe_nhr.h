@@ -45,13 +45,18 @@ private:
         void* sendCclBuffAddr, void* recvCclBuffAddr, const u32 dataTypeSize, const u64 rptNum,
         std::vector<DataSlice>& txSrcSlices, std::vector<DataSlice>& txDstSlices, 
         std::vector<DataSlice>& rxSrcSlices, std::vector<DataSlice>& rxDstSlices);
+    HcclResult GetNHRStep0SymmetricDataSize(const AicpuNHRStepInfo& st, const u32 channelIdx,
+        void* recvInputAddr, const u32 dataTypeSize, const u64 rptNum,
+        std::vector<DataSlice>& rxSrcSlices, std::vector<DataSlice>& rxDstSlices);
 
     TemplateDataParams tempAlgParams_;
     std::map<u32, std::vector<ChannelInfo>> channels_;
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
+    void *inputSymWindow_{nullptr};
+    u64 inputOffset_{0};
 };
 
-} // namespace Hccl
+} // namespace ops_hccl
 
 #endif
