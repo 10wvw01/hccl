@@ -171,7 +171,7 @@ HcclResult InsV2ReduceScatterOmniPipe2dExecutor<AlgTopoMatch, InsAlgTempLevel0, 
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HcclResult::HCCL_SUCCESS,
-        HCCL_ERROR("[%s]errNo[0x%016llx] executor kernel run failed", __func__, HCCL_ERROR_CODE(ret)), ret);
+        HCCL_ERROR("[%s]errNo[0x%016llx] Reduce scatter executor kernel run failed", __func__, HCCL_ERROR_CODE(ret)), ret);
     HCCL_DEBUG("[%s] myRank[%u] end", __func__, myRank_);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -308,7 +308,6 @@ HcclResult InsV2ReduceScatterOmniPipe2dExecutor<AlgTopoMatch, InsAlgTempLevel0, 
 
     // 2、计算loop
     u64 templateScratchMultiplier = algTemplateLevel0.CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
-    // u64 templateScratchMultiplier = rankSizeLevel0_; // 只有X轴mesh才会用到cclbuffer
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
     u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier;
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
