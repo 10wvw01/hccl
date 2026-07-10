@@ -35,11 +35,16 @@ private:
 
     HcclResult DoLastStepCopyNhr(const std::vector<ThreadHandle>& threads,
                                const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
+
     u64 dataTypeSize_{0};
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
     bool omniLastStepRead_ = false;
     bool lastStepNhrCopy_ = false;
+    u64 inputOffset_{0};
+    u64 outputOffset_{0};
+    void *inputSymWindow_{nullptr};
+    void *outputSymWindow_{nullptr};
 };
 }  // namespace ops_hccl
 #endif  // INS_TEMP_ALL_GATHER_OMNIPIPE_NHR_H
