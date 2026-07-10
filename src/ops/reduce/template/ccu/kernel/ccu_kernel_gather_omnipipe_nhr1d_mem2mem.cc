@@ -129,14 +129,17 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 
     // 发送端：先通知接收方可以读取自己的数据
     if (sendSliceIdxList.size() != 0) {
-        u32& toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
+        u32 toRankIdx = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
         ChannelHandle sendChannel = ctx.arg->channels[toRankIdx];
         ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
+    HCCL_INFO("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(), sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
+
+
     if (recvSliceIdxList.size() != 0) {
-        u32& fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-        u32  recvSliceIdx = 0;
+        u32 fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
+        u32 recvSliceIdx = 0;
         ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
         src.token                        = ctx.token[ctx.myRankIdx];
         dst.token                        = ctx.token[fromRankIdx];
