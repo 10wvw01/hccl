@@ -19,7 +19,14 @@
 # 注：hccl_algorithm.h 是真实的类声明（142 行），但当前会引用 topo_match_base.h，
 #     该头文件在 refactor/ 下没有，需要从 src/ops/op_common/topo/ 借（或新建）。
 
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/../template/engines
+    ${CMAKE_CURRENT_LIST_DIR}/../template
+    ${CMAKE_CURRENT_LIST_DIR}/..
+)
+
 target_sources(hccl PRIVATE
     # op_common.cc
-    # hccl_algorithm.cc
+    hccl_algorithm.cc
 )

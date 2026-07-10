@@ -26,6 +26,7 @@ namespace ops_hccl {
 class AiCpuLauncher : public BaseLauncher {
 public:
     AiCpuLauncher() = default;
+    explicit AiCpuLauncher(HcclComm comm) : comm_(comm) {}
     ~AiCpuLauncher() override = default;
 
     /**
@@ -69,6 +70,7 @@ public:
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;
+    HcclComm comm_ = nullptr;
 };
 
 }  // namespace ops_hccl

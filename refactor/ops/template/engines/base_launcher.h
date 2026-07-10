@@ -12,7 +12,6 @@
 #define OPS_HCCL_BASE_LAUNCHER_H
 
 #include "hccl/base.h"
-#include "alg_primitive_types.h"
 #include "alg_param.h"
 
 namespace ops_hccl {

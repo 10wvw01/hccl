@@ -15,8 +15,7 @@
 #include "engines/aicpu/launcher/aicpu_launcher.h"
 #include "engines/ccu_ms/launcher/ccu_ms_launcher.h"
 #include "engines/ccu_sche/launcher/ccu_sche_launcher.h"
-#include "executor/parallel/parallel_executor.h"
-#include "executor/sole/sole_executor.h"
+#include "executor/ops_executor.h"
 
 namespace ops_hccl {
 
@@ -48,7 +47,7 @@ std::unique_ptr<BaseLauncher> HcclAlgorithm::GetEngine(HcclComm comm)
  */
 std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
 {
-    return std::make_unique<ParallelExecutor>(*this, param);
+    return std::make_unique<OpsExecutor>(*this, param);
 }
 
 /**
