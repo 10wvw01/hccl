@@ -429,6 +429,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLay
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     // 保序模式不支持AIV，需要回退到AICPU
     CHK_PRT_RET(IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize),
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector] DETERMINISTIC_STRICT mode is not supported yet for AIV mode."),
