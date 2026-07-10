@@ -9,6 +9,7 @@
  */
 
 #include "ins_v2_reduce_scatter_omnipipe_executor.h"
+#include <algorithm>
 #include "topo_match_3_level.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1d_dpu.h"
@@ -33,6 +34,18 @@ std::vector<std::vector<u32>> BuildFullRankSubComm(u32 rankSize)
         subCommInfo[0].push_back(rank);
     }
     return subCommInfo;
+}
+
+bool FindRankIndexInSubComm(const std::vector<std::vector<u32>>& subCommRanks, u32 rank, u64& rankIdx)
+{
+    for (const auto& group : subCommRanks) {
+        const auto iter = std::find(group.begin(), group.end(), rank);
+        if (iter != group.end()) {
+            rankIdx = static_cast<u64>(std::distance(group.begin(), iter));
+            return true;
+        }
+    }
+    return false;
 }
 } // namespace
 
@@ -129,16 +142,19 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     HCCL_INFO("[BuildSubCommAndTempMap]infos,%s", ThreeDVecToStrOmni(algHierarchyInfo_.infos).c_str());
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
         std::vector<u32> closRanks;
-        if (!algHierarchyInfo_.infos[0].empty() && !algHierarchyInfo_.infos[0][0].empty()) {
-            subCommRanks0 = {algHierarchyInfo_.infos[0][0]};
-            u32 meshSize = algHierarchyInfo_.infos[0][0].size();
-            if (!algHierarchyInfo_.infos[0][1].empty()) {
-                for (auto rank : algHierarchyInfo_.infos[0][1]) {
-                    if (rank % meshSize == topoInfo->userRank % meshSize) {
-                        closRanks.push_back(rank);
-                    }
-                }
-            }
+        CHK_PRT_RET(algHierarchyInfo_.infos.empty() || algHierarchyInfo_.infos[0].size() < RANK_SIZE_LEVEL_2 ||
+                    algHierarchyInfo_.infos[0][0].empty() || algHierarchyInfo_.infos[0][1].empty(),
+                    HCCL_ERROR("[BuildSubCommAndTempMap] invalid CLOS hierarchy for rank[%u]", topoInfo->userRank),
+                    HcclResult::HCCL_E_PARA);
+        subCommRanks0 = {algHierarchyInfo_.infos[0][0]};
+        const u32 meshSize = static_cast<u32>(algHierarchyInfo_.infos[0][0].size());
+        const auto rankIter = std::find(subCommRanks0[0].begin(), subCommRanks0[0].end(), topoInfo->userRank);
+        CHK_PRT_RET(rankIter == subCommRanks0[0].end(),
+                    HCCL_ERROR("[BuildSubCommAndTempMap] rank[%u] is not in its level0 CLOS group", topoInfo->userRank),
+                    HcclResult::HCCL_E_PARA);
+        const u32 meshRankIdx = static_cast<u32>(std::distance(subCommRanks0[0].begin(), rankIter));
+        for (u32 idx = meshRankIdx; idx < algHierarchyInfo_.infos[0][1].size(); idx += meshSize) {
+            closRanks.push_back(algHierarchyInfo_.infos[0][1][idx]);
         }
         subCommRanks1 = {closRanks};
         omniNeedSetStepNum_ = (subCommRanks1[0].size() == RANK_SIZE_LEVEL_4) ? OmniNeedSetStepNum::OMNIPIPE_UBX_16P
@@ -174,13 +190,23 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         subCommRanks2.emplace_back(std::vector<u32>{myRank_});
     }
 
+    CHK_PRT_RET(subCommRanks0.empty() || subCommRanks1.empty() || subCommRanks2.empty() ||
+                subCommRanks0[0].empty() || subCommRanks1[0].empty() || subCommRanks2[0].empty(),
+                HCCL_ERROR("[BuildSubCommAndTempMap] empty sub communicator for rank[%u]", myRank_),
+                HcclResult::HCCL_E_PARA);
     rankSizeLevel0_ = subCommRanks0[0].size();
     rankSizeLevel1_ = subCommRanks1[0].size();
     rankSizeLevel2_ = subCommRanks2[0].size();
 
-    rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
-    rankIdxLevel1_ = myRank_ % (rankSizeLevel0_ * rankSizeLevel1_) / rankSizeLevel0_;
-    rankIdxLevel2_ = myRank_ / (rankSizeLevel0_ * rankSizeLevel1_);
+    CHK_PRT_RET(!FindRankIndexInSubComm(subCommRanks0, myRank_, rankIdxLevel0_) ||
+                !FindRankIndexInSubComm(subCommRanks1, myRank_, rankIdxLevel1_) ||
+                !FindRankIndexInSubComm(subCommRanks2, myRank_, rankIdxLevel2_),
+                HCCL_ERROR("[BuildSubCommAndTempMap] rank[%u] is missing from a sub communicator", myRank_),
+                HcclResult::HCCL_E_PARA);
+    HCCL_INFO("[ReduceScatterOmniPipe][Topology] rank[%u] level0(size=%llu, idx=%llu) "
+              "level1(size=%llu, idx=%llu, nhr=%d) level2(size=%llu, idx=%llu)",
+              myRank_, rankSizeLevel0_, rankIdxLevel0_, rankSizeLevel1_, rankIdxLevel1_,
+              rankSizeLevel1_ > 1, rankSizeLevel2_, rankIdxLevel2_);
 
     if (rankSizeLevel0_ > 1) {
         tempMap[OMNIPIPE_LEVEL0] = std::make_shared<InsAlgTemplate0>(param, myRank_, subCommRanks0);
