@@ -25,6 +25,8 @@ public:
         // 小数据量情况下，缩减实际使用核数
         if (dataSize_ <= smallDataSize && numBlocks_ > rankSize_) {
             coreNum_ = rankSize_;
+        } else if (numBlocks_ > rankSize_) {
+            coreNum_ = numBlocks_ / rankSize_ * rankSize_;
         } else {
             coreNum_ = numBlocks_;
         }
