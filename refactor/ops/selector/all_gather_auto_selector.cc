@@ -11,7 +11,7 @@
 #include "all_gather_auto_selector.h"
 #include "selector_registry.h"
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u64 AG_CCU_SMALL_DATA_SIZE = 4 * 1024 * 1024;
@@ -124,4 +124,4 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
 
 REGISTER_SELECTOR_BY_OPTYPE(HcclCMDType::HCCL_CMD_ALLGATHER, 18, AllGatherAutoSelector);
 
-}  // namespace ops_hccl
+} } // namespace refactor::ops_hccl

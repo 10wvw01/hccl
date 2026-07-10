@@ -10,18 +10,22 @@
 
 # refactor/ops/selector/CMakeLists.txt
 # 算法选择器：按引擎（AICPU/AIV/CCU/HOSTCPU）选 + 按算子选
-# 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/selector) 拉进来
+# 由 refactor/ops/CMakeLists.txt 通过 add_subdirectory(ops/selector) 拉进来
 #
 # 当前状态：
-#   ✅ engine_selector.cc      - 较完整（228+123 行），ConditionMask 引擎选择逻辑真实
-#   ⚠️ base_selector.cc       - Selector() 缺返回值
-#   ⚠️ all_gather_selector.cc  - 多次直接 return SelectorStatus::MATCH，缺条件分支
-#   ❌ alg_selector.h          - 只有 31 行声明，无 .cc
-#
-# 当前只开 engine_selector.cc，其他等补完。
+#   ✅ auto_selector_base.cc       - 选择器基类
+#   ✅ selector_registry.cc        - 选择器注册表
+#   ✅ all_gather_auto_selector.cc - AllGather 选择器
+#   ✅ execute_selector.cc         - 执行入口 Selector()
+
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common
+)
 
 target_sources(hccl PRIVATE
-    engine_selector.cc
-    # base_selector.cc
-    # all_gather_selector.cc
+    auto_selector_base.cc
+    selector_registry.cc
+    all_gather_auto_selector.cc
+    execute_selector.cc
 )

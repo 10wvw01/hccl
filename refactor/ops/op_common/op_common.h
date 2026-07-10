@@ -42,6 +42,9 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
                       std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                       HcclAlgorithm &alg, const ResPackGraphMode &resPack);
 
+HcclResult HcclCalcTopoInfo(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo);
+HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo);
+
 }  // namespace ops_hccl
 
 #endif  // OPS_HCCL_OP_COMMON

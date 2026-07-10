@@ -16,7 +16,7 @@
 
 #include "auto_selector_base.h"
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 
 class SelectorRegistry {
 public:
@@ -34,17 +34,17 @@ private:
 
 #define REGISTER_SELECTOR_HELPER(ctr, priority, name, selector)                                                        \
     static HcclResult g_func_##priority##_##name##_##ctr                                                               \
-        = SelectorRegistry::Global()->Register(priority, new selector())
+        = ops_hccl::refactor::SelectorRegistry::Global()->Register(priority, new selector())
 
 #define REGISTER_SELECTOR_HELPER_1(ctr, priority, name, selector)                                                      \
     REGISTER_SELECTOR_HELPER(ctr, priority, name, selector)
 
 #define REGISTER_SELECTOR(priority, selector) REGISTER_SELECTOR_HELPER_1(__COUNTER__, priority, selector, selector)
-}
+} }
 
 #define REGISTER_SELECTOR_BY_OPTYPE_HELPER(ctr, optype, priority, name, selector)    \
     static HcclResult g_func_##priority##_##name##_##ctr                                                               \
-        = SelectorRegistry::Global()->RegisterByOpType(optype, priority, new selector())
+        = ops_hccl::refactor::SelectorRegistry::Global()->RegisterByOpType(optype, priority, new selector())
 
 #define REGISTER_SELECTOR_BY_OPTYPE_HELPER_1(ctr, optype, priority, name, selector)  \
     REGISTER_SELECTOR_BY_OPTYPE_HELPER(ctr, optype, priority, name, selector)

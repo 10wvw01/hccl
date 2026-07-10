@@ -54,4 +54,55 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     return HCCL_SUCCESS;
 }
 
+HcclResult HcclCalcTopoInfo(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo)
+{
+    HCCL_INFO("[%s] HcclCalcTopoInfo start.", __func__);
+    uint64_t size = 0;
+    void *ctx = nullptr;
+    // 若获取Context失败，表示对应Context尚未缓存
+    HcclResult ret = HcclEngineCtxGet(comm, param.tag, CommEngine::COMM_ENGINE_CPU_TS, &ctx, &size);
+    if (ret == HCCL_E_NOT_FOUND || ret == HCCL_E_PARA) {
+        // 初始化topoInfo
+        CHK_RET(InitRankInfo(comm, topoInfo.get()));
+        // 序列化
+        std::vector<char> seq = topoInfo->Serialize();
+        size = seq.size();
+        // 创建新的Context保存
+        CHK_RET(HcclEngineCtxCreate(comm, param.tag, CommEngine::COMM_ENGINE_CPU_TS, size, &ctx));
+        CHK_SAFETY_FUNC_RET(memcpy_s(ctx, size, seq.data(), size));
+        return HCCL_SUCCESS;
+    }
+    char *ctxTemp = reinterpret_cast<char*>(ctx);
+    std::vector<char> seq(ctxTemp, ctxTemp + size);
+    TopoInfoWithNetLayerDetails topoInfoTemp;
+    topoInfoTemp.DeSerialize(seq);
+    topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>(std::move(topoInfoTemp));
+    HCCL_INFO("[%s] HcclCalcTopoInfo end.", __func__);
+    return HCCL_SUCCESS;
+}
+
+// 检查非对称拓扑支持情况
+// 仅 AllGather, AllReduce, ReduceScatter 支持跨框非对称拓扑，其他算子拦截
+HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo)
+{
+    // 仅在跨框非对称场景下检查
+    if (topoInfo->topoLevelNums > 1 && topoInfo->multiModuleDiffDeviceNumMode) {
+        // 已适配非对称的算子：AllGather, AllReduce, ReduceScatter, AllToAll(V/VC)
+        bool isSupportedOp = (opType == HcclCMDType::HCCL_CMD_ALLGATHER ||
+                             opType == HcclCMDType::HCCL_CMD_ALLREDUCE ||
+                             opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER ||
+                             opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
+                             opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+                             opType == HcclCMDType::HCCL_CMD_ALLTOALLVC);
+        if (!isSupportedOp) {
+            HCCL_ERROR("[CheckAsymmetricTopoSupport] OpType[%d] does not support asymmetric topology "
+                "(multi-module diff device num mode), only ALLGATHER/ALLREDUCE/REDUCE_SCATTER/ALLTOALL are supported.",
+                opType);
+            return HCCL_E_NOT_SUPPORT;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+
 }  // namespace ops_hccl

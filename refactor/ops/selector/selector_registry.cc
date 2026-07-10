@@ -15,7 +15,7 @@
 #include <map>
 #include <mutex>
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 
 SelectorRegistry *SelectorRegistry::Global()
 {
@@ -60,4 +60,4 @@ std::map<u32, AutoSelectorBase *> SelectorRegistry::GetAllSelectors()
     return impls_;
 }
 
-} // namespace Hccl
+} } // namespace refactor::ops_hccl

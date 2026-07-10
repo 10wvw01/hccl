@@ -446,8 +446,8 @@ function build_ut() {
       CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OPS=ON"
       CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OP_COMMON=ON"
       CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_EXECUTOR=ON"
+      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_SELECTOR=ON"
       [ "${REFACTOR_API}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_API=ON"
-      [ "${REFACTOR_SELECTOR}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_SELECTOR=ON"
       [ "${REFACTOR_TEMPLATE}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_TEMPLATE=ON"
       [ "${REFACTOR_UT_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_UT_ONLY=ON"
   fi
@@ -525,14 +525,14 @@ function build_hccl() {
     # 设置 hcc 编译器工具链
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
-    # refactor 模块开关（当前仅 executor+op_common 可编译）
+    # refactor 模块开关（当前 executor+op_common+selector 可编译）
     local refactor_options=""
     if [ "${REFACTOR_OPS}" = "ON" ]; then
         refactor_options="-DREFACTOR_OPS=ON"
         refactor_options="${refactor_options} -DREFACTOR_OP_COMMON=ON"
         refactor_options="${refactor_options} -DREFACTOR_EXECUTOR=ON"
+        refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
         [ "${REFACTOR_API}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_API=ON"
-        [ "${REFACTOR_SELECTOR}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
         [ "${REFACTOR_TEMPLATE}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_TEMPLATE=ON"
     fi
 

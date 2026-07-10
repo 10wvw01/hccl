@@ -11,8 +11,11 @@
 #include "execute_selector.h"
 #include "auto_selector_base.h"
 #include "selector_registry.h"
+#include "op_common.h"
+#include "load_kernel.h"
+#include "hccl_aiv_utils.h"
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 
 ExecuteSelector::ExecuteSelector()
 {
@@ -78,7 +81,7 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
     // ExecuteSelector::Run 内部调用 AutoSelectorBase::Select 输出 HcclAlgorithm
     CHK_RET(collAlgSelector->Run(param, topoInfo.get(), alg));
-    CHK_RET(SetCommEngine(param));
+    // CHK_RET(SetCommEngine(param));
     // AIV_ONLY 模式下禁止回退到非 AIV 引擎，未选中 AIV 时直接返回不支持。
     if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY && param.engine != CommEngine::COMM_ENGINE_AIV) {
         HCCL_ERROR("[HcclExecOp] opType[%d] currently do not select aiv mode, aiv only not support.",
@@ -105,4 +108,4 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     return HCCL_SUCCESS;
 }
 
-} // namespace Hccl
+} } // namespace refactor::ops_hccl

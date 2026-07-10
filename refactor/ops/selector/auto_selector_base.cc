@@ -13,7 +13,7 @@
 #include "op_common.h"
 #include "alg_env_config.h"
 
-namespace ops_hccl {
+namespace ops_hccl { namespace refactor {
 
 SelectorStatus AutoSelectorBase::Select(OpParam &opParam, TopoInfoWithNetLayerDetails* topoInfo,
                                         HcclAlgorithm &alg) const
@@ -265,4 +265,4 @@ bool AutoSelectorBase::ProcessAivConfig(OpParam &opParam, TopoInfoWithNetLayerDe
     return true;
 }
 
-}
+} } // namespace refactor::ops_hccl
