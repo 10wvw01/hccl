@@ -749,10 +749,6 @@ while [[ $# -gt 0 ]]; do
         ascend_package_path="$2"
         shift 2
         ;;
-    --nlohmann_path)
-        third_party_nlohmann_path="$2"
-        shift 2
-        ;;
     --pkg)
         # 跳过 --pkg，不做处理
         shift
@@ -924,10 +920,6 @@ elif [ -d "${DEFAULT_INSTALL_DIR}" ];then
 else
     log "Error: Please set the toolkit package installation directory through parameter -p|--package-path."
     exit 1
-fi
-
-if [ -n "${third_party_nlohmann_path}" ];then
-    CUSTOM_OPTION="${CUSTOM_OPTION} -DTHIRD_PARTY_NLOHMANN_PATH=${third_party_nlohmann_path}"
 fi
 
 CUSTOM_OPTION="${CUSTOM_OPTION} -DCUSTOM_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}"

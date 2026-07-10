@@ -12,10 +12,6 @@ set(hccl_ut_prepare_env_list
 )
 add_executable(hccl_ut_prepare_env  ${hccl_ut_prepare_env_list})
 
-target_include_directories(hccl_ut_prepare_env  PRIVATE
-    ${UT_COMMON_INCLUDE_LIST}
-)
-
 target_compile_options(hccl_ut_prepare_env   PRIVATE 
     -U_FORTIFY_SOURCE
     $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
