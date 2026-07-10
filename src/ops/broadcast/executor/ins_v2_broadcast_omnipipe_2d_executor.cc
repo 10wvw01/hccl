@@ -242,7 +242,9 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     stepSliceInfo.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParams.buffInfo = stepSliceInfo.buffInfo;
     tempAlgParams.stepSliceInfo = stepSliceInfo;
-    tempAlgParams.stepSliceInfo.buffInfo.inBuffBaseOff
+    // 多 loop 尾块场景：每 rank 的累计偏移已通过 loopStartCount 烘焙到 inputOmniPipeSliceStride 中，
+    // 不再在此叠加 myRank_ 的 processedDataCount，避免不同 rank 累计值不同导致的 input 偏移错位
+    tempAlgParams.stepSliceInfo.buffInfo.inBuffBaseOff	 
         = processedDataCount * dataTypeSize_ + stepSliceInfo.buffInfo.inBuffBaseOff;
     tempAlgParams.stepSliceInfo.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff;
     tempAlgParams.sliceSize = 0;
@@ -418,12 +420,20 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     const std::vector<double> &endpointAttrBwAvgSC, const std::vector<double> &endpointAttrBwAvgAG,
     OmniPipeSliceParam &sliceParam, OmniPipeSliceInfo &omniPipeSliceInfoSC, OmniPipeSliceInfo &omniPipeSliceInfoAG)
 {
-    // 首轮loop或与上轮切分不同时重新计算sliceInfo
-    if (loop != 0 && isSameLoop(multiLoopAllRankSplitData[loop - 1], multiLoopAllRankSplitData[loop])) {
-        return HCCL_SUCCESS;
-    }
+   // 首轮loop或与上轮切分不同时重新计算sliceInfo	 
+     if (loop != 0 && isSameLoop(multiLoopAllRankSplitData[loop - 1], multiLoopAllRankSplitData[loop])) {	 
+         return HCCL_SUCCESS; 
+     }
     sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
     sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
+    // // 计算每 rank 在当前 loop 之前已处理的累计 count，用于修正 scatter 多 loop 尾块场景的 input 偏移
+    // std::vector<u64> loopStartCount(allRankSplitData.size(), 0);
+    // for (u64 l = 0; l < loop; l++) {
+    //     for (size_t r = 0; r < allRankSplitData.size(); r++) {
+    //         loopStartCount[r] += multiLoopAllRankSplitData[l][r];
+    //     }
+    // }
+    // sliceParam.loopStartCount = loopStartCount;
     sliceParam.endpointAttrBw = endpointAttrBwAvgSC;
     omniPipeSliceInfoSC = CalcScatterOmniPipeSliceInfo(sliceParam, root);
     sliceParam.endpointAttrBw = endpointAttrBwAvgAG;
@@ -541,11 +551,19 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             } else if (i != 0) {
                 // 中间步: 同y轴非root往x轴方向发送部分转发数据(mesh/templateX)
                 HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
-                if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
-                    HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
-                    scatterAlgTempX.SetRoot(myRank_);
-                    CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
-                        omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                if (endpointAttrBwAvgSC[0] <= endpointAttrBwAvgSC[1]) {
+                    if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
+                        HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
+                        scatterAlgTempX.SetRoot(myRank_);
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
+                            omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    }
+                } else {
+                    scatterAlgTempY.ifDoTask_ = true;
+                    if (isSameXAxisAsRoot && rankSizeLevel1_ > 1) {
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsY,
+                            omniPipeSliceInfoSC.dataSliceLevel1[i], processedDataCount, resCtx, param));
+                    }
                 }
             }
 
