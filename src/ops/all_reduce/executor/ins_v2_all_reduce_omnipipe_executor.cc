@@ -707,7 +707,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
 
     // 2.3 将数据量切分count转化为dataSize，传给scratchParam
     scratchParam.dataSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-
+    HCCL_INFO("scratchParam.dataSize[%llu]", scratchParam.dataSize);
     std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
 
     // 中转内存单次最多能够接受的output count，注意是count不是size
