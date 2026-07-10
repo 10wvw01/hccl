@@ -77,8 +77,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 
-    u64 rootx = param.root % rankSizeLevel0_;
-    u64 rooty = param.root / rankSizeLevel0_;
+    rootx = param.root % rankSizeLevel0_;
+    rooty = param.root / rankSizeLevel0_;
 
     bool isRoot = (myRank_ == param.root);
     isSameYAxisAsRoot = (rankIdxLevel0_ == rootx && !isRoot); // 同x，走NHR
@@ -216,8 +216,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
 
-    u64 rootx = param.root % rankSizeLevel0_;
-    u64 rooty = param.root / rankSizeLevel0_;
+    rootx = param.root % rankSizeLevel0_;
+    rooty = param.root / rankSizeLevel0_;
     bool isRoot = (myRank_ == param.root);
     isSameYAxisAsRoot = (rankIdxLevel0_ == rootx && !isRoot);
     isSameXAxisAsRoot = (rankIdxLevel1_ == rooty && !isRoot);
@@ -327,7 +327,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 	CcuRsAlgTemplateY rsAlgTempY(param, myRank_, subCommRanks1);
     CcuGAlgTemplateX gAlgTempX(param, myRank_, subCommRanks0);
 	CcuGAlgTemplateY gAlgTempY(param, myRank_, subCommRanks1);
-    gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx);
+    rootx = param.root % rankSizeLevel0_;
+    rooty = param.root / rankSizeLevel0_;
+    gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); // root:1 
     gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
 
     // 公共参数初始化
@@ -498,7 +500,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
-            gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); //当前卡的y坐标 * xSize + root的x坐标
+            gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); //当前卡的y坐标 * xSize + root的x坐标 root是1 ，当前是2  1*2 + 1 = 3
+            HCCL_INFO("[%s][KernelRun] myRank[%u] rankIdxLevel1_[%u], rankSizeLevel0_[%u], rootx[%u] param.root[%u]", __func__, myRank_, rankIdxLevel1_, rankSizeLevel0_, rootx, param.root);
             // NHR算法时，root的同y轴都需要执行y轴任务
             if (isSameYAxisAsRoot || myRank_ == param.root) {
                 gAlgTempY.ifDoTask_ = true;
