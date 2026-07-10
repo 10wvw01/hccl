@@ -541,11 +541,19 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             } else if (i != 0) {
                 // 中间步: 同y轴非root往x轴方向发送部分转发数据(mesh/templateX)
                 HCCL_DEBUG("[%s] myRank[%u] StepNum[%u]", __func__, myRank_, i);
-                if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
-                    HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
-                    scatterAlgTempX.SetRoot(myRank_);
-                    CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
-                        omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                if (endpointAttrBwAvgSC[0] <= endpointAttrBwAvgSC[1]) {
+                    if (isSameYAxisAsRoot && rankSizeLevel0_ > 1) {
+                        HCCL_DEBUG("[%s] set myRank[%u] as root", __func__, myRank_);
+                        scatterAlgTempX.SetRoot(myRank_);
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsX,
+                                omniPipeSliceInfoSC.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    }
+                } else {
+                    scatterAlgTempY.ifDoTask_ = true;
+                    if (isSameXAxisAsRoot && rankSizeLevel1_ > 1) {
+                        CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempScatterAlgParamsY,
+                            omniPipeSliceInfoSC.dataSliceLevel1[i], processedDataCount, resCtx, param));
+                    }
                 }
             }
 
@@ -624,7 +632,7 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             // 第一步做完后回到主流做尾同步
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
         }
-        processedDataCount += currDataCount;
+        processedDataCount += maxCountPerLoop;
     }
 
     HCCL_DEBUG("[%s][OrchestrateLoop] End.", __func__);
