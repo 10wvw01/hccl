@@ -939,7 +939,7 @@ HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std:
 HcclResult CaptureSlaveStreams(HcclComm comm, aclrtStream mainStream, const std::vector<ThreadHandle>& threads,
     bool &isCapture)
 {
-    isCapture =false;
+    isCapture = false;
     aclmdlRI rtModel = nullptr;
     aclmdlRICaptureStatus captureStatus = aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_NONE;
     aclError ret = aclmdlRICaptureGetInfo(mainStream, &captureStatus, &rtModel);

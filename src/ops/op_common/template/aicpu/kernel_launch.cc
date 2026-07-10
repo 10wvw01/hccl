@@ -470,10 +470,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             param->inputPtr, param->inputSize, param->outputPtr, param->outputSize,
             static_cast<uint32_t>(param->opMode), param->algName, param->isZeroCopy,
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
-        
-        // 检查是否cache miss
-        std::string cacheTag;
-        bool isCacheHit = false;
+
         if (enableCache) { // 使能aicpu task cache
             // 注意: OpOrchestrate尚未调用, 首个NotifyWait与算子展开相关的task尚未生成, AicpuTsThread中一定无SQE
             // 因此, 无需通过强制下发SQE, 来避免cache miss下缓存算法无关的task 或 cache hit下task下发乱序
@@ -487,8 +484,10 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 *param, resCtxPtr->topoInfo.userRankSize, inputSize, outputSize)));
             uint64_t sizes[ADDRS_COUNT] = {inputSize, outputSize};
 
+            std::string cacheTag;
+            bool isCacheHit = false;
             // 组装aicpu task cache tag
-            AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, inputSize, cacheTag);
+            CHK_RET(AicpuTaskCacheKey::GetAicpuTaskCacheTag(*param, inputSize, cacheTag));
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
