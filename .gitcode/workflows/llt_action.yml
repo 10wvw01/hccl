@@ -1,0 +1,179 @@
+name: llt_action 
+
+on:
+  workflow_call:
+    inputs:
+      ut_type:
+        required: true
+        type: string
+      ut_package:
+        type: string
+        default: 'ut_cov_*.tar.gz'
+      repo_name:
+        type: string
+        default: 'hccl'  
+      image_version:
+        required: true
+        type: string      
+
+jobs:
+  JOB_ut:
+    name: ut
+    select: selected_by_default
+    needs: []
+    steps:
+      - 
+        name: Checkout
+        identifier: process_checkout
+        uses: checkout
+        with:
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
+          token: ${{secrets.GIT_TOKEN}}
+      -
+        name: download
+        uses: obs-download
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          key: |
+            ${{ env.obs_path }}/pr_filelist.txt
+            ${{ env.obs_path }}/pr_filelist_mod.txt
+          path: ${{ steps.process_checkout.outputs.path }}
+      -
+        name: ut
+        identifier: ut
+        run: |
+          set -x
+          cd ${{ steps.process_checkout.outputs.path }}
+          echo $(grep -E "^VERSION_ID=" /etc/os-release | cut -d'"' -f2)
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+          gcc --version
+          source /home/jenkins/Ascend/cann/bin/setenv.bash
+          set +e
+          source .gitcode/assert.sh
+          cat "pr_filelist.txt"
+
+          bash build.sh --ut --cann_3rd_lib_path=/home/jenkins/opensource
+          ret=$?
+          coverage_save="true"
+
+          if [ $ret -ne 200 ] && [ $ret -ne 0 ]; then
+              echo "run ut fail"
+              exit 1
+          fi
+
+          if [ $ret -eq 0 ]; then
+              if [ "$coverage_save" = "true" ];then
+                echo "ut_process=coverage" >> $ATOMGIT_OUTPUT
+              else
+                echo "ut_process=ut_cov" >> $ATOMGIT_OUTPUT
+              fi
+          fi
+          exit 0 
+      -
+        name: ut_cov
+        identifier: ut_cov
+        uses: cann/.gitcode/actions/ut-cov-report@master
+        with:
+          ut_process: ${{ steps.ut.outputs.ut_process }}
+          workspace: ${{ steps.process_checkout.outputs.path }}
+          ut_type: ${{ inputs.ut_type }}
+          target_branch: ${{ env.TARGET_BRANCH }}
+          git_token: ${{secrets.GIT_TOKEN}}
+      -
+        name: upload
+        uses: obs-upload
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{secrets.AK}}
+          secret-key: ${{secrets.SK}}
+          artifact-path: |
+            ${{ steps.process_checkout.outputs.path }}/${{ inputs.ut_package }}
+          object-prefix: ${{ env.obs_path }}/            
+    if: "${{ default() }}"
+    runs-on: [dedicate-hosted, x64, xlarge]
+    container:
+      image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
+  JOB_st:
+    name: st
+    select: selected_by_default
+    needs: []
+    steps:
+      - 
+        name: Checkout
+        identifier: process_checkout
+        uses: checkout
+        with:
+          ref: ${{ atomgit.event.pull_request.merge_commit_sha }}
+          token: ${{secrets.GIT_TOKEN}}
+      -
+        name: download
+        uses: obs-download
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          key: |
+            ${{ env.obs_path }}/pr_filelist.txt
+            ${{ env.obs_path }}/pr_filelist_mod.txt
+          path: ${{ steps.process_checkout.outputs.path }}
+      -
+        name: st
+        identifier: st
+        run: |
+          export GIT_TARGET_BRANCH=${{ env.TARGET_BRANCH }}
+          export REPOSITORY_NAME=${{ env.repo_name }}
+          export WORKSPACE=${{ steps.process_checkout.outputs.path }}
+          if [ "${GIT_TARGET_BRANCH}x" != "masterx" ]; then
+            exit 0
+          fi
+          cd ${WORKSPACE}/ || exit
+          wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/ascend-ci/${{ env.obs_path }}/cann-hccl_linux-x86_64_ubuntu24.run
+          chmod u+x cann-hccl_linux-x86_64_ubuntu24.run
+          sudo chmod 777 /home/jenkins/Ascend
+          yes "y" | bash cann-hccl_linux-x86_64_ubuntu24.run --full --install-path=/home/jenkins/Ascend
+          export ASCEND_HOME_PATH=/home/jenkins/Ascend/cann
+          source /home/jenkins/Ascend/cann/bin/setenv.bash
+          
+          bash build.sh --st
+          ret=$?
+          coverage_save="true"
+
+          if [ $ret -ne 200 ] && [ $ret -ne 0 ]; then
+              echo "run ut fail"
+              exit 1
+          fi
+
+          if [ $ret -eq 0 ]; then
+              if [ "$coverage_save" = "true" ];then
+                echo "ut_process=coverage" >> $ATOMGIT_OUTPUT
+              else
+                echo "ut_process=ut_cov" >> $ATOMGIT_OUTPUT
+              fi
+          fi
+          exit 0 
+      -
+        name: ut_cov
+        identifier: ut_cov
+        uses: cann/.gitcode/actions/ut-cov-report@master
+        with:
+          ut_process: ${{ steps.ut.outputs.ut_process }}
+          workspace: ${{ steps.process_checkout.outputs.path }}
+          ut_type: ${{ inputs.ut_type }}
+          target_branch: ${{ env.TARGET_BRANCH }}
+          git_token: ${{secrets.GIT_TOKEN}}
+      -
+        name: upload
+        uses: obs-upload
+        with:
+          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+          bucket: "ascend-ci"
+          access-key: ${{secrets.AK}}
+          secret-key: ${{secrets.SK}}
+          artifact-path: |
+            ${{ steps.process_checkout.outputs.path }}/${{ inputs.ut_package }}
+          object-prefix: ${{ env.obs_path }}/            
+    if: "${{ default() }}"
+    runs-on: [dedicate-hosted, x64, xlarge]
+    container:
+      image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
