@@ -69,8 +69,8 @@ static CcuResult LoadArgs(GatherOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.myRankIdx], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.localCopyFlag, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
@@ -154,6 +154,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 
             dst.addr = ctx.output;
             dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
+            ctx.sliceSize = ctx.sliceSizeOmniSliceStrideVec[recvSliceIdx];
 
             CCU_IF(ctx.sliceSize != 0) {
                 ccu::Read(recvChannel, dst, src, ctx.sliceSize, ctx.event, 1 << i);
