@@ -111,6 +111,7 @@ enum class HcclAicpuAllGatherAlgoType {
     AICPU_ALLGATHER_OMNIPIPE_PCIE,                  // InsV2AllGatherOmniPipePcie
     AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherConcurrentMesh1DNHR
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY, // InsAllGatherParallelMesh1DNHRMultiJetty
+    AICPU_ALLGATHER_ALGO_TYPE_COUNT,                // 算法类型总数，用于数组下标上限
 };
 
 struct TemplateDesc {
@@ -209,6 +210,9 @@ public:
     std::shared_ptr<TopoMatchBase> topoMatch;
     AlgoExecDesc algoExecDesc;
 };
+
+// 全局 AICPU AllGather 算法表（定义在 gen_algorithm.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
+extern const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)];
 
 } // namespace ops_hccl
 
