@@ -89,7 +89,7 @@ HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetL
                              opType == HcclCMDType::HCCL_CMD_ALLTOALLVC ||
                              opType == HcclCMDType::HCCL_CMD_SCATTER ||
                              opType == HcclCMDType::HCCL_CMD_BROADCAST ||
-                             opType == HcclCMDType::HCCL_CMD_REDUCE || 
+                             opType == HcclCMDType::HCCL_CMD_REDUCE ||
                              opType == HcclCMDType::HCCL_CMD_ALLGATHER_V ||
                              opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V);
         if (!isSupportedOp) {

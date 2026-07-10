@@ -17,7 +17,6 @@ constexpr u32 DATATYPE_SIZE_TABLE_AGV[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t)
     8, 2, 16, 2, 1, 1, 1, 1};
 
 class ST_ALL_GATHER_V_TEST : public ::testing::Test {
-
 protected:
     void TearDown() override
     {
