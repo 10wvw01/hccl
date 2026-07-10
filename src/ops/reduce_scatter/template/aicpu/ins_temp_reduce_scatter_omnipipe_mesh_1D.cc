@@ -208,9 +208,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     // 这个PostReduce处理的是当前轴的规约任务
-    if (!supportSymmetricMemory_) {
-        CHK_RET(PostReduce(tempAlgParams, templateResource.threads));
-    }
+    CHK_RET(PostReduce(tempAlgParams, templateResource.threads));
     HCCL_INFO("[%s]Run End", __func__);
     return HcclResult::HCCL_SUCCESS;
 }
@@ -385,9 +383,9 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatterSymmetric(
                                tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
             u64 rxSrcCurrent = 0;
             CHK_RET(ConvertCompactOffsetToUserInputOffset(tempAlgParam, dataType_, rxSrcCompact, rxSrcCurrent));
-            u64 rxDstCurrent = tempAlgParam.buffInfo.outBuffBaseOff +
-                               tempAlgParam.stepSliceInfo.stepInputSliceStride[myAlgRank] +
-                               tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            u64 rxDstCurrent = tempAlgParam.buffInfo.hcclBuffBaseOff +
+                               tempAlgParam.stepSliceInfo.stepOutputSliceStride[nextRank] +
+                               tempAlgParam.stepSliceInfo.outputOmniPipeSliceStride[nextRank][repeatIdx];
             rxSrcSlices.emplace_back(remoteIn, rxSrcCurrent,
                                      tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
                                      tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
@@ -410,9 +408,9 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatterSymmetric(
         SlicesList rxSlices(rxSrcSlices, rxDstSlices);
         TxRxSlicesList sendRecvSlices(txSlices, rxSlices);
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
-        SendRecvReduceInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_, reduceOp_);
-        CHK_PRT_RET(SendRecvReadReduce(sendRecvInfo, threads[queIdx]),
-                    HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D] RunReduceScatterSymmetric ReadReduce failed"),
+        SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlices, dataType_);
+        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[queIdx]),
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D] RunReduceScatterSymmetric Read failed"),
                     HcclResult::HCCL_E_INTERNAL);
     }
     return HcclResult::HCCL_SUCCESS;

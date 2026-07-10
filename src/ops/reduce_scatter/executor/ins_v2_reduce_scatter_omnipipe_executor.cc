@@ -210,10 +210,6 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         topoType_ = TopoType::UBX_2LEVEL;
     }
 
-    if (param.supportSymmetricMemory) {
-        return CalcSymmetricDirectRes(comm, param, topoInfo, resourceRequest);
-    }
-
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
     std::vector<std::vector<u32>> subCommRanks2;
@@ -298,16 +294,6 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     threads_ = resCtx.threads;
     controlThread_ = threads_.at(0);
 
-    if (param.supportSymmetricMemory) {
-        HcclResult ret = OrchestrateSymmetricDirect(param, resCtx);
-        CHK_PRT_RET(ret != HCCL_SUCCESS,
-                    HCCL_ERROR("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate]errNo[0x%016llx] symmetric "
-                               "reduce scatter direct kernel run failed",
-                               HCCL_ERROR_CODE(ret)),
-                    ret);
-        return HCCL_SUCCESS;
-    }
-    
     if (algHierarchyInfo_.infos.size() == HIERARCHY_SIZE_3 &&
         !algHierarchyInfo_.infos[2].empty() && !algHierarchyInfo_.infos[2][0].empty()) {
         topoType_ = TopoType::THREE_LEVEL;
