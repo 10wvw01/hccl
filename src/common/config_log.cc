@@ -44,8 +44,8 @@ HcclResult InitDebugConfigByEnv()
             mask = HCCL_TASK;
         } else if (strcasecmp(subConfig, "RESOURCE") == 0) {
             mask = HCCL_RES;
-        } else if (strcasecmp(subConfig, "AIV_OPS_EXC") == 0) {
-            mask = HCCL_AIV_OPS_EXC;
+        } else if (strcasecmp(subConfig, "DATA_OP") == 0) {
+            mask = HCCL_DATA_OP;
         } else {
             HCCL_ERROR("HCCL_DEBUG_CONFIG:%s is invalid, subConfig:%s is not supported", env, subConfig);
             free(configDup);
