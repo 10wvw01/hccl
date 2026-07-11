@@ -583,8 +583,6 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u32 dataCount = 0; // 算子上报dfx的数据量
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
     u64 varMemSize{0};
-    u8 varData[0];
-
     /*
      * [HCCL-ALGO-Plugin] 
      * Selector()阶段若HCCL-ALGO-Plugin命中自定义算法则置true，
@@ -592,6 +590,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
      * 默认false，未配置HCCL_ALGO_PLUGIN_PATH时该字段恒为false，HCCL行为与原有完全一致。
      */
     bool pluginSelected = false;
+    u8 varData[0];
 };
 
 struct AlgDesc {
