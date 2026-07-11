@@ -262,7 +262,6 @@ HcclResult OpsExecutor::GenTemplateRes(const u32 subCommIndex, TemplateResource 
 {
     templateResource.channels = channelTable_.at(subCommIndex);
     templateResource.threads = subThreads_.at(subCommIndex);
-    // 其他参数待确认是否还需要保留
     return HCCL_SUCCESS;
 }
 

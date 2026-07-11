@@ -15,6 +15,7 @@ option(ENABLE_BUILD_DEVICE "Build hccl device project." OFF)
 option(ENABLE_BUILD_AARCH "Build hccl aarch project." OFF)
 option(REFACTOR_OPS "Enable refactored ops path (refactor/ops/)" ON)
 option(REFACTOR_ONLY "Only compile refactor code, skip src/ops/" OFF)
+option(REFACTOR "Enable all refactor sub-modules (convenience switch)" OFF)
 message(STATUS "STATIC_MODE=${STATIC_MODE}")
 
 if(STATIC_MODE AND NOT ENABLE_BUILD_DEVICE)

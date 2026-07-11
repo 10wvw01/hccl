@@ -444,11 +444,7 @@ function build_ut() {
 
   CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OPS=${REFACTOR_OPS}"
   if [ "${REFACTOR_OPS}" = "ON" ]; then
-      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OP_COMMON=ON"
-      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_EXECUTOR=ON"
-      [ "${REFACTOR_API}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_API=ON"
-      [ "${REFACTOR_SELECTOR}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_SELECTOR=ON"
-      [ "${REFACTOR_TEMPLATE}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_TEMPLATE=ON"
+      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR=ON"
       [ "${REFACTOR_UT_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_UT_ONLY=ON"
       [ "${REFACTOR_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_ONLY=ON"
   fi
@@ -526,15 +522,10 @@ function build_hccl() {
     # 设置 hcc 编译器工具链
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
-    # refactor 模块开关（当前 executor+op_common 可编译）
-    # 必须始终显式传 REFACTOR_OPS，否则 cmake option() 默认值（ON）会覆盖这里
+    # refactor 总开关：-DREFACTOR=ON 一键开启所有子模块
     local refactor_options="-DREFACTOR_OPS=${REFACTOR_OPS}"
     if [ "${REFACTOR_OPS}" = "ON" ]; then
-        refactor_options="${refactor_options} -DREFACTOR_OP_COMMON=ON"
-        refactor_options="${refactor_options} -DREFACTOR_EXECUTOR=ON"
-        [ "${REFACTOR_API}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_API=ON"
-        [ "${REFACTOR_SELECTOR}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
-        [ "${REFACTOR_TEMPLATE}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_TEMPLATE=ON"
+        refactor_options="${refactor_options} -DREFACTOR=ON"
     fi
 
     # 创建构建目录

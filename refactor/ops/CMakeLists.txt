@@ -10,13 +10,14 @@
 
 # refactor/ops 模块分发层。
 # 模块默认都关闭；需要把哪个重构模块接入主构建，就显式打开对应 REFACTOR_<MODULE> 开关。
-option(REFACTOR_API       "Build refactor/ops/api"       OFF)
-option(REFACTOR_EXECUTOR  "Build refactor/ops/executor"  OFF)
-option(REFACTOR_OP_COMMON "Build refactor/ops/op_common" OFF)
-option(REFACTOR_SELECTOR  "Build refactor/ops/selector"  OFF)
-option(REFACTOR_TEMPLATE  "Build refactor/ops/template"  OFF)
-option(REFACTOR_UTILS     "Build refactor/ops/utils"     OFF)
-option(REFACTOR_ALGORITHM "Build refactor/ops/algorithm" OFF)
+# REFACTOR 总开关：ON 时所有子模块全部打开，后续新增模块只需加一行
+option(REFACTOR_API       "Build refactor/ops/api"       ${REFACTOR})
+option(REFACTOR_EXECUTOR  "Build refactor/ops/executor"  ${REFACTOR})
+option(REFACTOR_OP_COMMON "Build refactor/ops/op_common" ${REFACTOR})
+option(REFACTOR_SELECTOR  "Build refactor/ops/selector"  ${REFACTOR})
+option(REFACTOR_TEMPLATE  "Build refactor/ops/template"  ${REFACTOR})
+option(REFACTOR_UTILS     "Build refactor/ops/utils"     ${REFACTOR})
+option(REFACTOR_ALGORITHM "Build refactor/ops/algorithm" ${REFACTOR})
 
 # c_adaptor/common 是主工程 common 代码的早期接入点。
 # 当主工程已经创建 hccl_compat 时，这里不能重复 add_subdirectory，否则会重复定义 target。

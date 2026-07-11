@@ -9,17 +9,20 @@ if(NOT REFACTOR_EXECUTOR)
     return()
 endif()
 
+# 自动发现 tests/ 下所有 .cc 文件，新增测试文件无需修改此处
+file(GLOB UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/tests/*.cc")
+
 set(UT_EXECUTOR_SRC
-    test_ops_executor.cc
+    ${UT_EXECUTOR_TEST_SRC}
     ut_stubs.cc
-    # 直接编译被测源文件，避免依赖 hccl 库的链接顺序问题
+    # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
 
-# refactor 头文件路径
 target_include_directories(hccl_ut_refactor_executor PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/tests
     ${CMAKE_SOURCE_DIR}/refactor/ops
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
@@ -36,7 +39,6 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ops/op_common/executor
     ${CMAKE_SOURCE_DIR}/src/ops/op_common/selector
     ${CMAKE_SOURCE_DIR}/src/ops/op_common/executor/registry
-    # SDK 头文件路径（与 src/CMakeLists.txt 中 INCLUDE_LIST 对齐）
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
     ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
