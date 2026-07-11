@@ -19,10 +19,6 @@
 #include "ccu_alg_template_base.h"
 namespace ops_hccl {
 
-constexpr u32 CCU_OMNIPIPE_LEVEL0 = 0;
-constexpr u32 CCU_OMNIPIPE_LEVEL1 = 1;
-constexpr u32 CCU_OMNIPIPE_LEVEL_NUM = 2;
-
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::CcuV2ReduceOmniPipeExecutor()
 {
@@ -310,6 +306,27 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 }
 
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
+HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::CalcEndpointBandwidth(std::vector<double> &endpointAttrBwAvgRS,
+    std::vector<double> &endpointAttrBwAvgG)
+{
+    // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
+    double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
+    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_RS_CLOS;
+    eqBwLevel1RS = rankSizeLevel1_ > 1 ? eqBwLevel1RS / (rankSizeLevel1_ - 1) : eqBwLevel1RS;
+    endpointAttrBwAvgRS = {eqBwLevel0RS, eqBwLevel1RS, 1.0};
+
+    // G带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
+    double eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
+    double eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    eqBwLevel1G = rankSizeLevel1_ > 1 ? eqBwLevel1G / (rankSizeLevel1_ - 1) : eqBwLevel1G;
+    endpointAttrBwAvgG = {eqBwLevel0G, eqBwLevel1G, 1.0};
+
+    HCCL_INFO("[%s] eqBwLevel0RS:%f, eqBwLevel1RS:%f, eqBwLevel0G:%f, eqBwLevel1G:%f", __func__, eqBwLevel0RS,
+        eqBwLevel1RS, eqBwLevel0G, eqBwLevel1G);
+    return HCCL_SUCCESS;
+}
+
+template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::OrchestrateLoop(
             const OpParam& param, const AlgResourceCtxSerializable& resCtx)
 {
@@ -364,9 +381,13 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1] + resCtx.ccuKernelNum[2]+ resCtx.ccuKernelNum[3]);
 
     // 1、计算带宽 平均带宽还是总带宽,如果是总带宽这边要处理成平均带宽 // [jjy][todo]计算带宽打桩
-    std::vector<std::vector<double>> endpointAttrBw;
-    std::vector<double> endpointAttrBwAvg;
-    endpointAttrBwAvg = {3,4,1};
+    std::vector<double> endpointAttrBwAvgRS;
+    std::vector<double> endpointAttrBwAvgG;
+    CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG));
+
+    // std::vector<std::vector<double>> endpointAttrBw;
+    // std::vector<double> endpointAttrBwAvg;
+    // endpointAttrBwAvg = {3,4,1};
 
     // 2.1 获取每个rank切分的数据量count
     auto allRankSplitData = OmniPipeSplitData(rankSize_, dataCount_, dataTypeSize_);
@@ -404,7 +425,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = dataSizePerLoop;
     sliceParam.dataWholeSize = dataWholeSize;
-    sliceParam.endpointAttrBw = endpointAttrBwAvg;
+    // sliceParam.endpointAttrBw = endpointAttrBwAvg;
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
     std::vector<u64> levelAlgType{1, 0, 1};
@@ -431,7 +452,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
         sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
         sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
+        sliceParam.endpointAttrBw = endpointAttrBwAvgRS;
         omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
+        sliceParam.endpointAttrBw = endpointAttrBwAvgG;
         omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         
