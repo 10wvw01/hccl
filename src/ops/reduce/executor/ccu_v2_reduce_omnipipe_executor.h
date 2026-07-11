@@ -85,6 +85,10 @@ protected:
     std::vector<ThreadHandle> threads_;  // 相当于之前的std::vector<InsQuePtr> tempInsQue_;
     // std::vector<SplitSliceInfo> sliceInfoList_;
 
+    // 计算RS/G在Level0(mesh)/Level1(clos)的等效带宽，Level1按(rankSizeLevel1_-1)均摊
+    HcclResult CalcEndpointBandwidth(
+        std::vector<double> &endpointAttrBwAvgRS, std::vector<double> &endpointAttrBwAvgG);
+
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
 
