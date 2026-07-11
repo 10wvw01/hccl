@@ -74,6 +74,8 @@ public:
         for (const auto& e : entries_) {
             if (algName != nullptr && std::strcmp(e.algName, algName) == 0) {
                 /* 重复算法名注册：保留首次注册的条目，忽略后续重复项，并不中止加载 */
+                std::fprintf(stderr, "[HCCL-ALGO-Plugin SDK] duplicate algName [%s] registered in this selector.so, "
+                    "keep the first registration, ignore this one.\n", algName);
                 return;
             }
         }
@@ -124,7 +126,7 @@ public:
         std::string resolvedPath = ResolveImplSoPath(implSoName);
         HcclAlgoPluginRegistry::Instance().Add(algName, resolvedPath.c_str(), fnSymbol);
     }
-    
+
 private:
     static std::string ResolveImplSoPath(const char* implSoName)
     {

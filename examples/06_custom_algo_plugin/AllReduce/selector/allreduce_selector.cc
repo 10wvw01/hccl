@@ -46,6 +46,9 @@ uint64_t DataTypeSizeHint(int dataType)
 /* 算法1：小数据量场景命中，执行函数符号名 HcclAlgoPluginAllReduceSmall，位于kAllReduceCustomAlgosImplSoFile */
 REGISTER_HCCL_ALGO("AllReduceAlgoSmall", kAllReduceCustomAlgosImplSoFile, "HcclAlgoPluginAllReduceSmall");
 
+// [临时测试] 故意用重复的算法名再注册一次
+// REGISTER_HCCL_ALGO("AllReduceAlgoSmall", "/some/other/path.so", "SomeOtherFn");
+
 /* 算法2：大数据量场景命中，执行函数符号名 HcclAlgoPluginAllReduceLarge，与算法1位于【同一个】so */
 REGISTER_HCCL_ALGO("AllReduceAlgoLarge", kAllReduceCustomAlgosImplSoFile, "HcclAlgoPluginAllReduceLarge");
 
