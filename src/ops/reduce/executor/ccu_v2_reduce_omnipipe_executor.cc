@@ -545,11 +545,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else if (isSameXAxisAsRoot && !isRoot) {
                     HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    // gAlgTempY.UnsetRoot(myRank_);
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    // gAlgTempY.UnsetRoot(myRank_);
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
             }
@@ -577,7 +575,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             u64 rankOffset = 0;
             u64 rankLoopOffset = 0;
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
-            for (u32 i = 0; i < rankSize_; i++) {
+            for (u32 i = 0; i < 4; i++) {
                 u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
                 TemplateDataParams tempAlgParamLocalCopy;
