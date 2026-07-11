@@ -27,9 +27,6 @@ namespace hccl_algo_plugin {
 /* HCCL_PLUGIN_ALG_DIR环境变量名，指向自定义算法实现动态库的根目录 */
 constexpr const char* kPluginAlgDirEnv = "HCCL_PLUGIN_ALG_DIR";
 
-/* 每个算子目录下算法选择动态库的固定命名格式：libhccl_plugin_{op}_selector.so（{op}为全小写算子名） */
-constexpr const char* kSelectorSoNameFormat = "libhccl_plugin_%s_selector.so";
-
 /* 一个自定义集合通信算法实现动态库的懒加载状态 */
 struct AlgLibEntry {
     HcclAlgoPluginAlgEntry entry{};   /* 算法名/so路径/符号名，来自Selector so的QueryEntries结果 */
@@ -66,16 +63,15 @@ public:
 
     bool SelectAlg(const HcclAlgoPluginParam* param, char* algName, size_t algNameLen);
 
-    int ExecuteAlg(const char* algName, int opType, const HcclAlgoPluginParam* param, void* comm);
+    int ExecuteAlg(const char* algName, const char* opName, const HcclAlgoPluginParam* param, void* comm);
 
-    int QueryAlgs(int opType, char* buf, size_t bufLen);
+    int QueryAlgs(const char* opName, char* buf, size_t bufLen);
 
 private:
     bool CheckDirTrusted(const std::string& dir) const;
     bool ScanOpDir(const std::string& opDirPath, const std::string& opDirName);
     bool LoadSelectorEntries(OpRegistry& reg);
-    OpRegistry* FindOpRegistry(int opType);
-    static std::string OpTypeToDirName(int opType);
+    OpRegistry* FindOpRegistry(const char* opName);
 
     std::unordered_map<std::string, std::unique_ptr<OpRegistry>> opRegistries_; /* key: opDirName */
     bool ready_ = false;

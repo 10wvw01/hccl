@@ -88,7 +88,6 @@ typedef struct {
     HcclDataType dataType;                                  /* 数据类型 */
     HcclReduceOp reduceOp;                                  /* 规约类型（仅AllReduce/Reduce/ReduceScatter等算子有效） */
     uint32_t     remoteRank;                                /* Send/Recv对端Rank（仅Send/Recv算子有效） */
-    int          deviceType;                                /* 硬件类型（对应HCCL内部DevType枚举数值），用于按硬件差异化选择算法 */
     uint32_t     deviceNumPerModule;                        /* 每个module（如超节点内节点）的卡数 */
     uint32_t     moduleNum;                                 /* module数量 */
     uint32_t     superPodNum;                               /* 超节点数量 */
