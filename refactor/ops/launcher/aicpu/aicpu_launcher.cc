@@ -24,6 +24,7 @@
 
 namespace ops_hccl {
 
+
 // ───────────── 静态辅助函数 (被调用者在前) ─────────────
 
 static constexpr u32 NOTIFY_IDX_ACK         = 0;
@@ -60,6 +61,153 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
         }
     }
     return false;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// CreateRes / LaunchKernel / Send
+// ═══════════════════════════════════════════════════════════════════
+
+HcclResult AiCpuLauncher::CreateRes(AlgResourceRequest &res)
+{
+    resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
+    resCtx_.slaveThreadNum = res.slaveThreadNum;
+    resCtx_.notifyNumPerThread = res.notifyNumPerThread;
+
+    void *cclBufferAddr = nullptr;
+    u64 cclBufferSize = 0;
+    resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
+
+    resCtx_.threads.resize(res.slaveThreadNum + 1);
+
+    for (size_t level = 0; level < res.channels.size(); ++level) {
+        std::vector<ChannelInfo> levelChannels;
+        levelChannels.reserve(res.channels[level].size());
+        for (size_t idx = 0; idx < res.channels[level].size(); ++idx) {
+            HcclChannelDesc &channelDesc = res.channels[level][idx];
+            ChannelInfo channelInfo;
+            CHK_RET(HcommChannelCreate(channelDesc, channelInfo));
+            levelChannels.emplace_back(channelInfo);
+        }
+        resCtx_.channels.emplace_back(std::move(levelChannels));
+    }
+
+    HCCL_INFO("[AiCpuLauncher][CreateRes] success, slaveThreadNum[%u], channelLevel[%zu]",
+              resCtx_.slaveThreadNum, resCtx_.channels.size());
+    return HCCL_SUCCESS;
+}
+
+HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, OpsExecutor &executor)
+{
+    HCCL_INFO("[AiCpuLauncher][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
+              param.commName, param.tag, param.algTag);
+    CHK_RET(LoadAICPUKernel());
+    CHK_RET(HcclLaunchAicpuKernel(param, executor, resCtx_));
+    HCCL_INFO("[AiCpuLauncher][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
+              param.tag, param.algTag, param.commName);
+    return HCCL_SUCCESS;
+}
+
+HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
+    // Step 1: 方向判断
+    //   enableRemoteMemAccess && buffType==OUTPUT → READ (从远端拉取到本地 output)
+    //   其他场景 → WRITE (推送数据到远端)
+    TransferDirection direction =
+        (ctx.enableRemoteMemAccess && ctx.buffType == BufferType::OUTPUT)
+            ? TransferDirection::READ : TransferDirection::WRITE;
+
+    // isDmaRead: 记录 PCIe 链路状态 (供日志/调试使用)
+    bool isDmaRead = IsPcieProtocol(ctx.templateRes.channels);
+
+    // Step 2: 获取线程
+    if (ctx.templateRes.threads.empty()) {
+        HCCL_ERROR("[AiCpuLauncher][Send] threads is empty");
+        return HCCL_E_INTERNAL;
+    }
+    const ThreadHandle &thread = ctx.templateRes.threads[0];
+
+    // Step 3: Rank → Channel 映射
+    u32 dstRank = ctx.txRxSlicesList.dstRankId_;
+    u32 srcRank = ctx.txRxSlicesList.srcRankId_;
+    const auto &channels = ctx.templateRes.channels;
+    const ChannelInfo *txCh = LookupChannel(channels, dstRank);
+    const ChannelInfo *rxCh = LookupChannel(channels, srcRank);
+
+    // Step 4: 判断发送/接收/双向
+    bool hasTx = !ctx.txRxSlicesList.txSlicesList_.srcSlices_.empty();
+    bool hasRx = !ctx.txRxSlicesList.rxSlicesList_.srcSlices_.empty();
+    bool hasReduce = (ctx.reduceOp != HCCL_REDUCE_RESERVED);
+
+    // 空操作
+    if (!hasTx && !hasRx) {
+        return HCCL_SUCCESS;
+    }
+
+    HCCL_DEBUG("[AiCpuLauncher][Send] direction[%d], isDmaRead[%d], hasTx[%d], hasRx[%d], hasReduce[%d]",
+        static_cast<int>(direction), static_cast<int>(isDmaRead),
+        static_cast<int>(hasTx), static_cast<int>(hasRx), static_cast<int>(hasReduce));
+
+    // Step 5: 路由 (direction × tx/rx × reduce → 12 条路径)
+    if (hasTx && hasRx && txCh != nullptr && rxCh != nullptr) {
+        // ── 双向: SendRecv* 系列 ──
+        TxRxChannels channelPair(*txCh, *rxCh);
+        TxRxSlicesList slicesList(ctx.txRxSlicesList.txSlicesList_,
+                                  ctx.txRxSlicesList.rxSlicesList_);
+        if (direction == TransferDirection::READ) {
+            if (hasReduce) {
+                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
+                return SendRecvReadReduce(reduceInfo, thread);
+            }
+            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
+            return SendRecvRead(info, thread);
+        } else {
+            if (hasReduce) {
+                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
+                return SendRecvWriteReduce(reduceInfo, thread);
+            }
+            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
+            return SendRecvWrite(info, thread);
+        }
+    } else if (hasTx && txCh != nullptr) {
+        // ── 只发送: Send* 系列 ──
+        SlicesList slices = ctx.txRxSlicesList.txSlicesList_;
+        if (direction == TransferDirection::READ) {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*txCh, slices, ctx.dataType, ctx.reduceOp);
+                return SendReadReduce(reduceInfo, thread);
+            }
+            DataInfo info(*txCh, slices, ctx.dataType);
+            return SendRead(info, thread);
+        } else {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*txCh, slices, ctx.dataType, ctx.reduceOp);
+                return SendWriteReduce(reduceInfo, thread);
+            }
+            DataInfo info(*txCh, slices, ctx.dataType);
+            return SendWrite(info, thread);
+        }
+    } else if (hasRx && rxCh != nullptr) {
+        // ── 只接收: Recv* 系列 ──
+        SlicesList slices = ctx.txRxSlicesList.rxSlicesList_;
+        if (direction == TransferDirection::READ) {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*rxCh, slices, ctx.dataType, ctx.reduceOp);
+                return RecvReadReduce(reduceInfo, thread);
+            }
+            DataInfo info(*rxCh, slices, ctx.dataType);
+            return RecvRead(info, thread);
+        } else {
+            if (hasReduce) {
+                DataReduceInfo reduceInfo(*rxCh, slices, ctx.dataType, ctx.reduceOp);
+                return RecvWriteReduce(reduceInfo, thread);
+            }
+            DataInfo info(*rxCh, slices, ctx.dataType);
+            return RecvWrite(info, thread);
+        }
+    }
+
+    HCCL_ERROR("[AiCpuLauncher][Send] channel not found, dstRank[%u], srcRank[%u]", dstRank, srcRank);
+    return HCCL_E_INTERNAL;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -340,152 +488,6 @@ HcclResult AiCpuLauncher::SendRecvReadReduce(const SendRecvReduceInfo &sendRecvI
     CHK_RET(static_cast<HcclResult>(
         HcommChannelNotifyWaitOnThreadDefault(thread, sendChannel.handle, NOTIFY_IDX_DATA_SIGNAL, execTimeout)));
     return HCCL_SUCCESS;
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// CreateRes / LaunchKernel / Send
-// ═══════════════════════════════════════════════════════════════════
-
-HcclResult AiCpuLauncher::CreateRes(AlgResourceRequest &res)
-{
-    resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
-    resCtx_.slaveThreadNum = res.slaveThreadNum;
-    resCtx_.notifyNumPerThread = res.notifyNumPerThread;
-
-    void *cclBufferAddr = nullptr;
-    u64 cclBufferSize = 0;
-    resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
-
-    resCtx_.threads.resize(res.slaveThreadNum + 1);
-
-    for (size_t level = 0; level < res.channels.size(); ++level) {
-        std::vector<ChannelInfo> levelChannels;
-        levelChannels.reserve(res.channels[level].size());
-        for (size_t idx = 0; idx < res.channels[level].size(); ++idx) {
-            HcclChannelDesc &channelDesc = res.channels[level][idx];
-            ChannelInfo channelInfo;
-            CHK_RET(HcommChannelCreate(channelDesc, channelInfo));
-            levelChannels.emplace_back(channelInfo);
-        }
-        resCtx_.channels.emplace_back(std::move(levelChannels));
-    }
-
-    HCCL_INFO("[AiCpuLauncher][CreateRes] success, slaveThreadNum[%u], channelLevel[%zu]",
-              resCtx_.slaveThreadNum, resCtx_.channels.size());
-    return HCCL_SUCCESS;
-}
-
-HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, OpsExecutor &executor)
-{
-    HCCL_INFO("[AiCpuLauncher][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
-              param.commName, param.tag, param.algTag);
-    CHK_RET(LoadAICPUKernel());
-    CHK_RET(HcclLaunchAicpuKernel(param, executor, resCtx_));
-    HCCL_INFO("[AiCpuLauncher][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
-              param.tag, param.algTag, param.commName);
-    return HCCL_SUCCESS;
-}
-
-HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
-    // Step 1: 方向判断
-    //   enableRemoteMemAccess && buffType==OUTPUT → READ (从远端拉取到本地 output)
-    //   其他场景 → WRITE (推送数据到远端)
-    TransferDirection direction =
-        (ctx.enableRemoteMemAccess && ctx.buffType == BufferType::OUTPUT)
-            ? TransferDirection::READ : TransferDirection::WRITE;
-
-    // isDmaRead: 记录 PCIe 链路状态 (供日志/调试使用)
-    bool isDmaRead = IsPcieProtocol(ctx.templateRes.channels);
-
-    // Step 2: 获取线程
-    if (ctx.templateRes.threads.empty()) {
-        HCCL_ERROR("[AiCpuLauncher][Send] threads is empty");
-        return HCCL_E_INTERNAL;
-    }
-    const ThreadHandle &thread = ctx.templateRes.threads[0];
-
-    // Step 3: Rank → Channel 映射
-    u32 dstRank = ctx.txRxSlicesList.dstRankId_;
-    u32 srcRank = ctx.txRxSlicesList.srcRankId_;
-    const auto &channels = ctx.templateRes.channels;
-    const ChannelInfo *txCh = LookupChannel(channels, dstRank);
-    const ChannelInfo *rxCh = LookupChannel(channels, srcRank);
-
-    // Step 4: 判断发送/接收/双向
-    bool hasTx = !ctx.txRxSlicesList.txSlicesList_.srcSlices_.empty();
-    bool hasRx = !ctx.txRxSlicesList.rxSlicesList_.srcSlices_.empty();
-    bool hasReduce = (ctx.reduceOp != HCCL_REDUCE_RESERVED);
-
-    // 空操作
-    if (!hasTx && !hasRx) {
-        return HCCL_SUCCESS;
-    }
-
-    HCCL_DEBUG("[AiCpuLauncher][Send] direction[%d], isDmaRead[%d], hasTx[%d], hasRx[%d], hasReduce[%d]",
-        static_cast<int>(direction), static_cast<int>(isDmaRead),
-        static_cast<int>(hasTx), static_cast<int>(hasRx), static_cast<int>(hasReduce));
-
-    // Step 5: 路由 (direction × tx/rx × reduce → 12 条路径)
-    if (hasTx && hasRx && txCh != nullptr && rxCh != nullptr) {
-        // ── 双向: SendRecv* 系列 ──
-        TxRxChannels channelPair(*txCh, *rxCh);
-        TxRxSlicesList slicesList(ctx.txRxSlicesList.txSlicesList_,
-                                  ctx.txRxSlicesList.rxSlicesList_);
-        if (direction == TransferDirection::READ) {
-            if (hasReduce) {
-                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
-                return SendRecvReadReduce(reduceInfo, thread);
-            }
-            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
-            return SendRecvRead(info, thread);
-        } else {
-            if (hasReduce) {
-                SendRecvReduceInfo reduceInfo(channelPair, slicesList, ctx.dataType, ctx.reduceOp);
-                return SendRecvWriteReduce(reduceInfo, thread);
-            }
-            SendRecvInfo info(channelPair, slicesList, ctx.dataType);
-            return SendRecvWrite(info, thread);
-        }
-    } else if (hasTx && txCh != nullptr) {
-        // ── 只发送: Send* 系列 ──
-        SlicesList slices = ctx.txRxSlicesList.txSlicesList_;
-        if (direction == TransferDirection::READ) {
-            if (hasReduce) {
-                DataReduceInfo reduceInfo(*txCh, slices, ctx.dataType, ctx.reduceOp);
-                return SendReadReduce(reduceInfo, thread);
-            }
-            DataInfo info(*txCh, slices, ctx.dataType);
-            return SendRead(info, thread);
-        } else {
-            if (hasReduce) {
-                DataReduceInfo reduceInfo(*txCh, slices, ctx.dataType, ctx.reduceOp);
-                return SendWriteReduce(reduceInfo, thread);
-            }
-            DataInfo info(*txCh, slices, ctx.dataType);
-            return SendWrite(info, thread);
-        }
-    } else if (hasRx && rxCh != nullptr) {
-        // ── 只接收: Recv* 系列 ──
-        SlicesList slices = ctx.txRxSlicesList.rxSlicesList_;
-        if (direction == TransferDirection::READ) {
-            if (hasReduce) {
-                DataReduceInfo reduceInfo(*rxCh, slices, ctx.dataType, ctx.reduceOp);
-                return RecvReadReduce(reduceInfo, thread);
-            }
-            DataInfo info(*rxCh, slices, ctx.dataType);
-            return RecvRead(info, thread);
-        } else {
-            if (hasReduce) {
-                DataReduceInfo reduceInfo(*rxCh, slices, ctx.dataType, ctx.reduceOp);
-                return RecvWriteReduce(reduceInfo, thread);
-            }
-            DataInfo info(*rxCh, slices, ctx.dataType);
-            return RecvWrite(info, thread);
-        }
-    }
-
-    HCCL_ERROR("[AiCpuLauncher][Send] channel not found, dstRank[%u], srcRank[%u]", dstRank, srcRank);
-    return HCCL_E_INTERNAL;
 }
 
 }  // namespace ops_hccl
