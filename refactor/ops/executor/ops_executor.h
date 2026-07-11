@@ -49,7 +49,7 @@ public:
 
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo);
 
-    virtual HcclResult CalcRes(AlgResourceRequest &resReq);
+    HcclResult CalcRes(AlgResourceRequest &resReq);
 
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
