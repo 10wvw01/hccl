@@ -18,6 +18,6 @@ target_include_directories(hccl PRIVATE
 )
 
 target_sources(hccl PRIVATE
-    template_desc.cc
+    all_gather_template_desc.cc
     algorithm_all_gather_aicpu.cc
 )

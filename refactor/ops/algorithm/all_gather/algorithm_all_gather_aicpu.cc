@@ -9,7 +9,7 @@
  */
 
 #include "hccl_algorithm.h"
-#include "template_desc.h"
+#include "all_gather_template_desc.h"
 #include "topo_match_1d.h"
 #include "topo_match_3_level.h"
 #include "topo_match_multilevel.h"

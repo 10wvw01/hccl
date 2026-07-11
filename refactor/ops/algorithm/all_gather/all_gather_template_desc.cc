@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "template_desc.h"
+#include "all_gather_template_desc.h"
 
 namespace ops_hccl {
 

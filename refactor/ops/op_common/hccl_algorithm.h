@@ -56,8 +56,10 @@ enum class HcclAlgEngineType {
 };
 
 enum class HcclAlgExecPolicy {
+    SOLE,
     SEQUENCE,
     PARALLEL,
+    CONCURRENT,
 };
 
 enum class HcclAlgShotMode {
