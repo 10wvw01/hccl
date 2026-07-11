@@ -118,7 +118,7 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
     uint32_t channelId = 0;
     
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
-        uint16_t rankMask = 1 << rankIdx;
+        uint32_t rankMask = 1 << rankIdx;
         // if (rankIdx == ctx.rankId) {
         //     ccu::EventRecord(ctx.event, rankMask);
         //     continue;
