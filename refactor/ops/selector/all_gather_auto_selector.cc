@@ -25,7 +25,7 @@ constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
-// 全局 AICPU AllGather 算法表（定义在 gen_algorithm.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
+// 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
 // extern 声明位于 hccl_algorithm.h。
 
 SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(

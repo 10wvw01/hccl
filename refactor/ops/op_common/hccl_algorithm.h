@@ -183,7 +183,7 @@ public:
     AlgoExecDesc algoExecDesc;
 };
 
-// 全局 AICPU AllGather 算法表（定义在 gen_algorithm.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
+// 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
 extern const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)];
 
 } // namespace ops_hccl

@@ -9,6 +9,7 @@
  */
 
 #include "hccl_algorithm.h"
+#include "template_desc.h"
 #include "topo_match_1d.h"
 #include "topo_match_3_level.h"
 #include "topo_match_multilevel.h"
@@ -41,12 +42,10 @@ static HcclAlgorithm MakeAicpuAllGatherAlgo(std::shared_ptr<TopoMatchBase> topoM
  */
 static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
 {
-    TemplateDesc templateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc{templateDesc, 0}; // subCommIndex=0，对应网络层级 level 0
+    TemplateExecDesc templateExecDesc{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        0}; // subCommIndex=0，对应网络层级 level 0
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -63,13 +62,14 @@ static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()
 {
-    TemplateDesc templateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc0{templateDesc, 0};
-    TemplateExecDesc templateExecDesc1{templateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -87,18 +87,14 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
 {
-    TemplateDesc mesh1D1DZAxisDetourTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateDesc nhrTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc0{mesh1D1DZAxisDetourTemplateDesc, 0};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -115,18 +111,14 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
 {
-    TemplateDesc mesh1DTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateDesc nhrTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc0{mesh1DTemplateDesc, 0};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -143,12 +135,10 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
 {
-    TemplateDesc mesh1D1DZAxisDetourTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc{mesh1D1DZAxisDetourTemplateDesc, 0};
+    TemplateExecDesc templateExecDesc{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -165,12 +155,10 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
 {
-    TemplateDesc mesh1DTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc{mesh1DTemplateDesc, 0};
+    TemplateExecDesc templateExecDesc{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -187,18 +175,14 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()
 {
-    TemplateDesc mesh1DTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateDesc nhrTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc0{mesh1DTemplateDesc, 0};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -215,18 +199,14 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
 {
-    TemplateDesc mesh1DTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateDesc nhrTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY};
-    TemplateExecDesc templateExecDesc0{mesh1DTemplateDesc, 0};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::CONCURRENT;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -243,18 +223,14 @@ static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()
 {
-    TemplateDesc mesh1DTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::MULTIPLE_JETTY};
-    TemplateDesc nhrTemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::MULTIPLE_JETTY};
-    TemplateExecDesc templateExecDesc0{mesh1DTemplateDesc, 0};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, 1};
+    TemplateExecDesc templateExecDesc0{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY)],
+        0};
+    TemplateExecDesc templateExecDesc1{
+        g_allGatherTemplateDescMap[static_cast<size_t>(
+            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY)],
+        1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -297,8 +273,5 @@ const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGath
     MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
         MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()),
 };
-
-
-
 
 } // namespace ops_hccl
