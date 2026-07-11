@@ -27,12 +27,11 @@
 #include "hccl_algo_plugin_sdk.h"
 
 namespace {
-constexpr const char* kBroadcastCustomAlgoImplSoPath =
-    "/usr/local/hccl_plugin/Broadcast/libBroadcastCustomAlgoImpl.so";
+constexpr const char* kBroadcastCustomAlgosImplSoFile = "libBroadcastCustomAlgoImpl.so";
 }
 
 /* 仅注册一个算法，且独占一个实现so，验证"1个算法:1个so"的注册/查找场景 */
-REGISTER_HCCL_ALGO("BroadcastAlgoTree", kBroadcastCustomAlgoImplSoPath, "HcclAlgoPluginBroadcastTree");
+REGISTER_HCCL_ALGO("BroadcastAlgoTree", kBroadcastCustomAlgosImplSoFile, "HcclAlgoPluginBroadcastTree");
 
 /*
  * 选择策略示例：只要root为0就命中自定义算法，其余场景交由HCCL原有逻辑处理，

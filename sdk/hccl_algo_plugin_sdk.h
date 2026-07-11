@@ -50,6 +50,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <dlfcn.h>   
 
 #include "hccl_algo_plugin_common.h"
 
@@ -118,9 +119,30 @@ private:
 /* 以全局静态对象的形式在dlopen时（构造函数）自动完成一条算法条目的注册 */
 class HcclAlgoPluginAutoRegister {
 public:
-    HcclAlgoPluginAutoRegister(const char* algName, const char* soPath, const char* fnSymbol)
+    HcclAlgoPluginAutoRegister(const char* algName, const char* implSoName, const char* fnSymbol)
     {
-        HcclAlgoPluginRegistry::Instance().Add(algName, soPath, fnSymbol);
+        std::string resolvedPath = ResolveImplSoPath(implSoName);
+        HcclAlgoPluginRegistry::Instance().Add(algName, resolvedPath.c_str(), fnSymbol);
+    }
+    
+private:
+    static std::string ResolveImplSoPath(const char* implSoName)
+    {
+        if (implSoName == nullptr || implSoName[0] == '\0') {
+            return std::string();
+        }
+        if (implSoName[0] == '/') {
+            return std::string(implSoName);
+        }
+        Dl_info info{};
+        if (dladdr(reinterpret_cast<void*>(&HcclAlgoPluginAutoRegister::ResolveImplSoPath), &info) != 0
+            && info.dli_fname != nullptr) {
+            std::string selfPath(info.dli_fname);
+            size_t pos = selfPath.find_last_of('/');
+            std::string selfDir = (pos == std::string::npos) ? "." : selfPath.substr(0, pos);
+            return selfDir + "/" + implSoName;
+        }
+        return std::string(implSoName); // dladdr失败兜底
     }
 };
 

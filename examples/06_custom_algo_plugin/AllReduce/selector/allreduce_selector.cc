@@ -26,8 +26,7 @@
 
 namespace {
 /* 两个算法共用同一个实现so，验证"N个算法:1个so"的注册/查找场景 */
-constexpr const char* kAllReduceCustomAlgosImplSoPath =
-    "/usr/local/hccl_plugin/AllReduce/libAllReduceCustomAlgosImpl.so";
+constexpr const char* kAllReduceCustomAlgosImplSoFile = "libAllReduceCustomAlgosImpl.so";
 
 /* 简单dataType到元素字节数的映射，仅用于Select()阶段估算数据量 */
 uint64_t DataTypeSizeHint(int dataType)
@@ -44,11 +43,11 @@ uint64_t DataTypeSizeHint(int dataType)
 }
 } // namespace
 
-/* 算法1：小数据量场景命中，执行函数符号名 HcclAlgoPluginAllReduceSmall，位于kAllReduceCustomAlgosImplSoPath */
-REGISTER_HCCL_ALGO("AllReduceAlgoSmall", kAllReduceCustomAlgosImplSoPath, "HcclAlgoPluginAllReduceSmall");
+/* 算法1：小数据量场景命中，执行函数符号名 HcclAlgoPluginAllReduceSmall，位于kAllReduceCustomAlgosImplSoFile */
+REGISTER_HCCL_ALGO("AllReduceAlgoSmall", kAllReduceCustomAlgosImplSoFile, "HcclAlgoPluginAllReduceSmall");
 
 /* 算法2：大数据量场景命中，执行函数符号名 HcclAlgoPluginAllReduceLarge，与算法1位于【同一个】so */
-REGISTER_HCCL_ALGO("AllReduceAlgoLarge", kAllReduceCustomAlgosImplSoPath, "HcclAlgoPluginAllReduceLarge");
+REGISTER_HCCL_ALGO("AllReduceAlgoLarge", kAllReduceCustomAlgosImplSoFile, "HcclAlgoPluginAllReduceLarge");
 
 /*
  * 选择策略示例（仅用于演示两个算法如何被区分命中，不代表真实调优结论）：
