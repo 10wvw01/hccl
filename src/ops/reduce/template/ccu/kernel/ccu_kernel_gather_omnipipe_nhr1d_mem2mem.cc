@@ -122,8 +122,8 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
     ccu::LocalAddr dst;
     u32                    toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
     u32                    fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-    ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
-    ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
+    // ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
+    // ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
     const std::vector<u32> sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
     const std::vector<u32> recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
