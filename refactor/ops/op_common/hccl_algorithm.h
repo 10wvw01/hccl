@@ -47,7 +47,6 @@
 
 namespace ops_hccl {
 
-
 enum class HcclAlgEngineType {
     AICPU,
     CCU_MS,
@@ -93,6 +92,12 @@ struct TemplateDesc {
     HcclAlgoType algType;
     HcclAlgShotMode shotMode;
     HcclAlgJettyMode jettyMode;
+};
+
+// 子通信域索引：Intra=0（组内/网络层级 level 0），Inter=1（组间/网络层级 level 1）
+enum SubCommIndexType : int {
+    SUB_COMM_INDEX_INTRA = 0,
+    SUB_COMM_INDEX_INTER = 1,
 };
 
 struct TemplateExecDesc {
@@ -185,8 +190,10 @@ public:
     AlgoExecDesc algoExecDesc;
 };
 
-// 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
-extern const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)];
+// 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以
+// HcclAicpuAllGatherAlgoType 枚举值为数组下标。
+extern const HcclAlgorithm
+    g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)];
 
 } // namespace ops_hccl
 

@@ -24,8 +24,8 @@ namespace ops_hccl {
  * 统一填充 hcclCmdType=HCCL_CMD_ALLGATHER、engineType=AICPU。
  * algoExecDesc 由调用方传入；不传则默认构造为空。
  */
-static HcclAlgorithm MakeAicpuAllGatherAlgo(std::shared_ptr<TopoMatchBase> topoMatch,
-    AlgoExecDesc algoExecDesc = AlgoExecDesc{})
+static HcclAlgorithm MakeAicpuAllGatherAlgo(
+    std::shared_ptr<TopoMatchBase> topoMatch, AlgoExecDesc algoExecDesc = AlgoExecDesc{})
 {
     HcclAlgorithm algo;
     algo.hcclCmdType = HcclCMDType::HCCL_CMD_ALLGATHER;
@@ -42,10 +42,9 @@ static HcclAlgorithm MakeAicpuAllGatherAlgo(std::shared_ptr<TopoMatchBase> topoM
  */
 static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        0}; // subCommIndex=0，对应网络层级 level 0
+    TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -62,14 +61,10 @@ static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        1};
+    TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{templateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{templateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -87,14 +82,12 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        1};
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -111,14 +104,12 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        1};
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -135,10 +126,9 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
+    TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -155,10 +145,9 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
+    TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
     algoExecDesc.children = {templateExecDesc};
@@ -175,14 +164,12 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        1};
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -199,14 +186,12 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)],
-        1};
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::CONCURRENT;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -223,14 +208,12 @@ static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()
 {
-    TemplateExecDesc templateExecDesc0{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY)],
-        0};
-    TemplateExecDesc templateExecDesc1{
-        g_allGatherTemplateDescMap[static_cast<size_t>(
-            HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY)],
-        1};
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY)];
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -252,26 +235,25 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()
  *   TopoMatchPcieMix    - InsAllGatherParallelMesh1DNHRPcie, InsV2AllGatherOmniPipePcie
  *   TopoMatchSqueeze2D  - InsAllGatherParallelMesh1DNHRUboe
  */
-const HcclAlgorithm g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)] = {
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch3Level>()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherNhrAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchSqueeze2D>(),
-        MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
-        MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchMultilevel>(),
-        MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
-        MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(),
-        MakeAicpuAllGatherMesh1DAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>(),
-        MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
-        MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
-    MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(),
-        MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()),
+const HcclAlgorithm
+    g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)]
+    = {
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch3Level>()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherNhrAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatchSqueeze2D>(), MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherMesh1DAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatchPcieMix>(), MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(), MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatchUBX>(), MakeAicpuAllGatherParallelMesh1DNhrMultiJettyAlgoExecDesc()),
 };
 
 } // namespace ops_hccl

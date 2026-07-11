@@ -25,32 +25,21 @@ namespace ops_hccl {
  *   - FULLMESH + MULTIPLE_JETTY （InsAllGatherParallelMesh1DNHRMultiJetty 的 Mesh1D 子项）
  *   - NHR + MULTIPLE_JETTY      （InsAllGatherParallelMesh1DNHRMultiJetty 的 NHR 子项）
  */
-const TemplateDesc g_allGatherTemplateDescMap[static_cast<size_t>(
-    HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_DESC_COUNT)] = {
-    // ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY
-    TemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY},
-    // ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY
-    TemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::SINGLE_JETTY},
-    // ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY
-    TemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::MULTIPLE_JETTY},
-    // ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY
-    TemplateDesc{
-        HcclCMDType::HCCL_CMD_ALLGATHER,
-        HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-        HcclAlgShotMode::ONE_SHOT,
-        HcclAlgJettyMode::MULTIPLE_JETTY},
+const TemplateDesc
+    g_allGatherTemplateDescMap[static_cast<size_t>(HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_DESC_COUNT)]
+    = {
+        // ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY
+        TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT,
+            HcclAlgJettyMode::SINGLE_JETTY},
+        // ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY
+        TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH, HcclAlgShotMode::ONE_SHOT,
+            HcclAlgJettyMode::SINGLE_JETTY},
+        // ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY
+        TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH, HcclAlgShotMode::ONE_SHOT,
+            HcclAlgJettyMode::MULTIPLE_JETTY},
+        // ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY
+        TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT,
+            HcclAlgJettyMode::MULTIPLE_JETTY},
 };
 
 } // namespace ops_hccl
