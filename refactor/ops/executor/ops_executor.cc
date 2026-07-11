@@ -385,7 +385,7 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
 {
     size_t childrenSize = algoExecDesc.children.size();
     std::vector<AlgoExecDataDesc> childrenAlgoExecDataDesc(childrenSize, algoExecDataDesc);
-    // 如果是串行需要开始前同步
+    // 如果是并行需要开始前同步
     if (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL && childrenSize > 1) {
         CHK_RET(PreSyncBySubCommMask(algoExecDesc));
     }
@@ -409,7 +409,7 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
     }
     // 整个执行器的数据输出直接用最后一个子节点的执行器的数据输出
     MergeChildrenOutput(algoExecDesc, childrenAlgoExecDataDesc, algoExecDataDesc);
-    // 如果是串行需要回到主流做尾同步
+    // 如果是并行需要回到主流做尾同步
     if (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL && childrenSize > 1) {
         CHK_RET(PostSyncBySubCommMask(algoExecDesc));
     }

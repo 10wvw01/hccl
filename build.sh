@@ -20,7 +20,7 @@ CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
 ASAN="false"
 COV="false"
-REFACTOR_OPS="ON"
+REFACTOR_OPS="OFF"
 REFACTOR_UT_ONLY="OFF"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
 STATIC_MODE="false"  # 新增变量，用于控制是否静态编译
@@ -442,14 +442,15 @@ function build_ut() {
               -DOUTPUT_PATH=${OUTPUT_PATH} \
  	          -DLLT_KILL_TIME=${llt_kill_time}"
 
+  CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OPS=${REFACTOR_OPS}"
   if [ "${REFACTOR_OPS}" = "ON" ]; then
-      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OPS=ON"
       CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_OP_COMMON=ON"
       CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_EXECUTOR=ON"
-      CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_SELECTOR=ON"
       [ "${REFACTOR_API}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_API=ON"
+      [ "${REFACTOR_SELECTOR}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_SELECTOR=ON"
       [ "${REFACTOR_TEMPLATE}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_TEMPLATE=ON"
       [ "${REFACTOR_UT_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_UT_ONLY=ON"
+      [ "${REFACTOR_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_ONLY=ON"
   fi
 
   echo "CMAKE_ARGS=${CMAKE_ARGS}"
@@ -525,14 +526,14 @@ function build_hccl() {
     # 设置 hcc 编译器工具链
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
-    # refactor 模块开关（当前 executor+op_common+selector 可编译）
-    local refactor_options=""
+    # refactor 模块开关（当前 executor+op_common 可编译）
+    # 必须始终显式传 REFACTOR_OPS，否则 cmake option() 默认值（ON）会覆盖这里
+    local refactor_options="-DREFACTOR_OPS=${REFACTOR_OPS}"
     if [ "${REFACTOR_OPS}" = "ON" ]; then
-        refactor_options="-DREFACTOR_OPS=ON"
         refactor_options="${refactor_options} -DREFACTOR_OP_COMMON=ON"
         refactor_options="${refactor_options} -DREFACTOR_EXECUTOR=ON"
-        refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
         [ "${REFACTOR_API}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_API=ON"
+        [ "${REFACTOR_SELECTOR}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_SELECTOR=ON"
         [ "${REFACTOR_TEMPLATE}" = "ON" ] && refactor_options="${refactor_options} -DREFACTOR_TEMPLATE=ON"
     fi
 
@@ -542,7 +543,8 @@ function build_hccl() {
 
     # 配置
     cmake -S ../ -B . ${CUSTOM_OPTION} ${refactor_options} \
-        -DREFACTOR_UT_ONLY=${REFACTOR_UT_ONLY}
+        -DREFACTOR_UT_ONLY=${REFACTOR_UT_ONLY} \
+        -DREFACTOR_ONLY=${REFACTOR_ONLY}
     if [ $? -ne 0 ]; then
         log "Error: cmake config failed"
         return 1
@@ -599,7 +601,7 @@ function usage() {
   echo "                   Enable experimental features"
   echo "    --static"
   echo "                   Enable static library build mode"
-  echo "    --refactor     Enable refactor code compilation (default: ON)"
+  echo "    --refactor     Enable refactor code compilation (default: OFF)"
   echo "    --no-refactor  Disable refactor code compilation"
   echo ""
 }
@@ -637,6 +639,7 @@ while [[ $# -gt 0 ]]; do
         ;;
     --refactor)
         REFACTOR_OPS="ON"
+        REFACTOR_ONLY="ON"
         shift
         ;;
     --no-refactor)

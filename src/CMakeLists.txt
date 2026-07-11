@@ -240,6 +240,8 @@ if(BUILD_OPEN_PROJECT)
         ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/base/
         ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/dump/
         ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/trace/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/mmpa
+        ${ASCEND_CANN_PACKAGE_PATH}/include/mmpa
     )
     # pkg_inc/hcomm/ccu 仅 9.0.0 CANN 存在，8.5.0 下直接不加入 include 路径
     if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hcomm/ccu)
@@ -295,8 +297,10 @@ else()
     include(scatter_aicpu_kernel.cmake)
 endif()
 
-add_subdirectory(common)
-add_subdirectory(ops)
+if(NOT REFACTOR_ONLY)
+    add_subdirectory(common)
+    add_subdirectory(ops)
+endif()
 
 # refactor 路径接入（由顶层 REFACTOR_OPS 开关控制）
 # 必须在 include(hccl.cmake) 之后，因为下面的 CMakeLists 会 target_sources(hccl ...)
