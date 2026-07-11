@@ -48,6 +48,9 @@ void CcuTempGatherOmniPipeMesh1DMem2MemY::SetRoot(u32 root)
     auto itRoot = std::find(ranks.begin(), ranks.end(), root);
     if (itRoot != ranks.end()) {
         subCommRootId_  = std::distance(ranks.begin(), itRoot);
+    } else if (ifRealRoot_) {
+        // 如果自己是真正的root但root不在子通信域中，保持自己是root
+        subCommRootId_ = mySubCommRank_;
     }
     for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
     HCCL_DEBUG(

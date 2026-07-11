@@ -84,6 +84,9 @@ uint32_t CcuTempGatherOmniPipeMesh1DMem2Mem::RemoteRankId2RankId(const uint32_t 
     auto it = std::find(ranks.begin(), ranks.end(), remoteRankId);
     if (it != ranks.end()) {
         subCommRankId = std::distance(ranks.begin(), it);
+    } else if (ifRealRoot_) {
+        // 如果自己是真正的root但root不在子通信域中，保持自己是root
+        subCommRootId_ = mySubCommRank_;
     }
     return subCommRankId;
 }
