@@ -55,7 +55,8 @@ REGISTER_HCCL_ALGO("AllReduceAlgoLarge", kAllReduceCustomAlgosImplSoPath, "HcclA
  *   数据量 < 1MB  -> AllReduceAlgoSmall
  *   数据量 >= 1MB -> AllReduceAlgoLarge
  */
-extern "C" bool Select(const HcclAlgoPluginParam* param, char* algName, size_t algNameLen)
+extern "C" __attribute__((visibility("default")))
+bool Select(const HcclAlgoPluginParam* param, char* algName, size_t algNameLen)
 {
     if (param == nullptr || algName == nullptr || algNameLen == 0) {
         return false;

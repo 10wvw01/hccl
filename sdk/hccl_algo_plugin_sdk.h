@@ -135,6 +135,7 @@ public:
  * 见examples/06_custom_algo_plugin/AllReduce/示例）会因变量名都叫`_hccl_algo_reg___LINE__`
  * 而重复定义编译失败。
  */
+#define HCCL_ALGO_PLUGIN_EXPORT extern "C" __attribute__((visibility("default")))
 #define HCCL_ALGO_PLUGIN_CONCAT_(a, b) a##b
 #define HCCL_ALGO_PLUGIN_CONCAT(a, b) HCCL_ALGO_PLUGIN_CONCAT_(a, b)
 #define REGISTER_HCCL_ALGO(algName, soPath, fnSymbol) \
@@ -144,8 +145,8 @@ public:
 /* 2) HcclAlgoPluginQueryEntries()：由SDK头文件统一内联实现并自动导出，开发者无需手写            */
 /*    PluginBroker通过dlsym解析并调用，需在dlclose本.so前完成算法条目拷贝。                     */
 /* ------------------------------------------------------------------------------------------- */
-extern "C" __attribute__((visibility("default")))
-inline const HcclAlgoPluginAlgEntry* HcclAlgoPluginQueryEntries(int* count)
+extern "C" __attribute__((visibility("default"), weak, used))
+const HcclAlgoPluginAlgEntry* HcclAlgoPluginQueryEntries(int* count)
 {
     if (count != nullptr) {
         *count = HcclAlgoPluginRegistry::Instance().Count();

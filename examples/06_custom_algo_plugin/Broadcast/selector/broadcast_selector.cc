@@ -38,7 +38,8 @@ REGISTER_HCCL_ALGO("BroadcastAlgoTree", kBroadcastCustomAlgoImplSoPath, "HcclAlg
  * 选择策略示例：只要root为0就命中自定义算法，其余场景交由HCCL原有逻辑处理，
  * 用于验证"未命中时正确回退"这条路径同时对Broadcast算子也生效。
  */
-extern "C" bool Select(const HcclAlgoPluginParam* param, char* algName, size_t algNameLen)
+extern "C" __attribute__((visibility("default")))
+bool Select(const HcclAlgoPluginParam* param, char* algName, size_t algNameLen)
 {
     if (param == nullptr || algName == nullptr || algNameLen == 0) {
         return false;
