@@ -165,7 +165,11 @@ HcclResult InsTempAlltoAllVMesh1D::LocalCopyForMyRank(const TemplateDataParams &
         tempAlgParams.rdispls[myAlgRank] * dataTypeSize_,
         tempAlgParams.recvCounts[myAlgRank] * dataTypeSize_, tempAlgParams.recvCounts[myAlgRank]);
 
-    if (tempAlgParams.sendCounts[myAlgRank] > 0) {
+    if (tempAlgParams.sendCounts[myAlgRank] > 0 && tempAlgParams.recvCounts[myAlgRank] > 0) {
+        CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
+        HCCL_DEBUG("[InsTempAlltoAllVMesh1D][RunALLtoALL] do local copy on thread[%u], data size[%llu].",
+            queIdx, tempAlgParams.sendCounts[myAlgRank] * dataTypeSize_);
+    } else if (tempAlgParams.sendCounts[myAlgRank] > 0 && tempAlgParams.buffInfo.outputPtr != nullptr) {
         CHK_RET(static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice)));
         HCCL_DEBUG("[InsTempAlltoAllVMesh1D][RunALLtoALL] do local copy on thread[%u], data size[%llu].",
             queIdx, tempAlgParams.sendCounts[myAlgRank] * dataTypeSize_);
@@ -230,7 +234,13 @@ HcclResult InsTempAlltoAllVMesh1D::RunSendRecvByLoop(const std::vector<u32> &com
     // 遍历本次通信的所有rank
     for (u32 rankIdx = 0; rankIdx < commRanks.size(); rankIdx++) {
         u32 remoteRank = commRanks[rankIdx];
-        // 取出本次通信对端的channel
+        u64 sendCount = tempAlgParams.sendCounts[remoteRank];
+        u64 recvCount = tempAlgParams.recvCounts[remoteRank];
+        if (sendCount == 0 && recvCount == 0) {
+            HCCL_INFO("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop] myRank[%u] send/recv to/from "
+                "remoteRank[%u] are zero, skip data transfer", myRank_, remoteRank);
+            continue;
+        }
         auto it = channels.find(remoteRank);
         if (it == channels.end()) {
             HCCL_ERROR("[InsTempAlltoAllVMesh1D][RunSendRecvByLoop] remoteRank[%u] "\
@@ -435,6 +445,11 @@ HcclResult InsTempAlltoAllVMesh1D::PostCopy(const TemplateDataParams &tempAlgPar
     DataSlice localCopyDstSlice = DataSlice(tempAlgParams.buffInfo.outputPtr,
         tempAlgParams.rdispls[remoteRank] * dataTypeSize_ + recvOffset,
         recvSize, recvCount);
+    if (tempAlgParams.buffInfo.outputPtr == nullptr) {
+        HCCL_ERROR("[InsTempAlltoAllVMesh1D][PostCopy] outputPtr is null, cannot post copy for "
+            "remoteRank[%u] recvSize[%llu]", remoteRank, recvSize);
+        return HCCL_E_PARA;
+    }
     CHK_RET(static_cast<HcclResult>(LocalCopy(thread, localCopySrcSlice, localCopyDstSlice)));
     return HcclResult::HCCL_SUCCESS;
 }
