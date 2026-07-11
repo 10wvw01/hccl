@@ -29,15 +29,11 @@ namespace {
 HcclResult FakeExecute(const char* algName, void* sendBuf, void* recvBuf, uint64_t count,
     HcclDataType dataType, HcclReduceOp op, HcclComm comm, aclrtStream stream)
 {
-    (void)op; (void)comm; (void)stream;
+    (void)op; (void)comm; (void)stream; (void)sendBuf; (void)recvBuf;
     std::fprintf(stderr, "[AllReduceCustomAlgosImpl] %s invoked: count=%llu, dataType=%d\n",
         algName, static_cast<unsigned long long>(count), static_cast<int>(dataType));
-    if (recvBuf != nullptr && sendBuf != nullptr && recvBuf != sendBuf) {
-        // 测试/无真实设备环境时用std::memcpy代替aclrtMemcpy：不依赖ACL运行时初始化、
-        // 不要求sendBuf/recvBuf是aclrtMalloc申请的设备内存，纯host内存也能跑，
-        // 只用于验证"执行函数确实被正确dlsym并调用到了"，不代表真实的设备端拷贝/规约语义。
-        std::memcpy(recvBuf, sendBuf, count);
-    }
+    // 在这个ST模拟环境下，sendBuf/recvBuf是模拟器用于记录任务图的虚拟句柄，并非真实可读写的
+    // 进程内存，这里不做任何内存拷贝，仅用打印验证"选择→派发→执行"链路是否走通。
     return HCCL_SUCCESS;
 }
 } // namespace
