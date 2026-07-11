@@ -12,9 +12,9 @@
 
 #include "log.h"
 #include "base_launcher.h"
-#include "engines/aicpu/launcher/aicpu_launcher.h"
-#include "engines/ccu_ms/launcher/ccu_ms_launcher.h"
-#include "engines/ccu_sche/launcher/ccu_sche_launcher.h"
+#include "launcher/aicpu/aicpu_launcher.h"
+#include "launcher/ccu_ms/ccu_ms_launcher.h"
+#include "launcher/ccu_sche/ccu_sche_launcher.h"
 #include "executor/ops_executor.h"
 
 namespace ops_hccl {
