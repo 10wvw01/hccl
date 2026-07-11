@@ -545,11 +545,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else if (isSameXAxisAsRoot && !isRoot) {
                     HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    // gAlgTempY.UnsetRoot(myRank_);
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
-                    // gAlgTempY.UnsetRoot(myRank_);
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
             }
