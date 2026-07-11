@@ -37,7 +37,7 @@ static HcclAlgorithm MakeAicpuAllGatherAlgo(
 
 /**
  * 构造 AICPU AllGather NHR 算法的 AlgoExecDesc。
- * execPolicy=SOLE，children 仅一层 TemplateExecDesc（subCommIndex=0，对应网络层级 level 0），
+ * execPolicy=SEQUENCE，children 仅一层 TemplateExecDesc（subCommIndex=0，对应网络层级 level 0），
  * dataSplitRatio=1:1。
  */
 static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
@@ -46,7 +46,7 @@ static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
     TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
     algoExecDesc.dataSplitRatio = {1};
     return algoExecDesc;
@@ -121,7 +121,7 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
  * 构造 AICPU AllGather Mesh1D1DZAxisDetour 算法的 AlgoExecDesc。
  * 对应注册宏 REGISTER_EXEC_V2(..., InsAllGatherMesh1D1DZAxisDetour,
  *   InsV2AllGatherSoleExecutor, TopoMatch1D, InsTempAllGatherMesh1D1DZAxisDetour)。
- * execPolicy=SOLE（对应 InsV2AllGatherSoleExecutor），children 仅一个 TemplateExecDesc
+ * execPolicy=SEQUENCE（对应 InsV2AllGatherSoleExecutor），children 仅一个 TemplateExecDesc
  * 为 Mesh1D1DZAxisDetour（FULLMESH），dataSplitRatio=1。
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
@@ -130,7 +130,7 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
     TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
     algoExecDesc.dataSplitRatio = {1};
     return algoExecDesc;
@@ -140,7 +140,7 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1D1DZAxisDetourAlgoExecDesc()
  * 构造 AICPU AllGather Mesh1D 算法的 AlgoExecDesc。
  * 对应注册宏 REGISTER_EXEC_V2(..., InsAllGatherMesh1D,
  *   InsV2AllGatherSoleExecutor, TopoMatch1D, InsTempAllGatherMesh1D)。
- * execPolicy=SOLE（对应 InsV2AllGatherSoleExecutor），children 仅一个 TemplateExecDesc
+ * execPolicy=SEQUENCE（对应 InsV2AllGatherSoleExecutor），children 仅一个 TemplateExecDesc
  * 为 Mesh1D（FULLMESH），dataSplitRatio=1。
  */
 static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
@@ -149,7 +149,7 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
     TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::SOLE;
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
     algoExecDesc.dataSplitRatio = {1};
     return algoExecDesc;
@@ -181,7 +181,7 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrPcieAlgoExecDesc()
  * 构造 AICPU AllGather ConcurrentMesh1DNHR 算法的 AlgoExecDesc。
  * 对应注册宏 REGISTER_EXECUTOR_BY_TWO_TEMPS(..., InsAllGatherConcurrentMesh1DNHR,
  *   InsV2AllGatherConcurrentExecutor, TopoMatchUBX, InsTempAllGatherMesh1D, InsTempAllGatherNHR)。
- * execPolicy=CONCURRENT（对应 InsV2AllGatherConcurrentExecutor），children 两个 TemplateExecDesc
+ * execPolicy=PARALLEL（对应 InsV2AllGatherConcurrentExecutor），children 两个 TemplateExecDesc
  * 分别为 Mesh1D（FULLMESH）和 NHR，dataSplitRatio=1:1。
  */
 static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
@@ -193,7 +193,7 @@ static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
     TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
     TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::CONCURRENT;
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
     algoExecDesc.dataSplitRatio = {1, 1}; // 1:1
     return algoExecDesc;
