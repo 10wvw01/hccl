@@ -9,8 +9,8 @@ if(NOT REFACTOR_EXECUTOR)
     return()
 endif()
 
-# 自动发现 tests/ 下所有 .cc 文件，新增测试文件无需修改此处
-file(GLOB UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/tests/*.cc")
+# 自动发现当前目录下所有 test_*.cc 文件
+file(GLOB UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/test_*.cc")
 
 set(UT_EXECUTOR_SRC
     ${UT_EXECUTOR_TEST_SRC}
@@ -22,7 +22,6 @@ set(UT_EXECUTOR_SRC
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
 
 target_include_directories(hccl_ut_refactor_executor PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/tests
     ${CMAKE_SOURCE_DIR}/refactor/ops
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
