@@ -18,9 +18,10 @@
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/..
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc    
     ${CMAKE_CURRENT_LIST_DIR}/../executor
 )
 
 target_sources(hccl PRIVATE
-    # all_gather_op.cc   # TODO: HcclAlgorithm/SingleRankProc/HcclExecOp 接口对齐
+    all_gather_op.cc   # TODO: HcclAlgorithm/SingleRankProc/HcclExecOp 接口对齐
 )

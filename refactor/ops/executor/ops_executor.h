@@ -19,7 +19,7 @@ struct BufferInfo {
     BufferType bufferType = BufferType::HCCL_BUFFER;
 };
 
-struct DataInfo {
+struct ExecDataInfo {
     void *inputPtr = nullptr;
     u64 inputSize = 0;
     void *outputPtr = nullptr;
@@ -84,7 +84,7 @@ private:
     u32 rankSize_ = 0;
     u32 root_ = INVALID_VALUE_RANKID;
     // dataInfo
-    DataInfo dataInfo_;
+    ExecDataInfo dataInfo_;
     u64 dataTypeSize_ = 0;
     u32 scratchMultiple_ = 0;
     // config

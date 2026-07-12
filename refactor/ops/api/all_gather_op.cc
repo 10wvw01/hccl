@@ -10,7 +10,7 @@
 
 #include "all_gather_op.h"
 #include "op_common_ops.h"
-#include "execute_selector.h"
+#include "../selector/execute_selector.h"
 #include <algorithm>
 #include <future>
 #include <map>
@@ -184,16 +184,16 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
 
     HcclAlgorithm alg;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
-    CHK_RET(refactor::Selector(comm, param, topoInfo, &alg));
+    CHK_RET(refactor::Selector(comm, param, topoInfo, alg));
     if (ShouldUseInnerOp(param.opExecuteConfig)) {
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
     if (userRankSize == 1) {
         HCCL_WARNING("[%s] rankSize == 1, enter SingleRankProc", __func__);
-        CHK_RET(SingleRankProc(param));
+        CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
     }
-    CHK_RET(HcclExecOp(comm, param, topoInfo, &alg, resPack));
+    CHK_RET(HcclExecOp(comm, param, topoInfo, alg, resPack));
     HCCL_INFO("Execute AllGatherOutPlace success.");
     return HCCL_SUCCESS;
 }

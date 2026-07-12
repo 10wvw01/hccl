@@ -13,6 +13,7 @@
 #include "ops_executor.h"
 #include "base_launcher.h"
 #include "log.h"
+#include "topo/topo_host.h"
 
 namespace ops_hccl {
 

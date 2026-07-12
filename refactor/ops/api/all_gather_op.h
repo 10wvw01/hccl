@@ -13,7 +13,7 @@
 
 #include <string>
 #include "hccl.h"
-#include "alg_param.h"
+#include "op_common/inc/alg_param.h"
 #include "alg_type.h"
 #include "hccl_algorithm.h"
 #include "execute_selector.h"

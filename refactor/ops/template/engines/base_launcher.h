@@ -13,7 +13,9 @@
 
 #include "hccl/base.h"
 #include "alg_param.h"
-#include "template_utils.h"
+#include "base_template.h"
+#include "primitives/mesh_primitives.h"
+//#include "template_utils.h"
 
 namespace ops_hccl {
 

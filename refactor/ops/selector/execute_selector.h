@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCLV2_COLL_ALG_SELECTOR_EXECUTION
-#define HCCLV2_COLL_ALG_SELECTOR_EXECUTION
+#ifndef OPS_HCCL_REFACTOR_SELECTOR_EXECUTE_SELECTOR
+#define OPS_HCCL_REFACTOR_SELECTOR_EXECUTE_SELECTOR
 
 #include "alg_param.h"
 #include "auto_selector_base.h"

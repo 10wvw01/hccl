@@ -55,6 +55,9 @@ public:
      */
     HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) override;
 
+    // BaseLauncher 的纯虚 Send()：refactor 早期 stub，尚未实现具体传输逻辑。
+    HcclResult Send(const TransferContext &ctx) override { (void)ctx; return HCCL_SUCCESS; }
+
 private:
     HcclComm comm_;
     AlgResourceCtxSerializable resCtx_;

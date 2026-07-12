@@ -25,8 +25,8 @@ target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../template
     ${CMAKE_CURRENT_LIST_DIR}/..
 )
-
+add_subdirectory(topo)
 target_sources(hccl PRIVATE
-    # op_common.cc
+    op_common.cc
     hccl_algorithm.cc
 )
