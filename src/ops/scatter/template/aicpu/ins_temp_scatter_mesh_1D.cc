@@ -214,7 +214,7 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
     u32 curCount = 0;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
-    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] myRank[%d], myAlgRank[%d], channels size[%d]", myRank_, myAlgRank, channels.size());
+    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] myRank[%u], myAlgRank[%u], channels size[%zu]", myRank_, myAlgRank, channels.size());
     for (u32 r = 0; r < tempAlgParams.repeatNum; r++) {
         if (root_ == u32(myRank_)) {
             u32 count = 0; // rank 计数
@@ -224,11 +224,11 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
                 if (myAlgRank == algRank) {
                     continue;
                 }
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] algRank[%d]", algRank);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] algRank[%u]", algRank);
                 u32 remoteRank = subCommRanks_[0][algRank];
-                HCCL_INFO("[InsTempScatterMesh1D][RunMesh] myRank[%d], toRank[%d]", myRank_, remoteRank);
+                HCCL_INFO("[InsTempScatterMesh1D][RunMesh] myRank[%u], toRank[%u]", myRank_, remoteRank);
                 CHK_PRT_RET(channels.find(remoteRank) == channels.end() || channels.at(remoteRank).empty(), 
- 	                        HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] remoteRank[%d] not found in channels", remoteRank), 
+                            HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] remoteRank[%u] not found in channels", remoteRank),
  	                        HCCL_E_INTERNAL);
                 const ChannelInfo &linkSend = channels.at(remoteRank)[0];
                 u64 srcOffset = tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER
@@ -240,22 +240,22 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
                     tempAlgParams.buffInfo.hcclBuffBaseOff + algRank * tempAlgParams.outputSliceStride + r * tempAlgParams.outputRepeatStride:
                     tempAlgParams.buffInfo.outBuffBaseOff + algRank * tempAlgParams.outputSliceStride + r * tempAlgParams.outputRepeatStride;
                 void* txDstPtr = (!enableRemoteMemAccess_) ? linkSend.remoteCclMem.addr : linkSend.remoteOutputGraphMode.addr;
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] srcOffset[%d], tempAlgParams.buffInfo.inputPtr[%d]", srcOffset, tempAlgParams.buffInfo.inputPtr);
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] dstOffset[%d], txDstPtr[%d]", dstOffset, txDstPtr);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] srcOffset[%llu], tempAlgParams.buffInfo.inputPtr[%p]", srcOffset, tempAlgParams.buffInfo.inputPtr);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] dstOffset[%llu], txDstPtr[%p]", dstOffset, txDstPtr);
                 DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, srcOffset, curSliceSize, curCount);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] got srcSlice");
                 DataSlice dstSlice = DataSlice(txDstPtr, dstOffset, curSliceSize, curCount);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] got dstSlice");
                 SlicesList txSlicesList({srcSlice}, {dstSlice});
 
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] tempAlgParam.buffInfo.hcclBuff.addr[%d], tempAlgParams.buffInfo.inputPtr[%d], tempAlgParams.buffInfo.outputPtr[%d], ", tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.outputPtr);
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] txDstPtr[%d]", txDstPtr);
-                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] tempAlgParam.buffInfo.inBuffBaseOff[%d], tempAlgParam.buffInfo.outBuffBaseOff[%d], tempAlgParam.buffInfo.hcclBuffBaseOff[%d]", tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff, tempAlgParams.buffInfo.hcclBuffBaseOff);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] tempAlgParam.buffInfo.hcclBuff.addr[%p], tempAlgParams.buffInfo.inputPtr[%p], tempAlgParams.buffInfo.outputPtr[%p], ", tempAlgParams.buffInfo.hcclBuff.addr, tempAlgParams.buffInfo.inputPtr, tempAlgParams.buffInfo.outputPtr);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] txDstPtr[%p]", txDstPtr);
+                HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] tempAlgParam.buffInfo.inBuffBaseOff[%llu], tempAlgParam.buffInfo.outBuffBaseOff[%llu], tempAlgParam.buffInfo.hcclBuffBaseOff[%llu]", tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff, tempAlgParams.buffInfo.hcclBuffBaseOff);
 
                 DataInfo sendData(linkSend, txSlicesList);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] start SendWrite");
                 CHK_PRT_RET(count >= threads.size(), 
-                            HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] count[%d] >= threads.size()[%d]", count, threads.size()), 
+                            HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] count[%u] >= threads.size()[%zu]", count, threads.size()),
                             HCCL_E_INTERNAL);
                 CHK_PRT_RET(static_cast<HcclResult>(SendWrite(sendData, threads.at(count))),
                     HCCL_ERROR("[InsTempScatterMesh1D] RunMesh Send failed"),
@@ -268,7 +268,7 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
                 continue;
             }
             CHK_PRT_RET(channels.find(root_) == channels.end() || channels.at(root_).empty(), 
-                        HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] root[%d] not found in channels", root_), 
+                        HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] root[%u] not found in channels", root_),
                         HCCL_E_INTERNAL);
             const ChannelInfo &linkRecv = channels.at(root_)[0];
             curSliceSize = tempAlgParams.tailSize !=0 && myAlgRank == templateRankSize_ - 1? tempAlgParams.tailSize: processSize_;
