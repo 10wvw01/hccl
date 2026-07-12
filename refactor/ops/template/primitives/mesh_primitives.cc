@@ -19,6 +19,7 @@ struct MeshAllGatherSliceInfo {
     const TemplateDataParams &tempAlgParams;
     const ChannelInfo &linkRemote;
     u64 sliceSize;
+    u64 stride;
 };
 
 struct MeshAllGatherSlicePair {
@@ -38,20 +39,23 @@ inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &alg
 
 // 构造 Mesh AllGather 通信描述前的参数检查。
 inline HcclResult PreCheckMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                                        const std::vector<u32> &ranks)
+                                        const std::vector<u32> &ranks, u32 myRank)
 {
     CHK_PRT_RET(tempAlgParams.ranksForInputData.empty(),
                 HCCL_ERROR("[RunMeshAllGather] ranksForInputData is empty."), HCCL_E_PARA);
     CHK_PRT_RET(ranks.size() > 1 && templateResource.channels.empty(),
                 HCCL_ERROR("[RunMeshAllGather] channels is empty."), HCCL_E_PARA);
+    for (u32 rank : ranks) {
+    if (rank == myRank) {
+        continue;
+    }
+    CHK_PRT_RET(templateResource.channels.count(rank) == 0 ||
+                    templateResource.channels.at(rank).empty(),
+                HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", rank), HCCL_E_PARA);
+    }
     return HCCL_SUCCESS;
 }
 
-// 按全局 rankId 计算 CCLBuffer 固定槽位偏移。
-inline u64 CalcRankDataOffset(u64 sliceOffset, u32 rankId, u64 sliceSize)
-{
-    return sliceOffset + static_cast<u64>(rankId) * sliceSize;
-}
 
 // 将输入数据来源 rankId 转成当前 mesh 通信域内的 algRank。
 inline HcclResult GetAlgRanksForInputData(const std::vector<u32> &ranks,
@@ -68,16 +72,6 @@ inline HcclResult GetAlgRanksForInputData(const std::vector<u32> &ranks,
     return HCCL_SUCCESS;
 }
 
-// 推导对端相同 block 位置上的真实数据来源 rankId。
-inline HcclResult CalcConnectedRankId(const std::vector<u32> &ranks, const std::vector<u32> &algRanksForInputData,
-                                      u32 rankSize, u32 connectedOffset, u32 blockIdx, u32 &rankId)
-{
-    const u32 curAlgRank = algRanksForInputData[blockIdx];
-    const u32 connectedSrcAlgRank = (curAlgRank + connectedOffset) % rankSize;
-    rankId = ranks[connectedSrcAlgRank];
-    return HCCL_SUCCESS;
-}
-
 // 根据本端输入数据来源和对端相对偏移，生成对端输入数据来源列表。
 // 例如 ranks=[4,8,12,16]，本端已有 rankId=[4,8] 时，先转成 algRank=[0,1]；
 // 若 connectedOffset=2，则对端来源为 algRank=[2,3]，再映射回 rankId=[12,16]。
@@ -90,20 +84,11 @@ inline HcclResult GetConnectedInputRanks(const std::vector<u32> &ranks,
     connectedInputRanks.reserve(algRanksForInputData.size());
     for (u32 blockIdx = 0; blockIdx < algRanksForInputData.size(); ++blockIdx) {
         u32 rankId = 0;
-        CHK_RET(CalcConnectedRankId(ranks, algRanksForInputData, rankSize, connectedOffset, blockIdx, rankId));
+        const u32 curAlgRank = algRanksForInputData[blockIdx];
+        const u32 connectedSrcAlgRank = (curAlgRank + connectedOffset) % rankSize;
+        rankId = ranks[connectedSrcAlgRank];
         connectedInputRanks.emplace_back(rankId);
     }
-    return HCCL_SUCCESS;
-}
-
-// 获取对端 rank 的 channel 信息。
-inline HcclResult GetConnectedLink(TemplateResource &templateResource, u32 connectedRank,
-                                   const ChannelInfo *&linkRemote)
-{
-    CHK_PRT_RET(templateResource.channels.count(connectedRank) == 0 ||
-                    templateResource.channels.at(connectedRank).empty(),
-                HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", connectedRank), HCCL_E_PARA);
-    linkRemote = &templateResource.channels.at(connectedRank)[0];
     return HCCL_SUCCESS;
 }
 
@@ -113,8 +98,7 @@ inline void AddRankDataSlices(const MeshAllGatherSliceInfo &sliceInfo, const std
 {
     for (u32 rankId : rankIds) {
         const u64 dataSize = sliceInfo.sliceSize;
-        const u64 dataOffset =
-            CalcRankDataOffset(sliceInfo.tempAlgParams.sliceOffset, rankId, sliceInfo.sliceSize);
+        const u64 dataOffset = sliceInfo.tempAlgParams.sliceOffset + static_cast<u64>(rankId) * sliceInfo.stride;
         slicePair.firstSlices.emplace_back(slicePair.firstBufferPtr, dataOffset, dataSize,
                                            sliceInfo.tempAlgParams.sliceCount);
         slicePair.secondSlices.emplace_back(slicePair.secondBufferPtr, dataOffset, dataSize,
@@ -153,13 +137,14 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
 
     sendRecvInfos.clear();
 
-    CHK_RET(PreCheckMeshAllGather(tempAlgParams, templateResource, ranks));
+    CHK_RET(PreCheckMeshAllGather(tempAlgParams, templateResource, ranks, myRank));
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         ranksForOutputData = tempAlgParams.ranksForInputData;
         return HCCL_SUCCESS;
     }
 
     const u32 rankSize = static_cast<u32>(ranks.size());
+    const u64 stride = tempAlgParams.stride;
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
     std::vector<u32> ranksForInputData;
@@ -169,16 +154,16 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     std::vector<u32> algRanksForInputData;
     CHK_RET(GetAlgRanksForInputData(ranks, ranksForInputData, algRanksForInputData));
 
-    for (u32 threadIdx = 0; threadIdx < rankSize - 1; ++threadIdx) {
-        const u32 connectedAlgRank = (myAlgRank + 1 + threadIdx) % rankSize;
+    for (u32 connectedIdx = 0; connectedIdx < rankSize - 1; ++connectedIdx) {
+        const u32 connectedAlgRank = (myAlgRank + 1 + connectedIdx) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
         const u32 connectedOffset = (connectedAlgRank + rankSize - myAlgRank) % rankSize;
         const ChannelInfo *linkRemote = nullptr;
-        CHK_RET(GetConnectedLink(templateResource, connectedRank, linkRemote));
+        linkRemote = &templateResource.channels.at(connectedRank)[0];
         // 对端数据来源通过本端数据来源在 algRank 空间内环状平移得到。
         std::vector<u32> connectedInputRanks;
         CHK_RET(GetConnectedInputRanks(ranks, algRanksForInputData, rankSize, connectedOffset, connectedInputRanks));
-        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, *linkRemote, sliceSize};
+        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, *linkRemote, sliceSize, stride};
         GetSendRecvInfo(sliceInfo, ranksForInputData, connectedInputRanks, sendRecvInfos);
     }
     return HCCL_SUCCESS;
