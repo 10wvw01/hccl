@@ -17,6 +17,18 @@
 #include "check_utils.h"
 #include <thread>
 #include "alg_env_config.h"
+#include "dlsym_common.h"
+#include "alg_param.h"
+
+extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args);
+extern "C" void ResetP2pCleanupStub();
+extern "C" void SetP2pCommStatusStub(HcclResult statusRet, HcclCommStatus commStatus);
+extern "C" void SetP2pCleanupRetStub(int32_t batchStartRet, int32_t batchEndRet, int32_t releaseRet);
+extern "C" void GetP2pCleanupStubCount(uint32_t *acquireCount, uint32_t *releaseCount,
+    uint32_t *batchStartCount, uint32_t *batchEndCount);
+extern "C" void ResetP2pDfxProfilingStub();
+extern "C" void SetP2pDfxProfilingStub(HcclResult dfxRegRet, HcclResult profilingStartRet,
+    HcclResult profilingEndRet, HcclResult profilingDeviceRet);
 
 constexpr uint32_t DATATYPE_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t),
     sizeof(int16_t),
@@ -45,6 +57,8 @@ protected:
     void SetUp() override
     {
         ResetAlgEnvConfigInitState();
+        ResetP2pCleanupStub();
+        ResetP2pDfxProfilingStub();
     }
 
     void TearDown() override
@@ -60,7 +74,106 @@ protected:
 
     static void TearDownTestCase()
     {}
+
+    /**
+     * 构造最小P2P AICPU参数并直接执行内核入口
+     * @param caseTag 用于隔离反序列化缓存的用例标签
+     * @return P2P AICPU内核入口的执行结果
+     */
+    unsigned int RunP2pCleanupCase(const char *caseTag)
+    {
+        AlgResourceCtxSerializable resCtx;
+        resCtx.threads = {1};
+        std::vector<char> resCtxData = resCtx.Serialize();
+
+        alignas(OpParam) HcclP2pKernelParam kernelParam{};
+        OpParam *param = new (kernelParam.opParams) OpParam();
+        param->opType = HcclCMDType::HCCL_CMD_SEND;
+        param->deviceType = DevType::DEV_TYPE_950;
+        param->resCtx = resCtxData.data();
+        param->ctxSize = resCtxData.size();
+        (void)strncpy_s(param->algName, sizeof(param->algName), "opv2_p2p_cleanup_test",
+            sizeof(param->algName) - 1);
+        (void)strncpy_s(param->algTag, sizeof(param->algTag), caseTag, sizeof(param->algTag) - 1);
+        (void)strncpy_s(param->commName, sizeof(param->commName), caseTag, sizeof(param->commName) - 1);
+
+        unsigned int result = HcclLaunchP2pAicpuKernel(&kernelParam);
+        param->~OpParam();
+        return result;
+    }
 };
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_cleanup_when_status_api_fails)
+{
+    SetP2pCommStatusStub(HCCL_E_INTERNAL, HCCL_COMM_STATUS_INVALID);
+    EXPECT_EQ(RunP2pCleanupCase("status_api_fail"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 0U);
+    EXPECT_EQ(batchEnd, 0U);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_cleanup_when_status_is_not_ready)
+{
+    SetP2pCommStatusStub(HCCL_SUCCESS, HCCL_COMM_STATUS_RESERVED);
+    EXPECT_EQ(RunP2pCleanupCase("status_not_ready"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 0U);
+    EXPECT_EQ(batchEnd, 0U);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_cleanup_when_batch_mode_start_fails)
+{
+    SetP2pCleanupRetStub(HCCL_E_INTERNAL, HCCL_SUCCESS, HCCL_SUCCESS);
+    EXPECT_EQ(RunP2pCleanupCase("batch_start_fail"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 1U);
+    EXPECT_EQ(batchEnd, 0U);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_cleanup_when_dfx_registration_fails)
+{
+    SetP2pDfxProfilingStub(HCCL_E_INTERNAL, HCCL_SUCCESS, HCCL_SUCCESS, HCCL_SUCCESS);
+    EXPECT_EQ(RunP2pCleanupCase("dfx_reg_fail"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 1U);
+    EXPECT_EQ(batchEnd, 1U);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_cleanup_when_profiling_start_fails)
+{
+    SetP2pDfxProfilingStub(HCCL_SUCCESS, HCCL_E_INTERNAL, HCCL_SUCCESS, HCCL_SUCCESS);
+    EXPECT_EQ(RunP2pCleanupCase("profiling_start_fail"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 1U);
+    EXPECT_EQ(batchEnd, 1U);
+}
+
+TEST_F(DPU_SEND_RECV_TEST, dpu_p2p_release_comm_when_batch_mode_end_fails)
+{
+    SetP2pCleanupRetStub(HCCL_SUCCESS, HCCL_E_INTERNAL, HCCL_SUCCESS);
+    EXPECT_EQ(RunP2pCleanupCase("batch_end_fail"), 1U);
+    uint32_t acquire = 0, release = 0, batchStart = 0, batchEnd = 0;
+    GetP2pCleanupStubCount(&acquire, &release, &batchStart, &batchEnd);
+    EXPECT_EQ(acquire, 1U);
+    EXPECT_EQ(release, 1U);
+    EXPECT_EQ(batchStart, 1U);
+    EXPECT_EQ(batchEnd, 1U);
+}
 
 using RankId = uint32_t;
 

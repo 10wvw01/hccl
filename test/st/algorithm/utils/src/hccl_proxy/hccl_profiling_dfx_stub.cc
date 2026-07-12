@@ -11,6 +11,14 @@
 #include "hccl_common.h"
 #include "hcomm_diag.h"
 #include "hcomm_host_profiling_dl.h"
+#include <atomic>
+
+namespace {
+std::atomic<int32_t> g_p2pDfxRegRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pProfilingStartRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pProfilingEndRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pProfilingDeviceRet{HCCL_SUCCESS};
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,7 +68,7 @@ HcclResult HcommRegOpTaskException(const char* commId, HcommGetOpInfoCallback ca
 HcclResult HcclDfxRegOpInfoByCommId(char* commId, void* hcclDfxOpInfo)
 {
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return static_cast<HcclResult>(g_p2pDfxRegRet.load(std::memory_order_relaxed));
 }
 
 HcclResult HcclReportAivKernel(HcclComm comm, uint64_t beginTime)
@@ -84,18 +92,47 @@ HcclResult HcclProfilingReportOp(HcclComm comm, uint64_t beginTime)
 HcclResult HcommProfilingReportDeviceOp(const char* groupname)
 {
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return static_cast<HcclResult>(g_p2pProfilingDeviceRet.load(std::memory_order_relaxed));
 }
 HcclResult HcommProfilingReportKernelStartTask(uint64_t thread, const char* groupname)
 {
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return static_cast<HcclResult>(g_p2pProfilingStartRet.load(std::memory_order_relaxed));
 }
 
 HcclResult HcommProfilingReportKernelEndTask(uint64_t thread, const char* groupname)
 {
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return static_cast<HcclResult>(g_p2pProfilingEndRet.load(std::memory_order_relaxed));
+}
+
+/**
+ * 重置P2P DFX与Profiling桩的返回值
+ * @return 无
+ */
+void ResetP2pDfxProfilingStub()
+{
+    g_p2pDfxRegRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pProfilingStartRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pProfilingEndRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pProfilingDeviceRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+}
+
+/**
+ * 设置P2P DFX与Profiling桩的返回值
+ * @param dfxRegRet DFX注册返回值
+ * @param profilingStartRet Profiling起始任务上报返回值
+ * @param profilingEndRet Profiling结束任务上报返回值
+ * @param profilingDeviceRet Profiling设备算子上报返回值
+ * @return 无
+ */
+void SetP2pDfxProfilingStub(HcclResult dfxRegRet, HcclResult profilingStartRet, HcclResult profilingEndRet,
+    HcclResult profilingDeviceRet)
+{
+    g_p2pDfxRegRet.store(dfxRegRet, std::memory_order_relaxed);
+    g_p2pProfilingStartRet.store(profilingStartRet, std::memory_order_relaxed);
+    g_p2pProfilingEndRet.store(profilingEndRet, std::memory_order_relaxed);
+    g_p2pProfilingDeviceRet.store(profilingDeviceRet, std::memory_order_relaxed);
 }
 
 HcclResult HcommProfilingReportMainStreamAndFirstTask(ThreadHandle thread)

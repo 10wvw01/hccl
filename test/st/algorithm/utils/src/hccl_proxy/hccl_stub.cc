@@ -29,6 +29,7 @@
 #include "hcomm_diag.h"
 #include "hccl_comm.h"
 #include "hccl_res_expt.h"
+#include <atomic>
 
 using namespace ops_hccl;
 using namespace HcclSim;
@@ -39,6 +40,15 @@ extern "C" {
 
 std::mutex g_mutex;
 thread_local ThreadHandle curThread;
+std::atomic<uint32_t> g_p2pAcquireCount{0};
+std::atomic<uint32_t> g_p2pReleaseCount{0};
+std::atomic<uint32_t> g_p2pBatchStartCount{0};
+std::atomic<uint32_t> g_p2pBatchEndCount{0};
+std::atomic<int32_t> g_p2pBatchStartRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pBatchEndRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pReleaseRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pStatusRet{HCCL_SUCCESS};
+std::atomic<int32_t> g_p2pCommStatus{HCCL_COMM_STATUS_READY};
 
 HcclResult HcclRankGraphGetRankSizeByLayer(HcclComm comm, uint32_t netLayer, uint32_t *rankNum)
 {
@@ -798,31 +808,95 @@ HcclResult CommFence(ThreadHandle thread, ChannelHandle channel)
 
 int32_t HcommBatchModeStart(const char *batchTag)
 {
+    g_p2pBatchStartCount.fetch_add(1, std::memory_order_relaxed);
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return g_p2pBatchStartRet.load(std::memory_order_relaxed);
 }
 
 int32_t HcommBatchModeEnd(const char *batchTag)
 {
+    g_p2pBatchEndCount.fetch_add(1, std::memory_order_relaxed);
     HCCL_WARNING("[%s] not support.", __func__);
-    return HCCL_SUCCESS;
+    return g_p2pBatchEndRet.load(std::memory_order_relaxed);
 }
 
 int32_t HcommAcquireComm(const char* commId)
 {
-    return 0;
+    g_p2pAcquireCount.fetch_add(1, std::memory_order_relaxed);
+    return HCCL_SUCCESS;
 }
 
 HcclResult HcclCommGetStatus(const char * commId, HcclCommStatus *status)
 {
     HCCL_WARNING("[%s] not support.", __func__);
-    *status = HCCL_COMM_STATUS_READY;
-    return HCCL_SUCCESS;
+    *status = static_cast<HcclCommStatus>(g_p2pCommStatus.load(std::memory_order_relaxed));
+    return static_cast<HcclResult>(g_p2pStatusRet.load(std::memory_order_relaxed));
 }
 
 int32_t HcommReleaseComm(const char* commId)
 {
-    return 0;
+    g_p2pReleaseCount.fetch_add(1, std::memory_order_relaxed);
+    return g_p2pReleaseRet.load(std::memory_order_relaxed);
+}
+
+/**
+ * 重置P2P通信域与BatchMode桩的返回值和调用计数
+ * @return 无
+ */
+void ResetP2pCleanupStub()
+{
+    g_p2pAcquireCount.store(0, std::memory_order_relaxed);
+    g_p2pReleaseCount.store(0, std::memory_order_relaxed);
+    g_p2pBatchStartCount.store(0, std::memory_order_relaxed);
+    g_p2pBatchEndCount.store(0, std::memory_order_relaxed);
+    g_p2pBatchStartRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pBatchEndRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pReleaseRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pStatusRet.store(HCCL_SUCCESS, std::memory_order_relaxed);
+    g_p2pCommStatus.store(HCCL_COMM_STATUS_READY, std::memory_order_relaxed);
+}
+
+/**
+ * 设置P2P通信域状态查询桩的返回值和通信域状态
+ * @param statusRet 状态查询接口返回值
+ * @param commStatus 返回的通信域状态
+ * @return 无
+ */
+void SetP2pCommStatusStub(HcclResult statusRet, HcclCommStatus commStatus)
+{
+    g_p2pStatusRet.store(statusRet, std::memory_order_relaxed);
+    g_p2pCommStatus.store(commStatus, std::memory_order_relaxed);
+}
+
+/**
+ * 设置P2P BatchMode和通信域释放桩的返回值
+ * @param batchStartRet BatchModeStart返回值
+ * @param batchEndRet BatchModeEnd返回值
+ * @param releaseRet ReleaseComm返回值
+ * @return 无
+ */
+void SetP2pCleanupRetStub(int32_t batchStartRet, int32_t batchEndRet, int32_t releaseRet)
+{
+    g_p2pBatchStartRet.store(batchStartRet, std::memory_order_relaxed);
+    g_p2pBatchEndRet.store(batchEndRet, std::memory_order_relaxed);
+    g_p2pReleaseRet.store(releaseRet, std::memory_order_relaxed);
+}
+
+/**
+ * 获取P2P通信域与BatchMode桩的调用计数
+ * @param acquireCount 返回AcquireComm调用次数
+ * @param releaseCount 返回ReleaseComm调用次数
+ * @param batchStartCount 返回BatchModeStart调用次数
+ * @param batchEndCount 返回BatchModeEnd调用次数
+ * @return 无
+ */
+void GetP2pCleanupStubCount(uint32_t *acquireCount, uint32_t *releaseCount, uint32_t *batchStartCount,
+    uint32_t *batchEndCount)
+{
+    *acquireCount = g_p2pAcquireCount.load(std::memory_order_relaxed);
+    *releaseCount = g_p2pReleaseCount.load(std::memory_order_relaxed);
+    *batchStartCount = g_p2pBatchStartCount.load(std::memory_order_relaxed);
+    *batchEndCount = g_p2pBatchEndCount.load(std::memory_order_relaxed);
 }
 
 // stub for host dpu

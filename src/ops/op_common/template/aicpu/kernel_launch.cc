@@ -589,20 +589,27 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         HCCL_ERROR("%s HcommAcquireComm fail, commName[%s]", __func__, param->commName);
         return 1;
     }
+    unsigned int result = 1;
+    bool batchModeStarted = false;
     std::string algName = std::string(param->algName);
-    // 根据算法名字获取executor
-    if (ops_hccl::IsOpsV2(param->algName, param->deviceType)) {
+    do {
+        // 根据算法名字获取executor
+        if (!ops_hccl::IsOpsV2(param->algName, param->deviceType)) {
+            HCCL_ERROR("%s P2P only support OpsV2, algName[%s], deviceType[%d]",
+                __func__, param->algName, static_cast<int>(param->deviceType));
+            break;
+        }
         //判断通信域状态
         HcclCommStatus commStatus = HCCL_COMM_STATUS_INVALID;
         if (HcommIsSupportHcclCommGetStatus()) {
             auto statusRet = HcclCommGetStatus(param->commName, &commStatus);
             if (statusRet != HCCL_SUCCESS) {
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
-                return 1;
+                break;
             }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));
-                return 1;
+                break;
             }
         }
 
@@ -643,24 +650,25 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         ThreadHandle thread = resCtxPtr->threads[0];
         if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
             HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
-            return 1;
+            break;
         }
+        batchModeStarted = true;
 
         // 要在下第一个task之前上报
         HcclDfxOpInfoCompat dfxOpInfo{};
         if (ConvertToHcclDfxOpInfo(param, &dfxOpInfo) != HCCL_SUCCESS) {
             HCCL_ERROR("ConvertToHcclDfxOpInfo fail, commName is %s, tag is %s", param->commName, param->algTag);
-            return 1;
+            break;
         }
         if (HcclDfxRegOpInfoByCommId(param->commName, (&dfxOpInfo)) != HCCL_SUCCESS) {
             HCCL_ERROR("HcclDfxRegOpInfoByCommId fail, commName is %s, tag is %s", param->commName, param->algTag);
-            return 1;
+            break;
         }
 
         // 上报上报mainstream数据,第一个任务
         if (HcommProfilingReportKernelStartTask(thread, param->commName) != HCCL_SUCCESS) {
             HCCL_ERROR("%sfailed to report MainStream And FirstTask, thread %lu, param->commName %s.", __func__, thread, param->commName);
-            return 1;
+            break;
         }
 
         std::shared_ptr<InsCollAlgBase> executor = 
@@ -668,8 +676,7 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         if (executor.get() == nullptr) {
             HCCL_ERROR("Fail to find executor for algName[%s], opType[%d]", 
                     algName.c_str(), static_cast<int>(param->opType));
-            HcommReleaseComm(param->commName);
-            return 1;
+            break;
         }
 
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
@@ -685,36 +692,33 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         if (ret != HCCL_SUCCESS) {
             HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
                     param->algName, static_cast<int>(param->opType));
-            HcommReleaseComm(param->commName);
-            return 1;
+            break;
         }
         // 上报mainstream数据,最后一个任务
         if (HcommProfilingReportKernelEndTask(thread, param->commName) != HCCL_SUCCESS) {
             HCCL_ERROR("%s failed to report MainStream And LastTask, thread %lu, param->commName %s.",  __func__, thread, param->commName);
-            return 1;
+            break;
         }
         if (HcommProfilingReportDeviceOp(param->commName) != HCCL_SUCCESS) {
             HCCL_ERROR("%s HcommProfilingReportDeviceOp fail, commName[%s]", __func__, param->commName);
-            return 1;
+            break;
         }
-        if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
-            HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
-            return 1;
-        }
-    }
-    else {
-        HCCL_ERROR("%s P2P only support OpsV2, algName[%s], deviceType[%d]", 
-                __func__, param->algName, static_cast<int>(param->deviceType));
-        HcommReleaseComm(param->commName);
-        return 1;
-    }
+        result = 0;
+    } while (false);
 
+    if (batchModeStarted && HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
+        HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
+        result = 1;
+    }
     if (HcommReleaseComm(param->commName) != HCCL_SUCCESS) {
         HCCL_ERROR("%s HcommReleaseComm fail, commName[%s]", __func__, param->commName);
-        return 1;
+        result = 1;
     }
-    HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
-    return 0;
+    if (result == 0) {
+        HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag,
+            param->commName);
+    }
+    return result;
 }
 
 HcclResult ops_hccl::RestoreVarDataBatchSendRecv(OpParam &param)
