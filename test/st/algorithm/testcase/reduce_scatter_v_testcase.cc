@@ -10,7 +10,11 @@
 
 #include "gtest/gtest.h"
 #include "alg_env_config.h"
+#include "reduce_scatter_v_op.h"
 #include "v_testcase_common.h"
+#include <cstdlib>
+#include <limits>
+#include <new>
 
 constexpr u32 DATATYPE_SIZE_TABLE_RSV[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
     2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
@@ -59,6 +63,74 @@ static void SetIndependentOpEnv() { setenv("HCCL_INDEPENDENT_OP", "1", 1); }
 static void RunReduceScatterVMultilevel(const TopoMeta &topoInfo, VDataDesTag vDataDes)
 {
     RunVMultilevelTest(topoInfo, vDataDes, SetIndependentOpEnv, ReduceScatterVDispatch, ReduceScatterVVerify);
+}
+
+/**
+ * @brief 构造单 rank 仿真通信域并调用 ReduceScatterV 参数准备接口
+ * @param sendCounts 各目标 rank 的发送元素数量
+ * @param sendDispls 各目标 rank 的发送元素偏移
+ * @param dataType 发送数据类型
+ * @return 参数准备接口返回的 HcclResult
+ */
+static HcclResult PrepareReduceScatterVParamForTest(const std::vector<u64> &sendCounts,
+    const std::vector<u64> &sendDispls, HcclDataType dataType)
+{
+    TopoMeta topoMeta{{{0}}};
+    SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
+    aclrtSetDevice(0);
+    aclrtStream stream = nullptr;
+    aclrtCreateStream(&stream);
+    HcclComm comm = nullptr;
+    HcclResult ret = HcclCommInitClusterInfo("./ranktable.json", 0, &comm);
+    if (ret != HCCL_SUCCESS) {
+        aclrtDestroyStream(stream);
+        SimWorld::Global()->Deinit();
+        return ret;
+    }
+
+    const u64 varMemSize = sendCounts.size() * 2 * sizeof(u64);
+    void *paramMem = malloc(sizeof(OpParam) + varMemSize);
+    if (paramMem == nullptr) {
+        HcclCommDestroy(comm);
+        aclrtDestroyStream(stream);
+        SimWorld::Global()->Deinit();
+        return HCCL_E_MEMORY;
+    }
+    OpParam *param = new (paramMem) OpParam();
+    u8 buffer = 0;
+    ret = PrepareReduceScatterVParam(&buffer, sendDispls.data(), sendCounts.data(), &buffer, 1, dataType,
+        HcclReduceOp::HCCL_REDUCE_SUM, comm, stream, "ReduceScatterVParamTest", OpMode::OPBASE,
+        sendCounts.size(), varMemSize, *param);
+    param->~OpParam();
+    free(paramMem);
+    HcclCommDestroy(comm);
+    aclrtDestroyStream(stream);
+    SimWorld::Global()->Deinit();
+    return ret;
+}
+
+TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_send_count_exceeds_limit)
+{
+    std::vector<u64> sendCounts = {0x800000000ULL, 1};
+    std::vector<u64> sendDispls = {0, 0};
+
+    EXPECT_EQ(PrepareReduceScatterVParamForTest(sendCounts, sendDispls, HCCL_DATA_TYPE_INT32), HCCL_E_PARA);
+}
+
+TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_count_and_displ_addition_overflow)
+{
+    std::vector<u64> sendCounts = {1, 1};
+    std::vector<u64> sendDispls = {std::numeric_limits<u64>::max(), 0};
+
+    EXPECT_EQ(PrepareReduceScatterVParamForTest(sendCounts, sendDispls, HCCL_DATA_TYPE_INT32), HCCL_E_PARA);
+}
+
+TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_input_byte_size_overflow)
+{
+    std::vector<u64> sendCounts = {1, 1};
+    std::vector<u64> sendDispls = {std::numeric_limits<u64>::max() / sizeof(int32_t), 0};
+
+    EXPECT_EQ(PrepareReduceScatterVParamForTest(sendCounts, sendDispls, HCCL_DATA_TYPE_INT32), HCCL_E_PARA);
 }
 
 TEST_F(ST_REDUCESCATTERV_TEST, st_reduce_scatter_v_a5_aicpu_test)

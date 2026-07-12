@@ -13,6 +13,7 @@
 #include "topo_host.h"
 #include <algorithm>
 #include <future>
+#include <limits>
 #include <map>
 #include <string>
 
@@ -211,8 +212,15 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
     
     u64 maxInputCount = 0;
     for (u32 i = 0; i < userRankSize; i++) {
+        CHK_RET(CheckCount(sendCountsAddr[i]));
+        CHK_PRT_RET(sendDisplsAddr[i] > std::numeric_limits<u64>::max() - sendCountsAddr[i],
+            HCCL_ERROR("[Check][ReduceScatterV] rank[%u] sendDispl[%llu] plus sendCount[%llu] overflows", i,
+                sendDisplsAddr[i], sendCountsAddr[i]), HCCL_E_PARA);
         maxInputCount = std::max(maxInputCount, sendDisplsAddr[i] + sendCountsAddr[i]);
     }
+    CHK_PRT_RET(perDataSize != 0 && maxInputCount > std::numeric_limits<u64>::max() / perDataSize,
+        HCCL_ERROR("[Check][ReduceScatterV] input count[%llu] times data size[%u] overflows", maxInputCount,
+            perDataSize), HCCL_E_PARA);
     param.inputSize = maxInputCount * perDataSize;
     std::copy(sendCountsAddr, sendCountsAddr + userRankSize, countsAndDispls.begin());
     std::copy(sendDisplsAddr, sendDisplsAddr + userRankSize, countsAndDispls.begin() + userRankSize);
