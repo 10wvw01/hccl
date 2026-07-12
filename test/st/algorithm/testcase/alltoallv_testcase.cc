@@ -18,6 +18,9 @@
 #include <thread>
 #include "alg_env_config.h"
 
+extern "C" void ResetHcclDfxOpMemSize();
+extern "C" void GetHcclDfxOpMemSize(uint64_t *inputMemSize, uint64_t *outputMemSize);
+
 using namespace HcclSim;
 using namespace ops_hccl;
 namespace checker {
@@ -203,7 +206,80 @@ protected:
         // 资源清理
         SimWorld::Global()->Deinit();
     }
+
+    /**
+     * 执行单rank AlltoAllV参数校验用例并返回公开接口结果
+     * @param sendCount 发送元素数
+     * @param recvCount 接收元素数
+     * @param sendDispl 以发送数据类型元素为单位的发送偏移
+     * @param recvDispl 以接收数据类型元素为单位的接收偏移
+     * @param sendType 发送数据类型
+     * @param recvType 接收数据类型
+     * @return HcclAlltoAllV公开接口的执行结果
+     */
+    HcclResult RunAlltoAllVParamCheckCase(u64 sendCount, u64 recvCount, u64 sendDispl, u64 recvDispl,
+        HcclDataType sendType, HcclDataType recvType)
+    {
+        TopoMeta topoMeta{{{0}}};
+        SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
+        aclrtSetDevice(0);
+        aclrtStream stream = nullptr;
+        aclrtCreateStream(&stream);
+        HcclComm comm = nullptr;
+        HcclCommInitClusterInfo("./ranktable.json", 0, &comm);
+        const void *sendBuf = reinterpret_cast<const void *>(0x1000);
+        const void *recvBuf = reinterpret_cast<const void *>(0x2000);
+
+        HcclResult ret = HcclAlltoAllV(sendBuf, &sendCount, &sendDispl, sendType, recvBuf, &recvCount, &recvDispl,
+            recvType, comm, stream);
+
+        HcclCommDestroy(comm);
+        aclrtDestroyStream(stream);
+        SimWorld::Global()->Deinit();
+        return ret;
+    }
 };
+
+TEST_F(ST_ALLTOALLV_TEST, st_alltoallv_register_buffer_with_byte_size)
+{
+    TopoMeta topoMeta{{{0, 1}}};
+    const u32 rankSize = 2;
+    HcclDataType dataType = HCCL_DATA_TYPE_INT32;
+    std::vector<u64> sendCountMatrix = {1, 1, 1, 1};
+    u64 inputSize = 0;
+    u64 outputSize = 0;
+
+    ResetHcclDfxOpMemSize();
+    RunAlltoAllVMeshTest(topoMeta, rankSize, dataType, sendCountMatrix);
+    GetHcclDfxOpMemSize(&inputSize, &outputSize);
+
+    EXPECT_EQ(inputSize, 8);
+    EXPECT_EQ(outputSize, 8);
+}
+
+TEST_F(ST_ALLTOALLV_TEST, st_alltoallv_reject_element_span_addition_overflow)
+{
+    HcclResult ret = RunAlltoAllVParamCheckCase(1, 1, UINT64_MAX, 0,
+        HCCL_DATA_TYPE_INT32, HCCL_DATA_TYPE_INT32);
+
+    EXPECT_EQ(ret, HCCL_E_PARA);
+}
+
+TEST_F(ST_ALLTOALLV_TEST, st_alltoallv_reject_element_to_byte_multiplication_overflow)
+{
+    HcclResult ret = RunAlltoAllVParamCheckCase(1, 0, 0, UINT64_MAX / 8 + 1,
+        HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_FP64);
+
+    EXPECT_EQ(ret, HCCL_E_PARA);
+}
+
+TEST_F(ST_ALLTOALLV_TEST, st_alltoallv_reject_invalid_send_data_type)
+{
+    HcclResult ret = RunAlltoAllVParamCheckCase(1, 1, 0, 0,
+        HCCL_DATA_TYPE_RESERVED, HCCL_DATA_TYPE_INT32);
+
+    EXPECT_EQ(ret, HCCL_E_PARA);
+}
 
 
 TEST_F(ST_ALLTOALLV_TEST, st_alltoallv_hostDpu_test_0)

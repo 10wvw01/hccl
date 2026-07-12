@@ -18,6 +18,9 @@
 #include <thread>
 #include "alg_env_config.h"
 
+extern "C" void ResetHcclDfxOpMemSize();
+extern "C" void GetHcclDfxOpMemSize(uint64_t *inputMemSize, uint64_t *outputMemSize);
+
 using namespace HcclSim;
 using namespace ops_hccl;
 namespace checker {
@@ -175,6 +178,23 @@ protected:
         SimWorld::Global()->Deinit();
     }
 };
+
+TEST_F(ST_ALLTOALLVC_TEST, st_alltoallvc_calc_buffer_byte_size_after_matrix_conversion)
+{
+    TopoMeta topoMeta{{{0, 1}}};
+    const u32 rankSize = 2;
+    HcclDataType dataType = HCCL_DATA_TYPE_INT32;
+    std::vector<u64> sendCountMatrix = {1, 1, 1, 1};
+    u64 inputSize = 0;
+    u64 outputSize = 0;
+
+    ResetHcclDfxOpMemSize();
+    RunAlltoAllVCMeshTest(topoMeta, rankSize, dataType, sendCountMatrix);
+    GetHcclDfxOpMemSize(&inputSize, &outputSize);
+
+    EXPECT_EQ(inputSize, 8);
+    EXPECT_EQ(outputSize, 8);
+}
 
 TEST_F(ST_ALLTOALLVC_TEST, st_alltoallvc_hostDpu_test_0)
 {

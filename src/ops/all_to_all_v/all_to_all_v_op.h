@@ -54,7 +54,8 @@ HcclResult ConvertAlltoAllVCParam(const u32 rankSize, const u32 userRank, const 
 HcclResult GenResPack(const char* tag, void** streams, const size_t streamCount,
     void* scratchMemAddr, const uint64_t scratchMemSize, ResPackGraphMode &resPack);
 HcclResult CalcInputOutputSize(const u64* sendCountsData, const u64* recvCountsData,
-    const u64* sdisplsData, const u64* rdisplsData, const u32 userRankSize, u64 &inputSize, u64 &outputSize);
+    const u64* sdisplsData, const u64* rdisplsData, const HcclDataType sendType, const HcclDataType recvType,
+    const u32 userRankSize, u64 &inputSize, u64 &outputSize);
 HcclResult ConstructVarData(const u64* sendCountsData, const u64* recvCountsData, const u64* sdisplsData,
     const u64* rdisplsData, const u32 userRankSize, const u32 rankSize, OpParam &param);
 HcclResult CheckAlltoAllInputPara(const HcclComm comm, const void *sendBuf, const uint64_t sendCount,
@@ -68,16 +69,20 @@ HcclResult CheckAlltoAllVCInputPara(const HcclComm comm, const void *sendBuf, co
 HcclResult CheckBufNullptr(const u64* countsData, u32 rankSize, const void* buf, const std::string funcName,
     const std::string bufName);
 HcclResult AlltoAllVConstructOpParam(const void *sendBuf, const void *sendCounts, const void *sdispls, const void *recvBuf,
-    const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
+    const void *recvCounts, const void *rdispls, HcclDataType sendType, HcclDataType recvType, HcclComm comm,
+    aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, OpMode opMode, u64 varMemSize, OpParam &param);
 HcclResult AlltoAllVOutPlaceCommon(const void *sendBuf, const void *sendCounts, const void *sdispls, const void *recvBuf,
-    const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
+    const void *recvCounts, const void *rdispls, HcclDataType sendType, HcclDataType recvType, HcclComm comm,
+    aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, bool &useInnerOp, OpMode opMode, const ResPackGraphMode &resPack);
 HcclResult AlltoAllVOutPlace(const void *sendBuf, const void *sendCounts, const void *sdispls, const void *recvBuf,
-    const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
+    const void *recvCounts, const void *rdispls, HcclDataType sendType, HcclDataType recvType, HcclComm comm,
+    aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, bool &useInnerOp);
 HcclResult AlltoAllVOutPlaceGraphMode(const void *sendBuf, const void *sendCounts, const void *sdispls, const void *recvBuf,
-    const void *recvCounts, const void *rdispls, HcclDataType dataType, HcclComm comm, aclrtStream stream,
+    const void *recvCounts, const void *rdispls, HcclDataType sendType, HcclDataType recvType, HcclComm comm,
+    aclrtStream stream,
     const std::string &tag, HcclCMDType opType, u32 rankSize, const ResPackGraphMode &resPack);
 HcclResult AlltoAllEntryLog(const void *sendBuf, const void *recvBuf, uint64_t sendCount, uint64_t recvCount,
     HcclDataType sendType, HcclDataType recvType, aclrtStream stream, const std::string &tag, const std::string &opName, bool forceLog = false);
