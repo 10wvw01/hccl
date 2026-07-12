@@ -153,7 +153,7 @@ void InsTempAllGatherMesh1D1DZAxisDetour::BuildDataSlicesForChannel(
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, txDstOffset, sizeOut_[idx], elemCountOut_[idx]);
         HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxSrcSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, rxOutOffset, sizeOut_[idx], elemCountOut_[idx]);
-        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxDrcSlices: "
+        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxDstSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, rxSrcOffset, sizeOut_[idx], elemCountOut_[idx]);
     }
 }

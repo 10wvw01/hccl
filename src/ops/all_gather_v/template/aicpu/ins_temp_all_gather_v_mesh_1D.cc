@@ -163,7 +163,7 @@ HcclResult InsTempAllGatherVMesh1D::RunAllGatherVMesh(const std::vector<ThreadHa
                        "offset[%d] sliceSize[%d] count[%d].",
                        myRank_, connectedRank, rxOutOffset, tempAlgParams_.allRankSliceSize[connectedAlgRank], tempAlgParams_.count);
  
-            HCCL_DEBUG("[InsTempAllGatherVMesh1D][RunAllGatherVMesh] rankId [%d] connectedRank [%d] rxDrcSlices: "
+            HCCL_DEBUG("[InsTempAllGatherVMesh1D][RunAllGatherVMesh] rankId [%d] connectedRank [%d] rxDstSlices: "
                        "offset[%d] sliceSize[%d] count[%d].",
                        myRank_, connectedRank, rxSrcOffset, tempAlgParams_.allRankSliceSize[connectedAlgRank], tempAlgParams_.count);
  

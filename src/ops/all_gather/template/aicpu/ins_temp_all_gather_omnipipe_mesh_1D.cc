@@ -143,7 +143,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
 
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxDrcSlices: "
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][RunAllGatherMesh] rankId [%d] connectedRank [%d] rxDstSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
                         myRank_, connectedRank, rxOffset,
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
@@ -195,7 +195,7 @@ HcclResult InsTempAllGatherOmniPipeMesh1D::RunAllGatherMesh(const std::vector<Th
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
                         tempAlgParams_.stepSliceInfo.stepSliceSize[connectedAlgRank][rpt]);
 
-                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxDrcSlices: "
+                HCCL_DEBUG("[InsTempAllGatherOmniPipeMesh1D][omniLastStepRead_] rankId [%d] connectedRank [%d] rxDstSlices: "
                         "offset[%d] sliceSize[%d] count[%d].",
                         myRank_, connectedRank, rxReadDstOffset,
                         tempAlgParams_.omniReadDstStepSliceInfo.stepSliceSize[connectedAlgRank][rpt],
