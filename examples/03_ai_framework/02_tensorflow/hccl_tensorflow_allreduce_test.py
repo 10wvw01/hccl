@@ -73,6 +73,7 @@ def main():
         except Exception as e:
             print("ERROR : %s" % e)
             print("device:%s tensorflow hccl test fail" % rank_id)
+            raise
         else:
             print("device:%s tensorflow hccl test success" % rank_id)
 
