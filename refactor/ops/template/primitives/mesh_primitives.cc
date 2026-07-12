@@ -154,10 +154,12 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     std::vector<u32> algRanksForInputData;
     CHK_RET(GetAlgRanksForInputData(ranks, ranksForInputData, algRanksForInputData));
 
-    for (u32 connectedIdx = 0; connectedIdx < rankSize - 1; ++connectedIdx) {
-        const u32 connectedAlgRank = (myAlgRank + 1 + connectedIdx) % rankSize;
-        const u32 connectedRank = ranks[connectedAlgRank];
-        const u32 connectedOffset = (connectedAlgRank + rankSize - myAlgRank) % rankSize;
+    for (u32 connectedIdx = 0; connectedIdx < rankSize; ++connectedIdx) {
+        const u32 connectedRank = ranks[connectedIdx];
+        if (connectedRank == myRank) {
+            continue;
+        }
+        const u32 connectedOffset = (connectedIdx + rankSize - myAlgRank) % rankSize;
         const ChannelInfo *linkRemote = nullptr;
         linkRemote = &templateResource.channels.at(connectedRank)[0];
         // 对端数据来源通过本端数据来源在 algRank 空间内环状平移得到。
