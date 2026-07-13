@@ -24,7 +24,7 @@
 #endif
 #include "topo_match_ubx.h"
 namespace ops_hccl {
-
+//test code
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::InsV2AllGatherSoleExecutor()
 {
