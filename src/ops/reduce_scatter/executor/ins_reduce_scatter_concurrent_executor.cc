@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -193,9 +193,11 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
             const size_t channelCount = channels.size();
             for (u32 i = 0; i < channelCount; ++i) {
                 const auto &channel = channels[i];
-                auto &targetChannels = (i < rankSize_) ? templateAlgResforTemp0.channels : templateAlgResforTemp1.channels;
+                auto &targetChannels = (i < channelCount / 2) ? templateAlgResforTemp0.channels : templateAlgResforTemp1.channels;
                 targetChannels[channel.remoteRank].push_back(channel);
             }
+            CHK_RET(tempAlg0->SetchannelsPerRank(templateAlgResforTemp0.channels));
+            CHK_RET(tempAlg1->SetchannelsPerRank(templateAlgResforTemp1.channels));     
     }
     // 准备数据
     TemplateDataParams tempAlgParamsforTemp0;
@@ -280,12 +282,20 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     // 再次填充buffer信息
     tempAlgParamsforTemp0.buffInfo.hcclBuff = cclMem0;
     tempAlgParamsforTemp0.buffInfo.hcclBuffBaseOff = 0;
+    tempAlgParamsforTemp0.buffInfo.hcclBuffSize = cclMem0.size;
     tempAlgParamsforTemp0.buffInfo.inBuffBaseOff = 0;
     tempAlgParamsforTemp0.buffInfo.outBuffBaseOff = 0;
-    tempAlgParamsforTemp1.buffInfo.hcclBuff = cclMem1;
-    tempAlgParamsforTemp1.buffInfo.hcclBuffBaseOff = 0;
+    tempAlgParamsforTemp0.inputRepeatStride = 0;
+    tempAlgParamsforTemp0.outputRepeatStride = 0;
+
+    tempAlgParamsforTemp1.buffInfo.hcclBuff = resCtx.cclMem;
+    tempAlgParamsforTemp1.buffInfo.hcclBuffBaseOff = cclMem0.size;
+    tempAlgParamsforTemp1.buffInfo.hcclBuffSize = cclMem1.size;
     tempAlgParamsforTemp1.buffInfo.inBuffBaseOff = dataCountforTemp0 * dataTypeSize_;
     tempAlgParamsforTemp1.buffInfo.outBuffBaseOff = dataCountforTemp0 * dataTypeSize_;
+    tempAlgParamsforTemp1.inputRepeatStride = 0;
+    tempAlgParamsforTemp1.outputRepeatStride = 0;
+
     // 循环处理每个template
     for (u32 loopIndex = 0; loopIndex < loopTimesforTemp0 || loopIndex < loopTimesforTemp1; loopIndex++) {
         HCCL_INFO("[%s]loopIndex[%u], loopTimesforTemp0[%u], loopTimesforTemp1[%u]",
@@ -304,7 +314,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                             (dataCountforTemp1 - loopIndex * maxCountPerLoopforTemp1) : maxCountPerLoopforTemp1;
             u64 dataOffsetforNhr = dataCountforTemp0 * dataTypeSize_ + loopIndex * maxCountPerLoopforTemp1 * dataTypeSize_;
             GenTempAlgParams(dataOffsetforNhr, currCount, maxCountPerLoopforTemp1, tempAlgParamsforTemp1);
-            tempAlgParamsforTemp1.outputSliceStride = maxCountPerLoopforTemp1 * dataTypeSize_; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
+            tempAlgParamsforTemp1.outputSliceStride = 0;
             CHK_RET(tempAlg1->KernelRun(param, tempAlgParamsforTemp1, templateAlgResforTemp1));
         }
     }

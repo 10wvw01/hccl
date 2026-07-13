@@ -520,7 +520,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoAicpuForMesh1DClos(const
             selectAlgName = "InsReduceScatterMesh1D";
         } else {
             if (dataSize * ratio > RS_AICPU_1D_MAX_DATA_SIZE) {
-                selectAlgName = "InsReduceScatterMesh1DMeshChunk";
+                selectAlgName = "InsReduceScatterConcurrentMeshNHR";
             } else {
                 selectAlgName = "InsReduceScatterMesh1D";
             }
