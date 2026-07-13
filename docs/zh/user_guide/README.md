@@ -8,7 +8,7 @@
 - [使用通信库API实现通信功能](api_comm_impl.md)
 - [性能分析<a name="sub_menu"></a>](./perf_analysis/README.md)
 - [故障诊断<a name="sub_menu"></a>](./fault_diagnosis/README.md)
-- [相关参考](references.md)
+- [相关参考]()
   - [集群信息配置<a name="sub_menu"></a>](./cluster_info_config/README.md)
   - [环境变量参考<a name="sub_menu"></a>](./hccl_env/README.md)
   - [推荐业务配置](recommended_config.md)
@@ -16,7 +16,7 @@
   - [通信算子支持度清单<a name="sub_menu"></a>](./comm_ops_support_list/README.md)
 
 - [系统约束与限制](constraints.md)
-- [API参考](api_ref.md)
+- [API参考]()
   - [通信域管理接口（C语言）<a name="sub_menu"></a>](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/README.md)
   - [通信域管理接口（Python语言）<a name="sub_menu"></a>](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_python/README.md)
   - [通信算子接口<a name="sub_menu"></a>](../api_ref/comm_op_interface/README.md)
