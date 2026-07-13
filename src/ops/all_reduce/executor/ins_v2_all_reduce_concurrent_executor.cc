@@ -242,9 +242,14 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     tempAlgParams0.buffInfo.inputSize = param.inputSize;
     tempAlgParams0.buffInfo.outputSize = param.outputSize;
     tempAlgParams0.buffInfo.hcclBuff = cclMem0;
+    tempAlgParams0.buffInfo.hcclBuffSize = cclMem0.size;
     tempAlgParams0.buffInfo.hcclBuffBaseOff = 0;
     tempAlgParams0.buffInfo.inBuffBaseOff = 0;
     tempAlgParams0.buffInfo.outBuffBaseOff = 0;
+    tempAlgParams0.inputSliceStride = 0;
+    tempAlgParams0.outputSliceStride = 0;
+    tempAlgParams0.inputRepeatStride = 0;
+    tempAlgParams0.outputRepeatStride = 0;
 
     TemplateDataParams tempAlgParams1;
     tempAlgParams1.buffInfo.inputPtr = param.inputPtr;
@@ -252,9 +257,15 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     tempAlgParams1.buffInfo.inputSize = param.inputSize;
     tempAlgParams1.buffInfo.outputSize = param.outputSize;
     tempAlgParams1.buffInfo.hcclBuff = cclMem1;
+    tempAlgParams1.buffInfo.hcclBuffSize = cclMem1.size;
+
     tempAlgParams1.buffInfo.hcclBuffBaseOff = 0;
     tempAlgParams1.buffInfo.inBuffBaseOff = dataOffset;
     tempAlgParams1.buffInfo.outBuffBaseOff = dataOffset;
+    tempAlgParams1.inputSliceStride = 0;
+    tempAlgParams1.outputSliceStride = 0;
+    tempAlgParams1.inputRepeatStride = 0;
+    tempAlgParams1.outputRepeatStride = 0;
 
     TemplateResource tempAlgResource0;
     TemplateResource tempAlgResource1;
@@ -281,12 +292,13 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
         for (u32 i = 0; i < channelCount; ++i) {
             const auto &channel = channels[i];
-            auto &targetChannels = (i < rankSize_) ? tempAlgResource0.channels : tempAlgResource1.channels;
+            auto &targetChannels = (i < channelCount / 2) ? tempAlgResource0.channels : tempAlgResource1.channels;
             targetChannels[channel.remoteRank].push_back(channel);
         }
-
-        temp0SlaveThreadNum = temp0->GetThreadNum();
-        temp1SlaveThreadNum = temp1->GetThreadNum();
+        CHK_RET(temp0->SetchannelsPerRank(tempAlgResource0.channels));
+        CHK_RET(temp1->SetchannelsPerRank(tempAlgResource1.channels));     
+        temp0SlaveThreadNum = temp0->GetThreadNum() - 1;
+        temp1SlaveThreadNum = temp1->GetThreadNum() - 1;
     }
 
     const u64 temp0ThreadsNum = temp0SlaveThreadNum + 1;
