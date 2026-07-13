@@ -119,7 +119,8 @@ HcclResult InconsistentCheckParams(HcclComm comm, const OpExchangeInfo &exchange
         }
         if (exchangeInfo.aivCoreLimit != rmtExchangeInfo.aivCoreLimit) {
             HCCL_RUN_WARNING("[InconsistentCheckParams]op information aivCoreLimit check fail."
-                " expectValue[%u] remotePara[%u]", exchangeInfo.aivCoreLimit, rmtExchangeInfo.aivCoreLimit);
+                " remoteRank[%u] expectValue[%u] remotePara[%u]", channel.remoteRank, exchangeInfo.aivCoreLimit,
+                rmtExchangeInfo.aivCoreLimit);
         }
         if (strncmp(exchangeInfo.group, rmtExchangeInfo.group, MAX_LENGTH) != 0) {
             CHK_RET(ReportOpExchangeInfoCheckFailed(channel.remoteRank, exchangeInfo, "GroupName",
