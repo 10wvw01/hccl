@@ -59,8 +59,11 @@ private:
     bool useSymmetricDirect_{false};
     // Legacy mode only replaces NHR step 0; direct mode above replaces every step.
     bool useSymmetricInput_{false};
+    bool useSymmetricCcl_{false};
     void* inputSymWindow_{nullptr};
     u64 inputOffset_{0};
+    void* cclSymWindow_{nullptr};
+    u64 cclSymOffset_{0};
     u64 inputLoopBaseOff_{0};
     u64 inputRankStride_{0};
     u64 inputLoopSize_{0};

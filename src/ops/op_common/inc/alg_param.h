@@ -408,6 +408,10 @@ struct AlgResourceCtxSerializable {
     AlgType algType; // 环境变量设置的算法类型
     AlgHierarchyInfoForAllLevel algHierarchyInfo; // 算法分层信息
     HcclMem cclMem; // 跨Rank缓存Buffer
+    // ReduceScatter OmniPipe can expose the communicator-owned CCL buffer as a symmetric window.
+    // It is used only for L1 to access the L0 partial sums.
+    void* cclSymWindow = nullptr;
+    u64 cclSymOffset = 0;
     u32 notifyNumOnMainThread; // 主流上的notify数量
     u32 slaveThreadNum; // 需要的thread数量
     u32 waitTimeout = 0; // Device侧notify wait默认超时时间
@@ -436,6 +440,8 @@ struct AlgResourceCtxSerializable {
         binaryStream << algType;
         binaryStream << algHierarchyInfo.infos;
         binaryStream << cclMem;
+        binaryStream << cclSymWindow;
+        binaryStream << cclSymOffset;
         binaryStream << notifyNumOnMainThread;
         binaryStream << slaveThreadNum;
         binaryStream << waitTimeout;
@@ -470,6 +476,8 @@ struct AlgResourceCtxSerializable {
         binaryStream >> algType;
         binaryStream >> algHierarchyInfo.infos;
         binaryStream >> cclMem;
+        binaryStream >> cclSymWindow;
+        binaryStream >> cclSymOffset;
         binaryStream >> notifyNumOnMainThread;
         binaryStream >> slaveThreadNum;
         binaryStream >> waitTimeout;

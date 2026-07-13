@@ -1351,6 +1351,47 @@ HcclResult HcclMemcpyCtxHostToDevice(HcclComm comm, const OpParam &param,
     return HCCL_SUCCESS;
 }
 
+static void TryPrepareReduceScatterSymmetricCcl(HcclComm comm, const OpParam &param,
+                                                 AlgResourceCtxSerializable &resCtxHost)
+{
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+    if (param.opType != HcclCMDType::HCCL_CMD_REDUCE_SCATTER || !param.supportSymmetricMemory) {
+        return;
+    }
+
+    HcclCommSymWindow symWindow = nullptr;
+    size_t symOffset = 0;
+    HcclResult ret = HcclCommSymWinGet(comm, resCtxHost.cclMem.addr, resCtxHost.cclMem.size,
+                                       &symWindow, &symOffset);
+    if (ret != HCCL_SUCCESS || symWindow == nullptr) {
+        // The CCL buffer is communicator-owned and remains valid for the communicator lifetime. Register it once
+        // before channel acquisition so the channel setup can exchange the corresponding remote memory handles.
+        ret = HcclCommSymWinRegister(comm, resCtxHost.cclMem.addr, resCtxHost.cclMem.size, &symWindow, 1);
+        if (ret != HCCL_SUCCESS || symWindow == nullptr) {
+            HCCL_INFO("[%s] CCL buffer[%p] size[%llu] is not available as symmetric memory, ret[%d]. "
+                      "L1 NHR will use remoteCclMem.", __func__, resCtxHost.cclMem.addr, resCtxHost.cclMem.size, ret);
+            return;
+        }
+        ret = HcclCommSymWinGet(comm, resCtxHost.cclMem.addr, resCtxHost.cclMem.size,
+                                &symWindow, &symOffset);
+    }
+    if (ret != HCCL_SUCCESS || symWindow == nullptr) {
+        HCCL_INFO("[%s] failed to get CCL symmetric window, ret[%d]. L1 NHR will use remoteCclMem.",
+                  __func__, ret);
+        return;
+    }
+
+    resCtxHost.cclSymWindow = symWindow;
+    resCtxHost.cclSymOffset = symOffset;
+    HCCL_INFO("[%s] CCL symmetric window enabled, ccl[%p] size[%llu] window[%p] offset[%llu].",
+              __func__, resCtxHost.cclMem.addr, resCtxHost.cclMem.size, symWindow, symOffset);
+#else
+    (void)comm;
+    (void)param;
+    (void)resCtxHost;
+#endif
+}
+
 HcclResult HcclAllocAlgResourceAICPU(
     HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost, const ResPackGraphMode &resPack)
@@ -1362,6 +1403,7 @@ HcclResult HcclAllocAlgResourceAICPU(
     CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &cclBufferSize));
     // CCL IN使用所有的CCL Buffer，这个其实就是scratch buffer
     resCtxHost->cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
+    TryPrepareReduceScatterSymmetricCcl(comm, param, *resCtxHost);
     resCtxHost->notifyNumOnMainThread = resRequest.notifyNumOnMainThread;
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
     UpdateAicpuTimeoutCtx(param, *resCtxHost);

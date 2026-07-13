@@ -237,7 +237,11 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
         return HcclResult::HCCL_SUCCESS;
     }
     if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE) {
-        ReduceScatterSupportSymmetricMemory(param);
+        if (ReduceScatterSupportSymmetricMemory(param)) {
+            // The symmetric CCL window is serialized in the AICPU resource context. Keep this resource context
+            // separate from the normal one so a previously cached normal context cannot bypass CCL registration.
+            CHK_RET(SetOpParamAlgTag(param, algName + "_symccl"));
+        }
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName));
     HCCL_INFO("Execute ReduceScatterOutPlace success.");

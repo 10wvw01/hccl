@@ -76,6 +76,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     tempAlgParams_       = tempAlgParams;
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
+    cclSymWindow_ = tempAlgParams_.cclSymWindow;
+    cclSymOffset_ = tempAlgParams_.cclSymOffset;
 
     // Direct mode maps the packed OmniPipe offsets back to user input and keeps every NHR step there.
     // The legacy step-0-only optimization remains available when direct mode is not requested.
@@ -101,6 +103,13 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     } else if (useSymmetricDirect_) {
         HCCL_INFO("[%s] direct symmetric NHR enabled: inputWin[%p] offset[%llu]", __func__, inputSymWindow_,
                   inputOffset_);
+    }
+    if (tempAlgParams_.supportSymmetricCclMemory && !useSymmetricCcl_) {
+        HCCL_INFO("[%s] symmetric CCL NHR fallback: cclWin[%p] isPcie[%d]", __func__, cclSymWindow_,
+                  IsPcieProtocol(channels_));
+    } else if (useSymmetricCcl_) {
+        HCCL_INFO("[%s] symmetric CCL NHR enabled: cclWin[%p] offset[%llu]", __func__, cclSymWindow_,
+                  cclSymOffset_);
     }
 
     threadNum_ = GetThreadNum();
@@ -359,6 +368,18 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 
         void* sendCclBuffAddr = linkSend.remoteCclMem.addr;
         void* recvCclBuffAddr = linkRecv.remoteCclMem.addr;
+        if (useSymmetricCcl_) {
+            void* peerCclBuffAddr = nullptr;
+            HcclResult ret = HcclSymWinGetPeerPointer(cclSymWindow_, cclSymOffset_, sendToRank, &peerCclBuffAddr);
+            if (ret == HCCL_SUCCESS && peerCclBuffAddr != nullptr) {
+                // Keep SendRecvBatchWriteReduce for its established ACK/DATA handshake. Only the remote
+                // destination changes from channel.remoteCclMem to the peer symmetric CCL window.
+                sendCclBuffAddr = peerCclBuffAddr;
+            } else {
+                HCCL_WARNING("[RS-NHR][RunNHR] symmetric CCL peer pointer fallback, peerRank[%u] ret[%d] addr[%p]",
+                             sendToRank, ret, peerCclBuffAddr);
+            }
+        }
         // RS：在 SCRATCH 上进行规约交换
         CHK_RET(GetNHRDataSize(st, channelIdx, sendCclBuffAddr, recvCclBuffAddr, dataTypeSize, rptNum, 
                     txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));

@@ -46,6 +46,8 @@ DEFINE_WEAK_FUNC(HcclResult, HcclSymWinGetPeerPointer, HcclCommSymWindow winHand
     size_t offset, uint32_t peerRank, void** ptr);
 DEFINE_WEAK_FUNC(HcclResult, HcclCommSymWinGet, HcclComm comm, void *ptr, size_t size,
     HcclCommSymWindow *winHandle, size_t *offset);
+DEFINE_WEAK_FUNC(HcclResult, HcclCommSymWinRegister, HcclComm comm, void *addr, uint64_t size,
+    HcclCommSymWindow *winHandle, uint32_t flag);
 #ifdef HCOMM_TIMEOUT_FLOAT_TYPE
 DEFINE_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, float timeOut);
 DEFINE_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, float timeOut);
@@ -107,6 +109,7 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadJoin);
     INIT_SUPPORT_FLAG(libHcommHandle, HcclSymWinGetPeerPointer);
     INIT_SUPPORT_FLAG(libHcommHandle, HcclCommSymWinGet);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcclCommSymWinRegister);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadResAcquireTimeOut);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommSetNotifyWaitTimeOut);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
