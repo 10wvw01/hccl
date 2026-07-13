@@ -738,16 +738,6 @@ struct DataInfo {
         : channel_(channel), slices_(slices), dataType_(dataType) {}
 };
 
-struct DataReduceInfo {
-    ChannelInfo channel_;
-    SlicesList slices_;
-    HcclDataType dataType_;
-    HcclReduceOp reduceType_;
-    DataReduceInfo(const ChannelInfo &channel, const SlicesList &slices,
-                   HcclDataType dataType, HcclReduceOp reduceType)
-        : channel_(channel), slices_(slices), dataType_(dataType), reduceType_(reduceType) {}
-};
-
 struct TxRxChannels {
     ChannelInfo txChannel_;
     ChannelInfo rxChannel_;
@@ -766,18 +756,6 @@ struct SendRecvInfo {
 
     SendRecvInfo(const TxRxChannels &sendRecvLinks, const TxRxSlicesList &sendRecvSlices, HcclDataType dataType)
         : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices), dataType_(dataType) {}
-};
-
-struct SendRecvReduceInfo {
-    TxRxChannels      sendRecvChannels_;
-    TxRxSlicesList    sendRecvSlices_;
-    HcclDataType dataType_;
-    HcclReduceOp reduceType_;
-
-    SendRecvReduceInfo(const TxRxChannels &sendRecvLinks, const TxRxSlicesList &sendRecvSlices,
-                       const HcclDataType dataType, const HcclReduceOp reduceOp)
-        : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices),
-          dataType_(dataType), reduceType_(reduceOp) {}
 };
 
 }
