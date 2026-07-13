@@ -234,7 +234,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         portNum = CLOS_BW_MS;
     } else if (param.opExecuteConfig == OpExecuteConfig::AICPU_TS){
         portNum0 = MESH_BW_AICPU;
-        portNum1 = CLOS_BW_AICPU;
+        portNum = CLOS_BW_AICPU;
     }
 
     const u64 sliceAlignCount = HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
