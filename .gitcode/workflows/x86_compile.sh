@@ -6,9 +6,7 @@ cd ${WORKSPACE}
 echo $(grep -E "^VERSION_ID=" /etc/os-release | cut -d'"' -f2)
 if [[ "${task_name}" == *ubuntu24* ]]; then
     sudo update-alternatives --set gcc /usr/bin/gcc-14
-    if [[ "${task_name}" == *x86* ]]; then
-        sed -i "1i set(CMAKE_EXPORT_COMPILE_COMMANDS ON)" "CMakeLists.txt"
-    fi
+    sed -i "1i set(CMAKE_EXPORT_COMPILE_COMMANDS ON)" "CMakeLists.txt"
 else
     if [[ -f "/opt/rh/devtoolset-7/enable" ]]; then
         echo "source devtoolset"

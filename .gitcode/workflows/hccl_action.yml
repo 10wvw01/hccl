@@ -34,12 +34,7 @@ stages:
           -
             name: show_output
             run: |
-              echo "image: ${{ steps.revise_image.outputs.Compile_Ascend_X86  }}"
-          -
-            name: debug_vars
-            run: |
-              echo "111"
-              echo ${{ vars.CI_PATH }}
+              echo "image: ${{ steps.revise_image.outputs.Compile_Ascend_X86 }}"
         if: "${{ default() }}"
         runs-on: ["codearts-hosted", "ubuntu-latest", "x64", "large"]
       JOB_pr:  
