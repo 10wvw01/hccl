@@ -13,6 +13,7 @@
 
 #include <vector>
 #include "hccl_algorithm.h"
+#include "alg_param.h"
 
 namespace ops_hccl {
 

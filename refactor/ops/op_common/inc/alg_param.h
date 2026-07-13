@@ -678,39 +678,30 @@ struct OpExchangeInfo {
     char tag[TAG_LENGTH] = {0};
 };
 
-// ───────────── 数据传输方向 (纯数据流方向) ─────────────
-// 仅描述 "本地 → 远端" 还是 "远端 → 本地",
-// 不携带算子语义, 不携带拓扑语义。
 enum class TransferDirection : uint8_t {
-    WRITE = 0,   // 本地 → 远端 (Push)
-    READ  = 1,   // 远端 → 本地 (Pull)
+    WRITE = 0,
+    READ = 1,
 };
 
-// ───────────── 收发切片列表 (含 rank 信息) ─────────────
-// 在 TxRxSlicesList 基础上增加 srcRankId_ / dstRankId_,
-// 供 Send 接口内部做 Rank→Channel 映射。
 struct DataSlice {
-    void* addr_ = nullptr;
-    u64 offset_{0}; // Slice相对于input/output的偏移字节数，gather类操作取output，scatter类操作取input
-    u64 size_{0};    // Slice的数据大小，单位：字节
-    u64 count_{0};   // 数据元素个数
+    void *addr_ = nullptr;
+    u64 offset_{0};
+    u64 size_{0};
+    u64 count_{0};
 
-    DataSlice(void* addr, u64 offset, u64 size, u64 count)
-    : addr_(addr), offset_(offset), size_(size), count_(count)
+    DataSlice(void *addr, u64 offset, u64 size, u64 count)
+        : addr_(addr), offset_(offset), size_(size), count_(count)
     {
     }
 
-    DataSlice(void* addr, u64 offset, u64 size)
-    : addr_(addr), offset_(offset), size_(size)
+    DataSlice(void *addr, u64 offset, u64 size) : addr_(addr), offset_(offset), size_(size), count_(0)
     {
-        count_ = 0;
     }
 
-    std::string Describe() const {
+    std::string Describe() const
+    {
         std::ostringstream oss;
-        oss << "DataSlice: addr=" << addr_ // 指针地址会自动格式化为十六进制
-            << ", offset=" << offset_
-            << ", size=" << size_
+        oss << "DataSlice: addr=" << addr_ << ", offset=" << offset_ << ", size=" << size_
             << ", count=" << count_;
         return oss.str();
     }
@@ -749,12 +740,13 @@ struct DataInfo {
     ChannelInfo channel_;
     SlicesList slices_;
     HcclDataType dataType_;
-    DataInfo(const ChannelInfo &channel, const SlicesList &slices)
-    : channel_(channel), slices_(slices)
+
+    DataInfo(const ChannelInfo &channel, const SlicesList &slices) : channel_(channel), slices_(slices)
     {
     }
+
     DataInfo(const ChannelInfo &channel, const SlicesList &slices, HcclDataType dataType)
-    : channel_(channel), slices_(slices), dataType_(dataType)
+        : channel_(channel), slices_(slices), dataType_(dataType)
     {
     }
 };
@@ -764,9 +756,10 @@ struct DataReduceInfo {
     SlicesList slices_;
     HcclDataType dataType_;
     HcclReduceOp reduceType_;
-    DataReduceInfo(const ChannelInfo &channel, const SlicesList &slices,
-             HcclDataType dataType, HcclReduceOp reduceType)
-    : channel_(channel), slices_(slices), dataType_(dataType), reduceType_(reduceType)
+
+    DataReduceInfo(const ChannelInfo &channel, const SlicesList &slices, HcclDataType dataType,
+                   HcclReduceOp reduceType)
+        : channel_(channel), slices_(slices), dataType_(dataType), reduceType_(reduceType)
     {
     }
 };
@@ -781,9 +774,9 @@ struct TxRxChannels {
 };
 
 struct SendRecvInfo {
-    TxRxChannels      sendRecvChannels_;
-    TxRxSlicesList    sendRecvSlices_;
-    HcclDataType      dataType_;
+    TxRxChannels sendRecvChannels_;
+    TxRxSlicesList sendRecvSlices_;
+    HcclDataType dataType_;
 
     SendRecvInfo(const TxRxChannels &sendRecvLinks, const TxRxSlicesList &sendRecvSlices)
         : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices)
@@ -791,14 +784,14 @@ struct SendRecvInfo {
     }
 
     SendRecvInfo(const TxRxChannels &sendRecvLinks, const TxRxSlicesList &sendRecvSlices, HcclDataType dataType)
-    : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices), dataType_(dataType)
+        : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices), dataType_(dataType)
     {
     }
 };
 
 struct SendRecvReduceInfo {
-    TxRxChannels      sendRecvChannels_;
-    TxRxSlicesList    sendRecvSlices_;
+    TxRxChannels sendRecvChannels_;
+    TxRxSlicesList sendRecvSlices_;
     HcclDataType dataType_;
     HcclReduceOp reduceType_;
 
@@ -809,6 +802,5 @@ struct SendRecvReduceInfo {
     }
 };
 
-
-} 
+} // namespace ops_hccl
 #endif

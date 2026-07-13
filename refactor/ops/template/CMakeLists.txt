@@ -9,8 +9,14 @@
 # -----------------------------------------------------------------------------------------------------------
 
 # Refactor template sources that should enter the hccl target.
-target_include_directories(hccl PRIVATE
+target_include_directories(hccl BEFORE PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc
+    ${CMAKE_CURRENT_LIST_DIR}/../launcher
+    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aiv
+    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_ms
+    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_sche
     ${HCCL_DIR}/src/ops/op_common/template
     ${HCCL_DIR}/src/ops/op_common/template/wrapper
 )

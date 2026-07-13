@@ -17,7 +17,6 @@
 #include "alg_type.h"
 #include "hccl_algorithm.h"
 #include "execute_selector.h"
-#include "executor_v2_base.h"
 
 #ifdef __cplusplus
 extern "C" {

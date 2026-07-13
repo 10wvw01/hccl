@@ -15,7 +15,6 @@
 #include "log.h"
 
 #include "alg_data_trans_wrapper.h"
-#include "template_utils.h"
 #include "hcomm_primitives_dl.h"
 #include "exec_timeout_manager.h"
 
