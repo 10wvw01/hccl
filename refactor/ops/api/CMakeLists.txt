@@ -18,7 +18,9 @@
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/..
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
-    ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc    
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common/hcomm_dlsym
     ${CMAKE_CURRENT_LIST_DIR}/../executor
 )
 

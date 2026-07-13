@@ -16,7 +16,7 @@
 #include "hccl.h"
 #include "alg_param.h"
 #include "hccl_algorithm.h"
-#include "sal.h"  // for HcclUs (used by LogHcclExit declaration)
+#include "sal.h" // for HcclUs (used by LogHcclExit declaration)
 
 namespace ops_hccl {
 
@@ -39,14 +39,13 @@ class HcclAlgorithm;
  *   - HCCL_SUCCESS：执行成功
  *   - 其他：执行失败错误码
  */
-HcclResult HcclExecOp(HcclComm comm, OpParam &param,
-                      std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
-                      HcclAlgorithm &alg, const ResPackGraphMode &resPack);
+HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+    HcclAlgorithm &alg, const ResPackGraphMode &resPack);
 
 HcclResult HcclCalcTopoInfo(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo);
-HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo);
-HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
-                         std::string &algName);
+HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails *topoInfo);
+HcclResult Selector(
+    HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName);
 
 // forward-declared: refactor 入口 (.cc) 拷贝自 src，调用 src/ops/op_common/op_common.cc 中定义的
 // 函数。函数实现在 src，--refactor 模式下 src 也会被编译，链接器找得到符号。
@@ -56,6 +55,6 @@ HcclResult CheckCount(const u64 count);
 HcclResult CheckDataType(const HcclDataType dataType, bool needReduce);
 HcclResult SingleRankProc(HcclComm comm, OpParam &param);
 bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig);
-}  // namespace ops_hccl
+} // namespace ops_hccl
 
-#endif  // OPS_HCCL_OP_COMMON
+#endif // OPS_HCCL_OP_COMMON
