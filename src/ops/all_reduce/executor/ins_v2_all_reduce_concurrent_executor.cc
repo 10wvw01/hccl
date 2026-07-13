@@ -229,7 +229,7 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     if (temp0ScratchMultiple > 0 || temp1ScratchMultiple > 0) {
         const u64 bufferRatioTerm0 = portNum0 * temp0ScratchMultiple;
         const u64 bufferRatioTerm1 = portNum1 * temp1ScratchMultiple;
-        const double bufferRatio0 = bufferRatioTerm0 / (bufferRatioTerm0 + bufferRatioTerm1);
+        const double bufferRatio0 = static_cast<double>(bufferRatioTerm0) / (bufferRatioTerm0 + bufferRatioTerm1);
         cclMem0.size = cclMemSize * bufferRatio0;
         cclMem1.addr = static_cast<void *>(static_cast<s8 *>(cclMemAddr) + cclMem0.size);
         cclMem1.size = cclMemSize - cclMem0.size;
