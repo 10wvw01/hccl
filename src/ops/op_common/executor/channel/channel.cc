@@ -78,7 +78,7 @@ HcclResult ProcessMeshInfo(const HcclComm comm,const std::vector<std::vector<u32
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
             HCCL_INFO("enableDieNum = %lld",enableDieNum);
         } else if (enableDieNum == DIE_NUM_2) {
-            // 加入fromRank 2个die的链�?
+            // 加入fromRank 2个die的链�?
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_0,
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_1,
@@ -102,7 +102,7 @@ HcclResult ProcessFlattenLink(HcclComm comm, u32 myRank, const std::vector<std::
     uint32_t enableDieNum = 0;
     uint32_t enableDieId = 0;
     CHK_RET(CcuAlgTemplateBase::GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc, myRank, enableDieNum, enableDieId));
-    if (enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2) { // 目前只支�?个或2个die
+    if (enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2) { // 目前只支�?个或2个die
         HCCL_ERROR("[ProcessFlattenLink] get channelDescs fail");
         return HcclResult::HCCL_E_INTERNAL;
     }
@@ -141,7 +141,7 @@ HcclResult CalcLevel1ChannelRequest(const OpParam& param, const TopoInfo* topoIn
             break;
     }
 
-    // level1走rdma的几种条件：A2单机A+X开启switch；A2多机；A3开启disableHccs；A3跨超卡数不一�?
+    // level1走rdma的几种条件：A2单机A+X开启switch；A2多机；A3开启disableHccs；A3跨超卡数不一�?
     bool isA2UsedRdma = topoInfo->deviceType == DevType::DEV_TYPE_910B && (topoInfo->serverNum > 1 ||
         (topoInfo->serverNum == 1 && topoInfo->isDiffDeviceModule && GetExternalInputIntraRoceSwitch() > 0));
     bool isA3UsedRdma = topoInfo->deviceType == DevType::DEV_TYPE_910_93 &&
@@ -231,9 +231,9 @@ HcclResult GetProtocolByEngine(const OpParam& param, std::vector<CommProtocol> &
             break;
     }
 #else
-    // 8.5.0 CANN �?UBC_CTP/UB_MEM 等枚举值；此函数所在的 CalcChannelRequestXxx/CreateChannelRequestByRankId 通路
-    // �?9.0.0 新路径使用，运行时已由算子入�?GetHcommVersion() < CANN_VERSION(9, 0, 0) 分流�?HcclXxxInner�?
-    // 8.5.0 下不会真正走到。这里保留空桩让 libhccl.so 外部链接（hccl_test 等）能解析符号�?
+    // 8.5.0 CANN �?UBC_CTP/UB_MEM 等枚举值；此函数所在的 CalcChannelRequestXxx/CreateChannelRequestByRankId 通路
+    // �?9.0.0 新路径使用，运行时已由算子入�?GetHcommVersion() < CANN_VERSION(9, 0, 0) 分流�?HcclXxxInner�?
+    // 8.5.0 下不会真正走到。这里保留空桩让 libhccl.so 外部链接（hccl_test 等）能解析符号�?
     (void)param;
 #endif
     return HCCL_SUCCESS;
@@ -539,7 +539,7 @@ HcclResult CalcChannelRequestMesh2D(HcclComm comm, const OpParam& param, const T
         protocol = CommProtocol::COMM_PROTOCOL_UB_MEM;
     }
 #else
-    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；CalcChannelRequestMesh2D 整体�?9.0.0 新特性，
+    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；CalcChannelRequestMesh2D 整体�?9.0.0 新特性，
     // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；8.5.0 下用 HCCS 协议占位仅为可编
     CommProtocol protocol = CommProtocol::COMM_PROTOCOL_HCCS;
     (void)param;
@@ -604,7 +604,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
     u32 localRankSize = subcommInfo[0].size();
     CHK_RET(CalcNHRChannelConnect(localRank, localRankSize, INVALID_VALUE_RANKID, connectRanks));
 
-    // 根据engine获取期望的协议类型列�?
+    // 根据engine获取期望的协议类型列�?
     std::vector<CommProtocol> expectedProtocols;
     CHK_RET(GetProtocolByEngine(param, expectedProtocols));
 
@@ -617,7 +617,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的链�?
+                continue; // 跨框场景，nhr算法只取layer1的链�?
             }
             CommLink *linkList = nullptr;
             u32 listSize;
@@ -685,9 +685,9 @@ static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool i
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType)
 {
 #if defined(AICPU_COMPILE) || CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
-    // 9.1.0 之前不使�?HcclRankGraphGetEndpointNum / GetEndpointDesc / GetTopoType 等新 API�?
-    // �?CommAddr.eid 字段也不存在；整函数�?8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用�?
-    // 入口版本号守护后 8.5.0 永远走不到这里）�?
+    // 9.1.0 之前不使�?HcclRankGraphGetEndpointNum / GetEndpointDesc / GetTopoType 等新 API�?
+    // �?CommAddr.eid 字段也不存在；整函数�?8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用�?
+    // 入口版本号守护后 8.5.0 永远走不到这里）�?
     (void)comm; (void)netLayer; (void)link; (void)topoType;
     return HCCL_SUCCESS;
 #else
@@ -734,8 +734,8 @@ HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, C
 }
 
 /*
-*   获取link对应的channel。对�?个rank之间，存在多条link的场景，会优先获取指定TopoType�?条channel�?
-*   如果多条link都没有指定的TopoType，则返回第一条link对应的channel�?
+*   获取link对应的channel。对�?个rank之间，存在多条link的场景，会优先获取指定TopoType�?条channel�?
+*   如果多条link都没有指定的TopoType，则返回第一条link对应的channel�?
 */
 HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vector<HcclChannelDesc> &channels, CommTopo priorityTopo)
 {
@@ -805,9 +805,9 @@ HcclResult ProcessLinksForChannelMutiJetty(HcclComm comm, CommProtocol &expected
  	  	         myRank, remoteRank, netLayer, linkList.size(), execptMesh, isIsolation);
     std::vector<HcclChannelDesc> tempChannels;
 #if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
-    // 9.1.0 之前不使�?ProcessLinksForChannelMutiJetty 等新 API�?
-    // �?CommAddr.eid 字段也不存在；整函数�?8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用�?
-    // 入口版本号守护后 8.5.0 永远走不到这里）�?
+    // 9.1.0 之前不使�?ProcessLinksForChannelMutiJetty 等新 API�?
+    // �?CommAddr.eid 字段也不存在；整函数�?8.5.0 下不提供真实实现（上游在 9.0.0 新路径里调用�?
+    // 入口版本号守护后 8.5.0 永远走不到这里）�?
     (void)comm; (void)netLayer; (void)linkList;
     return HcclResult::HCCL_E_NOT_SUPPORT;
 #else
@@ -916,7 +916,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
     CommProtocol expectedProtocol = param.engine == CommEngine::COMM_ENGINE_AIV ? 
                        CommProtocol::COMM_PROTOCOL_UB_MEM : CommProtocol::COMM_PROTOCOL_UBC_CTP;
 #else
-    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；
+    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；
     // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；8.5.0 下用 HCCS 协议占位仅为可编
     CommProtocol expectedProtocol = CommProtocol::COMM_PROTOCOL_HCCS;
 #endif
@@ -929,7 +929,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
 
         for (auto netLayer : netLayersVector) {
             if (netLayerNum > 1 && netLayer == 0) {
-                continue; // 跨框场景，nhr算法只取layer1的链�?
+                continue; // 跨框场景，nhr算法只取layer1的链�?
             }
             CommLink *linkList = nullptr;
             u32 listSize;
@@ -969,7 +969,7 @@ HcclResult CalcChannelRequestMeshClosMultiJetty(HcclComm comm, const OpParam& pa
     CommProtocol expectedProtocol = param.engine == CommEngine::COMM_ENGINE_AIV ? 
                        CommProtocol::COMM_PROTOCOL_UB_MEM : CommProtocol::COMM_PROTOCOL_UBC_CTP;
 #else
-    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；
+    // 8.5.0 CANN �?UBC_CTP/UB_MEM 枚举值；
     // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；8.5.0 下用 HCCS 协议占位仅为可编
     CommProtocol expectedProtocol = CommProtocol::COMM_PROTOCOL_HCCS;
 #endif
