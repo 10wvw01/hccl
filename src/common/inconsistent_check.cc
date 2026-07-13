@@ -90,7 +90,6 @@ HcclResult InconsistentCheckParams(HcclComm comm, const OpExchangeInfo &exchange
                 channel.remoteRank);
             return HCCL_E_PARA;
         }
-        HCCL_INFO("[InconsistentCheckParams] check OpExchangeInfo from remoteRank[%u]", channel.remoteRank);
         if (exchangeInfo.cclBufferSize != rmtExchangeInfo.cclBufferSize) {
             CHK_RET(ReportOpExchangeInfoCheckFailed(channel.remoteRank, exchangeInfo, "HcclBufferSize",
                 std::to_string(exchangeInfo.cclBufferSize), std::to_string(rmtExchangeInfo.cclBufferSize)));
