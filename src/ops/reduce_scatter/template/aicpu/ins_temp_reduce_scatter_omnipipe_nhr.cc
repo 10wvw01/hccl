@@ -15,6 +15,35 @@
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
 namespace ops_hccl {
+namespace {
+HcclResult CalcDirectUserInputOffset(u64 packedOffset, u64 sliceSize, u64 loopBaseOffset,
+                                     u64 rankStride, u64 loopSize, u64 inputSize, u64& userInputOffset)
+{
+    CHK_PRT_RET(rankStride == 0 || loopSize == 0 || loopBaseOffset > inputSize,
+                HCCL_ERROR("[%s] invalid input layout, loopBase[%llu] rankStride[%llu] loopSize[%llu] "
+                           "inputSize[%llu]", __func__, loopBaseOffset, rankStride, loopSize, inputSize),
+                HCCL_E_PARA);
+    const u64 rankIndex = packedOffset / loopSize;
+    const u64 offsetInLoop = packedOffset % loopSize;
+    CHK_PRT_RET(sliceSize > loopSize - offsetInLoop ||
+                rankIndex > (inputSize - loopBaseOffset) / rankStride,
+                HCCL_ERROR("[%s] invalid packed input slice, packedOffset[%llu] sliceSize[%llu]", __func__,
+                           packedOffset, sliceSize),
+                HCCL_E_PARA);
+    const u64 rankBaseOffset = loopBaseOffset + rankIndex * rankStride;
+    CHK_PRT_RET(offsetInLoop > inputSize - rankBaseOffset,
+                HCCL_ERROR("[%s] input offset exceeds input buffer, rankBase[%llu] offsetInLoop[%llu]",
+                           __func__, rankBaseOffset, offsetInLoop),
+                HCCL_E_PARA);
+    userInputOffset = rankBaseOffset + offsetInLoop;
+    CHK_PRT_RET(sliceSize > inputSize - userInputOffset,
+                HCCL_ERROR("[%s] input slice exceeds input buffer, offset[%llu] sliceSize[%llu] inputSize[%llu]",
+                           __func__, userInputOffset, sliceSize, inputSize),
+                HCCL_E_PARA);
+    return HCCL_SUCCESS;
+}
+} // namespace
+
 InsTempReduceScatterOmniPipeNHR::InsTempReduceScatterOmniPipeNHR(
     const OpParam& param, const u32 rankId, // 传通信域的u32，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
@@ -48,19 +77,30 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
 
-    // 对称 input 只能替换首轮：该轮 peer CCL 中仍是原始 input；后续轮次依赖 peer CCL 部分和。
-    // PCIe 保持原 read-reduce 流程，避免改变其链路同步语义。
+    // Direct mode maps the packed OmniPipe offsets back to user input and keeps every NHR step there.
+    // The legacy step-0-only optimization remains available when direct mode is not requested.
     inputLoopBaseOff_ = tempAlgParams_.processedDataCount * DATATYPE_SIZE_TABLE[dataType_];
     inputRankStride_ = param.outputSize;
     inputLoopSize_ = tempAlgParams_.inputRepeatStride;
     inputTotalSize_ = param.inputSize;
-    useSymmetricInput_ = supportSymmetricMemory_ && tempAlgParams_.supportSymmetricMemory &&
+    useSymmetricDirect_ = supportSymmetricMemory_ && tempAlgParams_.supportSymmetricMemory &&
+                          tempAlgParams_.enableRemoteMemAccess;
+    CHK_PRT_RET(useSymmetricDirect_ && (inputSymWindow_ == nullptr || tempAlgParams_.buffInfo.inputPtr == nullptr ||
+                inputRankStride_ == 0 || inputLoopSize_ == 0),
+                HCCL_ERROR("[%s] invalid direct symmetric input, inputWin[%p] inputPtr[%p] rankStride[%llu] "
+                           "loopSize[%llu]", __func__, inputSymWindow_, tempAlgParams_.buffInfo.inputPtr,
+                           inputRankStride_, inputLoopSize_),
+                HCCL_E_PARA);
+    useSymmetricInput_ = !useSymmetricDirect_ && supportSymmetricMemory_ && tempAlgParams_.supportSymmetricMemory &&
                          inputSymWindow_ != nullptr && inputRankStride_ != 0 && inputLoopSize_ != 0 &&
                          !IsPcieProtocol(channels_);
-    if (supportSymmetricMemory_ && !useSymmetricInput_) {
+    if (supportSymmetricMemory_ && !useSymmetricDirect_ && !useSymmetricInput_) {
         HCCL_INFO("[%s] symmetric NHR fallback: firstAxis[%d] inputWin[%p] rankStride[%llu] loopSize[%llu] "
                   "isPcie[%d]", __func__, tempAlgParams_.supportSymmetricMemory, inputSymWindow_, inputRankStride_,
                   inputLoopSize_, IsPcieProtocol(channels_));
+    } else if (useSymmetricDirect_) {
+        HCCL_INFO("[%s] direct symmetric NHR enabled: inputWin[%p] offset[%llu]", __func__, inputSymWindow_,
+                  inputOffset_);
     }
 
     threadNum_ = GetThreadNum();
@@ -223,6 +263,58 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricStep0(const AicpuNHRStep
     return HCCL_SUCCESS;
 }
 
+HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricDirectStep(
+    const AicpuNHRStepInfo& stepInfo, const std::vector<ThreadHandle>& threads, u32 channelIdx, u32 dataTypeSize)
+{
+    CHK_PRT_RET(threads.size() <= channelIdx,
+                HCCL_ERROR("[RS-NHR][%s] missing thread for channelIdx[%u]", __func__, channelIdx),
+                HCCL_E_INTERNAL);
+    const u32 recvFromRank = subCommRanks_[0].at(stepInfo.fromRank);
+    const u32 sendToRank = subCommRanks_[0].at(stepInfo.toRank);
+    CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
+                channels_.at(recvFromRank).size() <= channelIdx || channels_.at(sendToRank).size() <= channelIdx,
+                HCCL_ERROR("[RS-NHR][%s] link missing, recvFrom[%u] sendTo[%u] channelIdx[%u]", __func__,
+                           recvFromRank, sendToRank, channelIdx),
+                HCCL_E_INTERNAL);
+    const ChannelInfo& linkRecv = channels_.at(recvFromRank)[channelIdx];
+    const ChannelInfo& linkSend = channels_.at(sendToRank)[channelIdx];
+
+    void* peerInputAddr = nullptr;
+    HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &peerInputAddr);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || peerInputAddr == nullptr,
+                HCCL_ERROR("[RS-NHR][%s] HcclSymWinGetPeerPointer failed, peerRank[%u] ret[%d] addr[%p]",
+                           __func__, recvFromRank, ret, peerInputAddr),
+                HCCL_E_INTERNAL);
+
+    std::vector<DataSlice> txSrcSlices;
+    std::vector<DataSlice> txDstSlices;
+    std::vector<DataSlice> rxSrcSlices;
+    std::vector<DataSlice> rxDstSlices;
+    const u64 rptNum = std::max<u64>(1, tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[0].size());
+    for (u32 i = 0; i < stepInfo.nSlices; ++i) {
+        const u32 rxIdx = stepInfo.rxSliceIdxs[i];
+        for (u64 rpt = 0; rpt < rptNum; ++rpt) {
+            const u64 packedOffset = tempAlgParams_.buffInfo.inBuffBaseOff +
+                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[rxIdx][rpt] +
+                dataOffsetVec_[rxIdx][rpt][channelIdx] +
+                tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
+            const u64 sliceSize = dataSplitVec_[rxIdx][rpt][channelIdx];
+            u64 userInputOffset = 0;
+            CHK_RET(CalcDirectUserInputOffset(packedOffset, sliceSize, inputLoopBaseOff_, inputRankStride_,
+                                              inputLoopSize_, inputTotalSize_, userInputOffset));
+            rxSrcSlices.emplace_back(peerInputAddr, userInputOffset, sliceSize, sliceSize / dataTypeSize);
+            rxDstSlices.emplace_back(tempAlgParams_.buffInfo.inputPtr, userInputOffset, sliceSize,
+                                     sliceSize / dataTypeSize);
+        }
+    }
+    SendRecvReduceInfo info{{linkSend, linkRecv},
+                            {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_, reduceOp_};
+    CHK_PRT_RET(SendRecvBatchReadReduce(info, threads[channelIdx]),
+                HCCL_ERROR("[RS-NHR][%s] direct read-reduce failed, step[%u]", __func__, stepInfo.step),
+                HCCL_E_INTERNAL);
+    return HCCL_SUCCESS;
+}
+
 HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx)
 {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
@@ -240,7 +332,10 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
     // 基础位置由 hcclBuffBaseOff 和 inputOmniPipeSliceStride 确定
     for (u32 s = 0; s < steps.size(); ++s) {
         const auto &st = steps[s];
-        if (useSymmetricInput_ && st.step == 0) {
+        if (useSymmetricDirect_) {
+            CHK_RET(RunSymmetricDirectStep(st, threads, channelIdx, dataTypeSize));
+            continue;
+        } else if (useSymmetricInput_ && st.step == 0) {
             // 所有 rank 在首轮都通过 peer input 做本地规约；同一 thread 上的后续 SendRecv 保持顺序依赖。
             CHK_RET(RunSymmetricStep0(st, threads, channelIdx, dataTypeSize));
             continue;

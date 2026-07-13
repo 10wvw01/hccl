@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <algorithm>
 #include "ins_v2_reduce_scatter_omnipipe_executor.h"
 #include "topo_match_3_level.h"
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
@@ -15,6 +16,7 @@
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "topo_match_pcie_mix.h"
 #include "omnipipe_template_utils.h"
+#include "alg_data_trans_wrapper.h"
 namespace ops_hccl {
 constexpr uint32_t HIERARCHY_SIZE_3 = 3;
 constexpr uint64_t RANK_SIZE_LEVEL_2 = 2;
@@ -367,6 +369,8 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     eqBw2 = rankSizeLevel2_ > 1 ? eqBw2 / (rankSizeLevel2_ - 1) : eqBw2;
 
     std::vector<double> endpointAttrBwNew{eqBw0, eqBw1, eqBw2};
+    // Level2 still depends on the DPU/CCL data layout. Keep it on the legacy path.
+    const bool useSymmetricDirect = param.supportSymmetricMemory && rankSizeLevel2_ == 1;
 
     // 2、计算scratch 返回的数组0是maxCountPerloop, 1是loopTimes
     OmniPipeScratchParam scratchParam;
@@ -393,9 +397,26 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
     scratchParam.opMode = param.opMode;
     scratchParam.engine = param.engine;
-    std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
-    u64 maxCountPerLoop = loopInfo[0];
-    u64 loopTimes = loopInfo[1];
+    u64 maxCountPerLoop = 0;
+    u64 loopTimes = 0;
+    if (useSymmetricDirect) {
+        // CCL contains Mesh receive scratch only. rankSize_ is a conservative upper bound for all
+        // simultaneously materialized L0 slices when Level2 is absent.
+        u64 maxDataSizePerLoop = UB_MAX_DATA_SIZE;
+        if (rankSizeLevel0_ > 1) {
+            maxDataSizePerLoop = std::min(maxDataSizePerLoop, resCtx.cclMem.size / rankSize_);
+        }
+        maxCountPerLoop = maxDataSizePerLoop / dataTypeSize_;
+        CHK_PRT_RET(maxCountPerLoop == 0,
+                    HCCL_ERROR("[%s] direct symmetric Mesh scratch is too small, cclSize[%llu] rankSize[%u] "
+                               "dataTypeSize[%u]", __func__, resCtx.cclMem.size, rankSize_, dataTypeSize_),
+                    HCCL_E_MEMORY);
+        loopTimes = dataCount_ / maxCountPerLoop + static_cast<u64>(dataCount_ % maxCountPerLoop != 0);
+    } else {
+        std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
+        maxCountPerLoop = loopInfo[0];
+        loopTimes = loopInfo[1];
+    }
 
     // 3、计算n-1次loop的slice信息
     OmniPipeSliceParam sliceParam;
@@ -445,15 +466,16 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         tempResMap[temp.first].npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         tempResMap[temp.first].dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
+        tempAlgParamMap[temp.first].buffInfo.inputPtr = param.inputPtr;
+        tempAlgParamMap[temp.first].buffInfo.outputPtr = param.outputPtr;
+        tempAlgParamMap[temp.first].buffInfo.inputSize = param.inputSize;
+        tempAlgParamMap[temp.first].buffInfo.outputSize = param.outputSize;
+        tempAlgParamMap[temp.first].enableRemoteMemAccess = useSymmetricDirect;
         if (temp.first == OMNIPIPE_LEVEL0) {
-            // L0 Mesh can directly consume peer user input only when no L2 stage precedes it.
-            tempAlgParamMap[temp.first].supportSymmetricMemory =
-                param.supportSymmetricMemory && rankSizeLevel2_ == 1;
+            tempAlgParamMap[temp.first].supportSymmetricMemory = useSymmetricDirect;
         } else if (temp.first == OMNIPIPE_LEVEL1) {
-            // NHR 首轮仅可从 peer input 直读：它必须是整个 OmniPipe 的第一个规约轴。
-            // 若 L0/L2 参与，peer CCL 保存的是前序轴的部分和，NHR 必须继续走普通通信。
-            tempAlgParamMap[temp.first].supportSymmetricMemory = param.supportSymmetricMemory &&
-                rankSizeLevel0_ == 1 && rankSizeLevel2_ == 1;
+            tempAlgParamMap[temp.first].supportSymmetricMemory = useSymmetricDirect ||
+                (param.supportSymmetricMemory && rankSizeLevel0_ == 1 && rankSizeLevel2_ == 1);
         }
     }
 
@@ -463,36 +485,32 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     tempParamLocalcopy.buffInfo.outputPtr = param.outputPtr;
     // 5、进行一次loop的数据处理
     for (u64 loop = 0; loop < loopTimes; loop++) {
-        // localcopy前同步，这里默认xy不会同时为1，因此使用01的线程组处理localcopy的前后同步
-        CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
-        // 5.1 RS在每次loop进行之前先将所有数据从usrin拷贝到ccl，2.3已修改下列参数
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
-        tempParamLocalcopy.buffInfo.inBuffType = BufferType::INPUT;
-        tempParamLocalcopy.count = currDataCount;
-        tempParamLocalcopy.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
-        tempParamLocalcopy.inputSliceStride = dataCount_ * dataTypeSize_;
         auto loopSize = currDataCount * dataTypeSize_;
-        tempParamLocalcopy.buffInfo.outBuffBaseOff = 0;
-        tempParamLocalcopy.outputSliceStride = loopSize;
-        tempParamLocalcopy.repeatNum = rankSize_;
-        tempParamLocalcopy.sliceSize = loopSize;
-        // NHR 的首轮对称内存直读需要将 CCL 的当前 loop 压缩布局还原为用户 input 布局。
-        // NHR 固定为 OmniPipe level1；GenTemplateAlgParamsByDimData 不会覆盖这两个字段。
-        auto nhrParamIter = tempAlgParamMap.find(OMNIPIPE_LEVEL1);
-        if (nhrParamIter != tempAlgParamMap.end()) {
-            nhrParamIter->second.processedDataCount = processedDataCount;
-            nhrParamIter->second.inputRepeatStride = loopSize;
+        for (auto& tempAlgParam : tempAlgParamMap) {
+            tempAlgParam.second.processedDataCount = processedDataCount;
+            tempAlgParam.second.inputRepeatStride = loopSize;
         }
-        // 这边不论三层为什么拓扑，都使用第一个template去做localcopy
-        if (rankSizeLevel0_ > 1) {
-            auto temp0 = std::dynamic_pointer_cast<InsAlgTemplate0>(tempMap.begin()->second);
-            CHK_RET(temp0->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
-        } else {
-            auto temp1 = std::dynamic_pointer_cast<InsAlgTemplate1>(tempMap.begin()->second);
-            CHK_RET(temp1->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+
+        if (!useSymmetricDirect) {
+            CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
+            tempParamLocalcopy.buffInfo.inBuffType = BufferType::INPUT;
+            tempParamLocalcopy.count = currDataCount;
+            tempParamLocalcopy.buffInfo.inBuffBaseOff = processedDataCount * dataTypeSize_;
+            tempParamLocalcopy.inputSliceStride = dataCount_ * dataTypeSize_;
+            tempParamLocalcopy.buffInfo.outBuffBaseOff = 0;
+            tempParamLocalcopy.outputSliceStride = loopSize;
+            tempParamLocalcopy.repeatNum = rankSize_;
+            tempParamLocalcopy.sliceSize = loopSize;
+            if (rankSizeLevel0_ > 1) {
+                auto temp0 = std::dynamic_pointer_cast<InsAlgTemplate0>(tempMap.begin()->second);
+                CHK_RET(temp0->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+            } else {
+                auto temp1 = std::dynamic_pointer_cast<InsAlgTemplate1>(tempMap.begin()->second);
+                CHK_RET(temp1->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+            }
+            CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxTempToCtrlLevel01_));
         }
-        // localcopy后同步
-        CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxTempToCtrlLevel01_));
 
         // 5.2 确定当前是前n-1次loop的slice结果，还是存在尾块时最后一次loop的slice结果
         if (loop == loopTimes - 1 && !tailSliceInfo.isEmpty()) {
@@ -545,26 +563,30 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                 HCCL_DEBUG("PostSyncInterThreads z success.");
             }
         }
-        // localcopy前同步
-        CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
-        // 5.5 将当前这个loop在ccl中的数据一次性拷贝到userout中
-        tempParamLocalcopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-        tempParamLocalcopy.buffInfo.inBuffBaseOff = loopSize * myRank_;
-        tempParamLocalcopy.inputSliceStride = 0;
-        tempParamLocalcopy.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
-        tempParamLocalcopy.outputSliceStride = 0;
-        tempParamLocalcopy.sliceSize = loopSize;  // 尾拷贝数据量变成1/rankSize
-        // repeat=1，temp内部已经没有和rankid相关的处理
-        tempParamLocalcopy.repeatNum = 1;
-        if (rankSizeLevel0_ > 1) {
-            auto temp0 = std::dynamic_pointer_cast<InsAlgTemplate0>(tempMap.begin()->second);
-            CHK_RET(temp0->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+        if (useSymmetricDirect) {
+            // The final reduced shard remains in local user input, as in the 2D mem2mem executor.
+            DataSlice srcSlice(param.inputPtr, myRank_ * dataSize_ + processedDataCount * dataTypeSize_,
+                               loopSize, currDataCount);
+            DataSlice dstSlice(param.outputPtr, processedDataCount * dataTypeSize_, loopSize, currDataCount);
+            CHK_RET(static_cast<HcclResult>(LocalCopy(controlThread_, srcSlice, dstSlice)));
         } else {
-            auto temp1 = std::dynamic_pointer_cast<InsAlgTemplate1>(tempMap.begin()->second);
-            CHK_RET(temp1->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+            CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
+            tempParamLocalcopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+            tempParamLocalcopy.buffInfo.inBuffBaseOff = loopSize * myRank_;
+            tempParamLocalcopy.inputSliceStride = 0;
+            tempParamLocalcopy.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
+            tempParamLocalcopy.outputSliceStride = 0;
+            tempParamLocalcopy.sliceSize = loopSize;
+            tempParamLocalcopy.repeatNum = 1;
+            if (rankSizeLevel0_ > 1) {
+                auto temp0 = std::dynamic_pointer_cast<InsAlgTemplate0>(tempMap.begin()->second);
+                CHK_RET(temp0->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+            } else {
+                auto temp1 = std::dynamic_pointer_cast<InsAlgTemplate1>(tempMap.begin()->second);
+                CHK_RET(temp1->DoLocalCopy(tempParamLocalcopy, tempResMap.begin()->second.threads));
+            }
+            CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxTempToCtrlLevel01_));
         }
-        // localcopy后同步
-        CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxTempToCtrlLevel01_));
         processedDataCount += currDataCount;
     }
     HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop] End.");

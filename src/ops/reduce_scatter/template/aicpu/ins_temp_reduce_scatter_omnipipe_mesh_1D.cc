@@ -14,6 +14,35 @@
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
+namespace {
+HcclResult CalcDirectUserInputOffset(u64 packedOffset, u64 sliceSize, u64 loopBaseOffset,
+                                     u64 rankStride, u64 loopSize, u64 inputSize, u64& userInputOffset)
+{
+    CHK_PRT_RET(rankStride == 0 || loopSize == 0 || loopBaseOffset > inputSize,
+                HCCL_ERROR("[%s] invalid input layout, loopBase[%llu] rankStride[%llu] loopSize[%llu] "
+                           "inputSize[%llu]", __func__, loopBaseOffset, rankStride, loopSize, inputSize),
+                HCCL_E_PARA);
+    const u64 rankIndex = packedOffset / loopSize;
+    const u64 offsetInLoop = packedOffset % loopSize;
+    CHK_PRT_RET(sliceSize > loopSize - offsetInLoop ||
+                rankIndex > (inputSize - loopBaseOffset) / rankStride,
+                HCCL_ERROR("[%s] invalid packed input slice, packedOffset[%llu] sliceSize[%llu]", __func__,
+                           packedOffset, sliceSize),
+                HCCL_E_PARA);
+    const u64 rankBaseOffset = loopBaseOffset + rankIndex * rankStride;
+    CHK_PRT_RET(offsetInLoop > inputSize - rankBaseOffset,
+                HCCL_ERROR("[%s] input offset exceeds input buffer, rankBase[%llu] offsetInLoop[%llu]",
+                           __func__, rankBaseOffset, offsetInLoop),
+                HCCL_E_PARA);
+    userInputOffset = rankBaseOffset + offsetInLoop;
+    CHK_PRT_RET(sliceSize > inputSize - userInputOffset,
+                HCCL_ERROR("[%s] input slice exceeds input buffer, offset[%llu] sliceSize[%llu] inputSize[%llu]",
+                           __func__, userInputOffset, sliceSize, inputSize),
+                HCCL_E_PARA);
+    return HCCL_SUCCESS;
+}
+} // namespace
+
 InsTempReduceScatterOmniPipeMesh1D::InsTempReduceScatterOmniPipeMesh1D(
     const OpParam& param, const u32 rankId, const std::vector<std::vector<u32>>& subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks)
@@ -200,6 +229,69 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::ReadPeerInputToScratch(
     return HCCL_SUCCESS;
 }
 
+HcclResult InsTempReduceScatterOmniPipeMesh1D::ReadPeerInputDirectToScratch(
+    const TemplateDataParams& tempAlgParams, const std::map<u32, std::vector<ChannelInfo>>& channels,
+    const std::vector<ThreadHandle>& threads)
+{
+    auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
+    CHK_PRT_RET(iter == subCommRanks_[0].end(),
+                HCCL_ERROR("[%s] subCommRanks_ or myRank_ is error.", __func__), HCCL_E_INTERNAL);
+    const u32 myAlgRank = std::distance(subCommRanks_[0].begin(), iter);
+    CHK_PRT_RET(threads.size() != templateRankSize_ - 1,
+                HCCL_ERROR("[%s] thread count[%zu] does not match peer count[%u]", __func__, threads.size(),
+                           templateRankSize_ - 1),
+                HCCL_E_INTERNAL);
+
+    for (u32 queIdx = 0; queIdx < templateRankSize_ - 1; ++queIdx) {
+        const u32 nextRank = (myAlgRank + 1 + queIdx) % templateRankSize_;
+        const u32 remoteRank = subCommRanks_[0][nextRank];
+        CHK_PRT_RET(channels.count(remoteRank) == 0 || channels.at(remoteRank).empty(),
+                    HCCL_ERROR("[%s] link missing, remoteRank[%u]", __func__, remoteRank), HCCL_E_INTERNAL);
+        const ChannelInfo& linkRemote = channels.at(remoteRank)[0];
+
+        void* peerInputAddr = nullptr;
+        HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, remoteRank, &peerInputAddr);
+        CHK_PRT_RET(ret != HCCL_SUCCESS || peerInputAddr == nullptr,
+                    HCCL_ERROR("[%s] HcclSymWinGetPeerPointer failed, peerRank[%u] ret[%d] addr[%p]", __func__,
+                               remoteRank, ret, peerInputAddr),
+                    HCCL_E_INTERNAL);
+
+        std::vector<DataSlice> txSrcSlices;
+        std::vector<DataSlice> txDstSlices;
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+        for (u32 repeatIdx = 0;
+             repeatIdx < tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size(); ++repeatIdx) {
+            const u64 packedSrcOffset = tempAlgParams.buffInfo.inBuffBaseOff +
+                tempAlgParams.stepSliceInfo.stepInputSliceStride[myAlgRank] +
+                tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank][repeatIdx];
+            const u64 sliceSize = tempAlgParams.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx];
+            u64 peerInputOffset = 0;
+            CHK_RET(CalcDirectUserInputOffset(packedSrcOffset, sliceSize, inputLoopBaseOff_, inputRankStride_,
+                                              inputLoopSize_, inputTotalSize_, peerInputOffset));
+
+            // Direct mode starts Mesh scratch at CCL offset 0; the packed input region no longer exists.
+            const u64 scratchOffset = tempAlgParams.stepSliceInfo.stepOutputSliceStride[nextRank] +
+                tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[nextRank][repeatIdx];
+            CHK_PRT_RET(scratchOffset > tempAlgParams.buffInfo.hcclBuff.size ||
+                        sliceSize > tempAlgParams.buffInfo.hcclBuff.size - scratchOffset,
+                        HCCL_ERROR("[%s] mesh scratch exceeds CCL buffer, offset[%llu] size[%llu] cclSize[%llu]",
+                                   __func__, scratchOffset, sliceSize, tempAlgParams.buffInfo.hcclBuff.size),
+                        HCCL_E_INTERNAL);
+            rxSrcSlices.emplace_back(peerInputAddr, peerInputOffset, sliceSize,
+                                     tempAlgParams.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+            rxDstSlices.emplace_back(tempAlgParams.buffInfo.hcclBuff.addr, scratchOffset, sliceSize,
+                                     tempAlgParams.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);
+        }
+        SendRecvInfo sendRecvInfo{{linkRemote, linkRemote},
+                                  {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_};
+        CHK_PRT_RET(SendRecvBatchRead(sendRecvInfo, threads[queIdx]),
+                    HCCL_ERROR("[%s] direct peer input read failed, remoteRank[%u]", __func__, remoteRank),
+                    HCCL_E_INTERNAL);
+    }
+    return HCCL_SUCCESS;
+}
+
 HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, const TemplateDataParams& tempAlgParams,
                                                           TemplateResource& templateResource)
 {
@@ -209,6 +301,20 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
     }
     threadNum_ = templateResource.threads.size();
     dataType_ = param.DataDes.dataType;
+    const bool useSymmetricDirect = supportSymmetricMemory_ && tempAlgParams.supportSymmetricMemory &&
+                                    tempAlgParams.enableRemoteMemAccess;
+    if (useSymmetricDirect) {
+        inputLoopBaseOff_ = tempAlgParams.processedDataCount * DATATYPE_SIZE_TABLE[dataType_];
+        inputRankStride_ = param.outputSize;
+        inputLoopSize_ = tempAlgParams.inputRepeatStride;
+        inputTotalSize_ = param.inputSize;
+        CHK_PRT_RET(inputSymWindow_ == nullptr || tempAlgParams.buffInfo.inputPtr == nullptr ||
+                    inputRankStride_ == 0 || inputLoopSize_ == 0,
+                    HCCL_ERROR("[%s] invalid direct symmetric input, inputWin[%p] inputPtr[%p] rankStride[%llu] "
+                               "loopSize[%llu]", __func__, inputSymWindow_, tempAlgParams.buffInfo.inputPtr,
+                               inputRankStride_, inputLoopSize_),
+                    HCCL_E_PARA);
+    }
     HCCL_INFO("[%s]Run Start", __func__);
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
@@ -217,7 +323,9 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
     }
     // 对称内存下将 peer input 直接写到原环形收包的 scratch 位置，保持 PostReduce 的输入布局不变。
     const bool useSymmetricInput = supportSymmetricMemory_ && tempAlgParams.supportSymmetricMemory;
-    if (useSymmetricInput) {
+    if (useSymmetricDirect) {
+        CHK_RET(ReadPeerInputDirectToScratch(tempAlgParams, templateResource.channels, templateResource.threads));
+    } else if (useSymmetricInput) {
         CHK_RET(ReadPeerInputToScratch(tempAlgParams, templateResource.threads));
     } else {
         CHK_RET(RunReduceScatter(templateResource.channels, templateResource.threads, tempAlgParams));
@@ -249,6 +357,8 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::PostReduce(const TemplateDataPara
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1D][PostReduce], copy from cclBuffer to cclBuffer");
     // 本卡的数据在executor中，loop刚开始时就完成了localcopy
     // 地址指针全用ccl的
+    const bool useSymmetricDirect = supportSymmetricMemory_ && tempAlgParams.supportSymmetricMemory &&
+                                    tempAlgParams.enableRemoteMemAccess;
     void* cclBuffAddr = tempAlgParams.buffInfo.hcclBuff.addr;
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1D][PostReduce]do first slice reduce.");
     // 从param中ccl的地址往param中out的地址规约，
@@ -256,17 +366,25 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::PostReduce(const TemplateDataPara
          repeatIdx++) {
         for (u32 tmpRank = 0; tmpRank < templateRankSize_; tmpRank++) {
             if (tmpRank != rankIdx) {
-                u64 srcCurrent = tempAlgParams.buffInfo.hcclBuffBaseOff +
+                u64 srcCurrent = (useSymmetricDirect ? 0 : tempAlgParams.buffInfo.hcclBuffBaseOff) +
                                  tempAlgParams.stepSliceInfo.stepOutputSliceStride[tmpRank] +
                                  tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[tmpRank][repeatIdx];
-                u64 dstCurrent = tempAlgParams.buffInfo.outBuffBaseOff +
-                                 tempAlgParams.stepSliceInfo.stepInputSliceStride[rankIdx] +
-                                 tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[rankIdx][repeatIdx];
+                const u64 packedDstOffset = tempAlgParams.buffInfo.outBuffBaseOff +
+                    tempAlgParams.stepSliceInfo.stepInputSliceStride[rankIdx] +
+                    tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[rankIdx][repeatIdx];
+                const u64 sliceSize = tempAlgParams.stepSliceInfo.stepSliceSize[rankIdx][repeatIdx];
+                u64 dstCurrent = packedDstOffset;
+                void* dstAddr = cclBuffAddr;
+                if (useSymmetricDirect) {
+                    CHK_RET(CalcDirectUserInputOffset(packedDstOffset, sliceSize, inputLoopBaseOff_, inputRankStride_,
+                                                      inputLoopSize_, inputTotalSize_, dstCurrent));
+                    dstAddr = tempAlgParams.buffInfo.inputPtr;
+                }
                 auto srcSlice = DataSlice(cclBuffAddr, srcCurrent,
-                                          tempAlgParams.stepSliceInfo.stepSliceSize[rankIdx][repeatIdx],
+                                          sliceSize,
                                           tempAlgParams.stepSliceInfo.stepCount[rankIdx][repeatIdx]);
-                auto dstSlice = DataSlice(cclBuffAddr, dstCurrent,
-                                          tempAlgParams.stepSliceInfo.stepSliceSize[rankIdx][repeatIdx],
+                auto dstSlice = DataSlice(dstAddr, dstCurrent,
+                                          sliceSize,
                                           tempAlgParams.stepSliceInfo.stepCount[rankIdx][repeatIdx]);
                 HCCL_DEBUG("srcSlice=[%s],  dstSlice=[%s], tmpRank=[%u], rankIdx=[%u], repeatIdx=[%u]",
                            srcSlice.Describe().c_str(), dstSlice.Describe().c_str(), tmpRank, rankIdx, repeatIdx);

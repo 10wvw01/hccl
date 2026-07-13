@@ -50,6 +50,9 @@ public:
     u64 GetThreadNum() const override;
 
 private:
+    HcclResult ReadPeerInputDirectToScratch(const TemplateDataParams &tempAlgParams,
+                                            const std::map<u32, std::vector<ChannelInfo>> &channels,
+                                            const std::vector<ThreadHandle> &threads);
     HcclResult ReadPeerInputToScratch(const TemplateDataParams &tempAlgParams,
                                       const std::vector<ThreadHandle> &threads);
     HcclResult RunReduceScatter(const std::map<u32, std::vector<ChannelInfo>> &channels,
