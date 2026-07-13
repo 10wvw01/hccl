@@ -3,7 +3,28 @@
  */
 #include <vector>
 #include <iostream>
+#include <cstring>
 #include <hccl/hccl_types.h>
+#include <hccl/hccl_rank_graph.h>
+
+extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
+{
+    if (dest == nullptr || count > destMax) {
+        return 1;
+    }
+    (void)memset(dest, c, count);
+    return 0;
+}
+
+extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32_t,
+                                            CommLink **links, uint32_t *linkNum)
+{
+    static CommLink link;
+    (void)CommLinkInit(&link, 1);
+    *links = &link;
+    *linkNum = 1;
+    return HCCL_SUCCESS;
+}
 
 // src/common/log.cc — 全局作用域
 bool IsErrorToWarn() { return false; }

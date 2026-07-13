@@ -28,6 +28,7 @@ target_include_directories(hccl_ut_refactor_template_primitives PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/inc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template
     ${CMAKE_SOURCE_DIR}/src/common/hcomm_dlsym
     ${CMAKE_SOURCE_DIR}/src/common/hcomm_dlsym/ccu
     ${ASCEND_CANN_PACKAGE_PATH}/include

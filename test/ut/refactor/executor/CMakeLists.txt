@@ -28,6 +28,7 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
+    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/inc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/ops/op_common
