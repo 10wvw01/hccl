@@ -8,6 +8,10 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+)
+
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter_acl.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/alg_env_config.cc

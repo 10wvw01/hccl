@@ -13,7 +13,6 @@
 #include "selector_registry.h"
 #include "op_common.h"
 #include "load_kernel.h"
-#include "hccl_aiv_utils.h"
 
 namespace ops_hccl { namespace refactor {
 

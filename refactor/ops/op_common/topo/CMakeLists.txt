@@ -7,6 +7,10 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+)
+
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/topo.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/topo_host.cc

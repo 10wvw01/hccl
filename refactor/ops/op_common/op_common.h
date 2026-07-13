@@ -54,6 +54,10 @@ HcclResult HcclCheckTag(const char *tag);
 HcclResult CheckCount(const u64 count);
 HcclResult CheckDataType(const HcclDataType dataType, bool needReduce);
 HcclResult SingleRankProc(HcclComm comm, OpParam &param);
+HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
+HcclResult RegisterKernel();
+HcclResult SetExecTimeout(const OpParam &param);
+HcclResult SetMultipleDimensionSplitRatio(const OpParam &param);
 bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig);
 } // namespace ops_hccl
 
