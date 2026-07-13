@@ -129,6 +129,48 @@ InsTempReduceScatterOmniPipeNHR::~InsTempReduceScatterOmniPipeNHR()
 {
 }
 
+HcclResult InsTempReduceScatterOmniPipeNHR::CalcRes(
+    HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
+    AlgResourceRequest& resourceRequest)
+{
+    // Keep the existing multi-Jetty policy for non-symmetric OmniPipe. Direct symmetric memory is
+    // intentionally limited to one CTP channel per NHR peer, so it uses one NHR communication thread.
+    if (!param.supportSymmetricMemory) {
+        return InsTempReduceScatterNHR::CalcRes(comm, param, topoInfo, resourceRequest);
+    }
+
+    std::vector<HcclChannelDesc> channelDescs;
+    const u64 dataSize = param.DataDes.count * DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        const bool isIsolation = !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) ||
+                                   dataSize <= SMALL_SIZE_512KB);
+        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, channelDescs, isIsolation));
+    } else {
+        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, channelDescs));
+    }
+
+    std::set<u32> selectedRemoteRanks;
+    std::vector<HcclChannelDesc> singleJettyChannels;
+    for (const auto& channel : channelDescs) {
+        // Match the base NHR CLOS policy: only CTP links participate there. Other topologies keep
+        // their original protocol and are merely reduced to one descriptor per peer.
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix &&
+            channel.channelProtocol != COMM_PROTOCOL_UBC_CTP) {
+            continue;
+        }
+        if (selectedRemoteRanks.insert(channel.remoteRank).second) {
+            singleJettyChannels.push_back(channel);
+        }
+    }
+
+    resourceRequest.channels.push_back(singleJettyChannels);
+    channelsPerRank_ = CalcChannelsPerRank(singleJettyChannels);
+    CHK_RET(GetRes(resourceRequest));
+    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][CalcRes] symmetric NHR uses one Jetty per peer, "
+              "channelsPerRank[%u], channelNum[%zu].", channelsPerRank_, singleJettyChannels.size());
+    return HCCL_SUCCESS;
+}
+
 // 语义改为返回当前template的类型，mesh返回1，nhr返回0
 u64 InsTempReduceScatterOmniPipeNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
