@@ -18,30 +18,21 @@ set(UT_EXECUTOR_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
-    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo/topo_match_base.cc
-    ${CMAKE_SOURCE_DIR}/refactor/ops/algorithm/all_gather/all_gather_template_desc.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
 
 target_include_directories(hccl_ut_refactor_executor PRIVATE
+    # refactor 头文件
     ${CMAKE_SOURCE_DIR}/refactor/ops
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/inc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/inc
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/topo
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/template
-    ${CMAKE_SOURCE_DIR}/src/common
-    ${CMAKE_SOURCE_DIR}/src/common/hcomm_dlsym
-    ${CMAKE_SOURCE_DIR}/src/common/hcomm_dlsym/ccu
-    ${CMAKE_SOURCE_DIR}/src/common/op_graph
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/executor
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/selector
-    ${CMAKE_SOURCE_DIR}/src/ops/op_common/executor/registry
+    ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
+    ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common/hcomm_dlsym
+    # SDK 头文件
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
     ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm

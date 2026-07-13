@@ -6,6 +6,7 @@
 #include <cstring>
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_rank_graph.h>
+#include "hccl_algorithm.h"
 
 extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 {
@@ -28,7 +29,7 @@ extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32
 
 // src/common/log.cc — 全局作用域
 bool IsErrorToWarn() { return false; }
-int HcclCheckLogLevel(int, int) { return 0; }
+bool HcclCheckLogLevel(int, int) { return false; }
 
 // refactor/ops/utils/utils.h — namespace ops_hccl
 namespace ops_hccl {
@@ -48,5 +49,31 @@ HcclResult PostSyncInterThreads(const unsigned long &,
     std::cout << "PostSyncInterThreads" << std::endl;
     return HCCL_SUCCESS;
 }
+
+// ============================================================
+// TopoMatchBase 桩 (替代 topo_match_base.cc)
+// ============================================================
+TopoMatchBase::TopoMatchBase() = default;
+TopoMatchBase::~TopoMatchBase() = default;
+HcclResult TopoMatchBase::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *,
+                                    AlgHierarchyInfoForAllLevel &) { return HCCL_SUCCESS; }
+
+// ============================================================
+// g_allGatherTemplateDescMap 桩 (替代 all_gather_template_desc.cc)
+// ============================================================
+TemplateDesc g_allGatherTemplateDescMap[] = {
+    // ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
+     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY},
+    // ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
+     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY},
+    // ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
+     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
+    // ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
+     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
+};
 
 } // namespace ops_hccl
