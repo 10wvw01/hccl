@@ -218,6 +218,30 @@ TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
     EXPECT_EQ(d.outputSize, 2048u * 128);  // AllGather: rankSize 倍
     EXPECT_EQ(exe->GetDataTypeSize(), 2u);  // sizeof(half)
 }
+
+class CalcResTest : public OmniPipeTest {
+protected:
+    void SetUp() override {
+        OmniPipeTest::SetUp();
+        exe_ = MakeOmniPipeExecutor();
+        exe_->SetThreads(threads_);
+    }
+    std::unique_ptr<TestableOpsExecutor> exe_;
+    std::vector<ThreadHandle> threads_ = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+};
+
+TEST_F(CalcResTest, ThreeLevelWithOmniPipeTree) {
+    AlgHierarchyInfoForAllLevel info;
+    info.infos = {{{0,1,2,3,4,5,6,7}}, {{0,1,2,3,4,5,6,7}}, {{0,1}}};
+    exe_->SetTopoMatch(info);
+    ASSERT_EQ(exe_->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    AlgResourceRequest req;
+    EXPECT_EQ(exe_->CalcRes(req), HCCL_SUCCESS);
+    EXPECT_EQ(req.notifyNumOnMainThread, 3u);
+    EXPECT_EQ(req.slaveThreadNum, 23u);
+    EXPECT_EQ(req.notifyNumPerThread.size(), 23u);
+}
+
 TEST_F(OmniPipeTest, Orchestrate)
 {
     auto exe = MakeOmniPipeExecutor(128, 1024 * 1024, HCCL_DATA_TYPE_UINT32);

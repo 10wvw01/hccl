@@ -56,6 +56,7 @@ public:
     void SetExecDataInfoDataType(HcclDataType t) { dataInfo_.dataType = t; }
     void SetCclBufferPtr(void *p)         { cclBufferInfo_.ptr = p; }
     void SetChannelTable(std::vector<std::map<u32, std::vector<ChannelInfo>>> &t) { channelTable_ = t; }
+    void SetThreads(std::vector<ThreadHandle> &t) { threads_ = t; }
     void SetSubThreads(std::vector<std::vector<ThreadHandle>> &t) { subThreads_ = t; }
     void SetTopoMatch(AlgHierarchyInfoForAllLevel info = {})
     {
