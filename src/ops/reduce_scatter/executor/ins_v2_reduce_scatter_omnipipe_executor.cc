@@ -404,7 +404,8 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         // simultaneously materialized L0 slices when Level2 is absent.
         u64 maxDataSizePerLoop = UB_MAX_DATA_SIZE;
         if (rankSizeLevel0_ > 1) {
-            maxDataSizePerLoop = std::min(maxDataSizePerLoop, resCtx.cclMem.size / rankSize_);
+            maxDataSizePerLoop = std::min<u64>(
+                maxDataSizePerLoop, static_cast<u64>(resCtx.cclMem.size / rankSize_));
         }
         maxCountPerLoop = maxDataSizePerLoop / dataTypeSize_;
         CHK_PRT_RET(maxCountPerLoop == 0,
