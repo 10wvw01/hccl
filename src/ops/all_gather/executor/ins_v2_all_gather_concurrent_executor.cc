@@ -33,6 +33,8 @@ namespace ops_hccl {
 constexpr u32 CLOS_BW = 10;
 constexpr u32 MESH_BW = 11;
 constexpr u32 CLOS_JETTY = 4;
+constexpr u32 MESH_BW_AICPU = 37;
+constexpr u32 CLOS_BW_AICPU = 25;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllGatherConcurrentExecutor()

@@ -23,6 +23,8 @@ constexpr u32 MESH_BW_SCHED = 11;
 constexpr u32 CLOS_BW_SCHED = 10;
 constexpr u32 MESH_BW_MS = 22;
 constexpr u32 CLOS_BW_MS = 10;
+constexpr u32 MESH_BW_AICPU = 11;
+constexpr u32 CLOS_BW_AICPU = 10;
 
 namespace ops_hccl {
 
@@ -209,6 +211,9 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     } else if (param.opExecuteConfig == OpExecuteConfig::CCU_MS) {
         portNum0 = MESH_BW_MS;
         portNum1 = CLOS_BW_MS;
+    } else if (param.opExecuteConfig == OpExecuteConfig::AICPU_TS){
+        portNum0 = MESH_BW_AICPU;
+        portNum1 = CLOS_BW_AICPU;
     }
     const u64 totalCounts = param.DataDes.count;
     const u64 sliceAlignCount = HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
