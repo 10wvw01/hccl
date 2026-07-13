@@ -187,5 +187,30 @@ TEST_F(OmniPipeTest, OmniPipeTreeTopology)
     EXPECT_EQ(d2_t1->templateDesc.algType, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH);
 }
 
+// ============================================================
+// 3. 构造完整 Executor 实例：ALLGATHER + AICPU + OmniPipe 树
+// ============================================================
+
+TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
+{
+    // 构造完整的 HcclAlgorithm: ALLGATHER + AICPU + OmniPipe 树
+    HcclAlgorithm algo;
+    algo.hcclCmdType   = HCCL_CMD_ALLGATHER;
+    algo.engineType    = HcclAlgEngineType::AICPU;
+    algo.topoMatch     = std::make_shared<MockTopoMatch>();
+    algo.algoExecDesc  = BuildOmniPipeTree();
+
+    // 验证 algoExecDesc 树已注入
+    auto root = algo.algoExecDesc;
+    EXPECT_EQ(root.execPolicy, HcclAlgExecPolicy::SEQUENCE);
+    EXPECT_EQ(root.children.size(), 2u);
+    EXPECT_EQ(root.dataSplitRatio, std::vector<u32>({4, 4}));
+
+    // 构造 executor 实例
+    OpParam param;
+    OpsExecutor executor(algo, param);
+    EXPECT_TRUE(true); // 构造成功
+}
+
 } // namespace testing
 } // namespace ops_hccl
