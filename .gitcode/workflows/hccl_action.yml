@@ -71,6 +71,30 @@ stages:
               object-prefix: ${{ env.obs_path }}/
         runs-on: 
         - default
+      JOB_shell:
+        name: get_shell_files
+        steps:
+          -
+            name: Checkout
+            identifier: process_checkout
+            uses: checkout
+            with:
+              ref: master
+              token: ${{secrets.GIT_TOKEN}}
+          -
+            name: upload
+            uses: obs-upload
+            with:
+              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
+              bucket: "ascend-ci"
+              access-key: ${{secrets.AK}}
+              secret-key: ${{secrets.SK}}
+              artifact-path: |
+                ${{ steps.process_checkout.outputs.path }}/.gitcode/scripts/*
+              object-prefix: ${{ env.obs_path }}/
+        if: "${{ default() }}"
+        runs-on:
+        - default
     pre:
     - type: auto
     fail-fast: true
@@ -193,7 +217,7 @@ stages:
           ut_type: 'ut'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
-          image_version: ${{ jobs.JOB_image.outputs.UT_TEST }}
+          image_version: ${{ jobs.JOB_image.outputs.UT_Test }}
       JOB_ST_TEST:
         name: ST_TEST
         select: selected_by_default
@@ -203,7 +227,7 @@ stages:
           ut_type: 'st'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
-          image_version: ${{ jobs.JOB_image.outputs.ST_TEST }}
+          image_version: ${{ jobs.JOB_image.outputs.ST_Test }}
     pre:
     - type: auto
     fail-fast: false

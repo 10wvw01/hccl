@@ -33,6 +33,7 @@ jobs:
             ${{ env.obs_path }}/pr_filelist.txt
             ${{ env.obs_path }}/pr_filelist_mod.txt
             ${{ env.obs_path }}/update_file_detail.txt
+            ${{ env.obs_path }}/x86_compile.sh
           path: ${{ steps.process_checkout.outputs.path }}
       -
         name: x86_compile_acc
@@ -44,7 +45,7 @@ jobs:
             cd ${{ steps.process_checkout.outputs.path }}
             export task_name=${{ inputs.task_name }}
             export GIT_TARGET_BRANCH=${{ env.target_branch }}
-            BuildAccelerate bash .gitcode/workflows/x86_compile.sh
+            BuildAccelerate bash x86_compile.sh
           AC_SERVER_IP: ${{ vars.AC_SERVER_IP }} 
       -
         name: verify_package
