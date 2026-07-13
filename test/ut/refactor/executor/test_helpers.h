@@ -12,6 +12,20 @@
 namespace ops_hccl {
 namespace testing {
 
+// Concrete mock: fills algHierarchyInfo with pre-set test data
+class MockTopoMatch : public TopoMatchBase {
+public:
+    AlgHierarchyInfoForAllLevel mockInfo;
+    MockTopoMatch() = default;
+    std::string Describe() const override { return "MockTopoMatch"; }
+    HcclResult MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *,
+                         AlgHierarchyInfoForAllLevel &algHierarchyInfo) override
+    {
+        algHierarchyInfo = mockInfo;
+        return HCCL_SUCCESS;
+    }
+};
+
 class TestableOpsExecutor : public OpsExecutor {
 public:
     using OpsExecutor::GetMaxProcCntPerLoop;
@@ -23,6 +37,7 @@ public:
     using OpsExecutor::UpdateDataSplitParallel;
     using OpsExecutor::UpdateDataSplitSequence;
     using OpsExecutor::MergeChildrenOutput;
+    using OpsExecutor::InitRes;
 
     TestableOpsExecutor(HcclAlgorithm &algo, OpParam &param) : OpsExecutor(algo, param) {}
 
@@ -42,6 +57,17 @@ public:
     void SetCclBufferPtr(void *p)         { cclBufferInfo_.ptr = p; }
     void SetChannelTable(std::vector<std::map<u32, std::vector<ChannelInfo>>> &t) { channelTable_ = t; }
     void SetSubThreads(std::vector<std::vector<ThreadHandle>> &t) { subThreads_ = t; }
+    void SetTopoMatch(AlgHierarchyInfoForAllLevel info = {})
+    {
+        auto m = std::make_shared<MockTopoMatch>();
+        m->mockInfo = std::move(info);
+        algo_.topoMatch = std::move(m);
+    }
+    void SetAlgHierarchyInfo(AlgHierarchyInfoForAllLevel &info) { algHierarchyInfo_ = info; }
+
+    // getters
+    u32 GetRankSize() const { return rankSize_; }
+    const AlgHierarchyInfoForAllLevel &GetAlgHierarchyInfo() const { return algHierarchyInfo_; }
 };
 
 class OpsExecutorTest : public ::testing::Test {
