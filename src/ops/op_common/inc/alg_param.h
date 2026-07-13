@@ -31,12 +31,15 @@
 #include "binary_stream.h"
 #include "hccl_ccu_res_dl.h"
 #include "ccu_types_dl.h"
+#include "log.h"
 
 namespace ops_hccl {
 
 constexpr uint64_t UB_MAX_DATA_SIZE = 256*1024*1024; // Byte, UB协议一次传输的最大size
 
 constexpr u32 MAX_NUM_BLOCKS = 56; // 56-72
+
+constexpr u32 HCCL_LOGIC_TOPO_LEVEL_NUM = 4; // HCCL逻辑拓扑层级最多4级
 
 constexpr uint32_t DATATYPE_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
     2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
@@ -259,6 +262,12 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> netLayerDetails.netInstNumOfLayer;
         binaryStream >> netLayerDetails.instSizeListOfLayer;
         binaryStream >> netLayerDetails.localNetInsSizeOfLayer;
+        if (topoInstDetailsOfLayerSize > HCCL_LOGIC_TOPO_LEVEL_NUM) {
+            HCCL_ERROR("[DeSerialize] topoInstDetailsOfLayerSize[%u] exceeds max[%u], skip.",
+                topoInstDetailsOfLayerSize, HCCL_LOGIC_TOPO_LEVEL_NUM);
+            topoInstDetailsOfLayer.clear();
+            return;
+        }
         topoInstDetailsOfLayer.resize(topoInstDetailsOfLayerSize);
         for (uint32_t idx = 0; idx < topoInstDetailsOfLayerSize; idx++) {
             binaryStream >> topoInstDetailsOfLayer[idx].topoInstNum;
@@ -351,8 +360,6 @@ struct AlgResourceRequest {
     std::vector<CcuKernelInfo> ccuKernelInfos;
     std::vector<u32> ccuKernelNum;
 };
-
-constexpr u32 HCCL_LOGIC_TOPO_LEVEL_NUM = 4; // HCCL逻辑拓扑层级最多4级
 
 struct SubCommInfo {
     u32 localRank = 0;
