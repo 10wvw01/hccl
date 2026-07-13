@@ -41,8 +41,8 @@ jobs:
             ${{ env.obs_path }}/ut.sh
           path: ${{ steps.process_checkout.outputs.path }}
       -
-        name: ut/st
-        identifier: ut/st
+        name: ut_st
+        identifier: ut_st
         run: |
           export WORKSPACE=${{ steps.process_checkout.outputs.path }}
           cd ${{ steps.process_checkout.outputs.path }}
