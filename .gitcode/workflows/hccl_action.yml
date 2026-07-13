@@ -279,6 +279,7 @@ stages:
           ut_type: 'ut'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
+          image_version: ${{ jobs.JOB_image.outputs.PreSmoke_A900_npupool }}
       JOB_PreSmoke_A3_npupool:
         name: PreSmoke_A3_npupool
         select: selected_by_default
@@ -288,6 +289,7 @@ stages:
           ut_type: 'st'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
+          image_version: ${{ jobs.JOB_image.outputs.PreSmoke_A3_npupool }}
     pre:
     - type: auto
     fail-fast: false
