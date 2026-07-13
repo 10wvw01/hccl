@@ -87,14 +87,14 @@ protected:
         d1.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d1.children = {
             TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
-            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTRA},
+            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTER},
         };
         d1.dataSplitRatio = {1, 1};
 
         AlgoExecDesc d2;
         d2.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d2.children = {
-            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTRA},
+            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTER},
             TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
         };
         d2.dataSplitRatio = {1, 1};
@@ -112,16 +112,16 @@ protected:
         AlgoExecDesc d4;
         d4.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d4.children = {
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
-            sharedD3,
+            sharedD3,            
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
         };
         d4.dataSplitRatio = {2, 2};
 
         AlgoExecDesc d5;
         d5.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d5.children = {
-            sharedD3,
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
+            sharedD3,            
         };
         d5.dataSplitRatio = {2, 2};
 
@@ -217,6 +217,34 @@ TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
     EXPECT_EQ(d.inputSize, 2048u);          // 1024 × 2 (sizeof half)
     EXPECT_EQ(d.outputSize, 2048u * 128);  // AllGather: rankSize 倍
     EXPECT_EQ(exe->GetDataTypeSize(), 2u);  // sizeof(half)
+}
+TEST_F(OmniPipeTest, Orchestrate)
+{
+    auto exe = MakeOmniPipeExecutor(128, 1024 * 1024, HCCL_DATA_TYPE_UINT32);
+
+    // Orchestrate 依赖 rankSize_ / algHierarchyInfo_（由 CalcAlgHierarchyInfo 设置）
+    AlgHierarchyInfoForAllLevel info;
+    info.infos = {
+        {{0, 1, 2, 3, 4, 5, 6, 7}},
+        {{0, 1, 2, 3, 4, 5, 6, 7}},
+        {{0, 1}}
+    };
+    exe->SetTopoMatch(info);
+    exe->SetScratchMultiple(128);
+    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    std::vector<std::vector<ThreadHandle>> subThreads(info.infos.size());
+    exe->SetSubThreads(subThreads);
+    // resCtx 需要非空 threads（InitRes 的 threads_.at(0)）、algHierarchyInfo + channels（RestoreChannelMap 用）
+    AlgResourceCtxSerializable resCtx;
+    resCtx.cclMem.size = 1024 * 1024 * 128 * 4;
+    resCtx.threads.resize(1);
+    resCtx.algHierarchyInfo = info;
+    resCtx.channels.resize(info.infos.size());
+
+    // subThreads_ 由 CalcRes 负责填充，本用例不走 CalcRes，手动塞两层空 vector 让 GenTemplateRes 的 .at(subCommIndex) 不越界
+
+    HcclResult ret = exe->Orchestrate(resCtx);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
 } // namespace testing

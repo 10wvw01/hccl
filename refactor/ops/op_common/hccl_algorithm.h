@@ -96,6 +96,7 @@ struct TemplateDesc {
 enum SubCommIndexType : int {
     SUB_COMM_INDEX_INTRA = 0,
     SUB_COMM_INDEX_INTER = 1,
+    SUB_COMM_INDEX_POD = 2,
 };
 
 struct TemplateExecDesc {

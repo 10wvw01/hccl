@@ -38,6 +38,7 @@ public:
     using OpsExecutor::UpdateDataSplitSequence;
     using OpsExecutor::MergeChildrenOutput;
     using OpsExecutor::InitRes;
+    using OpsExecutor::Orchestrate; 
 
     TestableOpsExecutor(HcclAlgorithm &algo, OpParam &param) : OpsExecutor(algo, param) {}
 
