@@ -89,9 +89,18 @@ HcclResult TopoMatchMultilevel::TopoForLayer0(
                 ranks_y.assign(ranks, ranks + rankNum);
             }
         }
-        algHierarchyInfo.infos[0].push_back(ranks_x);
-        algHierarchyInfo.infos[0].push_back(ranks_y);
-        layer0Size = ranks_x.size() * ranks_y.size();
+        if (ranks_x.size() != 0) {
+            algHierarchyInfo.infos[0].push_back(ranks_x);
+            layer0Size = ranks_x.size();
+        }
+        if (ranks_y.size() != 0) {
+            algHierarchyInfo.infos[0].push_back(ranks_y);
+            if (layer0Size == 0) {
+                layer0Size = ranks_y.size();
+            } else {
+                layer0Size *= ranks_y.size();
+            }
+        }
     }
 #endif
     return HcclResult::HCCL_SUCCESS;
@@ -124,6 +133,10 @@ HcclResult TopoMatchMultilevel::TopoForLayer1(
         if (myRank == rankId) {
             rankVecLayer1WithSameIdx.push_back(rankId);
             continue;
+        }
+        if (layer0Size == 0) {
+            HCCL_ERROR("[TopoMatchMultilevel::MeshNHRTopoForLayer1] layer0Size is 0, Invalid topo.");
+            return HcclResult::HCCL_E_PARA;
         }
         if (rankId % layer0Size != myRank % layer0Size) {
             continue;
@@ -201,6 +214,10 @@ HcclResult TopoMatchMultilevel::TopoForLayer2(
             rankVecLayer2WithSameIdx.push_back(rankId);
             continue;
         }
+        if (layer0Size == 0 || layer1Size == 0) {
+            HCCL_ERROR("[TopoMatchMultilevel::TopoForLayer2] layer0Size or layer1Size is 0, Invalid topo.");
+            return HcclResult::HCCL_E_PARA;
+        }
         if (rankId % (layer0Size * layer1Size) != myRank % (layer0Size * layer1Size)) {
             continue;
         }
@@ -257,10 +274,16 @@ HcclResult TopoMatchMultilevel::MatchTopo(const HcclComm comm, TopoInfoWithNetLa
 
     // 检查layer1（pod间）对称性：每个pod内的instance数是否相同
     bool layer1Symmetric = true;
+    uint32_t netLayer = 1;
+    bool hostDPUOnly = false;
+    if ((CheckHostDPUOnly(comm, topoInfo, hostDPUOnly) == HcclResult::HCCL_SUCCESS) && hostDPUOnly) {
+        // host dpu场景使用最高层的链路
+        netLayer = topoInfo->netLayerDetails.netLayers[topoInfo->netLayerDetails.netLayerNum - 1];
+    }
     if (topoInfo->topoLevelNums > 1) {
         uint32_t *layer1InstSizeList = nullptr;
         uint32_t layer1ListSize = 0;
-        CHK_RET(HcclRankGraphGetInstSizeListByLayer(comm, 1, &layer1InstSizeList, &layer1ListSize));
+        CHK_RET(HcclRankGraphGetInstSizeListByLayer(comm, netLayer, &layer1InstSizeList, &layer1ListSize));
         HCCL_INFO("[TopoMatchMultilevel][MatchTopo] layer1 listSize[%u]", layer1ListSize);
         for (uint32_t i = 0; i < layer1ListSize; i++) {
             HCCL_INFO("[TopoMatchMultilevel][MatchTopo] layer1 instSizeList[%u]=[%u]", i, layer1InstSizeList[i]);
@@ -308,12 +331,6 @@ HcclResult TopoMatchMultilevel::MatchTopo(const HcclComm comm, TopoInfoWithNetLa
     }
 
     // 4. 计算layer1的topo
-    uint32_t netLayer = 1;
-    bool hostDPUOnly = false;
-    if ((CheckHostDPUOnly(comm, topoInfo, hostDPUOnly) == HcclResult::HCCL_SUCCESS) && hostDPUOnly) {
-        // host dpu场景使用最高层的链路
-        netLayer = topoInfo->netLayerDetails.netLayers[topoInfo->netLayerDetails.netLayerNum - 1];
-    }
     CHK_RET(TopoForLayer1(comm, netLayer, layer0Size, myRank, algHierarchyInfo));
 
     uint32_t layer1Size = algHierarchyInfo.infos[1][0].size();

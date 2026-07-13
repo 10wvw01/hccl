@@ -382,13 +382,29 @@ SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     if (topoInfo->topoLevelNums > 1) {
         if ((topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
+            if (topoInfo->serverNum == 1) {
+                HCCL_DEBUG("[AllGatherAutoSelector][%s] InsAllGatherMeshNhrDPU does not match single-server topo.",
+                    __func__);
+                return SelectorStatus::NOT_MATCH;
+            }
             selectAlgName = "InsAllGatherMeshNhrDPU";
             HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsV2AllGatherOmniPipe";
-            HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsV2AllGatherOmniPipe";
+                HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
+                return SelectorStatus::MATCH;
+            } else {
+                if (topoInfo->serverNum == 1) {
+                    HCCL_DEBUG("[AllGatherAutoSelector][%s] InsAllGatherMeshNhrDPU does not match single-server topo.",
+                        __func__);
+                    return SelectorStatus::NOT_MATCH;
+                }
+                selectAlgName = "InsAllGatherMeshNhrDPU";
+                HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
+                return SelectorStatus::MATCH;
+            }
         } 
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] end", __func__);
