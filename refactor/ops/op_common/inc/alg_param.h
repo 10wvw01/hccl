@@ -689,27 +689,6 @@ enum class TransferDirection : uint8_t {
 // ───────────── 收发切片列表 (含 rank 信息) ─────────────
 // 在 TxRxSlicesList 基础上增加 srcRankId_ / dstRankId_,
 // 供 Send 接口内部做 Rank→Channel 映射。
-struct TxRxSlicesList {
-    SlicesList txSlicesList_;   // 发送切片: {srcSlices_, dstSlices_}
-    SlicesList rxSlicesList_;   // 接收切片: {srcSlices_, dstSlices_}
-    u32 srcRankId_ = INVALID_VALUE_RANKID;  // 源 rank (READ 时从谁拉数据)
-    u32 dstRankId_ = INVALID_VALUE_RANKID;  // 目标 rank (WRITE 时推给谁)
-
-    TxRxSlicesList_new() : txSlicesList_({}, {}), rxSlicesList_({}, {}) {}
-
-    TxRxSlicesList_new(const SlicesList &txSlicesList, const SlicesList &rxSlicesList,
-                       u32 srcRankId, u32 dstRankId)
-        : txSlicesList_(txSlicesList), rxSlicesList_(rxSlicesList),
-          srcRankId_(srcRankId), dstRankId_(dstRankId) {}
-};
-
-
-enum class BufferType {
-    INPUT = 0,
-    OUTPUT = 1,
-    HCCL_BUFFER = 2,
-    DEFAULT
-};
 struct DataSlice {
     void* addr_ = nullptr;
     u64 offset_{0}; // Slice相对于input/output的偏移字节数，gather类操作取output，scatter类操作取input
@@ -743,6 +722,25 @@ struct SlicesList {
 
     SlicesList(const std::vector<DataSlice> &srcSlices, const std::vector<DataSlice> &dstSlices)
         : srcSlices_(srcSlices), dstSlices_(dstSlices)
+    {
+    }
+};
+
+struct TxRxSlicesList {
+    SlicesList txSlicesList_;
+    SlicesList rxSlicesList_;
+    u32 srcRankId_ = INVALID_VALUE_RANKID;
+    u32 dstRankId_ = INVALID_VALUE_RANKID;
+
+    TxRxSlicesList() : txSlicesList_({}, {}), rxSlicesList_({}, {}) {}
+
+    TxRxSlicesList(const SlicesList &txSlicesList, const SlicesList &rxSlicesList)
+        : txSlicesList_(txSlicesList), rxSlicesList_(rxSlicesList)
+    {
+    }
+
+    TxRxSlicesList(const SlicesList &txSlicesList, const SlicesList &rxSlicesList, u32 srcRankId, u32 dstRankId)
+        : txSlicesList_(txSlicesList), rxSlicesList_(rxSlicesList), srcRankId_(srcRankId), dstRankId_(dstRankId)
     {
     }
 };
