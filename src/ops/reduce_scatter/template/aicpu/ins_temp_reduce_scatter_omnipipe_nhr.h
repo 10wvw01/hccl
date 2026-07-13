@@ -41,6 +41,9 @@ private:
     HcclResult GetStepInfoList(std::vector<AicpuNHRStepInfo> &stepInfoList);
     HcclResult RunSymmetricStep0(const AicpuNHRStepInfo& stepInfo, const std::vector<ThreadHandle>& threads,
                                  u32 channelIdx, u32 dataTypeSize);
+    HcclResult RunSymmetricDirectStep(const AicpuNHRStepInfo& stepInfo,
+                                      const std::vector<ThreadHandle>& threads,
+                                      u32 channelIdx, u32 dataTypeSize);
     HcclResult RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx);
 
     HcclResult GetNHRDataSize(const AicpuNHRStepInfo& st, const u32 channelIdx, 
@@ -53,7 +56,8 @@ private:
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
 
-    // 对称内存仅替换 NHR 的首轮原始 input 收包；后续轮次仍使用 peer CCL 中的部分规约结果。
+    bool useSymmetricDirect_{false};
+    // Legacy mode only replaces NHR step 0; direct mode above replaces every step.
     bool useSymmetricInput_{false};
     void* inputSymWindow_{nullptr};
     u64 inputOffset_{0};
