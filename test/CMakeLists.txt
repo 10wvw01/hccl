@@ -8,15 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set(CMAKE_PREFIX_PATH
-    ${CANN_3RD_LIB_PATH}/gtest/lib64
-    ${ASCEND_INSTALL_PATH}
-)
-
-set(COMMON_INC_PATH
-    ${CANN_3RD_LIB_PATH}/gtest/include
-)
-
 # UT
 if(ENABLE_UT)
     add_subdirectory(ut)

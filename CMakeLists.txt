@@ -71,7 +71,7 @@ if(ENABLE_TEST)
     include(cmake/config.cmake)
     include(cmake/intf_pub_gccnative.cmake)
     include(cmake/function.cmake)
-    include(cmake/third_party/gtest.cmake)
+    add_cann_third_party(gtest)
     add_subdirectory(test)
 
 elseif(ENABLE_CUSTOM)

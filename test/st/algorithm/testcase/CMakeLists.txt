@@ -20,9 +20,6 @@ function(add_st_test OP_NAME OP_SRC)
 
     if (BUILD_OPEN_PROJECT)
         target_include_directories(${target} PUBLIC
-            # 第三方头文件
-            ${THIRD_PARTH_PATH}/gtest_shared/include
-
             # HCCL仓头文件
             ${HCCL_DEV_BASE}/src/ops/op_common/inc
 
@@ -54,7 +51,7 @@ function(add_st_test OP_NAME OP_SRC)
         )
 
         target_link_libraries(${target} PRIVATE
-            gtest
+            GTest::gtest
             pthread
             hccl-model-proxy
             hccl-verifier
