@@ -9,8 +9,9 @@ if(NOT REFACTOR_EXECUTOR)
     return()
 endif()
 
-# 自动发现当前目录下所有 test_*.cc 文件
-file(GLOB UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/test_*.cc")
+# 自动发现当前目录下所有 .cc 文件（排除 ut_stubs.cc）
+file(GLOB UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/*.cc")
+list(REMOVE_ITEM UT_EXECUTOR_TEST_SRC "${CMAKE_CURRENT_LIST_DIR}/ut_stubs.cc")
 
 set(UT_EXECUTOR_SRC
     ${UT_EXECUTOR_TEST_SRC}
@@ -18,6 +19,7 @@ set(UT_EXECUTOR_SRC
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo/topo_match_base.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/algorithm/all_gather/all_gather_template_desc.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
