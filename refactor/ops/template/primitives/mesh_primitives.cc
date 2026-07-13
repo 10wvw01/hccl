@@ -15,20 +15,6 @@ namespace ops_hccl {
 
 namespace {
 
-struct MeshAllGatherSliceInfo {
-    const TemplateDataParams &tempAlgParams;
-    const ChannelInfo &linkRemote;
-    u64 sliceSize;
-    u64 stride;
-};
-
-struct MeshAllGatherSlicePair {
-    void *firstBufferPtr;
-    void *secondBufferPtr;
-    std::vector<DataSlice> &firstSlices;
-    std::vector<DataSlice> &secondSlices;
-};
-
 inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &algRank)
 {
     auto it = std::find(ranks.begin(), ranks.end(), rankId);

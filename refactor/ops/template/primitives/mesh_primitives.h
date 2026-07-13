@@ -31,6 +31,20 @@ struct DataSlice {
     }
 };
 
+struct MeshAllGatherSliceInfo {
+    const TemplateDataParams &tempAlgParams;
+    const ChannelInfo &linkRemote;
+    u64 sliceSize;
+    u64 stride;
+};
+
+struct MeshAllGatherSlicePair {
+    void *firstBufferPtr;
+    void *secondBufferPtr;
+    std::vector<DataSlice> &firstSlices;
+    std::vector<DataSlice> &secondSlices;
+};
+
 struct SlicesList {
     std::vector<DataSlice> srcSlices_;
     std::vector<DataSlice> dstSlices_;
