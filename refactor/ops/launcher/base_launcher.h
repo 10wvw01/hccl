@@ -19,30 +19,6 @@
 
 namespace ops_hccl {
 
-// ───────────── 数据传输方向 (纯数据流方向) ─────────────
-// 仅描述 "本地 → 远端" 还是 "远端 → 本地",
-// 不携带算子语义, 不携带拓扑语义。
-enum class TransferDirection : uint8_t {
-    WRITE = 0,   // 本地 → 远端 (Push)
-    READ  = 1,   // 远端 → 本地 (Pull)
-};
-
-// ───────────── 收发切片列表 (含 rank 信息) ─────────────
-// 在 TxRxSlicesList 基础上增加 srcRankId_ / dstRankId_,
-// 供 Send 接口内部做 Rank→Channel 映射。
-struct TxRxSlicesList_new {
-    SlicesList txSlicesList_;   // 发送切片: {srcSlices_, dstSlices_}
-    SlicesList rxSlicesList_;   // 接收切片: {srcSlices_, dstSlices_}
-    u32 srcRankId_ = INVALID_VALUE_RANKID;  // 源 rank (READ 时从谁拉数据)
-    u32 dstRankId_ = INVALID_VALUE_RANKID;  // 目标 rank (WRITE 时推给谁)
-
-    TxRxSlicesList_new() : txSlicesList_({}, {}), rxSlicesList_({}, {}) {}
-
-    TxRxSlicesList_new(const SlicesList &txSlicesList, const SlicesList &rxSlicesList,
-                       u32 srcRankId, u32 dstRankId)
-        : txSlicesList_(txSlicesList), rxSlicesList_(rxSlicesList),
-          srcRankId_(srcRankId), dstRankId_(dstRankId) {}
-};
 
 // ★★★ 统一数据传输上下文 ★★★
 // 调用者填充, 传给 BaseLauncher::Send()。
@@ -50,7 +26,7 @@ struct TransferContext {
     // ──── 数据传输描述 ────
     bool enableRemoteMemAccess = true;             // 是否可直接访问对端 input/output
     BufferType buffType = BufferType::OUTPUT;       // 当前操作的 buffer 类型
-    TxRxSlicesList_new txRxSlicesList;              // 收发数据切片 + rank 信息
+    TxRxSlicesList txRxSlicesList;              // 收发数据切片 + rank 信息
     TemplateResource templateRes;                   // 资源 (channels map + threads vector)
 
     // ──── Reduce 参数 (reduceOp != HCCL_REDUCE_RESERVED 时需要) ────
