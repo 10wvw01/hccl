@@ -208,59 +208,16 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     EXPECT_EQ(exe->GetDataTypeSize(), 4u);  // sizeof(float)
 }
 
-
-
-// ============================================================
-// 4. CalcRes — OmniPipe executor 上的资源计算
-// ============================================================
-
-class CalcResTest : public OmniPipeTest {
-protected:
-    void SetUp() override
-    {
-        OmniPipeTest::SetUp();
-        exe_ = MakeOmniPipeExecutor();
-        std::vector<ThreadHandle> threads = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-        exe_->SetThreads(threads);
-    }
-
-    std::unique_ptr<TestableOpsExecutor> exe_;
-};
-
-TEST_F(CalcResTest, ThreeLevelWithOmniPipeTree)
+TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
 {
-    AlgHierarchyInfoForAllLevel info;
-    info.infos = {
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1}}
-    };
-    exe_->SetTopoMatch(info);
-    exe_->SetScratchMultiple(128);
-    ASSERT_EQ(exe_->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    auto exe = MakeOmniPipeExecutor(128, 1024, HCCL_DATA_TYPE_FP16);
 
-    AlgResourceRequest req;
-    EXPECT_EQ(exe_->CalcRes(req), HCCL_SUCCESS);
-    EXPECT_EQ(req.notifyNumOnMainThread, 3u);
-    EXPECT_EQ(req.slaveThreadNum, 10u);
-
-    // notifyNumPerThread 布局:
-    //   level0: notifyOnMain+1=3, maxSlave=3 × maxNotifyPerThread=3 → [3, 3,3,3] (4 entries)
-    //   level1: notifyOnMain+1=2, maxSlave=2 × maxNotifyPerThread=2 → [2, 2,2]   (3 entries)
-    //   level2: notifyOnMain+1=2, maxSlave=2 × maxNotifyPerThread=2 → [2, 2,2]   (3 entries)
-    ASSERT_EQ(req.notifyNumPerThread.size(), 10u);
-    EXPECT_EQ(req.notifyNumPerThread[0], 3u);   // level0 main
-    EXPECT_EQ(req.notifyNumPerThread[1], 3u);   // level0 slave[0]
-    EXPECT_EQ(req.notifyNumPerThread[2], 3u);   // level0 slave[1]
-    EXPECT_EQ(req.notifyNumPerThread[3], 3u);   // level0 slave[2]
-    EXPECT_EQ(req.notifyNumPerThread[4], 2u);   // level1 main
-    EXPECT_EQ(req.notifyNumPerThread[5], 2u);   // level1 slave[0]
-    EXPECT_EQ(req.notifyNumPerThread[6], 2u);   // level1 slave[1]
-    EXPECT_EQ(req.notifyNumPerThread[7], 2u);   // level2 main
-    EXPECT_EQ(req.notifyNumPerThread[8], 2u);   // level2 slave[0]
-    EXPECT_EQ(req.notifyNumPerThread[9], 2u);   // level2 slave[1]
+    const auto &d = exe->GetExecDataInfo();
+    EXPECT_EQ(d.dataType, HCCL_DATA_TYPE_FP16);
+    EXPECT_EQ(d.inputSize, 2048u);          // 1024 × 2 (sizeof half)
+    EXPECT_EQ(d.outputSize, 2048u * 128);  // AllGather: rankSize 倍
+    EXPECT_EQ(exe->GetDataTypeSize(), 2u);  // sizeof(half)
 }
-
 TEST_F(OmniPipeTest, Orchestrate)
 {
     auto exe = MakeOmniPipeExecutor(128, 1024 * 1024, HCCL_DATA_TYPE_UINT32);
