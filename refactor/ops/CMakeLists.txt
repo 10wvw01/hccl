@@ -18,6 +18,7 @@ option(REFACTOR_SELECTOR  "Build refactor/ops/selector"  ${REFACTOR})
 option(REFACTOR_TEMPLATE  "Build refactor/ops/template"  ${REFACTOR})
 option(REFACTOR_UTILS     "Build refactor/ops/utils"     ${REFACTOR})
 option(REFACTOR_ALGORITHM "Build refactor/ops/algorithm" ${REFACTOR})
+option(REFACTOR_LAUNCHER  "Build refactor/ops/engines"   ${REFACTOR})
 
 # c_adaptor/common 是主工程 common 代码的早期接入点。
 # 当主工程已经创建 hccl_compat 时，这里不能重复 add_subdirectory，否则会重复定义 target。
@@ -59,4 +60,9 @@ endif()
 if(REFACTOR_ALGORITHM AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/algorithm/CMakeLists.txt)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/algorithm
                      ${CMAKE_CURRENT_BINARY_DIR}/algorithm)
+endif()
+
+if(REFACTOR_LAUNCHER AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/engines/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/engines
+                     ${CMAKE_CURRENT_BINARY_DIR}/engines)
 endif()

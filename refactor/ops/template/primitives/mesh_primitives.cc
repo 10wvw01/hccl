@@ -15,14 +15,6 @@ namespace ops_hccl {
 
 namespace {
 
-inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &algRank)
-{
-    auto it = std::find(ranks.begin(), ranks.end(), rankId);
-    CHK_PRT_RET(it == ranks.end(), HCCL_ERROR("[RunMeshAllGather] rank[%u] is not in ranks.", rankId), HCCL_E_PARA);
-    algRank = static_cast<u32>(std::distance(ranks.begin(), it));
-    return HCCL_SUCCESS;
-}
-
 // 构造 Mesh AllGather 通信描述前的参数检查。
 inline HcclResult PreCheckMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                                         const std::vector<u32> &ranks, u32 myRank)

@@ -19,16 +19,16 @@
 # 注：hccl_algorithm.h 是真实的类声明（142 行），但当前会引用 topo_match_base.h，
 #     该头文件在 refactor/ 下没有，需要从 src/ops/op_common/topo/ 借（或新建）。
 
-target_include_directories(hccl BEFORE PRIVATE
+target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/inc
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aicpu
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aiv
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_ms
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_sche
     ${CMAKE_CURRENT_LIST_DIR}/../template/engines
     ${CMAKE_CURRENT_LIST_DIR}/../template
+    ${CMAKE_CURRENT_LIST_DIR}/../engines
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_ms
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_sche
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/aiv
+    ${CMAKE_CURRENT_LIST_DIR}/../executor
     ${CMAKE_CURRENT_LIST_DIR}/..
 )
 add_subdirectory(topo)

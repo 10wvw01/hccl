@@ -451,7 +451,8 @@ function build_ut() {
           -DREFACTOR_SELECTOR=ON \
           -DREFACTOR_TEMPLATE=ON \
           -DREFACTOR_UTILS=ON \
-          -DREFACTOR_ALGORITHM=ON"
+          -DREFACTOR_ALGORITHM=ON \
+          -DREFACTOR_LAUNCHER=ON"
       [ "${REFACTOR_UT_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_UT_ONLY=ON"
       [ "${REFACTOR_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_ONLY=ON"
   fi
@@ -539,7 +540,8 @@ function build_hccl() {
             -DREFACTOR_SELECTOR=ON \
             -DREFACTOR_TEMPLATE=ON \
             -DREFACTOR_UTILS=ON \
-            -DREFACTOR_ALGORITHM=ON"
+            -DREFACTOR_ALGORITHM=ON \
+            -DREFACTOR_LAUNCHER=ON"
     fi
 
     # 创建构建目录

@@ -47,6 +47,10 @@
 
 namespace ops_hccl {
 
+// AIV kernel 注册入口（实现在 src/ops/op_common/template/aiv/hccl_aiv_utils.cc）。
+// execute_selector.cc 在 AIV 回退场景下调用，需在此声明以便 selector 侧可见。
+HcclResult RegisterKernel();
+
 enum class HcclAlgEngineType {
     AICPU,
     CCU_MS,
@@ -96,7 +100,6 @@ struct TemplateDesc {
 enum SubCommIndexType : int {
     SUB_COMM_INDEX_INTRA = 0,
     SUB_COMM_INDEX_INTER = 1,
-    SUB_COMM_INDEX_POD = 2,
 };
 
 struct TemplateExecDesc {

@@ -11,13 +11,10 @@
 #ifndef OPS_HCCL_BASE_TEMPLATE_H
 #define OPS_HCCL_BASE_TEMPLATE_H
 
-namespace ops_hccl {
+#include "hccl_algorithm.h"
+#include "alg_param.h"
 
-enum class BufferType {
-    INPUT,
-    OUTPUT,
-    HCCL_BUFFER,
-};
+namespace ops_hccl {
 
 struct TemplateResource {
     std::map<u32, std::vector<ChannelInfo>> channels;
@@ -75,8 +72,64 @@ public:
      *   - HCCL_E_PARA: 参数非法
      */
     HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
-        // TODO： 实现
-        // 把Init放在CalcRes里面实现
+        const u32 rankSize = static_cast<u32>(ranks.size());
+        if (rankSize <= 1) {
+            res.channels.emplace_back();
+            return HCCL_SUCCESS;
+        }
+
+        // 为每个对端 rank 创建 HcclChannelDesc。
+        constexpr u32 NOTIFY_NUM_PER_CHANNEL = 3;
+        std::vector<HcclChannelDesc> levelChannels;
+        for (u32 rank : ranks) {
+            if (rank == myRank_) {
+                continue;
+            }
+            u32 netLayer = 0;
+            u32 listSize = 0;
+            CommLink *linkList = nullptr;
+            CHK_RET(static_cast<HcclResult>(
+                HcclRankGraphGetLinks(comm, netLayer, myRank_, rank, &linkList, &listSize)));
+            if (listSize == 0) {
+                HCCL_ERROR("[BaseTemplate][CalcRes] no link between rank[%u] and rank[%u].", myRank_, rank);
+                return HCCL_E_INTERNAL;
+            }
+            // 选取第一条链路构建 channel desc。
+            HcclChannelDesc desc;
+            CHK_RET(static_cast<HcclResult>(HcclChannelDescInit(&desc, 1)));
+            const CommLink &link = linkList[0];
+            desc.remoteRank = rank;
+            desc.notifyNum = NOTIFY_NUM_PER_CHANNEL;
+            desc.channelProtocol = link.linkAttr.linkProtocol;
+            desc.localEndpoint.protocol = link.srcEndpointDesc.protocol;
+            desc.localEndpoint.commAddr = link.srcEndpointDesc.commAddr;
+            desc.localEndpoint.loc = link.srcEndpointDesc.loc;
+            desc.remoteEndpoint.protocol = link.dstEndpointDesc.protocol;
+            desc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
+            desc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
+            levelChannels.push_back(desc);
+            channels.push_back(desc);
+        }
+        res.channels.push_back(levelChannels);
+
+        // 根据算法类型计算线程数和 notify 数。
+        const bool isNhr = (templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR ||
+                            templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR_V1);
+        u32 threadNum = 0;
+        u32 notifyPerThread = 0;
+        if (isNhr) {
+            // NHR：线程数 = channelsPerRank * 2，每个从线程 2 个 notify。
+            u32 channelsPerRank = static_cast<u32>(levelChannels.size());
+            threadNum = channelsPerRank * 2;
+            notifyPerThread = 2;
+        } else {
+            // Mesh 1D：线程数 = rankSize - 1，每个从线程 1 个 notify。
+            threadNum = rankSize - 1;
+            notifyPerThread = 1;
+        }
+        res.slaveThreadNum = (threadNum > 0) ? threadNum - 1 : 0;
+        res.notifyNumOnMainThread = res.slaveThreadNum;
+        res.notifyNumPerThread.assign(res.slaveThreadNum, notifyPerThread);
         return HCCL_SUCCESS;
     }
 

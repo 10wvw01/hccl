@@ -11,14 +11,22 @@
 # refactor/ops/utils/CMakeLists.txt
 # 工具函数：数据搬运（SendRecv*/PreCopy/PostCopy）+ rank 规划
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/utils) 拉进来
-#
-# 当前状态（全部注释掉，补完后逐个打开）：
-#   ❌ data_transfer.cc   - 16 行裸函数声明，没 include 任何东西
-#   ❌ plan_ranks.cc      - 7 行伪代码（getNhrRanks/getMeshRanks）
-#   ❌ data_copy.cc       - 11 行纯注释
+
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/../template
+    ${CMAKE_CURRENT_LIST_DIR}/../template/primitives
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common/hcomm_dlsym
+    ${HCCL_DIR}/src/ops/op_common
+    ${HCCL_DIR}/src/ops/op_common/inc
+    ${HCCL_DIR}/src/common
+    ${HCCL_DIR}/src/common/hcomm_dlsym
+)
 
 target_sources(hccl PRIVATE
-    # data_transfer.cc
-    # plan_ranks.cc
-    # data_copy.cc
+    utils.cc
 )

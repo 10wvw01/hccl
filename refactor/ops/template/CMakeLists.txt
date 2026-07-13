@@ -9,28 +9,46 @@
 # -----------------------------------------------------------------------------------------------------------
 
 # Refactor template sources that should enter the hccl target.
-target_include_directories(hccl BEFORE PRIVATE
+# 注：refactor/ops 下的各 CMakeLists.txt 通过共享 hccl target 累加 include 路径与源文件。
+# 这里补充 op_common.cc / hccl_algorithm.cc 编译所需的所有路径，
+# 因为它们依赖 engines/base_launcher.h 及 engines/aicpu|ccu_ms|ccu_sche 子模块。
+target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg/ccu_common
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg/ccu_common/strategies
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg/ccu_ms
+    ${CMAKE_CURRENT_LIST_DIR}/op_alg/ccu_sche
+    ${CMAKE_CURRENT_LIST_DIR}/primitives
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
     ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aicpu
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aiv
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_ms
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/ccu_sche
-    ${HCCL_DIR}/src/ops/op_common/template
-    ${HCCL_DIR}/src/ops/op_common/template/wrapper
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/topo
+    ${CMAKE_CURRENT_LIST_DIR}/../executor
+    ${CMAKE_CURRENT_LIST_DIR}/../engines
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_ms
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_sche
+    ${CMAKE_CURRENT_LIST_DIR}/../engines/aiv
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common
+    ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common/hcomm_dlsym
+    ${HCCL_DIR}/src/ops/op_common
+    ${HCCL_DIR}/src/ops/op_common/inc
+    ${HCCL_DIR}/src/common
+    ${HCCL_DIR}/src/common/hcomm_dlsym
 )
 
 target_sources(hccl PRIVATE
     primitives/mesh_primitives.cc
-    # primitives/nhr_primitives.cc
+    primitives/nhr_primitives.cc
 
     # engines/aicpu/launcher/load_kernel.cc
     # engines/aicpu/launcher/aicpu_launcher.cc
     # engines/aicpu/launcher/kernel_launch.cc
 
-    # engines/aicpu/op_alg/allgather_mesh.cc
-    # engines/aicpu/op_alg/allgather_nhr.cc
+    op_alg/aicpu/aicpu_base_template.cc
+    op_alg/aicpu/allgather_mesh.cc
+    op_alg/aicpu/allgather_nhr.cc
 
     # engines/aiv/launcher/load_kernel.cc
     # engines/aiv/launcher/kernel_launch.cc
