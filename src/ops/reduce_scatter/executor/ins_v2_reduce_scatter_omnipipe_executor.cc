@@ -536,10 +536,19 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel2_, notifyIdxCtrlToTempLevel2_));
                 CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2], tempResMap[OMNIPIPE_LEVEL2]));
             }
+            // In direct symmetric mode, L0 Mesh and L1 NHR operate on disjoint user-input slices. Their own
+            // template barriers already protect per-axis scratch reuse, so one outer barrier can cover all
+            // inner slices and avoid forcing the faster axis to wait for the slower axis after every slice.
+            if (useSymmetricDirect && level0StepCount > 0) {
+                CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
+            }
             // 5.4 for内层2d
             for (int j = 0; j < level0StepCount; j++) {
                 // level0、1前同步
-                CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxCtrlToTempLevel01_));
+                if (!useSymmetricDirect) {
+                    CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01_,
+                                                notifyIdxCtrlToTempLevel01_));
+                }
                 // 初始化并执行机内template任务
                 if (rankSizeLevel0_ > 1) {
                     HCCL_DEBUG("rankSizeLevel0_ > 1");
@@ -556,6 +565,12 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                         tempMap[1]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL1], tempResMap[OMNIPIPE_LEVEL1]));
                 }
                 // level0、1尾同步
+                if (!useSymmetricDirect) {
+                    CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_,
+                                                 notifyIdxTempToCtrlLevel01_));
+                }
+            }
+            if (useSymmetricDirect && level0StepCount > 0) {
                 CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel01_, notifyIdxTempToCtrlLevel01_));
             }
             if (rankSizeLevel2_ > 1) {
