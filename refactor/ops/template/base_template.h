@@ -71,6 +71,7 @@ public:
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
+<<<<<<< Updated upstream
     HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
         const u32 rankSize = static_cast<u32>(ranks.size());
         if (rankSize <= 1) {
@@ -130,6 +131,11 @@ public:
         res.slaveThreadNum = (threadNum > 0) ? threadNum - 1 : 0;
         res.notifyNumOnMainThread = res.slaveThreadNum;
         res.notifyNumPerThread.assign(res.slaveThreadNum, notifyPerThread);
+=======
+    virtual HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
+        // TODO： 实现
+        // 把Init放在CalcRes里面实现
+>>>>>>> Stashed changes
         return HCCL_SUCCESS;
     }
 
