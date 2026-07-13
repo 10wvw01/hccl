@@ -1,6 +1,7 @@
 name: hccl_action
 
-on:  
+on:
+  workflow_dispatch:
   pr_comment:
       types: [ created ]
       keyword: '^(?:\/)?compile*'
