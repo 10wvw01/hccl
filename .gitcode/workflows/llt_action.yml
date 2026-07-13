@@ -18,7 +18,7 @@ on:
 
 jobs:
   JOB_ut:
-    name: ${{ inputs.ut_type }}
+    name: ut/st
     select: selected_by_default
     needs: []
     steps:
@@ -41,8 +41,8 @@ jobs:
             ${{ env.obs_path }}/ut.sh
           path: ${{ steps.process_checkout.outputs.path }}
       -
-        name: ${{ inputs.ut_type }}
-        identifier: ${{ inputs.ut_type }}
+        name: ut/st
+        identifier: ut/st
         run: |
           export WORKSPACE=${{ steps.process_checkout.outputs.path }}
           cd ${{ steps.process_checkout.outputs.path }}
