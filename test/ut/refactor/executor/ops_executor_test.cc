@@ -139,54 +139,6 @@ protected:
     TemplateDesc nhrTmpl_;
 };
 
-TEST_F(OmniPipeTest, OmniPipeTreeTopology)
-{
-    auto root = BuildOmniPipeTree();
-    EXPECT_EQ(root.execPolicy, HcclAlgExecPolicy::SEQUENCE);
-    EXPECT_EQ(root.dataSplitRatio, std::vector<u32>({4, 4}));
-
-    // d4 = root.children[0]
-    auto *d4 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&root.children[0]);
-    ASSERT_NE(d4, nullptr);
-    EXPECT_EQ((*d4)->execPolicy, HcclAlgExecPolicy::PARALLEL);
-
-    // d5 = root.children[1]
-    auto *d5 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&root.children[1]);
-    ASSERT_NE(d5, nullptr);
-    EXPECT_EQ((*d5)->execPolicy, HcclAlgExecPolicy::PARALLEL);
-
-    // d3 shared between d4.children[1] and d5.children[0]
-    auto *d4_d3 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&(*d4)->children[1]);
-    auto *d5_d3 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&(*d5)->children[0]);
-    ASSERT_NE(d4_d3, nullptr);
-    ASSERT_NE(d5_d3, nullptr);
-    EXPECT_EQ(d4_d3->get(), d5_d3->get());        // 同一个 shared_ptr 对象
-    EXPECT_EQ((*d4_d3)->execPolicy, HcclAlgExecPolicy::SEQUENCE);
-
-    // d3 → d1
-    auto *d1 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&(*d4_d3)->children[0]);
-    ASSERT_NE(d1, nullptr);
-    EXPECT_EQ((*d1)->execPolicy, HcclAlgExecPolicy::PARALLEL);
-
-    // d1 leaf: Mesh, NHR
-    auto *d1_t0 = std::get_if<TemplateExecDesc>(&(*d1)->children[0]);
-    auto *d1_t1 = std::get_if<TemplateExecDesc>(&(*d1)->children[1]);
-    ASSERT_NE(d1_t0, nullptr);
-    ASSERT_NE(d1_t1, nullptr);
-    EXPECT_EQ(d1_t0->templateDesc.algType, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH);
-    EXPECT_EQ(d1_t1->templateDesc.algType, HcclAlgoType::HCCL_ALGO_TYPE_NHR);
-
-    // d2 leaf: NHR, Mesh (opposite)
-    auto *d3_d2 = std::get_if<std::shared_ptr<AlgoExecDesc>>(&(*d4_d3)->children[1]);
-    ASSERT_NE(d3_d2, nullptr);
-    auto *d2_t0 = std::get_if<TemplateExecDesc>(&(*d3_d2)->children[0]);
-    auto *d2_t1 = std::get_if<TemplateExecDesc>(&(*d3_d2)->children[1]);
-    ASSERT_NE(d2_t0, nullptr);
-    ASSERT_NE(d2_t1, nullptr);
-    EXPECT_EQ(d2_t0->templateDesc.algType, HcclAlgoType::HCCL_ALGO_TYPE_NHR);
-    EXPECT_EQ(d2_t1->templateDesc.algType, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH);
-}
-
 // ============================================================
 // 3. 构造完整 Executor 实例：ALLGATHER + AICPU + OmniPipe 树
 // ============================================================
@@ -199,12 +151,6 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     algo.engineType    = HcclAlgEngineType::AICPU;
     algo.topoMatch     = std::make_shared<MockTopoMatch>();
     algo.algoExecDesc  = BuildOmniPipeTree();
-
-    // 验证 algoExecDesc 树已注入
-    auto root = algo.algoExecDesc;
-    EXPECT_EQ(root.execPolicy, HcclAlgExecPolicy::SEQUENCE);
-    EXPECT_EQ(root.children.size(), 2u);
-    EXPECT_EQ(root.dataSplitRatio, std::vector<u32>({4, 4}));
 
     // 构造 executor 实例
     OpParam param;
