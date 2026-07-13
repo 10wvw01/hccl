@@ -50,10 +50,9 @@ public:
     void SetRoot(u32 r)                   { root_ = r; }
     void SetOpMode(OpMode m)              { opMode_ = m; }
     void SetMyRank(u32 r)                 { myRank_ = r; }
-    void SetDataInfoInput(void *p, u64 s)  { dataInfo_.inputPtr = p; dataInfo_.inputSize = s; }
-    void SetDataInfoOutput(void *p, u64 s) { dataInfo_.outputPtr = p; dataInfo_.outputSize = s; }
-    void SetDataInfoDataType(HcclDataType t) { dataInfo_.dataType = t; }
-    void SetDataInfoReduceOp(HcclReduceOp r) { dataInfo_.reduceOp = r; }
+    void SetExecDataInfoInput(void *p, u64 s)  { dataInfo_.inputPtr = p; dataInfo_.inputSize = s; }
+    void SetExecDataInfoOutput(void *p, u64 s) { dataInfo_.outputPtr = p; dataInfo_.outputSize = s; }
+    void SetExecDataInfoDataType(HcclDataType t) { dataInfo_.dataType = t; }
     void SetCclBufferPtr(void *p)         { cclBufferInfo_.ptr = p; }
     void SetChannelTable(std::vector<std::map<u32, std::vector<ChannelInfo>>> &t) { channelTable_ = t; }
     void SetSubThreads(std::vector<std::vector<ThreadHandle>> &t) { subThreads_ = t; }
@@ -67,6 +66,9 @@ public:
 
     // getters
     u32 GetRankSize() const { return rankSize_; }
+    u32 GetScratchMultiple() const { return scratchMultiple_; }
+    const ops_hccl::ExecDataInfo &GetExecDataInfo() const { return dataInfo_; }
+    u64 GetDataTypeSize() const { return dataTypeSize_; }
     const AlgHierarchyInfoForAllLevel &GetAlgHierarchyInfo() const { return algHierarchyInfo_; }
 };
 

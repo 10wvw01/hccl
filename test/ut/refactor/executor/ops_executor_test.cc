@@ -137,6 +137,42 @@ protected:
 
     TemplateDesc meshTmpl_;
     TemplateDesc nhrTmpl_;
+
+    // 构造 AllGather 测试用的 TestableOpsExecutor 实例
+    std::unique_ptr<TestableOpsExecutor> MakeOmniPipeExecutor(
+        u32 rankSize = 128, u64 elemCount = 1024, HcclDataType dtype = HCCL_DATA_TYPE_FP32)
+    {
+        auto algo = std::make_unique<HcclAlgorithm>();
+        algo->hcclCmdType  = HCCL_CMD_ALLGATHER;
+        algo->engineType   = HcclAlgEngineType::AICPU;
+        algo->topoMatch    = std::make_shared<MockTopoMatch>();
+        algo->algoExecDesc = BuildOmniPipeTree();
+
+        u64 dtSize = DATATYPE_SIZE_TABLE[dtype];
+        u64 inSize = elemCount * dtSize;
+
+        bufPool_.input.resize(inSize);
+        bufPool_.output.resize(inSize * rankSize);
+
+        auto param = std::make_unique<OpParam>();
+        param->userRank         = 0;
+        param->inputPtr         = bufPool_.input.data();
+        param->inputSize        = inSize;
+        param->outputPtr        = bufPool_.output.data();
+        param->outputSize       = inSize * rankSize;
+        param->DataDes.dataType = dtype;
+        param->DataDes.count    = elemCount;
+        param->reduceType       = HcclReduceOp::HCCL_REDUCE_RESERVED;
+        param->opMode           = OpMode::OPBASE;
+
+        return std::make_unique<TestableOpsExecutor>(*algo, *param);
+    }
+
+    // buffer 内存池，生命周期与 Test Fixture 一致
+    struct {
+        std::vector<char> input;
+        std::vector<char> output;
+    } bufPool_;
 };
 
 // ============================================================
@@ -145,17 +181,42 @@ protected:
 
 TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
 {
-    // 构造完整的 HcclAlgorithm: ALLGATHER + AICPU + OmniPipe 树
-    HcclAlgorithm algo;
-    algo.hcclCmdType   = HCCL_CMD_ALLGATHER;
-    algo.engineType    = HcclAlgEngineType::AICPU;
-    algo.topoMatch     = std::make_shared<MockTopoMatch>();
-    algo.algoExecDesc  = BuildOmniPipeTree();
+    auto exe = MakeOmniPipeExecutor();
 
-    // 构造 executor 实例
-    OpParam param;
-    OpsExecutor executor(algo, param);
-    EXPECT_TRUE(true); // 构造成功
+    // 验证 rankSize 初始为 0，调 CalcAlgHierarchyInfo 后正确计算
+    EXPECT_EQ(exe->GetRankSize(), 0u);
+    AlgHierarchyInfoForAllLevel info;
+    info.infos = {
+        {{0, 1, 2, 3, 4, 5, 6, 7}},
+        {{0, 1, 2, 3, 4, 5, 6, 7}},
+        {{0, 1}}
+    };
+    exe->SetTopoMatch(info);
+    EXPECT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    EXPECT_EQ(exe->GetRankSize(), 128u);    // 8×8×2
+
+    // 验证 scratchMultiple 初始为 0
+    EXPECT_EQ(exe->GetScratchMultiple(), 0u);
+
+    // 验证 dataInfo_ 从 OpParam 正确传递
+    const auto &d = exe->GetExecDataInfo();
+    EXPECT_NE(d.inputPtr, nullptr);
+    EXPECT_EQ(d.inputSize, 4096u);           // 1024 × sizeof(float)
+    EXPECT_NE(d.outputPtr, nullptr);
+    EXPECT_EQ(d.outputSize, 4096u * 128);   // AllGather: rankSize 倍
+    EXPECT_EQ(d.dataType, HCCL_DATA_TYPE_FP32);
+    EXPECT_EQ(exe->GetDataTypeSize(), 4u);  // sizeof(float)
+}
+
+TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
+{
+    auto exe = MakeOmniPipeExecutor(128, 1024, HCCL_DATA_TYPE_FP16);
+
+    const auto &d = exe->GetExecDataInfo();
+    EXPECT_EQ(d.dataType, HCCL_DATA_TYPE_FP16);
+    EXPECT_EQ(d.inputSize, 2048u);          // 1024 × 2 (sizeof half)
+    EXPECT_EQ(d.outputSize, 2048u * 128);  // AllGather: rankSize 倍
+    EXPECT_EQ(exe->GetDataTypeSize(), 2u);  // sizeof(half)
 }
 
 } // namespace testing
