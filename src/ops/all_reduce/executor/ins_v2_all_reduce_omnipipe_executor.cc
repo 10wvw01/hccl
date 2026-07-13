@@ -635,9 +635,17 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo_,
             subCommRanks0, subCommRanks1, subCommRanks2, tempMap, &(resCtx.topoInfo)));
 
+    if (rankSizeLevel0_ > 1) {
+        CHK_RET(tempMap[OMNIPIPE_RS_LEVEL0]->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
+        CHK_RET(tempMap[OMNIPIPE_AG_LEVEL0]->SetchannelsPerRank(remoteRankToChannelInfo_[0]));
+    }
     if (rankSizeLevel1_ > 1) {
-        tempMap[OMNIPIPE_RS_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
-        tempMap[OMNIPIPE_AG_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]);
+        CHK_RET(tempMap[OMNIPIPE_RS_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
+        CHK_RET(tempMap[OMNIPIPE_AG_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
+    }
+    if (rankSizeLevel2_ > 1) {
+        CHK_RET(tempMap[OMNIPIPE_RS_LEVEL2]->SetchannelsPerRank(remoteRankToChannelInfo_[2]));
+        CHK_RET(tempMap[OMNIPIPE_AG_LEVEL2]->SetchannelsPerRank(remoteRankToChannelInfo_[2]));
     }
     // 为temp分配thread
     levelThreadsRS_.resize(OMNIPIPE_LEVEL_NUM);
