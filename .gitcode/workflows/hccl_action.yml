@@ -207,61 +207,7 @@ stages:
     pre:
     - type: auto
     fail-fast: false
-  stage4:
-    name: ut_report
-    jobs:
-      JOB_ut_report:
-        name: ut_report
-        steps:
-          -
-            name: Checkout
-            identifier: process_checkout
-            uses: checkout
-            with:
-              ref: ${{ atomgit.event.pull_request.merge_commit_sha || atomgit.sha }}
-              token: ${{secrets.GIT_TOKEN}}
-          -
-            name: download
-            uses: obs-download
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              key: |
-                ${{ env.obs_path }}/pr_filelist.txt
-                ${{ env.obs_path }}/pr_filelist_mod.txt
-              path: ${{ steps.process_checkout.outputs.path }}
-          -
-            name: ut_report
-            identifier: ut-report
-            uses: cann/.gitcode/actions/ut-cov-report@master
-            with:
-              workspace: ${{ steps.process_checkout.outputs.path }}
-              cov_mode: "report"
-              ut_field: "pypto"
-              modules: "make_gnu_1 make_gnu_2 make_gnu_3 Py3_ninja"
-              source_branch: ${{ env.SOURCE_BRANCH }}
-              target_branch: ${{ env.TARGET_BRANCH }}
-              obs_path: ${{ env.obs_path }}
-              git_token: ${{secrets.GIT_TOKEN}}
-          -
-            name: upload
-            uses: obs-upload
-            with:
-              endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-              bucket: "ascend-ci"
-              access-key: ${{secrets.AK}}
-              secret-key: ${{secrets.SK}}
-              artifact-path: |
-                ${{ steps.process_checkout.outputs.path }}/ut_cov_*.tar.gz
-              object-prefix: ${{ env.obs_path }}/
-        if: "${{ default() }}"
-        runs-on: [dedicate-hosted, x64, large]
-        container:
-          image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ jobs.JOB_image.outputs.UT_Test_report }}
-    pre:
-    - type: auto
-    fail-fast: true
-  stage5: 
+  stage4: 
     name: PreSmoke
     select: selected_by_default
     jobs:
