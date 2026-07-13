@@ -445,6 +445,8 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         tempResMap[temp.first].npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         tempResMap[temp.first].dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
+        tempAlgParamMap[temp.first].cclSymWindow = resCtx.cclSymWindow;
+        tempAlgParamMap[temp.first].cclSymOffset = resCtx.cclSymOffset;
         if (temp.first == OMNIPIPE_LEVEL0) {
             // L0 Mesh can directly consume peer user input only when no L2 stage precedes it.
             tempAlgParamMap[temp.first].supportSymmetricMemory =
@@ -454,6 +456,11 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
             // 若 L0/L2 参与，peer CCL 保存的是前序轴的部分和，NHR 必须继续走普通通信。
             tempAlgParamMap[temp.first].supportSymmetricMemory = param.supportSymmetricMemory &&
                 rankSizeLevel0_ == 1 && rankSizeLevel2_ == 1;
+            // In a two-level pipeline L1 consumes the L0 partial sums (S) in CCL, not peer user input.
+            // When the communicator CCL buffer has a symmetric window, use that peer CCL address as the
+            // WRITE_REDUCE destination while retaining the original NHR channel handshake.
+            tempAlgParamMap[temp.first].supportSymmetricCclMemory = param.supportSymmetricMemory &&
+                resCtx.cclSymWindow != nullptr && rankSizeLevel0_ > 1 && rankSizeLevel2_ == 1;
         }
     }
 

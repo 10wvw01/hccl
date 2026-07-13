@@ -90,6 +90,8 @@ DECL_WEAK_FUNC(HcclResult, HcclSymWinGetPeerPointer, HcclCommSymWindow winHandle
     size_t offset, uint32_t peerRank, void** ptr);
 DECL_WEAK_FUNC(HcclResult, HcclCommSymWinGet, HcclComm comm, void *ptr, size_t size,
     HcclCommSymWindow *winHandle, size_t *offset);
+DECL_WEAK_FUNC(HcclResult, HcclCommSymWinRegister, HcclComm comm, void *addr, uint64_t size,
+    HcclCommSymWindow *winHandle, uint32_t flag);
 #ifdef HCOMM_TIMEOUT_FLOAT_TYPE
 DECL_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, float timeOut);
 DECL_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, float timeOut);

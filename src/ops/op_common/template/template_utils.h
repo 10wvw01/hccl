@@ -244,6 +244,9 @@ struct TemplateDataParams {
     u64 tailSize{0};
     bool enableRemoteMemAccess{false};
     bool supportSymmetricMemory{false};
+    bool supportSymmetricCclMemory{false};
+    void* cclSymWindow{nullptr};
+    u64 cclSymOffset{0};
     u64 processedDataCount{0};
     u64 root{0};
     HcclDataType dataType{HCCL_DATA_TYPE_INT8};
@@ -275,6 +278,9 @@ struct TemplateDataParams {
         binaryStream << tailSize;
         binaryStream << enableRemoteMemAccess;
         binaryStream << supportSymmetricMemory;
+        binaryStream << supportSymmetricCclMemory;
+        binaryStream << cclSymWindow;
+        binaryStream << cclSymOffset;
         binaryStream << allRankSliceSize;
         binaryStream << allRankDispls;
         binaryStream << sendCounts;
@@ -308,6 +314,9 @@ struct TemplateDataParams {
         binaryStream >> tailSize;
         binaryStream >> enableRemoteMemAccess;
         binaryStream >> supportSymmetricMemory;
+        binaryStream >> supportSymmetricCclMemory;
+        binaryStream >> cclSymWindow;
+        binaryStream >> cclSymOffset;
         binaryStream >> allRankSliceSize;
         binaryStream >> allRankDispls;
         binaryStream >> sendCounts;

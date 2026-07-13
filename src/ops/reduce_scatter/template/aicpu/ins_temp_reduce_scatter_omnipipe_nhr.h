@@ -55,8 +55,11 @@ private:
 
     // 对称内存仅替换 NHR 的首轮原始 input 收包；后续轮次仍使用 peer CCL 中的部分规约结果。
     bool useSymmetricInput_{false};
+    bool useSymmetricCcl_{false};
     void* inputSymWindow_{nullptr};
     u64 inputOffset_{0};
+    void* cclSymWindow_{nullptr};
+    u64 cclSymOffset_{0};
     u64 inputLoopBaseOff_{0};
     u64 inputRankStride_{0};
     u64 inputLoopSize_{0};

@@ -47,6 +47,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     tempAlgParams_       = tempAlgParams;
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
+    cclSymWindow_ = tempAlgParams_.cclSymWindow;
+    cclSymOffset_ = tempAlgParams_.cclSymOffset;
 
     // 对称 input 只能替换首轮：该轮 peer CCL 中仍是原始 input；后续轮次依赖 peer CCL 部分和。
     // PCIe 保持原 read-reduce 流程，避免改变其链路同步语义。
@@ -57,10 +59,19 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     useSymmetricInput_ = supportSymmetricMemory_ && tempAlgParams_.supportSymmetricMemory &&
                          inputSymWindow_ != nullptr && inputRankStride_ != 0 && inputLoopSize_ != 0 &&
                          !IsPcieProtocol(channels_);
+    useSymmetricCcl_ = tempAlgParams_.supportSymmetricCclMemory && cclSymWindow_ != nullptr &&
+                       !IsPcieProtocol(channels_);
     if (supportSymmetricMemory_ && !useSymmetricInput_) {
         HCCL_INFO("[%s] symmetric NHR fallback: firstAxis[%d] inputWin[%p] rankStride[%llu] loopSize[%llu] "
                   "isPcie[%d]", __func__, tempAlgParams_.supportSymmetricMemory, inputSymWindow_, inputRankStride_,
                   inputLoopSize_, IsPcieProtocol(channels_));
+    }
+    if (tempAlgParams_.supportSymmetricCclMemory && !useSymmetricCcl_) {
+        HCCL_INFO("[%s] symmetric CCL NHR fallback: cclWin[%p] isPcie[%d]", __func__, cclSymWindow_,
+                  IsPcieProtocol(channels_));
+    } else if (useSymmetricCcl_) {
+        HCCL_INFO("[%s] symmetric CCL NHR enabled: cclWin[%p] offset[%llu]", __func__, cclSymWindow_,
+                  cclSymOffset_);
     }
 
     threadNum_ = GetThreadNum();
@@ -264,6 +275,18 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 
         void* sendCclBuffAddr = linkSend.remoteCclMem.addr;
         void* recvCclBuffAddr = linkRecv.remoteCclMem.addr;
+        if (useSymmetricCcl_) {
+            void* peerCclBuffAddr = nullptr;
+            HcclResult ret = HcclSymWinGetPeerPointer(cclSymWindow_, cclSymOffset_, sendToRank, &peerCclBuffAddr);
+            if (ret == HCCL_SUCCESS && peerCclBuffAddr != nullptr) {
+                // Keep SendRecvBatchWriteReduce for its established ACK/DATA handshake. Only the remote
+                // destination changes from channel.remoteCclMem to the peer symmetric CCL window.
+                sendCclBuffAddr = peerCclBuffAddr;
+            } else {
+                HCCL_WARNING("[RS-NHR][RunNHR] symmetric CCL peer pointer fallback, peerRank[%u] ret[%d] addr[%p]",
+                             sendToRank, ret, peerCclBuffAddr);
+            }
+        }
         // RS：在 SCRATCH 上进行规约交换
         CHK_RET(GetNHRDataSize(st, channelIdx, sendCclBuffAddr, recvCclBuffAddr, dataTypeSize, rptNum, 
                     txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
