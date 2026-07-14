@@ -20,6 +20,14 @@ inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &alg
 }
 
 /** 本地拷贝：srcSlice -> dstSlice。 */
+inline HcclResult CheckInputDataRanks(const TemplateDataParams &tempAlgParams, const char *tag)
+{
+    CHK_PRT_RET(tempAlgParams.ranksForInputData.empty(),
+                HCCL_ERROR("[%s] ranksForInputData is empty.", tag),
+                HCCL_E_PARA);
+    return HCCL_SUCCESS;
+}
+
 HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice);
 
 /** 前同步：主线程通知从线程可以开始通信。 */

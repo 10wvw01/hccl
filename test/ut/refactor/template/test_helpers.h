@@ -52,24 +52,24 @@ protected:
         return resource;
     }
 
-    const DataSlice &TxSrc(const SendRecvInfo &info, size_t idx = 0) const
+    const DataSlice &TxSrc(const TxRxSlicesList &info, size_t idx = 0) const
     {
-        return info.sendRecvSlices_.txSlicesList_.srcSlices_[idx];
+        return info.txSlicesList_.srcSlices_[idx];
     }
 
-    const DataSlice &TxDst(const SendRecvInfo &info, size_t idx = 0) const
+    const DataSlice &TxDst(const TxRxSlicesList &info, size_t idx = 0) const
     {
-        return info.sendRecvSlices_.txSlicesList_.dstSlices_[idx];
+        return info.txSlicesList_.dstSlices_[idx];
     }
 
-    const DataSlice &RxSrc(const SendRecvInfo &info, size_t idx = 0) const
+    const DataSlice &RxSrc(const TxRxSlicesList &info, size_t idx = 0) const
     {
-        return info.sendRecvSlices_.rxSlicesList_.srcSlices_[idx];
+        return info.rxSlicesList_.srcSlices_[idx];
     }
 
-    const DataSlice &RxDst(const SendRecvInfo &info, size_t idx = 0) const
+    const DataSlice &RxDst(const TxRxSlicesList &info, size_t idx = 0) const
     {
-        return info.sendRecvSlices_.rxSlicesList_.dstSlices_[idx];
+        return info.rxSlicesList_.dstSlices_[idx];
     }
 
     void *localCclMem_ = nullptr;
