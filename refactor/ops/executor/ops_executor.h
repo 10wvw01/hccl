@@ -64,7 +64,7 @@ public:
 
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo);
 
-    HcclResult CalcRes(AlgResourceRequest &resReq);
+    HcclResult CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
 
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
