@@ -48,6 +48,7 @@ protected:
     bool isDmaRead_{false};
 private:
     bool CanReadLastStepToOutput() const;
+    bool CanSkipOwnSliceCopy() const;
     bool IsLastStepReadSlice(u32 algRank) const;
     HcclResult PrepareDataSplitForMultiChannel(const TemplateResource &templateResource);
     HcclResult LocalDataCopy(const std::vector<ThreadHandle> &threads, const u32 &channelIdx);
@@ -94,6 +95,7 @@ private:
                                         const ChannelInfo &channelRecv, const AicpuNHRStepInfo &stepInfo,
                                         const u32 &channelIdx, u32 step, bool &postLocalCopyLaunched);
     bool readLastStepToOutput_{false};
+    bool skipOwnSliceCopy_{false};
     std::vector<u32> lastStepReadSliceIdxs_;
     u64 dataTypeSize_{0};
     std::vector<u64> dataSplit_;

@@ -111,7 +111,9 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     HCCL_DEBUG("[InsTempAllGatherNHR] Use Dma Read[%d]", isDmaRead_);
     CHK_RET(PrepareDataSplitForMultiChannel(templateResource));
     readLastStepToOutput_ = CanReadLastStepToOutput();
-    HCCL_DEBUG("[InsTempAllGatherNHR] Read last step to output[%d]", readLastStepToOutput_);
+    skipOwnSliceCopy_ = readLastStepToOutput_ && CanSkipOwnSliceCopy();
+    HCCL_DEBUG("[InsTempAllGatherNHR] Read last step to output[%d], skip own slice copy[%d]",
+        readLastStepToOutput_, skipOwnSliceCopy_);
 
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
@@ -143,9 +145,15 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
 bool InsTempAllGatherNHR::CanReadLastStepToOutput() const
 {
     return !isDmaRead_ && !enableRemoteMemAccess_ &&
-           tempAlgParams_.buffInfo.inputPtr == tempAlgParams_.buffInfo.outputPtr &&
-           tempAlgParams_.buffInfo.inBuffType == BufferType::OUTPUT &&
            tempAlgParams_.buffInfo.outBuffType == BufferType::OUTPUT &&
+           tempAlgParams_.buffInfo.outputPtr != tempAlgParams_.buffInfo.hcclBuff.addr;
+}
+
+bool InsTempAllGatherNHR::CanSkipOwnSliceCopy() const
+{
+    return tempAlgParams_.buffInfo.inBuffType == BufferType::OUTPUT &&
+           tempAlgParams_.buffInfo.outBuffType == BufferType::OUTPUT &&
+           tempAlgParams_.buffInfo.inputPtr == tempAlgParams_.buffInfo.outputPtr &&
            tempAlgParams_.buffInfo.inBuffBaseOff == tempAlgParams_.buffInfo.outBuffBaseOff &&
            tempAlgParams_.inputSliceStride == tempAlgParams_.outputSliceStride &&
            tempAlgParams_.inputRepeatStride == tempAlgParams_.outputRepeatStride;
@@ -422,7 +430,7 @@ HcclResult InsTempAllGatherNHR::PostLocalCopy(const ThreadHandle &thread, const 
         for (auto rank : subCommRanks_[0]) {
             u32 algRank = 0;
             CHK_RET(GetAlgRank(rank, subCommRanks_[0], algRank));
-            if (readLastStepToOutput_ && algRank == myAlgRank) {
+            if (readLastStepToOutput_ && skipOwnSliceCopy_ && algRank == myAlgRank) {
                 continue;
             }
             if (readLastStepToOutput_ && IsLastStepReadSlice(algRank)) {
