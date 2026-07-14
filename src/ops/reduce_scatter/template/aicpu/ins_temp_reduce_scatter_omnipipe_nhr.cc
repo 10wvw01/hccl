@@ -10,6 +10,8 @@
 
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "omnipipe_template_utils.h"
+#include "exec_timeout_manager.h"
+#include "hcomm_primitives_dl.h"
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_sym_win.h"
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
@@ -40,6 +42,75 @@ HcclResult CalcDirectUserInputOffset(u64 packedOffset, u64 sliceSize, u64 loopBa
                 HCCL_ERROR("[%s] input slice exceeds input buffer, offset[%llu] sliceSize[%llu] inputSize[%llu]",
                            __func__, userInputOffset, sliceSize, inputSize),
                 HCCL_E_PARA);
+    return HCCL_SUCCESS;
+}
+
+HcclResult DirectWriteReduceWithStepSync(const ChannelInfo& sendChannel, const ChannelInfo& recvChannel,
+                                         const std::vector<DataSlice>& srcSlices,
+                                         const std::vector<DataSlice>& dstSlices, HcclDataType dataType,
+                                         HcclReduceOp reduceOp, const ThreadHandle& thread, bool needReadySync)
+{
+    CHK_PRT_RET(srcSlices.size() != dstSlices.size(),
+                HCCL_ERROR("[%s] src slice num[%zu] does not match dst slice num[%zu]", __func__,
+                           srcSlices.size(), dstSlices.size()),
+                HCCL_E_PARA);
+
+    const u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    // Every rank's original input is ready at step 0. Later steps consume partial sums produced by the
+    // preceding step, so only those steps need the READY handshake.
+    if (needReadySync) {
+        CHK_RET(static_cast<HcclResult>(
+            HcommChannelNotifyRecordOnThread(thread, recvChannel.handle, NOTIFY_IDX_ACK)));
+        CHK_RET(HcclChannelNotifyWaitOnThreadDefault(thread, sendChannel.handle, NOTIFY_IDX_ACK, execTimeout));
+    }
+
+    const bool useBatchTransfer = IsHcommBatchTransferOnThreadSupported();
+    std::vector<HcclHcommBatchTransferDesc> transferDescs;
+    if (useBatchTransfer) {
+        transferDescs.reserve(srcSlices.size());
+    }
+    const u32 sliceNum = static_cast<u32>(srcSlices.size());
+    for (u32 i = 0; i < sliceNum; ++i) {
+        const DataSlice& srcSlice = srcSlices[i];
+        const DataSlice& dstSlice = dstSlices[i];
+        if (srcSlice.size_ == 0) {
+            continue;
+        }
+        CHK_PRT_RET(srcSlice.size_ != dstSlice.size_ ||
+                    srcSlice.count_ * DATATYPE_SIZE_TABLE[dataType] != srcSlice.size_ ||
+                    dstSlice.count_ * DATATYPE_SIZE_TABLE[dataType] != dstSlice.size_,
+                    HCCL_ERROR("[%s] invalid slice[%u], srcSize[%llu] srcCount[%llu] dstSize[%llu] "
+                               "dstCount[%llu] dataType[%d]", __func__, i, srcSlice.size_, srcSlice.count_,
+                               dstSlice.size_, dstSlice.count_, static_cast<int>(dataType)),
+                    HCCL_E_PARA);
+        void* dst = static_cast<void*>(static_cast<s8*>(dstSlice.addr_) + dstSlice.offset_);
+        void* src = static_cast<void*>(static_cast<s8*>(srcSlice.addr_) + srcSlice.offset_);
+        if (useBatchTransfer) {
+            HcclHcommBatchTransferDesc desc = {};
+            desc.transType = HCCL_HCOMM_TRANSFER_TYPE_WRITE_REDUCE;
+            desc.transferInfo.reduce.count = srcSlice.count_;
+            desc.transferInfo.reduce.dst = dst;
+            desc.transferInfo.reduce.src = src;
+            desc.transferInfo.reduce.dataType = static_cast<HcommDataType>(dataType);
+            desc.transferInfo.reduce.reduceOp = static_cast<HcommReduceOp>(reduceOp);
+            transferDescs.push_back(desc);
+        } else {
+            CHK_RET(static_cast<HcclResult>(HcommWriteReduceOnThread(
+                thread, sendChannel.handle, dst, src, srcSlice.count_, static_cast<HcommDataType>(dataType),
+                static_cast<HcommReduceOp>(reduceOp))));
+        }
+    }
+    if (useBatchTransfer && !transferDescs.empty()) {
+        CHK_RET(static_cast<HcclResult>(HcclHcommBatchTransferOnThread(
+            thread, sendChannel.handle, transferDescs.data(), static_cast<u32>(transferDescs.size()))));
+    }
+
+    // Keep DONE synchronization for every step. It protects in-place partial sums and guarantees the
+    // last remote write-reduce has completed before the operator copies its local result to user output.
+    CHK_RET(static_cast<HcclResult>(
+        HcommChannelNotifyRecordOnThread(thread, sendChannel.handle, NOTIFY_IDX_DATA_SIGNAL)));
+    CHK_RET(HcclChannelNotifyWaitOnThreadDefault(
+        thread, recvChannel.handle, NOTIFY_IDX_DATA_SIGNAL, execTimeout));
     return HCCL_SUCCESS;
 }
 } // namespace
@@ -306,11 +377,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricDirectWriteStep(
                                      sliceSize / dataTypeSize);
         }
     }
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
-    SendRecvReduceInfo info{{linkSend, linkRecv},
-                            {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_, reduceOp_};
-    CHK_PRT_RET(SendRecvBatchWriteReduce(info, threads[channelIdx]),
+    CHK_PRT_RET(DirectWriteReduceWithStepSync(linkSend, linkRecv, txSrcSlices, txDstSlices, dataType_, reduceOp_,
+                                             threads[channelIdx], stepInfo.step != 0),
                 HCCL_ERROR("[RS-NHR][%s] direct write-reduce failed, step[%u]", __func__, stepInfo.step),
                 HCCL_E_INTERNAL);
     return HCCL_SUCCESS;
