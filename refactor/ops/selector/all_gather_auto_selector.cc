@@ -164,4 +164,8 @@ SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayer
 
 REGISTER_SELECTOR_BY_OPTYPE(HcclCMDType::HCCL_CMD_ALLGATHER, 18, AllGatherAutoSelector);
 
+// 显式定义析构，强制编译器在本 .cc emit vtable（否则 vtable 是 undefined 符号，
+// 跨 .so dlopen 时 dynamic linker 找不到）
+AllGatherAutoSelector::~AllGatherAutoSelector() = default;
+
 } } // namespace refactor::ops_hccl

@@ -27,6 +27,7 @@ enum class SelectorStatus { MATCH, NOT_MATCH };
 
 class AutoSelectorBase {
 public:
+    virtual ~AutoSelectorBase() = default;
     SelectorStatus Select(OpParam &opParam, TopoInfoWithNetLayerDetails* topoInfo,
                           HcclAlgorithm &alg) const;
     bool IsDefaultAlg(const HcclAlgoType algoType) const;

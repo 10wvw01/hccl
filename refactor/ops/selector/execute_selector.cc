@@ -10,6 +10,7 @@
 
 #include "execute_selector.h"
 #include "auto_selector_base.h"
+#include "all_gather_auto_selector.h"
 #include "selector_registry.h"
 #include "op_common.h"
 #include "load_kernel.h"
@@ -18,6 +19,13 @@ namespace ops_hccl { namespace refactor {
 
 ExecuteSelector::ExecuteSelector()
 {
+    // 静态变量初始化在 .so 中可能被链接器优化掉，此处用懒加载确保 selector 已注册
+    static bool initOnce = []() {
+        SelectorRegistry::Global()->RegisterByOpType(
+            HcclCMDType::HCCL_CMD_ALLGATHER, 18, new AllGatherAutoSelector());
+        return true;
+    }();
+    (void)initOnce;
 }
 
 HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* topoInfo,

@@ -24,4 +24,5 @@ add_subdirectory(topo)
 target_sources(hccl PRIVATE
     op_common.cc
     hccl_algorithm.cc
+    exec_timeout_manager.cc
 )

@@ -16,6 +16,8 @@
 namespace ops_hccl { namespace refactor {
 
 class AllGatherAutoSelector : public AutoSelectorBase {
+public:
+    ~AllGatherAutoSelector() override;
 private:
     SelectorStatus SelectCcuScheduleAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
