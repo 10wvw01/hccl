@@ -51,7 +51,7 @@ jobs:
           export obs_path=${{ env.obs_path }}
           export PATH=/opt/buildtools/python-3.10.2/bin:$PATH
           bash ut.sh ${ut_type}
-          echo "======1======"
+          echo "======1======1="
           ls -l ./
       -
         name: ut_cov

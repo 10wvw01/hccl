@@ -24,6 +24,7 @@ case "${ut_type}" in
         if [ "${TARGET_BRANCH}x" != "masterx" ]; then
             exit 0
         fi
+        pip3 install Pyyaml
         wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/cann-hccl_linux-x86_64_ubuntu24.run
         chmod u+x cann-hccl_linux-x86_64_ubuntu24.run
         sudo chmod 777 /home/jenkins/Ascend
