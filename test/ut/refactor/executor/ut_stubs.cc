@@ -26,9 +26,18 @@ extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32_t, CommLink **links, uint32_t *linkNum)
 {
     static CommLink link;
-    (void)CommLinkInit(&link, 1);
+    // 不依赖 CommLinkInit（mock 库中可能为空实现），直接设置 linkProtocol
+    link.linkAttr.linkProtocol = CommProtocol::COMM_PROTOCOL_UBC_CTP;
     *links = &link;
     *linkNum = 1;
+    return HCCL_SUCCESS;
+}
+
+extern "C" HcclResult HcclRankGraphGetLayers(HcclComm, uint32_t **netLayers, uint32_t *netLayerNum)
+{
+    static uint32_t layer = 0;
+    *netLayers = &layer;
+    *netLayerNum = 1;
     return HCCL_SUCCESS;
 }
 
@@ -121,5 +130,9 @@ TemplateDesc g_allGatherTemplateDescMap[] = {
     // ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY
     {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
 };
+
+// ============================================================
+// channel.cc 外部符号桩（精简后无额外依赖）
+// ============================================================
 
 } // namespace ops_hccl

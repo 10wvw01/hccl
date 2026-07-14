@@ -18,5 +18,6 @@ target_sources(hccl PRIVATE
     aicpu_engine.cc
     kernel_launch.cc
     load_kernel.cc
+    dpu/kernel_launch.cc
     dfx/task_exception_fun.cc
 )

@@ -27,6 +27,7 @@ set(UT_AICPU_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/aicpu_engine.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/dpu/kernel_launch.cc
 )
 
 add_executable(hccl_ut_refactor_engine_aicpu ${UT_AICPU_SRC})
@@ -44,6 +45,7 @@ target_include_directories(hccl_ut_refactor_engine_aicpu PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common/hcomm_dlsym
+    ${CMAKE_SOURCE_DIR}/refactor/ops/selector
     ${CMAKE_SOURCE_DIR}/refactor/ops/utils
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/ops/op_common

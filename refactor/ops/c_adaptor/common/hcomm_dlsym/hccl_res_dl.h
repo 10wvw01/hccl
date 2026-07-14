@@ -13,11 +13,17 @@
 
 #include "dlsym_common.h"
 #include "hccl_res.h"
-#include "hccl_res_expt.h"
+
+/* Callback 类型在 SDK 头文件中未声明，HCCL 自行定义 */
+#ifndef Callback
+typedef int32_t (Callback)(uint64_t, int32_t);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+DECL_WEAK_FUNC(int32_t, HcclTaskRegister, HcclComm comm, const char* msgTag, Callback cb);
 
 DECL_SUPPORT_FLAG(HcclThreadExportToCommEngine);
 // 动态库管理接口（大驼峰命名）

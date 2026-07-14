@@ -17,20 +17,16 @@ target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
     ${CMAKE_CURRENT_LIST_DIR}/../op_common/inc
     ${CMAKE_CURRENT_LIST_DIR}/../op_common/topo
+    ${CMAKE_CURRENT_LIST_DIR}/../op_common/channel
     ${CMAKE_CURRENT_LIST_DIR}/../executor
     ${CMAKE_CURRENT_LIST_DIR}/../utils
     ${CMAKE_CURRENT_LIST_DIR}/../engine
-    ${CMAKE_CURRENT_LIST_DIR}/../engine/aicpu
     ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common
     ${CMAKE_CURRENT_LIST_DIR}/../c_adaptor/common/hcomm_dlsym
     ${HCCL_DIR}/src/ops/op_common
     ${HCCL_DIR}/src/ops/op_common/inc
     ${HCCL_DIR}/src/common
     ${HCCL_DIR}/src/common/hcomm_dlsym
-)
-
-target_sources(hccl PRIVATE
-    base_template.cc
 )
 
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/primitives

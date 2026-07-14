@@ -18,6 +18,8 @@ set(UT_EXECUTOR_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel_request.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
@@ -29,10 +31,17 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/inc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo
+    ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common/hcomm_dlsym
+    # src 头文件（channel.cc 依赖 topo.h 等）
+    ${CMAKE_SOURCE_DIR}/src/ops/op_common/executor/channel
+    ${CMAKE_SOURCE_DIR}/src/ops/op_common
+    ${CMAKE_SOURCE_DIR}/src/ops/op_common/inc
+    ${CMAKE_SOURCE_DIR}/src/ops/op_common/topo
+    ${CMAKE_SOURCE_DIR}/src/ops/op_common/template
     # SDK 头文件
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
@@ -55,6 +64,7 @@ target_compile_definitions(hccl_ut_refactor_executor PRIVATE
 
 target_compile_options(hccl_ut_refactor_executor PRIVATE
     -std=c++17
+    -include ${CMAKE_CURRENT_LIST_DIR}/ut_version_macro.h
     -U_FORTIFY_SOURCE
     -g --coverage -fprofile-arcs -ftest-coverage -fno-access-control
     -fPIC -pipe

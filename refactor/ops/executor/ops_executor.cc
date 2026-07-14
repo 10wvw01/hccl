@@ -231,7 +231,7 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes)
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
-    CHK_RET(baseTemplate->CalcRes(hcclComm_, tempRequest));
+    CHK_RET(baseTemplate->CalcRes(hcclComm_, algo_.engineType, tempRequest));
     maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
     maxNotifyNumOnMainThread_.at(subCommIndex)
         = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);

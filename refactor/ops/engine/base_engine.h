@@ -64,7 +64,7 @@ public:
      *   - HCCL_SUCCESS: 资源创建成功
      *   - 其他: 资源创建失败
      */
-    virtual HcclResult CreateRes(HcclComm comm, HcclAlgorithm &alg,
+    virtual HcclResult CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
                                  AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) = 0;
 
     /**

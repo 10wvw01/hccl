@@ -13,7 +13,7 @@
 
 #include "dlsym_common.h"
 #include "hcomm_primitives.h"   // 原头文件，包含所有类型和定义
-#include "hccl_types.h"          
+#include "hccl_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +23,25 @@ DECL_WEAK_FUNC(int32_t, HcommThreadSynchronize, ThreadHandle thread);
 DECL_WEAK_FUNC(int32_t, HcommSendRequest, uint64_t handle, const char* msgTag, const void* src, size_t sizeByte, uint32_t* msgId);
 DECL_WEAK_FUNC(int32_t, HcommWaitResponse, uint64_t handle, void* dst, size_t sizeByte, uint32_t* msgId);
 DECL_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
+DECL_WEAK_FUNC(int32_t, HcommThreadNotifyRecordOnThread, ThreadHandle thread, ThreadHandle dstThread, uint32_t dstNotifyIdx);
+DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThread, ThreadHandle thread, uint32_t notifyIdx, uint32_t timeOut);
+DECL_WEAK_FUNC(int32_t, HcommChannelNotifyRecordOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t remoteNotifyIdx);
+DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t localNotifyIdx, uint32_t timeOut);
+DECL_WEAK_FUNC(int32_t, HcommWriteOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
+DECL_WEAK_FUNC(int32_t, HcommWriteReduceOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
+    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
+DECL_WEAK_FUNC(int32_t, HcommReadOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
+DECL_WEAK_FUNC(int32_t, HcommReadReduceOnThread, ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
+DECL_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, uint32_t timeOut);
+DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread, uint32_t notifyIdx);
+
+DECL_SUPPORT_FLAG(HcommSetNotifyWaitTimeOut);
+DECL_SUPPORT_FLAG(HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
+
+bool IsHcommDefaultTimeoutSupported();
+HcclResult HcclSetNotifyWaitTimeOut(uint32_t timeout);
+HcclResult HcclThreadNotifyWaitOnThreadDefault(ThreadHandle thread, uint32_t notifyIdx, uint32_t fallbackTimeout);
 
 void HcommPrimitivesDlInit(void* libHcommHandle);  // 本模块独立初始化
 

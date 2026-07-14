@@ -45,7 +45,7 @@ public:
      *   - HCCL_SUCCESS: 资源创建成功
      *   - HCCL_E_INTERNAL: 资源创建失败
      */
-    HcclResult CreateRes(HcclComm comm, HcclAlgorithm &alg,
+    HcclResult CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
                          AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) override;
 
     /**
@@ -90,6 +90,18 @@ private:
     HcclResult SendRead(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
     HcclResult RecvRead(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
     HcclResult SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
+
+    // CreateRes 内部辅助函数（对应原始 op_common.cc 中的 HcclGetThread / HcclGetChannelImpl 等）
+    HcclResult HcclGetThreadInternal(HcclComm comm, const OpParam &param, AlgResourceRequest &resReq);
+    HcclResult SaveMainThreadInfoInternal(HcclComm comm, const OpParam &param, ThreadHandle thread, u32 notifyNum);
+    HcclResult SaveUnfoldThreadInfoInternal(HcclComm comm, const OpParam &param, ThreadHandle unfoldThread);
+    HcclResult HcclGetChannelImplInternal(u32 level, HcclComm comm, const OpParam &param,
+        std::vector<HcclChannelDesc>& channelRequest, CommEngine commEngine);
+    HcclResult AddExchangeInfoInternal(HcclComm comm, const OpParam &param);
+
+    // LaunchKernel 内部辅助函数（对应原始 op_common.cc 中的 HcclAicpuKernelEntranceLaunch / AicpuKernelLaunch）
+    HcclResult AicpuKernelEntranceLaunchInternal(const OpParam &param);
+    HcclResult AicpuKernelLaunchInternal(const OpParam &param, ThreadHandle unfoldThread);
 
 };
 

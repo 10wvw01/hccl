@@ -20,6 +20,7 @@ if (BUILD_OPEN_PROJECT)
         ${HCCL_DEV_BASE}/refactor/ops/op_common
         ${HCCL_DEV_BASE}/refactor/ops/op_common/inc
         ${HCCL_DEV_BASE}/refactor/ops/c_adaptor/common
+        ${HCCL_DEV_BASE}/refactor/ops/c_adaptor/common/hcomm_dlsym
 
         # src/common 仍提供 log.h / hcomm_dlsym（refactor 复用）
         ${HCCL_DEV_BASE}/src/common

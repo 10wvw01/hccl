@@ -231,21 +231,20 @@ TEST_F(OmniPipeTest, CalcRes)
     AlgResourceRequest req;
     EXPECT_EQ(exe->CalcRes(info, req), HCCL_SUCCESS);
     EXPECT_EQ(req.notifyNumOnMainThread, 3u);
-    EXPECT_EQ(req.slaveThreadNum, 23u);
+    EXPECT_EQ(req.slaveThreadNum, 11u);
 
-    // notifyNumPerThread (23 entries):
+    // notifyNumPerThread (11 entries):
     //   level0: notifyOnMain+1=7, maxSlave=6 × maxNotifyPerThread=1 → [7,1,1,1,1,1,1]
-    //   level1: notifyOnMain+1=14, maxSlave=13 × maxNotifyPerThread=2 → [14,2,...,2]
+    //   level1: notifyOnMain+1=2, maxSlave=1 × maxNotifyPerThread=2 → [2,2]
     //   level2: notifyOnMain+1=2, maxSlave=1 × maxNotifyPerThread=2 → [2,2]
-    ASSERT_EQ(req.notifyNumPerThread.size(), 23u);
+    ASSERT_EQ(req.notifyNumPerThread.size(), 11u);
     EXPECT_EQ(req.notifyNumPerThread[0], 7u);  // level0 main
     EXPECT_EQ(req.notifyNumPerThread[1], 1u);  // level0 slave
     EXPECT_EQ(req.notifyNumPerThread[6], 1u);  // level0 last
-    EXPECT_EQ(req.notifyNumPerThread[7], 14u); // level1 main
+    EXPECT_EQ(req.notifyNumPerThread[7], 2u); // level1 main
     EXPECT_EQ(req.notifyNumPerThread[8], 2u);  // level1 slave
-    EXPECT_EQ(req.notifyNumPerThread[20], 2u); // level1 last
-    EXPECT_EQ(req.notifyNumPerThread[21], 2u); // level2 main
-    EXPECT_EQ(req.notifyNumPerThread[22], 2u); // level2 slave
+    EXPECT_EQ(req.notifyNumPerThread[9], 2u);  // level2 main
+    EXPECT_EQ(req.notifyNumPerThread[10], 2u); // level2 slave
     EXPECT_EQ(req.channels.size(), 3u);
 }
 

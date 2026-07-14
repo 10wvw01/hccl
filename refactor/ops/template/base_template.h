@@ -15,6 +15,7 @@
 
 #include "hccl_algorithm.h"
 #include "alg_param.h"
+#include "channel.h"
 
 namespace ops_hccl {
 
@@ -30,7 +31,7 @@ class BaseTemplate {
 public:
     explicit BaseTemplate(const u32 myRank, const std::vector<u32> &ranks, TemplateDesc templateDesc)
         : myRank_(myRank), ranks_(ranks), templateDesc_(templateDesc) {}
-    virtual ~BaseTemplate();
+    virtual ~BaseTemplate() = default;
 
     /**
      * 计算算法所需的资源请求（notify、channel、thread 等）。
@@ -50,65 +51,42 @@ public:
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
-    virtual HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
+    virtual HcclResult CalcRes(HcclComm comm, HcclAlgEngineType engineType, AlgResourceRequest &res) {
         const u32 rankSize = static_cast<u32>(ranks_.size());
         if (rankSize <= 1) {
             res.channels.emplace_back();
             return HCCL_SUCCESS;
         }
+        // 构造 subcommInfo 和 topoInfo（对应原始 InsTempAllGather::CalcRes 的参数）。
+        std::vector<std::vector<u32>> subcommInfo = {ranks_};
+        TopoInfoWithNetLayerDetails topoInfo;
+        topoInfo.userRank = myRank_;
 
-        // 为每个对端 rank 创建 HcclChannelDesc。
-        constexpr u32 NOTIFY_NUM_PER_CHANNEL = 3;
         std::vector<HcclChannelDesc> levelChannels;
-        for (u32 rank : ranks_) {
-            if (rank == myRank_) {
-                continue;
-            }
-            u32 netLayer = 0;
-            u32 listSize = 0;
-            CommLink *linkList = nullptr;
-            CHK_RET(static_cast<HcclResult>(
-                HcclRankGraphGetLinks(comm, netLayer, myRank_, rank, &linkList, &listSize)));
-            if (listSize == 0) {
-                HCCL_ERROR("[BaseTemplate][CalcRes] no link between rank[%u] and rank[%u].", myRank_, rank);
-                return HCCL_E_INTERNAL;
-            }
-            // 选取第一条链路构建 channel desc。
-            HcclChannelDesc desc;
-            CHK_RET(static_cast<HcclResult>(HcclChannelDescInit(&desc, 1)));
-            const CommLink &link = linkList[0];
-            desc.remoteRank = rank;
-            desc.notifyNum = NOTIFY_NUM_PER_CHANNEL;
-            desc.channelProtocol = link.linkAttr.linkProtocol;
-            desc.localEndpoint.protocol = link.srcEndpointDesc.protocol;
-            desc.localEndpoint.commAddr = link.srcEndpointDesc.commAddr;
-            desc.localEndpoint.loc = link.srcEndpointDesc.loc;
-            desc.remoteEndpoint.protocol = link.dstEndpointDesc.protocol;
-            desc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
-            desc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
-            levelChannels.push_back(desc);
+        if (IsNhr()) {
+            CHK_RET(CalcChannelRequestNhr(comm, engineType, &topoInfo, subcommInfo, levelChannels));
+        } else {
+            CHK_RET(CalcChannelRequestMesh1D(comm, engineType, &topoInfo, subcommInfo, levelChannels));
+        }
+        for (const auto &desc : levelChannels) {
             channels_.push_back(desc);
         }
         res.channels.push_back(levelChannels);
 
-        // 根据算法类型计算线程数和 notify 数。
-        const bool isNhr = (templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR ||
-                            templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR_V1);
+        // 根据算法类型计算线程数和 notify 数（对应原始 GetRes）。
         u32 threadNum = 0;
         u32 notifyPerThread = 0;
-        if (isNhr) {
-            // NHR：线程数 = channelsPerRank * 2，每个从线程 2 个 notify。
-            u32 channelsPerRank = static_cast<u32>(levelChannels.size());
+        if (IsNhr()) {
+            u32 channelsPerRank = CalcChannelsPerRankInternal(levelChannels);
             threadNum = channelsPerRank * 2;
             notifyPerThread = 2;
         } else {
-            // Mesh 1D：线程数 = rankSize - 1，每个从线程 1 个 notify。
-            threadNum = rankSize - 1;
+            threadNum = (rankSize > 1) ? rankSize - 1 : 1;
             notifyPerThread = 1;
         }
-        res.slaveThreadNum = (threadNum > 0) ? threadNum - 1 : 0;
-        res.notifyNumOnMainThread = res.slaveThreadNum;
+        res.slaveThreadNum = threadNum - 1;
         res.notifyNumPerThread.assign(res.slaveThreadNum, notifyPerThread);
+        res.notifyNumOnMainThread = threadNum - 1;
         return HCCL_SUCCESS;
     }
 
@@ -131,6 +109,33 @@ public:
     }
 
 protected:
+    bool IsNhr() const {
+        return templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR ||
+               templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR_V1;
+    }
+
+    // 计算每个对端 rank 的 channel 数最大值（等价于 template_utils.h 中的 CalcChannelsPerRank）。
+    static u32 CalcChannelsPerRankInternal(const std::vector<HcclChannelDesc> &channels) {
+        u32 channelsPerRank = 1;
+        u32 currentRank = INVALID_VALUE_RANKID;
+        u32 currentCount = 0;
+        for (const auto &channel : channels) {
+            if (channel.remoteRank == currentRank) {
+                currentCount++;
+            } else {
+                if (currentCount > channelsPerRank) {
+                    channelsPerRank = currentCount;
+                }
+                currentRank = channel.remoteRank;
+                currentCount = 1;
+            }
+        }
+        if (currentCount > channelsPerRank) {
+            channelsPerRank = currentCount;
+        }
+        return channelsPerRank;
+    }
+
     std::vector<HcclChannelDesc> channels_;              // 参与通信的 rank 列表
     u32 myRank_ = INVALID_VALUE_RANKID;
     std::vector<u32> ranks_;

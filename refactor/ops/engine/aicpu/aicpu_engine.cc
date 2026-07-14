@@ -18,13 +18,23 @@
 
 #include "hcomm_primitives_dl.h"
 #include "hccl_res_dl.h"
+#include "hcomm_host_profiling_dl.h"
 #include "exec_timeout_manager.h"
+#include "aicpu_timeout.h"
+#include "dlhcomm_function.h"
+#include "dpu/kernel_launch.h"
 
 #include <hccl/hccl_res.h>
+#include <acl/acl_rt.h>
 #include <atomic>
 #include <vector>
 
 namespace ops_hccl {
+
+// 对应原始 op_common.cc 中的常量
+constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0; // host主流wait aicpu流的notify idx
+constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27; // host等待Device通知的超时时间偏移量
+constexpr u32 KERNEL_TIMEOUT_OFFSET = 25; // kernel启动超时时间偏移量
 
 
 // ───────────── 静态辅助函数 (被调用者在前) ─────────────
@@ -68,11 +78,12 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
 // CreateRes / LaunchKernel
 // ═══════════════════════════════════════════════════════════════════
 
-HcclResult AiCpuEngine::CreateRes(HcclComm comm, HcclAlgorithm &alg,
+HcclResult AiCpuEngine::CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
                                    AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
     // 1. 将 algHierarchyInfo 和序列化的 HcclAlgorithm 存入 resCtx_
     resCtx_.algHierarchyInfo = algHierarchyInfo;
+    resCtx_.commInfoPtr = static_cast<void*>(comm);
     {
         BinaryStream algoBs;
         alg.SerializeTo(algoBs);
@@ -81,44 +92,38 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, HcclAlgorithm &alg,
         resCtx_.algoSerialData = std::move(algoSerialData);
     }
 
-    // 2. 填充运行时资源
-    resCtx_.notifyNumOnMainThread = resReq.notifyNumOnMainThread;
-    resCtx_.slaveThreadNum = resReq.slaveThreadNum;
-    resCtx_.notifyNumPerThread = resReq.notifyNumPerThread;
-
-    // 从通信域获取 CCL buffer
+    // 2. 从通信域获取 CCL buffer（对应 HcclAllocAlgResourceAICPU）
     void *cclBufferAddr = nullptr;
     uint64_t cclBufferSize = 0;
     CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &cclBufferSize));
     resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
 
-    // 线程预留：实际线程创建需要 stream 参数，在 LaunchKernel 中完成
-    resCtx_.threads.resize(resReq.slaveThreadNum + 1);
+    // 3. 填充 notify/thread 信息
+    resCtx_.notifyNumOnMainThread = resReq.notifyNumOnMainThread;
+    resCtx_.slaveThreadNum = resReq.slaveThreadNum;
+    resCtx_.notifyNumPerThread = resReq.notifyNumPerThread;
 
-    // 按层级申请 channel（迁移自 op_common.cc:HcclGetChannelImpl）。
-    // AICPU 引擎使用 CommEngine::COMM_ENGINE_CPU。
-    for (size_t level = 0; level < resReq.channels.size(); ++level) {
-        std::vector<HcclChannelDesc> &channelRequest = resReq.channels[level];
-        u32 channelNum = static_cast<u32>(channelRequest.size());
-        std::vector<ChannelHandle> levelNChannels(channelNum);
-        if (channelNum > 0) {
-            CHK_RET(HcclChannelAcquire(comm, CommEngine::COMM_ENGINE_CPU, channelRequest.data(),
-                channelNum, levelNChannels.data()));
+    // 4. 创建线程（对应 HcclGetThread）
+    CHK_RET(HcclGetThreadInternal(comm, param, resReq));
+
+    // 5. 按层级申请 channel（对应 HcclGetChannel + HcclGetChannelImpl）
+    resCtx_.channels.resize(resReq.channels.size());
+    for (u32 level = 0; level < resReq.channels.size(); ++level) {
+        std::vector<HcclChannelDesc> &levelNChannelRequest = resReq.channels[level];
+        // 区分 device / host 链路，分别用不同 CommEngine 建链
+        std::vector<HcclChannelDesc> deviceChannelRequest;
+        std::vector<HcclChannelDesc> hostChannelRequest;
+        for (auto &channelRequest : levelNChannelRequest) {
+            if (channelRequest.localEndpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
+                deviceChannelRequest.emplace_back(channelRequest);
+            } else if (channelRequest.localEndpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+                hostChannelRequest.emplace_back(channelRequest);
+            }
         }
-        std::vector<ChannelInfo> levelChannels;
-        levelChannels.reserve(channelNum);
-        for (u32 idx = 0; idx < channelNum; ++idx) {
-            const HcclChannelDesc &channelDesc = channelRequest[idx];
-            ChannelInfo channelInfo;
-            channelInfo.isValid = true;
-            channelInfo.remoteRank = channelDesc.remoteRank;
-            channelInfo.protocol = channelDesc.channelProtocol;
-            channelInfo.locationType = channelDesc.remoteEndpoint.loc.locType;
-            channelInfo.notifyNum = channelDesc.notifyNum;
-            channelInfo.handle = levelNChannels[idx];
-            levelChannels.emplace_back(std::move(channelInfo));
-        }
-        resCtx_.channels.emplace_back(std::move(levelChannels));
+        // device 建链
+        CHK_RET(HcclGetChannelImplInternal(level, comm, param, deviceChannelRequest, CommEngine::COMM_ENGINE_AICPU_TS));
+        // host 建链
+        CHK_RET(HcclGetChannelImplInternal(level, comm, param, hostChannelRequest, CommEngine::COMM_ENGINE_CPU));
     }
 
     HCCL_INFO("[AiCpuEngine][CreateRes] success, slaveThreadNum[%u], channelLevel[%zu]",
@@ -126,14 +131,240 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, HcclAlgorithm &alg,
     return HCCL_SUCCESS;
 }
 
+// 对应原始 HcclGetThread：区分 AICPU_TS/CPU 和 host 模式创建线程
+HcclResult AiCpuEngine::HcclGetThreadInternal(HcclComm comm, const OpParam &param, AlgResourceRequest &resReq)
+{
+    if (param.engine == COMM_ENGINE_AICPU_TS || param.engine == COMM_ENGINE_CPU) {
+        u32 maxNotifyNum = resReq.notifyNumOnMainThread;
+        for (u32 i = 0; i < resReq.notifyNumPerThread.size(); i++) {
+            if (resReq.notifyNumPerThread[i] > maxNotifyNum) {
+                maxNotifyNum = resReq.notifyNumPerThread[i];
+            }
+        }
+        u32 threadNum = resReq.slaveThreadNum + 1;
+        std::vector<ThreadHandle> threads(threadNum);
+        // maxNotifyNum 需要再增加一个用于 host-device 同步
+        CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_AICPU_TS, threadNum, maxNotifyNum + 1, threads.data()));
+        CHK_RET(SaveMainThreadInfoInternal(comm, param, threads[0], maxNotifyNum + 1));
+        // 申请展开流对应的 Thread
+        CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtx_.unfoldThread));
+        CHK_RET(SaveUnfoldThreadInfoInternal(comm, param, resCtx_.unfoldThread));
+        HCCL_INFO("[HcclGetThread] unfoldThread [%lu]", resCtx_.unfoldThread);
+        for (u32 i = 0; i < threadNum; i++) {
+            resCtx_.threads.push_back(threads[i]);
+        }
+    } else {
+        // host 模式：将主流封装为 thread，并创建主流上的 notify
+        ThreadHandle thread;
+        CHK_RET(HcclThreadAcquireWithStream(comm, param.engine, param.stream,
+            resReq.notifyNumOnMainThread, &thread));
+        resCtx_.threads.push_back(thread);
+        u32 maxNotifyNum = 0;
+        for (u32 i = 0; i < resReq.notifyNumPerThread.size(); i++) {
+            if (resReq.notifyNumPerThread[i] > maxNotifyNum) {
+                maxNotifyNum = resReq.notifyNumPerThread[i];
+            }
+        }
+        // host 模式下从线程通过 stream 创建
+        u32 threadNum = resReq.slaveThreadNum;
+        if (threadNum > 0) {
+            std::vector<ThreadHandle> slaveThreads(threadNum);
+            CHK_RET(HcclThreadAcquire(comm, param.engine, threadNum, maxNotifyNum, slaveThreads.data()));
+            for (u32 i = 0; i < threadNum; i++) {
+                resCtx_.threads.push_back(slaveThreads[i]);
+            }
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 SaveMainThreadInfo：保存主流信息到 host 内存
+HcclResult AiCpuEngine::SaveMainThreadInfoInternal(HcclComm comm, const OpParam &param,
+    ThreadHandle thread, u32 notifyNum)
+{
+    uint64_t size = sizeof(ThreadHandle) + sizeof(u32);
+    void *ctx = nullptr;
+    CHK_RET(HcclEngineCtxCreate(comm, param.algTag, CommEngine::COMM_ENGINE_CPU_TS, size, &ctx));
+    ThreadHandle* threadPtr = reinterpret_cast<ThreadHandle *>(ctx);
+    *threadPtr = thread;
+    char* curPtr = reinterpret_cast<char *>(ctx);
+    curPtr += sizeof(ThreadHandle);
+    u32 *notifyNumPtr = reinterpret_cast<u32 *>(curPtr);
+    *notifyNumPtr = notifyNum;
+    HCCL_INFO("[SaveMainThreadInfo]threadPtr[%p], thread[%lu], notifyNumPtr[%p], notifyNum[%lu]",
+        threadPtr, thread, notifyNumPtr, notifyNum);
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 SaveUnfoldThreadInfo：保存展开流信息到 host 内存
+HcclResult AiCpuEngine::SaveUnfoldThreadInfoInternal(HcclComm comm, const OpParam &param,
+    ThreadHandle unfoldThread)
+{
+    uint64_t size = sizeof(ThreadHandle);
+    void *ctx = nullptr;
+    char unfoldAlgTag[ALG_TAG_LENGTH] = {0};
+    int ret = snprintf_s(unfoldAlgTag, sizeof(unfoldAlgTag), sizeof(unfoldAlgTag) - 1, "%s_unfold", param.algTag);
+    CHK_PRT_RET(ret <= 0, HCCL_ERROR("[%s] failed to fill unfoldAlgTag", __func__), HCCL_E_INTERNAL);
+    CHK_RET(HcclEngineCtxCreate(comm, unfoldAlgTag, CommEngine::COMM_ENGINE_CPU_TS, size, &ctx));
+    ThreadHandle* threadPtr = reinterpret_cast<ThreadHandle *>(ctx);
+    *threadPtr = unfoldThread;
+    HCCL_INFO("[SaveUnfoldThreadInfo]unfoldAlgTag[%s], threadPtr[%p], unfoldThread[%lu]",
+        unfoldAlgTag, threadPtr, unfoldThread);
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 HcclGetChannelImpl：按 CommEngine 建链并填充 ChannelInfo
+HcclResult AiCpuEngine::HcclGetChannelImplInternal(u32 level, HcclComm comm, const OpParam &param,
+    std::vector<HcclChannelDesc>& channelRequest, CommEngine commEngine)
+{
+    if (channelRequest.empty()) {
+        HCCL_INFO("[HcclGetChannelImpl] channelRequest is empty");
+        return HCCL_SUCCESS;
+    }
+    u32 channelNum = static_cast<u32>(channelRequest.size());
+    std::vector<ChannelHandle> levelNChannels(channelNum);
+    if (channelNum > 0) {
+        // 参数一致性校验信息注册到通信域，HcclChannelAcquire 内部存在读清动作，每次调用前均需注册
+        CHK_RET(AddExchangeInfoInternal(comm, param));
+        CHK_RET(HcclChannelAcquire(comm, commEngine, channelRequest.data(),
+            channelNum, levelNChannels.data()));
+    }
+
+    for (u32 idx = 0; idx < channelNum; idx++) {
+        ChannelInfo channel;
+        const HcclChannelDesc &channelDesc = channelRequest[idx];
+        channel.isValid = true;
+        channel.remoteRank = channelDesc.remoteRank;
+        channel.protocol = channelDesc.channelProtocol;
+        channel.locationType = channelDesc.remoteEndpoint.loc.locType;
+        channel.notifyNum = channelDesc.notifyNum;
+        channel.handle = levelNChannels[idx];
+        // 获取远端 CCL buffer
+        void* remoteCclBufferAddr = nullptr;
+        uint64_t remoteCclBufferSize = 0;
+        CHK_RET(HcclChannelGetHcclBuffer(comm, levelNChannels[idx], &remoteCclBufferAddr, &remoteCclBufferSize));
+        channel.remoteCclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, remoteCclBufferAddr, remoteCclBufferSize};
+        HCCL_INFO("[HcclGetChannelImpl]remoteRank[%u] protocol[%u] remoteCclBufferAddr[0x%llx] remoteCclBufferSize[%u]",
+            channelDesc.remoteRank, channelDesc.channelProtocol, remoteCclBufferAddr, remoteCclBufferSize);
+        resCtx_.channels[level].push_back(channel);
+    }
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 AddExchangeInfo：参数一致性校验信息注册
+HcclResult AiCpuEngine::AddExchangeInfoInternal(HcclComm comm, const OpParam &param)
+{
+    CHK_PTR_NULL(comm);
+    // 简化：仅注册交换信息，NeedInconsistentCheck 在重构中暂未引入
+    return HCCL_SUCCESS;
+}
+
 HcclResult AiCpuEngine::LaunchKernel(const OpParam &param)
 {
     HCCL_INFO("[AiCpuEngine][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
               param.commName, param.tag, param.algTag);
-    CHK_RET(LoadAICPUKernel());
-    CHK_RET(HcclLaunchAicpuKernel(param, resCtx_));
+
+    // 对应原始 HcclAicpuKernelEntranceLaunch + AicpuKernelLaunch
+    CHK_RET(AicpuKernelEntranceLaunchInternal(param));
+
     HCCL_INFO("[AiCpuEngine][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 HcclAicpuKernelEntranceLaunch：host 侧下发 AICPU kernel
+HcclResult AiCpuEngine::AicpuKernelEntranceLaunchInternal(const OpParam &param)
+{
+    HCCL_DEBUG("[AicpuKernelEntranceLaunch]start to run aicpu kernel");
+    // 当前aicpu launch接口只能有一个输入参数，将Context指针放在param参数中
+    // resCtxSequence 在重构中由 device 侧反序列化 resCtx_ 获得，host 侧不再需要设置 param.resCtx
+    const_cast<OpParam &>(param).aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
+
+    if (param.engine == COMM_ENGINE_CPU) {
+        // 注册dpu回调函数
+        CHK_RET(static_cast<HcclResult>(HcclTaskRegister(resCtx_.commInfoPtr, param.algTag, HcclLaunchDPUKernel)));
+    }
+
+    // Host stream通知Device主thread，使用主流上idx最大的notify
+    ThreadHandle cpuTsThread = resCtx_.cpuTsThread;
+    ThreadHandle exportedCpuTsThread = resCtx_.exportedCpuTsThread;
+    CHK_RET(static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(cpuTsThread, exportedCpuTsThread,
+        resCtx_.notifyNumOnMainThread - 1)));
+    // AicpuKernel report
+    uint64_t beginTime = HcommGetProfilingSysCycleTime();
+    CHK_RET(AicpuKernelLaunchInternal(param, resCtx_.unfoldThread));
+    CHK_PTR_NULL(resCtx_.commInfoPtr);
+    std::string kernelName = "HcclLaunchAicpuKernel";
+    char* kernelNameCStr = const_cast<char*>(kernelName.c_str());
+    HcclResult ret = HcclReportAicpuKernel(resCtx_.commInfoPtr, beginTime, kernelNameCStr);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[AicpuKernelEntranceLaunch] HcclReportAicpuKernel failed, beginTime %lu, kernelNameCStr %s, ret %d ",
+            beginTime, kernelNameCStr, ret);
+        return ret;
+    }
+    // Host stream等待Device的通知
+    AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+    u32 hostNotifyWaitTime = IsHcommDefaultTimeoutSupported() ? timeout.hostNotifyTimeout :
+        AddAicpuTimeoutOffset(param.opConfig.execTimeout, HOST_NOTIFY_TIMEOUT_OFFSET);
+    if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
+        CHK_RET(HcclSetNotifyWaitTimeOut(hostNotifyWaitTime));
+    }
+    CHK_RET(HcclThreadNotifyWaitOnThreadDefault(cpuTsThread, param.aicpuRecordCpuIdx, hostNotifyWaitTime));
+
+    return HCCL_SUCCESS;
+}
+
+// 对应原始 AicpuKernelLaunch：通过 aclrt API 下发 AICPU kernel binary
+HcclResult AiCpuEngine::AicpuKernelLaunchInternal(const OpParam &param, ThreadHandle unfoldThread)
+{
+    std::string kernelName = "HcclLaunchAicpuKernel";
+    aclrtFuncHandle funcHandle;
+    aclrtArgsHandle argsHandle;
+    // 注意，目前开源HCCL加载AICPU kernel使用的是从json文件加载
+    // 详见load_kernel.cc中的LoadAICPUKernel函数，且只实现了scatter的，先共用scatter的
+    aclError ret = aclrtBinaryGetFunction(g_binKernelHandle, kernelName.c_str(), &funcHandle);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtBinaryGetFunction]errNo[0x%016llx] get func handle failed, "
+        "kernelName:%s", ret, kernelName.c_str()), HCCL_E_RUNTIME);
+    ret = aclrtKernelArgsInit(funcHandle, &argsHandle);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsInit]errNo[0x%016llx] args init failed, "
+        "kernelName:%s", ret, kernelName.c_str()), HCCL_E_RUNTIME);
+    aclrtParamHandle paraHandle;
+    size_t paramSize = sizeof(OpParam) + param.varMemSize;
+    ret = aclrtKernelArgsAppend(argsHandle, const_cast<OpParam*>(&param), paramSize, &paraHandle);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsAppend]errNo[0x%016llx] args append failed, append "
+        "size %u, kernelName:%s", ret, paramSize, kernelName.c_str()), HCCL_E_RUNTIME);
+    ret = aclrtKernelArgsFinalize(argsHandle);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsFinalize]errNo[0x%016llx] args finalize failed, "
+        "kernelName:%s", ret, kernelName.c_str()), HCCL_E_RUNTIME);
+
+    AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
+    u16 kernelLaunchTimeout = IsHcommDefaultTimeoutSupported() ? timeout.kernelLaunchTimeout :
+        ToKernelLaunchTimeout(AddAicpuTimeoutOffset(param.opConfig.execTimeout, KERNEL_TIMEOUT_OFFSET));
+    aclrtLaunchKernelCfg cfg;
+    aclrtLaunchKernelAttr attr;
+    attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
+    attr.value.timeout = kernelLaunchTimeout;
+    cfg.numAttrs = 1;
+    cfg.attrs = &attr;
+    constexpr u32 numBlocks = 1;
+    HCCL_INFO("[AicpuKernelLaunch] unfoldThread [%lu]", unfoldThread);
+    void* unfoldStream = nullptr;
+    auto& HcclThreadResGetInfoFunc = ops_hccl::DlHcommFunction::GetInstance();
+    if (!HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo || param.opMode == OpMode::OFFLOAD) { // 不走提前展开
+        ret = aclrtLaunchKernelWithConfig(funcHandle, numBlocks, param.stream, &cfg, argsHandle, nullptr);
+    } else {
+        HcclResult ret1 = HcclThreadResGetInfoFunc.dlHcclThreadResGetInfo(
+            resCtx_.commInfoPtr, unfoldThread, 0, sizeof(void*), &unfoldStream);
+        if (ret1 == HCCL_E_NOT_SUPPORT) {
+            ret = aclrtLaunchKernelWithConfig(funcHandle, numBlocks, param.stream, &cfg, argsHandle, nullptr);
+        } else if (ret1 != HCCL_SUCCESS) {
+            return ret1;
+        } else {
+            ret = aclrtLaunchKernelWithConfig(funcHandle, numBlocks, unfoldStream, &cfg, argsHandle, nullptr);
+        }
+    }
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[AicpuKernelLaunch][aclrtLaunchKernelWithConfig]"
+        "errNo[0x%016llx] launch kernel failed", ret), HCCL_E_OPEN_FILE_FAILURE);
     return HCCL_SUCCESS;
 }
 

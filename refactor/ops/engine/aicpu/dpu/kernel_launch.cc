@@ -5,13 +5,18 @@
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root software repository for the full text of the License.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "base_template.h"
+#include "kernel_launch.h"
+#include "log.h"
 
 namespace ops_hccl {
-
-BaseTemplate::~BaseTemplate() = default;
-
-}  // namespace ops_hccl
+int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
+{
+    (void)ptr;
+    (void)size;
+    HCCL_ERROR("[HcclLaunchDPUKernel] DPU kernel launch not implemented in refactor");
+    return static_cast<int32_t>(HCCL_E_NOT_SUPPORT);
+}
+}

@@ -412,6 +412,8 @@ struct AlgResourceCtxSerializable {
     void* aivCommInfoPtr = nullptr;
     std::vector<ThreadHandle> threads;
     ThreadHandle unfoldThread = 0; // 展开流thread
+    ThreadHandle cpuTsThread = 0; // host CPU TS 线程（对应原始 HcclExecOp 中的 cpuTsThread）
+    ThreadHandle exportedCpuTsThread = 0; // 导出给 AICPU_TS 的 cpuTsThread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
     void* commInfoPtr = nullptr;
@@ -441,6 +443,8 @@ struct AlgResourceCtxSerializable {
         binaryStream << commInfoPtr;
         binaryStream << threads;
         binaryStream << unfoldThread;
+        binaryStream << cpuTsThread;
+        binaryStream << exportedCpuTsThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
 
@@ -475,6 +479,8 @@ struct AlgResourceCtxSerializable {
         binaryStream >> commInfoPtr;
         binaryStream >> threads;
         binaryStream >> unfoldThread;
+        binaryStream >> cpuTsThread;
+        binaryStream >> exportedCpuTsThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
 
