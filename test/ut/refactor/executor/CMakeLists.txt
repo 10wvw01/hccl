@@ -18,7 +18,6 @@ set(UT_EXECUTOR_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
-    ${CMAKE_SOURCE_DIR}/refactor/ops/template/base_template.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})

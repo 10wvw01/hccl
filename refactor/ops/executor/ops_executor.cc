@@ -117,6 +117,11 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
+    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重算rankSize
+    rankSize_ = 1;
+    for (size_t i = 0; i < topoLevelNum; i++) {
+        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
+    }
     for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
         subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
         subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
