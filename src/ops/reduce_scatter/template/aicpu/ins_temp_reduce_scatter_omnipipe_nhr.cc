@@ -170,8 +170,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
                   "isPcie[%d]", __func__, tempAlgParams_.supportSymmetricMemory, inputSymWindow_, inputRankStride_,
                   inputLoopSize_, IsPcieProtocol(channels_));
     } else if (useSymmetricDirect_) {
-        HCCL_INFO("[%s] direct symmetric NHR write-reduce enabled: inputWin[%p] offset[%llu]", __func__,
-                  inputSymWindow_, inputOffset_);
+        HCCL_INFO("[%s] direct symmetric NHR write-reduce enabled: inputWin[%p] offset[%llu] jettyNum[%u]",
+                  __func__, inputSymWindow_, inputOffset_, channelsPerRank_);
     }
 
     threadNum_ = GetThreadNum();
