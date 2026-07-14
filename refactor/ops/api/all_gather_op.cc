@@ -186,6 +186,8 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
     param.enableDetour = false;
     param.deviceType = deviceType;
 
+    CHK_RET(HcclGetOpExpansionMode(comm, param));
+
     HcclAlgorithm alg;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(Selector(comm, param, topoInfo, alg));

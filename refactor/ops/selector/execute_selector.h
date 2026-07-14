@@ -24,5 +24,9 @@ public:
 
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                     HcclAlgorithm &alg);
+
+HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param);
+HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMod);
+HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode);
 } // namespace ops_hccl
 #endif

@@ -25,6 +25,7 @@
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
 #include "topo_match_squeeze_2d.h"
+#include "dlhcomm_function.h"
 
 // ============================================================
 // 通用桩：memset_s
@@ -189,6 +190,62 @@ TopoMatchSqueeze2D::~TopoMatchSqueeze2D() {}
 HcclResult TopoMatchSqueeze2D::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *, AlgHierarchyInfoForAllLevel &)
 {
     return HCCL_SUCCESS;
+}
+
+// ============================================================
+// HcclGetOpExpansionMode 子函数依赖桩
+// execute_selector.cc 中复制了 HcclGetOpExpansionMode/DecideHcclOpExpansionMode/
+// ApplyOpExpansionMode，但 UT 不调用它们。以下桩仅为满足链接期符号解析。
+// ============================================================
+
+// ops_hccl::DlHcommFunction 单例桩：dlHcclConfigGetInfo 留空，跳过配置分支
+DlHcommFunction::~DlHcommFunction() = default;
+DlHcommFunction &DlHcommFunction::GetInstance()
+{
+    static DlHcommFunction inst;
+    return inst;
+}
+HcclResult DlHcommFunction::DlHcommFunctionInit()
+{
+    return HCCL_SUCCESS;
+}
+HcclResult DlHcommFunction::DlHcommFunctionInterInit()
+{
+    return HCCL_SUCCESS;
+}
+
+// hrtGetDeviceType 桩：返回 DEV_TYPE_COUNT 占位
+extern "C" HcclResult hrtGetDeviceType(DevType &devType)
+{
+    devType = DevType::DEV_TYPE_COUNT;
+    return HCCL_SUCCESS;
+}
+
+// 环境变量读取桩：全部返回 false，跳过环境变量分支
+const bool &GetExternalInputHcclAicpuUnfold()
+{
+    static bool v = false;
+    return v;
+}
+const bool &GetExternalInputHcclAivMode()
+{
+    static bool v = false;
+    return v;
+}
+const bool &GetExternalInputHcclAivOnlyMode()
+{
+    static bool v = false;
+    return v;
+}
+const bool &GetExternalInputHcclCcuMSMode()
+{
+    static bool v = false;
+    return v;
+}
+const bool &GetExternalInputHcclCcuSchedMode()
+{
+    static bool v = false;
+    return v;
 }
 
 } // namespace ops_hccl

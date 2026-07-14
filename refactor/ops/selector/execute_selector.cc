@@ -14,8 +14,14 @@
 #include "selector_registry.h"
 #include "op_common.h"
 #include "load_kernel.h"
+#include "alg_env_config.h"
+#include "dlhcomm_function.h"
 
 namespace ops_hccl {
+
+// 仅在本 .cc 内使用的常量，与 src/ops/op_common/op_common.cc 中保持一致
+static constexpr uint32_t opExpansionModeCcuSched = 5;
+static constexpr uint32_t opExpansionModeCcuMs = 4;
 
 ExecuteSelector::ExecuteSelector()
 {
@@ -62,6 +68,113 @@ HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* t
 
     HCCL_ERROR("[Algo][Selector] No selector is matched.");
     return HcclResult::HCCL_E_NOT_SUPPORT;
+}
+
+HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param)
+{
+    HcclOpExpansionMode finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
+    // 第一步：决定使用哪种模式
+    HcclResult ret = DecideHcclOpExpansionMode(comm, finalMode);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("DecideHcclOpExpansionMode failed, ret: %d", ret);
+        return ret;
+    }
+    param.commOpExpansionMode = finalMode;
+
+    // 第二步：应用选择的模式到param
+    ret = ApplyOpExpansionMode(param, finalMode);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("ApplyOpExpansionMode failed, ret: %d", ret);
+        return ret;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMode)
+{
+    HcclOpExpansionMode configOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
+    bool useConfigOpExpansionMode = false;
+    auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
+    if (hcommFunction.dlHcclConfigGetInfo) {
+        uint32_t infoLen = sizeof(HcclOpExpansionMode);
+        CHK_RET(hcommFunction.dlHcclConfigGetInfo(comm, HcclConfigType::HCCL_CONFIG_TYPE_OP_EXPANSION_MODE, infoLen,
+            &configOpExpansionMode));
+        finalMode = configOpExpansionMode;
+        useConfigOpExpansionMode = true;
+    } else {
+        HCCL_INFO("[DecideHcclOpExpansionMode] HcclConfigGetInfo is not supported, use environment mode.");
+        finalMode = static_cast<HcclOpExpansionMode>(opExpansionModeCcuMs);
+    }
+
+    // A5仅通过HcclConfigGetInfo获取展开模式，其他型号保留环境变量方式
+    DevType deviceType = DevType::DEV_TYPE_COUNT;
+    CHK_RET(hrtGetDeviceType(deviceType));
+    #ifdef MACRO_DEV_TYPE_NEW
+    if (deviceType != DevType::DEV_TYPE_950 || !useConfigOpExpansionMode) {
+    #else
+    if (deviceType != DevType::DEV_TYPE_910_95 || !useConfigOpExpansionMode) {
+    #endif
+        if (GetExternalInputHcclAicpuUnfold() == true) {
+            finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU;
+        } else if (GetExternalInputHcclAivOnlyMode() == true) {
+            finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY;
+        } else if (GetExternalInputHcclAivMode() == true) {
+            finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AIV;
+        } else if (GetExternalInputHcclCcuMSMode()) {
+            finalMode = static_cast<HcclOpExpansionMode>(opExpansionModeCcuMs);
+        } else if (GetExternalInputHcclCcuSchedMode()) {
+            finalMode = static_cast<HcclOpExpansionMode>(opExpansionModeCcuSched);
+        }
+        if (useConfigOpExpansionMode && configOpExpansionMode != finalMode) {
+            HCCL_DEBUG("[DecideHcclOpExpansionMode] configOpExpansionMode: %d, environment mode: %d, conflict, use environment mode.",
+                configOpExpansionMode, finalMode);
+        }
+    }
+    HCCL_INFO("[DecideHcclOpExpansionMode] finalMode: %d.", finalMode);
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode)
+{
+    switch (finalMode) {
+        case HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU:
+            param.opExecuteConfig = OpExecuteConfig::AICPU_TS;
+            param.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+            CHK_RET(LoadAICPUKernel());
+            HCCL_DEBUG("[ApplyOpExpansionMode] AICPU mode selected.");
+            break;
+        case HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AIV:
+            param.opExecuteConfig = OpExecuteConfig::AIV;
+            param.engine = CommEngine::COMM_ENGINE_AIV;
+            CHK_RET(RegisterKernel());
+            HCCL_DEBUG("[ApplyOpExpansionMode] AIV mode selected.");
+            break;
+        case HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY:
+            param.opExecuteConfig = OpExecuteConfig::AIV_ONLY;
+            param.engine = CommEngine::COMM_ENGINE_AIV;
+            CHK_RET(RegisterKernel());
+            HCCL_DEBUG("[ApplyOpExpansionMode] AIV_ONLY mode selected.");
+            break;
+        case static_cast<HcclOpExpansionMode>(opExpansionModeCcuMs):
+            param.opExecuteConfig = OpExecuteConfig::CCU_MS;
+            param.engine = CommEngine::COMM_ENGINE_CCU;
+            HCCL_DEBUG("[ApplyOpExpansionMode] CCU_MS mode selected.");
+            break;
+        case static_cast<HcclOpExpansionMode>(opExpansionModeCcuSched):
+            param.opExecuteConfig = OpExecuteConfig::CCU_SCHED;
+            param.engine = CommEngine::COMM_ENGINE_CCU;
+            HCCL_DEBUG("[ApplyOpExpansionMode] CCU_SCHED mode selected.");
+            break;
+        default:
+            // 回退到aicpu
+            HCCL_WARNING("[ApplyOpExpansionMode] Invalid HcclOpExpansionMode: %d, fallback to AICPU_TS.", finalMode);
+            param.opExecuteConfig = OpExecuteConfig::AICPU_TS;
+            param.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+            CHK_RET(LoadAICPUKernel());
+            break;
+    }
+    return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
