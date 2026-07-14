@@ -45,17 +45,17 @@ inline HcclResult GetConnectedInputRanks(const std::vector<u32> &ranksForInputDa
 inline void AddRankDataSlices(const MeshAllGatherSliceInfo &sliceInfo, const std::vector<u32> &rankIds,
                               MeshAllGatherSlicePair &slicePair)
 {
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[sliceInfo.tempAlgParams.dataType];
     for (u32 rankId : rankIds) {
-        const u64 dataSize = sliceInfo.sliceSize;
+        const u64 dataSize = (sliceInfo.tailSize > 0 && rankId == sliceInfo.tailRankId) ?
+            sliceInfo.tailSize : sliceInfo.sliceSize;
         const u64 dataOffset = sliceInfo.tempAlgParams.sliceOffset + static_cast<u64>(rankId) * sliceInfo.stride;
         HCCL_DEBUG("[RunMeshAllGather] AddRankDataSlices: rankId=%u, sliceOffset=%lu, stride=%lu, "
-                   "dataOffset=%lu, dataSize=%lu, sliceCount=%lu",
+                   "dataOffset=%lu, dataSize=%lu, count=%lu",
                    rankId, sliceInfo.tempAlgParams.sliceOffset, sliceInfo.stride, dataOffset, dataSize,
-                   sliceInfo.tempAlgParams.sliceCount);
-        slicePair.firstSlices.emplace_back(slicePair.firstBufferPtr, dataOffset, dataSize,
-                                           sliceInfo.tempAlgParams.sliceCount);
-        slicePair.secondSlices.emplace_back(slicePair.secondBufferPtr, dataOffset, dataSize,
-                                            sliceInfo.tempAlgParams.sliceCount);
+                   dataSize / dataTypeSize);
+        slicePair.firstSlices.emplace_back(slicePair.firstBufferPtr, dataOffset, dataSize, dataSize / dataTypeSize);
+        slicePair.secondSlices.emplace_back(slicePair.secondBufferPtr, dataOffset, dataSize, dataSize / dataTypeSize);
     }
 }
 
@@ -66,13 +66,6 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
                             std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
 {
     txRxSlicesLists.clear();
-    HCCL_INFO("[RunMeshAllGather] start: myRank=%u, rankSize=%zu, dataType=%d, sliceCount=%lu, "
-              "sliceOffset=%lu, stride=%lu, inputRankNum=%zu",
-              myRank, ranks.size(), static_cast<int>(tempAlgParams.dataType), tempAlgParams.sliceCount,
-              tempAlgParams.sliceOffset, tempAlgParams.stride, tempAlgParams.ranksForInputData.size());
-    for (size_t i = 0; i < tempAlgParams.ranksForInputData.size(); ++i) {
-        HCCL_INFO("[RunMeshAllGather] ranksForInputData[%zu]=%u", i, tempAlgParams.ranksForInputData[i]);
-    }
 
     CHK_RET(CheckInputDataRanks(tempAlgParams, "RunMeshAllGather"));
     if (ranks.size() <= 1) {
@@ -89,6 +82,8 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
+    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u32 tailRankId = ranks[rankSize - 1];
     HCCL_INFO("[RunMeshAllGather] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
     for (size_t i = 0; i < ranks.size(); ++i) {
@@ -110,7 +105,7 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
         for (size_t i = 0; i < connectedInputRanks.size(); ++i) {
             HCCL_INFO("[RunMeshAllGather] connectedInputRanks[%zu]=%u", i, connectedInputRanks[i]);
         }
-        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, sliceSize, stride};
+        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, stride, tailRankId};
         std::vector<DataSlice> txSrcSlicesAll;
         std::vector<DataSlice> txDstSlicesAll;
         std::vector<DataSlice> rxSrcSlicesAll;

@@ -22,7 +22,9 @@ struct TemplateDataParams;
 struct MeshAllGatherSliceInfo {
     const TemplateDataParams &tempAlgParams;
     u64 sliceSize;
+    u64 tailSize;
     u64 stride;
+    u32 tailRankId;
 };
 
 struct MeshAllGatherSlicePair {

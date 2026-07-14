@@ -117,6 +117,24 @@ TEST_F(MeshAllGatherTransferTest, BuildMultipleInputRankSlices)
     EXPECT_EQ(RxDst(txRxSlicesLists[1], 1).offset_, 192U);
 }
 
+// 校验最后一个 rank 使用 tailCount 生成尾块 slice。
+TEST_F(MeshAllGatherTransferTest, BuildTailRankSlice)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0});
+    params.tailCount = 2;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshAllGather(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 8U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 2U);
+}
+
 // 校验输出数据归属表按全局 rank 排序后返回给 PostCopy。
 TEST_F(MeshAllGatherTransferTest, UpdateOutputRanksForPostCopy)
 {
