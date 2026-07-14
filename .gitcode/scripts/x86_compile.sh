@@ -19,7 +19,7 @@ set +e
 
 echo "exec cmd: [bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann]"
 bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann
-
+cp ./build_out/cann-hccl*x86_64.run ./build_out/cann-hccl_linux-x86_64_ubuntu24.run
 ret=$?
 
 exit $ret
