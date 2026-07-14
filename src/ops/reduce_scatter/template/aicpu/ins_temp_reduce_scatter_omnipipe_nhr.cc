@@ -129,6 +129,50 @@ InsTempReduceScatterOmniPipeNHR::~InsTempReduceScatterOmniPipeNHR()
 {
 }
 
+HcclResult InsTempReduceScatterOmniPipeNHR::CalcRes(HcclComm comm, const OpParam& param,
+                                                    const TopoInfoWithNetLayerDetails* topoInfo,
+                                                    AlgResourceRequest& resourceRequest)
+{
+    std::vector<HcclChannelDesc> channels;
+    std::vector<HcclChannelDesc> myChannelDescs;
+    const u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    const u64 dataSize = param.DataDes.count * perDataSize;
+    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        const bool forceFourJetty = supportSymmetricMemory_;
+        const bool isIsolation = forceFourJetty ||
+            !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) ||
+              dataSize <= SMALL_COUNT_512KB);
+        HCCL_INFO("[%s] symmetricMemory[%d] forceFourJetty[%d] isIsolation[%d].", __func__,
+                  supportSymmetricMemory_, forceFourJetty, isIsolation);
+        CHK_RET(CalcChannelRequestNhrMultiJetty(
+            comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation));
+        for (const auto &channel : myChannelDescs) {
+            if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
+                channels.push_back(channel);
+            }
+        }
+    } else {
+        CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
+        channels = myChannelDescs;
+    }
+
+    resourceRequest.channels.push_back(channels);
+    channelsPerRank_ = CalcChannelsPerRank(channels);
+    HCCL_INFO("[%s] channelsPerRank[%u].", __func__, channelsPerRank_);
+    if (supportSymmetricMemory_ && channelsPerRank_ != MAX_JETTY_NUM) {
+        HCCL_WARNING("[%s] symmetric OmniPipe NHR requested [%u] Jettys, but acquired [%u].", __func__,
+                     MAX_JETTY_NUM, channelsPerRank_);
+    }
+    if (channelsPerRank_ > MAX_JETTY_NUM) {
+        HCCL_ERROR("[%s] channelsPerRank[%u] is greater than MAX_JETTY_NUM[%u].", __func__,
+                   channelsPerRank_, MAX_JETTY_NUM);
+    }
+    CHK_RET(GetRes(resourceRequest));
+    HCCL_INFO("[%s] slaveThreadNum[%u] notifyNumOnMainThread[%u].", __func__, resourceRequest.slaveThreadNum,
+              resourceRequest.notifyNumOnMainThread);
+    return HCCL_SUCCESS;
+}
+
 // 语义改为返回当前template的类型，mesh返回1，nhr返回0
 u64 InsTempReduceScatterOmniPipeNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
@@ -170,8 +214,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
                   "isPcie[%d]", __func__, tempAlgParams_.supportSymmetricMemory, inputSymWindow_, inputRankStride_,
                   inputLoopSize_, IsPcieProtocol(channels_));
     } else if (useSymmetricDirect_) {
-        HCCL_INFO("[%s] direct symmetric NHR write-reduce enabled: inputWin[%p] offset[%llu]", __func__,
-                  inputSymWindow_, inputOffset_);
+        HCCL_INFO("[%s] direct symmetric NHR write-reduce enabled: inputWin[%p] offset[%llu] jettyNum[%u]",
+                  __func__, inputSymWindow_, inputOffset_, channelsPerRank_);
     }
 
     threadNum_ = GetThreadNum();
