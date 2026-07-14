@@ -41,9 +41,9 @@ private:
     HcclResult GetStepInfoList(std::vector<AicpuNHRStepInfo> &stepInfoList);
     HcclResult RunSymmetricStep0(const AicpuNHRStepInfo& stepInfo, const std::vector<ThreadHandle>& threads,
                                  u32 channelIdx, u32 dataTypeSize);
-    HcclResult RunSymmetricDirectStep(const AicpuNHRStepInfo& stepInfo,
-                                      const std::vector<ThreadHandle>& threads,
-                                      u32 channelIdx, u32 dataTypeSize);
+    HcclResult RunSymmetricDirectWriteStep(const AicpuNHRStepInfo& stepInfo,
+                                           const std::vector<ThreadHandle>& threads,
+                                           u32 channelIdx, u32 dataTypeSize);
     HcclResult RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx);
 
     HcclResult GetNHRDataSize(const AicpuNHRStepInfo& st, const u32 channelIdx, 

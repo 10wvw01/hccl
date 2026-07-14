@@ -10,8 +10,6 @@
 
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "omnipipe_template_utils.h"
-#include "exec_timeout_manager.h"
-#include "hcomm_primitives_dl.h"
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_sym_win.h"
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
@@ -42,75 +40,6 @@ HcclResult CalcDirectUserInputOffset(u64 packedOffset, u64 sliceSize, u64 loopBa
                 HCCL_ERROR("[%s] input slice exceeds input buffer, offset[%llu] sliceSize[%llu] inputSize[%llu]",
                            __func__, userInputOffset, sliceSize, inputSize),
                 HCCL_E_PARA);
-    return HCCL_SUCCESS;
-}
-
-HcclResult DirectReadReduceWithStepSync(const ChannelInfo& sendChannel, const ChannelInfo& recvChannel,
-                                        const std::vector<DataSlice>& srcSlices,
-                                        const std::vector<DataSlice>& dstSlices, HcclDataType dataType,
-                                        HcclReduceOp reduceOp, const ThreadHandle& thread, bool needReadySync)
-{
-    CHK_PRT_RET(srcSlices.size() != dstSlices.size(),
-                HCCL_ERROR("[%s] src slice num[%zu] does not match dst slice num[%zu]", __func__,
-                           srcSlices.size(), dstSlices.size()),
-                HCCL_E_PARA);
-
-    const u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
-    // User input is already ready when step 0 starts. Later steps consume partial sums produced by the
-    // previous step, so only those steps need the READY handshake. This matches the 2D mem2mem NHR flow.
-    if (needReadySync) {
-        CHK_RET(static_cast<HcclResult>(
-            HcommChannelNotifyRecordOnThread(thread, sendChannel.handle, NOTIFY_IDX_ACK)));
-        CHK_RET(HcclChannelNotifyWaitOnThreadDefault(thread, recvChannel.handle, NOTIFY_IDX_ACK, execTimeout));
-    }
-
-    const bool useBatchTransfer = IsHcommBatchTransferOnThreadSupported();
-    std::vector<HcclHcommBatchTransferDesc> transferDescs;
-    if (useBatchTransfer) {
-        transferDescs.reserve(srcSlices.size());
-    }
-    const u32 sliceNum = static_cast<u32>(srcSlices.size());
-    for (u32 i = 0; i < sliceNum; ++i) {
-        const DataSlice& srcSlice = srcSlices[i];
-        const DataSlice& dstSlice = dstSlices[i];
-        if (srcSlice.size_ == 0) {
-            continue;
-        }
-        CHK_PRT_RET(srcSlice.size_ != dstSlice.size_ ||
-                    srcSlice.count_ * DATATYPE_SIZE_TABLE[dataType] != srcSlice.size_ ||
-                    dstSlice.count_ * DATATYPE_SIZE_TABLE[dataType] != dstSlice.size_,
-                    HCCL_ERROR("[%s] invalid slice[%u], srcSize[%llu] srcCount[%llu] dstSize[%llu] "
-                               "dstCount[%llu] dataType[%d]", __func__, i, srcSlice.size_, srcSlice.count_,
-                               dstSlice.size_, dstSlice.count_, static_cast<int>(dataType)),
-                    HCCL_E_PARA);
-        void* dst = static_cast<void*>(static_cast<s8*>(dstSlice.addr_) + dstSlice.offset_);
-        void* src = static_cast<void*>(static_cast<s8*>(srcSlice.addr_) + srcSlice.offset_);
-        if (useBatchTransfer) {
-            HcclHcommBatchTransferDesc desc = {};
-            desc.transType = HCCL_HCOMM_TRANSFER_TYPE_READ_REDUCE;
-            desc.transferInfo.reduce.count = srcSlice.count_;
-            desc.transferInfo.reduce.dst = dst;
-            desc.transferInfo.reduce.src = src;
-            desc.transferInfo.reduce.dataType = static_cast<HcommDataType>(dataType);
-            desc.transferInfo.reduce.reduceOp = static_cast<HcommReduceOp>(reduceOp);
-            transferDescs.push_back(desc);
-        } else {
-            CHK_RET(static_cast<HcclResult>(HcommReadReduceOnThread(
-                thread, recvChannel.handle, dst, src, srcSlice.count_, static_cast<HcommDataType>(dataType),
-                static_cast<HcommReduceOp>(reduceOp))));
-        }
-    }
-    if (useBatchTransfer && !transferDescs.empty()) {
-        CHK_RET(static_cast<HcclResult>(HcclHcommBatchTransferOnThread(
-            thread, recvChannel.handle, transferDescs.data(), static_cast<u32>(transferDescs.size()))));
-    }
-
-    // Keep DONE synchronization for every step. Besides protecting the in-place partial sums, the last
-    // step must not return while another rank is still reading this rank's symmetric input.
-    CHK_RET(static_cast<HcclResult>(
-        HcommChannelNotifyRecordOnThread(thread, recvChannel.handle, NOTIFY_IDX_DATA_SIGNAL)));
-    CHK_RET(HcclChannelNotifyWaitOnThreadDefault(
-        thread, sendChannel.handle, NOTIFY_IDX_DATA_SIGNAL, execTimeout));
     return HCCL_SUCCESS;
 }
 } // namespace
@@ -170,8 +99,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
                   "isPcie[%d]", __func__, tempAlgParams_.supportSymmetricMemory, inputSymWindow_, inputRankStride_,
                   inputLoopSize_, IsPcieProtocol(channels_));
     } else if (useSymmetricDirect_) {
-        HCCL_INFO("[%s] direct symmetric NHR enabled: inputWin[%p] offset[%llu]", __func__, inputSymWindow_,
-                  inputOffset_);
+        HCCL_INFO("[%s] direct symmetric NHR write-reduce enabled: inputWin[%p] offset[%llu]", __func__,
+                  inputSymWindow_, inputOffset_);
     }
 
     threadNum_ = GetThreadNum();
@@ -334,7 +263,7 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricStep0(const AicpuNHRStep
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricDirectStep(
+HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricDirectWriteStep(
     const AicpuNHRStepInfo& stepInfo, const std::vector<ThreadHandle>& threads, u32 channelIdx, u32 dataTypeSize)
 {
     CHK_PRT_RET(threads.size() <= channelIdx,
@@ -351,34 +280,38 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunSymmetricDirectStep(
     const ChannelInfo& linkSend = channels_.at(sendToRank)[channelIdx];
 
     void* peerInputAddr = nullptr;
-    HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &peerInputAddr);
+    HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, sendToRank, &peerInputAddr);
     CHK_PRT_RET(ret != HCCL_SUCCESS || peerInputAddr == nullptr,
                 HCCL_ERROR("[RS-NHR][%s] HcclSymWinGetPeerPointer failed, peerRank[%u] ret[%d] addr[%p]",
-                           __func__, recvFromRank, ret, peerInputAddr),
+                           __func__, sendToRank, ret, peerInputAddr),
                 HCCL_E_INTERNAL);
 
-    std::vector<DataSlice> rxSrcSlices;
-    std::vector<DataSlice> rxDstSlices;
+    std::vector<DataSlice> txSrcSlices;
+    std::vector<DataSlice> txDstSlices;
     const u64 rptNum = std::max<u64>(1, tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[0].size());
     for (u32 i = 0; i < stepInfo.nSlices; ++i) {
-        const u32 rxIdx = stepInfo.rxSliceIdxs[i];
+        const u32 txIdx = stepInfo.txSliceIdxs[i];
         for (u64 rpt = 0; rpt < rptNum; ++rpt) {
             const u64 packedOffset = tempAlgParams_.buffInfo.inBuffBaseOff +
-                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[rxIdx][rpt] +
-                dataOffsetVec_[rxIdx][rpt][channelIdx] +
-                tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
-            const u64 sliceSize = dataSplitVec_[rxIdx][rpt][channelIdx];
+                tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[txIdx][rpt] +
+                dataOffsetVec_[txIdx][rpt][channelIdx] +
+                tempAlgParams_.stepSliceInfo.stepInputSliceStride[txIdx];
+            const u64 sliceSize = dataSplitVec_[txIdx][rpt][channelIdx];
             u64 userInputOffset = 0;
             CHK_RET(CalcDirectUserInputOffset(packedOffset, sliceSize, inputLoopBaseOff_, inputRankStride_,
                                               inputLoopSize_, inputTotalSize_, userInputOffset));
-            rxSrcSlices.emplace_back(peerInputAddr, userInputOffset, sliceSize, sliceSize / dataTypeSize);
-            rxDstSlices.emplace_back(tempAlgParams_.buffInfo.inputPtr, userInputOffset, sliceSize,
+            txSrcSlices.emplace_back(tempAlgParams_.buffInfo.inputPtr, userInputOffset, sliceSize,
+                                     sliceSize / dataTypeSize);
+            txDstSlices.emplace_back(peerInputAddr, userInputOffset, sliceSize,
                                      sliceSize / dataTypeSize);
         }
     }
-    CHK_PRT_RET(DirectReadReduceWithStepSync(linkSend, linkRecv, rxSrcSlices, rxDstSlices, dataType_, reduceOp_,
-                                            threads[channelIdx], stepInfo.step != 0),
-                HCCL_ERROR("[RS-NHR][%s] direct read-reduce failed, step[%u]", __func__, stepInfo.step),
+    std::vector<DataSlice> rxSrcSlices;
+    std::vector<DataSlice> rxDstSlices;
+    SendRecvReduceInfo info{{linkSend, linkRecv},
+                            {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_, reduceOp_};
+    CHK_PRT_RET(SendRecvBatchWriteReduce(info, threads[channelIdx]),
+                HCCL_ERROR("[RS-NHR][%s] direct write-reduce failed, step[%u]", __func__, stepInfo.step),
                 HCCL_E_INTERNAL);
     return HCCL_SUCCESS;
 }
@@ -401,7 +334,7 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
     for (u32 s = 0; s < steps.size(); ++s) {
         const auto &st = steps[s];
         if (useSymmetricDirect_) {
-            CHK_RET(RunSymmetricDirectStep(st, threads, channelIdx, dataTypeSize));
+            CHK_RET(RunSymmetricDirectWriteStep(st, threads, channelIdx, dataTypeSize));
             continue;
         } else if (useSymmetricInput_ && st.step == 0) {
             // 所有 rank 在首轮都通过 peer input 做本地规约；同一 thread 上的后续 SendRecv 保持顺序依赖。
