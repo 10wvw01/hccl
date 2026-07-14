@@ -101,11 +101,6 @@ std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
 }
 
 // ============================================================
-// BaseTemplate 桩 (替代 base_template.cc，提供 vtable)
-// ============================================================
-BaseTemplate::~BaseTemplate() {}
-
-// ============================================================
 // TopoMatchBase 桩 (替代 topo_match_base.cc)
 // ============================================================
 TopoMatchBase::TopoMatchBase() = default;
