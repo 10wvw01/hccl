@@ -50,15 +50,12 @@ struct ReduceMesh1DTwoShotMem2MemContext: CcuKernelCtxBase {
     ccu::Variable constVar1;
     GroupOpSizeVars goSize;
 
-    std::vector<ccu::Event> events;
+    ccu::Event event;
 
     ccu::LocalAddr myInput;
-    ccu::LocalAddr myScratchResult;
     ccu::LocalAddr myOutput;
     ccu::RemoteAddr remoteScratch;
     ccu::RemoteAddr remoteOutput;
-
-    std::vector<ccu::LocalAddr> scratchMem;
 };
 
 CcuResult CcuReduceMesh1DTwoShotMem2MemKernel(CcuKernelArg arg);
