@@ -20,17 +20,19 @@ namespace {
 inline HcclResult PreCheckMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
                                         const std::vector<u32> &ranks, u32 myRank)
 {
+    HCCL_INFO("[RunMeshAllGather] PreCheck: myRank=%u, rankSize=%zu, inputRankNum=%zu, channelRankNum=%zu",
+              myRank, ranks.size(), tempAlgParams.ranksForInputData.size(), templateResource.channels.size());
     CHK_PRT_RET(tempAlgParams.ranksForInputData.empty(),
                 HCCL_ERROR("[RunMeshAllGather] ranksForInputData is empty."), HCCL_E_PARA);
     CHK_PRT_RET(ranks.size() > 1 && templateResource.channels.empty(),
                 HCCL_ERROR("[RunMeshAllGather] channels is empty."), HCCL_E_PARA);
     for (u32 rank : ranks) {
-    if (rank == myRank) {
-        continue;
-    }
-    CHK_PRT_RET(templateResource.channels.count(rank) == 0 ||
-                    templateResource.channels.at(rank).empty(),
-                HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", rank), HCCL_E_PARA);
+        if (rank == myRank) {
+            continue;
+        }
+        CHK_PRT_RET(templateResource.channels.count(rank) == 0 ||
+                        templateResource.channels.at(rank).empty(),
+                    HCCL_ERROR("[RunMeshAllGather] connectedRank[%u] has no link.", rank), HCCL_E_PARA);
     }
     return HCCL_SUCCESS;
 }
@@ -78,6 +80,8 @@ inline void AddRankDataSlices(const MeshAllGatherSliceInfo &sliceInfo, const std
     for (u32 rankId : rankIds) {
         const u64 dataSize = sliceInfo.sliceSize;
         const u64 dataOffset = sliceInfo.tempAlgParams.sliceOffset + static_cast<u64>(rankId) * sliceInfo.stride;
+        HCCL_DEBUG("[RunMeshAllGather] AddRankDataSlices: rankId=%u, dataOffset=%lu, dataSize=%lu, sliceCount=%lu",
+                   rankId, dataOffset, dataSize, sliceInfo.tempAlgParams.sliceCount);
         slicePair.firstSlices.emplace_back(slicePair.firstBufferPtr, dataOffset, dataSize,
                                            sliceInfo.tempAlgParams.sliceCount);
         slicePair.secondSlices.emplace_back(slicePair.secondBufferPtr, dataOffset, dataSize,
@@ -105,6 +109,8 @@ inline void GetSendRecvInfo(const MeshAllGatherSliceInfo &sliceInfo, const std::
     TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
     TxRxChannels sendRecvChannels(sliceInfo.linkRemote, sliceInfo.linkRemote);
     sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, sliceInfo.tempAlgParams.dataType);
+    HCCL_INFO("[RunMeshAllGather] Build SendRecvInfo: txRankNum=%zu, rxRankNum=%zu, sendRecvInfoNum=%zu",
+              txRankIds.size(), rxRankIds.size(), sendRecvInfos.size());
 }
 
 } // namespace
@@ -115,10 +121,19 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
 {
 
     sendRecvInfos.clear();
+    HCCL_INFO("[RunMeshAllGather] start: myRank=%u, rankSize=%zu, dataType=%d, sliceCount=%lu, "
+              "sliceOffset=%lu, stride=%lu, inputRankNum=%zu",
+              myRank, ranks.size(), static_cast<int>(tempAlgParams.dataType), tempAlgParams.sliceCount,
+              tempAlgParams.sliceOffset, tempAlgParams.stride, tempAlgParams.ranksForInputData.size());
+    for (size_t i = 0; i < tempAlgParams.ranksForInputData.size(); ++i) {
+        HCCL_INFO("[RunMeshAllGather] ranksForInputData[%zu]=%u", i, tempAlgParams.ranksForInputData[i]);
+    }
 
     CHK_RET(PreCheckMeshAllGather(tempAlgParams, templateResource, ranks, myRank));
     if (ranks.size() <= 1 || templateResource.channels.empty()) {
         ranksForOutputData = tempAlgParams.ranksForInputData;
+        HCCL_INFO("[RunMeshAllGather] no sendRecv needed, ranksForOutputDataNum=%zu",
+                  ranksForOutputData.size());
         return HCCL_SUCCESS;
     }
 
@@ -132,6 +147,8 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     std::vector<u32> algRanksForInputData;
     CHK_RET(GetAlgRanksForInputData(ranks, ranksForInputData, algRanksForInputData));
+    HCCL_INFO("[RunMeshAllGather] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
+              myAlgRank, rankSize, dataTypeSize, sliceSize);
 
     for (u32 connectedIdx = 0; connectedIdx < rankSize; ++connectedIdx) {
         const u32 connectedRank = ranks[connectedIdx];
@@ -144,9 +161,16 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, TemplateRes
         // 对端数据来源通过本端数据来源在 algRank 空间内环状平移得到。
         std::vector<u32> connectedInputRanks;
         CHK_RET(GetConnectedInputRanks(ranks, algRanksForInputData, rankSize, connectedOffset, connectedInputRanks));
+        HCCL_INFO("[RunMeshAllGather] connectedRank=%u, connectedAlgRank=%u, connectedOffset=%u, "
+                  "connectedInputRankNum=%zu",
+                  connectedRank, connectedIdx, connectedOffset, connectedInputRanks.size());
+        for (size_t i = 0; i < connectedInputRanks.size(); ++i) {
+            HCCL_INFO("[RunMeshAllGather] connectedInputRanks[%zu]=%u", i, connectedInputRanks[i]);
+        }
         const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, *linkRemote, sliceSize, stride};
         GetSendRecvInfo(sliceInfo, ranksForInputData, connectedInputRanks, sendRecvInfos);
     }
+    HCCL_INFO("[RunMeshAllGather] end: sendRecvInfoNum=%zu", sendRecvInfos.size());
     return HCCL_SUCCESS;
 }
 
