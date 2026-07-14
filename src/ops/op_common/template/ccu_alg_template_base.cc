@@ -250,4 +250,49 @@ HcclResult CcuAlgTemplateBase::GetToken(const BuffInfo &buffinfo, uint64_t &toke
     return HCCL_E_PTR;
 }
 
+HcclResult CcuAlgTemplateBase::CalcDieSplitRatio(HcclComm comm, uint32_t myRank, bool is2Plus6,
+    const std::vector<HcclChannelDesc>& majorChs,
+    const std::vector<HcclChannelDesc>& minorChs, double& ratio)
+{
+    ratio = 1.0;
+    if (is2Plus6 && !majorChs.empty() && !minorChs.empty()) {
+        uint32_t majorBw = 0, minorBw = 0;
+        CHK_RET(GetChannelBwCoeff(comm, myRank, majorChs[0], majorBw));
+        CHK_RET(GetChannelBwCoeff(comm, myRank, minorChs[0], minorBw));
+        if (majorBw + minorBw > 0) {
+            ratio = static_cast<double>(majorBw) / (majorBw + minorBw);
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult CcuAlgTemplateBase::SplitChannelsByDie(HcclComm comm, uint32_t myRank,
+    std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc,
+    std::map<uint32_t, std::vector<HcclChannelDesc>>& singleChByDie,
+    std::map<uint32_t, std::vector<HcclChannelDesc>>& multiChByDie,
+    bool& is2Plus6, std::set<u32>* closPeers)
+{
+    using DieIdType = uint32_t;
+    const uint32_t dieIdTypeSize = sizeof(DieIdType);
+    for (auto& rankToChannels : rankIdToChannelDesc) {
+        u32 remoteRank = rankToChannels.first;
+        std::vector<HcclChannelDesc>& channelList = rankToChannels.second;
+        bool isMulti = channelList.size() > 1;
+        if (isMulti) {
+            is2Plus6 = true;
+            if (closPeers != nullptr) {
+                closPeers->insert(remoteRank);
+            }
+        }
+        for (const auto& channel : channelList) {
+            DieIdType dieId = 0;
+            EndpointDesc localEndpoint = channel.localEndpoint;
+            CHK_RET(HcclRankGraphGetEndpointInfo(comm, myRank, &localEndpoint, ENDPOINT_ATTR_DIE_ID,
+                dieIdTypeSize, static_cast<void*>(&dieId)));
+            (isMulti ? multiChByDie : singleChByDie)[dieId].emplace_back(channel);
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
 } // namespace ops_hccl
