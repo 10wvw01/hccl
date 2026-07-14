@@ -376,7 +376,7 @@ u64 CalReducescatterDataSize2D(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, dou
             yStepP2pDataSize[0] = xStepP2pDataSize[0] * bandwidthRatio * (yRankSize - 1) / (xRankSize - 1);
             yStepP2pDataSize[0] = yStepP2pDataSize[0] / justifyLen * justifyLen;
         }
-        u64 sumXDataSzie = 0;
+        u64 sumXDataSzie = xStepP2pDataSize[0];
         u64 sumYDataSzie = yStepP2pDataSize[0] + xStepP2pDataSize[0];
         // 2. 计算后续的通信数据
         for (u64 index = 1; index < step - finStepMark; index++) {
