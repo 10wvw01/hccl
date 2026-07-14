@@ -609,6 +609,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
                 tempAlgParamLocalCopy.count = currDataCountTmp; // 128
                 tempAlgParamLocalCopy.sliceSize = currDataCountTmp * dataTypeSize_ ; // 128*4
+                if (i == rankSize_ - 1 && loop == 1) {
+                    processedDataCount = processedDataCount - 2;
+                }
                 tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCount * dataTypeSize_; // i * 512
                 tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
 
