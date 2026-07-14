@@ -112,6 +112,11 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
             fillKernel(pair.first == fullmeshDieId_ ? KERNEL_CLOS_MINOR : KERNEL_CLOS_MAJOR, pair.second);
         }
     } else {
+        if (singleChByDie.size() < 2) {
+            HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][PartitionChannels] singleChByDie size[%zu] is less than 2, "
+                "cannot partition channels for non-2Plus6 topology.", singleChByDie.size());
+            return HcclResult::HCCL_E_INTERNAL;
+        }
         kernelCount_ = MAX_KERNEL_NUM_2DIE - 1;
         auto it0 = singleChByDie.begin();
         auto it1 = std::next(it0);
