@@ -121,6 +121,7 @@ HcclResult HcclChannelNotifyWaitOnThreadDefault(ThreadHandle thread, ChannelHand
 HcclResult HcclChannelNotifyWaitDefault(ChannelHandle channel, uint32_t localNotifyIdx, uint32_t fallbackTimeout);
 
 void HcommPrimitivesDlInit(void* libHcommHandle);  // 本模块独立初始化
+void HcommPrimitivesDlInitByHandles(void* controlHandle, void* dataPlaneHandle);
 
 #ifdef __cplusplus
 }
