@@ -396,35 +396,47 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
 
     // 2.2 计算loop次数
-    maxTmpMemSize_ = resCtx.cclMem.size;
+    u64 templateScratchMultiplier = rsAlgTempX.CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
-    u64 scratchBoundDataSize = maxTmpMemSize_/ rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
-    HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_, transportBoundDataSize, scratchBoundDataSize);
+    u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier;
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
-    CHK_PRT_RET(maxCountPerLoop == 0, "maxCountPerLoop is 0", HCCL_E_INTERNAL);
-    HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
-    u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
-    HCCL_DEBUG("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
+    u64 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
+    u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
+    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    HCCL_DEBUG("[%s] myRank[%u] loopTimes[%llu] perLoopSize[%u] dataSize_[%u] rankSize_[%u]",
+                    __func__, myRank_, loopTimes, perLoopSize, dataSize_, rankSize_);
+    std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize);
+    std::vector<u64> dataWholeSize(rankSize_, dataSize_);
+
+    // maxTmpMemSize_ = resCtx.cclMem.size;
+    // u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
+    // u64 scratchBoundDataSize = maxTmpMemSize_/ rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
+    // HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_, transportBoundDataSize, scratchBoundDataSize);
+    // u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
+    // CHK_PRT_RET(maxCountPerLoop == 0, "maxCountPerLoop is 0", HCCL_E_INTERNAL);
+    // HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
+    // u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
+    // HCCL_DEBUG("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
 
     // 2.3 获取每个rank，每个loop切分的数据量count
-    auto multiLoopAllRankSplitData =
-        OmniPipeSplitRankDataLoop(allRankSplitData, maxCountPerLoop, loopTimes, dataTypeSize_);
-    HCCL_DEBUG("[%s]maxCountPerLoop[%u], loopTimes[%u]", __func__, maxCountPerLoop, loopTimes);
-    for (int i=0;i<multiLoopAllRankSplitData.size();i++){
-        for(int j=0;j<multiLoopAllRankSplitData[i].size();j++){
-            HCCL_INFO("[jjy]rankId[%d],allRankSplitData[%d][%d]:%d multiLoopAllRankSplitData[%d][%d]:%d", myRank_, i, j, allRankSplitData[i], i, j, multiLoopAllRankSplitData[i][j]);
-        }
-    }
+    // auto multiLoopAllRankSplitData =
+    //     OmniPipeSplitRankDataLoop(allRankSplitData, maxCountPerLoop, loopTimes, dataTypeSize_);
+    // HCCL_DEBUG("[%s]maxCountPerLoop[%u], loopTimes[%u]", __func__, maxCountPerLoop, loopTimes);
+    // for (int i=0;i<multiLoopAllRankSplitData.size();i++){
+    //     for(int j=0;j<multiLoopAllRankSplitData[i].size();j++){
+    //         HCCL_INFO("[jjy]rankId[%d],allRankSplitData[%d][%d]:%d multiLoopAllRankSplitData[%d][%d]:%d", myRank_, i, j, allRankSplitData[i], i, j, multiLoopAllRankSplitData[i][j]);
+    //     }
+    // }
 
-    for (int i=0;i< allRankSplitData.size(); i++){
-        HCCL_DEBUG("[%s]xx rankId[%d], allRankSplitData[%d]:%d", __func__, myRank_, i, allRankSplitData[i]);
-    }
+    // for (int i=0;i< allRankSplitData.size(); i++){
+    //     HCCL_DEBUG("[%s]xx rankId[%d], allRankSplitData[%d]:%d", __func__, myRank_, i, allRankSplitData[i]);
+    // }
     // 3.1 计算n-1次loop的slice信息
-    u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
-    perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
-    std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
-    std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
+    // u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
+    // perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
+    // HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
+    // std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
+    // std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = dataSizePerLoop;
     sliceParam.dataWholeSize = dataWholeSize;
@@ -453,14 +465,14 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             multiLoopAllRankSplitData.size() <= loop,
             HCCL_ERROR("[CcuV2ReduceOmniPipeExecutor][Orchestrate] multiLoopAllRankSplitData.size() <= loop"),
             HCCL_E_PARA);
-
+        u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
         sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
         sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
         sliceParam.endpointAttrBw = endpointAttrBwAvgRS;
         omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
         sliceParam.endpointAttrBw = endpointAttrBwAvgG;
         omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-        u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
+        // u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         
         // std::cout<<sliceParam.toString()<<std::endl;
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
@@ -611,7 +623,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             }
 
             for (u32 i = 0; i < rankSize_; i++) {
-                u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
+                // u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
+                u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
                 TemplateDataParams tempAlgParamLocalCopy;
                 tempAlgParamLocalCopy.localCopyFlag = 1;
@@ -633,11 +646,11 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 }
 
                 // HCCL_DEBUG("[%s] tempAlgParamLocalCopyxx.buffInfo.inputPtr[%u] ",&(param.inputPtr));
-                HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
-                myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
+                HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCountTmp[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
+                myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCountTmp[i], processedDataCount, rankOffset, rankLoopOffset);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
-                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
+                rankLoopOffset += currDataCountTmp * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
             }
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
                 
