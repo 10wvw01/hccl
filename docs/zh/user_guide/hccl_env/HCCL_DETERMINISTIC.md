@@ -27,7 +27,7 @@ HCCL_DETERMINISTIC支持的取值如下：
   - 相较于确定性计算，开启保序功能后会产生一定的性能下降，建议在推理场景下使用该功能。
   - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，
     - 仅支持多机对称分布场景，不支持非对称分布（即卡数非对称）的场景。
-    - 支持归约类算子AllReduce和ReduceScatter、ReduceScatterV。
+    - 支持归约类通信算子AllReduce和ReduceScatter、ReduceScatterV。
   - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，
     - 仅支持多机对称分布场景，不支持非对称分布（即卡数非对称）的场景。
     - 支持归约类通信算子AllReduce、ReduceScatter，支持数据类型float16、float32、bfp16，归约操作仅支持sum。
