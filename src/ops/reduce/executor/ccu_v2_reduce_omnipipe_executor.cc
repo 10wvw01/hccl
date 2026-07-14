@@ -396,7 +396,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
 
     // 2.2 计算loop次数
-    u64 templateScratchMultiplier = tempMap[OMNIPIPE_RS_LEVEL0]->CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
+    u64 templateScratchMultiplier = rsAlgTempX.CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
     u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier; // / HCCL_MIN_SLICE_ALIGN* HCCL_MIN_SLICE_ALIGN
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
@@ -457,8 +457,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
             sliceParam.endpointAttrBw = endpointAttrBwAvgG;
             omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-            u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         }
+        u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         // std::cout<<sliceParam.toString()<<std::endl;
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
