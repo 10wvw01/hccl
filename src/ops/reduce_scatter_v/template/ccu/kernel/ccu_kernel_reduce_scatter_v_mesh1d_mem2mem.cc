@@ -26,7 +26,7 @@ static CcuResult ParseKernelArg(
     ctx.outputDataType = ctx.dataType;
     if (ctx.outputDataType == HcclDataType::HCCL_DATA_TYPE_RESERVED) {
         ctx.outputDataType = ctx.dataType;
-        HCCL_DEBUG("[CcuKernelReduceScatterMesh1DMem2Mem] outputDataType is [INVALID], set outputDataType to[%d]",
+        HCCL_DEBUG("[CcuKernelReduceScatterVMesh1DMem2Mem] outputDataType is [INVALID], set outputDataType to[%d]",
             ctx.dataType);
     }
 
