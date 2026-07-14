@@ -396,15 +396,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     }
 
     // 2.2 计算loop次数
-    maxTmpMemSize_ = resCtx.cclMem.size;
+    u64 templateScratchMultiplier = tempMap[OMNIPIPE_RS_LEVEL0]->CalcScratchMultiple(BufferType::DEFAULT, BufferType::DEFAULT);
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
-    u64 scratchBoundDataSize = maxTmpMemSize_/ rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
-    HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_, transportBoundDataSize, scratchBoundDataSize);
+    u64 scratchBoundDataSize = maxTmpMemSize_ / templateScratchMultiplier; // / HCCL_MIN_SLICE_ALIGN* HCCL_MIN_SLICE_ALIGN
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
-    CHK_PRT_RET(maxCountPerLoop == 0, "maxCountPerLoop is 0", HCCL_E_INTERNAL);
-    HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
-    u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
-    HCCL_DEBUG("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
+
+    u64 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
 
     // 2.3 获取每个rank，每个loop切分的数据量count
     auto multiLoopAllRankSplitData =
@@ -453,15 +450,15 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             multiLoopAllRankSplitData.size() <= loop,
             HCCL_ERROR("[CcuV2ReduceOmniPipeExecutor][Orchestrate] multiLoopAllRankSplitData.size() <= loop"),
             HCCL_E_PARA);
-
-        sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
-        sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-        sliceParam.endpointAttrBw = endpointAttrBwAvgRS;
-        omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
-        sliceParam.endpointAttrBw = endpointAttrBwAvgG;
-        omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-        u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
-        
+        if (loop == 0 || !isSameLoop(multiLoopAllRankSplitData[loop - 1], multiLoopAllRankSplitData[loop])) {
+            sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
+            sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
+            sliceParam.endpointAttrBw = endpointAttrBwAvgRS;
+            omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
+            sliceParam.endpointAttrBw = endpointAttrBwAvgG;
+            omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
+            u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
+        }
         // std::cout<<sliceParam.toString()<<std::endl;
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
