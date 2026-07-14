@@ -23,11 +23,11 @@ namespace ops_hccl {
  *   - CCU_MS: 返回 CcuMsEngine（传入 comm 供 CreateRes 使用）
  *   - CCU_SCHED: 返回 CcuScheEngine（传入 comm 供 CreateRes 使用）
  */
-std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(HcclComm comm)
+std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(void)
 {
     switch (engineType) {
         case HcclAlgEngineType::AICPU:
-            return std::make_unique<AiCpuEngine>(comm);
+            return std::make_unique<AiCpuEngine>();
         default:
             HCCL_ERROR("[HcclAlgorithm][GetEngine] invalid engineType[%d]", static_cast<int>(engineType));
             return nullptr;
@@ -50,8 +50,8 @@ std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
 void HcclAlgorithm::Dump()
 {
     HCCL_INFO("[HcclAlgorithm][Dump] engineType[%d], hcclCmdType[%d], execPolicy[%d], childrenNum[%zu]",
-              static_cast<int>(engineType), static_cast<int>(hcclCmdType),
-              static_cast<int>(algoExecDesc.execPolicy), algoExecDesc.children.size());
+        static_cast<int>(engineType), static_cast<int>(hcclCmdType), static_cast<int>(algoExecDesc.execPolicy),
+        algoExecDesc.children.size());
 }
 
 /**

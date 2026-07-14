@@ -67,7 +67,7 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
 // CreateRes / LaunchKernel
 // ═══════════════════════════════════════════════════════════════════
 
-HcclResult AiCpuEngine::CreateRes(AlgResourceRequest &res)
+HcclResult AiCpuEngine::CreateRes(HcclComm comm, AlgResourceRequest &res)
 {
     resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
     resCtx_.slaveThreadNum = res.slaveThreadNum;
@@ -76,7 +76,7 @@ HcclResult AiCpuEngine::CreateRes(AlgResourceRequest &res)
     // 从通信域获取 CCL buffer
     void *cclBufferAddr = nullptr;
     uint64_t cclBufferSize = 0;
-    CHK_RET(HcclGetHcclBuffer(comm_, &cclBufferAddr, &cclBufferSize));
+    CHK_RET(HcclGetHcclBuffer(comm, &cclBufferAddr, &cclBufferSize));
     resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
 
     // 线程预留：实际线程创建需要 stream 参数，在 LaunchKernel 中完成
@@ -89,7 +89,7 @@ HcclResult AiCpuEngine::CreateRes(AlgResourceRequest &res)
         u32 channelNum = static_cast<u32>(channelRequest.size());
         std::vector<ChannelHandle> levelNChannels(channelNum);
         if (channelNum > 0) {
-            CHK_RET(HcclChannelAcquire(comm_, CommEngine::COMM_ENGINE_CPU, channelRequest.data(),
+            CHK_RET(HcclChannelAcquire(comm, CommEngine::COMM_ENGINE_CPU, channelRequest.data(),
                 channelNum, levelNChannels.data()));
         }
         std::vector<ChannelInfo> levelChannels;

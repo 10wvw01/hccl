@@ -11,6 +11,8 @@
 #include <hccl/hccl_rank_graph.h>
 #include "hccl_algorithm.h"
 #include "base_template.h"
+#include "base_engine.h"
+#include "ops_executor.h"
 
 extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 {
@@ -75,6 +77,18 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
         HCCL_INFO("subThread[%d] = %d", i, subThreads[i]);
     }
     return HCCL_SUCCESS;
+}
+
+// ============================================================
+// HcclAlgorithm 桩 (替代 hccl_algorithm.cc，提供 GetEngine/GetExecutor)
+// ============================================================
+std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(void)
+{
+    return nullptr;
+}
+std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
+{
+    return std::make_unique<OpsExecutor>(*this, param);
 }
 
 // ============================================================

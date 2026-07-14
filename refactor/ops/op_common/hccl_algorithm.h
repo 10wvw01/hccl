@@ -166,7 +166,7 @@ public:
      *   - CCU_SCHED: CcuScheEngine（传入 comm）
      * 返回 unique_ptr<BaseEngine>，所有权移交调用方。
      */
-    std::unique_ptr<BaseEngine> GetEngine(HcclComm comm);
+    std::unique_ptr<BaseEngine> GetEngine(void);
 
     /**
      * 根据算子类型与执行策略构造对应的 Executor。

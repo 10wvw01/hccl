@@ -25,7 +25,6 @@ OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
     dataInfo_.outputSize = param.outputSize;
     dataInfo_.reduceOp = param.reduceType;
     dataInfo_.dataType = param.DataDes.dataType;
-
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
 }
 
@@ -127,10 +126,10 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
         subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
         subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
     }
+    engine_ = algo_.GetEngine().release();
     // TODO：考虑不同Executor
     // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
     channelTable_ = RestoreChannelMap(resCtx);
-
     return HCCL_SUCCESS;
 }
 

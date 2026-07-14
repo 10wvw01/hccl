@@ -62,7 +62,7 @@ public:
      *   - HCCL_SUCCESS: 资源创建成功
      *   - : 资源创建失败
      */
-    virtual HcclResult CreateRes(AlgResourceRequest &res) = 0;
+    virtual HcclResult CreateRes(HcclComm comm, AlgResourceRequest &res) = 0;
 
     /**
      * 下发 kernel 到设备侧执行。

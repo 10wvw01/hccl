@@ -26,7 +26,6 @@ namespace ops_hccl {
 class AiCpuEngine : public BaseEngine {
 public:
     AiCpuEngine() = default;
-    explicit AiCpuEngine(HcclComm comm) : comm_(comm) {}
     ~AiCpuEngine() override = default;
 
     /**
@@ -44,7 +43,7 @@ public:
      *   - HCCL_SUCCESS: 资源创建成功
      *   - HCCL_E_INTERNAL: 资源创建失败（如 channel/thread/notify 创建失败）
      */
-    HcclResult CreateRes(AlgResourceRequest &res) override;
+    HcclResult CreateRes(HcclComm comm, AlgResourceRequest &res) override;
 
     /**
      * 下发 AICPU kernel 到设备侧执行。
@@ -85,7 +84,6 @@ public:
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;
-    HcclComm comm_ = nullptr;
 
     // ───────────── AICPU 数据传输 wrapper (私有成员函数) ─────────────
     // 基于 Hcomm*OnThread 系列 AICPU 专用原语, 复制自 alg_data_trans_wrapper.cc

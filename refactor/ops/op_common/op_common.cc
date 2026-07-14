@@ -32,16 +32,15 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
                       std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                       HcclAlgorithm &alg, const ResPackGraphMode &resPack)
 {
-    auto engine = alg.GetEngine(comm);
+    auto engine = alg.GetEngine();
     auto executor = alg.GetExecutor(param);
-    executor->SetEngine(engine.get());
 
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get()));
 
     AlgResourceRequest resReq;
     CHK_RET(executor->CalcRes(resReq));
 
-    CHK_RET(engine->CreateRes(resReq));
+    CHK_RET(engine->CreateRes(comm, resReq));
 
     CHK_RET(engine->LaunchKernel(param, *executor));
 

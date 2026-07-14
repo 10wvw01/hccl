@@ -66,8 +66,6 @@ public:
 
     HcclResult CalcRes(AlgResourceRequest &resReq);
 
-    void SetEngine(BaseEngine *engine) { engine_ = engine; }
-
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
 private:
