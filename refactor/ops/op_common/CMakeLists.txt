@@ -21,13 +21,12 @@
 
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/../template/engines
     ${CMAKE_CURRENT_LIST_DIR}/../template
-    ${CMAKE_CURRENT_LIST_DIR}/../engines
-    ${CMAKE_CURRENT_LIST_DIR}/../engines/aicpu
-    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_ms
-    ${CMAKE_CURRENT_LIST_DIR}/../engines/ccu_sche
-    ${CMAKE_CURRENT_LIST_DIR}/../engines/aiv
+    ${CMAKE_CURRENT_LIST_DIR}/../engine
+    ${CMAKE_CURRENT_LIST_DIR}/../engine/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/../engine/ccu_ms
+    ${CMAKE_CURRENT_LIST_DIR}/../engine/ccu_sche
+    ${CMAKE_CURRENT_LIST_DIR}/../engine/aiv
     ${CMAKE_CURRENT_LIST_DIR}/../executor
     ${CMAKE_CURRENT_LIST_DIR}/..
 )

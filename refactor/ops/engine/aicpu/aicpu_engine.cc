@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "aicpu_launcher.h"
+#include "aicpu_engine.h"
 
 #include "load_kernel.h"
 #include "ops_executor.h"
@@ -37,7 +37,7 @@ static void TraceDataSlice(const char *funcName, const char *transType, u32 slic
     const DataSlice &srcSlice, const DataSlice &dstSlice, const void *src, const void *dst, u64 len,
     HcclDataType dataType, HcclReduceOp reduceOp)
 {
-    HCCL_DEBUG("[AicpuLauncher][%s][%s] sliceIdx[%u], sliceNum[%u], src[%p], dst[%p], len[%llu].",
+    HCCL_DEBUG("[AiCpuEngine][%s][%s] sliceIdx[%u], sliceNum[%u], src[%p], dst[%p], len[%llu].",
         funcName, transType, sliceIdx, sliceNum, src, dst,
         static_cast<unsigned long long>(len));
 }
@@ -66,7 +66,7 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
 // CreateRes / LaunchKernel
 // ═══════════════════════════════════════════════════════════════════
 
-HcclResult AiCpuLauncher::CreateRes(AlgResourceRequest &res)
+HcclResult AiCpuEngine::CreateRes(AlgResourceRequest &res)
 {
     resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
     resCtx_.slaveThreadNum = res.slaveThreadNum;
@@ -104,23 +104,23 @@ HcclResult AiCpuLauncher::CreateRes(AlgResourceRequest &res)
         resCtx_.channels.emplace_back(std::move(levelChannels));
     }
 
-    HCCL_INFO("[AiCpuLauncher][CreateRes] success, slaveThreadNum[%u], channelLevel[%zu]",
+    HCCL_INFO("[AiCpuEngine][CreateRes] success, slaveThreadNum[%u], channelLevel[%zu]",
               resCtx_.slaveThreadNum, resCtx_.channels.size());
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::LaunchKernel(const OpParam &param, OpsExecutor &executor)
+HcclResult AiCpuEngine::LaunchKernel(const OpParam &param, OpsExecutor &executor)
 {
-    HCCL_INFO("[AiCpuLauncher][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
+    HCCL_INFO("[AiCpuEngine][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
               param.commName, param.tag, param.algTag);
     CHK_RET(LoadAICPUKernel());
     CHK_RET(HcclLaunchAicpuKernel(param, executor, resCtx_));
-    HCCL_INFO("[AiCpuLauncher][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
+    HCCL_INFO("[AiCpuEngine][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
+HcclResult AiCpuEngine::Send(const TransferContext &ctx) {
     // Step 1: 方向判断
     //   enableRemoteMemAccess && buffType==OUTPUT → READ (从远端拉取到本地 output)
     //   其他场景 → WRITE (推送数据到远端)
@@ -130,7 +130,7 @@ HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
 
     // Step 2: 获取线程
     if (ctx.templateRes.threads.empty()) {
-        HCCL_ERROR("[AiCpuLauncher][Send] threads is empty");
+        HCCL_ERROR("[AiCpuEngine][Send] threads is empty");
         return HCCL_E_INTERNAL;
     }
     const ThreadHandle &thread = ctx.templateRes.threads[0];
@@ -182,12 +182,12 @@ HcclResult AiCpuLauncher::Send(const TransferContext &ctx) {
         return RecvWrite(info, thread, ctx.reduceOp);
     }
 
-    HCCL_ERROR("[AiCpuLauncher][Send] channel not found, dstRank[%u], srcRank[%u]", dstRank, srcRank);
+    HCCL_ERROR("[AiCpuEngine][Send] channel not found, dstRank[%u], srcRank[%u]", dstRank, srcRank);
     return HCCL_E_INTERNAL;
 }
 
 // ───────────── Write 系列 (推送) ─────────────
-HcclResult AiCpuLauncher::SendWrite(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
+HcclResult AiCpuEngine::SendWrite(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
 {
     const std::vector<DataSlice> srcSlices = sendInfo.slices_.srcSlices_;
     const std::vector<DataSlice> dstSlices = sendInfo.slices_.dstSlices_;
@@ -217,7 +217,7 @@ HcclResult AiCpuLauncher::SendWrite(const DataInfo &sendInfo, const ThreadHandle
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::RecvWrite(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
+HcclResult AiCpuEngine::RecvWrite(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
 {
     // Write 模式下接收方只做 notify 同步, reduce 发生在对端(写方), reduceOp 此处不影响。
     (void)reduceOp;
@@ -229,7 +229,7 @@ HcclResult AiCpuLauncher::RecvWrite(const DataInfo &recvInfo, const ThreadHandle
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
+HcclResult AiCpuEngine::SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
 {
     const std::vector<DataSlice> srcSlices = sendRecvInfo.sendRecvSlices_.txSlicesList_.srcSlices_;
     const std::vector<DataSlice> dstSlices = sendRecvInfo.sendRecvSlices_.txSlicesList_.dstSlices_;
@@ -263,7 +263,7 @@ HcclResult AiCpuLauncher::SendRecvWrite(const SendRecvInfo &sendRecvInfo, const 
 
 // ───────────── Read 系列 (拉取) ─────────────
 
-HcclResult AiCpuLauncher::SendRead(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
+HcclResult AiCpuEngine::SendRead(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
 {
     // Read 模式下被读方只做 notify 同步, 实际搬移由对端(读方)完成, reduceOp 此处不影响。
     (void)reduceOp;
@@ -275,7 +275,7 @@ HcclResult AiCpuLauncher::SendRead(const DataInfo &sendInfo, const ThreadHandle 
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::RecvRead(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
+HcclResult AiCpuEngine::RecvRead(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp)
 {
     const std::vector<DataSlice> srcSlices = recvInfo.slices_.srcSlices_;
     const std::vector<DataSlice> dstSlices = recvInfo.slices_.dstSlices_;
@@ -305,7 +305,7 @@ HcclResult AiCpuLauncher::RecvRead(const DataInfo &recvInfo, const ThreadHandle 
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuLauncher::SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread,
+HcclResult AiCpuEngine::SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread,
                                        HcclReduceOp reduceOp)
 {
     const std::vector<DataSlice> srcSlices = sendRecvInfo.sendRecvSlices_.rxSlicesList_.srcSlices_;

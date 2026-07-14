@@ -37,7 +37,7 @@ namespace ops_hccl {
  * 参考实现：
  *   - src/ops/all_gather/template/aicpu/ins_temp_all_gather_mesh_1D.cc
  *   - src/ops/all_gather/template/aicpu/ins_temp_all_gather_nhr.cc
- *   - refactor/ops/launcher/aicpu/aicpu_launcher.cc（数据传输 wrapper 实现参考）
+ *   - refactor/ops/engine/aicpu/aicpu_engine.cc（数据传输 wrapper 实现参考）
  */
 class AicpuBaseTemplate : public BaseTemplate {
 public:
@@ -66,11 +66,16 @@ protected:
      * 基类 KernelRun 在 PreCopy 后、PostCopy 前调用。
      * 输入参数：
      *   - templateResource: 通信资源（channels / threads）
+     * 输出参数：
+     *   - sendRecvInfos: 子类生成的收发描述列表，基类统一调 SendAll 执行
+     *   - ranksForOutputData: 输出数据对应的 rank 列表
      * 返回值：
      *   - HCCL_SUCCESS: 通信成功
      *   - 其他: 通信失败错误码
      */
-    virtual HcclResult RunAlgorithm(TemplateResource &templateResource) = 0;
+    virtual HcclResult RunAlgorithm(TemplateResource &templateResource,
+                                    std::vector<SendRecvInfo> &sendRecvInfos,
+                                    std::vector<u32> &ranksForOutputData) = 0;
 
     /**
      * 本地预处理（input -> output / ccl buffer）。
@@ -87,6 +92,12 @@ protected:
      * scratch 布局同 PreCopy。子类可按算法语义覆盖。
      */
     virtual HcclResult PostCopy(const std::vector<ThreadHandle> &threads);
+
+    /**
+     * 统一逐个执行 SendRecv。
+     * 由 KernelRun 在 RunAlgorithm 返回后调用。
+     */
+    HcclResult SendAll(const std::vector<SendRecvInfo> &sendRecvInfos, TemplateResource &templateResource);
 
     /** 工具：判断 channels 是否为 PCIe 协议（决定 Read/Write 模式）。 */
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels) const

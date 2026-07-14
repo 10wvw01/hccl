@@ -35,8 +35,9 @@ public:
     ~AllGatherMeshTemplate() = default;
 
 protected:
-    /** 通信编排：调 RunMeshAllGather 生成 SendRecvInfo 列表，逐个执行 SendRecv。 */
-    HcclResult RunAlgorithm(TemplateResource &templateResource) override;
+    /** 通信编排：调 RunMeshAllGather 生成 SendRecvInfo 列表，由基类统一执行 SendRecv。 */
+    HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<SendRecvInfo> &sendRecvInfos,
+                            std::vector<u32> &ranksForOutputData) override;
 };
 
 }  // namespace ops_hccl

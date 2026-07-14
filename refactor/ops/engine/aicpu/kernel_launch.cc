@@ -37,8 +37,8 @@ namespace ops_hccl {
  *   6. 上报 profiling，通知 Host stream 完成，结束 batch mode；
  *   7. 释放通信域句柄（HcommReleaseComm）。
  * 与旧实现差异：
- *   - resCtx 由 AiCpuLauncher::CreateRes 创建并直接传入，无需从 param->resCtx 反序列化；
- *   - executor 由调用方（AiCpuLauncher::LaunchKernel）传入，无需通过 CollAlgExecRegistry 重新获取。
+ *   - resCtx 由 AiCpuEngine::CreateRes 创建并直接传入，无需从 param->resCtx 反序列化；
+ *   - executor 由调用方（AiCpuEngine::LaunchKernel）传入，无需通过 CollAlgExecRegistry 重新获取。
  * 输入参数：
  *   - param: 算子参数
  *   - executor: 执行器引用，提供 Orchestrate 接口

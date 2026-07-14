@@ -11,7 +11,7 @@
 #include "op_common.h"
 
 #include "ops_executor.h"
-#include "base_launcher.h"
+#include "base_engine.h"
 #include "log.h"
 #include "topo/topo_host.h"
 
@@ -20,7 +20,7 @@ namespace ops_hccl {
 /**
  * 算子执行入口。
  * 流程：
- *   1. 通过 alg 获取引擎（launcher）与执行器（executor）；
+ *   1. 通过 alg 获取引擎（engine）与执行器（executor）；
  *   2. executor 计算算法分级信息与资源需求；
  *   3. 引擎按自身方式创建运行时资源；
  *   4. 引擎下发 kernel，内部回调 executor.Orchestrate 完成算法编排。

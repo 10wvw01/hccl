@@ -21,7 +21,7 @@
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/../op_common
-    ${CMAKE_CURRENT_LIST_DIR}/../launcher/aicpu
+    ${CMAKE_CURRENT_LIST_DIR}/../engine/aicpu
 )
 
 target_sources(hccl PRIVATE

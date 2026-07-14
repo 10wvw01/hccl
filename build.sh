@@ -452,6 +452,7 @@ function build_ut() {
           -DREFACTOR_TEMPLATE=ON \
           -DREFACTOR_UTILS=ON \
           -DREFACTOR_ALGORITHM=ON \
+          -DREFACTOR_ENGINE=ON \
           -DREFACTOR_LAUNCHER=ON"
       [ "${REFACTOR_UT_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_UT_ONLY=ON"
       [ "${REFACTOR_ONLY}" = "ON" ] && CMAKE_ARGS="${CMAKE_ARGS} -DREFACTOR_ONLY=ON"
@@ -541,6 +542,7 @@ function build_hccl() {
             -DREFACTOR_TEMPLATE=ON \
             -DREFACTOR_UTILS=ON \
             -DREFACTOR_ALGORITHM=ON \
+            -DREFACTOR_ENGINE=ON \
             -DREFACTOR_LAUNCHER=ON"
     fi
 

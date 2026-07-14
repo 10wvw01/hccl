@@ -9,7 +9,8 @@
  */
 
 #include "mesh_primitives.h"
-#include "../../executor/ops_executor.h"
+#include "base_template.h"
+#include "utils/utils.h"
 
 namespace ops_hccl {
 

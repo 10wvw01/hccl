@@ -144,7 +144,7 @@ struct AlgoExecDesc {
 };
 
 class OpsExecutor;
-class BaseLauncher;
+class BaseEngine;
 /**
  * 算法描述对象，由上游 Selector 选定后注入。
  * 提供 GetEngine/GetExecutor 能力，供 HcclExecOp 入口获取引擎与执行器。
@@ -156,17 +156,17 @@ public:
     ~HcclAlgorithm() = default;
 
     /**
-     * 根据算法的引擎类型构造对应的 Launcher。
+     * 根据算法的引擎类型构造对应的 Engine。
      * 输入参数：
-     *   - comm: 通信域句柄，CCU Launcher 的 CreateRes 需要 comm 调用 HcclGetHcclBuffer/
-     *     HcclChannelAcquire/HcclCommQueryCcuIns；AiCpuLauncher 不使用（保持默认构造）
+     *   - comm: 通信域句柄，CCU Engine 的 CreateRes 需要 comm 调用 HcclGetHcclBuffer/
+     *     HcclChannelAcquire/HcclCommQueryCcuIns；AiCpuEngine 不使用（保持默认构造）
      * 返回值：
-     *   - AICPU: AiCpuLauncher
-     *   - CCU_MS: CcuMsLauncher（传入 comm）
-     *   - CCU_SCHED: CcuScheLauncher（传入 comm）
-     * 返回 unique_ptr<BaseLauncher>，所有权移交调用方。
+     *   - AICPU: AiCpuEngine
+     *   - CCU_MS: CcuMsEngine（传入 comm）
+     *   - CCU_SCHED: CcuScheEngine（传入 comm）
+     * 返回 unique_ptr<BaseEngine>，所有权移交调用方。
      */
-    std::unique_ptr<BaseLauncher> GetEngine(HcclComm comm);
+    std::unique_ptr<BaseEngine> GetEngine(HcclComm comm);
 
     /**
      * 根据算子类型与执行策略构造对应的 Executor。

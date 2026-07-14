@@ -34,8 +34,9 @@ public:
     ~AllGatherNhrTemplate() = default;
 
 protected:
-    /** 通信编排：调用 RunNhrAllGather 构造 SendRecvInfo 列表并逐个执行。 */
-    HcclResult RunAlgorithm(TemplateResource &templateResource) override;
+    /** 通信编排：调用 RunNhrAllGather 构造 SendRecvInfo 列表，由基类统一执行 SendRecv。 */
+    HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<SendRecvInfo> &sendRecvInfos,
+                            std::vector<u32> &ranksForOutputData) override;
 };
 
 }  // namespace ops_hccl

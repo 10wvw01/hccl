@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef OPS_HCCL_BASE_LAUNCHER_H
-#define OPS_HCCL_BASE_LAUNCHER_H
+#ifndef OPS_HCCL_BASE_ENGINE_H
+#define OPS_HCCL_BASE_ENGINE_H
 
 #include "hccl/base.h"
 #include "alg_param.h"
@@ -19,7 +19,7 @@
 namespace ops_hccl {
 
 // ★★★ 统一数据传输上下文 ★★★
-// 调用者填充, 传给 BaseLauncher::Send()。
+// 调用者填充, 传给 BaseEngine::Send()。
 struct TransferContext {
     // ──── 数据传输描述 ────
     bool enableRemoteMemAccess = true;             // 是否可直接访问对端 input/output
@@ -39,17 +39,17 @@ class OpsExecutor;
 
 
 /**
- * 引擎 Launcher 基类
+ * 引擎 Engine 基类
  * 职责：抽象不同设备引擎（AICPU/AIV/CCU）的 Kernel 下发与资源创建能力。
  * 不同引擎子类实现各自的资源创建方式与 kernel 下发流程：
  *   - AICPU: 创建 channel、notify、thread，下发 AICPU kernel
  *   - AIV:   创建 channel、共享内存，下发 AIV kernel
  *   - CCU:   创建 cclMem、notify、thread、channel，下发 CCU kernel
  */
-class BaseLauncher {
+class BaseEngine {
 public:
-    BaseLauncher() = default;
-    virtual ~BaseLauncher() = default;
+    BaseEngine() = default;
+    virtual ~BaseEngine() = default;
 
     /**
      * 创建引擎所需的运行时资源。
@@ -98,4 +98,4 @@ public:
 
 }  // namespace ops_hccl
 
-#endif  // OPS_HCCL_BASE_LAUNCHER_H
+#endif  // OPS_HCCL_BASE_ENGINE_H

@@ -1,6 +1,6 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * This program is free software; you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
@@ -8,26 +8,26 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef OPS_HCCL_AICPU_LAUNCHER_H
-#define OPS_HCCL_AICPU_LAUNCHER_H
+#ifndef OPS_HCCL_AICPU_ENGINE_H
+#define OPS_HCCL_AICPU_ENGINE_H
 
-#include "base_launcher.h"
+#include "base_engine.h"
 #include "kernel_launch.h"
 
 namespace ops_hccl {
 
 /**
- * AICPU 引擎 Launcher
+ * AICPU 引擎 Engine
  * 职责：实现 AICPU 引擎的资源创建与 kernel 下发能力。
  * 资源创建：通过 HcommChannelCreate/HcommThreadCreate/HcommNotifyCreate 创建 channel、notify、thread；
  * Kernel 下发：通过 HcclLaunchAicpuKernel 入口完成环境准备、算法编排与 profiling 上报。
  * resCtx_ 成员：CreateRes 创建的资源句柄回填到 resCtx_，供 LaunchKernel 直接使用，无需重新反序列化。
  */
-class AiCpuLauncher : public BaseLauncher {
+class AiCpuEngine : public BaseEngine {
 public:
-    AiCpuLauncher() = default;
-    explicit AiCpuLauncher(HcclComm comm) : comm_(comm) {}
-    ~AiCpuLauncher() override = default;
+    AiCpuEngine() = default;
+    explicit AiCpuEngine(HcclComm comm) : comm_(comm) {}
+    ~AiCpuEngine() override = default;
 
     /**
      * 创建 AICPU 引擎所需的运行时资源。
@@ -104,4 +104,4 @@ private:
 
 }  // namespace ops_hccl
 
-#endif  // OPS_HCCL_AICPU_LAUNCHER_H
+#endif  // OPS_HCCL_AICPU_ENGINE_H

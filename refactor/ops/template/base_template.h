@@ -11,10 +11,14 @@
 #ifndef OPS_HCCL_BASE_TEMPLATE_H
 #define OPS_HCCL_BASE_TEMPLATE_H
 
+#include <memory>
+
 #include "hccl_algorithm.h"
 #include "alg_param.h"
 
 namespace ops_hccl {
+
+class BaseEngine;
 
 struct TemplateResource {
     std::map<u32, std::vector<ChannelInfo>> channels;
@@ -50,8 +54,9 @@ struct TemplateDataParams {
  */
 class BaseTemplate {
 public:
-    explicit BaseTemplate(const u32 myRank_, const std::vector<u32> &ranks, HcclAlgEngineType engineType, TemplateDesc templateDesc)
-        : myRank_(myRank_), ranks(ranks), engineType(engineType), templateDesc(templateDesc) {}
+    explicit BaseTemplate(const u32 myRank, const std::vector<u32> &ranks, HcclAlgEngineType engineType, TemplateDesc templateDesc)
+        : myRank_(myRank), ranks_(ranks), engineType_(engineType), templateDesc_(templateDesc) {}
+    virtual ~BaseTemplate();
 
     /**
      * 计算算法所需的资源请求（notify、channel、thread 等）。
@@ -71,8 +76,8 @@ public:
      *   - HCCL_SUCCESS: 计算成功
      *   - HCCL_E_PARA: 参数非法
      */
-    HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
-        const u32 rankSize = static_cast<u32>(ranks.size());
+    virtual HcclResult CalcRes(HcclComm comm, AlgResourceRequest &res) {
+        const u32 rankSize = static_cast<u32>(ranks_.size());
         if (rankSize <= 1) {
             res.channels.emplace_back();
             return HCCL_SUCCESS;
@@ -81,7 +86,7 @@ public:
         // 为每个对端 rank 创建 HcclChannelDesc。
         constexpr u32 NOTIFY_NUM_PER_CHANNEL = 3;
         std::vector<HcclChannelDesc> levelChannels;
-        for (u32 rank : ranks) {
+        for (u32 rank : ranks_) {
             if (rank == myRank_) {
                 continue;
             }
@@ -108,13 +113,13 @@ public:
             desc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
             desc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
             levelChannels.push_back(desc);
-            channels.push_back(desc);
+            channels_.push_back(desc);
         }
         res.channels.push_back(levelChannels);
 
         // 根据算法类型计算线程数和 notify 数。
-        const bool isNhr = (templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR ||
-                            templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR_V1);
+        const bool isNhr = (templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR ||
+                            templateDesc_.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR_V1);
         u32 threadNum = 0;
         u32 notifyPerThread = 0;
         if (isNhr) {
@@ -163,12 +168,19 @@ public:
         return HCCL_SUCCESS;
     }
 
+    /**
+     * 获取引擎 Engine 引用（惰性构造），供 template 层调用 engine->Send。
+     */
+    BaseEngine &GetEngine();
+
 protected:
-    std::vector<HcclChannelDesc> channels;              // 参与通信的 rank 列表
+    std::vector<HcclChannelDesc> channels_;              // 参与通信的 rank 列表
     u32 myRank_ = INVALID_VALUE_RANKID;
-    std::vector<u32> ranks;
-    HcclAlgEngineType engineType = HcclAlgEngineType::AICPU;
-    TemplateDesc templateDesc;
+    std::vector<u32> ranks_;
+    HcclAlgEngineType engineType_ = HcclAlgEngineType::AICPU;
+    TemplateDesc templateDesc_;
+
+    BaseEngine *engine_ = nullptr;
 };
 
 }  // namespace ops_hccl

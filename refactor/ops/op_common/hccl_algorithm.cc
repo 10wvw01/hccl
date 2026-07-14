@@ -11,29 +11,23 @@
 #include "hccl_algorithm.h"
 
 #include "log.h"
-#include "base_launcher.h"
-#include "engines/aicpu/aicpu_launcher.h"
-#include "engines/ccu_ms/ccu_ms_launcher.h"
-#include "engines/ccu_sche/ccu_sche_launcher.h"
+#include "base_engine.h"
+#include "engine/aicpu/aicpu_engine.h"
 #include "executor/ops_executor.h"
 
 namespace ops_hccl {
 
 /**
- * 根据算法的引擎类型（engineType）构造对应的 Launcher。
- *   - AICPU: 返回 AiCpuLauncher（传入 comm 供 CreateRes 使用）
- *   - CCU_MS: 返回 CcuMsLauncher（传入 comm 供 CreateRes 使用）
- *   - CCU_SCHED: 返回 CcuScheLauncher（传入 comm 供 CreateRes 使用）
+ * 根据算法的引擎类型（engineType）构造对应的 Engine。
+ *   - AICPU: 返回 AiCpuEngine（传入 comm 供 CreateRes 使用）
+ *   - CCU_MS: 返回 CcuMsEngine（传入 comm 供 CreateRes 使用）
+ *   - CCU_SCHED: 返回 CcuScheEngine（传入 comm 供 CreateRes 使用）
  */
-std::unique_ptr<BaseLauncher> HcclAlgorithm::GetEngine(HcclComm comm)
+std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(HcclComm comm)
 {
     switch (engineType) {
         case HcclAlgEngineType::AICPU:
-            return std::make_unique<AiCpuLauncher>(comm);
-        case HcclAlgEngineType::CCU_MS:
-            return std::make_unique<CcuMsLauncher>(comm);
-        case HcclAlgEngineType::CCU_SCHED:
-            return std::make_unique<CcuScheLauncher>(comm);
+            return std::make_unique<AiCpuEngine>(comm);
         default:
             HCCL_ERROR("[HcclAlgorithm][GetEngine] invalid engineType[%d]", static_cast<int>(engineType));
             return nullptr;

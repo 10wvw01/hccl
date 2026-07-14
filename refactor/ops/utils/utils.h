@@ -22,18 +22,6 @@ inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &alg
 /** 本地拷贝：srcSlice -> dstSlice。 */
 HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice);
 
-/** 双向 Read：本端从 rxChannel 拉取，同时通过 txChannel 上的 notify 协同对端。 */
-HcclResult SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread);
-
-/** 双向 Write：本端经 txChannel 推送，同时等待对端通过 rxChannel 的 notify。 */
-HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread);
-
-/** 根据 isDmaRead 选择 Read 或 Write 模式执行 SendRecv。 */
-inline HcclResult SendRecv(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, bool isDmaRead)
-{
-    return isDmaRead ? SendRecvRead(sendRecvInfo, thread) : SendRecvWrite(sendRecvInfo, thread);
-}
-
 /** 前同步：主线程通知从线程可以开始通信。 */
 HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
                                const std::vector<u32> &notifyIdxMainToSub);
