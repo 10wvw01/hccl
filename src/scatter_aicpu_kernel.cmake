@@ -223,6 +223,7 @@ if(NOT HCCL_CANN_COMPAT_850)
         $<BUILD_INTERFACE:hcomm_headers>
         unified_dlog
         -Wl,--no-as-needed
+        aicpu_data_plane
         ccl_kernel
         hccl_kernel_compat
         -Wl,--no-as-needed
