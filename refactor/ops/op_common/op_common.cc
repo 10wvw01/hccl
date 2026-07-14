@@ -24,9 +24,13 @@
 #include "topo/topo_host.h"
 #include "exec_timeout_manager.h"
 #include "binary_stream.h"
+#include "engine/aicpu/dfx/task_exception_fun.h"
+#include "c_adaptor/common/alg_env_config.h"
 
 namespace ops_hccl {
-
+constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify idx
+constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超时时间偏移量
+constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
 /**
  * 算子执行入口。
  */
@@ -240,19 +244,136 @@ HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startu
 // 配置类函数（桩实现）
 // ============================================================
 
-HcclResult SingleRankProc(HcclComm comm, OpParam &param)
-{
-    // 仅在 rankSize==1 时调用，直接返回成功
-    return HcclResult::HCCL_SUCCESS;
-}
-
-HcclResult SetExecTimeout(const OpParam &param)
-{
+HcclResult GetHcclDfxOpInfoDataCount(const OpParam &param, const u32 &rankSize, uint64_t &sendCount) {
+    sendCount = 0;
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
+        CHK_PTR_NULL(param.all2AllVDataDes.sendCounts);
+        sendCount += *(reinterpret_cast<const uint64_t*>(param.all2AllVDataDes.sendCounts)); // 非v类算子，只上报入参里的count
+    } else if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV || param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+        CHK_PTR_NULL(param.all2AllVDataDes.sendCounts);
+        for (u64 i = 0; i < rankSize; i++) { // v类算子上报累加的count
+            sendCount += *(reinterpret_cast<const uint64_t*>(param.all2AllVDataDes.sendCounts) + i);
+        }
+    } else if (param.opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
+        CHK_PTR_NULL(param.varData);
+        for (u64 i = 0; i < rankSize; i++) {
+            sendCount += *(reinterpret_cast<const uint64_t*>(param.varData) + i);
+        }
+    } else if (param.opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+        CHK_PTR_NULL(param.varData);
+        for (u64 i = rankSize; i < 2 * rankSize; i++) {
+            sendCount += *(reinterpret_cast<const uint64_t*>(param.varData) + i);
+        }
+    } else if (param.opType == HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
+        for (u32 idx = 0; idx < param.batchSendRecvDataDes.itemNum; idx++) {
+            HcclSendRecvItem* item = param.batchSendRecvDataDes.sendRecvItemsPtr + idx;
+            CHK_PRT_RET(item == nullptr, HCCL_ERROR("[%s]fail, item is nullptr, idx[%u], itemNum[%u], tag[%s]",
+                __func__, idx, param.batchSendRecvDataDes.itemNum, param.tag), HCCL_E_PTR);
+            sendCount += item->count;
+        }
+    } else {
+        sendCount = param.DataDes.count;
+    }
+    HCCL_INFO("[%s]tag[%s], sendCount[%u], opType[%u], rankSize[%u]",
+        __func__, param.tag, sendCount, param.opType, rankSize);
     return HCCL_SUCCESS;
 }
 
-HcclResult SetMultipleDimensionSplitRatio(const OpParam &param)
+HcclResult SingleRankProc(HcclComm comm, OpParam &param)
 {
+    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
+        HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, "
+            "please ensure rankNum is greater than one", static_cast<int>(param.opType));
+        return HCCL_E_NOT_SUPPORT;
+    }
+    if (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE) {
+        HCCL_WARNING("[%s] ranksize == 1 is not support BATCHSENDRECV SEND RECV", __func__);
+        return HcclResult::HCCL_SUCCESS;
+    }
+    if (param.inputPtr == param.outputPtr) {
+        HCCL_WARNING("[%s] sendBuf == recvBuf, return success", __func__);
+        return HcclResult::HCCL_SUCCESS;
+    }
+    u64 len{0};
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL || param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+        param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+        len = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType] * *(static_cast<const u64 *>(param.all2AllVDataDes.sendCounts));
+    } else if (param.opType == HCCL_CMD_ALLGATHER_V || param.opType == HCCL_CMD_REDUCE_SCATTER_V) {
+        len = DATATYPE_SIZE_TABLE[param.vDataDes.dataType] * *(static_cast<const u64 *>(param.vDataDes.counts));
+    } else {
+        len = DATATYPE_SIZE_TABLE[param.DataDes.dataType] * param.DataDes.count;
+    }
+
+    HCCL_INFO("[%s] sendBuf[%p], recvBuf[%p], len[%llu]", __func__, param.inputPtr, param.outputPtr, len);
+    if (len > 0) {
+        ThreadHandle cpuTsThread{0};
+        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
+        // Op注册
+        HcclDfxOpInfoCompat hcclDfxOpInfo{};
+        hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+        hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
+        hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
+        CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
+
+        // rankSize获取指定算子的dataCount
+        u32 userRankSize{0};
+        CHK_RET(HcclGetRankSize(comm, &userRankSize));
+        CHK_RET(GetHcclDfxOpInfoDataCount(param, userRankSize, hcclDfxOpInfo.dataCount));
+        hcclDfxOpInfo.root = param.root;
+        hcclDfxOpInfo.engine = param.engine;
+        hcclDfxOpInfo.cpuTsThread = cpuTsThread;
+        hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
+        CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
+        s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
+        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
+            __func__, param.algTag, sRet), HCCL_E_MEMORY);
+
+        CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
+        CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(cpuTsThread, param.outputPtr, param.inputPtr, len)));
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult SetExecTimeout(OpParam &param) {
+    double execTimeoutValue = 0;
+    if (!GetExternalInputExecTimeout(execTimeoutValue)) {
+        param.opConfig.execTimeout = CUSTOM_TIMEOUT;
+        HCCL_INFO("[OpCommon] Exec timeout is not set, use default value: %u seconds", CUSTOM_TIMEOUT);
+    } else {
+        // 验证转换后的值是否合理
+        if (execTimeoutValue < 0 || execTimeoutValue > UINT32_MAX) {
+            HCCL_WARNING("[OpCommon] Exec timeout value %.2f out of range, use default: %u seconds", 
+                         execTimeoutValue, CUSTOM_TIMEOUT);
+            param.opConfig.execTimeout = CUSTOM_TIMEOUT;
+        } else {
+            param.opConfig.execTimeout = static_cast<uint32_t>(execTimeoutValue);
+            if (param.opConfig.execTimeout == 0) {
+                HCCL_INFO("[OpCommon] Exec timeout is disabled (never timeout).");
+            } else {
+                HCCL_INFO("[OpCommon] Set exec timeout to: %u seconds", param.opConfig.execTimeout);
+            }
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult SetMultipleDimensionSplitRatio(OpParam &param) {
+    double ratioValue = 0;
+    const double DEFAULT_MULT_RATIO = 0.5;
+    if (!GetExternalInputMultipleDimensionSplitRatio(ratioValue)) {
+        param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
+        HCCL_INFO("[OpCommon] Ratio is not set, use default value: %f", DEFAULT_MULT_RATIO);
+    } else {
+        // 验证转换后的值是否合理
+        if (ratioValue < 0 || ratioValue > 1) {
+            HCCL_WARNING("[OpCommon] Ratio value %.2f out of range, use default value: %f", 
+                        ratioValue, DEFAULT_MULT_RATIO);
+            param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
+        } else {
+            param.opConfig.multipleDimensionSplitRatio = ratioValue;
+            HCCL_INFO("[OpCommon] Set ratio to: %f", param.opConfig.multipleDimensionSplitRatio);
+        }
+    }
     return HCCL_SUCCESS;
 }
 
@@ -266,5 +387,73 @@ HcclResult RegisterKernel()
 {
     return HCCL_SUCCESS;
 }
+
+static HcclResult BuildCcuExtraTag(const OpParam &param, std::string &ccuExtraTag)
+{
+    HcclDataType tmpDataType;
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
+        param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+        param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+        tmpDataType = param.all2AllVDataDes.sendType;
+    } else if (param.opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V ||
+               param.opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
+        tmpDataType = param.vDataDes.dataType;
+    } else {
+        tmpDataType = param.DataDes.dataType;
+    }
+    ccuExtraTag = "_" + HCOM_DATA_TYPE_STR_MAP.at(tmpDataType);
+
+    if (param.opType == HcclCMDType::HCCL_CMD_ALLREDUCE ||
+        param.opType == HcclCMDType::HCCL_CMD_REDUCE ||
+        param.opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER ||
+        param.opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+        ccuExtraTag += "_" + HCOM_REDUCE_OP_STR_MAP.at(param.reduceType);
+    }
+
+    if (param.opType == HcclCMDType::HCCL_CMD_REDUCE || param.opType == HcclCMDType::HCCL_CMD_SCATTER ||
+        param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
+        ccuExtraTag += "_r" + std::to_string(param.root);
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult SetOpParamAlgTag(OpParam &param, const std::string &algName)
+{
+    std::string temp = algName; // 创建algName的副本
+
+    const char* launchMode = (((param.engine == CommEngine::COMM_ENGINE_AICPU) ||
+                                (param.engine == CommEngine::COMM_ENGINE_AICPU_TS)) ? "device" : "host");
+    int len;
+    // 图模式下去掉param.tag前缀，避免tag不同导致algTag不同而无法复用资源
+    if (param.opMode == OpMode::OFFLOAD && param.engine == CommEngine::COMM_ENGINE_CCU) {
+        len = snprintf_s(param.algTag, sizeof(param.algTag), sizeof(param.algTag), "Graph_%s_%s", temp.c_str(), launchMode);
+    } else {
+        len = snprintf_s(param.algTag, sizeof(param.algTag), sizeof(param.algTag), "%s_%s_%s", param.tag, temp.c_str(), launchMode);
+    }
+    if (len < 0|| len >= sizeof(param.algTag)) {
+        HCCL_ERROR("failed to fill param.algTag");
+        return HcclResult::HCCL_E_INTERNAL;
+    }
+
+    // ccu模式，考虑kernel是否能复用，需要添加dataType和reduceType
+    if (param.engine == CommEngine::COMM_ENGINE_CCU) {
+        try{
+            std::string ccuExtraTag;
+            CHK_RET(BuildCcuExtraTag(param, ccuExtraTag));
+            size_t remainBytes = sizeof(param.algTag) - len;
+
+            int len_ccu = snprintf_s(param.algTag + len, remainBytes, remainBytes, "%s", ccuExtraTag.c_str());
+            CHK_PRT_RET((len_ccu < 0 || len_ccu >= sizeof(param.algTag) - len),
+                HCCL_ERROR("failed to fill alg tag with ccu dataType"), HCCL_E_INTERNAL);
+        }
+        catch (const std::out_of_range& e) {
+            HCCL_ERROR("[SetOpParamAlgTag] dataType or reduceType out of range: %s", e.what());
+            return HCCL_E_PARA;
+        }
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+
 
 } // namespace ops_hccl

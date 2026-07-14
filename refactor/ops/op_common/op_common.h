@@ -57,6 +57,7 @@ HcclResult RegisterKernel();
 HcclResult SetExecTimeout(const OpParam &param);
 HcclResult SetMultipleDimensionSplitRatio(const OpParam &param);
 bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig);
+HcclResult SetOpParamAlgTag(OpParam &param, const std::string &algName);
 } // namespace ops_hccl
 
 #endif // OPS_HCCL_OP_COMMON
