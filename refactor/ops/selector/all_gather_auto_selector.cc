@@ -122,6 +122,46 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
 }
 
 
+SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
+    const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, HcclAlgorithm &alg) const
+{
+    (void)topoInfo;
+    (void)opParam;
+    (void)configAlgMap;
+    (void)alg;
+    return SelectorStatus::NOT_MATCH;
+}
+
+SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
+    const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, HcclAlgorithm &alg) const
+{
+    (void)topoInfo;
+    (void)opParam;
+    (void)configAlgMap;
+    (void)alg;
+    return SelectorStatus::NOT_MATCH;
+}
+
+SelectorStatus AllGatherAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
+    const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, HcclAlgorithm &alg) const
+{
+    (void)topoInfo;
+    (void)opParam;
+    (void)configAlgMap;
+    (void)alg;
+    return SelectorStatus::NOT_MATCH;
+}
+
+SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
+    const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, HcclAlgorithm &alg) const
+{
+    (void)topoInfo;
+    (void)opParam;
+    (void)configAlgMap;
+    (void)alg;
+    return SelectorStatus::NOT_MATCH;
+}
+
 REGISTER_SELECTOR_BY_OPTYPE(HcclCMDType::HCCL_CMD_ALLGATHER, 18, AllGatherAutoSelector);
 
 } } // namespace refactor::ops_hccl
