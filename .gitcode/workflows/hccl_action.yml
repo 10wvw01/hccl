@@ -31,7 +31,8 @@ stages:
             with:
               repo_name: "hccl"
               target_branch: ${{ env.TARGET_BRANCH }}
-              repo_url: ${{ vars.CI_PATH }}
+              #repo_url: ${{ vars.CI_PATH }}
+              repo_url: https://gitcode.com/cann/.gitcode.git
           -
             name: show_output
             run: |
