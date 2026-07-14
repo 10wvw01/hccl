@@ -141,7 +141,7 @@ HcclResult InconsistentCheckParams(HcclComm comm, const OpExchangeInfo &exchange
     return HCCL_SUCCESS;
 }
 
-HcclResult InconsistentCheckOpType(u32 remoteRank, const OpExchangeInfo &exchangeInfo, const HcclCMDType &rmtOpType)
+HcclResult InconsistentCheckOpType(uint32_t remoteRank, const OpExchangeInfo &exchangeInfo, const HcclCMDType &rmtOpType)
 {
     HcclCMDType locOpType = exchangeInfo.opType;
     if (locOpType == HcclCMDType::HCCL_CMD_SEND || locOpType == HcclCMDType::HCCL_CMD_RECEIVE) {
@@ -167,7 +167,7 @@ HcclResult InconsistentCheckOpType(u32 remoteRank, const OpExchangeInfo &exchang
     return HCCL_SUCCESS;
 }
 
-HcclResult ReportOpExchangeInfoCheckFailed(u32 remoteRank, const OpExchangeInfo &exchangeInfo,
+HcclResult ReportOpExchangeInfoCheckFailed(uint32_t remoteRank, const OpExchangeInfo &exchangeInfo,
     const std::string &paraName, uint32_t expectVal, uint32_t remotePara)
 {
     std::string opInfo = "Unknown";
@@ -182,7 +182,7 @@ HcclResult ReportOpExchangeInfoCheckFailed(u32 remoteRank, const OpExchangeInfo 
     return HCCL_E_PARA;
 }
 
-HcclResult ReportOpExchangeInfoCheckFailed(u32 remoteRank, const OpExchangeInfo &exchangeInfo,
+HcclResult ReportOpExchangeInfoCheckFailed(uint32_t remoteRank, const OpExchangeInfo &exchangeInfo,
     const std::string &paraName, const std::string &expectVal, const std::string &remotePara)
 {
     std::string opInfo = "Unknown";
