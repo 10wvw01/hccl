@@ -68,10 +68,13 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
             u64 remainder = dataCount % maxProcCntPerLoop;
             processCount = (remainder == 0) ? maxProcCntPerLoop : remainder;
         }
+        // 由定义可知只有broadcast/reduce/allreduce会在执行器层面产生尾块
         u64 tailCount = (loopIdx == loopTimes - 1) ? (processCount % rankSize_) : 0;
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
-        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount, tailCount);
+        HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
+            loopIdx, processCount, offsetCount, tailCount);
+        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
@@ -109,6 +112,15 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     cclBufferInfo_.bufferType = BufferType::HCCL_BUFFER;
     threads_ = resCtx.threads;
     mainThread_ = threads_.at(0);
+    auto topoLevelNum = algHierarchyInfo_.infos.size();
+    subThreads_.assign(topoLevelNum, {});
+    auto subThreadBegin = threads_.begin();
+    auto subThreadEnd = threads_.begin();
+    for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
+        subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
+        subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
+    }
     // TODO：考虑不同Executor
     // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
     channelTable_ = RestoreChannelMap(resCtx);
@@ -241,13 +253,10 @@ HcclResult OpsExecutor::CalcRes(AlgResourceRequest &resourceRequest)
     maxSlaveThreadNum_.assign(topoLevelNum, 0);
     maxNotifyNumOnMainThread_.assign(topoLevelNum, 0);
     maxNotifyNumPerThread_.assign(topoLevelNum, 0);
-    subThreads_.assign(topoLevelNum, {});
     requestChannels_.assign(topoLevelNum, {});
     u32 rootSubCommMask = 0;
     CHK_RET(CalcResRecursion(algo_.algoExecDesc, rootSubCommMask));
 
-    auto subThreadBegin = threads_.begin();
-    auto subThreadEnd = threads_.begin();
     resourceRequest.notifyNumOnMainThread = topoLevelNum;
     resourceRequest.slaveThreadNum = 0;
     for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
@@ -258,9 +267,6 @@ HcclResult OpsExecutor::CalcRes(AlgResourceRequest &resourceRequest)
         // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
             maxSlaveThreadNum_.at(subCommIndex), maxNotifyNumPerThread_.at(subCommIndex));
-        subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
-        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
-        subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
         resourceRequest.channels.emplace_back(requestChannels_.at(subCommIndex));
     }
     // 全尺寸布局内存，保证所有的template的CCL buffer内存布局一致
@@ -295,7 +301,7 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
         }
     }
     // 初始化之后这个值递归过程中不再变化，后续传递给template使用
-    algoExecDataDesc.stride = algoExecDataDesc.sliceCount;
+    algoExecDataDesc.stride = algoExecDataDesc.sliceCount * dataTypeSize_;
 }
 
 inline void OpsExecutor::GenTemplateDataParams(
@@ -377,6 +383,9 @@ inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
 
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
+    HCCL_INFO("[RunTemplateDesc] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d",
+        static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
+        static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate
         = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
@@ -386,6 +395,17 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
+    HCCL_INFO("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
+              "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, stride=%lu, "
+              "reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
+        static_cast<int>(templateDataParams.inputBufferType), static_cast<int>(templateDataParams.outputBufferType),
+        static_cast<int>(templateDataParams.cclBufferType), static_cast<int>(templateDataParams.dataType),
+        templateDataParams.dataOffset, templateDataParams.sliceCount, templateDataParams.sliceOffset,
+        templateDataParams.tailCount, templateDataParams.stride, static_cast<int>(templateDataParams.reduceOp),
+        templateDataParams.root, static_cast<int>(templateDataParams.enableRemoteMemAccess));
+    for (size_t i = 0; i < templateDataParams.ranksForInputData.size(); ++i) {
+        HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
+    }
     CHK_RET(baseTemplate->KernelRun(templateDataParams, templateResource, algoExecDataDesc.ranksForOutputData));
     return HCCL_SUCCESS;
 }

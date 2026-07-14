@@ -7,7 +7,6 @@
 #include "algorithm/all_gather/all_gather_template_desc.h"
 
 namespace ops_hccl {
-namespace testing {
 
 // ============================================================
 // 1. CalcAlgHierarchyInfo — 拓扑匹配 + rankSize 计算
@@ -87,14 +86,14 @@ protected:
         d1.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d1.children = {
             TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
-            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTER},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
         };
         d1.dataSplitRatio = {1, 1};
 
         AlgoExecDesc d2;
         d2.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d2.children = {
-            TemplateExecDesc{nhrTmpl_,  SUB_COMM_INDEX_INTER},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
             TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
         };
         d2.dataSplitRatio = {1, 1};
@@ -112,7 +111,7 @@ protected:
         AlgoExecDesc d4;
         d4.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d4.children = {
-            sharedD3,            
+            sharedD3,
             TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
         };
         d4.dataSplitRatio = {2, 2};
@@ -121,7 +120,7 @@ protected:
         d5.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d5.children = {
             TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
-            sharedD3,            
+            sharedD3,
         };
         d5.dataSplitRatio = {2, 2};
 
@@ -143,9 +142,9 @@ protected:
         u32 rankSize = 128, u64 elemCount = 1024, HcclDataType dtype = HCCL_DATA_TYPE_FP32)
     {
         auto algo = std::make_unique<HcclAlgorithm>();
-        algo->hcclCmdType  = HCCL_CMD_ALLGATHER;
-        algo->engineType   = HcclAlgEngineType::AICPU;
-        algo->topoMatch    = std::make_shared<MockTopoMatch>();
+        algo->hcclCmdType = HCCL_CMD_ALLGATHER;
+        algo->engineType = HcclAlgEngineType::AICPU;
+        algo->topoMatch = std::make_shared<MockTopoMatch>();
         algo->algoExecDesc = BuildOmniPipeTree();
 
         u64 dtSize = DATATYPE_SIZE_TABLE[dtype];
@@ -155,15 +154,17 @@ protected:
         bufPool_.output.resize(inSize * rankSize);
 
         auto param = std::make_unique<OpParam>();
-        param->userRank         = 0;
-        param->inputPtr         = bufPool_.input.data();
-        param->inputSize        = inSize;
-        param->outputPtr        = bufPool_.output.data();
-        param->outputSize       = inSize * rankSize;
+        param->userRank = 0;
+        param->inputPtr = bufPool_.input.data();
+        param->inputSize = inSize;
+        param->outputPtr = bufPool_.output.data();
+        param->outputSize = inSize * rankSize;
         param->DataDes.dataType = dtype;
-        param->DataDes.count    = elemCount;
-        param->reduceType       = HcclReduceOp::HCCL_REDUCE_RESERVED;
-        param->opMode           = OpMode::OPBASE;
+        param->DataDes.count = elemCount;
+        param->reduceType = HcclReduceOp::HCCL_REDUCE_RESERVED;
+        param->opMode = OpMode::OPBASE;
+        param->root = 0;
+        param->userRank = 0;
 
         return std::make_unique<TestableOpsExecutor>(*algo, *param);
     }
@@ -186,14 +187,10 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     // 验证 rankSize 初始为 0，调 CalcAlgHierarchyInfo 后正确计算
     EXPECT_EQ(exe->GetRankSize(), 0u);
     AlgHierarchyInfoForAllLevel info;
-    info.infos = {
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1}}
-    };
+    info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
     EXPECT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
-    EXPECT_EQ(exe->GetRankSize(), 128u);    // 8×8×2
+    EXPECT_EQ(exe->GetRankSize(), 128u); // 8×8×2
 
     // 验证 scratchMultiple 初始为 0
     EXPECT_EQ(exe->GetScratchMultiple(), 0u);
@@ -201,11 +198,11 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     // 验证 dataInfo_ 从 OpParam 正确传递
     const auto &d = exe->GetExecDataInfo();
     EXPECT_NE(d.inputPtr, nullptr);
-    EXPECT_EQ(d.inputSize, 4096u);           // 1024 × sizeof(float)
+    EXPECT_EQ(d.inputSize, 4096u); // 1024 × sizeof(float)
     EXPECT_NE(d.outputPtr, nullptr);
-    EXPECT_EQ(d.outputSize, 4096u * 128);   // AllGather: rankSize 倍
+    EXPECT_EQ(d.outputSize, 4096u * 128); // AllGather: rankSize 倍
     EXPECT_EQ(d.dataType, HCCL_DATA_TYPE_FP32);
-    EXPECT_EQ(exe->GetDataTypeSize(), 4u);  // sizeof(float)
+    EXPECT_EQ(exe->GetDataTypeSize(), 4u); // sizeof(float)
 }
 
 TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
@@ -214,29 +211,20 @@ TEST_F(OmniPipeTest, ConstructExecutorWithFp16)
 
     const auto &d = exe->GetExecDataInfo();
     EXPECT_EQ(d.dataType, HCCL_DATA_TYPE_FP16);
-    EXPECT_EQ(d.inputSize, 2048u);          // 1024 × 2 (sizeof half)
+    EXPECT_EQ(d.inputSize, 2048u);         // 1024 × 2 (sizeof half)
     EXPECT_EQ(d.outputSize, 2048u * 128);  // AllGather: rankSize 倍
-    EXPECT_EQ(exe->GetDataTypeSize(), 2u);  // sizeof(half)
+    EXPECT_EQ(exe->GetDataTypeSize(), 2u); // sizeof(half)
 }
 
-class CalcResTest : public OmniPipeTest {
-protected:
-    void SetUp() override {
-        OmniPipeTest::SetUp();
-        exe_ = MakeOmniPipeExecutor();
-        exe_->SetThreads(threads_);
-    }
-    std::unique_ptr<TestableOpsExecutor> exe_;
-    std::vector<ThreadHandle> threads_ = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-};
-
-TEST_F(CalcResTest, ThreeLevelWithOmniPipeTree) {
+TEST_F(OmniPipeTest, CalcRes)
+{
+    auto exe = MakeOmniPipeExecutor(128, 1024 * 1024, HCCL_DATA_TYPE_UINT32);
     AlgHierarchyInfoForAllLevel info;
-    info.infos = {{{0,1,2,3,4,5,6,7}}, {{0,1,2,3,4,5,6,7}}, {{0,1}}};
-    exe_->SetTopoMatch(info);
-    ASSERT_EQ(exe_->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
+    exe->SetTopoMatch(info);
+    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
     AlgResourceRequest req;
-    EXPECT_EQ(exe_->CalcRes(req), HCCL_SUCCESS);
+    EXPECT_EQ(exe->CalcRes(req), HCCL_SUCCESS);
     EXPECT_EQ(req.notifyNumOnMainThread, 3u);
     EXPECT_EQ(req.slaveThreadNum, 23u);
 
@@ -245,14 +233,14 @@ TEST_F(CalcResTest, ThreeLevelWithOmniPipeTree) {
     //   level1: notifyOnMain+1=14, maxSlave=13 × maxNotifyPerThread=2 → [14,2,...,2]
     //   level2: notifyOnMain+1=2, maxSlave=1 × maxNotifyPerThread=2 → [2,2]
     ASSERT_EQ(req.notifyNumPerThread.size(), 23u);
-    EXPECT_EQ(req.notifyNumPerThread[0], 7u);   // level0 main
-    EXPECT_EQ(req.notifyNumPerThread[1], 1u);   // level0 slave
-    EXPECT_EQ(req.notifyNumPerThread[6], 1u);   // level0 last
-    EXPECT_EQ(req.notifyNumPerThread[7], 14u);  // level1 main
-    EXPECT_EQ(req.notifyNumPerThread[8], 2u);   // level1 slave
-    EXPECT_EQ(req.notifyNumPerThread[20], 2u);  // level1 last
-    EXPECT_EQ(req.notifyNumPerThread[21], 2u);  // level2 main
-    EXPECT_EQ(req.notifyNumPerThread[22], 2u);  // level2 slave
+    EXPECT_EQ(req.notifyNumPerThread[0], 7u);  // level0 main
+    EXPECT_EQ(req.notifyNumPerThread[1], 1u);  // level0 slave
+    EXPECT_EQ(req.notifyNumPerThread[6], 1u);  // level0 last
+    EXPECT_EQ(req.notifyNumPerThread[7], 14u); // level1 main
+    EXPECT_EQ(req.notifyNumPerThread[8], 2u);  // level1 slave
+    EXPECT_EQ(req.notifyNumPerThread[20], 2u); // level1 last
+    EXPECT_EQ(req.notifyNumPerThread[21], 2u); // level2 main
+    EXPECT_EQ(req.notifyNumPerThread[22], 2u); // level2 slave
     EXPECT_EQ(req.channels.size(), 3u);
 }
 
@@ -262,28 +250,20 @@ TEST_F(OmniPipeTest, Orchestrate)
 
     // Orchestrate 依赖 rankSize_ / algHierarchyInfo_（由 CalcAlgHierarchyInfo 设置）
     AlgHierarchyInfoForAllLevel info;
-    info.infos = {
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1, 2, 3, 4, 5, 6, 7}},
-        {{0, 1}}
-    };
+    info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
-    exe->SetScratchMultiple(128);
     ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
-    std::vector<std::vector<ThreadHandle>> subThreads(info.infos.size());
-    exe->SetSubThreads(subThreads);
-    // resCtx 需要非空 threads（InitRes 的 threads_.at(0)）、algHierarchyInfo + channels（RestoreChannelMap 用）
+    AlgResourceRequest req;
+    ASSERT_EQ(exe->CalcRes(req), HCCL_SUCCESS);
+    std::vector<ThreadHandle> threads
+        = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25};
     AlgResourceCtxSerializable resCtx;
     resCtx.cclMem.size = 1024 * 1024 * 128 * 4;
-    resCtx.threads.resize(1);
+    resCtx.threads = threads;
     resCtx.algHierarchyInfo = info;
     resCtx.channels.resize(info.infos.size());
-
-    // subThreads_ 由 CalcRes 负责填充，本用例不走 CalcRes，手动塞两层空 vector 让 GenTemplateRes 的 .at(subCommIndex) 不越界
-
     HcclResult ret = exe->Orchestrate(resCtx);
     EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
-} // namespace testing
 } // namespace ops_hccl

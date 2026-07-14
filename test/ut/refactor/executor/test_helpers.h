@@ -10,7 +10,6 @@
 #include "ops_executor.h"
 
 namespace ops_hccl {
-namespace testing {
 
 // Concrete mock: fills algHierarchyInfo with pre-set test data
 class MockTopoMatch : public TopoMatchBase {
@@ -89,5 +88,4 @@ protected:
     std::unique_ptr<TestableOpsExecutor> executor_;
 };
 
-} // namespace testing
 } // namespace ops_hccl

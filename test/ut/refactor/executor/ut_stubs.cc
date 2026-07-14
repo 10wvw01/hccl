@@ -4,6 +4,9 @@
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdint>
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_rank_graph.h>
 #include "hccl_algorithm.h"
@@ -17,8 +20,7 @@ extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
     return 0;
 }
 
-extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32_t,
-                                            CommLink **links, uint32_t *linkNum)
+extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32_t, CommLink **links, uint32_t *linkNum)
 {
     static CommLink link;
     (void)CommLinkInit(&link, 1);
@@ -28,25 +30,49 @@ extern "C" HcclResult HcclRankGraphGetLinks(HcclComm, uint32_t, uint32_t, uint32
 }
 
 // src/common/log.cc — 全局作用域
-bool IsErrorToWarn() { return false; }
-bool HcclCheckLogLevel(int, int) { return false; }
+bool IsErrorToWarn()
+{
+    return false;
+}
+// DLOG_DEBUG=0, DLOG_INFO=1, DLOG_WARN=2, DLOG_ERROR=3
+// 返回 true 打开对应级别日志；这里 INFO 及以上都打开
+bool HcclCheckLogLevel(int logType, int)
+{
+    return logType >= 3;
+}
+
+// dlog_pub.h 声明的 weak 符号，UT 没链接真实实现，这里提供桩：vfprintf 输出到 stderr
+extern "C" void DlogRecord(int32_t moduleId, int32_t level, const char *fmt, ...)
+{
+    (void)moduleId;
+    fprintf(stderr, "[HCCL][lvl=%d] ", level);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fprintf(stderr, "\n");
+}
 
 // refactor/ops/utils/utils.h — namespace ops_hccl
 namespace ops_hccl {
 
-HcclResult PreSyncInterThreads(const unsigned long &,
-                               const std::vector<unsigned long> &,
-                               const std::vector<unsigned int> &)
+HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
+    const std::vector<u32> &notifyIdxMainToSub)
 {
-    std::cout << "PreSyncInterThreads" << std::endl;    
+    HCCL_INFO("PreSyncInterThreads mainThread: %d", mainThread);
+    for (size_t i = 0; i < subThreads.size(); ++i) {
+        HCCL_INFO("subThread[%d] = %d", i, subThreads[i]);
+    }
     return HCCL_SUCCESS;
 }
 
-HcclResult PostSyncInterThreads(const unsigned long &,
-                                const std::vector<unsigned long> &,
-                                const std::vector<unsigned int> &)
+HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
+    const std::vector<u32> &notifyIdxSubToMain)
 {
-    std::cout << "PostSyncInterThreads" << std::endl;
+    HCCL_INFO("PostSyncInterThreads mainThread: %d", mainThread);
+    for (size_t i = 0; i < subThreads.size(); ++i) {
+        HCCL_INFO("subThread[%d] = %d", i, subThreads[i]);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -55,25 +81,25 @@ HcclResult PostSyncInterThreads(const unsigned long &,
 // ============================================================
 TopoMatchBase::TopoMatchBase() = default;
 TopoMatchBase::~TopoMatchBase() = default;
-HcclResult TopoMatchBase::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *,
-                                    AlgHierarchyInfoForAllLevel &) { return HCCL_SUCCESS; }
+HcclResult TopoMatchBase::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *, AlgHierarchyInfoForAllLevel &)
+{
+    return HCCL_SUCCESS;
+}
 
 // ============================================================
 // g_allGatherTemplateDescMap 桩 (替代 all_gather_template_desc.cc)
 // ============================================================
 TemplateDesc g_allGatherTemplateDescMap[] = {
     // ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY
-    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY},
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY},
     // ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY
-    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY},
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH, HcclAlgShotMode::ONE_SHOT,
+        HcclAlgJettyMode::SINGLE_JETTY},
     // ALLGATHER_TEMPLATE_FULLMESH_MULTIPLE_JETTY
-    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
-     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH, HcclAlgShotMode::ONE_SHOT,
+        HcclAlgJettyMode::MULTIPLE_JETTY},
     // ALLGATHER_TEMPLATE_NHR_MULTIPLE_JETTY
-    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
-     HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
+    {HCCL_CMD_ALLGATHER, HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::MULTIPLE_JETTY},
 };
 
 } // namespace ops_hccl
