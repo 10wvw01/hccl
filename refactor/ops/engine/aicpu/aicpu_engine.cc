@@ -11,7 +11,8 @@
 #include "aicpu_engine.h"
 
 #include "load_kernel.h"
-#include "ops_executor.h"
+#include "hccl_algorithm.h"
+#include "binary_stream.h"
 #include "utils/utils.h"
 #include "log.h"
 
@@ -67,11 +68,23 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
 // CreateRes / LaunchKernel
 // ═══════════════════════════════════════════════════════════════════
 
-HcclResult AiCpuEngine::CreateRes(HcclComm comm, AlgResourceRequest &res)
+HcclResult AiCpuEngine::CreateRes(HcclComm comm, HcclAlgorithm &alg,
+                                   AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
 {
-    resCtx_.notifyNumOnMainThread = res.notifyNumOnMainThread;
-    resCtx_.slaveThreadNum = res.slaveThreadNum;
-    resCtx_.notifyNumPerThread = res.notifyNumPerThread;
+    // 1. 将 algHierarchyInfo 和序列化的 HcclAlgorithm 存入 resCtx_
+    resCtx_.algHierarchyInfo = algHierarchyInfo;
+    {
+        BinaryStream algoBs;
+        alg.SerializeTo(algoBs);
+        std::vector<char> algoSerialData;
+        algoBs.Dump(algoSerialData);
+        resCtx_.algoSerialData = std::move(algoSerialData);
+    }
+
+    // 2. 填充运行时资源
+    resCtx_.notifyNumOnMainThread = resReq.notifyNumOnMainThread;
+    resCtx_.slaveThreadNum = resReq.slaveThreadNum;
+    resCtx_.notifyNumPerThread = resReq.notifyNumPerThread;
 
     // 从通信域获取 CCL buffer
     void *cclBufferAddr = nullptr;
@@ -80,12 +93,12 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, AlgResourceRequest &res)
     resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
 
     // 线程预留：实际线程创建需要 stream 参数，在 LaunchKernel 中完成
-    resCtx_.threads.resize(res.slaveThreadNum + 1);
+    resCtx_.threads.resize(resReq.slaveThreadNum + 1);
 
     // 按层级申请 channel（迁移自 op_common.cc:HcclGetChannelImpl）。
     // AICPU 引擎使用 CommEngine::COMM_ENGINE_CPU。
-    for (size_t level = 0; level < res.channels.size(); ++level) {
-        std::vector<HcclChannelDesc> &channelRequest = res.channels[level];
+    for (size_t level = 0; level < resReq.channels.size(); ++level) {
+        std::vector<HcclChannelDesc> &channelRequest = resReq.channels[level];
         u32 channelNum = static_cast<u32>(channelRequest.size());
         std::vector<ChannelHandle> levelNChannels(channelNum);
         if (channelNum > 0) {
@@ -113,12 +126,12 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, AlgResourceRequest &res)
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuEngine::LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx)
+HcclResult AiCpuEngine::LaunchKernel(const OpParam &param)
 {
     HCCL_INFO("[AiCpuEngine][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
               param.commName, param.tag, param.algTag);
     CHK_RET(LoadAICPUKernel());
-    CHK_RET(HcclLaunchAicpuKernel(param, resCtx));
+    CHK_RET(HcclLaunchAicpuKernel(param, resCtx_));
     HCCL_INFO("[AiCpuEngine][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
     return HCCL_SUCCESS;

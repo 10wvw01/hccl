@@ -42,22 +42,11 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
     AlgHierarchyInfoForAllLevel algHierarchyInfo;
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get(), algHierarchyInfo));
 
-    AlgResourceCtxSerializable &resCtx = engine->GetResCtx();
-    resCtx.algHierarchyInfo = algHierarchyInfo;
-
     AlgResourceRequest resReq;
-    CHK_RET(executor->CalcRes(resCtx.algHierarchyInfo, resReq));
+    CHK_RET(executor->CalcRes(algHierarchyInfo, resReq));
 
-    CHK_RET(engine->CreateRes(comm, resReq));
-
-    // 将 HcclAlgorithm 序列化到 resCtx，供 device 侧重建 executor
-    BinaryStream algoBs;
-    alg.SerializeTo(algoBs);
-    std::vector<char> algoSerialData;
-    algoBs.Dump(algoSerialData);
-    resCtx.algoSerialData = std::move(algoSerialData);
-
-    CHK_RET(engine->LaunchKernel(param, resCtx));
+    CHK_RET(engine->CreateRes(comm, alg, algHierarchyInfo, resReq));
+    CHK_RET(engine->LaunchKernel(param));
 
     return HCCL_SUCCESS;
 }
