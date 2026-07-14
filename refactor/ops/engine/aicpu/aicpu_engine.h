@@ -69,7 +69,7 @@ public:
 
     
     /**
-     * AICUP引擎数据传输接口。
+     * AICPU引擎数据传输接口。
      * 工作流程：
      *   1. 解析 ctx 中的channel信息和数据信息；
      *   2. 根据入参选择发送方式（write\read）\reduce；

@@ -11,22 +11,12 @@
 # refactor/ops/op_common/CMakeLists.txt
 # 公共算法定义：HcclAlgorithm、HcclExecOp 等
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/op_common) 拉进来
-#
-# 当前状态（全部注释掉，补完后逐个打开）：
-#   ❌ op_common.cc          - 13 行伪代码（缺分号、类型错乱）
-#   ❌ hccl_algorithm.cc     - switch 语法非法、无分号
-#
-# 注：hccl_algorithm.h 是真实的类声明（142 行），但当前会引用 topo_match_base.h，
-#     该头文件在 refactor/ 下没有，需要从 src/ops/op_common/topo/ 借（或新建）。
 
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/../template
     ${CMAKE_CURRENT_LIST_DIR}/../engine
     ${CMAKE_CURRENT_LIST_DIR}/../engine/aicpu
-    ${CMAKE_CURRENT_LIST_DIR}/../engine/ccu_ms
-    ${CMAKE_CURRENT_LIST_DIR}/../engine/ccu_sche
-    ${CMAKE_CURRENT_LIST_DIR}/../engine/aiv
     ${CMAKE_CURRENT_LIST_DIR}/../executor
     ${CMAKE_CURRENT_LIST_DIR}/..
 )

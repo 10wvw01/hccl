@@ -9,6 +9,7 @@
  */
 
 #include "ops_executor.h"
+#include "base_engine.h"
 
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
@@ -224,7 +225,7 @@ HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes)
     int subCommIndex = templateExeDes.subCommIndex;
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate
-        = GetTemplate(algo_.engineType, templateExeDes.templateDesc, templateRanks, myRank_);
+        = GetTemplate(templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
     CHK_RET(baseTemplate->CalcRes(hcclComm_, tempRequest));
     maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
@@ -388,7 +389,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
         static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate
-        = GetTemplate(algo_.engineType, templateExeDes->templateDesc, templateRanks, myRank_);
+        = GetTemplate(templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
     TemplateResource templateResource;
     CHK_RET(GenTemplateRes(templateExeDes->subCommIndex, templateResource));
@@ -406,7 +407,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     for (size_t i = 0; i < templateDataParams.ranksForInputData.size(); ++i) {
         HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
     }
-    CHK_RET(baseTemplate->KernelRun(templateDataParams, templateResource, algoExecDataDesc.ranksForOutputData));
+    CHK_RET(baseTemplate->KernelRun(*engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputData));
     return HCCL_SUCCESS;
 }
 

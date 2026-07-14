@@ -42,7 +42,7 @@ namespace ops_hccl {
 class AicpuBaseTemplate : public BaseTemplate {
 public:
     AicpuBaseTemplate(u32 myRank, std::vector<u32> ranks, TemplateDesc templateDesc)
-        : BaseTemplate(myRank, std::move(ranks), HcclAlgEngineType::AICPU, templateDesc) {}
+        : BaseTemplate(myRank, std::move(ranks), templateDesc) {}
     ~AicpuBaseTemplate() = default;
 
     /**
@@ -57,8 +57,8 @@ public:
      *   7. 多线程时 PostSyncInterThreads；
      *   8. PostCopy：ccl buffer -> output 的后处理（若需要）。
      */
-    HcclResult KernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                         std::vector<u32> &ranksForOutputData) override;
+    HcclResult KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
+                         TemplateResource &templateResource, std::vector<u32> &ranksForOutputData) override;
 
 protected:
     /**
@@ -97,7 +97,8 @@ protected:
      * 统一逐个执行 SendRecv。
      * 由 KernelRun 在 RunAlgorithm 返回后调用。
      */
-    HcclResult SendAll(const std::vector<SendRecvInfo> &sendRecvInfos, TemplateResource &templateResource);
+    HcclResult SendAll(BaseEngine &engine, const std::vector<SendRecvInfo> &sendRecvInfos,
+                        TemplateResource &templateResource);
 
     /** 工具：判断 channels 是否为 PCIe 协议（决定 Read/Write 模式）。 */
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels) const

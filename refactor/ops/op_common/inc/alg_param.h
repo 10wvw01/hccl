@@ -18,8 +18,6 @@
 #include <unordered_set>
 #include <memory>
 #include <functional>
-#include <functional>
-#include <memory>
 #include <hccl/hccl_comm.h>
 #include "hccl_common.h"
 #include "hccl_types.h"
@@ -520,7 +518,7 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     u32 root = INVALID_VALUE_RANKID;
     u32 userRank = INVALID_VALUE_RANKID;
     u32 sendRecvRemoteRank = INVALID_VALUE_RANKID;
-    OpMode opMode;
+    OpMode opMode = OpMode::OPBASE;
     bool   enableDetour{false};
     bool   isMc2{false};
     bool   cacheValid{false};
@@ -758,5 +756,35 @@ struct SendRecvInfo {
         : sendRecvChannels_(sendRecvLinks), sendRecvSlices_(sendRecvSlices), dataType_(dataType) {}
 };
 
+// ───────────── 模板资源与数据参数 ─────────────
+
+struct TemplateResource {
+    std::map<u32, std::vector<ChannelInfo>> channels;
+    std::vector<ThreadHandle> threads;
+    void *aivCommInfoPtr = nullptr;
+};
+
+struct TemplateDataParams {
+    void *inputBufferPtr = nullptr;
+    void *outputBufferPtr = nullptr;
+    void *cclBufferPtr = nullptr;
+    BufferType inputBufferType = BufferType::INPUT;
+    BufferType outputBufferType = BufferType::OUTPUT;
+    BufferType cclBufferType = BufferType::HCCL_BUFFER;
+    HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
+    u64 dataOffset{0};
+    u64 sliceCount{0};
+    u64 sliceOffset{0};
+    u64 tailCount{0};
+    u64 stride{0};
+    HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};
+    u32 root{INVALID_VALUE_RANKID};
+
+    bool enableRemoteMemAccess{false};
+
+    std::vector<u32> ranksForInputData;
+};
+
 }
+
 #endif

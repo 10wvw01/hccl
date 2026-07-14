@@ -20,32 +20,6 @@ namespace ops_hccl {
 
 class BaseEngine;
 
-struct TemplateResource {
-    std::map<u32, std::vector<ChannelInfo>> channels;
-    std::vector<ThreadHandle> threads;
-    void *aivCommInfoPtr = nullptr;
-};
-struct TemplateDataParams {
-    void *inputBufferPtr = nullptr;
-    void *outputBufferPtr = nullptr;
-    void *cclBufferPtr = nullptr;
-    BufferType inputBufferType = BufferType::INPUT;
-    BufferType outputBufferType = BufferType::OUTPUT;
-    BufferType cclBufferType = BufferType::HCCL_BUFFER;
-    HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
-    u64 dataOffset{0};
-    u64 sliceCount{0};
-    u64 sliceOffset{0};
-    u64 tailCount{0};
-    u64 stride{0};
-    HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};
-    u32 root{INVALID_VALUE_RANKID};
-
-    bool enableRemoteMemAccess{false};
-
-    std::vector<u32> ranksForInputData;
-};
-
 
 /**
  * 通信模板基类
@@ -54,8 +28,8 @@ struct TemplateDataParams {
  */
 class BaseTemplate {
 public:
-    explicit BaseTemplate(const u32 myRank, const std::vector<u32> &ranks, HcclAlgEngineType engineType, TemplateDesc templateDesc)
-        : myRank_(myRank), ranks_(ranks), engineType_(engineType), templateDesc_(templateDesc) {}
+    explicit BaseTemplate(const u32 myRank, const std::vector<u32> &ranks, TemplateDesc templateDesc)
+        : myRank_(myRank), ranks_(ranks), templateDesc_(templateDesc) {}
     virtual ~BaseTemplate();
 
     /**
@@ -139,18 +113,6 @@ public:
     }
 
     /**
-     * 计算 scratch buffer 倍率（每 element 需要多少倍 dataTypeSize 的 scratch 空间）。
-     * 输入参数：
-     *   - in: 输入 buffer 类型
-     *   - out: 输出 buffer 类型
-     * 返回值：
-     *   - scratch 倍率
-     */
-    virtual float CalcScratchMultiple(BufferType in, BufferType out) {
-        return 0.0f;
-    }
-
-    /**
      * 算法编排入口，由 executor 调用，驱动模板完成数据通信。
      * 子类需实现具体的编排逻辑（如 PreCopy -> 通信原语 -> PostCopy）。
      * 输入参数：
@@ -162,25 +124,17 @@ public:
      *   - HCCL_SUCCESS: 编排成功
      *   - 其他: 编排失败错误码
      */
-    virtual HcclResult KernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                                std::vector<u32> &ranksForOutputData) {
+    virtual HcclResult KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
+                                TemplateResource &templateResource, std::vector<u32> &ranksForOutputData) {
         ranksForOutputData.clear();
         return HCCL_SUCCESS;
     }
-
-    /**
-     * 获取引擎 Engine 引用（惰性构造），供 template 层调用 engine->Send。
-     */
-    BaseEngine &GetEngine();
 
 protected:
     std::vector<HcclChannelDesc> channels_;              // 参与通信的 rank 列表
     u32 myRank_ = INVALID_VALUE_RANKID;
     std::vector<u32> ranks_;
-    HcclAlgEngineType engineType_ = HcclAlgEngineType::AICPU;
     TemplateDesc templateDesc_;
-
-    BaseEngine *engine_ = nullptr;
 };
 
 }  // namespace ops_hccl
