@@ -11,6 +11,8 @@
 #include "test_helpers.h"
 #include "exec_timeout_manager.h"
 #include "hcomm_primitives_dl.h"   // ThreadHandle / ChannelHandle / HcommDataType / HcommReduceOp
+#include "hccl_algorithm.h"
+#include "binary_stream.h"
 
 namespace ops_hccl {
 namespace testing {
@@ -58,6 +60,12 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &, AlgResourceCtxSerializable &)
 {
     return HCCL_SUCCESS;
 }
+
+// CreateRes 调用 alg.SerializeTo，UT Send 测试不走此路径，仅满足链接
+void HcclAlgorithm::SerializeTo(BinaryStream &) const {}
+void HcclAlgorithm::DeserializeFrom(BinaryStream &) {}
+void AlgoExecDesc::Serialize(BinaryStream &, const AlgoExecDesc &) {}
+AlgoExecDesc AlgoExecDesc::Deserialize(BinaryStream &) { return AlgoExecDesc{}; }
 } // namespace ops_hccl
 
 // ───────────── mock 控制 ─────────────

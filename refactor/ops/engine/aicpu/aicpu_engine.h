@@ -31,19 +31,22 @@ public:
     /**
      * 创建 AICPU 引擎所需的运行时资源。
      * 工作流程：
-     *   1. 解析 res 中的资源需求（AlgResourceRequest 内部以 vector<vector<HcclChannelDesc>>
-     *      承载多层级 channel，单结构即可描述全部层级）；
+     *   1. 将 algHierarchyInfo 和序列化的 HcclAlgorithm 存入 resCtx_；
      *   2. 遍历每层级的 channels，调用 HcommChannelCreate 创建通信通道并回填句柄到 resCtx_；
      *   3. 根据 slaveThreadNum 调用 HcommThreadCreate 创建主线程与从线程，回填到 resCtx_.threads；
      *   4. 根据 notifyNumPerThread 与 notifyNumOnMainThread 调用 HcommNotifyCreate 创建同步通知；
      *   5. 申请跨 Rank 缓存 cclMem（HcclMalloc），回填到 resCtx_.cclMem。
      * 输入参数：
-     *   - res: 资源请求，由 OpsExecutor::CalcRes 生成，包含 slaveThreadNum、notifyNumPerThread、channels 等
+     *   - comm: 通信域句柄
+     *   - alg: 算法描述对象引用，序列化后存入 resCtx_ 供 device 侧重建 executor
+     *   - algHierarchyInfo: 拓扑分级信息，由 CalcAlgHierarchyInfo 生成
+     *   - resReq: 资源请求，由 OpsExecutor::CalcRes 生成
      * 返回值：
      *   - HCCL_SUCCESS: 资源创建成功
-     *   - HCCL_E_INTERNAL: 资源创建失败（如 channel/thread/notify 创建失败）
+     *   - HCCL_E_INTERNAL: 资源创建失败
      */
-    HcclResult CreateRes(HcclComm comm, AlgResourceRequest &res) override;
+    HcclResult CreateRes(HcclComm comm, HcclAlgorithm &alg,
+                         AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) override;
 
     /**
      * 下发 AICPU kernel 到设备侧执行。
@@ -51,7 +54,7 @@ public:
      *   1. 加载 AICPU kernel 二进制（LoadAICPUKernel）；
      *   2. 调用 HcclLaunchAicpuKernel 完成环境准备、算法编排与 profiling 上报：
      *      a. 获取通信域句柄；
-     *      b. 从 resCtx 反序列化 HcclAlgorithm，重建 executor；
+     *      b. 从 resCtx_ 反序列化 HcclAlgorithm，重建 executor；
      *      c. 根据 opType 还原变长数据；
      *      d. 设置 batch mode，注册 DFX 信息；
      *      e. 主 thread 等待 Host stream 的 notify 通知；
@@ -60,29 +63,16 @@ public:
      *   3. 释放通信域句柄。
      * 输入参数：
      *   - param: 算子参数，包含 commName、tag、opType、数据描述等
-     *   - resCtx: 资源上下文，包含序列化的 HcclAlgorithm 数据和运行时资源
      * 返回值：
      *   - HCCL_SUCCESS: kernel 下发并执行成功
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
-    HcclResult LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx) override;
+    HcclResult LaunchKernel(const OpParam &param) override;
 
-    
     /**
      * AICPU引擎数据传输接口。
-     * 工作流程：
-     *   1. 解析 ctx 中的channel信息和数据信息；
-     *   2. 根据入参选择发送方式（write\read）\reduce；
-     *   3. 将数据发送到目的地址。
-     * 输入参数：
-     *   - ctx: 发送数据上下文
-     * 返回值：
-     *   - status: 数据发送成功or失败
-     *   - bytesTransferred: 数据发送字节数
      */
     HcclResult Send(const TransferContext &ctx) override;
-
-    AlgResourceCtxSerializable &GetResCtx() override { return resCtx_; }
 
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用

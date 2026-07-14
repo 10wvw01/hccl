@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * This program is free software; you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * Please refer to the License for details. You may not use this file in in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
@@ -33,7 +33,7 @@ struct TransferContext {
     void* reserved = nullptr;
 };
 
-class OpsExecutor;
+class HcclAlgorithm;
 
 
 /**
@@ -52,23 +52,26 @@ public:
     /**
      * 创建引擎所需的运行时资源。
      * 工作流程：
-     *   1. 解析 res 中的资源需求（AlgResourceRequest 内部以 vector<vector<HcclChannelDesc>>
-     *      承载多层级 channel，单结构即可描述全部层级）；
-     *   2. 根据引擎类型创建对应的资源（channel/notify/thread/cclMem 等）；
-     *   3. 将创建的资源句柄回填到引擎内部上下文中供后续 LaunchKernel 使用。
+     *   1. 根据 resReq 中的资源需求，创建对应的资源（channel/notify/thread/cclMem 等）；
+     *   2. 将创建的资源句柄、algHierarchyInfo、序列化的 HcclAlgorithm 回填到引擎内部 resCtx_ 中；
+     *   3. resCtx_ 供后续 LaunchKernel 在 device 侧使用。
      * 输入参数：
-     *   - res: 资源请求，由 OpsExecutor::CalcRes 生成，包含每层级的资源需求
+     *   - comm: 通信域句柄
+     *   - alg: 算法描述对象引用，序列化后存入 resCtx_ 供 device 侧重建 executor
+     *   - algHierarchyInfo: 拓扑分级信息，由 CalcAlgHierarchyInfo 生成
+     *   - resReq: 资源请求，由 OpsExecutor::CalcRes 生成
      * 返回值：
      *   - HCCL_SUCCESS: 资源创建成功
-     *   - : 资源创建失败
+     *   - 其他: 资源创建失败
      */
-    virtual HcclResult CreateRes(HcclComm comm, AlgResourceRequest &res) = 0;
+    virtual HcclResult CreateRes(HcclComm comm, HcclAlgorithm &alg,
+                                 AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) = 0;
 
     /**
      * 下发 kernel 到设备侧执行。
      * 工作流程：
      *   1. 准备执行环境（加载 kernel 二进制、初始化 thread）；
-     *   2. 从 resCtx 反序列化 HcclAlgorithm，重建 executor 并执行编排；
+     *   2. 从引擎内部 resCtx_ 反序列化 HcclAlgorithm，重建 executor 并执行编排；
      *   3. 等待设备侧执行完成并上报 profiling。
      * 输入参数：
      *   - param: 算子参数，包含 commName、tag、opType、数据描述等
@@ -76,7 +79,7 @@ public:
      *   - HCCL_SUCCESS: kernel 下发并执行成功
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
-    virtual HcclResult LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx) = 0;
+    virtual HcclResult LaunchKernel(const OpParam &param) = 0;
 
     /**
      * 数据传输统一接口。
@@ -91,12 +94,6 @@ public:
      *   - HCCL_E_INTERNAL: 数据发送失败
      */
     virtual HcclResult Send(const TransferContext &ctx) = 0;
-
-    /**
-     * 获取引擎持有的资源上下文引用。
-     * 用于在 Host 侧将算法序列化数据写入 resCtx，供 device 侧重建 executor。
-     */
-    virtual AlgResourceCtxSerializable &GetResCtx() = 0;
 };
 
 }  // namespace ops_hccl
