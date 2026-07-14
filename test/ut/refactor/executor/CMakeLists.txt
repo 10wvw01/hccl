@@ -18,6 +18,7 @@ set(UT_EXECUTOR_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/base_template.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
@@ -30,6 +31,7 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/inc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
+    ${CMAKE_SOURCE_DIR}/refactor/ops/engine
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common/hcomm_dlsym
     # SDK 头文件

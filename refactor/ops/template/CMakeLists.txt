@@ -29,10 +29,6 @@ target_include_directories(hccl PRIVATE
     ${HCCL_DIR}/src/common/hcomm_dlsym
 )
 
-target_sources(hccl PRIVATE
-    base_template.cc
-)
-
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/primitives
                  ${CMAKE_CURRENT_BINARY_DIR}/primitives)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/aicpu

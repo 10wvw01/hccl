@@ -26,6 +26,8 @@
 
 namespace ops_hccl {
 
+class BaseEngine;
+
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -64,6 +66,8 @@ public:
 
     HcclResult CalcRes(AlgResourceRequest &resReq);
 
+    void SetEngine(BaseEngine *engine) { engine_ = engine; }
+
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
 private:
@@ -89,6 +93,8 @@ private:
 
     // 通信域指针
     HcclComm hcclComm_;
+    // 引擎指针，由外部通过 SetEngine 注入
+    BaseEngine *engine_ = nullptr;
     // algo
     HcclAlgorithm algo_;
 

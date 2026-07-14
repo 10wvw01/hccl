@@ -19,6 +19,7 @@
 #include "hccl_res_dl.h"
 #include "exec_timeout_manager.h"
 
+#include <hccl/hccl_res.h>
 #include <atomic>
 #include <vector>
 
@@ -72,10 +73,13 @@ HcclResult AiCpuEngine::CreateRes(AlgResourceRequest &res)
     resCtx_.slaveThreadNum = res.slaveThreadNum;
     resCtx_.notifyNumPerThread = res.notifyNumPerThread;
 
+    // 从通信域获取 CCL buffer
     void *cclBufferAddr = nullptr;
-    u64 cclBufferSize = 0;
+    uint64_t cclBufferSize = 0;
+    CHK_RET(HcclGetHcclBuffer(comm_, &cclBufferAddr, &cclBufferSize));
     resCtx_.cclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, cclBufferAddr, cclBufferSize};
 
+    // 线程预留：实际线程创建需要 stream 参数，在 LaunchKernel 中完成
     resCtx_.threads.resize(res.slaveThreadNum + 1);
 
     // 按层级申请 channel（迁移自 op_common.cc:HcclGetChannelImpl）。

@@ -1,5 +1,5 @@
-#ifndef ALG_DATA_TRANS_WRAPPER
-#define ALG_DATA_TRANS_WRAPPER
+#ifndef OPS_HCCL_UTILS_UTILS_H
+#define OPS_HCCL_UTILS_UTILS_H
 
 #include <vector>
 #include <algorithm>
@@ -32,4 +32,4 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
 
 }  // namespace ops_hccl
 
-#endif // !ALG_DATA_TRANS_WRAPPER
+#endif // OPS_HCCL_UTILS_UTILS_H

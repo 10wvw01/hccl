@@ -34,6 +34,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
     // 1. 获取引擎与执行器
     auto engine = alg.GetEngine(comm);
     auto executor = alg.GetExecutor(param);
+    executor->SetEngine(engine.get());
 
     // 2. 计算算法分级信息（topoMatch → algHierarchyInfo_）
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get()));

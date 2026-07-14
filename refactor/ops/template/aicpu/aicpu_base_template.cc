@@ -15,7 +15,8 @@
 
 namespace ops_hccl {
 
-HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
+HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
+                                        TemplateResource &templateResource,
                                         std::vector<u32> &ranksForOutputData)
 {
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
@@ -65,7 +66,7 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 
     // 4. SendAll：统一逐个执行 SendRecv。
     if (!sendRecvInfos.empty()) {
-        CHK_RET(SendAll(sendRecvInfos, templateResource));
+        CHK_RET(SendAll(engine, sendRecvInfos, templateResource));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -86,7 +87,7 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
-HcclResult AicpuBaseTemplate::SendAll(const std::vector<SendRecvInfo> &sendRecvInfos,
+HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<SendRecvInfo> &sendRecvInfos,
                                        TemplateResource &templateResource)
 {
     for (size_t i = 0; i < sendRecvInfos.size(); ++i) {
@@ -97,7 +98,7 @@ HcclResult AicpuBaseTemplate::SendAll(const std::vector<SendRecvInfo> &sendRecvI
         ctx.templateRes = templateResource;
         ctx.dataType = sendRecvInfos[i].dataType_;
         ctx.reduceOp = tempAlgParams_.reduceOp;
-        CHK_RET(GetEngine().Send(ctx));
+        CHK_RET(engine.Send(ctx));
     }
     return HCCL_SUCCESS;
 }
