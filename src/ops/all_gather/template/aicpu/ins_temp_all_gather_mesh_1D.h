@@ -50,6 +50,9 @@ protected:
     u64 outputOffset_{0};
     void *inputSymWindow_;
     void *outputSymWindow_;
+    std::vector<u64> elemCountOut_;
+    std::vector<u64> sizeOut_;
+    std::vector<u64> elemOffset_;
 };
 
 }  // namespace ops_hccl
