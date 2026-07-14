@@ -690,14 +690,7 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
 
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
         HcclResult ret = HCCL_SUCCESS;
-        if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
-            InsSendExecutor *sendExecutor = dynamic_cast<InsSendExecutor *>(executor.get());
-            ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
-        } else {
-            InsRecvExecutor *recvExecutor = dynamic_cast<InsRecvExecutor *>(executor.get());
-            ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
-        }
-
+        ret = executor->OrchestrateWithThread(*param, *resCtxPtr, sendRecvThread);
         if (ret != HCCL_SUCCESS) {
             HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
                     param->algName, static_cast<int>(param->opType));
