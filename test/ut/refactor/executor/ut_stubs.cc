@@ -10,6 +10,7 @@
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_rank_graph.h>
 #include "hccl_algorithm.h"
+#include "base_template.h"
 
 extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 {
@@ -75,6 +76,11 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
     }
     return HCCL_SUCCESS;
 }
+
+// ============================================================
+// BaseTemplate 桩 (替代 base_template.cc，提供 vtable)
+// ============================================================
+BaseTemplate::~BaseTemplate() {}
 
 // ============================================================
 // TopoMatchBase 桩 (替代 topo_match_base.cc)
