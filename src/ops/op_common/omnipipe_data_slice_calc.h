@@ -222,7 +222,7 @@ u64 sliceOffsetCut(u64 originOffset, u64 stopOffset);
 std::vector<std::vector<u64>> OmniPipeSplitRankDataLoop(std::vector<u64> omniPipeSplitSliceInfoList,
                                                         u64 maxDataCountPerLoop, u64 loopCount, u64 dataTypeSize);
 std::vector<u64> OmniPipeSplitData(u64 rankSize, u64 count, u64 dataTypeSize);
-
+u64 RoundDown(u64 dividend, u64 divisor);
 double CalcBandwidth2D(double xB, double yB, u64 xRankSize, u64 yRankSize, int maxStepNum);
 void CalAllgather2DOffset(u64* xAGOffset, u64* yAGOffset, u64 stepNum, u64 xRankSize, u64 yRankSize, u64* xAGDataSize,
                           u64* yAGDataSize);
