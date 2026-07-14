@@ -24,7 +24,7 @@ case "${ut_type}" in
         if [ "${TARGET_BRANCH}x" != "masterx" ]; then
             exit 0
         fi
-        wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/ascend-ci/${{ env.obs_path }}/cann-hccl_linux-x86_64_ubuntu24.run
+        wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/ascend-ci/${obs_path}/cann-hccl_linux-x86_64_ubuntu24.run
         chmod u+x cann-hccl_linux-x86_64_ubuntu24.run
         sudo chmod 777 /home/jenkins/Ascend
         yes "y" | bash cann-hccl_linux-x86_64_ubuntu24.run --full --install-path=/home/jenkins/Ascend

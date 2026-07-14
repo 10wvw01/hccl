@@ -48,6 +48,7 @@ jobs:
           cd ${{ steps.process_checkout.outputs.path }}
           export ut_type=${{ inputs.ut_type }}
           export TARGET_BRANCH=${{env.TARGET_BRANCH }}
+          export obs_path=${{ env.obs_path }}
           bash ut.sh ${ut_type}
           echo "======1======"
           ls -l ./
