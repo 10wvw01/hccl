@@ -12,11 +12,7 @@
 #include "base_engine.h"
 
 namespace ops_hccl {
-OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param)
-    : algo_(algo),
-      myRank_(param.userRank),
-      rankSize_(0),
-      root_(param.root)
+OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param) : algo_(algo), rankSize_(0), root_(param.root)
 {
     opMode_ = param.opMode;
     dataInfo_.inputPtr = param.inputPtr;
@@ -37,6 +33,7 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(
 {
     // 储存通信域指针
     hcclComm_ = comm;
+    myRank_ = topoInfo->userRank;
     // TODO：topoMatch暂不修改参数
     algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo);
     algHierarchyInfo_ = algHierarchyInfo;
@@ -118,6 +115,8 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
+
+    myRank_ = resCtx.topoInfo.userRank;
     // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重算rankSize
     rankSize_ = 1;
     for (size_t i = 0; i < topoLevelNum; i++) {
