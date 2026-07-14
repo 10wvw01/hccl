@@ -416,6 +416,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         }
     }
 
+    for (int i=0;i< allRankSplitData.size(); i++){
+        HCCL_DEBUG("[%s]xx rankId[%d], allRankSplitData[%d]:%d", __func__, myRank_, i, allRankSplitData[i]);
+    }
     // 3.1 计算n-1次loop的slice信息
     u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
     perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
@@ -598,6 +601,13 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             u64 rankOffset = 0;
             u64 rankLoopOffset = 0;
             CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
+
+            std::vector<u64> processedDataCountTmp(rankSize_, 0);
+            for (u32 i = 0; i < rankSize_; i++) {
+                processedDataCountTmp[i] = processedDataCountTmp[i] + multiLoopAllRankSplitData[loop][i];
+                HCCL_DEBUG("processedDataCountTmp[%lu][%lu] multiloop[%lu][%lu]:[%lu] ",i, processedDataCountTmp[i], loop, i, multiLoopAllRankSplitData[loop][i]);
+            }
+
             for (u32 i = 0; i < rankSize_; i++) {
                 u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
