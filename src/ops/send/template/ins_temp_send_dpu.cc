@@ -95,7 +95,7 @@ namespace ops_hccl
             dpuRunInfo.tempAlgParams = tempAlgParams;
             dpuRunInfo.channels = templateResource.channels;
             dpuRunInfo.myRank = myRank_;
-            dpuRunInfo.subCommRanks = subCommRanks_;
+            dpuRunInfo.subCommRanks = {{myRank_, recvRank_}};
             u32 sendMsgId = 0;
             auto dpuRunInfoSeqData = dpuRunInfo.Serialize();
 
