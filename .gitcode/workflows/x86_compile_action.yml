@@ -72,15 +72,6 @@ jobs:
           secret-key: ${{ secrets.SK }}
           artifact-path: "${{ steps.process_checkout.outputs.path }}/build_out/*"
           object-prefix: ${{ env.obs_path }}/
-      - name: upload
-        uses: obs-upload
-        with:
-          endpoint: "https://obs.cn-north-4.myhuaweicloud.com"
-          bucket: "ascend-ci"
-          access-key: ${{ secrets.AK }}
-          secret-key: ${{ secrets.SK }}
-          artifact-path: "${{ steps.process_checkout.outputs.path }}/build_out/cann-hccl*x86_64.run"
-          object-prefix: ${{ env.obs_path }}/cann-hccl_linux-x86_64_ubuntu24.run
     if: "${{ default() }}"
     runs-on: [dedicate-hosted, x64, large]
     container:
