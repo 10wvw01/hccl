@@ -36,7 +36,7 @@ public:
 
 protected:
     /** 通信编排：调 RunMeshAllGather 生成 SendRecvInfo 列表，由基类统一执行 SendRecv。 */
-    HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<SendRecvInfo> &sendRecvInfos,
+    HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<TxRxSlicesList> &txRxSlicesLists,
                             std::vector<u32> &ranksForOutputData) override;
 };
 

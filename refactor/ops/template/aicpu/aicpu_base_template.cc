@@ -59,12 +59,12 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
     }
 
     // 3. RunAlgorithm：子类生成 SendRecvInfo 列表与 ranksForOutputData。
-    std::vector<SendRecvInfo> sendRecvInfos;
-    CHK_RET(RunAlgorithm(templateResource, sendRecvInfos, ranksForOutputData));
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+    CHK_RET(RunAlgorithm(templateResource, txRxSlicesLists, ranksForOutputData));
 
     // 4. SendAll：统一逐个执行 SendRecv。
-    if (!sendRecvInfos.empty()) {
-        CHK_RET(SendAll(engine, sendRecvInfos, templateResource));
+    if (!txRxSlicesLists.empty()) {
+        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -85,44 +85,22 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
 
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
-HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<SendRecvInfo> &sendRecvInfos,
+HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
                                        TemplateResource &templateResource)
 {
-    for (size_t i = 0; i < sendRecvInfos.size(); ++i) {
+    for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
         ctx.enableRemoteMemAccess = tempAlgParams_.enableRemoteMemAccess;
         ctx.buffType = tempAlgParams_.cclBufferType;
-        ctx.txRxSlicesList = sendRecvInfos[i].sendRecvSlices_;
+        ctx.txRxSlicesList = txRxSlicesLists[i];
         ctx.templateRes = templateResource;
-        ctx.dataType = sendRecvInfos[i].dataType_;
+        ctx.dataType = tempAlgParams_.dataType;
         ctx.reduceOp = tempAlgParams_.reduceOp;
         CHK_RET(engine.Send(ctx));
     }
     return HCCL_SUCCESS;
 }
 
-HcclResult AicpuBaseTemplate::BuildSendRecvInfos(TemplateResource &templateResource,
-                                                 const std::vector<TxRxSlicesList> &txRxSlicesLists,
-                                                 std::vector<SendRecvInfo> &sendRecvInfos) const
-{
-    sendRecvInfos.clear();
-    for (const TxRxSlicesList &txRxSlicesList : txRxSlicesLists) {
-        CHK_PRT_RET(templateResource.channels.count(txRxSlicesList.dstRankId_) == 0 ||
-                        templateResource.channels.at(txRxSlicesList.dstRankId_).empty(),
-                    HCCL_ERROR("[AicpuBaseTemplate][BuildSendRecvInfos] dstRank[%u] has no channel.",
-                               txRxSlicesList.dstRankId_),
-                    HCCL_E_PARA);
-        CHK_PRT_RET(templateResource.channels.count(txRxSlicesList.srcRankId_) == 0 ||
-                        templateResource.channels.at(txRxSlicesList.srcRankId_).empty(),
-                    HCCL_ERROR("[AicpuBaseTemplate][BuildSendRecvInfos] srcRank[%u] has no channel.",
-                               txRxSlicesList.srcRankId_),
-                    HCCL_E_PARA);
-        const ChannelInfo &txChannel = templateResource.channels.at(txRxSlicesList.dstRankId_)[0];
-        const ChannelInfo &rxChannel = templateResource.channels.at(txRxSlicesList.srcRankId_)[0];
-        sendRecvInfos.emplace_back(TxRxChannels(txChannel, rxChannel), txRxSlicesList, tempAlgParams_.dataType);
-    }
-    return HCCL_SUCCESS;
-}
 
 HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
 {

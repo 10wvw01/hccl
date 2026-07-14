@@ -67,14 +67,14 @@ protected:
      * 输入参数：
      *   - templateResource: 通信资源（channels / threads）
      * 输出参数：
-     *   - sendRecvInfos: 子类生成的收发描述列表，基类统一调 SendAll 执行
+     *   - txRxSlicesLists: 子类生成的收发描述列表，基类统一调 SendAll 执行
      *   - ranksForOutputData: 输出数据对应的 rank 列表
      * 返回值：
      *   - HCCL_SUCCESS: 通信成功
      *   - 其他: 通信失败错误码
      */
     virtual HcclResult RunAlgorithm(TemplateResource &templateResource,
-                                    std::vector<SendRecvInfo> &sendRecvInfos,
+                                    std::vector<TxRxSlicesList> &txRxSlicesLists,
                                     std::vector<u32> &ranksForOutputData) = 0;
 
     /**
@@ -97,16 +97,8 @@ protected:
      * 统一逐个执行 SendRecv。
      * 由 KernelRun 在 RunAlgorithm 返回后调用。
      */
-    HcclResult SendAll(BaseEngine &engine, const std::vector<SendRecvInfo> &sendRecvInfos,
+    HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
                         TemplateResource &templateResource);
-
-    /**
-     * 将 primitive 生成的 TxRxSlicesList 补齐 channel 信息，转换为基类 SendAll 消费的 SendRecvInfo。
-     * primitive 只负责数据切片，template 仍负责根据资源规划选择 tx/rx channel。
-     */
-    HcclResult BuildSendRecvInfos(TemplateResource &templateResource,
-                                  const std::vector<TxRxSlicesList> &txRxSlicesLists,
-                                  std::vector<SendRecvInfo> &sendRecvInfos) const;
 
     /** 工具：判断 channels 是否为 PCIe 协议（决定 Read/Write 模式）。 */
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels) const
