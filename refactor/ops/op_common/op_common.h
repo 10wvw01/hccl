@@ -54,8 +54,8 @@ HcclResult CheckDataType(const HcclDataType dataType, bool needReduce);
 HcclResult SingleRankProc(HcclComm comm, OpParam &param);
 HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
 HcclResult RegisterKernel();
-HcclResult SetExecTimeout(const OpParam &param);
-HcclResult SetMultipleDimensionSplitRatio(const OpParam &param);
+HcclResult SetExecTimeout(OpParam &param);
+HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
 bool ShouldUseInnerOp(OpExecuteConfig opExecuteConfig);
 HcclResult SetOpParamAlgTag(OpParam &param, const std::string &algName);
 } // namespace ops_hccl
