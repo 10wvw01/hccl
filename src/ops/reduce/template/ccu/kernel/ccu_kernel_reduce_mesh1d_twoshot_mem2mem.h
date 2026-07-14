@@ -5,13 +5,14 @@
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * See the License in the root of the software repository for the full text of the License.
  */
 
 #ifndef HCCL_CCU_KERNEL_REDUCE_MESH_1D_TWOSHOT_MEM2MEM
 #define HCCL_CCU_KERNEL_REDUCE_MESH_1D_TWOSHOT_MEM2MEM
 
 #include <vector>
+#include <array>
 #include <ios>
 #include "ccu_kernel_utils.h"
 #include "ccu_kernel_alg_base.h"
@@ -54,8 +55,16 @@ struct ReduceMesh1DTwoShotMem2MemContext: CcuKernelCtxBase {
 
     ccu::LocalAddr myInput;
     ccu::LocalAddr myOutput;
-    ccu::RemoteAddr remoteScratch;
+    ccu::RemoteAddr remoteInput;
     ccu::RemoteAddr remoteOutput;
+
+    ccu::Variable sliceSize;
+    std::vector<ccu::LocalAddr> scratchMem;
+    std::array<std::vector<ccu::LocalAddr>, 2> loopScratch;
+    ccu::LocalAddr loopSrc[2];
+    ccu::LocalAddr loopDst[2];
+    ccu::Variable  loopLen[2];
+    ccu::Variable  loopLenExp[2];
 };
 
 CcuResult CcuReduceMesh1DTwoShotMem2MemKernel(CcuKernelArg arg);
