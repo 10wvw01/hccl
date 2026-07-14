@@ -16,7 +16,7 @@
 #include "alg_param.h"
 #include "hccl_algorithm.h"
 
-namespace ops_hccl { namespace refactor {
+namespace ops_hccl {
 
 constexpr uint64_t SMALL_COUNT_512KB = 512*1024; // Byte, UB协议一次传输的最大size
 constexpr uint64_t LARGE_COUNT_1024KB = 1024*1024; // Byte, 可掩盖多mission尾块开销
@@ -74,6 +74,6 @@ inline bool Is64BitDataType(const HcclDataType dataType)
            dataType == HcclDataType::HCCL_DATA_TYPE_FP64;
 }
 
-} } // namespace refactor::ops_hccl
+} // namespace ops_hccl
 
 #endif

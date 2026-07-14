@@ -14,7 +14,7 @@
 #include "alg_param.h"
 #include "auto_selector_base.h"
 
-namespace ops_hccl { namespace refactor {
+namespace ops_hccl {
 class ExecuteSelector {
 public:
     ExecuteSelector();
@@ -24,5 +24,5 @@ public:
 
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                     HcclAlgorithm &alg);
-} } // namespace refactor::ops_hccl
+} // namespace ops_hccl
 #endif
