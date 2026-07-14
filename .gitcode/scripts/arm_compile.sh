@@ -15,14 +15,9 @@ gcc --version
 source /home/jenkins/Ascend/cann/bin/setenv.bash
 set +e
 
-echo "exec cmd: [bash build.sh --pkg --examples --cann_3rd_lib_path="/home/jenkins/opensource"]"
-bash build.sh --pkg --examples --cann_3rd_lib_path="/home/jenkins/opensource"
+echo "exec cmd: [bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann]"
+bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann
 
 ret=$?
-
-cd build
-tar -zcf examples.tar.gz examples
-cp -rf examples.tar.gz ${WORKSPACE}/build_out
-cd -
 
 exit $ret
