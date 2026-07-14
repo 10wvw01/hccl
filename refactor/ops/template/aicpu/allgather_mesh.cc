@@ -21,8 +21,9 @@ HcclResult AllGatherMeshTemplate::RunAlgorithm(TemplateResource &templateResourc
     HCCL_INFO("[AllGatherMeshTemplate][RunAlgorithm] start, myRank[%u], rankSize[%u].",
               myRank_, templateRankSize_);
 
-    CHK_RET(RunMeshAllGather(tempAlgParams_, templateResource, ranks_, myRank_,
-                             ranksForOutputData, sendRecvInfos));
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+    CHK_RET(RunMeshAllGather(tempAlgParams_, ranks_, myRank_, ranksForOutputData, txRxSlicesLists));
+    CHK_RET(BuildSendRecvInfos(templateResource, txRxSlicesLists, sendRecvInfos));
 
     HCCL_INFO("[AllGatherMeshTemplate][RunAlgorithm] end.");
     return HCCL_SUCCESS;

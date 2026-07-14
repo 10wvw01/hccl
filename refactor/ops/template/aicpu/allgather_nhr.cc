@@ -20,8 +20,9 @@ HcclResult AllGatherNhrTemplate::RunAlgorithm(TemplateResource &templateResource
     HCCL_INFO("[AllGatherNhrTemplate][RunAlgorithm] start, myRank[%u], rankSize[%u].",
               myRank_, templateRankSize_);
 
-    CHK_RET(RunNhrAllGather(tempAlgParams_, templateResource, ranks_, myRank_,
-                            ranksForOutputData, sendRecvInfos));
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+    CHK_RET(RunNhrAllGather(tempAlgParams_, ranks_, myRank_, ranksForOutputData, txRxSlicesLists));
+    CHK_RET(BuildSendRecvInfos(templateResource, txRxSlicesLists, sendRecvInfos));
 
     HCCL_INFO("[AllGatherNhrTemplate][RunAlgorithm] end.");
     return HCCL_SUCCESS;

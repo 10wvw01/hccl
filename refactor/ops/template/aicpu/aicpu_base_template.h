@@ -100,6 +100,14 @@ protected:
     HcclResult SendAll(BaseEngine &engine, const std::vector<SendRecvInfo> &sendRecvInfos,
                         TemplateResource &templateResource);
 
+    /**
+     * 将 primitive 生成的 TxRxSlicesList 补齐 channel 信息，转换为基类 SendAll 消费的 SendRecvInfo。
+     * primitive 只负责数据切片，template 仍负责根据资源规划选择 tx/rx channel。
+     */
+    HcclResult BuildSendRecvInfos(TemplateResource &templateResource,
+                                  const std::vector<TxRxSlicesList> &txRxSlicesLists,
+                                  std::vector<SendRecvInfo> &sendRecvInfos) const;
+
     /** 工具：判断 channels 是否为 PCIe 协议（决定 Read/Write 模式）。 */
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels) const
     {

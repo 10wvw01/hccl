@@ -26,6 +26,7 @@
 #include "binary_stream.h"
 #include "engine/aicpu/dfx/task_exception_fun.h"
 #include "c_adaptor/common/alg_env_config.h"
+#include "hcomm_host_profiling_dl.h"
 
 namespace ops_hccl {
 constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify idx

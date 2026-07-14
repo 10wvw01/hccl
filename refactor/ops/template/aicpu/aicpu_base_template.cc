@@ -101,6 +101,29 @@ HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<Send
     return HCCL_SUCCESS;
 }
 
+HcclResult AicpuBaseTemplate::BuildSendRecvInfos(TemplateResource &templateResource,
+                                                 const std::vector<TxRxSlicesList> &txRxSlicesLists,
+                                                 std::vector<SendRecvInfo> &sendRecvInfos) const
+{
+    sendRecvInfos.clear();
+    for (const TxRxSlicesList &txRxSlicesList : txRxSlicesLists) {
+        CHK_PRT_RET(templateResource.channels.count(txRxSlicesList.dstRankId_) == 0 ||
+                        templateResource.channels.at(txRxSlicesList.dstRankId_).empty(),
+                    HCCL_ERROR("[AicpuBaseTemplate][BuildSendRecvInfos] dstRank[%u] has no channel.",
+                               txRxSlicesList.dstRankId_),
+                    HCCL_E_PARA);
+        CHK_PRT_RET(templateResource.channels.count(txRxSlicesList.srcRankId_) == 0 ||
+                        templateResource.channels.at(txRxSlicesList.srcRankId_).empty(),
+                    HCCL_ERROR("[AicpuBaseTemplate][BuildSendRecvInfos] srcRank[%u] has no channel.",
+                               txRxSlicesList.srcRankId_),
+                    HCCL_E_PARA);
+        const ChannelInfo &txChannel = templateResource.channels.at(txRxSlicesList.dstRankId_)[0];
+        const ChannelInfo &rxChannel = templateResource.channels.at(txRxSlicesList.srcRankId_)[0];
+        sendRecvInfos.emplace_back(TxRxChannels(txChannel, rxChannel), txRxSlicesList, tempAlgParams_.dataType);
+    }
+    return HCCL_SUCCESS;
+}
+
 HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
 {
     HCCL_INFO("[AicpuBaseTemplate][PreCopy] start, myRank[%u].", myRank_);
