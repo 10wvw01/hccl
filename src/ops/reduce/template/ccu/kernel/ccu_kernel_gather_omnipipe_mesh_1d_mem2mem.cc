@@ -118,11 +118,11 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
     uint32_t channelId = 0;
     
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
-        uint32_t rankMask = 1 << rankIdx;
-        // if (rankIdx == ctx.rankId) {
-        //     ccu::EventRecord(ctx.event, rankMask);
-        //     continue;
-        // }
+        uint16_t rankMask = 1 << rankIdx;
+        if (rankIdx == ctx.rankId) {
+            ccu::EventRecord(ctx.event, rankMask);
+            continue;
+        }
         ctx.sliceSize = ctx.sliceSizeOmniSliceStrideVec[rankIdx];
         CCU_IF(ctx.sliceSize != 0) {
             if (ctx.rankId != rankIdx) {
