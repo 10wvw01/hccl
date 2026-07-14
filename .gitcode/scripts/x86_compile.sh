@@ -5,6 +5,7 @@ echo "whoami"
 cd ${WORKSPACE}
 echo $(grep -E "^VERSION_ID=" /etc/os-release | cut -d'"' -f2)
 if [[ "${task_name}" == *ubuntu24* ]]; then
+    export PATH=/opt/buildtools/python-3.10.2/bin:$PATH
     sudo update-alternatives --set gcc /usr/bin/gcc-14
     sed -i "1i set(CMAKE_EXPORT_COMPILE_COMMANDS ON)" "CMakeLists.txt"
 else
