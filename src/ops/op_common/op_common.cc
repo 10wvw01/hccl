@@ -17,6 +17,8 @@
 #include <cstring>  // 包含strcmp函数
 #include <stdexcept>
 
+
+#include "hccl_algo_plugin_mgr.h" // [HCCL-ALGO-Plugin]
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_comm.h>
 #include "hccl/base.h"
@@ -117,30 +119,60 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     // 检查非对称拓扑支持情况，非对称场景仅 AllGather/AllReduce/ReduceScatter 可用
     CHK_RET(CheckAsymmetricTopoSupport(param.opType, topoInfo.get()));
 
-    // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
-    std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
-    CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    // [HCCL-ALGO-Plugin]
+    // 在原有算法选择流程的入口处插入优先匹配逻辑,
+    // 未配置HCCL_ALGO_PLUGIN_PATH或PluginBroker未就绪时，HcclAlgoPluginMgr::IsLoaded()恒为false，
+    // 下方分支被跳过，HCCL行为与原有完全一致。
+
+    param.pluginSelected = false;
+    CHK_RET(HcclAlgoPluginMgr::Instance().Init()); // 幂等，多次调用安全
+    if (HcclAlgoPluginMgr::Instance().IsLoaded()) {
+        HcclAlgoPlugin_t* plugin = HcclAlgoPluginMgr::Instance().GetPlugin();
+        void* pluginCtx = HcclAlgoPluginMgr::Instance().GetContext();
+        HcclAlgoPluginParam pluginParam{};
+        FillHcclAlgoPluginParam(param, topoInfo.get(), pluginParam);
+        char pluginAlgName[HCCL_ALGO_PLUGIN_ALG_NAME_LEN] = {0};
+        if (plugin->SelectAlg(pluginCtx, &pluginParam, pluginAlgName, sizeof(pluginAlgName))) {
+            algName = pluginAlgName;
+            param.pluginSelected = true;
+            HCCL_INFO("[Selector] plugin algorithm selected, algName=[%s], opType=[%d]",
+                algName.c_str(), static_cast<int>(param.opType));
+        }
+    }    
+
+    if (!param.pluginSelected) {
+        // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
+        std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
+        CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    }
     if (algName == "") {
         HCCL_ERROR("[Selector] select algname fail!");
         return HCCL_E_PTR;
     }
-    CHK_RET(SetCommEngine(param));
-    // AIV_ONLY 模式下禁止回退到非 AIV 引擎，未选中 AIV 时直接返回不支持。
-    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY && param.engine != CommEngine::COMM_ENGINE_AIV) {
-        HCCL_ERROR("[HcclExecOp] opType[%d] currently do not select aiv mode, aiv only not support.",
-            static_cast<int>(param.opType));
-        return HCCL_E_NOT_SUPPORT;
+
+    // [HCCL-ALGO-Plugin]
+    // Plugin命中的自定义算法由PluginBroker在HcclExecOp()中直接调用其执行函数完成整个通信操作（自带资源与线程管理），
+    // 不复用HCCL原有的engine/AICPU/AIV派发逻辑，故以下HCCL内部引擎配置与Kernel加载步骤仅在未命中Plugin时才需要执行。
+    if (!param.pluginSelected) {
+        CHK_RET(SetCommEngine(param));
+        // AIV_ONLY 模式下禁止回退到非 AIV 引擎，未选中 AIV 时直接返回不支持。
+        if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY && param.engine != CommEngine::COMM_ENGINE_AIV) {
+            HCCL_ERROR("[HcclExecOp] opType[%d] currently do not select aiv mode, aiv only not support.",
+                static_cast<int>(param.opType));
+            return HCCL_E_NOT_SUPPORT;
+        }
+        // 如果一开始读取到的Engine不是aicpu，经过算法选择后回退到aipcu，则需要重新LoadAICPUKernel
+        if ((param.engine == CommEngine::COMM_ENGINE_AICPU_TS) || (param.engine == CommEngine::COMM_ENGINE_CPU)) {
+            HCCL_DEBUG("[Selector] is aicpu mode");
+            CHK_RET(LoadAICPUKernel()); // 该函数内部有防止重复加载的逻辑
+        }
+        // 如果一开始读取到的Engine不是aiv，经过算法选择后回退到aiv，则需要重新RegisterKernel
+        if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+            HCCL_DEBUG("[Selector] is aiv mode");
+            CHK_RET(RegisterKernel()); // 该函数内部有防止重复加载的逻辑
+        }
     }
-    // 如果一开始读取到的Engine不是aicpu，经过算法选择后回退到aipcu，则需要重新LoadAICPUKernel
-    if ((param.engine == CommEngine::COMM_ENGINE_AICPU_TS) || (param.engine == CommEngine::COMM_ENGINE_CPU)) {
-        HCCL_DEBUG("[Selector] is aicpu mode");
-        CHK_RET(LoadAICPUKernel()); // 该函数内部有防止重复加载的逻辑
-    }
-    // 如果一开始读取到的Engine不是aiv，经过算法选择后回退到aiv，则需要重新RegisterKernel
-    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
-        HCCL_DEBUG("[Selector] is aiv mode");
-        CHK_RET(RegisterKernel()); // 该函数内部有防止重复加载的逻辑
-    }
+
     CHK_RET(SetOpParamAlgTag(param, algName));
     // 设定执行超时时间
     CHK_RET(SetExecTimeout(param));
@@ -579,6 +611,35 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
 {
     uint64_t beginTime = HcommGetProfilingSysCycleTime();
     HCCL_INFO("[HcclExecOp]Start to execute HcclExecOp. HcommGetProfilingSysCycleTime[%llu]", beginTime);
+
+    // [HCCL-ALGO-Plugin] 
+    // 算法执行阶段：
+    // 若Selector()阶段已选中自定义算法，则改为调用PluginBroker的ExecuteAlg()完成通信，
+    // 不再复用HCCL原有的资源申请/线程管理/executor->Orchestrate()等执行路径。
+    // 调用失败或执行出错时直接返回HCCL_E_INTERNAL，不回退至HCCL原有执行逻辑。
+
+    if (param.pluginSelected) {
+        if (!HcclAlgoPluginMgr::Instance().IsLoaded()) {
+            HCCL_ERROR("[HcclExecOp] pluginSelected=true but PluginBroker is not loaded, algName=[%s]",
+                algName.c_str());
+            return HCCL_E_INTERNAL;
+        }
+        HcclAlgoPlugin_t* plugin = HcclAlgoPluginMgr::Instance().GetPlugin();
+        void* pluginCtx = HcclAlgoPluginMgr::Instance().GetContext();
+        HcclAlgoPluginParam pluginParam{};
+        FillHcclAlgoPluginParam(param, topoInfo.get(), pluginParam);
+        int execRet = plugin->ExecuteAlg(pluginCtx, algName.c_str(), pluginParam.opName,
+            &pluginParam, static_cast<void*>(comm));
+        if (execRet != HCCL_SUCCESS) {
+            HCCL_ERROR("[HcclExecOp] plugin ExecuteAlg failed, algName=[%s], opType=[%d], ret=[%d]",
+                algName.c_str(), static_cast<int>(param.opType), execRet);
+            return HCCL_E_INTERNAL;
+        }
+        HCCL_INFO("[HcclExecOp] plugin algorithm execute success, algName=[%s]", algName.c_str());
+        CHK_RET(HcclProfilingReportOp(comm, beginTime));
+        return HCCL_SUCCESS;
+    }
+
     // 当前通信域的某个算法回退过，则下次直接回退
     void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = 0;
