@@ -73,6 +73,13 @@ public:
     const AlgHierarchyInfoForAllLevel &GetAlgHierarchyInfo() const { return algHierarchyInfo_; }
 };
 
+inline TopoInfoWithNetLayerDetails MakeTopoInfo(u32 userRank = 0)
+{
+    TopoInfoWithNetLayerDetails topoInfo;
+    topoInfo.userRank = userRank;
+    return topoInfo;
+}
+
 class OpsExecutorTest : public ::testing::Test {
 protected:
     void SetUp() override

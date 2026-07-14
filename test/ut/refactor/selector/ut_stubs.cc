@@ -90,12 +90,12 @@ HcclResult CheckAsymmetricTopoSupport(HcclCMDType, const TopoInfoWithNetLayerDet
     return HCCL_SUCCESS;
 }
 
-HcclResult SetExecTimeout(const OpParam &)
+HcclResult SetExecTimeout(OpParam &)
 {
     return HCCL_SUCCESS;
 }
 
-HcclResult SetMultipleDimensionSplitRatio(const OpParam &)
+HcclResult SetMultipleDimensionSplitRatio(OpParam &)
 {
     return HCCL_SUCCESS;
 }
