@@ -54,7 +54,7 @@ jobs:
           echo "======2======"
           ls -l ./build
           echo "======3======"
-          ls -l ./build_out   
+          ls -l ./output   
       -
         name: ut_cov
         identifier: ut_cov
