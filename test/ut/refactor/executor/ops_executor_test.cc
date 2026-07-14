@@ -224,7 +224,7 @@ TEST_F(OmniPipeTest, CalcRes)
     exe->SetTopoMatch(info);
     ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
     AlgResourceRequest req;
-    EXPECT_EQ(exe->CalcRes(req), HCCL_SUCCESS);
+    EXPECT_EQ(exe->CalcRes(info, req), HCCL_SUCCESS);
     EXPECT_EQ(req.notifyNumOnMainThread, 3u);
     EXPECT_EQ(req.slaveThreadNum, 23u);
 
@@ -254,7 +254,7 @@ TEST_F(OmniPipeTest, Orchestrate)
     exe->SetTopoMatch(info);
     ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
     AlgResourceRequest req;
-    ASSERT_EQ(exe->CalcRes(req), HCCL_SUCCESS);
+    ASSERT_EQ(exe->CalcRes(info, req), HCCL_SUCCESS);
     std::vector<ThreadHandle> threads
         = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25};
     AlgResourceCtxSerializable resCtx;

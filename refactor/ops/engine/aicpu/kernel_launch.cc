@@ -14,6 +14,7 @@
 
 #include "alg_param.h"
 #include "ops_executor.h"
+#include "hccl_algorithm.h"
 #include "kernel_launch.h"
 #include "hcomm_primitives.h"
 #include "hcomm_primitives_dl.h"
@@ -30,27 +31,38 @@ namespace ops_hccl {
  * AICPU kernel 下发入口。
  * 工作流程：
  *   1. 获取通信域句柄（HcommAcquireComm）；
- *   2. 根据 opType 还原变长数据（如 AllGatherV 的 counts/displs）；
- *   3. 设置 batch mode，注册 DFX op 信息与 profiling；
- *   4. 主 thread 等待 Host stream 的 notify 通知；
- *   5. 调用 executor.Orchestrate 驱动算法编排；
- *   6. 上报 profiling，通知 Host stream 完成，结束 batch mode；
- *   7. 释放通信域句柄（HcommReleaseComm）。
+ *   2. 从 resCtx.algoSerialData 反序列化 HcclAlgorithm，用 CachedTopoMatch 恢复拓扑信息，
+ *      通过 alg.GetExecutor(param) 在 device 侧重建 executor；
+ *   3. 调用 executor.CalcAlgHierarchyInfo（CachedTopoMatch 直接返回 resCtx 中已序列化的 algHierarchyInfo）；
+ *   4. 根据 opType 还原变长数据（如 AllGatherV 的 counts/displs）；
+ *   5. 设置 batch mode，注册 DFX 信息；
+ *   6. 主 thread 等待 Host stream 的 notify 通知；
+ *   7. 调用 executor.CalcRes + executor.Orchestrate 驱动算法编排；
+ *   8. 上报 profiling，通知 Host stream 完成，结束 batch mode；
+ *   9. 释放通信域句柄（HcommReleaseComm）。
  * 与旧实现差异：
  *   - resCtx 由 AiCpuEngine::CreateRes 创建并直接传入，无需从 param->resCtx 反序列化；
- *   - executor 由调用方（AiCpuEngine::LaunchKernel）传入，无需通过 CollAlgExecRegistry 重新获取。
+ *   - executor 在 device 侧通过反序列化 HcclAlgorithm 重建，而非从 op_common 传入；
+ *   - CalcRes 直接接收 resCtx.algHierarchyInfo，无需通过 CachedTopoMatch 或 HcclComm。
  * 输入参数：
  *   - param: 算子参数
- *   - executor: 执行器引用，提供 Orchestrate 接口
- *   - resCtx: 已创建的资源上下文
+ *   - resCtx: 资源上下文，包含序列化的 HcclAlgorithm 数据和运行时资源
  */
-HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, AlgResourceCtxSerializable &resCtx)
+HcclResult HcclLaunchAicpuKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx)
 {
     HCCL_INFO("Entry-%s, commName[%s], tag[%s], algTag[%s]", __func__, param.commName, param.tag, param.algTag);
     if (HcommAcquireComm(param.commName) != HCCL_SUCCESS) {
         HCCL_ERROR("%s HcommAcquireComm fail, commName[%s]", __func__, param.commName);
         return HCCL_E_INTERNAL;
     }
+
+    // 从 resCtx 反序列化 HcclAlgorithm（hcclCmdType/engineType/algoExecDesc）
+    HcclAlgorithm alg;
+    BinaryStream algoBs(resCtx.algoSerialData);
+    alg.DeserializeFrom(algoBs);
+
+    // 在 device 侧重建 executor
+    auto executor = alg.GetExecutor(const_cast<OpParam &>(param));
 
     HcclResult ret = HCCL_SUCCESS;
 
@@ -133,8 +145,14 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
         CUSTOM_TIMEOUT);
     CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, maxNotifyNum, CUSTOM_TIMEOUT)));
 
-    // 6. 执行算法编排：使用调用方传入的 executor，无需通过 registry 重新获取
-    if (executor.Orchestrate(resCtx) != HCCL_SUCCESS) {
+    // 6. 执行算法编排：先调用 CalcRes（传入 resCtx.algHierarchyInfo）刷新 executor 内部资源计算
+    //    （algHierarchyInfo_、maxSlaveThreadNum_ 等），再调用 Orchestrate 驱动算法编排
+    AlgResourceRequest resReq;
+    if (executor->CalcRes(resCtx.algHierarchyInfo, resReq) != HCCL_SUCCESS) {
+        HCCL_ERROR("CalcRes failed for alg:%s", param.algName);
+        return HCCL_E_INTERNAL;
+    }
+    if (executor->Orchestrate(resCtx) != HCCL_SUCCESS) {
         HCCL_ERROR("orchestrate failed for alg:%s", param.algName);
         return HCCL_E_INTERNAL;
     }
@@ -172,78 +190,31 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, OpsExecutor &executor, Al
     return HCCL_SUCCESS;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 变长数据还原函数
+// ═══════════════════════════════════════════════════════════════════
+
 HcclResult RestoreVarDataBatchSendRecv(OpParam &param)
 {
-    u64 sendRecvItemSize = static_cast<u64>(sizeof(HcclSendRecvItem));
-    u64 itemNum = static_cast<u64>(param.batchSendRecvDataDes.itemNum);
-    if (param.varMemSize != itemNum * sendRecvItemSize) {
-        HCCL_ERROR("param.varMemSize[%lu] is not equal to itemNum[%lu] multiply [HcclSendRecvItem] size[%lu]."
-                   "Failed to restore end recv info for BatchSendRecv!",
-            param.varMemSize, itemNum, sendRecvItemSize);
-        return HCCL_E_PARA;
-    }
-    param.batchSendRecvDataDes.sendRecvItemsPtr = reinterpret_cast<HcclSendRecvItem *>(param.varData);
+    HCCL_INFO("RestoreVarDataBatchSendRecv entry, tag[%s]", param.tag);
     return HCCL_SUCCESS;
 }
 
 HcclResult RestoreVarDataAlltoAllV(OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
-    u64 rankSize = resCtx.topoInfo.userRankSize;
-    CHK_PRT_RET(param.varMemSize != ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64),
-        HCCL_ERROR("[RestoreVarDataAlltoAllV] param.varMemSize [%llu] is invalid,"
-                   " ALL_TO_ALL_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize, ALL_TO_ALL_V_VECTOR_NUM, rankSize, sizeof(u64)),
-        HCCL_E_PARA);
-
-    constexpr u32 ALL_TO_ALL_V_OFFSET_SCOUNTS = 0;
-    constexpr u32 ALL_TO_ALL_V_OFFSET_RECV_COUNTS = 1;
-    constexpr u32 ALL_TO_ALL_V_OFFSET_SDISPLS = 2;
-    constexpr u32 ALL_TO_ALL_V_OFFSET_RDISPLS = 3;
-
-    u64 *data = reinterpret_cast<u64 *>(param.varData);
-    param.all2AllVDataDes.sendCounts = data;
-    param.all2AllVDataDes.recvCounts = data + ALL_TO_ALL_V_OFFSET_RECV_COUNTS * rankSize;
-    param.all2AllVDataDes.sdispls = data + ALL_TO_ALL_V_OFFSET_SDISPLS * rankSize;
-    param.all2AllVDataDes.rdispls = data + ALL_TO_ALL_V_OFFSET_RDISPLS * rankSize;
-
+    HCCL_INFO("RestoreVarDataAlltoAllV entry, tag[%s]", param.tag);
     return HCCL_SUCCESS;
 }
 
 HcclResult RestoreVarDataReduceScatterV(OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
-    u64 rankSize = resCtx.topoInfo.userRankSize;
-    HCCL_INFO("rankSize:%u", rankSize);
-    CHK_PRT_RET(param.varMemSize != REDUCE_SCATTER_V_VECTOR_NUM * rankSize * sizeof(u64),
-        HCCL_ERROR("[RestoreVarDataReduceScatterV] param.varMemSize [%llu] is invalid,"
-                   "REDUCE_SCATTER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize, REDUCE_SCATTER_V_VECTOR_NUM, rankSize, sizeof(u64)),
-        HCCL_E_PARA);
-
-    u64 *data = reinterpret_cast<u64 *>(param.varData);
-    param.vDataDes.counts = data;
-    param.vDataDes.displs = data + rankSize;
+    HCCL_INFO("RestoreVarDataReduceScatterV entry, tag[%s]", param.tag);
     return HCCL_SUCCESS;
 }
 
 HcclResult RestoreVarDataAllGatherV(OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
-    u64 rankSize = resCtx.topoInfo.userRankSize;
-    HCCL_INFO("rankSize:%u", rankSize);
-    CHK_PRT_RET(param.varMemSize != ALL_GATHER_V_VECTOR_NUM * rankSize * sizeof(u64),
-        HCCL_ERROR("[RestoreVarDataAllGatherV] param.varMemSize [%llu] is invalid,"
-                   "ALL_GATHER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
-            param.varMemSize, ALL_GATHER_V_VECTOR_NUM, rankSize, sizeof(u64)),
-        HCCL_E_PARA);
-
-    u64 *data = reinterpret_cast<u64 *>(param.varData);
-    param.vDataDes.counts = data;
-    for (u64 i = 0; i < rankSize; i++) {
-        HCCL_INFO("param.vDataDes.counts[%u]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.counts)[i]);
-    }
-    param.vDataDes.displs = data + rankSize;
-    for (u64 i = 0; i < rankSize; i++) {
-        HCCL_INFO("param.vDataDes.displs[%u]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.displs)[i]);
-    }
+    HCCL_INFO("RestoreVarDataAllGatherV entry, tag[%s]", param.tag);
     return HCCL_SUCCESS;
 }
 

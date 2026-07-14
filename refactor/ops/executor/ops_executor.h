@@ -68,6 +68,9 @@ public:
 
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
+    // 获取拓扑分级信息，供外部写入 resCtx 供 device 侧使用
+    AlgHierarchyInfoForAllLevel &GetAlgHierarchyInfo() { return algHierarchyInfo_; }
+
 private:
     HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
     HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes);
