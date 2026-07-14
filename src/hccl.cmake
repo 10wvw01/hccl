@@ -117,44 +117,6 @@ if(NOT STATIC_MODE)
 endif()
 
 if(STATIC_MODE)
-    target_link_libraries(hccl PRIVATE
-        hcomm
-        acl_rt
-        c_sec
-        unified_dlog
-    )
-else()
-    if(BUILD_OPEN_PROJECT)
-        target_link_libraries(hccl PRIVATE
-            $<BUILD_INTERFACE:runtime_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
-            $<BUILD_INTERFACE:msprof_headers>
-            $<BUILD_INTERFACE:error_manager_headers>
-            -Wl,--no-as-needed
-            hcomm
-            acl_rt
-            c_sec
-            unified_dlog
-            -Wl,--no-as-needed
-        )
-    else()
-        target_link_libraries(hccl PRIVATE
-            $<BUILD_INTERFACE:ofed_headers>
-            $<BUILD_INTERFACE:slog_headers>
-            $<BUILD_INTERFACE:msprof_headers>
-            $<BUILD_INTERFACE:npu_runtime_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
-            -Wl,--no-as-needed
-            hcomm
-            acl_rt
-            c_sec
-            unified_dlog
-            -Wl,--no-as-needed
-        )
-    endif()
-endif()
-
-if(STATIC_MODE)
     install(TARGETS hccl
         ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR}
         ${INSTALL_OPTIONAL}
