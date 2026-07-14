@@ -85,24 +85,35 @@ public:
         Record(targetRank_, flag_offset, loop + 1);
     }
 
-    // 控核初始化：一核多 rank 映射 + per-rank 初始握手
+    // 控核初始化：一核多 rank 映射 + per-rank 初始握手（参考多核 :117-125 的 2 Record + 1 Wait）
+    // 顺序：先初始化对端 C 区(data-ready)为 curTag_ → 等对端初始化本 rank 的 C 区 → 再初始化对端 P 区(ack)。
+    // C 区必须先就绪为非0：CONSUME 的 WaitFlag(tag=loop=0) 会被残留0误匹配。
+    // P 区由 PRODUCE 的 WaitFlag(tag=curTag_, per-op唯一) 保证，无需单独 Wait。
+    // P 区初始化必须在 Wait(C) 之后：Record(对端P) 会释放对端 PRODUCE(把本 rank 的 C 区写0)，
+    // 若在 Wait(C) 之前，本 rank 的 C 区被写0，Wait(C,curTag_) 永远等不到 → 死锁。
     __aicore__ inline void InitCtrlCore()
     {
         rankNumPerCore_ = (rankSize_ + numBlocks_ - 1) / numBlocks_;   // 一核负责的 rank 数(ceil)
-        // 初始握手：给每个负责的 dstRank 写 loop0 的 ack(curTag_)，并等对端写回
         for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
             uint32_t dstRank = blockIdx_ * rankNumPerCore_ + idx;
             if (dstRank >= rankSize_) {
                 break;
             }
-            Record(dstRank, rank_, curTag_);          // 写对端 P 区 [dstRank][rank_]
+            Record(dstRank, rank_ + rankSize_, curTag_);   // 1. 初始化对端 C 区 [dstRank][rank_+rankSize]
         }
         for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
             uint32_t dstRank = blockIdx_ * rankNumPerCore_ + idx;
             if (dstRank >= rankSize_) {
                 break;
             }
-            WaitFlag(rank_, dstRank, curTag_);        // 等 P 区 [rank_][dstRank]
+            WaitFlag(rank_, dstRank + rankSize_, curTag_);  // 2. 等对端初始化本 rank 的 C 区为 curTag_
+        }
+        for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
+            uint32_t dstRank = blockIdx_ * rankNumPerCore_ + idx;
+            if (dstRank >= rankSize_) {
+                break;
+            }
+            Record(dstRank, rank_, curTag_);               // 3. 初始化对端 P 区 [dstRank][rank_]，释放对端 PRODUCE
         }
     }
 
