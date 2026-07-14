@@ -52,10 +52,6 @@ jobs:
           bash ut.sh ${ut_type}
           echo "======1======"
           ls -l ./
-          echo "======2=== ==="
-          ls -l ./build
-          echo "======3======"
-          ls -l ./output   
       -
         name: ut_cov
         identifier: ut_cov
