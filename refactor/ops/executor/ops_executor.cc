@@ -32,12 +32,14 @@ OpsExecutor::~OpsExecutor()
 {
 }
 
-HcclResult OpsExecutor::CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo)
+HcclResult OpsExecutor::CalcAlgHierarchyInfo(
+    HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
     // 储存通信域指针
     hcclComm_ = comm;
     // TODO：topoMatch暂不修改参数
-    algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo_);
+    algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo);
+    algHierarchyInfo_ = algHierarchyInfo;
     // 算rankSize
     u32 topoLevelNum = algHierarchyInfo_.infos.size();
     rankSize_ = 1;

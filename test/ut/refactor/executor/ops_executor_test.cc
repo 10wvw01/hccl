@@ -20,7 +20,7 @@ TEST_F(CalcAlgHierarchyInfoTest, SingleLevelRankSize)
     info.infos = {{{0, 1, 2, 3}}}; // 1 level, 4 ranks
     executor_->SetTopoMatch(info);
 
-    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr);
+    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr, info);
     EXPECT_EQ(ret, HCCL_SUCCESS);
     EXPECT_EQ(executor_->GetRankSize(), 4u);
 }
@@ -31,7 +31,7 @@ TEST_F(CalcAlgHierarchyInfoTest, TwoLevelRankSize)
     info.infos = {{{0, 1, 2, 3}}, {{0, 1}}}; // 2 levels: 4 ranks * 2 ranks = 8
     executor_->SetTopoMatch(info);
 
-    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr);
+    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr, info);
     EXPECT_EQ(ret, HCCL_SUCCESS);
     EXPECT_EQ(executor_->GetRankSize(), 8u);
 }
@@ -42,7 +42,7 @@ TEST_F(CalcAlgHierarchyInfoTest, ThreeLevelRankSize)
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}}; // 8*8*2 = 128
     executor_->SetTopoMatch(info);
 
-    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr);
+    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, nullptr, info);
     EXPECT_EQ(ret, HCCL_SUCCESS);
     EXPECT_EQ(executor_->GetRankSize(), 128u);
 }
@@ -189,7 +189,7 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     AlgHierarchyInfoForAllLevel info;
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
-    EXPECT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    EXPECT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr, info), HCCL_SUCCESS);
     EXPECT_EQ(exe->GetRankSize(), 128u); // 8×8×2
 
     // 验证 scratchMultiple 初始为 0
@@ -222,7 +222,7 @@ TEST_F(OmniPipeTest, CalcRes)
     AlgHierarchyInfoForAllLevel info;
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
-    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr, info), HCCL_SUCCESS);
     AlgResourceRequest req;
     EXPECT_EQ(exe->CalcRes(info, req), HCCL_SUCCESS);
     EXPECT_EQ(req.notifyNumOnMainThread, 3u);
@@ -252,7 +252,7 @@ TEST_F(OmniPipeTest, Orchestrate)
     AlgHierarchyInfoForAllLevel info;
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
-    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr), HCCL_SUCCESS);
+    ASSERT_EQ(exe->CalcAlgHierarchyInfo(nullptr, nullptr, info), HCCL_SUCCESS);
     AlgResourceRequest req;
     ASSERT_EQ(exe->CalcRes(info, req), HCCL_SUCCESS);
     std::vector<ThreadHandle> threads
