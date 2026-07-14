@@ -81,39 +81,44 @@ extern "C" int32_t HcclHcommBatchTransferOnThread(ThreadHandle thread, ChannelHa
 
 // ---------- 初始化函数 ----------
 void HcommPrimitivesDlInit(void* libHcommHandle) {
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteWithNotifyOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteReduceWithNotifyOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteNbiOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteNbi);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteWithNotifyNbiOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteWithNotifyNbi);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommReadNbiOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommReadNbi);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommReadReduceOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyRecord);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWait);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyRecordOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyRecordOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommSymWinGetPeerPointer);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadSynchronize);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommSendRequest);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWaitResponse);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommFlush);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelFence);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommFenceOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelFenceOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadJoin);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcclSymWinGetPeerPointer);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcclCommSymWinGet);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadResAcquireTimeOut);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommSetNotifyWaitTimeOut);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThreadWithDefaultTimeout);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitWithDefaultTimeout);
+    HcommPrimitivesDlInitByHandles(libHcommHandle, libHcommHandle);
+}
+
+void HcommPrimitivesDlInitByHandles(void* controlHandle, void* dataPlaneHandle)
+{
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteWithNotifyOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteReduceWithNotifyOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteNbiOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteNbi);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteWithNotifyNbiOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWriteWithNotifyNbi);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommReadNbiOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommReadNbi);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommReadReduceOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyRecord);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyWait);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadNotifyRecordOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadNotifyWaitOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyRecordOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyWaitOnThread);
+    INIT_SUPPORT_FLAG(controlHandle, HcommSymWinGetPeerPointer);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadSynchronize);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommSendRequest);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommWaitResponse);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommFlush);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelFence);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommFenceOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelFenceOnThread);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadJoin);
+    INIT_SUPPORT_FLAG(controlHandle, HcclSymWinGetPeerPointer);
+    INIT_SUPPORT_FLAG(controlHandle, HcclCommSymWinGet);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadResAcquireTimeOut);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommSetNotifyWaitTimeOut);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyWaitOnThreadWithDefaultTimeout);
+    INIT_SUPPORT_FLAG(dataPlaneHandle, HcommChannelNotifyWaitWithDefaultTimeout);
     g_HcommBatchTransferOnThread = reinterpret_cast<HcclHcommBatchTransferOnThreadFunc>(
-        dlsym(libHcommHandle, "HcommBatchTransferOnThread"));
+        dlsym(dataPlaneHandle, "HcommBatchTransferOnThread"));
     if (g_HcommBatchTransferOnThread == nullptr) {
         g_HcommBatchTransferOnThreadSupported = false;
         HCCL_COMPAT_DEBUG("[HcclWrapper] %s not supported", "HcommBatchTransferOnThread");

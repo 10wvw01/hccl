@@ -20,22 +20,33 @@
 #include <cstdio>
 #include <cstdlib>
 
-static void* gLibHandle = nullptr;
+static void* gControlHandle = nullptr;
+static void* gDataPlaneHandle = nullptr;
 
 // 初始化
 void HcommDeviceDlInit(void) {
-    if (gLibHandle != nullptr) return;
+    if (gControlHandle != nullptr && gDataPlaneHandle != nullptr) return;
 
-    gLibHandle = dlopen("libccl_kernel.so", RTLD_NOW);
-    if (!gLibHandle) {
+    if (gControlHandle == nullptr) {
+        gControlHandle = dlopen("libccl_kernel.so", RTLD_NOW);
+    }
+    if (gControlHandle == nullptr) {
         fprintf(stderr, "[HcclWrapper] Failed to open libccl_kernel.so: %s\n", dlerror());
+        return;
+    }
+
+    if (gDataPlaneHandle == nullptr) {
+        gDataPlaneHandle = dlopen("libaicpu_data_plane.so", RTLD_NOW);
+    }
+    if (gDataPlaneHandle == nullptr) {
+        fprintf(stderr, "[HcclWrapper] Failed to open libaicpu_data_plane.so: %s\n", dlerror());
         return;
     }
 
     dlerror();
 
-    HcommPrimitivesDlInit(gLibHandle);
-    HcommDeviceProfilingDlInit(gLibHandle);
-    HcommDiagDlInit(gLibHandle);
-    HcclDeviceCommDlInit(gLibHandle);
+    HcommPrimitivesDlInitByHandles(gControlHandle, gDataPlaneHandle);
+    HcommDeviceProfilingDlInit(gControlHandle);
+    HcommDiagDlInit(gControlHandle);
+    HcclDeviceCommDlInit(gControlHandle);
 }

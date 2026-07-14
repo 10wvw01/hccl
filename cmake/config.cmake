@@ -78,6 +78,7 @@ if(ENABLE_BUILD_AARCH)
     set(STUBS
         hcomm 
         ccl_kernel
+        aicpu_data_plane
         c_sec
         unified_dlog
     ) 
@@ -87,10 +88,11 @@ if(ENABLE_BUILD_AARCH)
         endif() 
     endforeach()
 elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
-    # Device aicpu 构建：8.5.0 CANN 下 devlib/device/libccl_kernel.so 不存在，需要生成桩库
+    # Device aicpu 构建：部分 CANN 下 devlib/device/libccl_kernel.so / libaicpu_data_plane.so
+    # 不存在，需要生成桩库
     # 解析 CANN 安装路径（与下方 ASCEND_CANN_PACKAGE_PATH 解析一致）。
     # 此处 ASCEND_CANN_PACKAGE_PATH 尚未赋值，需补充 env 兜底，否则无法探测
-    # devlib/device/libccl_kernel.so 是否存在，导致缺该库的版本（如 9.0.0）漏生成桩库。
+    # devlib/device 中依赖库是否存在，导致缺该库的版本漏生成桩库。
     if(CUSTOM_ASCEND_CANN_PACKAGE_PATH)
         set(_hccl_cann_path ${CUSTOM_ASCEND_CANN_PACKAGE_PATH})
     elseif(DEFINED ASCEND_CANN_PACKAGE_PATH)
@@ -106,6 +108,11 @@ elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
     if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libccl_kernel.so)
         if(NOT TARGET ccl_kernel)
             generate_stub(ccl_kernel)
+        endif()
+    endif()
+    if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libaicpu_data_plane.so)
+        if(NOT TARGET aicpu_data_plane)
+            generate_stub(aicpu_data_plane)
         endif()
     endif()
 endif()

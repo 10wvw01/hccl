@@ -218,6 +218,7 @@ target_link_directories(scatter_aicpu_kernel PRIVATE
 if(NOT HCCL_CANN_COMPAT_850)
     target_link_libraries(scatter_aicpu_kernel PRIVATE
         -Wl,--no-as-needed
+        aicpu_data_plane
         ccl_kernel
         hccl_kernel_compat
         -Wl,--no-as-needed
