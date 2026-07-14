@@ -22,8 +22,6 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
 
     tempAlgParams_ = tempAlgParams;
-    dataType_ = tempAlgParams.dataType;
-    enableRemoteMemAccess_ = tempAlgParams.enableRemoteMemAccess;
     templateRankSize_ = static_cast<u32>(ranks_.size());
 
     // 数据量为 0 时直接返回。
@@ -121,7 +119,7 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
         return HCCL_SUCCESS;
     }
 
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams_.dataType];
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
 
@@ -161,7 +159,7 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
         return HCCL_SUCCESS;
     }
     // remote mem 访问模式下数据已直接写到 output，无需后处理。
-    if (enableRemoteMemAccess_) {
+    if (tempAlgParams_.enableRemoteMemAccess) {
         return HCCL_SUCCESS;
     }
     if (threads.empty()) {
@@ -169,7 +167,7 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
         return HCCL_E_INTERNAL;
     }
 
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams_.dataType];
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
 

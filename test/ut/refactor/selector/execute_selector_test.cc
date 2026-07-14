@@ -6,7 +6,7 @@
 
 #include "test_helpers.h"
 
-namespace ops_hccl { namespace refactor {
+namespace ops_hccl {
 
 // 用例1：Selector 返回 SEQUENCE 算法 (AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D)
 // 条件：dataSize > 1MB 且 dataSize * userRankSize > 4GB
@@ -40,4 +40,4 @@ TEST_F(SelectorTest, SelectReturnsParallelAlgorithm)
     EXPECT_EQ(alg.hcclCmdType, HcclCMDType::HCCL_CMD_ALLGATHER);
 }
 
-} } // namespace refactor::ops_hccl
+} // namespace ops_hccl

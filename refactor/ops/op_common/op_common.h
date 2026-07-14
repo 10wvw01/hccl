@@ -44,8 +44,6 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
 
 HcclResult HcclCalcTopoInfo(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo);
 HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails *topoInfo);
-HcclResult Selector(
-    HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName);
 
 // forward-declared: refactor 入口 (.cc) 拷贝自 src，调用 src/ops/op_common/op_common.cc 中定义的
 // 函数。函数实现在 src，--refactor 模式下 src 也会被编译，链接器找得到符号。

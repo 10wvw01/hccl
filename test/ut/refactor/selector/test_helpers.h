@@ -12,7 +12,7 @@
 #include "alg_param.h"
 #include "execute_selector.h"
 
-namespace ops_hccl { namespace refactor {
+namespace ops_hccl {
 
 // 构造触发 AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D / PARALLEL_MESH1D_NHR 分支的 TopoInfo
 // 分支条件（all_gather_auto_selector.cc L42-L65）：
@@ -51,4 +51,4 @@ protected:
     void TearDown() override {}
 };
 
-} } // namespace refactor::ops_hccl
+} // namespace ops_hccl

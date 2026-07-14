@@ -44,6 +44,7 @@
 #include "topo_match_base.h"
 #include "alg_type.h"
 #include "alg_param.h"
+#include "binary_stream.h"
 
 namespace ops_hccl {
 
@@ -141,6 +142,11 @@ struct AlgoExecDesc {
     HcclAlgExecPolicy execPolicy; // 描述children的并行策略：串行/并行
     std::vector<VariantType> children;
     std::vector<u32> dataSplitRatio; // 并行数据切分比例，元素个数必须和children个数一致,例如1:1:1
+
+    // 序列化 AlgoExecDesc 树到 BinaryStream
+    static void Serialize(BinaryStream &bs, const AlgoExecDesc &desc);
+    // 从 BinaryStream 反序列化 AlgoExecDesc 树
+    static AlgoExecDesc Deserialize(BinaryStream &bs);
 };
 
 class OpsExecutor;
@@ -182,9 +188,16 @@ public:
     void Dump();
 
     /**
-     * 序列化算法描述，用于多机间算法选择一致性校验（Todo）。
+     * 序列化算法描述（hcclCmdType/engineType/algoExecDesc）到 BinaryStream。
+     * topoMatch 不序列化，device 侧不需要拓扑匹配，algHierarchyInfo 已在 resCtx 中序列化。
      */
-    void Serialize();
+    void SerializeTo(BinaryStream &bs) const;
+
+    /**
+     * 从 BinaryStream 反序列化算法描述。
+     * topoMatch 需由调用方在反序列化后设置。
+     */
+    void DeserializeFrom(BinaryStream &bs);
 
     // 算法描述成员，执行器在 CalcAlgHierarchyInfo/CalcRes/Orchestrate 中直接读取
     HcclCMDType hcclCmdType;

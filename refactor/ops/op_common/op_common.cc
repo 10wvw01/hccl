@@ -18,10 +18,12 @@
 #include <sstream>
 
 #include "ops_executor.h"
+#include "hccl_algorithm.h"
 #include "base_engine.h"
 #include "log.h"
 #include "topo/topo_host.h"
 #include "exec_timeout_manager.h"
+#include "binary_stream.h"
 
 namespace ops_hccl {
 
@@ -37,12 +39,22 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param,
 
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get()));
 
+    AlgResourceCtxSerializable &resCtx = engine->GetResCtx();
+    resCtx.algHierarchyInfo = executor->GetAlgHierarchyInfo();
+
     AlgResourceRequest resReq;
-    CHK_RET(executor->CalcRes(resReq));
+    CHK_RET(executor->CalcRes(resCtx.algHierarchyInfo, resReq));
 
     CHK_RET(engine->CreateRes(comm, resReq));
 
-    CHK_RET(engine->LaunchKernel(param, *executor));
+    // 将 HcclAlgorithm 序列化到 resCtx，供 device 侧重建 executor
+    BinaryStream algoBs;
+    alg.SerializeTo(algoBs);
+    std::vector<char> algoSerialData;
+    algoBs.Dump(algoSerialData);
+    resCtx.algoSerialData = std::move(algoSerialData);
+
+    CHK_RET(engine->LaunchKernel(param, resCtx));
 
     return HCCL_SUCCESS;
 }

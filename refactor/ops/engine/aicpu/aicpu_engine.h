@@ -51,20 +51,21 @@ public:
      *   1. 加载 AICPU kernel 二进制（LoadAICPUKernel）；
      *   2. 调用 HcclLaunchAicpuKernel 完成环境准备、算法编排与 profiling 上报：
      *      a. 获取通信域句柄；
-     *      b. 根据 opType 还原变长数据；
-     *      c. 设置 batch mode，注册 DFX 信息；
-     *      d. 主 thread 等待 Host stream 的 notify 通知；
-     *      e. 调用 executor.Orchestrate 驱动算法编排；
-     *      f. 上报 profiling，通知 Host stream 完成，结束 batch mode。
+     *      b. 从 resCtx 反序列化 HcclAlgorithm，重建 executor；
+     *      c. 根据 opType 还原变长数据；
+     *      d. 设置 batch mode，注册 DFX 信息；
+     *      e. 主 thread 等待 Host stream 的 notify 通知；
+     *      f. 调用 executor.CalcRes + executor.Orchestrate 驱动算法编排；
+     *      g. 上报 profiling，通知 Host stream 完成，结束 batch mode。
      *   3. 释放通信域句柄。
      * 输入参数：
      *   - param: 算子参数，包含 commName、tag、opType、数据描述等
-     *   - executor: 执行器引用，提供 Orchestrate 接口驱动模板编排
+     *   - resCtx: 资源上下文，包含序列化的 HcclAlgorithm 数据和运行时资源
      * 返回值：
      *   - HCCL_SUCCESS: kernel 下发并执行成功
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
-    HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) override;
+    HcclResult LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx) override;
 
     
     /**
@@ -80,6 +81,8 @@ public:
      *   - bytesTransferred: 数据发送字节数
      */
     HcclResult Send(const TransferContext &ctx) override;
+
+    AlgResourceCtxSerializable &GetResCtx() override { return resCtx_; }
 
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用

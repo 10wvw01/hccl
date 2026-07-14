@@ -54,13 +54,85 @@ void HcclAlgorithm::Dump()
         algoExecDesc.children.size());
 }
 
-/**
- * 序列化算法描述，用于多机间算法选择一致性校验。
- * Todo: 待实现序列化协议。
- */
-void HcclAlgorithm::Serialize()
+// ─────────────────────────────────────────────────────────────────
+// AlgoExecDesc 树的序列化/反序列化
+// ─────────────────────────────────────────────────────────────────
+
+void AlgoExecDesc::Serialize(BinaryStream &bs, const AlgoExecDesc &desc)
 {
-    // Todo: 序列化 engineType/hcclCmdType/algoExecDesc 供多机一致性校验
+    bs << desc.execPolicy;
+
+    // 序列化 children: 每个 child 是 variant<TemplateExecDesc, shared_ptr<AlgoExecDesc>>
+    // 先写 children 数量，再逐个写 variant tag + data
+    size_t childCount = desc.children.size();
+    bs << childCount;
+    for (const auto &child : desc.children) {
+        // variant index: 0 = TemplateExecDesc, 1 = shared_ptr<AlgoExecDesc>
+        uint32_t variantIndex = static_cast<uint32_t>(child.index());
+        bs << variantIndex;
+        if (variantIndex == 0) {
+            const auto &tplExecDesc = std::get<TemplateExecDesc>(child);
+            bs << tplExecDesc.templateDesc.hcclCmdType;
+            bs << tplExecDesc.templateDesc.algType;
+            bs << tplExecDesc.templateDesc.shotMode;
+            bs << tplExecDesc.templateDesc.jettyMode;
+            bs << tplExecDesc.subCommIndex;
+        } else {
+            const auto &subDesc = std::get<std::shared_ptr<AlgoExecDesc>>(child);
+            // 递归序列化子树
+            Serialize(bs, *subDesc);
+        }
+    }
+
+    // 序列化 dataSplitRatio
+    bs << desc.dataSplitRatio;
+}
+
+AlgoExecDesc AlgoExecDesc::Deserialize(BinaryStream &bs)
+{
+    AlgoExecDesc desc;
+    bs >> desc.execPolicy;
+
+    size_t childCount;
+    bs >> childCount;
+    desc.children.resize(childCount);
+    for (size_t i = 0; i < childCount; i++) {
+        uint32_t variantIndex;
+        bs >> variantIndex;
+        if (variantIndex == 0) {
+            TemplateExecDesc tplExecDesc;
+            bs >> tplExecDesc.templateDesc.hcclCmdType;
+            bs >> tplExecDesc.templateDesc.algType;
+            bs >> tplExecDesc.templateDesc.shotMode;
+            bs >> tplExecDesc.templateDesc.jettyMode;
+            bs >> tplExecDesc.subCommIndex;
+            desc.children[i] = std::move(tplExecDesc);
+        } else {
+            auto subDesc = std::make_shared<AlgoExecDesc>(Deserialize(bs));
+            desc.children[i] = std::move(subDesc);
+        }
+    }
+
+    bs >> desc.dataSplitRatio;
+    return desc;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// HcclAlgorithm 序列化/反序列化
+// ─────────────────────────────────────────────────────────────────
+
+void HcclAlgorithm::SerializeTo(BinaryStream &bs) const
+{
+    bs << hcclCmdType;
+    bs << engineType;
+    AlgoExecDesc::Serialize(bs, algoExecDesc);
+}
+
+void HcclAlgorithm::DeserializeFrom(BinaryStream &bs)
+{
+    bs >> hcclCmdType;
+    bs >> engineType;
+    algoExecDesc = AlgoExecDesc::Deserialize(bs);
 }
 
 } // namespace ops_hccl

@@ -54,7 +54,7 @@ u32 ExecTimeoutManager::GetExecTimeout() { return execTimeout_.load(); }
 
 // ───────────── Send 路径不涉及的符号 (仅满足链接) ─────────────
 HcclResult LoadAICPUKernel() { return HCCL_SUCCESS; }
-HcclResult HcclLaunchAicpuKernel(const OpParam &, OpsExecutor &, AlgResourceCtxSerializable &)
+HcclResult HcclLaunchAicpuKernel(const OpParam &, AlgResourceCtxSerializable &)
 {
     return HCCL_SUCCESS;
 }

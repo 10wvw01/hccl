@@ -68,16 +68,15 @@ public:
      * 下发 kernel 到设备侧执行。
      * 工作流程：
      *   1. 准备执行环境（加载 kernel 二进制、初始化 thread）；
-     *   2. 调用 executor.Orchestrate 驱动算法模板编排；
-     *   3. 等待设备侧执HCCL_E_INTERNAL行完成并上报 profiling。
+     *   2. 从 resCtx 反序列化 HcclAlgorithm，重建 executor 并执行编排；
+     *   3. 等待设备侧执行完成并上报 profiling。
      * 输入参数：
      *   - param: 算子参数，包含 commName、tag、opType、数据描述等
-     *   - executor: 执行器引用，提供 Orchestrate 接口
      * 返回值：
      *   - HCCL_SUCCESS: kernel 下发并执行成功
      *   - HCCL_E_INTERNAL: 下发或执行失败
      */
-    virtual HcclResult LaunchKernel(const OpParam &param, OpsExecutor &executor) = 0;
+    virtual HcclResult LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx) = 0;
 
     /**
      * 数据传输统一接口。
@@ -92,6 +91,12 @@ public:
      *   - HCCL_E_INTERNAL: 数据发送失败
      */
     virtual HcclResult Send(const TransferContext &ctx) = 0;
+
+    /**
+     * 获取引擎持有的资源上下文引用。
+     * 用于在 Host 侧将算法序列化数据写入 resCtx，供 device 侧重建 executor。
+     */
+    virtual AlgResourceCtxSerializable &GetResCtx() = 0;
 };
 
 }  // namespace ops_hccl

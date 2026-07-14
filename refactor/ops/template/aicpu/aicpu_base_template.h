@@ -114,8 +114,6 @@ protected:
     // ───────────── 公共成员（子类直接访问） ─────────────
     TemplateDataParams tempAlgParams_{};
     u32 templateRankSize_{0};
-    HcclDataType dataType_{HcclDataType::HCCL_DATA_TYPE_RESERVED};
-    bool enableRemoteMemAccess_{false};
     std::vector<u32> ranksForOutputData_{};
 };
 

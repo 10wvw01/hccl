@@ -423,6 +423,8 @@ struct AlgResourceCtxSerializable {
     std::vector<CcuKernelHandle> ccuKernels;
     u32 topoInfoSeqSize = 0;
     TopoInfoWithNetLayerDetails topoInfo; // 提取的拓扑信息
+    // 序列化的 HcclAlgorithm 数据（hcclCmdType/engineType/algoExecDesc），device 侧反序列化后重建 executor
+    std::vector<char> algoSerialData;
 
     std::vector<char> Serialize()
     {
@@ -450,6 +452,7 @@ struct AlgResourceCtxSerializable {
         std::vector<char> seq = topoInfo.Serialize();
         topoInfoSeqSize = seq.size();
         binaryStream << topoInfoSeqSize;
+        binaryStream << algoSerialData;
         std::vector<char> result;
         binaryStream.Dump(result);
         result.insert(result.end(), seq.begin(), seq.end());
@@ -481,6 +484,7 @@ struct AlgResourceCtxSerializable {
         binaryStream >> ccuKernelNum;
         binaryStream >> ccuKernels;
         binaryStream >> topoInfoSeqSize;
+        binaryStream >> algoSerialData;
         size_t startPos = data.size() - topoInfoSeqSize;
         std::vector<char> tailData(data.begin() + startPos, data.end());
         TopoInfoWithNetLayerDetails topoTemp;

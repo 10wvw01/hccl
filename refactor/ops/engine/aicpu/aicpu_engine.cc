@@ -113,12 +113,12 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, AlgResourceRequest &res)
     return HCCL_SUCCESS;
 }
 
-HcclResult AiCpuEngine::LaunchKernel(const OpParam &param, OpsExecutor &executor)
+HcclResult AiCpuEngine::LaunchKernel(const OpParam &param, AlgResourceCtxSerializable &resCtx)
 {
     HCCL_INFO("[AiCpuEngine][LaunchKernel] start, commName[%s], tag[%s], algTag[%s]",
               param.commName, param.tag, param.algTag);
     CHK_RET(LoadAICPUKernel());
-    CHK_RET(HcclLaunchAicpuKernel(param, executor, resCtx_));
+    CHK_RET(HcclLaunchAicpuKernel(param, resCtx));
     HCCL_INFO("[AiCpuEngine][LaunchKernel] end, tag[%s], algTag[%s], commName[%s]",
               param.tag, param.algTag, param.commName);
     return HCCL_SUCCESS;
