@@ -42,8 +42,8 @@ inline HcclResult GetConnectedInputRanks(const std::vector<u32> &ranksForInputDa
 }
 
 // 按全局 rankId 槽位追加一组 src/dst DataSlice。
-inline void AddRankDataSlices(const MeshAllGatherSliceInfo &sliceInfo, const std::vector<u32> &rankIds,
-                              MeshAllGatherSlicePair &slicePair)
+inline void AddRankDataSlices(const MeshSliceInfo &sliceInfo, const std::vector<u32> &rankIds,
+                              MeshSlicePair &slicePair)
 {
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[sliceInfo.tempAlgParams.dataType];
     for (u32 rankId : rankIds) {
@@ -105,14 +105,14 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
         for (size_t i = 0; i < connectedInputRanks.size(); ++i) {
             HCCL_INFO("[RunMeshAllGather] connectedInputRanks[%zu]=%u", i, connectedInputRanks[i]);
         }
-        const MeshAllGatherSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, stride, tailRankId};
+        const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, stride, tailRankId};
         std::vector<DataSlice> txSrcSlicesAll;
         std::vector<DataSlice> txDstSlicesAll;
         std::vector<DataSlice> rxSrcSlicesAll;
         std::vector<DataSlice> rxDstSlicesAll;
-        MeshAllGatherSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrcSlicesAll, txDstSlicesAll};
+        MeshSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrcSlicesAll, txDstSlicesAll};
         AddRankDataSlices(sliceInfo, ranksForInputData, txSlicePair);
-        MeshAllGatherSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrcSlicesAll, rxDstSlicesAll};
+        MeshSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrcSlicesAll, rxDstSlicesAll};
         AddRankDataSlices(sliceInfo, connectedInputRanks, rxSlicePair);
         txRxSlicesLists.emplace_back(SlicesList(txSrcSlicesAll, txDstSlicesAll),
                                      SlicesList(rxSrcSlicesAll, rxDstSlicesAll), connectedRank, connectedRank);
@@ -124,6 +124,61 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
     }
     std::sort(ranksForOutputData.begin(), ranksForOutputData.end());
     HCCL_INFO("[RunMeshAllGather] end: txRxSlicesListNum=%zu", txRxSlicesLists.size());
+    return HCCL_SUCCESS;
+}
+
+HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks, u32 myRank,
+                          std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
+{
+    txRxSlicesLists.clear();
+    CHK_RET(CheckInputDataRanks(tempAlgParams, "RunMeshScatter"));
+
+    const u32 rankSize = static_cast<u32>(ranks.size());
+    ranksForOutputData = {myRank};
+    if (rankSize <= 1) {
+        HCCL_INFO("[RunMeshScatter] no send/recv needed, ranksForOutputDataNum=%zu", ranksForOutputData.size());
+        return HCCL_SUCCESS;
+    }
+
+    u32 myAlgRank = 0;
+    CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
+    u32 rootAlgRank = 0;
+    CHK_RET(GetAlgRank(tempAlgParams.root, ranks, rootAlgRank));
+
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
+    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u32 tailRankId = ranks[rankSize - 1];
+    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.stride, tailRankId};
+    HCCL_INFO("[RunMeshScatter] myAlgRank=%u, rootAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
+              myAlgRank, rootAlgRank, rankSize, dataTypeSize, sliceSize);
+    // root 只发不收
+    if (myRank == tempAlgParams.root) {
+        for (u32 algRank = 0; algRank < rankSize; ++algRank) {
+            const u32 remoteRank = ranks[algRank];
+            if (remoteRank == myRank) {
+                continue;
+            }
+            std::vector<DataSlice> txSrcSlices;
+            std::vector<DataSlice> txDstSlices;
+            MeshSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrcSlices, txDstSlices};
+            AddRankDataSlices(sliceInfo, {remoteRank}, txSlicePair);
+            txRxSlicesLists.emplace_back(SlicesList(txSrcSlices, txDstSlices), SlicesList({}, {}), remoteRank, remoteRank);
+            HCCL_INFO("[RunMeshScatter] Build tx TxRxSlicesList: remoteRank=%u, offset=%lu, size=%lu, "
+                      "txRxSlicesListNum=%zu",
+                      remoteRank, txSrcSlices[0].offset_, txSrcSlices[0].size_, txRxSlicesLists.size());
+        }
+        return HCCL_SUCCESS;
+    }
+    // 其他 只收不发
+    std::vector<DataSlice> rxSrcSlices;
+    std::vector<DataSlice> rxDstSlices;
+    MeshSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrcSlices, rxDstSlices};
+    AddRankDataSlices(sliceInfo, {myRank}, rxSlicePair);
+    txRxSlicesLists.emplace_back(SlicesList({}, {}), SlicesList(rxSrcSlices, rxDstSlices),
+                                 tempAlgParams.root, tempAlgParams.root);
+    HCCL_INFO("[RunMeshScatter] Build rx TxRxSlicesList: root=%u, offset=%lu, size=%lu",
+              tempAlgParams.root, rxDstSlices[0].offset_, rxDstSlices[0].size_);
     return HCCL_SUCCESS;
 }
 

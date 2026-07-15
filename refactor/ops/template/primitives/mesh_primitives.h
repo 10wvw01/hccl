@@ -19,7 +19,7 @@ namespace ops_hccl {
 
 struct TemplateDataParams;
 
-struct MeshAllGatherSliceInfo {
+struct MeshSliceInfo {
     const TemplateDataParams &tempAlgParams;
     u64 sliceSize;
     u64 tailSize;
@@ -27,7 +27,7 @@ struct MeshAllGatherSliceInfo {
     u32 tailRankId;
 };
 
-struct MeshAllGatherSlicePair {
+struct MeshSlicePair {
     void *firstBufferPtr;
     void *secondBufferPtr;
     std::vector<DataSlice> &firstSlices;
@@ -38,6 +38,10 @@ struct MeshAllGatherSlicePair {
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
                             u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<TxRxSlicesList> &txRxSlicesLists);
+
+HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
+                          u32 myRank, std::vector<u32> &ranksForOutputData,
+                          std::vector<TxRxSlicesList> &txRxSlicesLists);
 
 } // namespace ops_hccl
 
