@@ -44,7 +44,7 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     u32 userRank = INVALID_VALUE_RANKID;
     bool allRecvCountsZero = false;
-    CHK_RET(CheckAllGatherVRecvAndGetRank(comm, recvBuf, recvCounts, rankSize, userRank, allRecvCountsZero));
+    CHK_RET(CheckAllGatherVRecvAndGetRank(comm, recvBuf, recvCounts, sendCount, rankSize, userRank, allRecvCountsZero));
     if (allRecvCountsZero) {
         return HCCL_SUCCESS;
     }
@@ -94,7 +94,7 @@ HcclResult HcclAllGatherVGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCo
     u32 rankSize = INVALID_VALUE_RANKSIZE;
     u32 userRank = INVALID_VALUE_RANKID;
     bool allRecvCountsZero = false;
-    CHK_RET(CheckAllGatherVRecvAndGetRank(comm, recvBuf, recvCounts, rankSize, userRank, allRecvCountsZero));
+    CHK_RET(CheckAllGatherVRecvAndGetRank(comm, recvBuf, recvCounts, sendCount, rankSize, userRank, allRecvCountsZero));
     if (allRecvCountsZero) {
         return HCCL_SUCCESS;
     }
@@ -153,11 +153,16 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
 // 获取rankSize/userRank并校验recvBuf：recvCounts全0为合法空操作(allRecvCountsZero置true，
 // 调用方应直接返回成功)，此时允许recvBuf为nullptr；否则要求recvBuf非空
 HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBuf, const void *recvCounts,
-    u32 &rankSize, u32 &userRank, bool &allRecvCountsZero)
+    uint64_t sendCount, u32 &rankSize, u32 &userRank, bool &allRecvCountsZero)
 {
     allRecvCountsZero = false;
     CHK_RET(HcclGetRankSize(comm, &rankSize));
+    CHK_RET(HcclGetRankId(comm, &userRank));
     const u64* recvCountsAddr = reinterpret_cast<const u64*>(recvCounts);
+    CHK_PRT_RET(sendCount != recvCountsAddr[userRank],
+        HCCL_ERROR("sendCount[%llu] is not equal to recvCounts[%u][%llu]", sendCount, userRank,
+            recvCountsAddr[userRank]),
+        HCCL_E_PARA);
     if (std::all_of(recvCountsAddr, recvCountsAddr + rankSize, [](auto count) { return count == 0; })) {
         HCCL_WARNING("input all %u elements in recvCounts are 0, return success", rankSize);
         allRecvCountsZero = true;
@@ -166,7 +171,6 @@ HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBu
     RPT_INPUT_ERR(recvBuf == nullptr, "EI0003", std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
                   std::vector<std::string>({"HcclAllGatherV", "nullptr", "recvBuf", "non-null pointer"}));
     CHK_PTR_NULL(recvBuf);
-    CHK_RET(HcclGetRankId(comm, &userRank));
     return HCCL_SUCCESS;
 }
  
