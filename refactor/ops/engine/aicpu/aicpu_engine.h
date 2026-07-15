@@ -46,7 +46,8 @@ public:
      *   - HCCL_E_INTERNAL: 资源创建失败
      */
     HcclResult CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
-                         AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) override;
+                         AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq,
+                         TopoInfoWithNetLayerDetails &topoInfo) override;
 
     /**
      * 下发 AICPU kernel 到设备侧执行。
@@ -77,6 +78,8 @@ public:
 private:
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;
+    // 序列化后的 resCtx_ 字节流，生命周期需覆盖 kernel launch
+    std::vector<char> resCtxSequence_;
 
     // ───────────── AICPU 数据传输 wrapper (私有成员函数) ─────────────
     // 基于 Hcomm*OnThread 系列 AICPU 专用原语, 复制自 alg_data_trans_wrapper.cc

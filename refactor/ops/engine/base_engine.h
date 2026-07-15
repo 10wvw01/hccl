@@ -65,7 +65,8 @@ public:
      *   - 其他: 资源创建失败
      */
     virtual HcclResult CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
-                                 AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq) = 0;
+                                 AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq,
+                                 TopoInfoWithNetLayerDetails &topoInfo) = 0;
 
     /**
      * 下发 kernel 到设备侧执行。

@@ -46,7 +46,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
     AlgResourceRequest resReq;
     CHK_RET(executor->CalcRes(comm, resReq));
 
-    CHK_RET(engine->CreateRes(comm, param, alg, algHierarchyInfo, resReq));
+    CHK_RET(engine->CreateRes(comm, param, alg, algHierarchyInfo, resReq, *topoInfo));
 
     // 创建 host CPU TS 线程并导出给 AICPU_TS（对应原始 HcclExecOp 中的 cpuTsThread 逻辑）
     if (param.engine == COMM_ENGINE_AICPU_TS || param.engine == COMM_ENGINE_CPU) {

@@ -79,10 +79,12 @@ static bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channe
 // ═══════════════════════════════════════════════════════════════════
 
 HcclResult AiCpuEngine::CreateRes(HcclComm comm, const OpParam &param, HcclAlgorithm &alg,
-                                   AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq)
+                                   AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq,
+                                   TopoInfoWithNetLayerDetails &topoInfo)
 {
-    // 1. 将 algHierarchyInfo 和序列化的 HcclAlgorithm 存入 resCtx_
+    // 1. 将 algHierarchyInfo、topoInfo 和序列化的 HcclAlgorithm 存入 resCtx_
     resCtx_.algHierarchyInfo = algHierarchyInfo;
+    resCtx_.topoInfo = topoInfo;
     resCtx_.commInfoPtr = static_cast<void*>(comm);
     {
         BinaryStream algoBs;
@@ -295,7 +297,10 @@ HcclResult AiCpuEngine::AicpuKernelEntranceLaunchInternal(const OpParam &param)
     HCCL_DEBUG("[AicpuKernelEntranceLaunch]start to run aicpu kernel");
     // 当前aicpu launch接口只能有一个输入参数，将Context指针放在param参数中
     const_cast<OpParam &>(param).aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
-    const_cast<OpParam &>(param).resCtx = &resCtx_;
+    // 序列化 resCtx_ 供 device 侧反序列化重建
+    resCtxSequence_ = resCtx_.Serialize();
+    const_cast<OpParam &>(param).resCtx = resCtxSequence_.data();
+    const_cast<OpParam &>(param).ctxSize = resCtxSequence_.size();
 
     if (param.engine == COMM_ENGINE_CPU) {
         // 注册dpu回调函数
