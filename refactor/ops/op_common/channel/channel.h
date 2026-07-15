@@ -17,19 +17,14 @@
 
 namespace ops_hccl {
 
-enum CommPlane {
-    COMM_LEVEL0 = 0,
-    COMM_LEVEL1,
-    COMM_LEVEL2,
-    COMM_LEVEL_RESERVED
-};
+enum CommPlane { COMM_LEVEL0 = 0, COMM_LEVEL1, COMM_LEVEL2, COMM_LEVEL_RESERVED };
 constexpr u32 NORMAL_NOTIFY_NUM = 3;
 
-HcclResult CalcChannelRequestMesh1D(HcclComm comm, HcclAlgEngineType engineType, const TopoInfoWithNetLayerDetails* topoInfo,
-     const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
-HcclResult CalcChannelRequestNhr(HcclComm comm, HcclAlgEngineType engineType, const TopoInfoWithNetLayerDetails* topoInfo,
-    const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
+HcclResult CalcChannelRequestMesh1D(HcclComm comm, HcclAlgEngineType engineType, const u32 myRank,
+    const std::vector<std::vector<u32>> &subcommInfo, std::vector<HcclChannelDesc> &channels);
+HcclResult CalcChannelRequestNhr(HcclComm comm, HcclAlgEngineType engineType, const u32 myRank,
+    const std::vector<std::vector<u32>> &subcommInfo, std::vector<HcclChannelDesc> &channels);
 
-}
+} // namespace ops_hccl
 
 #endif
