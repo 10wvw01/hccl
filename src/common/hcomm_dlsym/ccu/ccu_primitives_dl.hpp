@@ -25,6 +25,7 @@
 #include "ccu_array_dl.hpp"
 #include "ccu_func_dl.hpp"
 #include "ccu_loop_dl.hpp"
+#include <vector>
 
 namespace AscendC {
 namespace ccu {
@@ -86,11 +87,11 @@ inline CcuResult LocalReduce(CcuBuffer* buffers, uint32_t count, HcclDataType da
     if (buffers == nullptr || count == 0) {
         return CcuResult::CCU_E_PARA;
     }
-    CcuBufferHandle bufHandles[count];
+    std::vector<CcuBufferHandle> bufHandles(count);
     for (uint32_t i = 0; i < count; i++) {
         bufHandles[i] = buffers[i].handle;
     }
-    return CcuLocalBufferReduce(bufHandles, count, dataType, outputDataType, opType,len.handle, event.handle, mask);
+    return CcuLocalBufferReduce(bufHandles.data(), count, dataType, outputDataType, opType,len.handle, event.handle, mask);
 }
 
 // ==================== 远端读====================
