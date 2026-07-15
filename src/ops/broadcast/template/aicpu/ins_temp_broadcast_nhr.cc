@@ -416,7 +416,7 @@ HcclResult InsTempBroadcastNHR::BatchSR(AicpuNHRStepInfo &stepInfo, const std::m
         txSrcSlices.push_back(txSrcSlice);
         txDstSlices.push_back(txDstSlice);
     }
-    SlicesList txSlicesList(txSrcSlices, txSrcSlices);
+    SlicesList txSlicesList(txSrcSlices, txDstSlices);
     std::vector<DataSlice> rxSrcSlices;
     std::vector<DataSlice> rxDstSlices;
     for (u32 i = 0; i < stepInfo.rxSliceIdxs.size(); i++) {
