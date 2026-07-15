@@ -9,6 +9,9 @@
  */
 
 #include "ins_temp_reduce_scatter_omnipipe_mesh_1D.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 
 namespace ops_hccl {
 InsTempReduceScatterOmniPipeMesh1D::InsTempReduceScatterOmniPipeMesh1D(
@@ -144,6 +147,10 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
     }
     threadNum_ = templateResource.threads.size();
     dataType_ = param.DataDes.dataType;
+    // 对称内存：缓存 user input 对称窗口/偏移/开关，供 RunReduceScatter/PostReduce 取对端 input
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
+    inputSymWindow_         = param.inputSymWindow;
+    inputOffset_            = param.inputOffset;
     HCCL_INFO("[%s]Run Start", __func__);
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
@@ -188,13 +195,20 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::PostReduce(const TemplateDataPara
                 u64 srcCurrent = tempAlgParams.buffInfo.hcclBuffBaseOff +
                                  tempAlgParams.stepSliceInfo.stepOutputSliceStride[tmpRank] +
                                  tempAlgParams.stepSliceInfo.outputOmniPipeSliceStride[tmpRank][repeatIdx];
-                u64 dstCurrent = tempAlgParams.buffInfo.outBuffBaseOff +
+                // 对称内存：归约目标落本端 user input 的本 rank 槽位（reduce 进 input）；源仍是 scratch 里各对端临时落点
+                void* dstAddr = cclBuffAddr;
+                u64 dstBaseOff = tempAlgParams.buffInfo.outBuffBaseOff;
+                if (supportSymmetricMemory_) {
+                    dstAddr = tempAlgParams.buffInfo.inputPtr;
+                    dstBaseOff = tempAlgParams.buffInfo.inBuffBaseOff;
+                }
+                u64 dstCurrent = dstBaseOff +
                                  tempAlgParams.stepSliceInfo.stepInputSliceStride[rankIdx] +
                                  tempAlgParams.stepSliceInfo.inputOmniPipeSliceStride[rankIdx][repeatIdx];
                 auto srcSlice = DataSlice(cclBuffAddr, srcCurrent,
                                           tempAlgParams.stepSliceInfo.stepSliceSize[rankIdx][repeatIdx],
                                           tempAlgParams.stepSliceInfo.stepCount[rankIdx][repeatIdx]);
-                auto dstSlice = DataSlice(cclBuffAddr, dstCurrent,
+                auto dstSlice = DataSlice(dstAddr, dstCurrent,
                                           tempAlgParams.stepSliceInfo.stepSliceSize[rankIdx][repeatIdx],
                                           tempAlgParams.stepSliceInfo.stepCount[rankIdx][repeatIdx]);
                 HCCL_DEBUG("srcSlice=[%s],  dstSlice=[%s], tmpRank=[%u], rankIdx=[%u], repeatIdx=[%u]",
@@ -233,8 +247,19 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatter(const std::map<u
         std::vector<DataSlice> txDstSlices;
         std::vector<DataSlice> rxSrcSlices;
         std::vector<DataSlice> rxDstSlices;
-        void* localCclBuffAddr = tempAlgParam.buffInfo.hcclBuff.addr;
-        void* remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
+        void* localCclBuffAddr = tempAlgParam.buffInfo.hcclBuff.addr;   // 本端 scratch：接收落点（sym 临时）
+        void* remoteCclBuffAddr = linkRemote.remoteCclMem.addr;         // 对端 scratch：发送落点
+        // 对称内存：发送源读本端 user input、接收源读对端 input peer 指针；落点仍在 scratch（临时）
+        void* txSrcAddr = localCclBuffAddr;
+        void* rxSrcAddr = remoteCclBuffAddr;
+        if (supportSymmetricMemory_) {
+            txSrcAddr = tempAlgParam.buffInfo.inputPtr;
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, remoteRank, &rxSrcAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || rxSrcAddr == nullptr,
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatter] HcclSymWinGetPeerPointer "
+                                   "failed, remoteRank[%u] ret[%d] ptr[%p]", remoteRank, ret, rxSrcAddr),
+                        HcclResult::HCCL_E_INTERNAL);
+        }
         // 按照偏移数组边计算位置
         for (u32 repeatIdx = 0; repeatIdx < tempAlgParam.stepSliceInfo.inputOmniPipeSliceStride[myAlgRank].size();
              repeatIdx++) {
@@ -252,18 +277,18 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatter(const std::map<u
                                tempAlgParam.stepSliceInfo.stepOutputSliceStride[nextRank] +
                                tempAlgParam.stepSliceInfo.outputOmniPipeSliceStride[nextRank][repeatIdx];
             // 换成数组
-            DataSlice txSrcSlice = DataSlice(localCclBuffAddr, txSrcCurrent,
+            DataSlice txSrcSlice = DataSlice(txSrcAddr, txSrcCurrent,
                                              tempAlgParam.stepSliceInfo.stepSliceSize[nextRank][repeatIdx],
-                                             tempAlgParam.stepSliceInfo.stepCount[nextRank][repeatIdx]);  // 发送源
+                                             tempAlgParam.stepSliceInfo.stepCount[nextRank][repeatIdx]);  // 发送源（sym: 本端 input）
             DataSlice txDstSlice = DataSlice(remoteCclBuffAddr, txDstCurrent,
                                              tempAlgParam.stepSliceInfo.stepSliceSize[nextRank][repeatIdx],
-                                             tempAlgParam.stepSliceInfo.stepCount[nextRank][repeatIdx]);  // 发送目标
-            DataSlice rxSrcSlice = DataSlice(remoteCclBuffAddr, rxSrcCurrent,
+                                             tempAlgParam.stepSliceInfo.stepCount[nextRank][repeatIdx]);  // 发送目标（对端 scratch）
+            DataSlice rxSrcSlice = DataSlice(rxSrcAddr, rxSrcCurrent,
                                              tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
-                                             tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);  // 接收源
+                                             tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);  // 接收源（sym: 对端 input peer）
             DataSlice rxDstSlice = DataSlice(localCclBuffAddr, rxDstCurrent,
                                              tempAlgParam.stepSliceInfo.stepSliceSize[myAlgRank][repeatIdx],
-                                             tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);  // 接收目标
+                                             tempAlgParam.stepSliceInfo.stepCount[myAlgRank][repeatIdx]);  // 接收目标（本端 scratch 临时）
             rxSrcSlices.push_back(rxSrcSlice);
             rxDstSlices.push_back(rxDstSlice);
             txSrcSlices.push_back(txSrcSlice);
