@@ -752,19 +752,23 @@ HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vect
 
         if (listSize == 0) {
             HCCL_WARNING("[CalcChannelRequestWithPriorTopo]There is no link between rank[%u] and rank[%u].", myRank, rank);
-            break;
+            continue;
         }
 
         uint32_t priorityLink = 0;
         CommTopo topoType;
-        for (u32 idx = 0; idx < listSize; idx++) {
-            CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[idx], topoType));
-            if (topoType == priorityTopo) {
-                priorityLink = idx;
-                HCCL_INFO("[CalcChannelRequestWithPriorTopo] Found link[%u] with priority topotype[%u].", idx, topoType);
-                break;
+        if (netLayerNum > 1 && netLayer == 0) {
+            HCCL_INFO("[CalcChannelRequestWithPriorTopo] netLayerNum > 1 && netLayer == 0, select the link according to priorityTopo.");
+            for (u32 idx = 0; idx < listSize; idx++) {
+                CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[idx], topoType));
+                if (topoType == priorityTopo) {
+                    priorityLink = idx;
+                    HCCL_INFO("[CalcChannelRequestWithPriorTopo] Found link[%u] with priority topotype[%u].", idx, topoType);
+                    break;
+                }
             }
         }
+
         HcclChannelDesc channelDesc;
         HcclChannelDescInit(&channelDesc, 1);
         channelDesc.remoteRank = rank;
@@ -775,13 +779,18 @@ HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vect
         channelDesc.remoteEndpoint.protocol = link.dstEndpointDesc.protocol;
         channelDesc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
         channelDesc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
-        CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[priorityLink], topoType));
+
+        channelDesc.channelProtocol = link.linkAttr.linkProtocol;
+        channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
+        channels.push_back(channelDesc);
+
+        if (netLayerNum > 1 && netLayer == 0) {
+            CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[priorityLink], topoType));
         HCCL_INFO("[CalcChannelRequestWithPriorTopo]Add channel request between %u and %u with protocol %u "
                   "and topoType %u. And Priority topoType is %u.",
                   myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType, priorityTopo);
-        channelDesc.channelProtocol = link.srcEndpointDesc.protocol;
-        channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
-        channels.push_back(channelDesc);
+        }
+        
         if (listSize > 0) {
             break;
         }

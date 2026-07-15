@@ -75,14 +75,14 @@ HcclResult TopoMatchUBX1d::TopoForLayer1(const HcclComm comm, uint32_t layer0Siz
     // 1. 查出layer 1的所有ranks
     uint32_t *topoInsts;
     uint32_t topoInstNum = 0;
-    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 1, &topoInsts, &topoInstNum));
+    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 3, &topoInsts, &topoInstNum));
     CHK_PRT_RET(
         (topoInstNum != NET_INST_NUM_1),
         HCCL_ERROR("[TopoMatchUBX1d::MeshTopoForLayer1] layer1 topoInstNum [%d], Invalid topo.", topoInstNum),
         HcclResult::HCCL_E_PARA);
     uint32_t* ranks;
     uint32_t rankNum;
-    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 1, topoInsts[0], &ranks, &rankNum));
+    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 3, topoInsts[0], &ranks, &rankNum));
     HCCL_DEBUG("[TopoMatchUBX1d::MeshTopoForLayer1] Rank [%d], all [%u] ranks in layer1", myRank, rankNum);
     // 2. 取出每张卡，作为layer1的ranks
     std::vector<uint32_t> rankVecLayer1;
@@ -95,7 +95,7 @@ HcclResult TopoMatchUBX1d::TopoForLayer1(const HcclComm comm, uint32_t layer0Siz
  
         CommLink *links;
         uint32_t linkNum = 0;
-        HcclRankGraphGetLinks(comm, 1, myRank, rankId, &links, &linkNum);
+        HcclRankGraphGetLinks(comm, 3, myRank, rankId, &links, &linkNum);
         if (linkNum == 0) {
             continue;
         }
