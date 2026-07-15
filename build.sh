@@ -19,6 +19,7 @@ LOGS_PATH="${CURRENT_DIR}/logs"
 USER_ID=$(id -u)
 CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
+RULE_LAUNCH_ARG=""
 ASAN="false"
 COV="false"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
@@ -854,6 +855,10 @@ while [[ $# -gt 0 ]]; do
         ENABLE_EXPERIMENTAL="true"
         shift
         ;;
+    --rule_launch)
+ 	    RULE_LAUNCH_ARG="-D RULE_LAUNCH=$2"
+ 	    shift 2
+        ;;
     --custom_ops_path=*)
         OPTARG=$1
         CUSTOM_OPS_PATH="$(realpath ${OPTARG#*=})"
@@ -905,6 +910,10 @@ fi
 if [ -n "${CCACHE_PROGRAM}" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
     CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
+fi
+
+if [[ -n "${RULE_LAUNCH_ARG}" ]]; then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DRULE_LAUNCH=${RULE_LAUNCH_ARG}"
 fi
 
 if [ -n "${ascend_package_path}" ];then
