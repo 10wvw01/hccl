@@ -54,6 +54,7 @@ DECL_AIV_EMBED(hccl_aiv_reduce_scatter_op_910_95);
 DECL_AIV_EMBED(hccl_aiv_scatter_op_910_95);
 DECL_AIV_EMBED(hccl_aiv_send_op_910_95);
 DECL_AIV_EMBED(hccl_aiv_recv_op_910_95);
+#ifdef HCCL_ENABLE_910_96
 DECL_AIV_EMBED(hccl_aiv_all_gather_op_910_96);
 DECL_AIV_EMBED(hccl_aiv_all_reduce_op_910_96);
 DECL_AIV_EMBED(hccl_aiv_all_to_all_op_910_96);
@@ -64,6 +65,7 @@ DECL_AIV_EMBED(hccl_aiv_reduce_scatter_op_910_96);
 DECL_AIV_EMBED(hccl_aiv_scatter_op_910_96);
 DECL_AIV_EMBED(hccl_aiv_send_op_910_96);
 DECL_AIV_EMBED(hccl_aiv_recv_op_910_96);
+#endif // HCCL_ENABLE_910_96
 #undef DECL_AIV_EMBED
 }
 
@@ -87,6 +89,7 @@ static const AivEmbedSymbol kAivEmbedTable[] = {
     EMBED_ENTRY(hccl_aiv_scatter_op_910_95),
     EMBED_ENTRY(hccl_aiv_send_op_910_95),
     EMBED_ENTRY(hccl_aiv_recv_op_910_95),
+#ifdef HCCL_ENABLE_910_96
     EMBED_ENTRY(hccl_aiv_all_gather_op_910_96),
     EMBED_ENTRY(hccl_aiv_all_reduce_op_910_96),
     EMBED_ENTRY(hccl_aiv_all_to_all_op_910_96),
@@ -97,6 +100,7 @@ static const AivEmbedSymbol kAivEmbedTable[] = {
     EMBED_ENTRY(hccl_aiv_scatter_op_910_96),
     EMBED_ENTRY(hccl_aiv_send_op_910_96),
     EMBED_ENTRY(hccl_aiv_recv_op_910_96),
+#endif // HCCL_ENABLE_910_96
 };
 #undef EMBED_ENTRY
 
