@@ -59,14 +59,12 @@ public:
         }
         // 构造 subcommInfo 和 topoInfo（对应原始 InsTempAllGather::CalcRes 的参数）。
         std::vector<std::vector<u32>> subcommInfo = {ranks_};
-        TopoInfoWithNetLayerDetails topoInfo;
-        topoInfo.userRank = myRank_;
 
         std::vector<HcclChannelDesc> levelChannels;
         if (IsNhr()) {
-            CHK_RET(CalcChannelRequestNhr(comm, engineType, &topoInfo, subcommInfo, levelChannels));
+            CHK_RET(CalcChannelRequestNhr(comm, engineType, myRank_, subcommInfo, levelChannels));
         } else {
-            CHK_RET(CalcChannelRequestMesh1D(comm, engineType, &topoInfo, subcommInfo, levelChannels));
+            CHK_RET(CalcChannelRequestMesh1D(comm, engineType, myRank_, subcommInfo, levelChannels));
         }
         for (const auto &desc : levelChannels) {
             channels_.push_back(desc);
