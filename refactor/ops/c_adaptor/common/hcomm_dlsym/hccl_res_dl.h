@@ -24,6 +24,8 @@ extern "C" {
 #endif
 
 DECL_WEAK_FUNC(int32_t, HcclTaskRegister, HcclComm comm, const char* msgTag, Callback cb);
+DECL_WEAK_FUNC(HcclResult, HcclThreadExportToCommEngine, HcclComm comm, uint32_t threadNum,
+    const ThreadHandle* threads, CommEngine dstCommEngine, ThreadHandle* exportedThreads);
 
 DECL_SUPPORT_FLAG(HcclThreadExportToCommEngine);
 // 动态库管理接口（大驼峰命名）
