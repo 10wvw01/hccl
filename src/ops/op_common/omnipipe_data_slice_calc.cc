@@ -859,17 +859,25 @@ std::vector<u64> OmniPipeSplitData(u64 rankSize, u64 count, u64 dataTypeSize)
     std::vector<u64> omniPipeSplitSliceInfoList;
     u64 sliceNum = rankSize;
 
-    u64 sliceCount = RoundDown(count, sliceNum);
+    u64 sliceCount = RoundUp(count, sliceNum);
     u64 sliceSize = sliceCount * dataTypeSize;
 
     u64 offsetCount = 0;
     u64 offsetSize = 0;
-    for (u64 sliceIdx = 0; sliceIdx < sliceNum - 1; ++sliceIdx) {
-        omniPipeSplitSliceInfoList.push_back(sliceCount);
-        offsetCount += sliceCount;
-        offsetSize = offsetCount * dataTypeSize;
+    for (u64 sliceIdx = 0; sliceIdx < sliceNum; ++sliceIdx) {
+        if (count - offsetCount > sliceCount) {
+            omniPipeSplitSliceInfoList.push_back(sliceCount);
+            offsetCount += sliceCount;
+            offsetSize = offsetCount * dataTypeSize;
+        } else {
+            u64 curSliceCount = count - offsetCount;
+            u64 curSliceSize = curSliceCount * dataTypeSize;
+            omniPipeSplitSliceInfoList.push_back(curSliceCount);
+            offsetCount = count;
+            offsetSize = offsetCount * dataTypeSize;
+        }
     }
-    omniPipeSplitSliceInfoList.push_back(count - offsetCount);
+
     return omniPipeSplitSliceInfoList;
 }
 
