@@ -217,7 +217,7 @@ namespace {
     };
 
     //全局缓存管理器实例
-    static CommDomainCacheManager g_cacheManager;
+    thread_local CommDomainCacheManager g_cacheManager;
 
     std::unique_ptr<AlgResourceCtxSerializable> DeserializeResCtx(const OpParam *param)
     {
