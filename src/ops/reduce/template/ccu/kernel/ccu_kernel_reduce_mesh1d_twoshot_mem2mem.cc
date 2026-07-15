@@ -41,6 +41,7 @@ static CcuResult InitResource(ReduceMesh1DTwoShotMem2MemContext &ctx)
     ctx.output.resize(arg->rankSize);
     ctx.token.resize(arg->rankSize);
     ctx.scratchMem.resize(arg->rankSize);
+    ctx.remoteInput.resize(arg->rankSize);
     ctx.constVar1 = 1;
 
     if (arg->channelCount == 0) {
@@ -194,10 +195,18 @@ static CcuResult CreateReduceLoop(ReduceMesh1DTwoShotMem2MemContext &ctx)
 }
 
 static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
-    ccu::LocalAddr dst, ccu::LocalAddr src, std::vector<ccu::LocalAddr> &scratchOrg)
+    ccu::LocalAddr &outDstOrg, ccu::LocalAddr &srcOrg, std::vector<ccu::LocalAddr> &scratchOrg)
 {
     const auto *arg = ctx.arg;
     const uint32_t size = scratchOrg.size();
+
+    ccu::LocalAddr dst;
+    dst.addr = outDstOrg.addr;
+    dst.token = outDstOrg.token;
+
+    ccu::LocalAddr src;
+    src.addr = srcOrg.addr;
+    src.token = srcOrg.token;
 
     std::vector<ccu::LocalAddr> scratch;
     scratch.resize(size);
@@ -332,13 +341,13 @@ static CcuResult DoReduceScatter(ReduceMesh1DTwoShotMem2MemContext &ctx)
             ccu::EventRecord(ctx.event, rankMask);
         } else {
             // 远端 input 地址：远端 input 基址 + myScratchOffset（本 rank slice 在 input 中的偏移）
-            ctx.remoteInput.addr = ctx.input[peerId];
-            ctx.remoteInput.addr += ctx.myScratchOffset;
-            ctx.remoteInput.token = ctx.token[peerId];
+            ctx.remoteInput[peerId].addr = ctx.input[peerId];
+            ctx.remoteInput[peerId].addr += ctx.myScratchOffset;
+            ctx.remoteInput[peerId].token = ctx.token[peerId];
 
             // Read：远端 input → 本地 scratchMem[peerId]（按 sliceSize 间距），大小为 sliceSize
             CCU_IF(ctx.mySliceSize != 0) {
-                ccu::Read(arg->channels[channelIdx], ctx.scratchMem[peerId], ctx.remoteInput,
+                ccu::Read(arg->channels[channelIdx], ctx.scratchMem[peerId], ctx.remoteInput[peerId],
                           ctx.sliceSize, ctx.event, rankMask);
             } CCU_ELSE {
                 ccu::EventRecord(ctx.event, rankMask);
