@@ -49,7 +49,7 @@ HcclResult CheckAllGatherVInputPara(const HcclComm comm, const void *recvCounts,
     const aclrtStream stream, void *sendBuf, uint64_t sendCount);
 
 HcclResult CheckAllGatherVRecvAndGetRank(const HcclComm comm, const void *recvBuf, const void *recvCounts,
-    u32 &rankSize, u32 &userRank, bool &allRecvCountsZero);
+    uint64_t sendCount, u32 &rankSize, u32 &userRank, bool &allRecvCountsZero);
 
 HcclResult AllGatherVExecOp(HcclComm comm, OpParam &param);
 
