@@ -200,6 +200,8 @@ HcclResult SetExecTimeout(OpParam &param);
 bool IsHostDpu(HcclComm comm);
 
 bool IsBarrierHostDpu(HcclComm comm);
+
+HcclResult NegotiateCcuResFallback(HcclComm comm, const OpParam &param, bool localResOk);
 }  // namespace ops_hccl
 
 #endif
