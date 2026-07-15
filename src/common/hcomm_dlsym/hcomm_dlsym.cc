@@ -9,6 +9,7 @@
  */
 
 #include "hcomm_dlsym.h"
+#include "hcomm_version_cache.h"
 #include "hccl_res_dl.h"
 #include "ccu_res_dl.h"
 #include "hccl_ccu_res_dl.h"
@@ -27,17 +28,14 @@
 #include <acl/acl.h>
 
 static void* gLibHandle = nullptr;
-static int gHcommVersion = 0;
 
-int GetHcommVersion(void) {
-    if (gHcommVersion == 0) {
+int GetHcommVersion(void)
+{
+    static HcommVersionCache hcommVersionCache;
+    return hcommVersionCache.Get([](int* version) {
         char hcommPkgName[] = "hcomm";
-        if (aclsysGetVersionNum(hcommPkgName, &gHcommVersion) != ACL_SUCCESS) {
-            gHcommVersion = 0;
-        }
-    }
-
-    return gHcommVersion;
+        return aclsysGetVersionNum(hcommPkgName, version) == ACL_SUCCESS;
+    });
 }
 
 bool HcommIsProfilingSupported()
