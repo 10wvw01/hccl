@@ -453,7 +453,8 @@ inline u64 RoundUp(const u64 dividend, const u64 divisor)
         HCCL_WARNING("[RoundUp] divisor is 0.");
         return dividend;
     }
-    return dividend / divisor + ((dividend % divisor != 0) ? 1 : 0);
+    return dividend / divisor;
+    // return dividend / divisor + ((dividend % divisor != 0) ? 1 : 0);
 }
 
 // ccu快速下发arg填充
