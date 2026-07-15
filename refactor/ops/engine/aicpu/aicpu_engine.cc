@@ -40,9 +40,13 @@ constexpr u32 KERNEL_TIMEOUT_OFFSET = 25; // kernel启动超时时间偏移量
 // ───────────── 静态辅助函数 (被调用者在前) ─────────────
 // NOTIFY_IDX_ACK / NOTIFY_IDX_DATA_SIGNAL 已在 alg_param.h 中定义为 constexpr
 
-static void *GetSliceAddr(const DataSlice &slice)
+static void *GetSliceAddr(const DataSlice &slice, void *fallbackBase = nullptr)
 {
-    return static_cast<void *>(static_cast<s8 *>(slice.addr_) + slice.offset_);
+    void *base = (slice.addr_ == nullptr) ? fallbackBase : slice.addr_;
+    if (base == nullptr) {
+        return nullptr;
+    }
+    return static_cast<void *>(static_cast<s8 *>(base) + slice.offset_);
 }
 
 static void TraceDataSlice(const char *funcName, const char *transType, u32 sliceIdx, u32 sliceNum,
@@ -472,7 +476,7 @@ HcclResult AiCpuEngine::SendWrite(const DataInfo &sendInfo, const ThreadHandle &
         const DataSlice srcSlice = srcSlices[i];
         const DataSlice dstSlice = dstSlices[i];
         if (srcSlice.size_ == 0) { continue; }
-        void *dst = GetSliceAddr(dstSlice);
+        void *dst = GetSliceAddr(dstSlice, sendChannel.remoteCclMem.addr);
         void *src = GetSliceAddr(srcSlice);
         TraceDataSlice("SendWrite", transType, i, sliceNum, srcSlice, dstSlice, src, dst,
             isReduce ? srcSlice.count_ : srcSlice.size_, sendInfo.dataType_, reduceOp);
@@ -515,7 +519,7 @@ HcclResult AiCpuEngine::SendRecvWrite(const SendRecvInfo &sendRecvInfo, const Th
         const DataSlice srcSlice = srcSlices[i];
         const DataSlice dstSlice = dstSlices[i];
         if (srcSlice.size_ == 0) { continue; }
-        void *dst = GetSliceAddr(dstSlice);
+        void *dst = GetSliceAddr(dstSlice, sendChannel.remoteCclMem.addr);
         void *src = GetSliceAddr(srcSlice);
         TraceDataSlice("SendRecvWrite", transType, i, repeatNum, srcSlice, dstSlice, src, dst,
             isReduce ? srcSlice.count_ : srcSlice.size_, sendRecvInfo.dataType_, reduceOp);
@@ -561,7 +565,7 @@ HcclResult AiCpuEngine::RecvRead(const DataInfo &recvInfo, const ThreadHandle &t
         const DataSlice dstSlice = dstSlices[i];
         if (srcSlice.size_ == 0) { continue; }
         void *dst = GetSliceAddr(dstSlice);
-        void *src = GetSliceAddr(srcSlice);
+        void *src = GetSliceAddr(srcSlice, recvChannel.remoteCclMem.addr);
         TraceDataSlice("RecvRead", transType, i, repeatNum, srcSlice, dstSlice, src, dst,
             isReduce ? srcSlice.count_ : srcSlice.size_, recvInfo.dataType_, reduceOp);
         if (isReduce) {
@@ -593,7 +597,7 @@ HcclResult AiCpuEngine::SendRecvRead(const SendRecvInfo &sendRecvInfo, const Thr
         const DataSlice dstSlice = dstSlices[i];
         if (srcSlice.size_ == 0) { continue; }
         void *dst = GetSliceAddr(dstSlice);
-        void *src = GetSliceAddr(srcSlice);
+        void *src = GetSliceAddr(srcSlice, recvChannel.remoteCclMem.addr);
         TraceDataSlice("SendRecvRead", transType, i, repeatNum, srcSlice, dstSlice, src, dst,
             isReduce ? srcSlice.count_ : srcSlice.size_, sendRecvInfo.dataType_, reduceOp);
         if (isReduce) {
