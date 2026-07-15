@@ -71,7 +71,8 @@ inline std::vector<TemplateHcall> FindTmplCalls(const std::string &name)
 class MockBaseEngine : public BaseEngine {
 public:
     HcclResult CreateRes(HcclComm, const OpParam &, HcclAlgorithm &,
-                         AlgHierarchyInfoForAllLevel &, AlgResourceRequest &) override { return HCCL_SUCCESS; }
+                         AlgHierarchyInfoForAllLevel &, AlgResourceRequest &,
+                         TopoInfoWithNetLayerDetails &) override { return HCCL_SUCCESS; }
     HcclResult LaunchKernel(const OpParam &) override { return HCCL_SUCCESS; }
     HcclResult Send(const TransferContext &ctx) override
     {

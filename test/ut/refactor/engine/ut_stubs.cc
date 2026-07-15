@@ -62,10 +62,6 @@ u32 ExecTimeoutManager::GetExecTimeout() { return execTimeout_.load(); }
 
 // ───────────── Send 路径不涉及的符号 (仅满足链接) ─────────────
 HcclResult LoadAICPUKernel() { return HCCL_SUCCESS; }
-HcclResult HcclLaunchAicpuKernel(const OpParam &, AlgResourceCtxSerializable &)
-{
-    return HCCL_SUCCESS;
-}
 
 // CreateRes 调用 alg.SerializeTo，UT Send 测试不走此路径，仅满足链接
 void HcclAlgorithm::SerializeTo(BinaryStream &) const {}
@@ -96,6 +92,13 @@ static inline void captureBytes(const void *src, uint64_t len)
 
 // ───────────── Hcomm* 搬移/同步原语 stub (extern "C", 与 aicpu_engine.cc 调用匹配) ─────────────
 extern "C" {
+
+// HcclLaunchAicpuKernel C 接口 stub（device 侧入口，UT 不执行真实 kernel，仅满足链接）
+unsigned int HcclLaunchAicpuKernel(ops_hccl::OpParam *param)
+{
+    (void)param;
+    return 0;
+}
 
 int32_t HcommChannelNotifyRecordOnThread(ThreadHandle thread, ChannelHandle channel, uint32_t idx)
 {

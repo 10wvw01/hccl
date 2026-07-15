@@ -804,7 +804,8 @@ TEST_F(AiCpuEngineSendTest, CreateResBasicSuccess)
     resReq.notifyNumPerThread = {1};
     resReq.channels.push_back({});
 
-    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq);
+    TopoInfoWithNetLayerDetails topoInfo;
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
     EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
@@ -822,7 +823,8 @@ TEST_F(AiCpuEngineSendTest, CreateResEmptyChannelsSuccess)
     resReq.slaveThreadNum = 0;
     resReq.notifyNumOnMainThread = 0;
 
-    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq);
+    TopoInfoWithNetLayerDetails topoInfo;
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
     EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
@@ -842,7 +844,8 @@ TEST_F(AiCpuEngineSendTest, CreateResHostModeSuccess)
     resReq.notifyNumOnMainThread = 1;
     resReq.notifyNumPerThread = {1};
 
-    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq);
+    TopoInfoWithNetLayerDetails topoInfo;
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
     EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
@@ -869,7 +872,8 @@ TEST_F(AiCpuEngineSendTest, LaunchKernelBasicSuccess)
     resReq.slaveThreadNum = 1;
     resReq.notifyNumOnMainThread = 1;
     resReq.notifyNumPerThread = {1};
-    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq), HCCL_SUCCESS);
+    TopoInfoWithNetLayerDetails topoInfo;
+    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo), HCCL_SUCCESS);
 
     HcclResult ret = engine_.LaunchKernel(param);
     EXPECT_EQ(ret, HCCL_SUCCESS);
@@ -893,7 +897,8 @@ TEST_F(AiCpuEngineSendTest, LaunchKernelCpuEngineRegistersDpuCallback)
     resReq.slaveThreadNum = 1;
     resReq.notifyNumOnMainThread = 1;
     resReq.notifyNumPerThread = {1};
-    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq), HCCL_SUCCESS);
+    TopoInfoWithNetLayerDetails topoInfo;
+    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo), HCCL_SUCCESS);
 
     HcclResult ret = engine_.LaunchKernel(param);
     EXPECT_EQ(ret, HCCL_SUCCESS);
