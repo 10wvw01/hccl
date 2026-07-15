@@ -80,7 +80,6 @@ target_compile_definitions(hccl_ut_refactor_engine_aicpu PRIVATE
 
 target_compile_options(hccl_ut_refactor_engine_aicpu PRIVATE
     -std=c++17
-    -include ${CMAKE_SOURCE_DIR}/test/ut/refactor/template/ut_version_macro.h
     -U_FORTIFY_SOURCE
     -g --coverage -fprofile-arcs -ftest-coverage -fno-access-control
     -fPIC -pipe

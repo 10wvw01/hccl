@@ -64,8 +64,6 @@ target_compile_definitions(hccl_ut_refactor_selector PRIVATE
 
 target_compile_options(hccl_ut_refactor_selector PRIVATE
     -std=c++17
-    # Some public headers use CANN_VERSION before the normal production version header is visible in UT.
-    -include ${CMAKE_CURRENT_LIST_DIR}/ut_version_macro.h
     -U_FORTIFY_SOURCE
     -g --coverage -fprofile-arcs -ftest-coverage -fno-access-control
     -fPIC -pipe
