@@ -64,7 +64,6 @@ target_compile_definitions(hccl_ut_refactor_executor PRIVATE
 
 target_compile_options(hccl_ut_refactor_executor PRIVATE
     -std=c++17
-    -include ${CMAKE_CURRENT_LIST_DIR}/ut_version_macro.h
     -U_FORTIFY_SOURCE
     -g --coverage -fprofile-arcs -ftest-coverage -fno-access-control
     -fPIC -pipe
