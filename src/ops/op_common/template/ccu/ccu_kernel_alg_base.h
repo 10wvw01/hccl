@@ -88,6 +88,7 @@ struct CcuKernelCtxBase {
         std::unique_ptr<ccu::Func> body[2];
         std::unique_ptr<ccu::Loop> loops[2];
         ccu::Variable              loopParam[2];
+        ccu::Variable              addrOffset[2];
     };
 
     LoopGroupConfig  moConfig;
