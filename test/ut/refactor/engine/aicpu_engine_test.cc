@@ -6,6 +6,7 @@
  */
 
 #include "test_helpers.h"
+#include "hccl_algorithm.h"
 
 namespace ops_hccl {
 namespace testing {
@@ -588,6 +589,129 @@ TEST_F(AiCpuEngineSendTest, ComprehensiveBidirWriteReduce)
     EXPECT_EQ(FindCalls("WriteReduce")[0].op, static_cast<int>(HCCL_REDUCE_SUM));
     EXPECT_EQ(g_records.front().name, "NotifyRecord");
     EXPECT_EQ(g_records.back().name, "NotifyWait");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 9. CreateRes 测试分组
+// ═══════════════════════════════════════════════════════════════════
+
+// TC46 CreateRes 基本流程成功
+TEST_F(AiCpuEngineSendTest, CreateResBasicSuccess)
+{
+    HcclComm comm = reinterpret_cast<HcclComm>(0x1000);
+    OpParam param{};
+    param.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+    snprintf(param.algTag, sizeof(param.algTag), "test_tag");
+    param.stream = reinterpret_cast<void *>(0x2000);
+
+    HcclAlgorithm alg;
+    AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    AlgResourceRequest resReq;
+    resReq.slaveThreadNum = 1;
+    resReq.notifyNumOnMainThread = 1;
+    resReq.notifyNumPerThread = {1};
+    resReq.channels.push_back({});
+
+    TopoInfoWithNetLayerDetails topoInfo;
+    topoInfo.userRank = 0;
+
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+}
+
+// TC47 CreateRes 空 channel 层也能成功
+TEST_F(AiCpuEngineSendTest, CreateResEmptyChannelsSuccess)
+{
+    HcclComm comm = reinterpret_cast<HcclComm>(0x1000);
+    OpParam param{};
+    param.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+    snprintf(param.algTag, sizeof(param.algTag), "test_tag");
+
+    HcclAlgorithm alg;
+    AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    AlgResourceRequest resReq;
+    resReq.slaveThreadNum = 0;
+    resReq.notifyNumOnMainThread = 0;
+    TopoInfoWithNetLayerDetails topoInfo;
+
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+}
+
+// TC48 CreateRes host 模式 (engine != AICPU_TS)
+TEST_F(AiCpuEngineSendTest, CreateResHostModeSuccess)
+{
+    HcclComm comm = reinterpret_cast<HcclComm>(0x1000);
+    OpParam param{};
+    param.engine = static_cast<CommEngine>(100); // 非 AICPU_TS/CPU
+    snprintf(param.algTag, sizeof(param.algTag), "test_tag");
+    param.stream = reinterpret_cast<void *>(0x2000);
+
+    HcclAlgorithm alg;
+    AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    AlgResourceRequest resReq;
+    resReq.slaveThreadNum = 1;
+    resReq.notifyNumOnMainThread = 1;
+    resReq.notifyNumPerThread = {1};
+    TopoInfoWithNetLayerDetails topoInfo;
+
+    HcclResult ret = engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 10. LaunchKernel 测试分组
+// ═══════════════════════════════════════════════════════════════════
+
+// TC49 LaunchKernel 基本流程成功
+TEST_F(AiCpuEngineSendTest, LaunchKernelBasicSuccess)
+{
+    HcclComm comm = reinterpret_cast<HcclComm>(0x1000);
+    OpParam param{};
+    param.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+    snprintf(param.algTag, sizeof(param.algTag), "test_tag");
+    snprintf(param.tag, sizeof(param.tag), "test_op");
+    snprintf(param.commName, sizeof(param.commName), "test_comm");
+    param.stream = reinterpret_cast<void *>(0x2000);
+    param.opConfig.execTimeout = 100;
+
+    // 先执行 CreateRes 初始化 resCtx_
+    HcclAlgorithm alg;
+    AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    AlgResourceRequest resReq;
+    resReq.slaveThreadNum = 1;
+    resReq.notifyNumOnMainThread = 1;
+    resReq.notifyNumPerThread = {1};
+    TopoInfoWithNetLayerDetails topoInfo;
+    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo), HCCL_SUCCESS);
+
+    HcclResult ret = engine_.LaunchKernel(param);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+}
+
+// TC50 LaunchKernel CPU 引擎模式注册 DPU 回调
+TEST_F(AiCpuEngineSendTest, LaunchKernelCpuEngineRegistersDpuCallback)
+{
+    HcclComm comm = reinterpret_cast<HcclComm>(0x1000);
+    OpParam param{};
+    param.engine = CommEngine::COMM_ENGINE_CPU;
+    snprintf(param.algTag, sizeof(param.algTag), "test_tag");
+    snprintf(param.tag, sizeof(param.tag), "test_op");
+    snprintf(param.commName, sizeof(param.commName), "test_comm");
+    param.stream = reinterpret_cast<void *>(0x2000);
+    param.opConfig.execTimeout = 100;
+
+    HcclAlgorithm alg;
+    AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    AlgResourceRequest resReq;
+    resReq.slaveThreadNum = 1;
+    resReq.notifyNumOnMainThread = 1;
+    resReq.notifyNumPerThread = {1};
+    TopoInfoWithNetLayerDetails topoInfo;
+    ASSERT_EQ(engine_.CreateRes(comm, param, alg, algHierarchyInfo, resReq, topoInfo), HCCL_SUCCESS);
+
+    HcclResult ret = engine_.LaunchKernel(param);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
 } // namespace testing
