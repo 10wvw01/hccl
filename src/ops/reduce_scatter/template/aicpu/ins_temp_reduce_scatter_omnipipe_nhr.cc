@@ -10,6 +10,9 @@
 
 #include "ins_temp_reduce_scatter_omnipipe_nhr.h"
 #include "omnipipe_template_utils.h"
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#include "hccl_sym_win.h"
+#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 constexpr u32 SMALL_COUNT_512KB = 512 * 1024;
 namespace ops_hccl {
 InsTempReduceScatterOmniPipeNHR::InsTempReduceScatterOmniPipeNHR(
@@ -41,6 +44,10 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
     tempAlgParams_       = tempAlgParams;
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
+    // 对称内存：缓存 user input 对称窗口/偏移/开关，供 RunNHR 取对端 input peer 指针
+    supportSymmetricMemory_ = param.supportSymmetricMemory;
+    inputSymWindow_         = param.inputSymWindow;
+    inputOffset_            = param.inputOffset;
 
     threadNum_ = GetThreadNum();
 
@@ -123,22 +130,25 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRDataSize(const AicpuNHRStepInf
             const u64 txScOff = scratchBaseTx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[txIdx];
             const u64 rxScOff = scratchBaseRx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
 
-            DataSlice txSrcSlice = DataSlice(tempAlgParams_.buffInfo.hcclBuff.addr,
+            // 对称内存：本端地址用 user input（reduce 落 input）；对端地址由 RunNHR 传入（peer input）
+            void* localAddr = supportSymmetricMemory_ ? tempAlgParams_.buffInfo.inputPtr
+                                                       : tempAlgParams_.buffInfo.hcclBuff.addr;
+            DataSlice txSrcSlice = DataSlice(localAddr,
                 txScOff,
                 dataSplitVec_[txIdx][rpt][channelIdx],
                 dataSplitVec_[txIdx][rpt][channelIdx]/dataTypeSize);  // 发送源
             DataSlice txDstSlice = DataSlice(sendCclBuffAddr,
                 txScOff,
                 dataSplitVec_[txIdx][rpt][channelIdx],
-                dataSplitVec_[txIdx][rpt][channelIdx]/dataTypeSize);  // 发送目标
+                dataSplitVec_[txIdx][rpt][channelIdx]/dataTypeSize);  // 发送目标（sym 时为对端 input）
             DataSlice rxSrcSlice = DataSlice(recvCclBuffAddr,
                 rxScOff,
                 dataSplitVec_[rxIdx][rpt][channelIdx],
-                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);
-            DataSlice rxDstSlice = DataSlice(tempAlgParams_.buffInfo.hcclBuff.addr,
+                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收源（sym 时为对端 input）
+            DataSlice rxDstSlice = DataSlice(localAddr,
                 rxScOff,
                 dataSplitVec_[rxIdx][rpt][channelIdx],
-                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);
+                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收目标，sym 时 reduce 落本地 input
             txSrcSlices.emplace_back(txSrcSlice);
             txDstSlices.emplace_back(txDstSlice);
             rxSrcSlices.emplace_back(rxSrcSlice);
@@ -182,10 +192,27 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 
         std::vector<DataSlice> txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices;
 
-        void* sendCclBuffAddr = linkSend.remoteCclMem.addr;
-        void* recvCclBuffAddr = linkRecv.remoteCclMem.addr;
-        // RS：在 SCRATCH 上进行规约交换
-        CHK_RET(GetNHRDataSize(st, channelIdx, sendCclBuffAddr, recvCclBuffAddr, dataTypeSize, rptNum, 
+        void* sendRemoteAddr = nullptr;
+        void* recvRemoteAddr = nullptr;
+        if (supportSymmetricMemory_) {
+            // 对称内存：对端地址取对端 user input 的 peer 指针，reduce 直接在 input 间进行
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, sendToRank, &sendRemoteAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || sendRemoteAddr == nullptr,
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] HcclSymWinGetPeerPointer failed, "
+                                   "sendToRank[%u] ret[%d] ptr[%p]", sendToRank, ret, sendRemoteAddr),
+                        HcclResult::HCCL_E_INTERNAL);
+            ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &recvRemoteAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || recvRemoteAddr == nullptr,
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] HcclSymWinGetPeerPointer failed, "
+                                   "recvFromRank[%u] ret[%d] ptr[%p]", recvFromRank, ret, recvRemoteAddr),
+                        HcclResult::HCCL_E_INTERNAL);
+        } else {
+            // 非对称：在 SCRATCH 上进行规约交换
+            sendRemoteAddr = linkSend.remoteCclMem.addr;
+            recvRemoteAddr = linkRecv.remoteCclMem.addr;
+        }
+
+        CHK_RET(GetNHRDataSize(st, channelIdx, sendRemoteAddr, recvRemoteAddr, dataTypeSize, rptNum,
                     txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
 
         SendRecvReduceInfo info{
