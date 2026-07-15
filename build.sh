@@ -25,6 +25,8 @@ CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
 STATIC_MODE="false"  # 新增变量，用于控制是否静态编译
 ENABLE_BUILD_DEVICE="OFF"
 ENABLE_BUILD_AARCH="OFF" 
+# 910_96(960) AIV kernel 编译开关：OFF即不编(默认), ENABLE_910_96="ON"即编。
+ENABLE_910_96="${ENABLE_910_96:-OFF}"
 CANN_3RD_LIB_PATH="${CURRENT_DIR}/third_party"
 CUSTOM_SIGN_SCRIPT="${CURRENT_DIR}/scripts/sign/community_sign_build.py"
 ENABLE_SIGN="false"
@@ -711,6 +713,8 @@ function usage() {
   echo "                   Set custom ops vendor to <VENDOR>"
   echo "    --experimental"
   echo "                   Enable experimental features"
+  echo "    --enable-910-96"
+  echo "                   Build Ascend 910_96 (dav-920r1-vec) AIV kernels (default OFF)"
   echo "    --static"
   echo "                   Enable static library build mode"
   echo "    -s, --st       Run all system tests (ST) with parallel execution"
@@ -854,6 +858,10 @@ while [[ $# -gt 0 ]]; do
         ENABLE_EXPERIMENTAL="true"
         shift
         ;;
+    --enable-910-96)
+        ENABLE_910_96="ON"
+        shift
+        ;;
     --custom_ops_path=*)
         OPTARG=$1
         CUSTOM_OPS_PATH="$(realpath ${OPTARG#*=})"
@@ -929,6 +937,7 @@ CUSTOM_OPTION="${CUSTOM_OPTION} -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_BUILD_TYPE=${BUILD_TYPE}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_BUILD_DEVICE=${ENABLE_BUILD_DEVICE}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_BUILD_AARCH=${ENABLE_BUILD_AARCH}"
+CUSTOM_OPTION="${CUSTOM_OPTION} -DHCCL_ENABLE_910_96=${ENABLE_910_96}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_SIGN=${ENABLE_SIGN}"
 CUSTOM_OPTION="${CUSTOM_OPTION} -DVERSION_INFO=${VERSION_INFO}"
