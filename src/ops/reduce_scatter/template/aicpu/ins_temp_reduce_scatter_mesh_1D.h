@@ -48,6 +48,22 @@ protected:
     HcclResult RunReduceScatter(const std::map<u32, std::vector<ChannelInfo>> &channels,
                                 const std::vector<ThreadHandle> &threads,
                                 const TemplateDataParams &tempAlgParam);
+
+    // ---- RunReduceScatter 中 DataSlice 偏移计算（虚函数，子类可重载实现不同搬移策略） ----
+    // 返回 rxSrcSlice 的偏移量（基类用 inBuffBaseOff，OCS 用 hcclBuffBaseOff）
+    virtual u64 GetRxSrcOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                               u32 myAlgRank, u32 channelIdx) const;
+    // 返回 rxDstSlice 的偏移量（基类用 hcclBuffBaseOff + nextRank * outputSliceStride，OCS 用偏移公式）
+    virtual u64 GetRxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                               u32 nextRank, u64 outputSliceStride, u32 channelIdx) const;
+    // 返回 txDstSlice 的偏移量（基类用 hcclBuffBaseOff + myAlgRank * outputSliceStride，OCS 用偏移公式）
+    virtual u64 GetTxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                               u32 myAlgRank, u64 outputSliceStride, u32 channelIdx) const;
+
+    // ---- PostCopy 中 LocalReduce srcSlice 偏移计算（虚函数，子类可重载实现不同搬移策略） ----
+    // 返回 srcSlice 的偏移量（基类用 hcclBuffBaseOff + tmpRank * buffSliceStride，OCS 用偏移公式）
+    virtual u64 GetPostCopySrcOffset(const TemplateDataParams &tempAlgParams, u32 repeatIdx,
+                                     u32 tmpRank, u64 buffSliceStride) const;
     u64 processSize_{0};
     u64 count_{0};
     std::vector<u64> elemCountOut_;

@@ -42,10 +42,23 @@ public:
     // (templateRankSize_-1) * channelsPerRank_ 个从线程分发收发任务，故线程数需与之一致，
     // 与 InsTempReduceScatterMesh1DZAxisDetour::GetThreadNum 同口径。
     u64 GetThreadNum() const override;
+    void SetHcclBufMaxBlockNum(u32 blockNum);
+
+protected:
+    // 重载搬移地址计算：按 myRank_ 取偏移，当前 rank 数据搬移到 (myRank_+1)%rankSize 的 block 位置
+    u64 GetRxSrcOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                       u32 myAlgRank, u32 channelIdx) const override;
+    u64 GetRxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                       u32 nextRank, u64 outputSliceStride, u32 channelIdx) const override;
+    u64 GetTxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                       u32 myAlgRank, u64 outputSliceStride, u32 channelIdx) const override;
+    u64 GetPostCopySrcOffset(const TemplateDataParams &tempAlgParams, u32 repeatIdx,
+                             u32 tmpRank, u64 buffSliceStride) const override;
 
 private:
     // OCS 层物理 net_layer 编号，4层拓扑下为 3
     u32 ocsNetLayer_{3};
+    u32 hcclBufMaxBlockNum_= 0;
 };
 
 } // namespace ops_hccl

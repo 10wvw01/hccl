@@ -63,4 +63,40 @@ u64 InsTempReduceScatterMesh1DOcs::GetThreadNum() const
     return threadNum;
 }
 
+// ---- RunReduceScatter 偏移计算（OCS 重载：else 分支，使用 (rank+1)%maxBlockNum 偏移公式） ----
+u64 InsTempReduceScatterMesh1DOcs::GetRxSrcOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 myAlgRank, u32 channelIdx) const
+{
+    return tempAlgParam.buffInfo.hcclBuffBaseOff + repeatIdx * tempAlgParam.inputRepeatStride +
+           myAlgRank * tempAlgParam.inputSliceStride + elemOffset_[channelIdx];
+}
+
+u64 InsTempReduceScatterMesh1DOcs::GetRxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 nextRank, u64 outputSliceStride, u32 channelIdx) const
+{
+    return repeatIdx * tempAlgParam.outputRepeatStride +
+           ((subCommRanks_[0][nextRank] + 1) % hcclBufMaxBlockNum_) * outputSliceStride + elemOffset_[channelIdx];
+}
+
+u64 InsTempReduceScatterMesh1DOcs::GetTxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 myAlgRank, u64 outputSliceStride, u32 channelIdx) const
+{
+    return repeatIdx * tempAlgParam.outputRepeatStride +
+           (myRank_ + 1) % hcclBufMaxBlockNum_ * outputSliceStride + elemOffset_[channelIdx];
+}
+
+// ---- PostCopy 偏移计算（OCS 重载：else 分支，使用 (rank+1)%maxBlockNum 偏移公式） ----
+u64 InsTempReduceScatterMesh1DOcs::GetPostCopySrcOffset(const TemplateDataParams &tempAlgParams, u32 repeatIdx,
+                                                        u32 tmpRank, u64 buffSliceStride) const
+{
+    return repeatIdx * tempAlgParams.outputRepeatStride +
+           ((subCommRanks_[0][tmpRank] + 1) % hcclBufMaxBlockNum_) * buffSliceStride;
+}
+
+void InsTempReduceScatterMesh1DOcs::SetHcclBufMaxBlockNum(u32 blockNum)
+{
+    hcclBufMaxBlockNum_ = blockNum;
+    return;
+}
+
 } // namespace ops_hccl

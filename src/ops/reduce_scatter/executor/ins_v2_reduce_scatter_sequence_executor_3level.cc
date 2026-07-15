@@ -12,6 +12,8 @@
 #include "ins_temp_reduce_scatter_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_reduce_scatter_nhr.h"
 #include "alg_data_trans_wrapper.h"
+#include "ins_temp_reduce_scatter_mesh_1D_ocs.h"
+#include <map>
 
 namespace ops_hccl {
 
@@ -312,6 +314,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate
     u32 templateScratchMultiplier1 = skipLevel1_ ? 1 : algTemplateLevel1->CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::HCCL_BUFFER);
     u32 templateScratchMultiplier2 = algTemplateLevel2->CalcScratchMultiple(BufferType::HCCL_BUFFER, BufferType::OUTPUT);
     u32 templateScratchMultiplier = templateScratchMultiplier0 * templateScratchMultiplier1 * templateScratchMultiplier2;
+    algTemplateLevel2->SetHcclBufMaxBlockNum(templateScratchMultiplier);
 
     TemplateResource templateResource0;
     CHK_RET(GenTempResource(resCtx, 0, algTemplateLevel0, templateResource0));
@@ -356,6 +359,5 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
     TopoMatchMultilevel,
     InsTempReduceScatterMesh1DZAxisDetour,
     InsTempReduceScatterNHR,
-    InsTempReduceScatterNHR);
-
+    InsTempReduceScatterMesh1DOcs);
 }
