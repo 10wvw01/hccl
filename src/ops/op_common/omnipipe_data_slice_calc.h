@@ -214,6 +214,7 @@ void BuffInfoAssign(BuffInfo& bi, u64 inBuffBaseOff, u64 outBuffBaseOff, u64 hcc
 std::vector<OmniPipeSplitSliceInfo> OmniPipeSplitSliceInfoListAssign(const std::vector<u64> dataWholeSize, u64 rankSize,
                                                                      u64 dataTypeSize);
 u64 RoundUp(const u64 dividend, const u64 divisor);
+u64 RoundDown(const u64 dividend, const u64 divisor);
 u64 DataSliceCut(u64 originSliceSize, u64 originSliceOffset, u64 stopOffset);
 u64 sliceOffsetCut(u64 originOffset, u64 stopOffset);
 
