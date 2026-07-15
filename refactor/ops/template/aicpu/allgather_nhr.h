@@ -34,6 +34,14 @@ public:
     ~AllGatherNhrTemplate() = default;
 
 protected:
+    /**
+     * AllGather NHR 使用 DMA 消减算法，多申请一倍的流用于 PostLocalCopy 和最后一步并行执行。
+     * threadNum = channelsPerRank * 2, notifyPerThread = 2
+     * （一个 notify 用于主从流同步，另一个用于 PostLocalCopy 和最后一步并行执行时的前同步）
+     * 对应原始 InsTempAllGatherNHR::GetRes / GetThreadNum。
+     */
+    HcclResult GetRes(AlgResourceRequest &res) const override;
+
     /** 通信编排：调用 RunNhrAllGather 构造 SendRecvInfo 列表，由基类统一执行 SendRecv。 */
     HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<TxRxSlicesList> &txRxSlicesLists,
                             std::vector<u32> &ranksForOutputData) override;

@@ -105,10 +105,48 @@ TEST(AllGatherNhrRunAlgorithmTest, EightRankThreeStepsBuildsTxRxSlicesLists)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. KernelRun 完整流程分组
+// 2. GetRes 分组 (DMA 消减算法: threadNum = channelsPerRank * 2, notifyPerThread = 2)
 // ═══════════════════════════════════════════════════════════════════
 
-// TC05 KernelRun 多 rank 调用 engine.Send
+// TC05 GetRes channelsPerRank=1 → threadNum=2, slaveThreadNum=1, notifyPerThread=2
+TEST(AllGatherNhrGetResTest, ChannelsPerRankOneDoublesThread)
+{
+    AllGatherNhrTemplate tmpl(0, {0, 1}, TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER,
+        HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY});
+    tmpl.channelsPerRank_ = 1;
+    AlgResourceRequest res;
+    HcclResult ret = tmpl.GetRes(res);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    // threadNum = 1 * 2 = 2, slaveThreadNum = 1
+    EXPECT_EQ(res.slaveThreadNum, 1u);
+    EXPECT_EQ(res.notifyNumPerThread.size(), 1u);
+    EXPECT_EQ(res.notifyNumPerThread[0], 2u);
+    EXPECT_EQ(res.notifyNumOnMainThread, 1u);
+}
+
+// TC06 GetRes channelsPerRank=2 → threadNum=4, slaveThreadNum=3, notifyPerThread=2
+TEST(AllGatherNhrGetResTest, ChannelsPerRankTwoDoublesThread)
+{
+    AllGatherNhrTemplate tmpl(0, {0, 1, 2, 3}, TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER,
+        HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY});
+    tmpl.channelsPerRank_ = 2;
+    AlgResourceRequest res;
+    HcclResult ret = tmpl.GetRes(res);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    // threadNum = 2 * 2 = 4, slaveThreadNum = 3
+    EXPECT_EQ(res.slaveThreadNum, 3u);
+    EXPECT_EQ(res.notifyNumPerThread.size(), 3u);
+    for (u32 i = 0; i < 3; i++) {
+        EXPECT_EQ(res.notifyNumPerThread[i], 2u);
+    }
+    EXPECT_EQ(res.notifyNumOnMainThread, 3u);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. KernelRun 完整流程分组
+// ═══════════════════════════════════════════════════════════════════
+
+// TC07 KernelRun 多 rank 调用 engine.Send
 TEST_F(AicpuBaseTemplateTest, AllGatherNhrKernelRunMultiRankCallsSend)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
@@ -123,7 +161,7 @@ TEST_F(AicpuBaseTemplateTest, AllGatherNhrKernelRunMultiRankCallsSend)
     EXPECT_EQ(engine_.GetSendCount(), 2u);
 }
 
-// TC06 KernelRun 单 rank 不调用 engine.Send
+// TC08 KernelRun 单 rank 不调用 engine.Send
 TEST_F(AicpuBaseTemplateTest, AllGatherNhrKernelRunSingleRankNoSend)
 {
     AllGatherNhrTemplate tmpl(0, {0}, MakeNhrDesc());

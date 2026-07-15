@@ -36,15 +36,15 @@ public:
     /**
      * 计算算法所需的资源请求（notify、channel、thread 等）。
      * 工作流程：
-     *   1. 依据 alg 的算法类型（NHR/Mesh）选择对应的 rank 获取方式；
-     *   2. NHR 算法调用 getNhrRanks 获取Clos拓扑连接的 rank 列表；
-     *   3. Mesh 算法调用 getMeshRanks 获取 Mesh 拓扑连接的 rank 列表；
-     *   4. 将结果保存到 ranks_ 成员中供后续 CalcRes/Orchestrate 使用。
-     *   5. 基于 ranks_ 中已规划的 rank 列表确定通信规模；
-     *   6. 根据 AlgType 计算所需线程数与 notify 数；
-     *   7. 生成资源请求列表返回给 executor 汇总。
+     *   1. 依据 alg 的算法类型（NHR/Mesh）选择对应的 channel 请求方式；
+     *   2. NHR 算法调用 CalcChannelRequestNhr 获取 Clos 拓扑连接的 channel 列表；
+     *   3. Mesh 算法调用 CalcChannelRequestMesh1D 获取 Mesh 拓扑连接的 channel 列表；
+     *   4. 将结果保存到 channels_ 成员中供后续 KernelRun 使用；
+     *   5. 调用 GetRes 计算所需线程数与 notify 数；
+     *   6. 生成资源请求列表返回给 executor 汇总。
      * 输入参数：
      *   - comm：通信域上下文
+     *   - engineType：引擎类型
      * 输出参数：
      *   - res: 资源请求，每项描述一个层级所需的 channel/notify/thread
      * 返回值：
@@ -73,14 +73,29 @@ public:
         }
         res.channels.push_back(levelChannels);
 
-        // 根据算法类型计算线程数和 notify 数（对应原始 GetRes）。
+        // 计算 channelsPerRank 供 GetRes 使用。
+        channelsPerRank_ = CalcChannelsPerRankInternal(levelChannels);
+
+        // 根据算法类型计算线程数和 notify 数。
+        CHK_RET(GetRes(res));
+        return HCCL_SUCCESS;
+    }
+
+    /**
+     * 计算所需线程数与 notify 数（对应原始 InsTempAllGatherNHR::GetRes / InsTempReduceScatterNHR::GetRes）。
+     * 基类默认实现：
+     *   - NHR: threadNum = channelsPerRank（普通 NHR，不 DMA 消减）, notifyPerThread = 1
+     *   - Mesh: threadNum = rankSize - 1, notifyPerThread = 1
+     * 子类可按算法语义覆盖（如 AllGather NHR 使用 DMA 消减算法，threadNum = channelsPerRank * 2, notifyPerThread = 2）。
+     */
+    virtual HcclResult GetRes(AlgResourceRequest &res) const {
         u32 threadNum = 0;
         u32 notifyPerThread = 0;
         if (IsNhr()) {
-            u32 channelsPerRank = CalcChannelsPerRankInternal(levelChannels);
-            threadNum = channelsPerRank * 2;
-            notifyPerThread = 2;
+            threadNum = channelsPerRank_;
+            notifyPerThread = 1;
         } else {
+            const u32 rankSize = static_cast<u32>(ranks_.size());
             threadNum = (rankSize > 1) ? rankSize - 1 : 1;
             notifyPerThread = 1;
         }
@@ -140,6 +155,7 @@ protected:
     u32 myRank_ = INVALID_VALUE_RANKID;
     std::vector<u32> ranks_;
     TemplateDesc templateDesc_;
+    u32 channelsPerRank_ = 1;                             // 每个对端 rank 的 channel 数最大值
 };
 
 }  // namespace ops_hccl

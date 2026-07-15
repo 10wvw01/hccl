@@ -50,9 +50,16 @@ HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector
                 HCCL_ERROR("[PreSyncInterThreads] size mismatch, sub[%zu] idx[%zu].",
                            subThreads.size(), notifyIdxMainToSub.size()),
                 HCCL_E_PARA);
+    const u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    // 主thread向从thread发送record
     for (size_t i = 0; i < subThreads.size(); ++i) {
         CHK_RET(static_cast<HcclResult>(
             HcommThreadNotifyRecordOnThread(mainThread, subThreads[i], notifyIdxMainToSub[i])));
+    }
+    // 从thread等待主thread的record
+    for (size_t i = 0; i < subThreads.size(); ++i) {
+        CHK_RET(static_cast<HcclResult>(
+            HcommThreadNotifyWaitOnThread(subThreads[i], notifyIdxMainToSub[i], execTimeout)));
     }
     return HCCL_SUCCESS;
 }
@@ -65,9 +72,15 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
                            subThreads.size(), notifyIdxSubToMain.size()),
                 HCCL_E_PARA);
     const u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    // 主thread等待所有从thread的record
     for (size_t i = 0; i < subThreads.size(); ++i) {
         CHK_RET(static_cast<HcclResult>(
             HcommThreadNotifyWaitOnThread(mainThread, notifyIdxSubToMain[i], execTimeout)));
+    }
+    // 从thread向主thread发送record
+    for (size_t i = 0; i < subThreads.size(); ++i) {
+        CHK_RET(static_cast<HcclResult>(
+            HcommThreadNotifyRecordOnThread(subThreads[i], mainThread, notifyIdxSubToMain[i])));
     }
     return HCCL_SUCCESS;
 }

@@ -74,10 +74,10 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
         CHK_RET(ops_hccl::PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain));
     }
 
+    ranksForOutputData_ = ranksForOutputData;
+
     // 6. PostCopy：后处理（ccl buffer -> output），若需要。
     CHK_RET(PostCopy(templateResource.threads));
-
-    ranksForOutputData_ = ranksForOutputData;
 
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] end.");
     return HCCL_SUCCESS;
@@ -115,17 +115,18 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
         return HCCL_E_INTERNAL;
     }
 
-    if (tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr) {
-        HCCL_DEBUG("[AicpuBaseTemplate][PreCopy] inputBufferPtr == cclBufferPtr, skip copy.");
-        return HCCL_SUCCESS;
-    }
-
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams_.dataType];
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
+    const bool inputEqCcl = (tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr);
 
-    // 遍历 ranksForInputData，将每个 rank 的数据从 input 拷到 output / ccl buffer。
-    for (u32 rank : tempAlgParams_.ranksForInputData) {
+    // 遍历 ranksForInputData，将每个 rank 的数据从 input 拷到 ccl buffer。
+    // input 偏移使用循环索引（idx）而非 rank 值：
+    //   AllGather: ranksForInputData=[myRank_], idx=0 → inputOff=0（输入仅含本 rank 数据）
+    //   AllReduce: ranksForInputData=[0,1,...], idx=rank → inputOff=rank*stride（输入含所有 rank 数据）
+    // ccl 偏移使用 rank 值：cclOff = rank * stride（每个 rank 的数据在 ccl buffer 中按 rank 排列）
+    for (size_t idx = 0; idx < tempAlgParams_.ranksForInputData.size(); ++idx) {
+        u32 rank = tempAlgParams_.ranksForInputData[idx];
         u32 algRank = 0;
         CHK_RET(GetAlgRank(rank, ranks_, algRank));
         const u64 curSliceSize = (tailSize != 0 && algRank == templateRankSize_ - 1) ? tailSize : sliceSize;
@@ -134,13 +135,15 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
         }
         const u64 sliceCount = curSliceSize / dataTypeSize;
 
-        const u64 inOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
-        const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
+        const u64 inOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.stride;
 
-        // input -> ccl buffer（非 remote mem 访问时需要本地中转）
-        DataSlice srcSlice(tempAlgParams_.inputBufferPtr, inOff, curSliceSize, sliceCount);
-        DataSlice dstSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
-        CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
+        // input -> ccl buffer（input 与 ccl 相同时跳过）
+        if (!inputEqCcl) {
+            const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
+            DataSlice srcSlice(tempAlgParams_.inputBufferPtr, inOff, curSliceSize, sliceCount);
+            DataSlice dstSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
+            CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
+        }
     }
 
     HCCL_INFO("[AicpuBaseTemplate][PreCopy] end.");
@@ -174,9 +177,6 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
 
     // 将 ccl buffer 中 ranksForOutputData 对应 rank 的数据搬回 output。
     for (u32 rank : ranksForOutputData_) {
-        if (rank == myRank_) {
-            continue;
-        }
         u32 algRank = 0;
         CHK_RET(GetAlgRank(rank, ranks_, algRank));
         const u64 curSliceSize = (tailSize != 0 && algRank == templateRankSize_ - 1) ? tailSize : sliceSize;

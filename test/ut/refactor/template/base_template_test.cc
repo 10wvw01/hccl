@@ -66,6 +66,8 @@ TEST(BaseTemplateCalcResTest, MeshMultiRankCalcRes)
 }
 
 // TC03 NHR 多 rank CalcRes 走 NHR 路径
+// 基类默认 NHR: threadNum = channelsPerRank, notifyPerThread = 1 (普通 NHR, 不 DMA 消减)
+// AllGather NHR 子类覆盖 GetRes: threadNum = channelsPerRank * 2, notifyPerThread = 2
 TEST(BaseTemplateCalcResTest, NhrMultiRankCalcRes)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
@@ -75,15 +77,49 @@ TEST(BaseTemplateCalcResTest, NhrMultiRankCalcRes)
     HcclResult ret = tmpl.CalcRes(comm, HcclAlgEngineType::AICPU, res);
     // NHR 路径依赖 CalcChannelRequestNhr, 可能失败
     if (ret == HCCL_SUCCESS) {
-        // NHR: notifyPerThread = 2
+        // 基类默认 NHR: notifyPerThread = 1 (普通 NHR, 不 DMA 消减)
         if (!res.notifyNumPerThread.empty()) {
-            EXPECT_EQ(res.notifyNumPerThread[0], 2u);
+            EXPECT_EQ(res.notifyNumPerThread[0], 1u);
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. CalcChannelsPerRankInternal 分组
+// 2. GetRes 分组 (基类默认实现)
+// ═══════════════════════════════════════════════════════════════════
+
+// TC10 基类 NHR GetRes: threadNum = channelsPerRank, notifyPerThread = 1 (普通 NHR, 不 DMA 消减)
+TEST(BaseTemplateGetResTest, NhrBaseGetResNoDmaReduction)
+{
+    TestableTemplate tmpl(0, {0, 1, 2, 3}, MakeNhrDesc());
+    tmpl.channelsPerRank_ = 2;
+    AlgResourceRequest res;
+    HcclResult ret = tmpl.GetRes(res);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    // threadNum = 2 (不 *2), slaveThreadNum = 1
+    EXPECT_EQ(res.slaveThreadNum, 1u);
+    EXPECT_EQ(res.notifyNumPerThread.size(), 1u);
+    EXPECT_EQ(res.notifyNumPerThread[0], 1u);
+    EXPECT_EQ(res.notifyNumOnMainThread, 1u);
+}
+
+// TC11 基类 Mesh GetRes: threadNum = rankSize - 1, notifyPerThread = 1
+TEST(BaseTemplateGetResTest, MeshBaseGetRes)
+{
+    TestableTemplate tmpl(0, {0, 1, 2, 3}, MakeMeshDesc());
+    tmpl.channelsPerRank_ = 1;
+    AlgResourceRequest res;
+    HcclResult ret = tmpl.GetRes(res);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    // threadNum = 4 - 1 = 3, slaveThreadNum = 2
+    EXPECT_EQ(res.slaveThreadNum, 2u);
+    EXPECT_EQ(res.notifyNumPerThread.size(), 2u);
+    EXPECT_EQ(res.notifyNumPerThread[0], 1u);
+    EXPECT_EQ(res.notifyNumOnMainThread, 2u);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 3. CalcChannelsPerRankInternal 分组
 // ═══════════════════════════════════════════════════════════════════
 
 // TC04 空 channel 列表返回 1

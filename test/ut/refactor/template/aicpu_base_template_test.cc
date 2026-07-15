@@ -91,7 +91,8 @@ TEST_F(AicpuBaseTemplateTest, KernelRunEmptyThreadsReturnsError)
 // 2. PreCopy 分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC05 PreCopy inputBufferPtr == cclBufferPtr 时跳过拷贝
+// TC05 PreCopy inputBufferPtr == cclBufferPtr 时跳过 PreCopy 拷贝
+// 但 PostCopy 仍会执行 ccl→output 拷贝（outputBufferPtr != cclBufferPtr）
 TEST_F(AicpuBaseTemplateTest, PreCopyInputEqualsCclSkipsCopy)
 {
     TestableAicpuTemplate tmpl(0, {0, 1}, MakeMeshDesc());
@@ -102,7 +103,8 @@ TEST_F(AicpuBaseTemplateTest, PreCopyInputEqualsCclSkipsCopy)
 
     HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(CountTmplCalls("LocalCopy"), 0u);
+    // PreCopy 跳过, 但 PostCopy 会执行 (ranksForOutputData = {0, 1})
+    EXPECT_EQ(CountTmplCalls("LocalCopy"), 2u);
 }
 
 // TC06 PreCopy ranksForInputData 为空时返回错误
@@ -117,7 +119,7 @@ TEST_F(AicpuBaseTemplateTest, PreCopyEmptyRanksForInputReturnsError)
     EXPECT_NE(ret, HCCL_SUCCESS);
 }
 
-// TC07 PreCopy 多个 input rank 各执行一次 LocalCopy
+// TC07 PreCopy 多个 input rank 各执行一次 LocalCopy, PostCopy 也各执行一次
 TEST_F(AicpuBaseTemplateTest, PreCopyMultiInputRanksMultiLocalCopy)
 {
     TestableAicpuTemplate tmpl(0, {0, 1, 2}, MakeMeshDesc());
@@ -127,8 +129,8 @@ TEST_F(AicpuBaseTemplateTest, PreCopyMultiInputRanksMultiLocalCopy)
 
     HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // 3 个 input rank, 每个一次 LocalCopy (单rank场景不执行PostCopy, 这里只看PreCopy)
-    EXPECT_EQ(CountTmplCalls("LocalCopy"), 3u);
+    // 3 个 input rank → PreCopy 3 次 + PostCopy 3 次 (ranksForOutputData = {0, 1, 2})
+    EXPECT_EQ(CountTmplCalls("LocalCopy"), 6u);
 }
 
 // ═══════════════════════════════════════════════════════════════════
