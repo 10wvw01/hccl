@@ -19,6 +19,7 @@ LOGS_PATH="${CURRENT_DIR}/logs"
 USER_ID=$(id -u)
 CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
+RULE_LAUNCH_ARG=""
 ASAN="false"
 COV="false"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
@@ -854,6 +855,32 @@ while [[ $# -gt 0 ]]; do
         ENABLE_EXPERIMENTAL="true"
         shift
         ;;
+    --rule_launch=*|--rule-launch=*|--rule_launch|--rule-launch)
+    if [[ "$1" == *=* ]]; then
+        # 等号形式：
+        # --rule_launch=hitestwrapper
+        # --rule-launch=hitestwrapper
+        RULE_LAUNCH_ARG="${1#*=}"
+
+        if [[ -z "${RULE_LAUNCH_ARG}" ]]; then
+            log "Error: $1 requires a non-empty value."
+            exit 1
+        fi
+
+        shift
+    else
+        # 空格形式：
+        # --rule_launch hitestwrapper
+        # --rule-launch hitestwrapper
+        if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
+            log "Error: $1 requires a non-empty value."
+            exit 1
+        fi
+
+        RULE_LAUNCH_ARG="$2"
+        shift 2
+    fi
+    ;;
     --custom_ops_path=*)
         OPTARG=$1
         CUSTOM_OPS_PATH="$(realpath ${OPTARG#*=})"
@@ -905,6 +932,10 @@ fi
 if [ -n "${CCACHE_PROGRAM}" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_C_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
     CUSTOM_OPTION="${CUSTOM_OPTION} -DCMAKE_CXX_COMPILER_LAUNCHER=${CCACHE_PROGRAM}"
+fi
+
+if [[ -n "${RULE_LAUNCH_ARG}" ]]; then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DRULE_LAUNCH=${RULE_LAUNCH_ARG}"
 fi
 
 if [ -n "${ascend_package_path}" ];then
