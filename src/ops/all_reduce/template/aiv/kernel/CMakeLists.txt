@@ -350,6 +350,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hccl_ar_superkernel_mesh_1d_twoshot_bf
     COMPONENT hccl
 )
 
+if(HCCL_ENABLE_910_96)
 add_custom_target(hccl_aiv_all_reduce_op_910_96 ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_reduce_op_910_96.o)
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_all_reduce_op_910_96.o
@@ -709,5 +710,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hccl_ar_superkernel_mesh_1d_twoshot_bf
     ${INSTALL_OPTIONAL}
     COMPONENT hccl
 )
+
+endif()
 
 endif()

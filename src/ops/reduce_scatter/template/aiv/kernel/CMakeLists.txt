@@ -188,6 +188,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hccl_rs_superkernel_mesh_1d_bfloat16_v
     COMPONENT hccl
 )
 
+if(HCCL_ENABLE_910_96)
 add_custom_target(hccl_aiv_reduce_scatter_op_910_96 ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_reduce_scatter_op_910_96.o)
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hccl_aiv_reduce_scatter_op_910_96.o
@@ -379,5 +380,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hccl_rs_superkernel_mesh_1d_bfloat16_v
     ${INSTALL_OPTIONAL}
     COMPONENT hccl
 )
+
+endif()
 
 endif()
