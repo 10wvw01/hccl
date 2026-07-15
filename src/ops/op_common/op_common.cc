@@ -64,6 +64,23 @@ constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超�
 constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
 constexpr u32 CPU_TS_NOTIFY_NUM = 3;            // CPU TS thread notify数量
 
+// CCU资源协商相关常量
+constexpr uint32_t NEGOTIATION_SUCCESS_VAL = 0x5a5a5a5a;  // 资源申请成功标志值
+constexpr uint32_t NEGOTIATION_FAIL_VAL = 0;              // 资源申请失败标志值
+constexpr uint64_t NEGOTIATION_CCL_BUFFER_SIZE = 1 * 1024 * 1024;  // 协商子通信域ccl_buffer大小: 1MB
+constexpr uint32_t NEGOTIATION_DATA_COUNT = 1;             // AllReduce元素个数
+constexpr uint32_t NEGOTIATION_BUF_SIZE = sizeof(uint32_t);  // 协商buffer大小
+
+// CCU资源协商上下文，缓存子通信域、stream和buffer，存入通信域绑定的engine ctx中
+struct NegotiationResCtx {
+    HcclComm subComm = nullptr;
+    aclrtStream stream = nullptr;
+    void *deviceSendBuf = nullptr;
+    void *deviceRecvBuf = nullptr;
+    void *hostSendBuf = nullptr;
+    void *hostRecvBuf = nullptr;
+};
+
 void UpdateAicpuTimeoutCtx(const OpParam &param, AlgResourceCtxSerializable &resCtx)
 {
     AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
@@ -1170,6 +1187,241 @@ HcclResult AddExchangeInfo(HcclComm comm, const OpParam &param)
     return HCCL_SUCCESS;
 }
 
+// ===== 未实现函数打桩（需HCOMM仓提供真实实现） =====
+
+HcclResult HcclCreateSubCommConfig(HcclComm *globalComm, uint32_t rankNum, const uint32_t *rankIds,
+    uint32_t subCommId, uint32_t devId, void *config, HcclComm *subComm)
+{
+    (void)globalComm; (void)rankNum; (void)rankIds;
+    (void)subCommId; (void)devId; (void)config;
+    HCCL_WARNING("[HcclCreateSubCommConfig] stub: not implemented, need HCOMM support.");
+    if (subComm != nullptr) {
+        *subComm = nullptr;
+    }
+    return HCCL_E_NOT_SUPPORT;
+}
+
+HcclResult HcclOpGetCcuResReq(HcclComm comm, void *resDesc, uint32_t *resReqNum, char *opName, void *opArgs)
+{
+    (void)comm; (void)resDesc; (void)opName; (void)opArgs;
+    HCCL_WARNING("[HcclOpGetCcuResReq] stub: not implemented.");
+    if (resReqNum != nullptr) {
+        *resReqNum = 0;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcommCcuRemainResQuery(uint32_t dieId, void *resDesc)
+{
+    (void)dieId; (void)resDesc;
+    HCCL_WARNING("[HcommCcuRemainResQuery] stub: not implemented.");
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclChannelDestroy(HcclComm comm, const ChannelHandle *channels, uint32_t channelNum)
+{
+    (void)comm; (void)channels; (void)channelNum;
+    HCCL_WARNING("[HcclChannelDestroy] stub: not implemented.");
+    return HCCL_SUCCESS;
+}
+
+// ===== CCU资源协商实现 =====
+
+HcclResult NegotiationCleanupCb(HcclComm comm, HcclCommStatePhase state, void *args)
+{
+    (void)comm;
+    if (state != HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE) {
+        return HCCL_SUCCESS;
+    }
+    CHK_PTR_NULL(args);
+    NegotiationResCtx *ctx = static_cast<NegotiationResCtx *>(args);
+
+    if (ctx->deviceSendBuf != nullptr) {
+        (void)aclrtFree(ctx->deviceSendBuf);
+        ctx->deviceSendBuf = nullptr;
+    }
+    if (ctx->deviceRecvBuf != nullptr) {
+        (void)aclrtFree(ctx->deviceRecvBuf);
+        ctx->deviceRecvBuf = nullptr;
+    }
+    if (ctx->hostSendBuf != nullptr) {
+        (void)aclrtFreeHost(ctx->hostSendBuf);
+        ctx->hostSendBuf = nullptr;
+    }
+    if (ctx->hostRecvBuf != nullptr) {
+        (void)aclrtFreeHost(ctx->hostRecvBuf);
+        ctx->hostRecvBuf = nullptr;
+    }
+    if (ctx->stream != nullptr) {
+        (void)aclrtDestroyStream(ctx->stream);
+        ctx->stream = nullptr;
+    }
+    if (ctx->subComm != nullptr) {
+        (void)HcclCommDestroy(ctx->subComm);
+        ctx->subComm = nullptr;
+    }
+    HCCL_INFO("[NegotiationCleanupCb] negotiation resources released.");
+    return HCCL_SUCCESS;
+}
+
+HcclResult NegotiateCcuResFallback(HcclComm comm, const OpParam &param, bool localResOk)
+{
+    HCCL_INFO("[NegotiateCcuResFallback] start, localResOk[%d].", static_cast<int>(localResOk));
+
+    // 单rank场景无需协商
+    u32 rankSize = 0;
+    CHK_RET(HcclGetRankSize(comm, &rankSize));
+    if (rankSize <= 1) {
+        HCCL_INFO("[NegotiateCcuResFallback] single rank, skip negotiation.");
+        return localResOk ? HCCL_SUCCESS : HCCL_E_UNAVAIL;
+    }
+
+    // 构建协商资源ctx的tag: 通信域名 + _negotiation
+    std::string negTag = std::string(param.commName) + "_negotiation";
+
+    // 尝试获取已缓存的协商资源
+    void *ctxPtr = nullptr;
+    uint64_t ctxSize = 0;
+    NegotiationResCtx *negCtx = nullptr;
+    bool needCreate = false;
+
+    HcclResult getRet = HcclEngineCtxGet(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS, &ctxPtr, &ctxSize);
+    if (getRet != HCCL_SUCCESS || ctxPtr == nullptr || ctxSize < sizeof(NegotiationResCtx)) {
+        needCreate = true;
+        ctxSize = sizeof(NegotiationResCtx);
+        CHK_RET(HcclEngineCtxCreate(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS, ctxSize, &ctxPtr));
+        negCtx = static_cast<NegotiationResCtx *>(ctxPtr);
+        errno_t memsetRet = memset_s(negCtx, sizeof(NegotiationResCtx), 0, sizeof(NegotiationResCtx));
+        CHK_PRT_RET(memsetRet != EOK,
+            HCCL_ERROR("[NegotiateCcuResFallback] memset_s failed, ret[%d].", memsetRet), HCCL_E_MEMORY);
+    } else {
+        negCtx = static_cast<NegotiationResCtx *>(ctxPtr);
+    }
+
+    if (needCreate) {
+        // 1. 申请stream
+        aclError aclRet = aclrtCreateStream(&negCtx->stream);
+        CHK_PRT_RET(aclRet != ACL_SUCCESS,
+            HCCL_ERROR("[NegotiateCcuResFallback] aclrtCreateStream failed, ret[%d].", aclRet),
+            HCCL_E_RUNTIME);
+
+        // 2. 申请host内存（send是H2D，recv是D2H）
+        aclRet = aclrtMallocHost(&negCtx->hostSendBuf, NEGOTIATION_BUF_SIZE);
+        if (aclRet != ACL_SUCCESS) {
+            HCCL_ERROR("[NegotiateCcuResFallback] aclrtMallocHost for sendBuf failed, ret[%d].", aclRet);
+            (void)NegotiationCleanupCb(comm, HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE, negCtx);
+            (void)HcclEngineCtxDestroy(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+            return HCCL_E_RUNTIME;
+        }
+
+        aclRet = aclrtMallocHost(&negCtx->hostRecvBuf, NEGOTIATION_BUF_SIZE);
+        if (aclRet != ACL_SUCCESS) {
+            HCCL_ERROR("[NegotiateCcuResFallback] aclrtMallocHost for recvBuf failed, ret[%d].", aclRet);
+            (void)NegotiationCleanupCb(comm, HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE, negCtx);
+            (void)HcclEngineCtxDestroy(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+            return HCCL_E_RUNTIME;
+        }
+
+        // 3. 申请device内存（buffin和buffout）
+        aclRet = aclrtMalloc(&negCtx->deviceSendBuf, NEGOTIATION_BUF_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+        if (aclRet != ACL_SUCCESS) {
+            HCCL_ERROR("[NegotiateCcuResFallback] aclrtMalloc for deviceSendBuf failed, ret[%d].", aclRet);
+            (void)NegotiationCleanupCb(comm, HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE, negCtx);
+            (void)HcclEngineCtxDestroy(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+            return HCCL_E_RUNTIME;
+        }
+
+        aclRet = aclrtMalloc(&negCtx->deviceRecvBuf, NEGOTIATION_BUF_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+        if (aclRet != ACL_SUCCESS) {
+            HCCL_ERROR("[NegotiateCcuResFallback] aclrtMalloc for deviceRecvBuf failed, ret[%d].", aclRet);
+            (void)NegotiationCleanupCb(comm, HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE, negCtx);
+            (void)HcclEngineCtxDestroy(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+            return HCCL_E_RUNTIME;
+        }
+
+        // 4. 创建子通信域（AICPU引擎，ccl_buffer=1MB）
+        std::vector<uint32_t> rankIds(rankSize);
+        for (u32 i = 0; i < rankSize; i++) {
+            rankIds[i] = i;
+        }
+        int32_t devId = 0;
+        (void)aclrtGetDevice(&devId);
+
+        struct {
+            uint32_t opExpansionMode;
+            uint64_t cclBufferSize;
+        } subCommConfig;
+        subCommConfig.opExpansionMode = static_cast<uint32_t>(OpExecuteConfig::AICPU_TS);
+        subCommConfig.cclBufferSize = NEGOTIATION_CCL_BUFFER_SIZE;
+
+        HcclResult subRet = HcclCreateSubCommConfig(&comm, rankSize, rankIds.data(), 0,
+            static_cast<uint32_t>(devId), static_cast<void *>(&subCommConfig), &negCtx->subComm);
+        if (subRet != HCCL_SUCCESS) {
+            HCCL_ERROR("[NegotiateCcuResFallback] HcclCreateSubCommConfig failed, ret[%d].", subRet);
+            (void)NegotiationCleanupCb(comm, HcclCommStatePhase::HCCL_COMM_STATE_PHASE_DESTROY_PRE, negCtx);
+            (void)HcclEngineCtxDestroy(comm, negTag.c_str(), CommEngine::COMM_ENGINE_CPU_TS);
+            return HCCL_E_UNAVAIL;
+        }
+
+        // 5. 注册通信域销毁回调函数，释放协商资源
+        if (HcommIsSupportHcclCommRegCommStateCallback()) {
+            CHK_RET(HcclCommRegCommStateCallback(negTag.c_str(), NegotiationCleanupCb, negCtx));
+        }
+
+        HCCL_INFO("[NegotiateCcuResFallback] negotiation resources created, subComm[%p], stream[%p].",
+            negCtx->subComm, negCtx->stream);
+    }
+
+    // 设置本卡的资源申请结果：成功填0x5a5a5a5a，失败填0
+    uint32_t localVal = localResOk ? NEGOTIATION_SUCCESS_VAL : NEGOTIATION_FAIL_VAL;
+    HCCL_INFO("[NegotiateCcuResFallback] localVal[0x%x].", localVal);
+
+    // 填充host send buffer
+    errno_t memRet = memcpy_s(negCtx->hostSendBuf, NEGOTIATION_BUF_SIZE, &localVal, NEGOTIATION_BUF_SIZE);
+    CHK_PRT_RET(memRet != EOK,
+        HCCL_ERROR("[NegotiateCcuResFallback] memcpy_s for hostSendBuf failed, ret[%d].", memRet), HCCL_E_MEMORY);
+
+    // H2D: host send -> device send
+    aclError aclRet = aclrtMemcpy(negCtx->deviceSendBuf, NEGOTIATION_BUF_SIZE,
+        negCtx->hostSendBuf, NEGOTIATION_BUF_SIZE, ACL_MEMCPY_HOST_TO_DEVICE);
+    CHK_PRT_RET(aclRet != ACL_SUCCESS,
+        HCCL_ERROR("[NegotiateCcuResFallback] aclrtMemcpy H2D failed, ret[%d].", aclRet), HCCL_E_RUNTIME);
+
+    // 执行AllReduce(MIN)，使用AICPU引擎，dataType=uint32_t，count=1
+    HcclResult arRet = HcclAllReduce(negCtx->deviceSendBuf, negCtx->deviceRecvBuf,
+        NEGOTIATION_DATA_COUNT, HCCL_DATA_TYPE_UINT32, HCCL_REDUCE_MIN, negCtx->subComm, negCtx->stream);
+    CHK_PRT_RET(arRet != HCCL_SUCCESS,
+        HCCL_ERROR("[NegotiateCcuResFallback] HcclAllReduce failed, ret[%d].", arRet), arRet);
+
+    // 卡间stream同步
+    aclRet = aclrtSynchronizeStream(negCtx->stream);
+    CHK_PRT_RET(aclRet != ACL_SUCCESS,
+        HCCL_ERROR("[NegotiateCcuResFallback] aclrtSynchronizeStream failed, ret[%d].", aclRet), HCCL_E_RUNTIME);
+
+    // D2H: device recv -> host recv
+    aclRet = aclrtMemcpy(negCtx->hostRecvBuf, NEGOTIATION_BUF_SIZE,
+        negCtx->deviceRecvBuf, NEGOTIATION_BUF_SIZE, ACL_MEMCPY_DEVICE_TO_HOST);
+    CHK_PRT_RET(aclRet != ACL_SUCCESS,
+        HCCL_ERROR("[NegotiateCcuResFallback] aclrtMemcpy D2H failed, ret[%d].", aclRet), HCCL_E_RUNTIME);
+
+    // 检查规约结果
+    uint32_t result = 0;
+    memRet = memcpy_s(&result, NEGOTIATION_BUF_SIZE, negCtx->hostRecvBuf, NEGOTIATION_BUF_SIZE);
+    CHK_PRT_RET(memRet != EOK,
+        HCCL_ERROR("[NegotiateCcuResFallback] memcpy_s for result failed, ret[%d].", memRet), HCCL_E_MEMORY);
+
+    HCCL_INFO("[NegotiateCcuResFallback] negotiation result[0x%x].", result);
+
+    if (result == NEGOTIATION_FAIL_VAL) {
+        // 有卡资源不足，所有卡回退
+        HCCL_WARNING("[NegotiateCcuResFallback] negotiation failed, some NPUs have insufficient resources, fallback.");
+        return HCCL_E_UNAVAIL;
+    }
+
+    HCCL_INFO("[NegotiateCcuResFallback] negotiation success, all NPUs have sufficient resources.");
+    return HCCL_SUCCESS;
+}
+
 HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest &resRequest,
     std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence, uint64_t &size, bool increCreateChannelFlag,
@@ -1191,7 +1443,7 @@ HcclResult GetAlgResWithEngine(HcclComm comm, OpParam &param, AlgResourceRequest
     } else if (param.engine == COMM_ENGINE_AIV) {
         CHK_RET(GetAlgResAiv(comm, param, resRequest, topoInfo, algHierarchyInfo, resCtxSequence));
     } else if (param.engine == COMM_ENGINE_CCU) {
-        // 添加资源回退。SetCommEngine
+        // CCU资源申请+协商在GetAlgResCcu内部完成
         auto ret = GetAlgResCcu(comm, param, resRequest, resCtxHost, topoInfo, algHierarchyInfo, resCtxSequence, size, resPack);
         if (ret == HCCL_E_UNAVAIL) {
             return HCCL_E_UNAVAIL;
@@ -1744,13 +1996,33 @@ HcclResult GetAlgResCcu(HcclComm comm, const OpParam& param, AlgResourceRequest&
 
     // 创建资源，并填充到Host内存上
     HcclResult ret = HcclAllocAlgResourceCcu(comm, param, resRequest, resCtxHost, resPack);
-    if (ret == HCCL_E_UNAVAIL) {
-        HCCL_WARNING("[HcclAllocAlgResourceCcu] resource unavailable, try to fallback.");
-        return HCCL_E_UNAVAIL;
-    } else if (ret != HCCL_SUCCESS) {
+    if (ret != HCCL_SUCCESS && ret != HCCL_E_UNAVAIL) {
         HCCL_ERROR("failed to alloc alg resource.");
         return ret;
     }
+
+    // CCU资源协商：同步各卡资源申请结果，确保所有NPU回退一致性
+    // 成功的卡输入0x5a5a5a5a，失败的卡填0，AllReduce取最小值
+    // 若结果为0则表示有卡资源不足，所有卡返回HCCL_E_UNAVAIL走回退逻辑
+    bool localResOk = (ret == HCCL_SUCCESS);
+    HcclResult negRet = NegotiateCcuResFallback(comm, param, localResOk);
+    if (negRet == HCCL_E_UNAVAIL) {
+        // 有卡资源不足，统一回退
+        if (localResOk) {
+            // 本卡资源充足但其他卡不足，释放已申请的channel资源
+            HCCL_WARNING("[GetAlgResCcu] local resources sufficient but negotiation failed, release channels.");
+            for (const auto &kernelInfo : resRequest.ccuKernelInfos) {
+                auto *kernelArgBase = static_cast<CcuKernelArgBase *>(kernelInfo.kernelArg);
+                if (kernelArgBase != nullptr && kernelArgBase->channelCount > 0) {
+                    (void)HcclChannelDestroy(comm, kernelArgBase->channels, kernelArgBase->channelCount);
+                }
+            }
+        }
+        HCCL_WARNING("[GetAlgResCcu] negotiation failed, all ranks fallback.");
+        return HCCL_E_UNAVAIL;
+    }
+    CHK_RET(negRet);
+
     // 序列化
     std::vector<char> seq = resCtxHost->Serialize();
     uint64_t size = seq.size();
@@ -1779,26 +2051,29 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
-    // 资源回退
+    // 资源申请：channel和kernel任一失败不提前返回，记录状态后继续到协商点
+    HcclResult allocRet = HCCL_SUCCESS;
+
     auto ret = HcclGetChannelForCcu(comm, param, resRequest);
     if (ret == HCCL_E_UNAVAIL) {
-        // 进行资源回退
-        HCCL_WARNING("[HcclGetChannelForCcu] channel unavailable, try to fallback.");
-        return HCCL_E_UNAVAIL;
+        HCCL_WARNING("[HcclGetChannelForCcu] channel unavailable.");
+        allocRet = HCCL_E_UNAVAIL;
     } else {
         CHK_RET(ret);
     }
 
-    ret = HcclGetCcuKernel(comm, resRequest, resCtxHost);
-    if (ret == HCCL_E_UNAVAIL) {
-        // 进行资源回退
-        HCCL_WARNING("[HcclGetCcuKernel] ccu kernel unavailable, try to fallback.");
-        return HCCL_E_UNAVAIL;
-    } else {
-        CHK_RET(ret);
+    // channel失败时跳过kernel申请（依赖channel），但不提前返回，需到协商点统一同步
+    if (allocRet == HCCL_SUCCESS) {
+        ret = HcclGetCcuKernel(comm, resRequest, resCtxHost);
+        if (ret == HCCL_E_UNAVAIL) {
+            HCCL_WARNING("[HcclGetCcuKernel] ccu kernel unavailable.");
+            allocRet = HCCL_E_UNAVAIL;
+        } else {
+            CHK_RET(ret);
+        }
     }
 #endif
-    return HCCL_SUCCESS;
+    return allocRet;
 }
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
