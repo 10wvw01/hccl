@@ -20,6 +20,12 @@ set(UT_EXECUTOR_SRC
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel_request.cc
+    # template 源文件 (template_factory 内联实例化 AllGatherMeshTemplate，需 vtable)
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/aicpu_base_template.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_mesh.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_nhr.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/mesh_primitives.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/nhr_primitives.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
@@ -33,7 +39,11 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/topo
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel
     ${CMAKE_SOURCE_DIR}/refactor/ops/template
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine
+    ${CMAKE_SOURCE_DIR}/refactor/ops/utils
+    ${CMAKE_SOURCE_DIR}/refactor/ops/selector
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common/hcomm_dlsym
     # src 头文件（channel.cc 依赖 topo.h 等）

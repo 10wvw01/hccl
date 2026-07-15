@@ -88,6 +88,12 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
     return HCCL_SUCCESS;
 }
 
+HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice)
+{
+    HCCL_INFO("LocalCopy thread: %d, size: %llu", thread, srcSlice.size_);
+    return HCCL_SUCCESS;
+}
+
 // ============================================================
 // HcclAlgorithm 桩 (替代 hccl_algorithm.cc，提供 GetEngine/GetExecutor)
 // ============================================================

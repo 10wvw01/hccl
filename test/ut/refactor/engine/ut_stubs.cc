@@ -183,9 +183,9 @@ HcclResult HcclThreadAcquireWithStream(HcclComm, CommEngine, void *, uint32_t, T
 }
 
 // CreateRes 调用 (C 链接符号), 创建引擎上下文, 仅满足链接
-HcclResult HcclEngineCtxCreate(HcclComm, const char *, CommEngine, uint64_t, void **ctx)
+HcclResult HcclEngineCtxCreate(HcclComm, const char *, CommEngine, uint64_t size, void **ctx)
 {
-    if (ctx) { *ctx = nullptr; }
+    if (ctx) { *ctx = (size > 0) ? calloc(1, size) : nullptr; }
     return HCCL_SUCCESS;
 }
 
