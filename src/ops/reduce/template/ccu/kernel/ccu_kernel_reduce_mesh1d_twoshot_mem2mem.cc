@@ -200,13 +200,12 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
     const auto *arg = ctx.arg;
     const uint32_t size = scratchOrg.size();
 
-    ccu::LocalAddr dst;
-    dst.addr = outDstOrg.addr;
-    dst.token = outDstOrg.token;
-
-    ccu::LocalAddr src;
-    src.addr = srcOrg.addr;
-    src.token = srcOrg.token;
+    ccu::Address savedDstAddr;
+    savedDstAddr = outDstOrg.addr;
+    ccu::Address savedSrcAddr;
+    savedSrcAddr = srcOrg.addr;
+    ccu::Variable savedDstToken;
+    savedDstToken = outDstOrg.token;
 
     std::vector<ccu::LocalAddr> scratch;
     scratch.resize(size);
@@ -229,7 +228,7 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
 
     if (expansionNum != 1) {
         tmp = GetExpansionParam(expansionNum);
-        dst.token = dst.token + tmp;
+        outDstOrg.token = outDstOrg.token + tmp;
     }
 
     CCU_IF(ctx.goSize.loopParam != 0)
@@ -245,10 +244,10 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
             ctx.loopScratch[0][i].addr = scratch[i].addr;
             ctx.loopScratch[0][i].token = scratch[i].token;
         }
-        ctx.loopSrc[0].addr  = src.addr;
-        ctx.loopSrc[0].token = src.token;
-        ctx.loopDst[0].addr  = dst.addr;
-        ctx.loopDst[0].token = dst.token;
+        ctx.loopSrc[0].addr  = srcOrg.addr;
+        ctx.loopSrc[0].token = srcOrg.token;
+        ctx.loopDst[0].addr  = outDstOrg.addr;
+        ctx.loopDst[0].token = outDstOrg.token;
         ctx.loopLen[0]       = sliceSize;
         ctx.loopLenExp[0]    = sliceSizeExpansion;
         paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
@@ -264,9 +263,9 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
         for (uint32_t i = 0; i < size; i++) {
             scratch[i].addr += ctx.goSize.addrOffset;
         }
-        src.addr += ctx.goSize.addrOffset;
+        srcOrg.addr += ctx.goSize.addrOffset;
         for (uint32_t i = 0; i < expansionNum; i++) {
-            dst.addr += ctx.goSize.addrOffset;
+            outDstOrg.addr += ctx.goSize.addrOffset;
         }
 
         sliceSizeExpansion = 0;
@@ -278,20 +277,20 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
             ctx.loopScratch[0][i].addr = scratch[i].addr;
             ctx.loopScratch[0][i].token = scratch[i].token;
         }
-        ctx.loopSrc[0].addr  = src.addr;
-        ctx.loopSrc[0].token = src.token;
-        ctx.loopDst[0].addr  = dst.addr;
-        ctx.loopDst[0].token = dst.token;
+        ctx.loopSrc[0].addr  = srcOrg.addr;
+        ctx.loopSrc[0].token = srcOrg.token;
+        ctx.loopDst[0].addr  = outDstOrg.addr;
+        ctx.loopDst[0].token = outDstOrg.token;
         ctx.loopLen[0]    = ctx.goSize.residual;
         ctx.loopLenExp[0] = sliceSizeExpansion;
 
         for (uint32_t i = 0; i < size; i++) {
             scratch[i].addr += ctx.goSize.residual;
         }
-        src.addr += ctx.goSize.residual;
+        srcOrg.addr += ctx.goSize.residual;
         ccu::Variable sliceSize;
         for (uint32_t i = 0; i < expansionNum; i++) {
-            dst.addr += ctx.goSize.residual;
+            outDstOrg.addr += ctx.goSize.residual;
         }
 
         sliceSize          = ctx.moConfig.memSlice;
@@ -301,10 +300,10 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
             ctx.loopScratch[1][i].addr = scratch[i].addr;
             ctx.loopScratch[1][i].token = scratch[i].token;
         }
-        ctx.loopSrc[1].addr  = src.addr;
-        ctx.loopSrc[1].token = src.token;
-        ctx.loopDst[1].addr  = dst.addr;
-        ctx.loopDst[1].token = dst.token;
+        ctx.loopSrc[1].addr  = srcOrg.addr;
+        ctx.loopSrc[1].token = srcOrg.token;
+        ctx.loopDst[1].addr  = outDstOrg.addr;
+        ctx.loopDst[1].token = outDstOrg.token;
         ctx.loopLen[1]    = sliceSize;
         ctx.loopLenExp[1] = sliceSizeExpansion;
         loopCfg0 = GetLoopParam(0, 0, 1);
@@ -316,6 +315,10 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0], *loops.loops[1] };
         ccu::LoopGroup group(ctx.goSize.parallelParam, offsetCfg, ctx.moConfig.loopCount, grpLoops);
     }
+
+    outDstOrg.addr = savedDstAddr;
+    outDstOrg.token = savedDstToken;
+    srcOrg.addr = savedSrcAddr;
 
     return CCU_SUCCESS;
 }
