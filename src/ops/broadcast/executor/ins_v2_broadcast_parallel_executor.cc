@@ -249,10 +249,20 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 void InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::GetParallelDataSplit(
     std::vector<float> &splitDataSize) const
 {
-    double splitData = multipleDimensionSplitRatio_;
-    splitDataSize.push_back(splitData);
-    splitDataSize.push_back(1 - splitData);
-    HCCL_INFO("[InsBroadcastParallelExecutor] splitDataSize is %f, %f", splitDataSize[0], splitDataSize[1]);
+    double ratio = multipleDimensionSplitRatio_;
+    if (multipleDimensionSplitRatioSource_ == MultipleDimensionSplitRatioSource::BUILTIN_FORMULA) {
+        ratio = CalcParallelDataSplitRatio(
+            intraLocalRankSize_,
+            interLocalRankSize_,
+            intraLinks_,
+            interLinks_,
+            ParallelDataSplitType::SCATTER,
+            multipleDimensionSplitRatio_);
+    }
+    splitDataSize.push_back(ratio);
+    splitDataSize.push_back(1.0 - ratio);
+    HCCL_INFO("[InsBroadcastParallelExecutor] meshFirstRatio[%f], closFirstRatio[%f]",
+              splitDataSize[0], splitDataSize[1]);
     return;
 }
 
@@ -513,6 +523,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     CHK_PTR_NULL(resCtx.cclMem.addr);
 
     multipleDimensionSplitRatio_ = param.opConfig.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatioSource_ = param.opConfig.multipleDimensionSplitRatioSource;
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
 
@@ -789,6 +800,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
 
     multipleDimensionSplitRatio_ = param.opConfig.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatioSource_ = param.opConfig.multipleDimensionSplitRatioSource;
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
     dataCount_ = param.DataDes.count;

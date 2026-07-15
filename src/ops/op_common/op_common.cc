@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <future>
 #include <map>
 #include <string>
@@ -149,7 +150,7 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     // 设定执行超时时间
     CHK_RET(SetExecTimeout(param));
     // 获取多维度切分比例
-    CHK_RET(SetMultipleDimensionSplitRatio(param));
+    CHK_RET(SetMultipleDimensionSplitRatio(comm, param));
     HCCL_INFO("Success to execute Selector.");
     return HCCL_SUCCESS;
 }
@@ -1659,14 +1660,29 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
         CHK_RET(HcclRankGraphGetEndpointInfo(comm, resCtxHost->topoInfo.userRank, &localEndpoint,
                 ENDPOINT_ATTR_BW_COEFF, portSizeTypeSize, static_cast<void*>(&portSize)));
         channel.portGroupSize = portSize;
-        CHK_PRT_RET(portSize == 0, HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.", resCtxHost->topoInfo.userRank, portSize), HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(portSize == 0,
+                    HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.",
+                    resCtxHost->topoInfo.userRank, portSize), HcclResult::HCCL_E_INTERNAL);
+        EndpointAttrDieId dieId = INVALID_VALUE_RANKID;
+        const uint32_t dieIdSize = sizeof(EndpointAttrDieId);
+        HcclResult dieIdRet = HcclRankGraphGetEndpointInfo(comm, resCtxHost->topoInfo.userRank, &localEndpoint,
+                ENDPOINT_ATTR_DIE_ID, dieIdSize, static_cast<void*>(&dieId));
+        if (dieIdRet == HCCL_SUCCESS) {
+            channel.dieId = dieId;
+        } else {
+            HCCL_WARNING("[HcclGetChannelImpl] failed to get dieId for userRank[%u], remoteRank[%u], "
+                         "ret[0x%016llx]. POD convergence adjustment will not be used for this channel.",
+                         resCtxHost->topoInfo.userRank, channel.remoteRank, HCCL_ERROR_CODE(dieIdRet));
+        }
 #endif
         void* remoteCclBufferAddr = nullptr;
         uint64_t remoteCclBufferSize = 0;
         CHK_RET(HcclChannelGetHcclBuffer(comm, levelNChannels[idx], &remoteCclBufferAddr, &remoteCclBufferSize));
         channel.remoteCclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, remoteCclBufferAddr, remoteCclBufferSize};
-        HCCL_INFO("[%s]remoteRank[%u] protocol[%u] remoteCclBufferAddr[0x%llx] remoteCclBufferSize[%u]",
-            __func__, channelDescNew.remoteRank,channelDescNew.channelProtocol, remoteCclBufferAddr, remoteCclBufferSize);
+        HCCL_INFO("[%s]remoteRank[%u] protocol[%u] portGroupSize[%u] dieId[%u] "
+                  "remoteCclBufferAddr[0x%llx] remoteCclBufferSize[%u]",
+            __func__, channelDescNew.remoteRank, channelDescNew.channelProtocol, channel.portGroupSize, channel.dieId,
+            remoteCclBufferAddr, remoteCclBufferSize);
 
         if (param.opMode == OpMode::OFFLOAD) {
             CHK_RET(GetGraphModeBuffers(comm, levelNChannels[idx], memRegInfo.inputBuffTag, memRegInfo.outputBuffTag, channel));
@@ -2525,23 +2541,114 @@ HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam)
     return GetAivParamStorageByComm(comm, aivParam, true);
 }
 
-HcclResult SetMultipleDimensionSplitRatio(OpParam &param) {
-    double ratioValue = 0;
-    const double DEFAULT_MULT_RATIO = 0.5;
-    if (!GetExternalInputMultipleDimensionSplitRatio(ratioValue)) {
-        param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
-        HCCL_INFO("[OpCommon] Ratio is not set, use default value: %f", DEFAULT_MULT_RATIO);
-    } else {
-        // 验证转换后的值是否合理
-        if (ratioValue < 0 || ratioValue > 1) {
-            HCCL_WARNING("[OpCommon] Ratio value %.2f out of range, use default value: %f", 
-                        ratioValue, DEFAULT_MULT_RATIO);
-            param.opConfig.multipleDimensionSplitRatio = DEFAULT_MULT_RATIO;
-        } else {
-            param.opConfig.multipleDimensionSplitRatio = ratioValue;
-            HCCL_INFO("[OpCommon] Set ratio to: %f", param.opConfig.multipleDimensionSplitRatio);
-        }
+template <typename...>
+using VoidT = void;
+
+template <typename T, typename = void>
+struct HasSplitRatioConfigType : std::false_type {};
+
+template <typename T>
+struct HasSplitRatioConfigType<T,
+    VoidT<decltype(T::HCCL_CONFIG_TYPE_MULTIPLE_DIMENSION_SPLIT_RATIO)>>
+    : std::true_type {};
+
+HcclResult QuerySplitRatioByConfigGetInfo(
+    HcclComm comm, HcclConfigType cfgType, double &ratio, bool &isConfigured)
+{
+    ratio = 0.0;
+    isConfigured = false;
+    auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
+    if (!hcommFunction.dlHcclConfigGetInfo) {
+        HCCL_INFO("[QuerySplitRatioByConfigGetInfo] HcclConfigGetInfo is not supported, skip comm config.");
+        return HCCL_SUCCESS;
     }
+    double commRatio = 0.0;
+    const uint32_t infoLen = sizeof(commRatio);
+    HcclResult ret = hcommFunction.dlHcclConfigGetInfo(comm, cfgType, infoLen, &commRatio);
+    if (ret == HCCL_E_NOT_SUPPORT) {
+        HCCL_INFO("[QuerySplitRatioByConfigGetInfo] comm config not set or not supported, ret[%d].", ret);
+        return HCCL_SUCCESS;
+    }
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[QuerySplitRatioByConfigGetInfo] HcclConfigGetInfo failed, ret[%d].", ret);
+        return ret;
+    }
+    if (!std::isfinite(commRatio) || commRatio < 0.0 || commRatio > 1.0) {
+        HCCL_ERROR("[QuerySplitRatioByConfigGetInfo] comm ratio[%f] is not finite or out of range[0, 1].", commRatio);
+        return HCCL_E_PARA;
+    }
+    if (commRatio == 0.0) {
+        HCCL_INFO("[QuerySplitRatioByConfigGetInfo] comm split ratio is not configured.");
+        return HCCL_SUCCESS;
+    }
+    ratio = commRatio;
+    isConfigured = true;
+    HCCL_INFO("[QuerySplitRatioByConfigGetInfo] comm ratio[%f] is configured.", commRatio);
+    return HCCL_SUCCESS;
+}
+
+template <typename ConfigType>
+HcclResult QueryCommSplitRatio(
+    HcclComm comm, double &ratio, bool &isConfigured, std::false_type)
+{
+    HCCL_INFO("[QueryCommSplitRatio] Current Hcomm headers do not support split ratio config, skip comm config.");
+    ratio = 0.0;
+    isConfigured = false;
+    return HCCL_SUCCESS;
+}
+
+template <typename ConfigType>
+HcclResult QueryCommSplitRatio(
+    HcclComm comm, double &ratio, bool &isConfigured, std::true_type)
+{
+    return QuerySplitRatioByConfigGetInfo(
+        comm,
+        ConfigType::HCCL_CONFIG_TYPE_MULTIPLE_DIMENSION_SPLIT_RATIO,
+        ratio,
+        isConfigured);
+}
+
+HcclResult GetCommMultipleDimensionSplitRatio(HcclComm comm, double &ratio, bool &isConfigured)
+{
+    return QueryCommSplitRatio<HcclConfigType>(
+        comm,
+        ratio,
+        isConfigured,
+        HasSplitRatioConfigType<HcclConfigType>{});
+}
+
+HcclResult SetMultipleDimensionSplitRatio(HcclComm comm, OpParam &param) {
+    constexpr double defaultRatio = 0.5;
+
+    double commRatio = 0.0;
+    bool isCommConfigured = false;
+    HcclResult ret = GetCommMultipleDimensionSplitRatio(comm, commRatio, isCommConfigured);
+    if (ret != HCCL_SUCCESS) {
+        return ret;
+    }
+    if (isCommConfigured) {
+        param.opConfig.multipleDimensionSplitRatio = commRatio;
+        param.opConfig.multipleDimensionSplitRatioSource = MultipleDimensionSplitRatioSource::COMM_CONFIG;
+        HCCL_INFO("[SetMultipleDimensionSplitRatio] ratioSource[COMM_CONFIG], configuredRatio[%f]", commRatio);
+        return HCCL_SUCCESS;
+    }
+
+    double envRatio = 0.0;
+    if (GetExternalInputMultipleDimensionSplitRatio(envRatio)) {
+        if (!std::isfinite(envRatio) || envRatio < 0.0 || envRatio > 1.0) {
+            HCCL_WARNING("[SetMultipleDimensionSplitRatio] env ratio[%f] is out of range, use default ratio[%f]",
+                        envRatio, defaultRatio);
+            envRatio = defaultRatio;
+        }
+        param.opConfig.multipleDimensionSplitRatio = envRatio;
+        param.opConfig.multipleDimensionSplitRatioSource = MultipleDimensionSplitRatioSource::ENV_CONFIG;
+        HCCL_INFO("[SetMultipleDimensionSplitRatio] ratioSource[ENV_CONFIG], configuredRatio[%f]", envRatio);
+        return HCCL_SUCCESS;
+    }
+
+    param.opConfig.multipleDimensionSplitRatio = defaultRatio;
+    param.opConfig.multipleDimensionSplitRatioSource = MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
+    HCCL_INFO("[SetMultipleDimensionSplitRatio] ratioSource[BUILTIN_FORMULA], configuredRatio[%f]", defaultRatio);
     return HCCL_SUCCESS;
 }
 
