@@ -21,11 +21,10 @@
 #include <cstdlib>
 
 static void* gLibHandle = nullptr;
+static pthread_once_t gDeviceDlInitOnce = PTHREAD_ONCE_INIT;
 
 // 初始化
-void HcommDeviceDlInit(void) {
-    if (gLibHandle != nullptr) return;
-
+static void HcommDeviceDlInitImpl(void) {
     gLibHandle = dlopen("libccl_kernel.so", RTLD_NOW);
     if (!gLibHandle) {
         fprintf(stderr, "[HcclWrapper] Failed to open libccl_kernel.so: %s\n", dlerror());
@@ -38,4 +37,8 @@ void HcommDeviceDlInit(void) {
     HcommDeviceProfilingDlInit(gLibHandle);
     HcommDiagDlInit(gLibHandle);
     HcclDeviceCommDlInit(gLibHandle);
+}
+
+void HcommDeviceDlInit(void) {
+    pthread_once(&gDeviceDlInitOnce, HcommDeviceDlInitImpl);
 }

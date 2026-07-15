@@ -28,6 +28,7 @@
 
 static void* gLibHandle = nullptr;
 static int gHcommVersion = 0;
+static pthread_once_t gDlInitOnce = PTHREAD_ONCE_INIT;
 
 int GetHcommVersion(void) {
     if (gHcommVersion == 0) {
@@ -59,9 +60,7 @@ bool HcommIsExportThreadSupported()
 }
 
 // 初始化
-void HcommDlInit(void) {
-    if (gLibHandle != nullptr) return;
-
+static void HcommDlInitImpl(void) {
     gLibHandle = dlopen("libhcomm.so", RTLD_NOW);
     if (!gLibHandle) {
         fprintf(stderr, "[HcclWrapper] Failed to open libhcomm: %s\n", dlerror());
@@ -81,4 +80,8 @@ void HcommDlInit(void) {
     HcclCcuResDlInit(gLibHandle);
     CcuLaunchDlInit(gLibHandle);
     CcuPrimitivesImplDlInit(gLibHandle);
+}
+
+void HcommDlInit(void) {
+    pthread_once(&gDlInitOnce, HcommDlInitImpl);
 }
