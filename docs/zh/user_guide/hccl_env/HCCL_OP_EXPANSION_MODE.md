@@ -137,6 +137,58 @@
 export HCCL_OP_EXPANSION_MODE="AI_CPU"
 ```
 
+## CCU 资源使用情况
+
+CCU（Collective Communication Unit，集合通信协处理器）在执行集合通信算子时会占用片上硬件资源，本节主要介绍三种关键资源：
+
+- **Channel**：与对端 rank 建立的通信通道，用于下发 UB 通信任务。
+- **Loop**：CCU 任务中的基础并发单元，多个 Loop 可并行执行，配合 CcuBuffer 循环搬运数据充分利用链路带宽。
+- **MS（CcuBuffer）**：CCU 片上缓存分片，每片大小 4KB，作为数据中转以减少内存读写次数。
+
+关于 CCU 的其他概念（Variable、Address、Event、LocalAddr/RemoteAddr、LoopGroup、同步机制等）及架构原理，请参见 [CCU 编程模型与概念](https://gitcode.com/cann/hcomm/blob/master/docs/zh/comm_op_dev_guide/prog_models_concepts/CCU_models_concepts.md)。
+
+CCU_MS 与 CCU_SCHED 两种模式在资源占用上的主要差异：
+
+- **CCU_MS 模式**：以 CcuBuffer 作为数据中转，通过多 Loop 并发充分利用链路带宽，MS 占用量较大，但能显著降低内存读写次数。
+- **CCU_SCHED 模式**：远端数据搬运采用 mem2mem 直接传输（不占用 MS），但本地拷贝阶段（如 input→output 的本地拷贝）仍会使用少量 Loop 和 MS，总体资源占用比 CCU_MS 模式少。
+
+### 典型场景资源使用量示例
+
+下面以 AllGather 算子为例，列出几种典型场景下的 CCU 资源使用情况。
+
+#### 场景 1：AllGather 8p - CCU_MS 模式（`CcuAllGatherMesh1D`）
+
+本场景注册 1 个 Kernel：`CcuAllGatherMesh1DKernel`。
+
+| 资源类型 | 资源使用量 | 说明 |
+| --- | --- | --- |
+| Channel 数量 | 7 | Mesh1D 全互联，8 卡 - 1 |
+| Loop 数量 | 128 | 通过 LoopGroup 并发复制 |
+| MS（CcuBuffer） | 1024 | 128 个 Loop 每个配 8 个 4KB CcuBuffer，共 4MB |
+| 数据搬运路径 | 本地内存 → CcuBuffer → 远端内存 | 通过 CcuBuffer 中转，节省访存带宽 |
+
+#### 场景 2：AllGather 8p - CCU_SCHED 模式（`CcuAllGatherMesh1DMem2Mem`）
+
+本场景注册 1 个 Kernel：`CcuAllGatherMesh1DMem2MemKernel`。
+
+| 资源类型 | 资源使用量 | 说明 |
+| --- | --- | --- |
+| Channel 数量 | 7 | Mesh1D 全互联，8 卡 - 1 |
+| Loop 数量 | 8 | 本地拷贝阶段通过 GroupCopy 申请，远端搬运不使用 LoopGroup |
+| MS（CcuBuffer） | 64 | 本地拷贝阶段每 Loop 配 8 个 4KB CcuBuffer，共 256KB |
+| 数据搬运路径 | 本地内存 → 远端内存（远端阶段）；本地内存 → CcuBuffer → 本地内存（本地拷贝阶段） | 远端 mem2mem 直接传输不占用 MS，仅本地拷贝阶段使用 CcuBuffer |
+
+#### 场景 3：AllGather 32p - CCU_SCHED 模式 Parallel 算法（`CcuAllGatherParallelMesh1DNHR`）
+
+本场景注册 2 个 Kernel：节点内阶段使用 `CcuAllGatherMesh1DMem2MemKernel`，跨节点阶段使用 `CcuAllGatherNHR1DMem2MemKernel`。
+
+| 资源类型 | 资源使用量 | 说明 |
+| --- | --- | --- |
+| Channel 数量 | 10 | intra 7 个（节点内 Mesh1D）+ inter 3 个（跨节点 NHR） |
+| Loop 数量 | 16 | intra 8 个 + inter 8 个，均用于本地拷贝阶段 |
+| MS（CcuBuffer） | 128 | intra 64 个 + inter 64 个，每片 4KB，共 512KB |
+| 数据搬运路径 | 本地内存 → 远端内存（远端阶段）；本地内存 → CcuBuffer → 本地内存（本地拷贝阶段） | 两层远端均采用 mem2mem 直接传输，本地拷贝阶段使用少量 CcuBuffer |
+
 ## 使用约束
 
 - 若您调用HCCL C接口初始化具有特定配置的通信域时，通过“HcclCommConfig”的“hcclOpExpansionMode”参数配置了通信算子的展开模式，则以通信域粒度的配置优先。
