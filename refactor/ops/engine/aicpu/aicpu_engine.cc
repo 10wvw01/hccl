@@ -106,7 +106,24 @@ HcclResult AiCpuEngine::CreateRes(HcclComm comm, const OpParam &param, HcclAlgor
     // 4. 创建线程（对应 HcclGetThread）
     CHK_RET(HcclGetThreadInternal(comm, param, resReq));
 
-    // 5. 按层级申请 channel（对应 HcclGetChannel + HcclGetChannelImpl）
+    // 5. 创建 host CPU TS 线程并导出，设置到 resCtx_（对应原始 HcclExecOp 中的 cpuTsThread 逻辑）
+    if (param.engine == COMM_ENGINE_AICPU_TS || param.engine == COMM_ENGINE_CPU) {
+        ThreadHandle cpuTsThread{0};
+        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
+        ThreadHandle exportedAicpuTsThread{0};
+        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
+        // 导出给 AICPU_TS 的 cpuTsThread，设到 param 供 device 侧使用
+        const_cast<OpParam &>(param).opThread = exportedAicpuTsThread;
+
+        // 获取主流信息并导出为 exportedCpuTsThread（对应原始 GetMainThreadInfo + HcclThreadExportToCommEngine）
+        ThreadHandle mainThread = resCtx_.threads.empty() ? 0 : resCtx_.threads[0];
+        ThreadHandle exportedCpuTsThread{0};
+        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &mainThread, COMM_ENGINE_CPU_TS, &exportedCpuTsThread));
+        resCtx_.cpuTsThread = cpuTsThread;
+        resCtx_.exportedCpuTsThread = exportedCpuTsThread;
+    }
+
+    // 6. 按层级申请 channel（对应 HcclGetChannel + HcclGetChannelImpl）
     resCtx_.channels.resize(resReq.channels.size());
     for (u32 level = 0; level < resReq.channels.size(); ++level) {
         std::vector<HcclChannelDesc> &levelNChannelRequest = resReq.channels[level];
