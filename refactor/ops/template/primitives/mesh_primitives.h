@@ -43,6 +43,10 @@ HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::ve
                           u32 myRank, std::vector<u32> &ranksForOutputData,
                           std::vector<TxRxSlicesList> &txRxSlicesLists);
 
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
+                                u32 myRank, std::vector<u32> &ranksForOutputData,
+                                std::vector<TxRxSlicesList> &txRxSlicesLists);
+
 } // namespace ops_hccl
 
 #endif

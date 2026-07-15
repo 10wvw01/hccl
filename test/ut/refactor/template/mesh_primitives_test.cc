@@ -287,5 +287,119 @@ TEST_F(MeshScatterTransferTest, NonZeroRootSkipsSelfAndKeepsRankOrder)
     EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 96U);
 }
 
+class MeshReduceScatterParamTest : public MeshAllGatherTest {};
+
+TEST_F(MeshReduceScatterParamTest, EmptyInputRanksReturnsError)
+{
+    std::vector<u32> ranks = {0, 1};
+    TemplateDataParams params = MakeParams({});
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    EXPECT_NE(ret, HCCL_SUCCESS);
+    EXPECT_TRUE(txRxSlicesLists.empty());
+}
+
+TEST_F(MeshReduceScatterParamTest, SingleRankReturnsWithoutTransfer)
+{
+    std::vector<u32> ranks = {0};
+    TemplateDataParams params = MakeParams({0});
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    EXPECT_TRUE(txRxSlicesLists.empty());
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({0}));
+}
+
+class MeshReduceScatterTransferTest : public MeshAllGatherTest {};
+
+TEST_F(MeshReduceScatterTransferTest, BuildTransferForEachPeerInRingOrder)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 1, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({1}));
+    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[1].srcRankId_, 3U);
+    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 3U);
+    EXPECT_EQ(txRxSlicesLists[2].srcRankId_, 0U);
+    EXPECT_EQ(txRxSlicesLists[2].dstRankId_, 0U);
+}
+
+TEST_F(MeshReduceScatterTransferTest, BuildTxPeerSliceAndRxLocalSlice)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 1, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).addr_, localCclMem_);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).addr_, nullptr);
+    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).addr_, nullptr);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, localCclMem_);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 32U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 32U);
+    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 16U);
+}
+
+TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.tailCount = 2;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 8U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 2U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 4U);
+}
+
+TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.tailCount = 2;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 3, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({3}));
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).size_, 8U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).count_, 2U);
+}
+
 } // namespace testing
 } // namespace ops_hccl

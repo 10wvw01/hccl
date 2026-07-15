@@ -182,4 +182,51 @@ HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::ve
     return HCCL_SUCCESS;
 }
 
+HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks, u32 myRank,
+                                std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
+{
+    txRxSlicesLists.clear();
+    CHK_RET(CheckInputDataRanks(tempAlgParams, "RunMeshReduceScatter"));
+
+    const u32 rankSize = static_cast<u32>(ranks.size());
+    ranksForOutputData = {myRank};
+    if (rankSize <= 1) {
+        HCCL_INFO("[RunMeshReduceScatter] no send/recv needed, ranksForOutputDataNum=%zu",
+                  ranksForOutputData.size());
+        return HCCL_SUCCESS;
+    }
+
+    u32 myAlgRank = 0;
+    CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
+
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
+    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u32 tailRankId = ranks[rankSize - 1];
+    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.stride, tailRankId};
+    HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
+              myAlgRank, rankSize, dataTypeSize, sliceSize);
+
+    for (u32 rankIdx = 1; rankIdx < rankSize; ++rankIdx) {
+        const u32 connectedAlgRank = (myAlgRank + rankIdx) % rankSize;
+        const u32 connectedRank = ranks[connectedAlgRank];
+        std::vector<DataSlice> txSrcSlices;
+        std::vector<DataSlice> txDstSlices;
+        std::vector<DataSlice> rxSrcSlices;
+        std::vector<DataSlice> rxDstSlices;
+
+        MeshSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrcSlices, txDstSlices};
+        AddRankDataSlices(sliceInfo, {connectedRank}, txSlicePair);
+        MeshSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrcSlices, rxDstSlices};
+        AddRankDataSlices(sliceInfo, {myRank}, rxSlicePair);
+
+        txRxSlicesLists.emplace_back(SlicesList(txSrcSlices, txDstSlices),
+                                     SlicesList(rxSrcSlices, rxDstSlices), connectedRank, connectedRank);
+        HCCL_INFO("[RunMeshReduceScatter] Build TxRxSlicesList: connectedRank=%u, txOffset=%lu, "
+                  "rxOffset=%lu, txRxSlicesListNum=%zu",
+                  connectedRank, txSrcSlices[0].offset_, rxDstSlices[0].offset_, txRxSlicesLists.size());
+    }
+    return HCCL_SUCCESS;
+}
+
 } // namespace ops_hccl
