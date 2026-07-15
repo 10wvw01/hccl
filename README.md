@@ -31,7 +31,7 @@ HCCL包含HCCL集合通信库与HCOMM（Huawei Communication）通信基础库�
 本项目关键目录如下所示：
 
 ```text
-│── src                         # HCCL算子源码目录
+├── src                         # HCCL算子源码目录
 |    ├── common                 # 通用逻辑，包括类型定义、日志模块等
 |    └── ops                    # HCCL算子实现
 |        ├── all_gather         # AllGather算子实现
