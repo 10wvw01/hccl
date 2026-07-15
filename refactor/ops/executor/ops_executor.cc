@@ -104,6 +104,7 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
 
 HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
 {
+    algHierarchyInfo_ = resCtx.algHierarchyInfo;
     cclBufferInfo_.ptr = resCtx.cclMem.addr;
     cclBufferInfo_.size = resCtx.cclMem.size;
     cclBufferInfo_.bufferType = BufferType::HCCL_BUFFER;
@@ -120,6 +121,9 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     for (size_t i = 0; i < topoLevelNum; i++) {
         rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
     }
+    AlgResourceRequest resourceRequest;
+    // kernel侧需要先调用GetRes函数初始化成员变量execDescSubCommMaskMap_和maxSlaveThreadNum_等
+    GetRes(resourceRequest);
     for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
         subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
         subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
@@ -185,6 +189,25 @@ HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
     return PostSyncInterThreads(mainThread_, syncInterThreads, syncNotifyOnMain);
 }
 
+HcclResult OpsExecutor::CalcChannelResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc)
+{
+    size_t childrenSize = algoExecDesc.children.size();
+    for (size_t i = 0; i < childrenSize; ++i) {
+        VariantType &v = algoExecDesc.children[i];
+        // 处理 TemplateExecDesc
+        if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
+            CHK_RET(CalcTemplateChannelRes(comm, *templateExeDes));
+        }
+        // 处理 AlgoExecDesc（递归）
+        else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
+            CHK_RET(CalcChannelResRecursion(comm, **algoDescPtr));
+        } else {
+            return HCCL_E_INTERNAL;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
 // 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
 // thread[0]                                = main thread
 // thread[1]                                = intra main → notifyNumPerThread[0]
@@ -196,8 +219,7 @@ HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 // notifyNumPerThread[1..maxIntra]          = intra notifyNumPerThread[...]必须预留每个阶段的最大值
 // notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
 // notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
-
-HcclResult OpsExecutor::CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc, u32 &subCommMask)
+HcclResult OpsExecutor::GetResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask)
 {
     size_t childrenSize = algoExecDesc.children.size();
     u32 localSubCommMask = 0;
@@ -207,11 +229,11 @@ HcclResult OpsExecutor::CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDe
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
             childrenSubCommMask |= (1U << templateExeDes->subCommIndex);
-            CHK_RET(CalcTemplateRes(comm, *templateExeDes));
+            CHK_RET(GetTemplateRes(*templateExeDes));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            CHK_RET(CalcResRecursion(comm, **algoDescPtr, childrenSubCommMask));
+            CHK_RET(GetResRecursion(**algoDescPtr, childrenSubCommMask));
         } else {
             return HCCL_E_INTERNAL;
         }
@@ -223,13 +245,25 @@ HcclResult OpsExecutor::CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDe
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::CalcTemplateRes(HcclComm comm, const TemplateExecDesc &templateExeDes)
+HcclResult OpsExecutor::CalcTemplateChannelRes(HcclComm comm, const TemplateExecDesc &templateExeDes)
 {
     int subCommIndex = templateExeDes.subCommIndex;
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
     CHK_RET(baseTemplate->CalcRes(comm, algo_.engineType, tempRequest));
+    // todo 需要确认一下这个地方细节
+    requestChannels_.at(subCommIndex) = tempRequest.channels.at(0);
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::GetTemplateRes(const TemplateExecDesc &templateExeDes)
+{
+    int subCommIndex = templateExeDes.subCommIndex;
+    std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
+    std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes.templateDesc, templateRanks, myRank_);
+    AlgResourceRequest tempRequest;
+    CHK_RET(baseTemplate->GetRes(tempRequest));
     maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
     maxNotifyNumOnMainThread_.at(subCommIndex)
         = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
@@ -238,7 +272,6 @@ HcclResult OpsExecutor::CalcTemplateRes(HcclComm comm, const TemplateExecDesc &t
         maxNotifyNumPerThread_.at(subCommIndex) = std::max(maxNotifyNumPerThread_.at(subCommIndex), *it);
     }
     // todo 需要确认一下这个地方细节
-    requestChannels_.at(subCommIndex) = tempRequest.channels.at(0);
     return HCCL_SUCCESS;
 }
 
@@ -254,13 +287,25 @@ inline void OpsExecutor::UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const 
 
 HcclResult OpsExecutor::CalcRes(HcclComm comm, AlgResourceRequest &resourceRequest)
 {
+    CHK_RET(GetRes(resourceRequest));
+    auto topoLevelNum = algHierarchyInfo_.infos.size();
+    requestChannels_.assign(topoLevelNum, {});
+    CHK_RET(CalcChannelResRecursion(comm, algo_.algoExecDesc));
+    for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
+        // 每个通信子域还需要一条主流，所以求和还需要+1
+        resourceRequest.channels.emplace_back(requestChannels_.at(subCommIndex));
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::GetRes(AlgResourceRequest &resourceRequest)
+{
     auto topoLevelNum = algHierarchyInfo_.infos.size();
     maxSlaveThreadNum_.assign(topoLevelNum, 0);
     maxNotifyNumOnMainThread_.assign(topoLevelNum, 0);
     maxNotifyNumPerThread_.assign(topoLevelNum, 0);
-    requestChannels_.assign(topoLevelNum, {});
     u32 rootSubCommMask = 0;
-    CHK_RET(CalcResRecursion(comm, algo_.algoExecDesc, rootSubCommMask));
+    CHK_RET(GetResRecursion(algo_.algoExecDesc, rootSubCommMask));
 
     resourceRequest.notifyNumOnMainThread = topoLevelNum;
     resourceRequest.slaveThreadNum = 0;
@@ -272,7 +317,6 @@ HcclResult OpsExecutor::CalcRes(HcclComm comm, AlgResourceRequest &resourceReque
         // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
         resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
             maxSlaveThreadNum_.at(subCommIndex), maxNotifyNumPerThread_.at(subCommIndex));
-        resourceRequest.channels.emplace_back(requestChannels_.at(subCommIndex));
     }
     // 全尺寸布局内存，保证所有的template的CCL buffer内存布局一致
     scratchMultiple_ = algo_.hcclCmdType == HCCL_CMD_ALLGATHER ? rankSize_ : 1;

@@ -61,17 +61,22 @@ class OpsExecutor {
 public:
     OpsExecutor(HcclAlgorithm &algo, OpParam &param);
     ~OpsExecutor();
-
+    // 供Host侧调用
     HcclResult CalcAlgHierarchyInfo(
         HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo);
-
+    // 供Host侧调用，使用之前必须先调用CalcAlgHierarchyInfo
     HcclResult CalcRes(HcclComm comm, AlgResourceRequest &resReq);
-
+    // 供Kernel侧调用，使用之前必须先将计算好的algHierarchyInfo和thread信息填到resCtx
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc, u32 &subCommMask);
-    HcclResult CalcTemplateRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
+    HcclResult GetRes(AlgResourceRequest &resReq);
+    // 调用template CalcRes获取Channel资源，Host侧才可以使用,需要知道comm   
+    HcclResult CalcChannelResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc);
+    // 调用template CalcRes获取Channel资源，Host侧和Kernel都可以使用，不需要知道comm
+    HcclResult GetResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
+    HcclResult CalcTemplateChannelRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
+    HcclResult GetTemplateRes(const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
