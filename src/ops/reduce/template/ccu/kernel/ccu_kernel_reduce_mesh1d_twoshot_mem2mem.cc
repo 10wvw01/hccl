@@ -359,9 +359,17 @@ static CcuResult DoReduceScatter(ReduceMesh1DTwoShotMem2MemContext &ctx)
     uint16_t allBit = (1 << arg->rankSize) - 1;
     ccu::EventWait(ctx.event, allBit);
 
-    // ReduceLoopGroup：self input + scratch[0..N-1] → scratchMem[rankId]
+    // ReduceLoopGroup：self input + scratch[0..N-1] → dst
+    // root 直接写到 output，non-root 写到 scratchMem[rankId]
     CCU_IF(ctx.mySliceSize != 0) {
-        CCU_CHK_RET(ReduceLoopGroup(ctx, ctx.scratchMem[arg->rankId], ctx.myInput, ctx.scratchMem));
+        if (arg->rankId == arg->rootId) {
+            ctx.myOutput.addr = ctx.output[arg->rankId];
+            ctx.myOutput.addr += ctx.myScratchOffset;
+            ctx.myOutput.token = ctx.token[arg->rankId];
+            CCU_CHK_RET(ReduceLoopGroup(ctx, ctx.myOutput, ctx.myInput, ctx.scratchMem));
+        } else {
+            CCU_CHK_RET(ReduceLoopGroup(ctx, ctx.scratchMem[arg->rankId], ctx.myInput, ctx.scratchMem));
+        }
     }
 
     return CCU_SUCCESS;
@@ -369,7 +377,7 @@ static CcuResult DoReduceScatter(ReduceMesh1DTwoShotMem2MemContext &ctx)
 
 // ============================================
 // Gather 阶段
-// root: GroupCopy scratch 归约结果到 output
+// root: reduce 结果已直接写入 output，无需 GroupCopy
 // non-root: Write scratch 归约结果到 root 的 output
 // ============================================
 static CcuResult DoGather(ReduceMesh1DTwoShotMem2MemContext &ctx)
@@ -378,13 +386,7 @@ static CcuResult DoGather(ReduceMesh1DTwoShotMem2MemContext &ctx)
 
     CCU_IF(ctx.mySliceSize != 0)
     {
-        if (arg->rankId == arg->rootId) {
-            ctx.myOutput.addr = ctx.output[arg->rankId];
-            ctx.myOutput.addr += ctx.myScratchOffset;
-            ctx.myOutput.token = ctx.token[arg->rankId];
-
-            CCU_CHK_RET(GroupCopy(ctx, ctx.myOutput, ctx.scratchMem[arg->rankId], ctx.goSize));
-        } else {
+        if (arg->rankId != arg->rootId) {
             uint16_t channelToRoot = (arg->rootId < arg->rankId) ? arg->rootId : arg->rootId - 1;
 
             ctx.remoteOutput.addr = ctx.output[arg->rootId];
