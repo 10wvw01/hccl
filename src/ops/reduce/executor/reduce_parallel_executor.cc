@@ -442,6 +442,25 @@ TemplateDataParams ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplat
 
 template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
     typename AlgTemplate3>
+double
+    ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::GetParallelDataSplit() const
+{
+    double ratio = multipleDimensionSplitRatio_;
+    if (multipleDimensionSplitRatioSource_ == MultipleDimensionSplitRatioSource::BUILTIN_FORMULA) {
+        ratio = CalcParallelDataSplitRatio(
+            intraLocalRankSize_,
+            interLocalRankSize_,
+            intraLinks_,
+            interLinks_,
+            ParallelDataSplitType::REDUCE_SCATTER_WITH_LOCAL_REDUCE,
+            multipleDimensionSplitRatio_);
+    }
+    HCCL_INFO("[ReduceParallelExecutor] meshFirstRatio[%f], closFirstRatio[%f]", ratio, 1.0 - ratio);
+    return ratio;
+}
+
+template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
+    typename AlgTemplate3>
 HcclResult
     ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgTemplate2, AlgTemplate3>::OrchestrateImpl()
 {
@@ -455,8 +474,11 @@ HcclResult
     }
 
     multipleDimensionSplitRatio_ = param_.opConfig.multipleDimensionSplitRatio;
-    std::array<long double, dataSplitPart_> dataSplitSize{multipleDimensionSplitRatio_, 1.0 - multipleDimensionSplitRatio_};
-    HCCL_INFO("[ReduceParallelExecutor] dataSplitSize is %Lf, %Lf", dataSplitSize[0], dataSplitSize[1]);
+    multipleDimensionSplitRatioSource_ = param_.opConfig.multipleDimensionSplitRatioSource;
+    const double ratio = GetParallelDataSplit();
+    parallelDataSplitRatio_ = ratio;
+    std::array<long double, dataSplitPart_> dataSplitSize{ratio, 1.0 - ratio};
+    HCCL_INFO("[ReduceParallelExecutor] meshFirstRatio[%Lf], closFirstRatio[%Lf]", dataSplitSize[0], dataSplitSize[1]);
 
     // inter模板不再需要额外的scratch，因为当input/output都在CCL BUFFER上是，NHR算法可以直接在原地进行
     const long double scratchMultipleIntra = std::max(dataSplitSize.at(0), dataSplitSize.at(1) / interLocalRankSize_);
@@ -499,7 +521,7 @@ HcclResult
         u32 remainingLoopTimes = (loopIndex < loopTimes) ? (loopTimes - loopIndex) : 1;
         u64 currCount = (remainingCount + remainingLoopTimes - 1) / remainingLoopTimes;
         currCount = std::min(currCount, maxCountPerLoop);
-        u64 currCountPart0 = static_cast<u64>(currCount * multipleDimensionSplitRatio_);
+        u64 currCountPart0 = static_cast<u64>(currCount * parallelDataSplitRatio_);
         u64 currCountPart1 = currCount - currCountPart0;
         if (remainingLoopTimes > 1) {
             u64 alignedCountPart0 = currCountPart0;

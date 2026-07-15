@@ -14,6 +14,7 @@
 
 namespace ops_hccl {
 constexpr u64 OMNI2D_UBX_SC_DATA_SIZE = 16 * 1024 * 1024;
+constexpr uint32_t TOPO_LEVEL_3 = 3;
 
 SelectorStatus ScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -39,12 +40,12 @@ SelectorStatus ScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetL
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
-        if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE || topoInfo->userRankSize > CCU_SCHEDULE_SCATTER_MAX_RANK_SIZE) {
-            HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] or rankSize[%u] exceeds limit, "
-                        "fallback to aicpu.", dataSize, topoInfo->userRankSize);
-            return SelectorStatus::NOT_MATCH;
-        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            if (dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE || topoInfo->userRankSize > CCU_SCHEDULE_SCATTER_MAX_RANK_SIZE) {
+                HCCL_INFO("[ScatterAutoSelector] 2 level topo perRankDataSize[%llu] or rankSize[%u] exceeds limit, "
+                            "fallback to aicpu.", dataSize, topoInfo->userRankSize);
+                return SelectorStatus::NOT_MATCH;
+            }
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
                 selectAlgName = "CcuScatterNHRMem2Mem1D";
             } else if (topoInfo->is2DieFullMesh) {
@@ -120,7 +121,11 @@ SelectorStatus ScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDe
     HCCL_DEBUG("[ScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_3) {
+            selectAlgName = "InsScatterNHR";
+        } else if (topoInfo->Level1Nhr) {
+            selectAlgName = "InsScatterNHR";
+        } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsScatterNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsScatterParallelMesh1DNHR";
@@ -169,6 +174,12 @@ SelectorStatus ScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDeta
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ScatterAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        return SelectorStatus::NOT_MATCH;
+    }
+
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ScatterAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
         return SelectorStatus::NOT_MATCH;
     }
 

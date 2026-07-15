@@ -14,7 +14,6 @@
 
 namespace ops_hccl {
 
-constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u64 BROADCAST_MESH_CCU_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 BROADCAST_NHR_CCU_MAX_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 OMNI2D_UBX_BR_DATA_SIZE = 16 * 1024 * 1024;
@@ -78,14 +77,14 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->userRankSize == 0 ||
-            dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-            HCCL_INFO("[BroadcastAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
-                      "fallback to aicpu.",
-                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
-            return SelectorStatus::NOT_MATCH;
-        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            if (topoInfo->userRankSize == 0 ||
+                dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+                HCCL_INFO("[BroadcastAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
+                          "fallback to aicpu.",
+                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+                return SelectorStatus::NOT_MATCH;
+            }
             if(topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1){ // 每框出1卡
                 selectAlgName = "CcuBroadcastNHR1DMem2Mem";
             } else if (topoInfo->is2DieFullMesh) {
@@ -171,6 +170,8 @@ SelectorStatus BroadcastAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             } else {
                 selectAlgName = "InsBroadcastParallelNHRNHRUboe";
             }
+        } else if (topoInfo->Level1Nhr) {
+            selectAlgName = "InsBroadcastNHR";
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) {
             selectAlgName = "InsBroadcastNHR";
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
@@ -221,7 +222,13 @@ SelectorStatus BroadcastAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     std::vector<HcclAlgoType> algos = std::vector<HcclAlgoType>(HCCL_ALGO_LEVEL_NUM, HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT);
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[BroadcastAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[BroadcastAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
+        return SelectorStatus::NOT_MATCH;
+    }
+
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[BroadcastAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
         return SelectorStatus::NOT_MATCH;
     }
 

@@ -13,20 +13,6 @@ if(BUILD_OPEN_PROJECT)
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/ccu
-
-        ${ASCEND_CANN_PACKAGE_PATH}/include
-        ${ASCEND_CANN_PACKAGE_PATH}/include/acl
-
-        # hcomm头文件
-        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
-
-        # 包间接口
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/base/
     )
 else()
     set(INCLUDE_LIST
@@ -63,6 +49,8 @@ else()
         ${TOP_DIR}/hcomm/inc/hccl
         ${TOP_DIR}/hcomm/pkg_inc
         ${TOP_DIR}/hcomm/pkg_inc/hccl
+        ${TOP_DIR}/hcomm/pkg_inc/legacy
+        ${TOP_DIR}/hcomm/pkg_inc/legacy/hccl
         ${TOP_DIR}/hcomm/pkg_inc/hcomm/ccu
         ${TOP_DIR}/hcomm/include
         ${TOP_DIR}/hcomm/include/hccl

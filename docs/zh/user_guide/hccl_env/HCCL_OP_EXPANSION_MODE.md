@@ -14,7 +14,7 @@
     - "AI_CPU"配置将在后续版本废弃，使用“AICPU_TS”代替。当前版本中，“AICPU_TS”配置的功能与“AI_CPU”完全一致。
     - 图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
 
-  - **AICPU_TS（默认值）**：代表通信算子在AI CPU展开，Device侧根据硬件型号自动选择相应的调度器。
+  - **AICPU_TS（默认值）**：代表通信算子在AI CPU展开，使用STARS调度器调度运行。
 
     该配置项支持Broadcast、Reduce、AllReduce、Scatter、ReduceScatter、ReduceScatterV、AllGather、AllGatherV、AlltoAll、AlltoAllV、AlltoAllVC、Send、Recv、BatchSendRecv算子。
 
@@ -22,11 +22,11 @@
 
     图模式（Ascend IR）或者图捕获（aclgraph）场景，当通信算法采用AI CPU模式时，单卡上的并发图数量不能超过6个，否则可能会因AI CPU核被占满而导致通信阻塞。
 
-  - **AIV**：代表通信算子在Vector Core展开，执行也在Vector Core。Ascend 950PR不支持此配置。
+  - **AIV**：代表通信算子在Vector Core展开，执行也在Vector Core。
     - 该配置项仅支持对称组网、推理特性。
     - 该配置项不支持多通信域并行的场景（因为不支持多个通信域同时配置为“AIV”模式），否则可能会导致不可预期行为。您可以在初始化具有特定配置的通信域时，通过“HcclCommConfig”将某个通信域的算子展开模式设置为“AIV”。
-    - 该配置项仅支持Broadcast、Reduce、AllReduce、ReduceScatter、Scatter、AllGather、AlltoAll、AlltoAllV算子，当前仅支持单机场景。
-      - 针对Broadcast、Scatter、AllGather、AlltoAll、AlltoAllV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、bfp16。
+    - 该配置项仅支持Broadcast、Reduce、AllReduce、ReduceScatter、Scatter、AllGather、AlltoAll、AlltoAllV算子。
+      - 针对Broadcast、Scatter、AllGather、AlltoAll、AlltoAllV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
       - 针对Reduce、AllReduce、ReduceScatter算子，数据类型支持int8、int16、int32、float16、float32、bfp16。
 
     - 该配置项下，AllReduce、ReduceScatter、AllGather、AlltoAll算子支持控核能力，建议业务根据实际使用场景中计算算子与通信算子的并发情况进行Vector Core核数的配置。
@@ -37,7 +37,7 @@
 
     当CCU资源不足时，系统会自动切换为AI_CPU模式。
     - 该配置项仅支持Broadcast、Reduce、AllReduce、ReduceScatter、AllGather、AllGatherV、ReduceScatterV算子，当前仅支持单机场景。
-      - 针对Broadcast、AllGather、AllGatherV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、bfp16。
+      - 针对Broadcast、AllGather、AllGatherV算子，数据类型支持int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
       - 针对Reduce、AllReduce、ReduceScatter、ReduceScatterV算子，数据类型支持int16、int32、float16、float32、bfp16。
 
   - **CCU_SCHED**：代表通信算子在CCU展开，使用调度模式。
@@ -86,7 +86,7 @@
     算法编排展开位置设置为“AIV”时，若同时设置了[HCCL_DETERMINISTIC](HCCL_DETERMINISTIC.md)环境变量为“true”或“strict”开启了确定性计算，确定性计算的优先级更高，某些场景下“AIV”展开可能不生效。
 
 - **针对Atlas A2 训练系列产品/Atlas A2 推理系列产品**：支持的配置如下，若设置了不支持的环境变量，使用默认值。
-  - **HOST（默认值）**：代表通信算在Host侧CPU展开，Device侧根据硬件型号自动选择相应的调度器。
+  - **HOST（默认值）**：代表通信算子在Host侧CPU展开，Device侧根据硬件型号自动选择相应的调度器。
   - **HOST_TS**：代表通信算子在Host侧CPU展开，Host向Device的Task Scheduler下发任务，Device的Task Scheduler进行任务调度执行。
   - **AI_CPU**：代表通信算子在AI CPU展开，Device侧根据硬件型号自动选择相应的调度器。
 
