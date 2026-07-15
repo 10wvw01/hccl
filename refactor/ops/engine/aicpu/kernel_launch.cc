@@ -133,17 +133,12 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, AlgResourceCtxSerializabl
         return HCCL_E_INTERNAL;
     }
 
-    // 5. 主 thread 等待 Host stream 的 notify 通知
+    // 5. 主 thread 等待 Host stream 的 notify 通知，使用主流上 idx 最大的 notify，与 AicpuKernelEntranceLaunch 中的 POST 索引一致
     ThreadHandle exportedAicpuTsThread = param.opThread;
-    u32 maxNotifyNum = resCtx.notifyNumOnMainThread;
-    for (u32 i = 0; i < resCtx.notifyNumPerThread.size(); i++) {
-        if (resCtx.notifyNumPerThread[i] > maxNotifyNum) {
-            maxNotifyNum = resCtx.notifyNumPerThread[i];
-        }
-    }
-    HCCL_DEBUG("[%s]Notify wait on thread[%llu], maxNotifyNum[%u], timeout[%u]", __func__, thread, maxNotifyNum,
+    u32 hostToDeviceNotifyIdx = resCtx.notifyNumOnMainThread - 1;
+    HCCL_DEBUG("[%s]Notify wait on thread[%llu], notifyIdx[%u], timeout[%u]", __func__, thread, hostToDeviceNotifyIdx,
         CUSTOM_TIMEOUT);
-    CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, maxNotifyNum, CUSTOM_TIMEOUT)));
+    CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, hostToDeviceNotifyIdx, CUSTOM_TIMEOUT)));
 
     // 6. 执行算法编排：先调用 CalcRes（传入 resCtx.algHierarchyInfo）刷新 executor 内部资源计算
     //    （algHierarchyInfo_、maxSlaveThreadNum_ 等），再调用 Orchestrate 驱动算法编排

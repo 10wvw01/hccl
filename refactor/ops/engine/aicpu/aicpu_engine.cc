@@ -294,8 +294,8 @@ HcclResult AiCpuEngine::AicpuKernelEntranceLaunchInternal(const OpParam &param)
 {
     HCCL_DEBUG("[AicpuKernelEntranceLaunch]start to run aicpu kernel");
     // 当前aicpu launch接口只能有一个输入参数，将Context指针放在param参数中
-    // resCtxSequence 在重构中由 device 侧反序列化 resCtx_ 获得，host 侧不再需要设置 param.resCtx
     const_cast<OpParam &>(param).aicpuRecordCpuIdx = HOST_WAIT_AICPU_NOTIFYIDX;
+    const_cast<OpParam &>(param).resCtx = &resCtx_;
 
     if (param.engine == COMM_ENGINE_CPU) {
         // 注册dpu回调函数
