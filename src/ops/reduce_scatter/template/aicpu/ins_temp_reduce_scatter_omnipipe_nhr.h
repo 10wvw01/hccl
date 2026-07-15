@@ -50,6 +50,9 @@ private:
     std::map<u32, std::vector<ChannelInfo>> channels_;
     std::vector<std::vector<std::vector<u64>>> dataSplitVec_;
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
+    // 对称内存：user input 对称窗口及偏移（KernelRun 从 param 缓存）
+    u64 inputOffset_{0};
+    void *inputSymWindow_{nullptr};
 };
 
 } // namespace Hccl
