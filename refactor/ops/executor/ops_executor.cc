@@ -114,7 +114,6 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
-
     myRank_ = resCtx.topoInfo.userRank;
     // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重算rankSize
     rankSize_ = 1;
@@ -124,10 +123,16 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     AlgResourceRequest resourceRequest;
     // kernel侧需要先调用GetRes函数初始化成员变量execDescSubCommMaskMap_和maxSlaveThreadNum_等
     GetRes(resourceRequest);
-    for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
-        subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
-        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
-        subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
+    if (topoLevelNum == 1) {
+        //如果只有一个通信域就没有mainThread了
+        subThreadEnd = subThreadBegin + maxSlaveThreadNum_.at(0);
+        subThreads_.at(0).assign(subThreadBegin, subThreadEnd);
+    } else {
+        for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
+            subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+            subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
+            subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
+        }
     }
     engine_ = algo_.GetEngine().release();
     // TODO：考虑不同Executor
@@ -208,17 +213,6 @@ HcclResult OpsExecutor::CalcChannelResRecursion(HcclComm comm, AlgoExecDesc &alg
     return HCCL_SUCCESS;
 }
 
-// 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
-// thread[0]                                = main thread
-// thread[1]                                = intra main → notifyNumPerThread[0]
-// threads[2..maxIntra+1]                   = intra slaves → notifyNumPerThread[1..maxIntra+1]
-// thread[maxIntra+2]                       = inter main → notifyNumPerThread[maxIntra+2]
-// threads[maxIntra+3..maxIntra+maxInter+2] = inter slaves → notifyNumPerThread[maxIntra+3..]
-// resourceRequest.notifyNumPerThread布局如下所示，notifyNumPerThread需要多预留1个用于和main thread同步
-// notifyNumPerThread[0]                    = intra NotifyNumOnMainThread + 1
-// notifyNumPerThread[1..maxIntra]          = intra notifyNumPerThread[...]必须预留每个阶段的最大值
-// notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
-// notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
 HcclResult OpsExecutor::GetResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask)
 {
     size_t childrenSize = algoExecDesc.children.size();
@@ -292,12 +286,22 @@ HcclResult OpsExecutor::CalcRes(HcclComm comm, AlgResourceRequest &resourceReque
     requestChannels_.assign(topoLevelNum, {});
     CHK_RET(CalcChannelResRecursion(comm, algo_.algoExecDesc));
     for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
-        // 每个通信子域还需要一条主流，所以求和还需要+1
         resourceRequest.channels.emplace_back(requestChannels_.at(subCommIndex));
     }
     return HCCL_SUCCESS;
 }
 
+// 线程布局如下所示，maxIntra/maxInter表示每个阶段所需的最大线程数量，notifyNumPerThread需要多预留1个用于和主进程同步
+// thread[0]                                = main thread
+// thread[1]                                = intra main → notifyNumPerThread[0]
+// threads[2..maxIntra+1]                   = intra slaves → notifyNumPerThread[1..maxIntra+1]
+// thread[maxIntra+2]                       = inter main → notifyNumPerThread[maxIntra+2]
+// threads[maxIntra+3..maxIntra+maxInter+2] = inter slaves → notifyNumPerThread[maxIntra+3..]
+// resourceRequest.notifyNumPerThread布局如下所示，notifyNumPerThread需要多预留1个用于和main thread同步
+// notifyNumPerThread[0]                    = intra NotifyNumOnMainThread + 1
+// notifyNumPerThread[1..maxIntra]          = intra notifyNumPerThread[...]必须预留每个阶段的最大值
+// notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
+// notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
 HcclResult OpsExecutor::GetRes(AlgResourceRequest &resourceRequest)
 {
     auto topoLevelNum = algHierarchyInfo_.infos.size();
@@ -310,14 +314,20 @@ HcclResult OpsExecutor::GetRes(AlgResourceRequest &resourceRequest)
     resourceRequest.notifyNumOnMainThread = topoLevelNum;
     resourceRequest.slaveThreadNum = 0;
     for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
-        // 每个通信子域还需要一条主流，所以求和还需要+1
-        resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(subCommIndex) + 1;
-        resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
-        notifyNumOnSubMainThread_.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
-        // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
-        resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
-            maxSlaveThreadNum_.at(subCommIndex), maxNotifyNumPerThread_.at(subCommIndex));
+        // 如果是多个子通信域，每个通信子域还需要一条主流，所以求和还需要+1
+        if (topoLevelNum > 1) {
+            resourceRequest.slaveThreadNum += maxSlaveThreadNum_.at(subCommIndex) + 1;
+            resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
+            // 再插入maxSlaveThreadNum个maxNotifyNumPerThreadnotifyNumPerThread
+            notifyNumOnSubMainThread_.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex) + 1);
+            resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
+                maxSlaveThreadNum_.at(subCommIndex), maxNotifyNumPerThread_.at(subCommIndex));
+        } else {
+            resourceRequest.slaveThreadNum = maxSlaveThreadNum_.at(subCommIndex);
+            resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex));
+        }
     }
+
     // 全尺寸布局内存，保证所有的template的CCL buffer内存布局一致
     scratchMultiple_ = algo_.hcclCmdType == HCCL_CMD_ALLGATHER ? rankSize_ : 1;
     return HCCL_SUCCESS;
