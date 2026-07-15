@@ -44,55 +44,27 @@ uint64_t GetMaxLoopIterNum()
 
 uint64_t GetLoopParam(uint64_t loopCtxId, uint64_t gsaOffset, uint64_t loopIterNum)
 {
-    DevType deviceType;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
-        constexpr uint16_t ctxIdBitNum = 8;
-        constexpr uint16_t ctxIdShiftBit = 45;
-        constexpr uint16_t gsaBitNum = 32;
-        constexpr uint16_t gsaShiftBit = 13;
-        constexpr uint16_t loopNumBitNum = 13;
-        constexpr uint16_t loopNumShiftBit = 0;
-        return ((loopCtxId & SetBits(ctxIdBitNum)) << ctxIdShiftBit) |
-               ((gsaOffset & SetBits(gsaBitNum)) << gsaShiftBit) |
-               ((loopIterNum & SetBits(loopNumBitNum)) << loopNumShiftBit);
-    } else {
-        // 直接返回LoopCtxId
-        return loopCtxId;
-    }
+    constexpr uint16_t ctxIdBitNum = 8;
+    constexpr uint16_t ctxIdShiftBit = 45;
+    constexpr uint16_t gsaBitNum = 32;
+    constexpr uint16_t gsaShiftBit = 13;
+    constexpr uint16_t loopNumBitNum = 13;
+    constexpr uint16_t loopNumShiftBit = 0;
+    return ((loopCtxId & SetBits(ctxIdBitNum)) << ctxIdShiftBit) |
+           ((gsaOffset & SetBits(gsaBitNum)) << gsaShiftBit) |
+           ((loopIterNum & SetBits(loopNumBitNum)) << loopNumShiftBit);
+}
+ 
+uint64_t GetLoopGsaOffset(uint64_t gsaOffset)
+{
+    constexpr uint16_t gsaOffsetBitNum = 32;
+    constexpr uint16_t gsaOffsetShiftBit = 0;
+    return (gsaOffset & SetBits(gsaOffsetBitNum) ) << gsaOffsetShiftBit;
 }
 
-uint64_t GetLoopIterNum(uint64_t iterNum)
+uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t totalLoopNum, CcuVersion ccuVersion)
 {
-    DevType deviceType;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
-        return 0;
-    } else {
-        constexpr uint16_t iterNumBitNum = 13;
-        constexpr uint16_t iterNumShiftBit = 0;
-        return (iterNum & SetBits(iterNumBitNum)) << iterNumShiftBit;
-    }
-}
- 
-uint64_t GetLoopGsaOffset(uint64_t gsaOffset){
-    DevType deviceType;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
-        return 0;
-    }
-    else{
-        constexpr uint16_t gsaOffsetBitNum = 32;
-        constexpr uint16_t gsaOffsetShiftBit = 0;
-        return (gsaOffset & SetBits(gsaOffsetBitNum) ) << gsaOffsetShiftBit;
-    }
-}
- 
-uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t totalLoopNum)
-{
-    DevType deviceType;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960) {
+    if(ccuVersion==CcuVersion::CCU_V1) {
         constexpr uint16_t repeatBitNum       = 7;
         constexpr uint16_t repeatNumShiftBit  = 55;
         constexpr uint16_t repeatLoopBitNum   = 7;
@@ -102,7 +74,8 @@ uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t
         return ((repeatNum & SetBits(repeatBitNum)) << repeatNumShiftBit)
                 | ((repeatLoopIndex & SetBits(repeatLoopBitNum)) << repeatLoopShiftBit)
                 | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);
-    } else {
+    }
+    else {
         // CCU V121 Loop规格变化适配
         constexpr uint16_t repeatBitNum       = 9;
         constexpr uint16_t repeatNumShiftBit  = 19;
@@ -112,8 +85,8 @@ uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t
         constexpr uint16_t totalLoopShiftBit  = 0;
         return ((repeatNum & SetBits(repeatBitNum)) << repeatNumShiftBit)
                 | ((repeatLoopIndex & SetBits(repeatLoopBitNum)) << repeatLoopShiftBit)
-                | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);
-    }
+                | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);}
+    } 
 }
 
 uint64_t GetOffsetParam(uint64_t gsaOffset, uint64_t msOffset, uint64_t ckeOffset)
