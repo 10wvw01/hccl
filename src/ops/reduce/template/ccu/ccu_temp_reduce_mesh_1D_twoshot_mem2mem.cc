@@ -156,8 +156,8 @@ HcclResult CcuTempReduceMesh1DTwoShotMem2Mem::KernelRun(const OpParam& param,
 
     LoopGroupConfig config{};
     config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount    = CCU_MS_LOCAL_COPY_LOOP_COUNT;
-    config.memSlice     = CCU_MS_SIZE * LOCAL_COPY_MS_PER_LOOP;
+    config.loopCount    = 16;
+    config.memSlice     = CCU_MS_SIZE;
     auto goSize = (mySubCommRank_ == (templateRankSize_ - 1))
                   ? CalGoSize(lastSliceSize, config)
                   : CalGoSize(normalSliceSize, config);
