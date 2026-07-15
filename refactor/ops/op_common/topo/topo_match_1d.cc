@@ -30,16 +30,16 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
 
     #ifdef MACRO_DEV_TYPE_NEW
     CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_950,
-        HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] Rank [%d], deviceType not supported yet.", myRank_),
+        HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] deviceType not supported yet."),
         HcclResult::HCCL_E_PARA);
     #else
     CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_910_95,
-        HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] Rank [%d], deviceType not supported yet.", myRank_),
+        HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] deviceType not supported yet."),
         HcclResult::HCCL_E_PARA);
     #endif
 
     CHK_PRT_RET((topoInfo->userRankSize == 0),
-                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] Rank [%d], rankSize is 0.", myRank_),
+                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] rankSize is 0."),
                 HcclResult::HCCL_E_PARA);
 
     for (const auto &netLayerIdx : topoInfo->netLayerDetails.netLayers) {
@@ -49,13 +49,13 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
                 HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] netLayer [%d], topoType not COMM_TOPO_CUSTOM or COMM_TOPO_CLOS.", netLayerIdx),
                 HcclResult::HCCL_E_PARA);
     }
-
+    std::vector<u32> rankIds;
     for (uint32_t rankId = 0; rankId < topoInfo->userRankSize; rankId++) {
-        rankIds_.push_back(rankId);
+        rankIds.push_back(rankId);
     }
     algHierarchyInfoExector.infos.resize(1);
     algHierarchyInfoExector.infos[0].resize(1);
-    algHierarchyInfoExector.infos[0][0] = rankIds_;
+    algHierarchyInfoExector.infos[0][0] = rankIds;
 #endif
     return HcclResult::HCCL_SUCCESS;
 }

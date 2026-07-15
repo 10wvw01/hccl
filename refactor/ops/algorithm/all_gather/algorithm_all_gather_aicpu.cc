@@ -31,7 +31,7 @@ static HcclAlgorithm MakeAicpuAllGatherAlgo(
     algo.hcclCmdType = HcclCMDType::HCCL_CMD_ALLGATHER;
     algo.engineType = HcclAlgEngineType::AICPU;
     algo.topoMatch = std::move(topoMatch);
-    algo.algoExecDesc = std::move(algoExecDesc);
+    algo.algoExecDesc = algoExecDesc;
     return algo;
 }
 
