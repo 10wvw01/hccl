@@ -590,5 +590,197 @@ TEST_F(AiCpuEngineSendTest, ComprehensiveBidirWriteReduce)
     EXPECT_EQ(g_records.back().name, "NotifyWait");
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 9. 补齐用例 (TC30/TC31/TC32/TC37/TC40/TC41/TC43/TC44)
+// ═══════════════════════════════════════════════════════════════════
+
+// TC30 reduceOp 透传 dataType/reduceOp 原值
+TEST_F(AiCpuEngineSendTest, ReducePassesDataTypeAndReduceOp)
+{
+    auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_SUM, 1, 8, 2);
+    ctx.dataType = HCCL_DATA_TYPE_FP16;
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    auto calls = FindCalls("WriteReduce");
+    ASSERT_EQ(calls.size(), 1u);
+    EXPECT_EQ(calls[0].dt, static_cast<int>(HCCL_DATA_TYPE_FP16));
+    EXPECT_EQ(calls[0].op, static_cast<int>(HCCL_REDUCE_SUM));
+}
+
+// TC31 LookupChannel 取第一条 channel
+TEST_F(AiCpuEngineSendTest, LookupChannelPicksFirstChannel)
+{
+    auto ctx = MakeCtx(true, false, false);
+    // channels[1] 追加第二条 channel (不同 handle), 应使用第一条 0xC1
+    ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xBAD));
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    auto calls = FindCalls("Write");
+    ASSERT_GE(calls.size(), 1u);
+    EXPECT_EQ(calls[0].channel, 0xC1u);
+}
+
+// TC32 IsPcieProtocol 不影响路由 (direction 由 buffType 决定)
+TEST_F(AiCpuEngineSendTest, IsPcieProtocolDoesNotAffectRouting)
+{
+    auto ctx = MakeCtx(true, false, false); // WRITE
+    ctx.templateRes.channels[1][0].protocol = CommProtocol::COMM_PROTOCOL_PCIE;
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_GE(CountCalls("Write"), 1u); // 仍走 SendWrite, 不变 Read
+    EXPECT_EQ(CountCalls("Read"), 0u);
+}
+
+// TC37 大分片 Read 多 slice 数据准确
+TEST_F(AiCpuEngineSendTest, LargeSliceMultiReadDataAccurate)
+{
+    const uint64_t sliceSz = 256 * 1024;
+    const uint64_t n = 4;
+    std::vector<DataSlice> src;
+    std::vector<DataSlice> dst;
+    std::vector<std::vector<uint8_t>> wants;
+    for (uint64_t i = 0; i < n; ++i) {
+        wants.push_back(MakePattern(sliceSz, static_cast<uint8_t>(0xC0 + i)));
+        src.emplace_back(wants[i].data(), 0, sliceSz, sliceSz / 4);
+        dst.emplace_back(dstBase_, i * sliceSz, sliceSz, sliceSz / 4);
+    }
+    TransferContext ctx;
+    ctx.enableRemoteMemAccess = true;
+    ctx.buffType = BufferType::OUTPUT;
+    ctx.dataType = HCCL_DATA_TYPE_INT32;
+    ctx.templateRes.threads.push_back(static_cast<ThreadHandle>(0x01));
+    ctx.templateRes.channels[2].push_back(MakeChannel(2, 0xC2));
+    ctx.txRxSlicesList.srcRankId_ = 2;
+    ctx.txRxSlicesList.rxSlicesList_ = SlicesList(src, dst);
+
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    ASSERT_EQ(g_captured.size(), n);
+    for (uint64_t i = 0; i < n; ++i) {
+        ExpectBytesEq(g_captured[i], wants[i]);
+    }
+    EXPECT_EQ(CountCalls("Read"), n);
+}
+
+// TC40 大分片 SendRecvWrite 双向数据准确
+TEST_F(AiCpuEngineSendTest, LargeBidirWriteDataAccurate)
+{
+    const uint64_t sz = 256 * 1024;
+    auto wA = MakePattern(sz, 0xA0);
+    auto wB = MakePattern(sz, 0xB0);
+    std::vector<DataSlice> txSrc = {
+        DataSlice(wA.data(), 0, sz, sz / 4),
+        DataSlice(wB.data(), 0, sz, sz / 4)
+    };
+    std::vector<DataSlice> txDst = {
+        DataSlice(dstBase_, 0, sz, sz / 4),
+        DataSlice(dstBase_, sz, sz, sz / 4)
+    };
+    TransferContext ctx;
+    ctx.enableRemoteMemAccess = false;
+    ctx.dataType = HCCL_DATA_TYPE_INT32;
+    ctx.templateRes.threads.push_back(static_cast<ThreadHandle>(0x01));
+    ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xC1));
+    ctx.templateRes.channels[2].push_back(MakeChannel(2, 0xC2));
+    ctx.txRxSlicesList.dstRankId_ = 1;
+    ctx.txRxSlicesList.srcRankId_ = 2;
+    ctx.txRxSlicesList.txSlicesList_ = SlicesList(txSrc, txDst);
+    ctx.txRxSlicesList.rxSlicesList_ = SlicesList({DataSlice(srcBase_, 0, sz, sz / 4)},
+                                                  {DataSlice(dstBase_, 0, sz, sz / 4)});
+
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_GE(CountCalls("Write"), 2u);
+    ASSERT_GE(g_captured.size(), 2u);
+    ExpectBytesEq(g_captured[0], wA);
+    ExpectBytesEq(g_captured[1], wB);
+    EXPECT_EQ(g_records.front().name, "NotifyRecord");
+    EXPECT_EQ(g_records.back().name, "NotifyWait");
+}
+
+// TC41 大分片 SendRecvRead 双向数据准确
+TEST_F(AiCpuEngineSendTest, LargeBidirReadDataAccurate)
+{
+    const uint64_t sz = 256 * 1024;
+    auto wC = MakePattern(sz, 0xC0);
+    auto wD = MakePattern(sz, 0xD0);
+    std::vector<DataSlice> rxSrc = {
+        DataSlice(wC.data(), 0, sz, sz / 4),
+        DataSlice(wD.data(), 0, sz, sz / 4)
+    };
+    std::vector<DataSlice> rxDst = {
+        DataSlice(dstBase_, 0, sz, sz / 4),
+        DataSlice(dstBase_, sz, sz, sz / 4)
+    };
+    TransferContext ctx;
+    ctx.enableRemoteMemAccess = true; // READ
+    ctx.buffType = BufferType::OUTPUT;
+    ctx.dataType = HCCL_DATA_TYPE_INT32;
+    ctx.templateRes.threads.push_back(static_cast<ThreadHandle>(0x01));
+    ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xC1));
+    ctx.templateRes.channels[2].push_back(MakeChannel(2, 0xC2));
+    ctx.txRxSlicesList.dstRankId_ = 1;
+    ctx.txRxSlicesList.srcRankId_ = 2;
+    // 双向需 hasTx && hasRx, tx 给占位 slice
+    ctx.txRxSlicesList.txSlicesList_ = SlicesList({DataSlice(srcBase_, 0, sz, sz / 4)},
+                                                  {DataSlice(dstBase_, 0, sz, sz / 4)});
+    ctx.txRxSlicesList.rxSlicesList_ = SlicesList(rxSrc, rxDst);
+
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_GE(CountCalls("Read"), 2u);
+    ASSERT_GE(g_captured.size(), 2u);
+    ExpectBytesEq(g_captured[0], wC);
+    ExpectBytesEq(g_captured[1], wD);
+}
+
+// TC43 打桩捕获传输数据内容可观测
+TEST_F(AiCpuEngineSendTest, StubCapturesTransferContentObservable)
+{
+    const uint64_t sz = 4 * 1024;
+    auto want = MakePattern(sz, 0x42);
+    std::vector<DataSlice> src = {DataSlice(want.data(), 0, sz, sz / 4)};
+    std::vector<DataSlice> dst = {DataSlice(dstBase_, 0, sz, sz / 4)};
+    TransferContext ctx;
+    ctx.enableRemoteMemAccess = false;
+    ctx.dataType = HCCL_DATA_TYPE_INT32;
+    ctx.templateRes.threads.push_back(static_cast<ThreadHandle>(0x01));
+    ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xC1));
+    ctx.txRxSlicesList.dstRankId_ = 1;
+    ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
+
+    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_FALSE(g_captured.empty());      // 可观测: 捕获非空
+    EXPECT_EQ(g_captured[0].size(), sz);   // 长度可读回
+    ExpectBytesEq(g_captured[0], want);    // 内容可读回且准确
+}
+
+// TC44 reduceOp + 大分片 dataType 组合 (FP16/FP32/INT8)
+TEST_F(AiCpuEngineSendTest, ReduceOpWithDataTypeCombination)
+{
+    struct Case { HcclDataType dt; uint64_t count; uint64_t bytes; };
+    const Case cases[] = {
+        {HCCL_DATA_TYPE_FP16, 2048, 2048 * 2},
+        {HCCL_DATA_TYPE_FP32, 1024, 1024 * 4},
+        {HCCL_DATA_TYPE_INT8, 4096, 4096 * 1},
+    };
+    for (const auto &c : cases) {
+        ClearMock();
+        auto want = MakePattern(c.bytes, 0x09);
+        std::vector<DataSlice> src = {DataSlice(want.data(), 0, c.bytes, c.count)};
+        std::vector<DataSlice> dst = {DataSlice(dstBase_, 0, c.bytes, c.count)};
+        TransferContext ctx;
+        ctx.enableRemoteMemAccess = false;
+        ctx.dataType = c.dt;
+        ctx.reduceOp = HCCL_REDUCE_SUM;
+        ctx.templateRes.threads.push_back(static_cast<ThreadHandle>(0x01));
+        ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xC1));
+        ctx.txRxSlicesList.dstRankId_ = 1;
+        ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
+
+        EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+        auto calls = FindCalls("WriteReduce");
+        ASSERT_EQ(calls.size(), 1u);
+        EXPECT_EQ(calls[0].len, c.count);                // count_
+        EXPECT_EQ(calls[0].dt, static_cast<int>(c.dt)); // dataType 透传
+        ASSERT_EQ(g_captured.size(), 1u);
+        EXPECT_EQ(g_captured[0].size(), c.bytes);       // 字节数 = count × dataTypeSize
+    }
+}
+
 } // namespace testing
 } // namespace ops_hccl
