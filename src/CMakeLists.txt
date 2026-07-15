@@ -206,39 +206,7 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template
 )
 
-if(BUILD_OPEN_PROJECT)
-    list(APPEND INCLUDE_LIST
-        ${ASCEND_CANN_PACKAGE_PATH}/include
-        ${ASCEND_CANN_PACKAGE_PATH}/include/acl
-
-        # hcomm头文件
-        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
-        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
-
-        # runtime头文件
-        ${ASCEND_CANN_PACKAGE_PATH}/include/
-        ${ASCEND_CANN_PACKAGE_PATH}/include/base/
-        ${ASCEND_CANN_PACKAGE_PATH}/include/dump/
-        ${ASCEND_CANN_PACKAGE_PATH}/include/external/
-        ${ASCEND_CANN_PACKAGE_PATH}/include/platform/
-
-        # 包间接口
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hccl
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/runtime/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/aicpu/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/profiling/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/base/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/dump/
-        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/trace/
-    )
-    # pkg_inc/hcomm/ccu 仅 9.0.0 CANN 存在，8.5.0 下直接不加入 include 路径
-    if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hcomm/ccu)
-        list(APPEND INCLUDE_LIST ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hcomm/ccu)
-    endif()
-else()
+if(NOT BUILD_OPEN_PROJECT)
     list(APPEND INCLUDE_LIST
         ${TOP_DIR}/inc
         ${TOP_DIR}/inc/aicpu/tsd
