@@ -104,7 +104,9 @@ HcclResult InsTempScatterMesh1D::KernelRun(const OpParam& param, const TemplateD
     count_ = tempAlgParams.count;
     dataType_ = param.DataDes.dataType;
     CHK_PTR_NULL(tempAlgParams.buffInfo.hcclBuff.addr);
-    CHK_PTR_NULL(tempAlgParams.buffInfo.inputPtr);
+    if (u32(myRank_) == root_ && tempAlgParams.buffInfo.inBuffType != BufferType::HCCL_BUFFER) {
+        CHK_PTR_NULL(tempAlgParams.buffInfo.inputPtr);
+    }
     CHK_PTR_NULL(tempAlgParams.buffInfo.outputPtr);
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     // 尾块模式
@@ -158,7 +160,10 @@ HcclResult InsTempScatterMesh1D::PreCopy(
         u64 dstOffset = tempAlgParams.buffInfo.outBuffType == BufferType::HCCL_BUFFER
                             ? r * tempAlgParams.outputRepeatStride + tempAlgParams.outputSliceStride * myAlgRank + tempAlgParams.buffInfo.hcclBuffBaseOff
                             : r * tempAlgParams.outputRepeatStride + tempAlgParams.outputSliceStride * myAlgRank + tempAlgParams.buffInfo.outBuffBaseOff;
-        DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, srcOffset, processSize_, count_);
+        void *srcPtr = tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER
+                           ? tempAlgParams.buffInfo.hcclBuff.addr
+                           : tempAlgParams.buffInfo.inputPtr;
+        DataSlice srcSlice = DataSlice(srcPtr, srcOffset, processSize_, count_);
         DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.outputPtr, dstOffset, processSize_, count_);
         CHK_RET(static_cast<HcclResult>(LocalCopy(threads.at(0), srcSlice, dstSlice)));
     }
@@ -242,7 +247,10 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
                 void* txDstPtr = (!enableRemoteMemAccess_) ? linkSend.remoteCclMem.addr : linkSend.remoteOutputGraphMode.addr;
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] srcOffset[%d], tempAlgParams.buffInfo.inputPtr[%d]", srcOffset, tempAlgParams.buffInfo.inputPtr);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] dstOffset[%d], txDstPtr[%d]", dstOffset, txDstPtr);
-                DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, srcOffset, curSliceSize, curCount);
+                void *txSrcPtr = tempAlgParams.buffInfo.inBuffType == BufferType::HCCL_BUFFER
+                                     ? tempAlgParams.buffInfo.hcclBuff.addr
+                                     : tempAlgParams.buffInfo.inputPtr;
+                DataSlice srcSlice = DataSlice(txSrcPtr, srcOffset, curSliceSize, curCount);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] got srcSlice");
                 DataSlice dstSlice = DataSlice(txDstPtr, dstOffset, curSliceSize, curCount);
                 HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] got dstSlice");
