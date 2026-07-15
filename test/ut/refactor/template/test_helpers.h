@@ -150,6 +150,9 @@ protected:
     uintptr_t remoteCclMemBase_ = 0;
 };
 
+// ───────────── NHR primitives test fixture ─────────────
+class NhrAllGatherTest : public MeshAllGatherTest {};
+
 // ───────────── AicpuBaseTemplate test fixture ─────────────
 class AicpuBaseTemplateTest : public ::testing::Test {
 protected:
