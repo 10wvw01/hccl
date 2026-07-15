@@ -58,6 +58,7 @@ static CcuResult InitResource(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     ctx.outputMem.resize(ctx.rankSize);
     ctx.outputOmniSliceStrideVec.resize(ctx.rankSize);
     ctx.inputOmniSliceStrideVec.resize(ctx.rankSize);
+    ctx.inputSliceSizeVec.resize(ctx.rankSize);
     return CCU_SUCCESS;
 }
 
@@ -66,7 +67,6 @@ static CcuResult LoadArgs(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     uint32_t argId = 0;
     CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.output[ctx.rankId], argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.rankId], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
@@ -78,6 +78,9 @@ static CcuResult LoadArgs(ScatterOmniPipeMesh1DMem2MemContext &ctx)
     }
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniSliceStrideVec[i], argId++));
+    }
+    for (uint64_t i = 0; i < ctx.rankSize; i++) {
+        CCU_CHK_RET(ccu::LoadArg(ctx.inputSliceSizeVec[i], argId++));
     }
     return CCU_SUCCESS;
 }
@@ -117,17 +120,17 @@ static CcuResult DoScatter(ScatterOmniPipeMesh1DMem2MemContext &ctx)
 
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
         uint64_t mask = 1ULL << rankIdx;
-        CCU_IF(ctx.sliceSize != 0)
+        CCU_IF(ctx.inputSliceSizeVec[rankIdx] != 0)
         {
             if (rankIdx == ctx.rankId) {
                 CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
             } else {
                 CCU_CHK_RET(ccu::Write(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx],
-                    ctx.sliceSize, ctx.event, mask));
+                    ctx.inputSliceSizeVec[rankIdx], ctx.event, mask));
                 channelId++;
             }
         }
-        CCU_IF(ctx.sliceSize == 0)
+        CCU_IF(ctx.inputSliceSizeVec[rankIdx] == 0)
         {
             CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
         }

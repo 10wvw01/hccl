@@ -47,7 +47,7 @@ public:
     void SetRoot(u32 root);
     void UnsetRoot(u32 rank);
     void BuildSliceStrideVec(const StepSliceInfo &stepSliceInfo, uint32_t rpt, uint64_t repeatNum, bool ifNewRoot,
-        uint64_t &sliceSize, std::vector<uint64_t> &inputOmniSliceStrideVec,
+        std::vector<uint64_t> &inputSliceSizeVec, std::vector<uint64_t> &inputOmniSliceStrideVec,
         std::vector<uint64_t> &outputOmniSliceStrideVec);
 
     uint32_t mySubCommRank_ = 0;
