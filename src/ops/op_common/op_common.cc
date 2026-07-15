@@ -52,6 +52,7 @@
 #include "hcom.h"
 #include "hccl_res_expt_dl.h"
 #include "ccu_launch_dl.h"
+#include "ccu_res_dl.h"
 #include "hccl_ccu_res_dl.h"
 #include "comm_engine_utils.h"
 
@@ -1823,38 +1824,188 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
     return HCCL_SUCCESS;
 }
 
-HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
-                          std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
-{
-    CcuInsHandle insHandle{0};
-    uint32_t insNum = 0;
-    CHK_RET(HcclCommQueryCcuIns(comm, &insHandle, &insNum));
-    CHK_PRT_RET(insNum != 1, HCCL_ERROR("[HcclGetCcuKernel] HcclCommQueryCcuIns fail! insNum is [%u]", insNum),
-                HCCL_E_INTERNAL);
+/* 1/5资源量写死值：xn(ADDRESS)数量为 400，其他任意赋值，后续可调整 */
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_XN = 400;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_LOOP = 100;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_CCU_BUF = 100;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_VARIABLE = 100;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_EVENT = 100;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_CCU_THREAD = 100;
+static constexpr uint32_t CCU_DEFAULT_RES_FRACTION_INSTRUCTION = 100;
 
+// 参与资源比较/聚合的资源类型列表
+static const std::vector<HcommCcuResType> &GetCcuResTypes()
+{
+    static const std::vector<HcommCcuResType> types = {
+        HCOMM_CCU_RES_TYPE_LOOP,
+        HCOMM_CCU_RES_TYPE_CCU_BUF,
+        HCOMM_CCU_RES_TYPE_VARIABLE,
+        HCOMM_CCU_RES_TYPE_ADDRESS,
+        HCOMM_CCU_RES_TYPE_EVENT,
+        HCOMM_CCU_RES_TYPE_CCU_THREAD,
+        HCOMM_CCU_RES_TYPE_INSTRUCTION,
+    };
+    return types;
+}
+
+// 1/5资源量写死值查表
+static uint32_t GetDefaultResFraction(HcommCcuResType resType)
+{
+    switch (resType) {
+        case HCOMM_CCU_RES_TYPE_ADDRESS:      return CCU_DEFAULT_RES_FRACTION_XN;
+        case HCOMM_CCU_RES_TYPE_LOOP:         return CCU_DEFAULT_RES_FRACTION_LOOP;
+        case HCOMM_CCU_RES_TYPE_CCU_BUF:      return CCU_DEFAULT_RES_FRACTION_CCU_BUF;
+        case HCOMM_CCU_RES_TYPE_VARIABLE:     return CCU_DEFAULT_RES_FRACTION_VARIABLE;
+        case HCOMM_CCU_RES_TYPE_EVENT:        return CCU_DEFAULT_RES_FRACTION_EVENT;
+        case HCOMM_CCU_RES_TYPE_CCU_THREAD:   return CCU_DEFAULT_RES_FRACTION_CCU_THREAD;
+        case HCOMM_CCU_RES_TYPE_INSTRUCTION:  return CCU_DEFAULT_RES_FRACTION_INSTRUCTION;
+        default:                              return 0;
+    }
+}
+
+// 检查动态资源申请所需的全部新接口是否可用（任一不可用则回退旧流程）
+static bool IsCcuDynamicResApiSupported()
+{
+    return HcommIsSupportHcommCcuInsResDescCreate() &&
+           HcommIsSupportHcommCcuInsResDescDestroy() &&
+           HcommIsSupportHcommCcuInsResDescSetNum() &&
+           HcommIsSupportHcommCcuInsResDescQueryNum() &&
+           HcommIsSupportHcommCcuInsCreate() &&
+           HcommIsSupportHcommCcuInsDestroy() &&
+           HcommIsSupportHcommCcuInsQueryResDesc() &&
+           HcommIsSupportHcommCcuKernelQueryResReq() &&
+           HcommIsSupportHcclCommAssignCcuIns();
+}
+
+// 计算所有 kernel 的资源诉求，按 resGroup 聚合：同组相加、不同组取最大，填入 finalReq
+static HcclResult CalcKernelsAggregatedResReq(AlgResourceRequest &resRequest, HcommCcuResDescHandle finalReq)
+{
+    u32 totalKernelNum = resRequest.ccuKernelInfos.size();
+
+    // groupResMap[resGroup][resType] = 累加值
+    std::map<u32, std::map<HcommCcuResType, uint32_t>> groupResMap;
+
+    for (u32 i = 0; i < totalKernelNum; i++) {
+        CcuKernelInfo &kernelInfo = resRequest.ccuKernelInfos[i];
+
+        HcommCcuResDescHandle kernelDesc = 0;
+        CcuResult createRet = HcommCcuInsResDescCreate(0, &kernelDesc); // dieId = 0
+        if (createRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CalcKernelsAggregatedResReq] HcommCcuInsResDescCreate failed: ccuRet -> %d", createRet);
+            return ConvertCcuToHccl(createRet);
+        }
+
+        const void *kernelArgs[] = { kernelInfo.kernelArg };
+        constexpr uint32_t kernelArgNum = 1;
+        CcuResult queryRet = HcommCcuKernelQueryResReq(
+            reinterpret_cast<void*>(kernelInfo.kernelFunc), kernelArgs, kernelArgNum, kernelDesc);
+        if (queryRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CalcKernelsAggregatedResReq] HcommCcuKernelQueryResReq failed: ccuRet -> %d", queryRet);
+            HcommCcuInsResDescDestroy(kernelDesc);
+            return ConvertCcuToHccl(queryRet);
+        }
+
+        for (HcommCcuResType resType : GetCcuResTypes()) {
+            uint32_t resNum = 0;
+            CcuResult qRet = HcommCcuInsResDescQueryNum(kernelDesc, resType, &resNum);
+            if (qRet != CCU_SUCCESS) {
+                HCCL_ERROR("[CalcKernelsAggregatedResReq] HcommCcuInsResDescQueryNum failed: ccuRet -> %d", qRet);
+                HcommCcuInsResDescDestroy(kernelDesc);
+                return ConvertCcuToHccl(qRet);
+            }
+            groupResMap[kernelInfo.resGroup][resType] += resNum;
+        }
+
+        HcommCcuInsResDescDestroy(kernelDesc);
+    }
+
+    // 跨 group 取最大
+    for (HcommCcuResType resType : GetCcuResTypes()) {
+        uint32_t maxNum = 0;
+        for (auto &groupEntry : groupResMap) {
+            auto it = groupEntry.second.find(resType);
+            if (it != groupEntry.second.end() && it->second > maxNum) {
+                maxNum = it->second;
+            }
+        }
+        CcuResult setRet = HcommCcuInsResDescSetNum(finalReq, resType, maxNum);
+        if (setRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CalcKernelsAggregatedResReq] HcommCcuInsResDescSetNum failed: ccuRet -> %d", setRet);
+            return ConvertCcuToHccl(setRet);
+        }
+        HCCL_INFO("[CalcKernelsAggregatedResReq] resType[%d] aggregated maxNum[%u]", resType, maxNum);
+    }
+    return HCCL_SUCCESS;
+}
+
+// 判断资源容量是否满足诉求：逐项比较 cap >= req
+static bool IsResCapSufficient(HcommCcuResDescHandle resCap, HcommCcuResDescHandle resReq)
+{
+    for (HcommCcuResType resType : GetCcuResTypes()) {
+        uint32_t capNum = 0;
+        uint32_t reqNum = 0;
+        if (HcommCcuInsResDescQueryNum(resCap, resType, &capNum) != CCU_SUCCESS) {
+            HCCL_ERROR("[IsResCapSufficient] query cap failed, resType[%d]", resType);
+            return false;
+        }
+        if (HcommCcuInsResDescQueryNum(resReq, resType, &reqNum) != CCU_SUCCESS) {
+            HCCL_ERROR("[IsResCapSufficient] query req failed, resType[%d]", resType);
+            return false;
+        }
+        if (capNum < reqNum) {
+            HCCL_INFO("[IsResCapSufficient] resType[%d] cap[%u] < req[%u], insufficient", resType, capNum, reqNum);
+            return false;
+        }
+    }
+    return true;
+}
+
+// 计算最终资源 = max(算子诉求, 1/5资源)
+static HcclResult CalcMaxResReqWithDefault(HcommCcuResDescHandle resReq, HcommCcuResDescHandle outMax)
+{
+    for (HcommCcuResType resType : GetCcuResTypes()) {
+        uint32_t reqNum = 0;
+        CcuResult qRet = HcommCcuInsResDescQueryNum(resReq, resType, &reqNum);
+        if (qRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CalcMaxResReqWithDefault] query req failed: ccuRet -> %d", qRet);
+            return ConvertCcuToHccl(qRet);
+        }
+        uint32_t defaultNum = GetDefaultResFraction(resType);
+        uint32_t maxNum = std::max(reqNum, defaultNum);
+        CcuResult setRet = HcommCcuInsResDescSetNum(outMax, resType, maxNum);
+        if (setRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CalcMaxResReqWithDefault] set failed: ccuRet -> %d", setRet);
+            return ConvertCcuToHccl(setRet);
+        }
+        HCCL_INFO("[CalcMaxResReqWithDefault] resType[%d] req[%u] default[%u] -> max[%u]",
+                  resType, reqNum, defaultNum, maxNum);
+    }
+    return HCCL_SUCCESS;
+}
+
+// 按 resGroup 注册 kernel（沿用原有逻辑，提取为独立函数供新旧流程复用）
+static HcclResult RegisterCcuKernels(CcuInsHandle insHandle, AlgResourceRequest &resRequest,
+                                     std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
+{
     u32 totalKernelNum = 0;
-    for (auto t: resRequest.ccuKernelNum) {
+    for (auto t : resRequest.ccuKernelNum) {
         totalKernelNum += t;
     }
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
-                HCCL_ERROR("[HcclGetCcuKernel]ccuKernel num not match!"), HCCL_E_INTERNAL);
+                HCCL_ERROR("[RegisterCcuKernels]ccuKernel num not match!"), HCCL_E_INTERNAL);
 
-    // 按照resgroup进行注册
     u32 currentResGroup = 0;
     u32 maxResGroup = 0;
     resCtxHost->ccuKernels.resize(totalKernelNum);
 
     while (currentResGroup <= maxResGroup) {
         CcuResult regStartRet = HcommCcuKernelRegisterStart(insHandle);
-        if (regStartRet == CCU_E_UNAVAIL) {
-            HCCL_WARNING("[HcclGetCcuKernel] ccu kernel register start unavailable.");
-            return HCCL_E_UNAVAIL;
-        } else if (regStartRet != CCU_SUCCESS) {
+        if (regStartRet != CCU_SUCCESS) {
             HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet);
             return ConvertCcuToHccl(regStartRet);
         }
         for (u32 i = 0; i < totalKernelNum; i++) {
-            CcuKernelInfo& kernelInfo = resRequest.ccuKernelInfos[i];
+            CcuKernelInfo &kernelInfo = resRequest.ccuKernelInfos[i];
             if (kernelInfo.resGroup > maxResGroup) {
                 maxResGroup = kernelInfo.resGroup;
             }
@@ -1862,17 +2013,17 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
                 continue;
             }
 
-            HCCL_DEBUG("[HcclGetCcuKernel] kernelFuncName[%s]", kernelInfo.kernelFuncName);
+            HCCL_DEBUG("[RegisterCcuKernels] kernelFuncName[%s]", kernelInfo.kernelFuncName);
             CcuKernelHandle kernelHandle;
             const void *kernelArgs[] = {kernelInfo.kernelArg};
-
             constexpr uint32_t dieId = 0; // 预留接口，暂无含义
             constexpr uint32_t kernelArgNum = 1;
+            // 资源不足仅在 HcommCcuKernelRegister 时判断，start/end 不单独校验资源不足
             CcuResult regRet = HcommCcuKernelRegister(insHandle, dieId, kernelInfo.kernelFuncName,
                                                       reinterpret_cast<void*>(kernelInfo.kernelFunc),
                                                       kernelArgs, kernelArgNum, &kernelHandle);
             if (regRet == CCU_E_UNAVAIL) {
-                HCCL_WARNING("[HcclGetCcuKernel] ccu kernel register unavailable, try to fallback.");
+                HCCL_WARNING("[RegisterCcuKernels] ccu kernel register unavailable, try to fallback.");
                 return HCCL_E_UNAVAIL;
             } else if (regRet != CCU_SUCCESS) {
                 HCCL_ERROR("ccu kernel register failed: ccuRet -> %d", regRet);
@@ -1881,10 +2032,7 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
             resCtxHost->ccuKernels[i] = kernelHandle;
         }
         CcuResult regEndRet = HcommCcuKernelRegisterEnd(insHandle);
-        if (regEndRet == CCU_E_UNAVAIL) {
-            HCCL_WARNING("[HcclGetCcuKernel] ccu kernel register end unavailable, try to fallback.");
-            return HCCL_E_UNAVAIL;
-        } else if (regEndRet != CCU_SUCCESS) {
+        if (regEndRet != CCU_SUCCESS) {
             HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet);
             return ConvertCcuToHccl(regEndRet);
         }
@@ -1892,6 +2040,122 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     return HCCL_SUCCESS;
+}
+
+// 新流程：按需动态申请 CCU 资源（首算子创建 CcuIns，后续算子复用并校验资源容量）
+static HcclResult HcclGetCcuKernelDynamic(HcclComm comm, AlgResourceRequest &resRequest,
+                                          std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
+{
+    // 1. 聚合所有 kernel 的资源诉求（同 group 相加、不同 group 取最大）
+    HcommCcuResDescHandle reqDesc = 0;
+    CcuResult createRet = HcommCcuInsResDescCreate(0, &reqDesc); // dieId = 0
+    if (createRet != CCU_SUCCESS) {
+        HCCL_ERROR("[HcclGetCcuKernelDynamic] HcommCcuInsResDescCreate(reqDesc) failed: ccuRet -> %d", createRet);
+        return ConvertCcuToHccl(createRet);
+    }
+
+    HcclResult calcRet = CalcKernelsAggregatedResReq(resRequest, reqDesc);
+    if (calcRet != HCCL_SUCCESS) {
+        HcommCcuInsResDescDestroy(reqDesc);
+        return calcRet;
+    }
+
+    // 2. 查询通信域当前已绑定的 CcuIns
+    CcuInsHandle insHandle = 0;
+    uint32_t insNum = 0;
+    HcclResult queryRet = HcclCommQueryCcuIns(comm, &insHandle, &insNum);
+    if (queryRet != HCCL_SUCCESS) {
+        HCCL_ERROR("[HcclGetCcuKernelDynamic] HcclCommQueryCcuIns failed: ret -> %d", queryRet);
+        HcommCcuInsResDescDestroy(reqDesc);
+        return queryRet;
+    }
+
+    HcclResult finalRet = HCCL_SUCCESS;
+    if (insNum != 0) {
+        // 已有 CcuIns：查询已有资源并判断是否满足诉求
+        HcommCcuResDescHandle capDesc = 0;
+        CcuResult capCreateRet = HcommCcuInsResDescCreate(0, &capDesc);
+        if (capCreateRet != CCU_SUCCESS) {
+            HCCL_ERROR("[HcclGetCcuKernelDynamic] HcommCcuInsResDescCreate(capDesc) failed: ccuRet -> %d",
+                       capCreateRet);
+            HcommCcuInsResDescDestroy(reqDesc);
+            return ConvertCcuToHccl(capCreateRet);
+        }
+        CcuResult qRet = HcommCcuInsQueryResDesc(insHandle, capDesc);
+        if (qRet != CCU_SUCCESS) {
+            HCCL_ERROR("[HcclGetCcuKernelDynamic] HcommCcuInsQueryResDesc failed: ccuRet -> %d", qRet);
+            HcommCcuInsResDescDestroy(capDesc);
+            HcommCcuInsResDescDestroy(reqDesc);
+            return ConvertCcuToHccl(qRet);
+        }
+
+        bool sufficient = IsResCapSufficient(capDesc, reqDesc);
+        HcommCcuInsResDescDestroy(capDesc);
+        HcommCcuInsResDescDestroy(reqDesc);
+
+        if (sufficient) {
+            // 满足诉求，注册 kernel
+            finalRet = RegisterCcuKernels(insHandle, resRequest, resCtxHost);
+        } else {
+            // 不满足诉求，进入回退流程
+            HCCL_WARNING("[HcclGetCcuKernelDynamic] existing CcuIns resource insufficient, try to fallback.");
+            finalRet = HCCL_E_UNAVAIL;
+        }
+    } else {
+        // 首算子：资源量取 max(算子诉求, 1/5资源)，创建 CcuIns 并绑定到 comm
+        HcommCcuResDescHandle finalReqDesc = 0;
+        CcuResult fCreateRet = HcommCcuInsResDescCreate(0, &finalReqDesc);
+        if (fCreateRet != CCU_SUCCESS) {
+            HCCL_ERROR("[HcclGetCcuKernelDynamic] HcommCcuInsResDescCreate(finalReqDesc) failed: ccuRet -> %d",
+                       fCreateRet);
+            HcommCcuInsResDescDestroy(reqDesc);
+            return ConvertCcuToHccl(fCreateRet);
+        }
+        HcclResult maxRet = CalcMaxResReqWithDefault(reqDesc, finalReqDesc);
+        HcommCcuInsResDescDestroy(reqDesc);
+        if (maxRet != HCCL_SUCCESS) {
+            HcommCcuInsResDescDestroy(finalReqDesc);
+            return maxRet;
+        }
+
+        CcuInsHandle newInsHandle = 0;
+        CcuResult createInsRet = HcommCcuInsCreate(&finalReqDesc, 1, &newInsHandle);
+        HcommCcuInsResDescDestroy(finalReqDesc);
+        if (createInsRet == CCU_E_UNAVAIL) {
+            HCCL_WARNING("[HcclGetCcuKernelDynamic] HcommCcuInsCreate unavailable, try to fallback.");
+            return HCCL_E_UNAVAIL;
+        } else if (createInsRet != CCU_SUCCESS) {
+            HCCL_ERROR("[HcclGetCcuKernelDynamic] HcommCcuInsCreate failed: ccuRet -> %d", createInsRet);
+            return ConvertCcuToHccl(createInsRet);
+        }
+
+        HcclResult assignRet = HcclCommAssignCcuIns(comm, newInsHandle);
+        if (assignRet != HCCL_SUCCESS) {
+            HCCL_ERROR("[HcclGetCcuKernelDynamic] HcclCommAssignCcuIns failed: ret -> %d", assignRet);
+            HcommCcuInsDestroy(newInsHandle);
+            return assignRet;
+        }
+
+        finalRet = RegisterCcuKernels(newInsHandle, resRequest, resCtxHost);
+    }
+    return finalRet;
+}
+
+HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
+                          std::unique_ptr<AlgResourceCtxSerializable>& resCtxHost)
+{
+    // 新接口可用时走动态资源申请新流程（首算子按需申请、后续算子复用校验）
+    if (IsCcuDynamicResApiSupported()) {
+        return HcclGetCcuKernelDynamic(comm, resRequest, resCtxHost);
+    }
+
+    // 兼容旧 hcomm 包：回退到原流程（通信域粒度提前分配，此处直接 query 已绑定的 insHandle）
+    CcuInsHandle insHandle{0};
+    uint32_t insNum = 0;
+    CHK_RET(HcclCommQueryCcuIns(comm, &insHandle, &insNum));
+    CHK_PRT_RET(insNum != 1, HCCL_ERROR("[HcclGetCcuKernel] HcclCommQueryCcuIns fail! insNum is [%u]", insNum),
+                HCCL_E_INTERNAL);
+    return RegisterCcuKernels(insHandle, resRequest, resCtxHost);
 }
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
 
