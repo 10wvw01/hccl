@@ -25,17 +25,9 @@ static constexpr uint32_t opExpansionModeCcuMs = 4;
 
 ExecuteSelector::ExecuteSelector()
 {
-    // 静态变量初始化在 .so 中可能被链接器优化掉，此处用懒加载确保 selector 已注册
-    static bool initOnce = []() {
-        SelectorRegistry::Global()->RegisterByOpType(
-            HcclCMDType::HCCL_CMD_ALLGATHER, 18, new AllGatherAutoSelector());
-        return true;
-    }();
-    (void)initOnce;
 }
 
-HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* topoInfo,
-                                HcclAlgorithm &alg) const
+HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails *topoInfo, HcclAlgorithm &alg) const
 {
     HCCL_DEBUG("[Algo][Selector] Run.");
     std::map<u32, AutoSelectorBase *> selectors = SelectorRegistry::Global()->GetAllSelectors();
@@ -46,9 +38,8 @@ HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* t
             HCCL_ERROR("[Algo][Selector] CCU selector is not registried.");
             return HcclResult::HCCL_E_NOT_SUPPORT;
         }
-        if(iter->second->Select(opParam, topoInfo, alg) == SelectorStatus::MATCH) {
-            HCCL_INFO("[Algo][Selector] The ccu selector[priority of %u] is matched.",
-                iter->first);
+        if (iter->second->Select(opParam, topoInfo, alg) == SelectorStatus::MATCH) {
+            HCCL_INFO("[Algo][Selector] The ccu selector[priority of %u] is matched.", iter->first);
             return HcclResult::HCCL_SUCCESS;
         }
         HCCL_ERROR("[Algo][Selector] CCU selector can not match for optype[%d].", opParam.opType);
@@ -60,8 +51,7 @@ HcclResult ExecuteSelector::Run(OpParam &opParam, TopoInfoWithNetLayerDetails* t
     for (auto iter : selectors) {
         HCCL_DEBUG("[Algo][Selector] The selector[priority of %llu] is running.", iter.first);
         if (iter.second->Select(opParam, topoInfo, alg) == SelectorStatus::MATCH) {
-            HCCL_INFO("[Algo][Selector] The selector[priority of %llu] is matched.",
-                      iter.first);
+            HCCL_INFO("[Algo][Selector] The selector[priority of %llu] is matched.", iter.first);
             return HcclResult::HCCL_SUCCESS;
         }
     }
@@ -94,11 +84,11 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
 {
     HcclOpExpansionMode configOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;
     bool useConfigOpExpansionMode = false;
-    auto& hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
+    auto &hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
     if (hcommFunction.dlHcclConfigGetInfo) {
         uint32_t infoLen = sizeof(HcclOpExpansionMode);
-        CHK_RET(hcommFunction.dlHcclConfigGetInfo(comm, HcclConfigType::HCCL_CONFIG_TYPE_OP_EXPANSION_MODE, infoLen,
-            &configOpExpansionMode));
+        CHK_RET(hcommFunction.dlHcclConfigGetInfo(
+            comm, HcclConfigType::HCCL_CONFIG_TYPE_OP_EXPANSION_MODE, infoLen, &configOpExpansionMode));
         finalMode = configOpExpansionMode;
         useConfigOpExpansionMode = true;
     } else {
@@ -109,11 +99,11 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
     // A5仅通过HcclConfigGetInfo获取展开模式，其他型号保留环境变量方式
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
+#ifdef MACRO_DEV_TYPE_NEW
     if (deviceType != DevType::DEV_TYPE_950 || !useConfigOpExpansionMode) {
-    #else
+#else
     if (deviceType != DevType::DEV_TYPE_910_95 || !useConfigOpExpansionMode) {
-    #endif
+#endif
         if (GetExternalInputHcclAicpuUnfold() == true) {
             finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU;
         } else if (GetExternalInputHcclAivOnlyMode() == true) {
@@ -126,7 +116,8 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
             finalMode = static_cast<HcclOpExpansionMode>(opExpansionModeCcuSched);
         }
         if (useConfigOpExpansionMode && configOpExpansionMode != finalMode) {
-            HCCL_DEBUG("[DecideHcclOpExpansionMode] configOpExpansionMode: %d, environment mode: %d, conflict, use environment mode.",
+            HCCL_DEBUG("[DecideHcclOpExpansionMode] configOpExpansionMode: %d, environment mode: %d, conflict, use "
+                       "environment mode.",
                 configOpExpansionMode, finalMode);
         }
     }
@@ -177,10 +168,10 @@ HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode)
     return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
-    HcclAlgorithm &alg)
+HcclResult Selector(
+    HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, HcclAlgorithm &alg)
 {
-    //判断通信域状态
+    // 判断通信域状态
     HcclCommStatus commStatus = HCCL_COMM_STATUS_INVALID;
     if (HcommIsSupportHcclCommGetStatus()) {
         CHK_RET(HcclCommGetStatus(param.commName, &commStatus));
@@ -203,7 +194,8 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     CHK_RET(collAlgSelector->Run(param, topoInfo.get(), alg));
     // CHK_RET(SetCommEngine(param));
     // AIV_ONLY 模式下禁止回退到非 AIV 引擎，未选中 AIV 时直接返回不支持。
-    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY && param.engine != CommEngine::COMM_ENGINE_AIV) {
+    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY
+        && param.engine != CommEngine::COMM_ENGINE_AIV) {
         HCCL_ERROR("[HcclExecOp] opType[%d] currently do not select aiv mode, aiv only not support.",
             static_cast<int>(param.opType));
         return HCCL_E_NOT_SUPPORT;
