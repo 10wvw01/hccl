@@ -294,7 +294,7 @@ void CcuTempScatterOmniPipeMesh1DMem2Mem::BuildSliceStrideVec(const StepSliceInf
         return;
     }
     uint64_t originIndex = 0;
-    sliceSize = stepSliceInfo.stepSliceSize[myRank_ / templateRankSize_][rpt];
+    
     for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
         if (ridx == subCommRootId_) {
             outputOmniSliceStrideVec.push_back(0);
