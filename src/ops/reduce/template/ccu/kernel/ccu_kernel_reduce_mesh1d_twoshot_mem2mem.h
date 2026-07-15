@@ -55,7 +55,7 @@ struct ReduceMesh1DTwoShotMem2MemContext: CcuKernelCtxBase {
 
     ccu::LocalAddr myInput;
     ccu::LocalAddr myOutput;
-    ccu::RemoteAddr remoteInput;
+    std::vector<ccu::RemoteAddr> remoteInput;
     ccu::RemoteAddr remoteOutput;
 
     ccu::Variable sliceSize;
