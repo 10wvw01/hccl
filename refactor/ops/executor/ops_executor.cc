@@ -252,10 +252,8 @@ inline void OpsExecutor::UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const 
     }
 }
 
-HcclResult OpsExecutor::CalcRes(
-    HcclComm comm, AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
+HcclResult OpsExecutor::CalcRes(HcclComm comm, AlgResourceRequest &resourceRequest)
 {
-    algHierarchyInfo_ = algHierarchyInfo;
     auto topoLevelNum = algHierarchyInfo_.infos.size();
     maxSlaveThreadNum_.assign(topoLevelNum, 0);
     maxNotifyNumOnMainThread_.assign(topoLevelNum, 0);
