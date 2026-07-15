@@ -24,7 +24,6 @@
 #include "kernel_launch.h"
 #include "hcomm_diag_dl.h"
 #include "hcomm_device_profiling_dl.h"
-#include <unordered_map>
 #include <shared_mutex>
 #include <atomic>
 #include "hccl_device_comm_dl.h"
@@ -58,26 +57,25 @@ namespace {
 
             //获得缓存项，返回共享所有权保证使用期间对象稳定存活
             std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag) {
-                std::shared_lock<std::shared_timed_mutex> lock(mutex_);
                 auto it = cache_.find(algTag);
                 return it != cache_.end() ? it->second : nullptr;
             }
 
             //缓存算法
             void Put(const std::string& algTag, const AlgResourceCtxSerializable& value) {
-                std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+                std::unique_lock<std::shared_mutex> lock(mutex_);
                 cache_[algTag] = std::make_shared<AlgResourceCtxSerializable>(value);
             }
 
             //移除特定算法
             bool Remove(const std::string& algTag) {
-                std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+                std::unique_lock<std::shared_mutex> lock(mutex_);
                 return cache_.erase(algTag) > 0;
             }
 
             //清空所有缓存项
             void Clear() {
-                std::unique_lock<std::shared_timed_mutex> lock(mutex_);
+                std::unique_lock<std::shared_mutex> lock(mutex_);
                 cache_.clear();
             }
 
@@ -85,15 +83,14 @@ namespace {
             const CacheStats& GetStats() const { return stats_; }
 
             size_t GetCacheSize() const {
-                std::shared_lock<std::shared_timed_mutex> lock(mutex_);
                 return cache_.size();
             }
 
         private:
             std::string commName_;
-            std::unordered_map<std::string, std::shared_ptr<const AlgResourceCtxSerializable>> cache_;
+            std::map<std::string, std::shared_ptr<const AlgResourceCtxSerializable>> cache_;
             CacheStats stats_;
-            mutable std::shared_timed_mutex mutex_;
+            mutable std::shared_mutex mutex_;
      };
 
     //通信域缓存管理器
@@ -131,13 +128,13 @@ namespace {
 
             //释放通信域缓存
             bool ReleaseComm(const std::string& commName) {
-                std::unique_lock<std::shared_timed_mutex> lock(mapMutex_);
+                std::unique_lock<std::shared_mutex> lock(mapMutex_);
                 return commCaches_.erase(commName) > 0;
             }
 
             //获得通信域统计信息
             bool GetCommStats(const std::string& commName, CacheStats& outStats, size_t& outCacheSize) const {
-                std::shared_lock<std::shared_timed_mutex> lock(mapMutex_);
+                std::shared_lock<std::shared_mutex> lock(mapMutex_);
                 auto it = commCaches_.find(commName);
                 if (it != commCaches_.end()) {
                     outStats.hits = it->second.GetStats().hits.load();
@@ -150,7 +147,7 @@ namespace {
 
             //获得全局统计信息
             void GetGlobalStats(size_t& totalCommDomains, size_t& totalcacheEntries, uint64_t& totalHits, uint64_t& totalMisses) const {
-                std::shared_lock<std::shared_timed_mutex> lock(mapMutex_);
+                std::shared_lock<std::shared_mutex> lock(mapMutex_);
                 totalCommDomains = commCaches_.size();
                 totalcacheEntries = 0;
                 totalHits = 0;
@@ -166,7 +163,7 @@ namespace {
 
             //清空所有缓存
             void ClearAll() {
-                std::unique_lock<std::shared_timed_mutex> lock(mapMutex_);
+                std::unique_lock<std::shared_mutex> lock(mapMutex_);
                 commCaches_.clear();
             }
 
@@ -184,36 +181,30 @@ namespace {
         private:
             //获取或创建通信域缓存
             CommDomainCache* GetOrCreateComm(const std::string& commName) {
-                //先尝试读锁快速寻找
                 {
-                    std::shared_lock<std::shared_timed_mutex> lock(mapMutex_);
+                    std::shared_lock<std::shared_mutex> lock(mapMutex_);
                     auto it = commCaches_.find(commName);
                     if (it != commCaches_.end()) {
                         return &it->second;
                     }
                 }
 
-                //未找到，获取写锁创建
-                {
-                    std::unique_lock<std::shared_timed_mutex> lock(mapMutex_);
-                    //双重检查
-                    auto it = commCaches_.find(commName);
-                    if (it != commCaches_.end()) {
-                        return &it->second;
-                    }
-
-                    //创建新的通信域缓存
-                    auto result = commCaches_.emplace(
-                        std::piecewise_construct,
-                        std::forward_as_tuple(commName),
-                        std::forward_as_tuple(commName)
-                    );
-                    return &result.first->second;
+                std::unique_lock<std::shared_mutex> lock(mapMutex_);
+                auto it = commCaches_.find(commName);
+                if (it != commCaches_.end()) {
+                    return &it->second;
                 }
+
+                auto result = commCaches_.emplace(
+                    std::piecewise_construct,
+                    std::forward_as_tuple(commName),
+                    std::forward_as_tuple(commName)
+                );
+                return &result.first->second;
             }
 
-            mutable std::shared_timed_mutex mapMutex_;
-            std::unordered_map<std::string, CommDomainCache> commCaches_;
+            mutable std::shared_mutex mapMutex_;
+            std::map<std::string, CommDomainCache> commCaches_;
     };
 
     //全局缓存管理器实例
