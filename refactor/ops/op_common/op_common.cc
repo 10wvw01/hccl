@@ -44,7 +44,7 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get(), algHierarchyInfo));
 
     AlgResourceRequest resReq;
-    CHK_RET(executor->CalcRes(algHierarchyInfo, resReq));
+    CHK_RET(executor->CalcRes(comm, algHierarchyInfo, resReq));
 
     CHK_RET(engine->CreateRes(comm, param, alg, algHierarchyInfo, resReq));
 

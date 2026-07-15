@@ -142,11 +142,6 @@ HcclResult HcclLaunchAicpuKernel(const OpParam &param, AlgResourceCtxSerializabl
 
     // 6. 执行算法编排：先调用 CalcRes（传入 resCtx.algHierarchyInfo）刷新 executor 内部资源计算
     //    （algHierarchyInfo_、maxSlaveThreadNum_ 等），再调用 Orchestrate 驱动算法编排
-    AlgResourceRequest resReq;
-    if (executor->CalcRes(resCtx.algHierarchyInfo, resReq) != HCCL_SUCCESS) {
-        HCCL_ERROR("CalcRes failed for alg:%s", param.algName);
-        return HCCL_E_INTERNAL;
-    }
     if (executor->Orchestrate(resCtx) != HCCL_SUCCESS) {
         HCCL_ERROR("orchestrate failed for alg:%s", param.algName);
         return HCCL_E_INTERNAL;

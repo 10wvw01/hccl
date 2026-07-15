@@ -65,13 +65,13 @@ public:
     HcclResult CalcAlgHierarchyInfo(
         HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo);
 
-    HcclResult CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
+    HcclResult CalcRes(HcclComm comm, AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resReq);
 
     HcclResult Orchestrate(AlgResourceCtxSerializable &resCtx);
 
 private:
-    HcclResult CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
-    HcclResult CalcTemplateRes(const TemplateExecDesc &templateExeDes);
+    HcclResult CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc, u32 &subCommMask);
+    HcclResult CalcTemplateRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
@@ -90,8 +90,6 @@ private:
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
 
-    // 通信域指针
-    HcclComm hcclComm_;
     // 引擎指针，由外部通过 SetEngine 注入
     BaseEngine *engine_ = nullptr;
     // algo

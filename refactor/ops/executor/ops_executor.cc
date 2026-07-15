@@ -31,11 +31,9 @@ OpsExecutor::~OpsExecutor()
 HcclResult OpsExecutor::CalcAlgHierarchyInfo(
     HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
-    // 储存通信域指针
-    hcclComm_ = comm;
     myRank_ = topoInfo->userRank;
     // TODO：topoMatch暂不修改参数
-    algo_.topoMatch->MatchTopo(hcclComm_, topoInfo, algHierarchyInfo);
+    algo_.topoMatch->MatchTopo(comm, topoInfo, algHierarchyInfo);
     algHierarchyInfo_ = algHierarchyInfo;
     // 算rankSize
     u32 topoLevelNum = algHierarchyInfo_.infos.size();
@@ -199,7 +197,7 @@ HcclResult OpsExecutor::PostSyncBySubCommMask(const AlgoExecDesc &execDesc)
 // notifyNumPerThread[maxIntra]             = inter NotifyNumOnMainThread + 1
 // notifyNumPerThread[maxIntra+1..maxIntra+maxIntra]= inter notifyNumPerThread[...]
 
-HcclResult OpsExecutor::CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask)
+HcclResult OpsExecutor::CalcResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc, u32 &subCommMask)
 {
     size_t childrenSize = algoExecDesc.children.size();
     u32 localSubCommMask = 0;
@@ -209,11 +207,11 @@ HcclResult OpsExecutor::CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCom
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
             childrenSubCommMask |= (1U << templateExeDes->subCommIndex);
-            CHK_RET(CalcTemplateRes(*templateExeDes));
+            CHK_RET(CalcTemplateRes(comm, *templateExeDes));
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-            CHK_RET(CalcResRecursion(**algoDescPtr, childrenSubCommMask));
+            CHK_RET(CalcResRecursion(comm, **algoDescPtr, childrenSubCommMask));
         } else {
             return HCCL_E_INTERNAL;
         }
@@ -225,13 +223,13 @@ HcclResult OpsExecutor::CalcResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCom
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::CalcTemplateRes(const TemplateExecDesc &templateExeDes)
+HcclResult OpsExecutor::CalcTemplateRes(HcclComm comm, const TemplateExecDesc &templateExeDes)
 {
     int subCommIndex = templateExeDes.subCommIndex;
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes.templateDesc, templateRanks, myRank_);
     AlgResourceRequest tempRequest;
-    CHK_RET(baseTemplate->CalcRes(hcclComm_, algo_.engineType, tempRequest));
+    CHK_RET(baseTemplate->CalcRes(comm, algo_.engineType, tempRequest));
     maxSlaveThreadNum_.at(subCommIndex) = std::max(maxSlaveThreadNum_.at(subCommIndex), tempRequest.slaveThreadNum);
     maxNotifyNumOnMainThread_.at(subCommIndex)
         = std::max(maxNotifyNumOnMainThread_.at(subCommIndex), tempRequest.notifyNumOnMainThread);
@@ -254,7 +252,8 @@ inline void OpsExecutor::UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const 
     }
 }
 
-HcclResult OpsExecutor::CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
+HcclResult OpsExecutor::CalcRes(
+    HcclComm comm, AlgHierarchyInfoForAllLevel &algHierarchyInfo, AlgResourceRequest &resourceRequest)
 {
     algHierarchyInfo_ = algHierarchyInfo;
     auto topoLevelNum = algHierarchyInfo_.infos.size();
@@ -263,7 +262,7 @@ HcclResult OpsExecutor::CalcRes(AlgHierarchyInfoForAllLevel &algHierarchyInfo, A
     maxNotifyNumPerThread_.assign(topoLevelNum, 0);
     requestChannels_.assign(topoLevelNum, {});
     u32 rootSubCommMask = 0;
-    CHK_RET(CalcResRecursion(algo_.algoExecDesc, rootSubCommMask));
+    CHK_RET(CalcResRecursion(comm, algo_.algoExecDesc, rootSubCommMask));
 
     resourceRequest.notifyNumOnMainThread = topoLevelNum;
     resourceRequest.slaveThreadNum = 0;
