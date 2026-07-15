@@ -120,3 +120,9 @@ TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_005)
 {
     RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
 }
+
+// FP16数据类型测试
+TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_fp16_006)
+{
+    RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 10 * 1024 * 1024, HCCL_DATA_TYPE_FP16);
+}
