@@ -124,8 +124,8 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     // kernel侧需要先调用GetRes函数初始化成员变量execDescSubCommMaskMap_和maxSlaveThreadNum_等
     GetRes(resourceRequest);
     if (topoLevelNum == 1) {
-        //如果只有一个通信域就没有mainThread了
-        subThreadEnd = subThreadBegin + maxSlaveThreadNum_.at(0);
+        // 单通信域时主线程就是工作线程，+1 保证模板至少有 1 条线程可用
+        subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(0);
         subThreads_.at(0).assign(subThreadBegin, subThreadEnd);
     } else {
         for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
