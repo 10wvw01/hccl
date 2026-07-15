@@ -12,6 +12,7 @@
 #include "hccl_algorithm.h"
 #include "template/base_template.h"
 #include "template/primitives/mesh_primitives.h"
+#include "template/primitives/nhr_primitives.h"
 
 namespace ops_hccl {
 namespace testing {
@@ -75,6 +76,8 @@ protected:
     void *localCclMem_ = nullptr;
     uintptr_t remoteCclMemBase_ = 0;
 };
+
+class NhrAllGatherTest : public MeshAllGatherTest {};
 
 } // namespace testing
 } // namespace ops_hccl

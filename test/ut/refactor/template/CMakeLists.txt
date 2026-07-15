@@ -17,6 +17,7 @@ set(UT_PRIMITIVES_SRC
     # CHK_* and HCCL_ERROR depend on log symbols in production. Keep a tiny UT stub here.
     ut_stubs.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/mesh_primitives.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/nhr_primitives.cc
 )
 
 add_executable(hccl_ut_refactor_template_primitives ${UT_PRIMITIVES_SRC})
