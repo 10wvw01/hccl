@@ -18,7 +18,7 @@ case "${ut_type}" in
     ut)
         bash build.sh --ut --cann_3rd_lib_path=/home/jenkins/opensource
         ret=$?
-        coverage_save="true"
+        coverage_save="false"
         ;;
     st)
         if [ "${TARGET_BRANCH}x" != "masterx" ]; then
@@ -33,7 +33,7 @@ case "${ut_type}" in
         source /home/jenkins/Ascend/cann/bin/setenv.bash
         bash build.sh --st
         ret=$?
-        coverage_save="true"
+        coverage_save="false"
         ;;
 esac
 

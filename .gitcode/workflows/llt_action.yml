@@ -17,8 +17,8 @@ on:
         type: string      
 
 jobs:
-  JOB_ut:
-    name: ut/st
+  JOB_llt:
+    name: llt
     select: selected_by_default
     needs: []
     steps:
@@ -41,8 +41,8 @@ jobs:
             ${{ env.obs_path }}/ut.sh
           path: ${{ steps.process_checkout.outputs.path }}
       -
-        name: ut_st
-        identifier: ut_st
+        name: llt
+        identifier: llt
         run: |
           export WORKSPACE=${{ steps.process_checkout.outputs.path }}
           cd ${{ steps.process_checkout.outputs.path }}

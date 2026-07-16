@@ -228,7 +228,7 @@ stages:
           ut_type: 'st'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
-          image_version: ${{ jobs.JOB_image.outputs.ST_Test }}
+          image_version: ${{ jobs.JOB_image.outputs.ST_Test  }}
     pre:
     - type: auto
     fail-fast: false
