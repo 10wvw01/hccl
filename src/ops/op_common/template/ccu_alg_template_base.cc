@@ -11,6 +11,8 @@
 #include "ccu_alg_template_base.h"
 #include "log.h"
 #include "ccu_res_dl.h"
+#include <iterator>
+#include <utility>
 
 namespace ops_hccl {
 CcuAlgTemplateBase::CcuAlgTemplateBase()
@@ -293,6 +295,56 @@ HcclResult CcuAlgTemplateBase::SplitChannelsByDie(HcclComm comm, uint32_t myRank
         }
     }
     return HCCL_SUCCESS;
+}
+
+HcclResult CcuAlgTemplateBase::PartitionChannelsFor2Die(
+    const std::map<uint32_t, std::vector<HcclChannelDesc>>& singleChByDie,
+    const std::map<uint32_t, std::vector<HcclChannelDesc>>& multiChByDie,
+    bool is2Plus6, uint32_t myRank, uint32_t& kernelCount, uint32_t& fullmeshDieId,
+    std::array<std::vector<HcclChannelDesc>, MAX_KERNEL_NUM_2DIE>& kernelChannels,
+    std::array<std::vector<u32>, MAX_KERNEL_NUM_2DIE>& kernelRankGroup,
+    const std::string& tag)
+{
+    auto fillKernel = [&kernelChannels, &kernelRankGroup](uint32_t kernelIdx,
+        const std::vector<HcclChannelDesc>& channels) {
+        for (const auto& ch : channels) {
+            kernelChannels[kernelIdx].emplace_back(ch);
+            kernelRankGroup[kernelIdx].push_back(ch.remoteRank);
+        }
+    };
+
+    if (is2Plus6) {
+        kernelCount = MAX_KERNEL_NUM_2DIE;
+        if (!singleChByDie.empty()) {
+            fullmeshDieId = singleChByDie.begin()->first;
+            fillKernel(KERNEL_FULLMESH, singleChByDie.at(fullmeshDieId));
+        }
+        kernelRankGroup[KERNEL_FULLMESH].push_back(myRank);
+        for (auto& pair : multiChByDie) {
+            fillKernel(pair.first == fullmeshDieId ? KERNEL_CLOS_MINOR : KERNEL_CLOS_MAJOR, pair.second);
+        }
+    } else {
+        if (singleChByDie.size() < 2) {
+            HCCL_ERROR("[%s][PartitionChannels] singleChByDie size[%zu] is less than 2, "
+                "cannot partition channels for non-2Plus6 topology.", tag.c_str(), singleChByDie.size());
+            return HcclResult::HCCL_E_INTERNAL;
+        }
+        kernelCount = MAX_KERNEL_NUM_2DIE - 1;
+        auto it0 = singleChByDie.begin();
+        auto it1 = std::next(it0);
+        if (it0->second.size() > it1->second.size()) {
+            std::swap(it0, it1);
+        }
+        fillKernel(KERNEL_FULLMESH, it0->second);
+        kernelRankGroup[KERNEL_FULLMESH].push_back(myRank);
+        fillKernel(KERNEL_CLOS_MAJOR, it1->second);
+    }
+
+    HCCL_INFO("[%s][PartitionChannels] Rank[%d], is2Plus6[%d], kernelCount[%u], "
+        "fullmeshRankGroup[%zu], closMajorRankGroup[%zu], closMinorRankGroup[%zu].",
+        tag.c_str(), myRank, is2Plus6, kernelCount, kernelRankGroup[KERNEL_FULLMESH].size(),
+        kernelRankGroup[KERNEL_CLOS_MAJOR].size(), kernelRankGroup[KERNEL_CLOS_MINOR].size());
+    return HcclResult::HCCL_SUCCESS;
 }
 
 } // namespace ops_hccl

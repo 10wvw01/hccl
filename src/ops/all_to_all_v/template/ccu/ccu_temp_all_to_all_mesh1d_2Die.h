@@ -16,10 +16,7 @@
 #include "ccu_kernel_alg_base.h"
 
 namespace ops_hccl {
-constexpr u32 MAX_KERNEL_NUM_2DIE = 3;
-constexpr u32 KERNEL_FULLMESH = 0;
-constexpr u32 KERNEL_CLOS_MAJOR = 1;
-constexpr u32 KERNEL_CLOS_MINOR = 2;
+
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
@@ -51,8 +48,8 @@ private:
     uint32_t fullmeshDieId_ = 0;
     double dieSplitRatio_ = 1.0;
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
-    std::vector<HcclChannelDesc> kernelChannels_[MAX_KERNEL_NUM_2DIE];
-    std::vector<RankId> kernelRankGroup_[MAX_KERNEL_NUM_2DIE];
+    std::array<std::vector<HcclChannelDesc>, MAX_KERNEL_NUM_2DIE> kernelChannels_;
+    std::array<std::vector<RankId>, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;
     std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
     
 };

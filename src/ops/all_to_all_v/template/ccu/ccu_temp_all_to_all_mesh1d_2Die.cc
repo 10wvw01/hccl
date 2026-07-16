@@ -95,42 +95,8 @@ HcclResult CcuTempAllToAllMesh1D2Die::PartitionChannels(HcclComm comm, std::map<
 {
     std::map<uint32_t, std::vector<HcclChannelDesc>> singleChByDie, multiChByDie;
     CHK_RET(SplitChannelsByDie(comm, myRank_, rankIdToChannelDesc, singleChByDie, multiChByDie, is2Plus6_));
-    auto fillKernel = [this](uint32_t kernelIdx, const std::vector<HcclChannelDesc>& channels) {
-        for (const auto& ch : channels) {
-            kernelChannels_[kernelIdx].emplace_back(ch);
-            kernelRankGroup_[kernelIdx].push_back(ch.remoteRank);
-        }
-    };
-    if (is2Plus6_) {
-        kernelCount_ = MAX_KERNEL_NUM_2DIE;
-        if (!singleChByDie.empty()) {
-            fullmeshDieId_ = singleChByDie.begin()->first;
-            fillKernel(KERNEL_FULLMESH, singleChByDie[fullmeshDieId_]);
-        }
-        kernelRankGroup_[KERNEL_FULLMESH].push_back(myRank_);
-        for (auto& pair : multiChByDie) {
-            fillKernel(pair.first == fullmeshDieId_ ? KERNEL_CLOS_MINOR : KERNEL_CLOS_MAJOR, pair.second);
-        }
-    } else {
-        if (singleChByDie.size() < 2) {
-            HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][PartitionChannels] singleChByDie size[%zu] is less than 2, "
-                "cannot partition channels for non-2Plus6 topology.", singleChByDie.size());
-            return HcclResult::HCCL_E_INTERNAL;
-        }
-        kernelCount_ = MAX_KERNEL_NUM_2DIE - 1;
-        auto it0 = singleChByDie.begin();
-        auto it1 = std::next(it0);
-        if (it0->second.size() > it1->second.size()) {
-            std::swap(it0, it1);
-        }
-        fillKernel(KERNEL_FULLMESH, it0->second);
-        kernelRankGroup_[KERNEL_FULLMESH].push_back(myRank_);
-        fillKernel(KERNEL_CLOS_MAJOR, it1->second);
-    }
-    HCCL_INFO("[CcuTempAllToAllMesh1D2Die][PartitionChannels] Rank[%d], is2Plus6[%d], kernelCount[%u], "
-        "fullmeshRankGroup[%zu], closMajorRankGroup[%zu], closMinorRankGroup[%zu].",
-        myRank_, is2Plus6_, kernelCount_, kernelRankGroup_[KERNEL_FULLMESH].size(),
-        kernelRankGroup_[KERNEL_CLOS_MAJOR].size(), kernelRankGroup_[KERNEL_CLOS_MINOR].size());
+    CHK_RET(PartitionChannelsFor2Die(singleChByDie, multiChByDie, is2Plus6_, myRank_,
+        kernelCount_, fullmeshDieId_, kernelChannels_, kernelRankGroup_, "CcuTempAllToAllMesh1D2Die"));
     return HcclResult::HCCL_SUCCESS;
 }
 

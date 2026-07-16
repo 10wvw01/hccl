@@ -22,10 +22,6 @@ namespace ops_hccl {
 using RankId = u32;
 using RankGroup = std::vector<RankId>;
 
-constexpr uint32_t MAX_KERNEL_NUM_2DIE = 3;
-constexpr uint32_t KERNEL_FULLMESH = 0;
-constexpr uint32_t KERNEL_CLOS_MAJOR = 1;
-constexpr uint32_t KERNEL_CLOS_MINOR = 2;
 struct Mesh2DieCacheCtx {
     uint32_t dieNum;
     bool is2Plus6;
@@ -147,7 +143,7 @@ private:
     uint32_t fullmeshDieId_ = 0;
     double dieSplitRatio_ = 1.0;
 
-    std::vector<std::vector<HcclChannelDesc>> kernelChannels_{MAX_KERNEL_NUM_2DIE};
+    std::array<std::vector<HcclChannelDesc>, MAX_KERNEL_NUM_2DIE> kernelChannels_;
     std::array<RankGroup, MAX_KERNEL_NUM_2DIE> kernelRankGroup_;
     std::array<bool, MAX_KERNEL_NUM_2DIE> kernelWithMyRank_ = {true, false, false};
     std::array<uint32_t, MAX_KERNEL_NUM_2DIE> kernelType_ = {KERNEL_FULLMESH, KERNEL_CLOS_MAJOR, KERNEL_CLOS_MINOR};
