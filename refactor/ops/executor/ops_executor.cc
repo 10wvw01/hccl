@@ -66,7 +66,11 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
             processCount = (remainder == 0) ? maxProcCntPerLoop : remainder;
         }
         // 由定义可知只有broadcast/reduce/allreduce会在执行器层面产生尾块
-        u64 tailCount = (loopIdx == loopTimes - 1) ? (processCount % rankSize_) : 0;
+        u64 tailCount = 0;
+        if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_BROADCAST || algo_.hcclCmdType == HcclCMDType::HCCL_CMD_REDUCE
+            || algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLREDUCE) {
+            tailCount = (loopIdx == loopTimes - 1) ? (processCount % rankSize_) : 0;
+        }
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
         HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
