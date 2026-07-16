@@ -8,29 +8,19 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef TOPO_MATCH_MESH
-#define TOPO_MATCH_MESH
-#include <string>
-#include <vector>
-#include <map>
-#include <hccl/hccl_types.h>
-#include "alg_param.h"
-#include "topo_match_base.h"
+#include <pthread.h>
+#include "hcomm_dlsym.h"
 
 namespace ops_hccl {
+void CompatSymInit(void)
+{
+    HcommDlInit(); // 增加强制依赖
+}
 
-class TopoMatch1D : public TopoMatchBase {
-public:
-    explicit TopoMatch1D();
-    ~TopoMatch1D() override;
+__attribute__((constructor)) void InitCompat()
+{
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, CompatSymInit);
+}
 
-    std::string Describe() const override
-    {
-        return "Topo Match for Mesh1D Algorithm, supports 1-3 level topologies (CURRENTLY only 910_95 is supported).";
-    }
-
-    HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
-};
-} // namespace Hccl
-
-#endif // !HCCLV2_TOPO_MATCH_MESH
+}

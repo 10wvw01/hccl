@@ -8,29 +8,25 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef TOPO_MATCH_MESH
-#define TOPO_MATCH_MESH
-#include <string>
-#include <vector>
-#include <map>
-#include <hccl/hccl_types.h>
+#ifndef OPS_HCCL_REFACTOR_SELECTOR_EXECUTE_SELECTOR
+#define OPS_HCCL_REFACTOR_SELECTOR_EXECUTE_SELECTOR
+
 #include "alg_param.h"
-#include "topo_match_base.h"
+#include "auto_selector_base.h"
 
 namespace ops_hccl {
-
-class TopoMatch1D : public TopoMatchBase {
+class ExecuteSelector {
 public:
-    explicit TopoMatch1D();
-    ~TopoMatch1D() override;
+    ExecuteSelector();
 
-    std::string Describe() const override
-    {
-        return "Topo Match for Mesh1D Algorithm, supports 1-3 level topologies (CURRENTLY only 910_95 is supported).";
-    }
-
-    HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
+    HcclResult  Run(OpParam &opParam, TopoInfoWithNetLayerDetails* topoInfo, HcclAlgorithm &alg) const;
 };
-} // namespace Hccl
 
-#endif // !HCCLV2_TOPO_MATCH_MESH
+HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
+                    HcclAlgorithm &alg);
+
+HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param);
+HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMod);
+HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode);
+} // namespace ops_hccl
+#endif

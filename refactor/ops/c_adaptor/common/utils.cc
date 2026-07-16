@@ -8,29 +8,31 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef TOPO_MATCH_MESH
-#define TOPO_MATCH_MESH
-#include <string>
-#include <vector>
-#include <map>
-#include <hccl/hccl_types.h>
-#include "alg_param.h"
-#include "topo_match_base.h"
+#include "utils.h"
 
 namespace ops_hccl {
 
-class TopoMatch1D : public TopoMatchBase {
-public:
-    explicit TopoMatch1D();
-    ~TopoMatch1D() override;
-
-    std::string Describe() const override
-    {
-        return "Topo Match for Mesh1D Algorithm, supports 1-3 level topologies (CURRENTLY only 910_95 is supported).";
+HcclMem HcclMemRange(HcclMem inMem, u64 offset, u64 size)
+{
+    HcclMem outMem;
+    if (inMem.addr == nullptr) {
+        HCCL_ERROR("HcclMem addr is null");
+        return outMem;
     }
+    if (offset + size > inMem.size){
+        HCCL_ERROR("HcclMem request range[%llu] is out of size[%llu]", offset + size, inMem.size);
+        return outMem;
+    }
+    outMem.type = inMem.type;
+    outMem.addr = static_cast<void *>(static_cast<u8 *>(inMem.addr) + offset);
+    outMem.size = size;
+    return outMem;
+}
 
-    HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
-};
-} // namespace Hccl
-
-#endif // !HCCLV2_TOPO_MATCH_MESH
+u32 CalcCeilLog2(const u32 num)
+{
+    u32 ans = 0;
+    for (u32 tmp = num - 1; tmp != 0; tmp >>= 1, ++ans) {}
+    return ans;
+}
+}

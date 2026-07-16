@@ -8,29 +8,21 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef TOPO_MATCH_MESH
-#define TOPO_MATCH_MESH
-#include <string>
-#include <vector>
-#include <map>
-#include <hccl/hccl_types.h>
-#include "alg_param.h"
-#include "topo_match_base.h"
+#ifndef OPS_HCCL_SRC_OPS_CHANNEL_REQUEST
+#define OPS_HCCL_SRC_OPS_CHANNEL_REQUEST
+
+#include <set>
+#include "hccl/base.h"
 
 namespace ops_hccl {
 
-class TopoMatch1D : public TopoMatchBase {
-public:
-    explicit TopoMatch1D();
-    ~TopoMatch1D() override;
+constexpr u32 HCCL_RANK_SIZE_EQ_ONE = 1;
 
-    std::string Describe() const override
-    {
-        return "Topo Match for Mesh1D Algorithm, supports 1-3 level topologies (CURRENTLY only 910_95 is supported).";
-    }
+HcclResult CalcRingChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks);
+HcclResult CalcMeshChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks);
+HcclResult CalcNHRChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks);
+HcclResult CalcNBChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks);
+}
 
-    HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
-};
-} // namespace Hccl
 
-#endif // !HCCLV2_TOPO_MATCH_MESH
+#endif
