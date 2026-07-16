@@ -139,7 +139,7 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
         subThreads_.at(0).assign(subThreadBegin, subThreadEnd);
     } else {
         for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
-            subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+            subThreadBegin = (subCommIndex == 0 ? subThreadBegin + 1 : subThreadEnd);
             subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
             subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
         }
