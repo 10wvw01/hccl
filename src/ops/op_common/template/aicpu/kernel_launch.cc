@@ -277,7 +277,7 @@ inline HcclResult EnforceLaunchTask(const char *algTag)
 inline HcclResult OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable* resCtxPtr, ThreadHandle thread,
     std::string& algName)
 {
-    FUNCTION_TRACE;
+    // FUNCTION_TRACE;
 
     // RTSQ等待时间: 与算子展开无关, 但resCtx固定该设置不会再变更
     if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
@@ -483,7 +483,7 @@ extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
 
         if (enableCache) { // 使能aicpu task cache
-            MY_TIMER("HcclLaunchAicpuKernelInternal_step1");
+            // MY_TIMER("HcclLaunchAicpuKernelInternal_step1");
 
             // 注意: OpOrchestrate尚未调用, 首个NotifyWait与算子展开相关的task尚未生成, AicpuTsThread中一定无SQE
             // 因此, 无需通过强制下发SQE, 来避免cache miss下缓存算法无关的task 或 cache hit下task下发乱序
@@ -504,7 +504,7 @@ extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint
 
             // 查询aicpu task cache
             if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
-                MY_TIMER("HcommAicpuTsTaskCacheLookup");
+                // MY_TIMER("HcommAicpuTsTaskCacheLookup");
                 CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheLookup(cacheTag.c_str(), &isCacheHit)));
             }
             HCCL_INFO("[HcclLaunchAicpuKernel] isCacheHit[%d] for cacheTag[%s]", isCacheHit, cacheTag.c_str());
@@ -512,7 +512,7 @@ extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint
             if (!isCacheHit) { // cache miss
                 // 算子展开前, 通知aicpu task cache开始缓存task
                 if (HcommIsSupportHcommAicpuTsTaskCacheStart()) {
-                    MY_TIMER("HcommAicpuTsTaskCacheStart");
+                    // MY_TIMER("HcommAicpuTsTaskCacheStart");
                     CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheStart(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
                 }
 
@@ -531,14 +531,14 @@ extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint
 
                 // 首次缓存记录通信域与tag关系
                 {
-                    MY_TIMER("AddCommTagMap");
+                    // MY_TIMER("AddCommTagMap");
                     AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->hcclComm, cacheTag);
                 }
             } else { // cache hit
                 // 刷新并下发task
                 // TODO: param->opConfig.debugConfig应该在CollCommAicpu初始化时设置AicpuCacheUtils::g_hcclDebugConfig
                 if (HcommIsSupportHcommAicpuTsTaskCacheExecute()) {
-                    MY_TIMER("HcommAicpuTsTaskCacheExecute");
+                    // MY_TIMER("HcommAicpuTsTaskCacheExecute");
                     CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheExecute(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
                 }
             }
