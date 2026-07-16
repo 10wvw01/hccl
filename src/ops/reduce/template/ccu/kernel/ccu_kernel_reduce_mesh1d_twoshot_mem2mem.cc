@@ -45,7 +45,8 @@ static CcuResult InitResource(ReduceMesh1DTwoShotMem2MemContext &ctx)
     ctx.constVar1 = 1;
 
     if (arg->channelCount == 0) {
-        return CCU_SUCCESS;
+        HCCL_ERROR("[CcuKernelReduceMesh1DTwoShotMem2Mem] channels is empty!");
+        return CcuResult::CCU_E_INTERNAL;
     }
     HCCL_INFO("[CcuKernelReduceMesh1DTwoShotMem2Mem] channels.size: [%u]", arg->channelCount);
 
