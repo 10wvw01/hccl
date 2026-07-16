@@ -199,7 +199,7 @@ Developers can use the HCCL Test tool to test collective communication functiona
    ![hccltest_result](./figures/hccl_test_result.png)
 
    - `check_result` = success indicates that the communication operator executed successfully, and the AllReduce operator functions correctly.
-   - `aveg_time`: Execution time of the collective communication operator, in microseconds.
+   - `avg_time`: Execution time of the collective communication operator, in microseconds.
    - `alg_bandwidth`: Execution bandwidth of the collective communication operator, in GB/s.
    - `data_size`: Data volume on a single NPU participating in collective communication, in Bytes.
 
