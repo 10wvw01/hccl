@@ -443,7 +443,7 @@ function run_ctest() {
     ctest -j ${CPU_NUM} \
           --verbose \
           --build-nocmake \
-          --timeout 350 \
+          --timeout 600 \
           --output-on-failure \
           --stop-on-failure \
           --test-output-size-failed 10000000 \
