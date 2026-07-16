@@ -101,6 +101,13 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                             resReq1.notifyNumPerThread.begin(),
                                             resReq1.notifyNumPerThread.end());
+    HCCL_DEBUG("[InsV2AllToAllConcurrentExecutor][CalcRes] notifyNumOnMainThread=%u",
+               resourceRequest.notifyNumOnMainThread);
+    for (size_t i = 0; i < resourceRequest.notifyNumPerThread.size(); i++) {
+        HCCL_DEBUG("[InsV2AllToAllConcurrentExecutor][CalcRes] notifyNumPerThread[%zu]=%u",
+                   i, resourceRequest.notifyNumPerThread[i]);
+    }
+
 
     std::vector<HcclChannelDesc> channelDescs0, channelDescs1;
     CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo, subCommRanks0,
@@ -146,7 +153,22 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     // 给channels_和threads_赋值
     threads_ = resCtx.threads;
     if (param.engine == CommEngine::COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-        CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+        if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
+            CHK_PRT_RET(resCtx.channels.size() != CONST_1,
+                        HCCL_ERROR("[InsV2AllToAllConcurrentExecutor][Orchestrate] resCtx.channels.size[%zu] is not [%u]",
+                                   resCtx.channels.size(), CONST_1),
+                        HCCL_E_PARA);
+            remoteRankToChannelInfo_.resize(CONCURRENT_NUM);
+            size_t sizePerTemplate = resCtx.channels[0].size() / CONCURRENT_NUM;
+            for (size_t i = 0; i < resCtx.channels[0].size(); i++) {
+                auto &channel = resCtx.channels[0][i];
+                u32 remoteRank = channel.remoteRank;
+                u32 idx = (i < sizePerTemplate) ? CONST_0 : CONST_1;
+                remoteRankToChannelInfo_[idx][remoteRank].push_back(channel);
+            }
+        } else {
+            CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+        }
     }
 
     dataType_ = param.all2AllVDataDes.sendType;
@@ -165,15 +187,17 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::FillTemplateResource(
     const OpParam &param, const AlgResourceCtxSerializable& resCtx, TemplateResource& templateAlgRes, uint32_t index)
 {
-    templateAlgRes.threads = {resCtx.threads[index]};
-    templateAlgRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
-    if (param.engine == COMM_ENGINE_CCU) {
-        templateAlgRes.ccuKernels = {resCtx.ccuKernels[index]};
-    }
-    if (param.engine == COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
-        CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
+    if (param.engine == CommEngine::COMM_ENGINE_AICPU || param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+        // AICPU/AICPU_TS场景下threads按rankSize_对半分给两个并发template：temp0取前rankSize_个，temp1取剩余的
+        templateAlgRes.threads = {resCtx.threads.begin() + index * rankSize_,
+                                 resCtx.threads.begin() + (index + 1) * rankSize_};
         templateAlgRes.channels = remoteRankToChannelInfo_[index];
+    } else {
+        templateAlgRes.threads = {resCtx.threads[index]};
+        templateAlgRes.ccuKernels = {resCtx.ccuKernels[index]};
+        templateAlgRes.aivCommInfoPtr = resCtx.aivCommInfoPtr;
     }
+
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -336,6 +360,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     std::vector<u64> maxDataCountPerLoop(CONCURRENT_NUM, 1);
     CalcMaxDataCountPerLoop(param, scratchMulti, maxDataCountPerLoop);
 
+    tempAlgParams0.buffInfo.hcclBuffBaseOff = 0;
+    tempAlgParams1.buffInfo.hcclBuffBaseOff = scratchMulti[0] * maxDataCountPerLoop[0] * dataTypeSize_;
+
     // alltoallv的时候，loopTimes可能是0
     u64 loopTimes0 = (maxSendOrRecvDataCount0 + maxDataCountPerLoop[0] - 1) / maxDataCountPerLoop[0];
     u64 loopTimes1 = (maxSendOrRecvDataCount1 + maxDataCountPerLoop[1] - 1) / maxDataCountPerLoop[1];
@@ -344,7 +371,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     std::vector<u64> processedDataCount = {0, 0};
     std::vector<u32> notify = {0};
     u64 loop = 0;
-    CHK_RET(PreSyncInterThreads(resCtx.threads[0], {resCtx.threads[1]}, notify));
+    CHK_RET(PreSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notify));
     while (loop < loopTimes0 || loop < loopTimes1) {
         if (loop < loopTimes0) {
             u64 currDataCount = (loop == loopTimes0 - 1) ?
@@ -365,7 +392,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         }
         loop++;
     }
-    CHK_RET(PostSyncInterThreads(resCtx.threads[0], {resCtx.threads[1]}, notify));
+    CHK_RET(PostSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notify));
 #ifndef AICPU_COMPILE
     if (loopTimes0 == 1 && loopTimes1 == 1 && param.engine == CommEngine::COMM_ENGINE_CCU && param.opMode != OpMode::OFFLOAD) {
         CHK_RET(FastLaunchSaveCtx(param, templateAlgRes0, templateAlgRes1, resCtx.notifyNumOnMainThread));
@@ -425,12 +452,11 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     tempAlgParams.count = currDataCount;
     tempAlgParams.buffInfo.inBuffBaseOff = (splitData.sdispls[0] + processedDataCount) * dataTypeSize_;
     tempAlgParams.buffInfo.outBuffBaseOff = (splitData.rdispls[0] + processedDataCount) * dataTypeSize_;
-    tempAlgParams.buffInfo.hcclBuffBaseOff = 0;
 
     tempAlgParams.sliceSize = currDataCount * dataTypeSize_; // 这是每次循环处理的数据大小
     tempAlgParams.tailSize = tempAlgParams.sliceSize;
-    // 这里的stride当成传统意义上的sreide 间隔
-    tempAlgParams.inputSliceStride = 0; // 变长算子不涉及,这里是每一块数据的大小，这个值被sendCounts代替了
+    // cclBuffer内每个rank块之间的间隔，防止并发时不同rank的数据写到cclBuffer同一起点导致覆盖
+    tempAlgParams.inputSliceStride = maxDataCountPerLoop * dataTypeSize_;
     tempAlgParams.outputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
 
     for (u64 i = 0; i < rankSize_; i++) {
