@@ -52,6 +52,7 @@ protected:
     void GetNotifyIdxMainToSub(std::vector<u32> &notifyIdxMainToSub);
     void GetNotifyIdxSubToMain(std::vector<u32> &notifyIdxSubToMain);
     HcclResult LocalReduceCCLToCCL(u64 srcOffset, u64 dstOffset, u64 size, ThreadHandle thread);
+    HcclResult TreeLocalReduce(const std::vector<u32> &offsets, u64 unitSize, ThreadHandle thread);
     
     virtual HcclResult Preprocess(const u32 rank, const u32 rankSize, std::vector<ChannelInfo> &channels);
     HcclResult PrepareSlicesData(const u32 unitSize, const u64 totalCount, const u32 rankSize) const;
