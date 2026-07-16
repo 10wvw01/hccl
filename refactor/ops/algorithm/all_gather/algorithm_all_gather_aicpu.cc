@@ -99,8 +99,10 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
  * 构造 AICPU AllGather ParallelMesh1DNHR 算法的 AlgoExecDesc。
  * 对应注册宏 REGISTER_EXECUTOR_BY_TWO_TEMPS(..., InsAllGatherParallelMesh1DNHR,
  *   InsV2AllGatherParallelExecutor, TopoMatchMultilevel, InsTempAllGatherMesh1D, InsTempAllGatherNHR)。
- * execPolicy=PARALLEL（对应 InsV2AllGatherParallelExecutor），children 两个 TemplateExecDesc
- * 分别为 Mesh1D（FULLMESH）和 NHR，dataSplitRatio=1:1。
+ * 外层 execPolicy=SEQUENCE，children 为两个并行的 AlgoExecDesc 子树（串行组合）：
+ *   - 子树0：execPolicy=PARALLEL，children=[FULLMESH→INTRA, NHR→INTER]，dataSplitRatio=1:1；
+ *   - 子树1：execPolicy=PARALLEL，children=[FULLMESH→INTER, NHR→INTRA]（位置交换），dataSplitRatio=1:1；
+ * 外层 dataSplitRatio=1:1。
  */
 static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
 {
@@ -108,11 +110,27 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
     TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
+
+    // 第一个并行子树：fullmesh→INTRA，nhr→INTER
+    auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
+    parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc0->children = {
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER}};
+    parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
+
+    // 第二个并行子树：fullmesh→INTER，nhr→INTRA
+    auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
+    parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc1->children = {
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTER},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTRA}};
+    parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
+
+    // 两个并行子树串行组合
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
-    algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
+    algoExecDesc.children = {parallelDesc0, parallelDesc1};
     algoExecDesc.dataSplitRatio = {1, 1}; // 1:1
     return algoExecDesc;
 }
