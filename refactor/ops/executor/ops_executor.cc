@@ -75,8 +75,15 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         AlgoExecDataDesc algoExecDataDesc;
         HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
             loopIdx, processCount, offsetCount, tailCount);
+        u64 dataStride = 0;
+        if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER) {
+            dataStride = dataInfo_.inputSize;
+        } else if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_SCATTER ||
+                   algo_.hcclCmdType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER) {
+            dataStride = dataInfo_.inputSize / rankSize_;
+        }
         InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount,
-            maxProcCntPerLoop * dataTypeSize_);
+            dataStride);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
