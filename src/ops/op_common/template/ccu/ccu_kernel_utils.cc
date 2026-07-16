@@ -85,8 +85,8 @@ uint64_t GetParallelParam(uint64_t repeatNum, uint64_t repeatLoopIndex, uint64_t
         constexpr uint16_t totalLoopShiftBit  = 0;
         return ((repeatNum & SetBits(repeatBitNum)) << repeatNumShiftBit)
                 | ((repeatLoopIndex & SetBits(repeatLoopBitNum)) << repeatLoopShiftBit)
-                | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);}
-    } 
+                | ((totalLoopNum & SetBits(totalLoopBitNum)) << totalLoopShiftBit);
+    }
 }
 
 uint64_t GetOffsetParam(uint64_t gsaOffset, uint64_t msOffset, uint64_t ckeOffset)
