@@ -116,7 +116,10 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams_.dataType];
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
-    const bool inputEqCcl = (tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr);
+
+    if (tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr) {
+        return HCCL_SUCCESS;
+    }
 
     // 遍历 ranksForInputData，将每个 rank 的数据从 input 拷到 ccl buffer。
     // input 偏移使用循环索引（idx）而非 rank 值：
@@ -135,13 +138,10 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
 
         const u64 inOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.dataStride;
 
-        // input -> ccl buffer（input 与 ccl 相同时跳过）
-        if (!inputEqCcl) {
-            const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
-            DataSlice srcSlice(tempAlgParams_.inputBufferPtr, inOff, curSliceSize, sliceCount);
-            DataSlice dstSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
-            CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
-        }
+        const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
+        DataSlice srcSlice(tempAlgParams_.inputBufferPtr, inOff, curSliceSize, sliceCount);
+        DataSlice dstSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
+        CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
     }
 
     HCCL_INFO("[AicpuBaseTemplate][PreCopy] end.");

@@ -13,13 +13,23 @@
 #include "test_helpers.h"
 #include "exec_timeout_manager.h"
 #include "hcomm_primitives_dl.h"   // ThreadHandle / ChannelHandle / HcommDataType / HcommReduceOp
-#include "hcomm_host_profiling_dl.h"
 #include "hccl_res_dl.h"
+#include "hcomm_diag_dl.h"
+#include "hcomm_device_profiling_dl.h"
+#include "hccl_device_comm_dl.h"
 #include "dlhcomm_function.h"
 #include "load_kernel.h"
 #include "hccl_algorithm.h"
+#include "ops_executor.h"
 #include "binary_stream.h"
 #include "hccl_rank_graph_dl.h"    // EndpointDesc / EndpointAttr
+
+// hcomm_host_profiling_dl.h 与 hcomm_device_profiling_dl.h 冲突（重复定义 HcomProInfoTmp），
+// 此处仅前向声明 ut_stubs.cc 实际用到的函数。
+extern "C" {
+uint64_t HcommGetProfilingSysCycleTime();
+HcclResult HcclReportAicpuKernel(HcclComm, uint64_t, char*);
+}
 
 namespace ops_hccl {
 namespace testing {
@@ -69,6 +79,15 @@ void HcclAlgorithm::SerializeTo(BinaryStream &) const {}
 void HcclAlgorithm::DeserializeFrom(BinaryStream &) {}
 void AlgoExecDesc::Serialize(BinaryStream &, const AlgoExecDesc &) {}
 AlgoExecDesc AlgoExecDesc::Deserialize(BinaryStream &) { return AlgoExecDesc{}; }
+
+// HcclAlgorithm::GetExecutor / OpsExecutor stubs（kernel_launch.cc HcclLaunchAicpuKernel 路径引用，UT 不测试该路径）
+std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &)
+{
+    return nullptr;
+}
+OpsExecutor::OpsExecutor(HcclAlgorithm &, OpParam &) {}
+OpsExecutor::~OpsExecutor() = default;
+HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &) { return HCCL_SUCCESS; }
 } // namespace ops_hccl
 
 // ───────────── mock 控制 ─────────────
@@ -94,12 +113,7 @@ static inline void captureBytes(const void *src, uint64_t len)
 // ───────────── Hcomm* 搬移/同步原语 stub (extern "C", 与 aicpu_engine.cc 调用匹配) ─────────────
 extern "C" {
 
-// HcclLaunchAicpuKernel C 接口 stub（device 侧入口，UT 不执行真实 kernel，仅满足链接）
-unsigned int HcclLaunchAicpuKernel(ops_hccl::OpParam *param)
-{
-    (void)param;
-    return 0;
-}
+// HcclLaunchAicpuKernel 由 kernel_launch.cc 提供真实实现，UT 仅测试简单函数。
 
 int32_t HcommChannelNotifyRecordOnThread(ThreadHandle thread, ChannelHandle channel, uint32_t idx)
 {
@@ -212,6 +226,22 @@ int snprintf_s(char *dest, size_t destMax, size_t count, const char *format, ...
     return ret;
 }
 
+// strncpy_s 桩（securec 库符号, UT 环境可能缺失）
+#ifndef EOK
+#define EOK 0
+#endif
+#ifndef EINVAL
+#define EINVAL 22
+#endif
+errno_t strncpy_s(char *strDest, size_t destMax, const char *strSrc, size_t count)
+{
+    if (strDest == nullptr || strSrc == nullptr || destMax == 0) { return EINVAL; }
+    size_t copyLen = (count < destMax) ? count : destMax - 1;
+    (void)memcpy(strDest, strSrc, copyLen);
+    strDest[copyLen] = '\0';
+    return EOK;
+}
+
 // ───────────── LaunchKernel 路径 stub ─────────────
 
 // HcclTaskRegister (dlsym weak, UT 环境无 libHcommHandle)
@@ -307,6 +337,49 @@ aclError aclrtLaunchKernelWithConfig(aclrtFuncHandle, uint32_t, aclrtStream,
 {
     return ACL_SUCCESS;
 }
+
+// ───────────── kernel_launch.cc 路径 stub (extern "C") ─────────────
+
+// HcommAcquireComm / HcommReleaseComm (hcomm_primitives.h)
+int32_t HcommAcquireComm(const char *) { return HCCL_SUCCESS; }
+int32_t HcommReleaseComm(const char *) { return HCCL_SUCCESS; }
+
+// HcommBatchModeStart / HcommBatchModeEnd (hcomm_primitives.h)
+int32_t HcommBatchModeStart(const char *) { return HCCL_SUCCESS; }
+int32_t HcommBatchModeEnd(const char *) { return HCCL_SUCCESS; }
+
+// HcommRegOpInfo / HcommIsSupportHcommRegOpInfo (hcomm_diag_dl.h)
+HcclResult HcommRegOpInfo(const char *, void *, size_t) { return HCCL_SUCCESS; }
+bool HcommIsSupportHcommRegOpInfo(void) { return false; }
+
+// HcommRegOpTaskException / HcommIsSupportHcommRegOpTaskException (hcomm_diag_dl.h)
+HcclResult HcommRegOpTaskException(const char *, HcommGetOpInfoCallback) { return HCCL_SUCCESS; }
+bool HcommIsSupportHcommRegOpTaskException(void) { return false; }
+
+// HcclCommGetStatus / HcommIsSupportHcclCommGetStatus (hccl_device_comm_dl.h)
+HcclResult HcclCommGetStatus(const char *, HcclCommStatus *status)
+{
+    if (status) { *status = HCCL_COMM_STATUS_READY; }
+    return HCCL_SUCCESS;
+}
+bool HcommIsSupportHcclCommGetStatus(void) { return false; }
+
+// HcclThreadResAcquireTimeOut (hcomm_primitives_dl.h)
+HcclResult HcclThreadResAcquireTimeOut(uint32_t) { return HCCL_SUCCESS; }
+
+// HcommThreadResAcquireTimeOut / HcommIsSupportHcommThreadResAcquireTimeOut (hcomm_primitives_dl.h via DEFINE_WEAK_FUNC)
+int32_t HcommThreadResAcquireTimeOut(uint32_t) { return 0; }
+bool HcommIsSupportHcommThreadResAcquireTimeOut(void) { return false; }
+
+// HcommProfilingReportKernelStartTask / HcommProfilingReportKernelEndTask (hcomm_device_profiling_dl.h)
+HcclResult HcommProfilingReportKernelStartTask(uint64_t, const char *) { return HCCL_SUCCESS; }
+HcclResult HcommProfilingReportKernelEndTask(uint64_t, const char *) { return HCCL_SUCCESS; }
+
+// HcclDfxRegOpInfoByCommId (hcomm_device_profiling_dl.h)
+HcclResult HcclDfxRegOpInfoByCommId(char *, void *) { return HCCL_SUCCESS; }
+
+// HcommProfilingReportDeviceOp (hcomm_device_profiling_dl.h)
+HcclResult HcommProfilingReportDeviceOp(const char *) { return HCCL_SUCCESS; }
 
 } // extern "C"
 
