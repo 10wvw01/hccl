@@ -464,7 +464,7 @@ static int compare_crc(const uint8_t* buffer, const void* expected_data,
 /**
  * @brief 读取文件内容到缓冲区
  *
- * @param fp 已打开并加锁的文件指针
+ * @param fp 已打开并加锁的文件指针（函数不会关闭）
  * @param buffer 输出缓冲区
  * @param expected_size 期望读取的大小
  * @param original_pos 输入/输出参数，原始文件位置/恢复后的文件位置
@@ -596,7 +596,7 @@ static int resolve_target_path(char* target_path, size_t path_size) {
  * @param size 数据大小
  * @param expected_crc 期望的 CRC32 校验值
  * @param file_exists 文件是否已存在（决定是否需要 truncate）
- * @return int 0 成功，-1 失败（失败时文件已被清理）
+ * @return int 0 成功，-1 失败；调用者始终负责解锁并关闭 fp
  */
 static int write_and_verify_tar(FILE* fp, const char* target_path,
                                 const char* data, size_t size,
@@ -615,14 +615,12 @@ static int write_and_verify_tar(FILE* fp, const char* target_path,
     if (written != size) {
         HCCL_ERROR("Failed to write tar file: expected %zu bytes, wrote %zu",
                 size, written);
-        fclose(fp);
         remove_incomplete_file(target_path);
         return -1;
     }
 
     if (fflush(fp) != 0) {
         HCCL_ERROR("Failed to flush file '%s': %s", target_path, strerror(errno));
-        fclose(fp);
         remove_incomplete_file(target_path);
         return -1;
     }
@@ -631,7 +629,6 @@ static int write_and_verify_tar(FILE* fp, const char* target_path,
     if (written_crc != expected_crc) {
         HCCL_ERROR("Post-write CRC check failed: 0x%08X vs expected 0x%08X",
                 written_crc, expected_crc);
-        fclose(fp);
         remove_incomplete_file(target_path);
         return -1;
     }
@@ -677,6 +674,7 @@ static void restore_aicpu_tar(void) {
 
     if (write_and_verify_tar(fp, target_path, _binary_aicpu_hccl_tar_gz_start,
                              tar_size, embedded_crc, file_exists) != 0) {
+        unlock_and_close(fp);
         return;
     }
 
