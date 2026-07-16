@@ -59,6 +59,11 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = (dataCount + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
+    // dataStride是每张卡输入或者输出的总数据大小，allgather的输入含义不一样    
+    u64 dataStride = dataInfo_.inputSize / rankSize_;
+    if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER) {
+        dataStride = dataInfo_.inputSize;
+    }    
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
         u64 processCount = maxProcCntPerLoop;
         if (loopIdx == loopTimes - 1) {
@@ -75,15 +80,8 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         AlgoExecDataDesc algoExecDataDesc;
         HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
             loopIdx, processCount, offsetCount, tailCount);
-        u64 dataStride = 0;
-        if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER) {
-            dataStride = dataInfo_.inputSize;
-        } else if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_SCATTER ||
-                   algo_.hcclCmdType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER) {
-            dataStride = dataInfo_.inputSize / rankSize_;
-        }
-        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount,
-            dataStride);
+        InitAlgoExecDataDesc(
+            algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount, dataStride);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
