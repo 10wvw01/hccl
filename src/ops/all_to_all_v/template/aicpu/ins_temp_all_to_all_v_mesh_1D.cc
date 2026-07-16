@@ -57,7 +57,8 @@ HcclResult InsTempAlltoAllVMesh1D::CalcRes(HcclComm comm, const OpParam& param, 
     resourceRequest.slaveThreadNum = std::min(ALLTOALLV_DIRECT_FULLMESH_CONCURRENT_SIZE, templateRankSize_ - 1) * channelsPerRank_;
     for (u32 index = 0; index < resourceRequest.slaveThreadNum; index++) {
         // 从流的notify数量以rank间channel数的最大值为准，用于和主流同步以及同一个rank多条链路间的同步
-        resourceRequest.notifyNumPerThread.push_back(channelsPerRank_);
+        // SendWrite/RecvWrite 使用 NOTIFY_IDX_ACK(0) 和 NOTIFY_IDX_DATA_SIGNAL(1)，至少需要 2 个 notify
+        resourceRequest.notifyNumPerThread.push_back(std::max(channelsPerRank_, NOTIFY_IDX_DATA_SIGNAL + 1U));
     }
     resourceRequest.notifyNumOnMainThread = resourceRequest.slaveThreadNum;
     return HCCL_SUCCESS;
