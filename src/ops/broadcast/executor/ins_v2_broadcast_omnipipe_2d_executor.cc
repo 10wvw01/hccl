@@ -368,7 +368,7 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_,
         transportBoundDataSize, scratchBoundDataSize);
     loopSplitData.maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
-    loopSplitData.maxCountPerLoop = 256;
+    // loopSplitData.maxCountPerLoop = 256;
     CHK_PRT_RET(loopSplitData.maxCountPerLoop == 0, HCCL_ERROR("[%s] maxCountPerLoop is 0", __func__), HCCL_E_INTERNAL);
     HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, loopSplitData.maxCountPerLoop);
 
