@@ -167,11 +167,13 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
 
 HcclResult ApplyOpExpansionMode(OpParam &param, HcclOpExpansionMode finalMode);
 
+HcclResult IsAclGraphCapture(aclrtStream stream, bool &isCapture);
+
 HcclResult CaptureSlaveStreams(HcclComm comm, aclrtStream mainStream, const std::vector<ThreadHandle>& threads);
 
-HcclResult SaveUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle unfoldThread);
+HcclResult SaveUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle unfoldThread, u32 notifyNum);
 
-HcclResult GetUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle& unfoldThread);
+HcclResult GetUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle& unfoldThread, u32 &notifyNum);
 
 bool HcclCheckAicpuEnableOpen();
 bool HcclCheckCcuEnableOpen();
