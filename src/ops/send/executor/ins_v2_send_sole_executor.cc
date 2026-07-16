@@ -132,7 +132,7 @@ namespace ops_hccl
         templateResource.npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
         templateResource.dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
         u64 resDataSize = dataSize_;
-        maxTmpMemSize_ = std::min<u64>(UB_MAX_DATA_SIZE, resCtx.cclMem.size); // maxTmpMemSize_取ub和ccl的最小值
+        maxTmpMemSize_ = resCtx.cclMem.size;
         u64 maxRoundTransferSize = (maxTmpMemSize_ / dataTypeSize_) * dataTypeSize_;
         while (resDataSize > 0)
         {
@@ -144,6 +144,14 @@ namespace ops_hccl
             resDataSize = resDataSize - transferSize;
         }
         return HCCL_SUCCESS;
+    }
+
+    template <typename InsAlgTemplate>
+    HcclResult InsV2SendSoleExecutor<InsAlgTemplate>::OrchestrateWithThread(
+        const OpParam &param, const AlgResourceCtxSerializable &resCtx, ThreadHandle sendRecvThread)
+    {
+        (void)sendRecvThread;
+        return Orchestrate(param, resCtx);
     }
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)

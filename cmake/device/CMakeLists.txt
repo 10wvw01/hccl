@@ -26,6 +26,13 @@ message(STATUS "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}")
 include(${HCCL_DIR}/cmake/config.cmake)
 include(${HCCL_DIR}/cmake/func.cmake)
 
+find_cann_package(msprof MODULE REQUIRED)
+find_cann_package(unified_dlog MODULE REQUIRED)
+find_cann_package(mmpa MODULE REQUIRED)
+find_cann_package(runtime MODULE REQUIRED)
+find_cann_package(hcomm MODULE REQUIRED)
+find_cann_package(asc_devkit MODULE REQUIRED)
+
 # 添加子目录
 add_cann_subdirectories_relative(${HCCL_DIR}
     ${HCCL_DIR}/src

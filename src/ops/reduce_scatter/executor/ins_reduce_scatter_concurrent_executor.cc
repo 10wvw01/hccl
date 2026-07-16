@@ -18,8 +18,14 @@
 #include "ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D.h"
-#endif // #if !defined(HCCL_CANN_COMPAT_850)
+#endif //CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
+
+constexpr u32 MESH_BW_SCHED = 10;
+constexpr u32 CLOS_BW_SCHED = 12;
+constexpr u32 MESH_BW_MS = 11;
+constexpr u32 CLOS_BW_MS = 10;
+
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -95,9 +101,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     std::vector<HcclChannelDesc> channelDescs1;
     std::vector<HcclChannelDesc> channelDescsTemp1;
 
-    CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1,
-                                               CommTopo::COMM_TOPO_CLOS));
-
+    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1)); 
     for (auto channel : channelDescsTemp1) {
         if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
             channelDescs1.push_back(channel);
@@ -139,7 +143,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                     ", please check");
         return HCCL_E_PARA;
     }
-    HCCL_INFO("[InsReduceScatterConcurrentExecutor::CalRes] CalRes success!");
+    HCCL_INFO("[InsReduceScatterConcurrentExecutor::CalcRes] CalcRes success!");
     return HCCL_SUCCESS;
 }
 
@@ -152,7 +156,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     CHK_RET(InitExectorInfo(param, resCtx));
     HcclResult ret = OrchestrateLoop(param, resCtx); // 算法展开
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsReduceScatterConcurrentExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor kernel run failed",
+        HCCL_ERROR("[InsReduceScatterConcurrentExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
@@ -216,8 +220,16 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
 
     u32 templateScratchMultiplier0 = tempAlg0->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u32 templateScratchMultiplier1 = tempAlg1->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
-    const u64 portNum0 = rankSize_ - 1;
-    const u64 portNum = 4;
+    u64 portNum0 = rankSize_ - 1;
+    u64 portNum = 4;
+    if (param.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
+        portNum0 = MESH_BW_SCHED;
+        portNum = CLOS_BW_SCHED;
+    } else if (param.opExecuteConfig == OpExecuteConfig::CCU_MS) {
+        portNum0 = MESH_BW_MS;
+        portNum = CLOS_BW_MS;
+    }
+
     const u64 sliceAlignCount = HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     // 划分cclbuffer
     void *cclMemAddr = resCtx.cclMem.addr;

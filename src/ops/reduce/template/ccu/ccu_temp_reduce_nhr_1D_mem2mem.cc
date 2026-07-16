@@ -148,6 +148,9 @@ HcclResult CcuTempReduceNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& para
     std::vector<NHRStepInfo> stepInfoVector;
     
     CHK_RET(ProcessNHRStepInfo(comm, stepInfoVector, rank2ChannelIdx, enableDieNum, channelsPerDie));
+    if (enableDieNum > 1) { // 通过端口数划分channel，适配跨框die0连die1的场景，避免建链失败
+        CHK_RET(ReverseChannelPerDieIfNeed(comm, myRank_, channelsPerDie));
+    }
 
     // 3.构造kernelInfo
     for (uint32_t kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
@@ -228,22 +231,22 @@ HcclResult CcuTempReduceNHR1DMem2Mem::FastLaunch(const OpParam& param, const Tem
 
 HcclResult CcuTempReduceNHR1DMem2Mem::SplitDataFor2Dies(const OpParam& param,
                                                         const TemplateDataParams& templateDataParams,
-                                                        uint64_t& die0DataSize, uint64_t& die1DataSize) const
+                                                        uint64_t& die0Size, uint64_t& die1DataSize) const
 {
     constexpr uint64_t MULTIPLIER = 4;
     uint64_t dataTypeSize = DataTypeSizeGet(param.DataDes.dataType);
     uint64_t totalDataCount = (templateDataParams.sliceSize / dataTypeSize);
 
     if (totalDataCount <= templateRankSize_ * MULTIPLIER) {   // 数据量极小，不划分die
-        die0DataSize = totalDataCount * dataTypeSize;
+        die0Size = totalDataCount * dataTypeSize;
         die1DataSize = 0;
         return HcclResult::HCCL_SUCCESS;
     }
-    u8 die0PortGroupSize = 1;
-    u8 die1PortGroupSize = 1;
+    u8 die0PortGroupSize = 6;
+    u8 die1PortGroupSize = 2;
 
-    die0DataSize = (totalDataCount * die0PortGroupSize / (die0PortGroupSize + die1PortGroupSize)) * dataTypeSize;
-    die1DataSize = templateDataParams.sliceSize - die0DataSize;
+    die0Size = (totalDataCount * die0PortGroupSize / (die0PortGroupSize + die1PortGroupSize)) * dataTypeSize;
+    die1DataSize = templateDataParams.sliceSize - die0Size;
     return HcclResult::HCCL_SUCCESS;
 }
 

@@ -12,6 +12,8 @@
 #include <sstream>
 #include <memory>
 #include <cstring>
+#include <sched.h>
+#include <hccl/hccl_comm.h>
 #include "alg_param.h"
 #include "executor_base.h"
 #include "coll_alg_exec_registry.h"
@@ -215,7 +217,7 @@ namespace {
     };
 
     //全局缓存管理器实例
-    thread_local CommDomainCacheManager g_cacheManager;
+    static CommDomainCacheManager g_cacheManager;
 
     std::unique_ptr<AlgResourceCtxSerializable> DeserializeResCtx(const OpParam *param)
     {
@@ -255,6 +257,13 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 
 extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 {
+    // 修改当前进程的调度策略和优先级
+    struct sched_param schedParam;
+    schedParam.sched_priority = 0; // 设置优先级为0
+    if (sched_setscheduler(0, SCHED_OTHER, &schedParam) == -1) {
+        HCCL_ERROR("%s sched_setscheduler to SCHED_OTHER failed", __func__);
+        return 1;
+    }
     if (param == nullptr) {
         HCCL_ERROR("%s param is nullptr", __func__);
         return 1;
@@ -297,6 +306,14 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             if (statusRet != HCCL_SUCCESS) {
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
                 return 1;
+            }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
             }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));
@@ -384,11 +401,14 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         // 主thread等待Host stream的通知
         ThreadHandle exportedAicpuTsThread = param->opThread;
         u32 maxNotifyNum = resCtxPtr->notifyNumOnMainThread;
-        for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
-            if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
-                maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
+        if (!resCtxPtr->isHcclThreadAcquireWithConfigSupported) {
+            for (u32 i = 0; i < resCtxPtr->notifyNumPerThread.size(); i++) {
+                if (resCtxPtr->notifyNumPerThread[i] > maxNotifyNum) {
+                    maxNotifyNum = resCtxPtr->notifyNumPerThread[i];
+                }
             }
         }
+
         if (HcommIsSupportHcommThreadResAcquireTimeOut()) {
             CHK_RET(HcclThreadResAcquireTimeOut(resCtxPtr->fullTimeout));
         }
@@ -544,6 +564,166 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     return 0;
 }
 
+extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
+{
+    if (args == nullptr) {
+        HCCL_ERROR("%s args is nullptr", __func__);
+        return 1;
+    }
+    HcclP2pKernelParam *params = static_cast<HcclP2pKernelParam *>(args);
+    ThreadHandle sendRecvThread = params->sendRecvThread;
+    void *paramPtr = static_cast<void *>(&params->opParams[0]);
+    OpParam *param = static_cast<OpParam *>(paramPtr);
+
+    if (param == nullptr) {
+        HCCL_ERROR("%s param is nullptr", __func__);
+        return 1;
+    }
+
+    if (param->opType != HcclCMDType::HCCL_CMD_SEND && 
+        param->opType != HcclCMDType::HCCL_CMD_RECEIVE) {
+        HCCL_ERROR("%s only support SEND/RECV, opType[%d]", 
+                __func__, static_cast<int>(param->opType));
+        return 1;
+    }
+    
+    HCCL_INFO("Entry-%s, commName[%s], tag[%s], algTag[%s], opType[%d]", 
+            __func__, param->commName, param->tag, param->algTag, 
+            static_cast<int>(param->opType));
+    // 保留通信域管理 - 保证生命周期安全
+    if (HcommAcquireComm(param->commName) != HCCL_SUCCESS) {
+        HCCL_ERROR("%s HcommAcquireComm fail, commName[%s]", __func__, param->commName);
+        return 1;
+    }
+    std::string algName = std::string(param->algName);
+    // 根据算法名字获取executor
+    if (ops_hccl::IsOpsV2(param->algName, param->deviceType)) {
+        //判断通信域状态
+        HcclCommStatus commStatus = HCCL_COMM_STATUS_INVALID;
+        if (HcommIsSupportHcclCommGetStatus()) {
+            auto statusRet = HcclCommGetStatus(param->commName, &commStatus);
+            if (statusRet != HCCL_SUCCESS) {
+                HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
+                return 1;
+            }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
+            }
+            if (commStatus != HCCL_COMM_STATUS_READY) {
+                HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));
+                return 1;
+            }
+        }
+
+        std::shared_ptr<const AlgResourceCtxSerializable> cachedResCtxHolder;
+        std::unique_ptr<AlgResourceCtxSerializable> resCtx;
+        const AlgResourceCtxSerializable* resCtxPtr{nullptr};
+        u32 hitRateNum = 100;
+
+        //通过缓存实现反序列化优化
+        cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
+        if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
+            HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
+            std::string commName = g_cacheManager.ExtractCommName(param->algTag);
+            if (commName.empty()) commName = param->commName;
+
+            CacheStats stats;
+            size_t cacheSize;
+            if (g_cacheManager.GetCommStats(commName, stats, cacheSize)) {
+                HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
+                __func__, commName.c_str(), stats.hitRate() * hitRateNum, cacheSize);
+            }
+            resCtxPtr = cachedResCtxHolder.get();
+        } else {
+            bool isStaleCache = (cachedResCtxHolder != nullptr);
+            //未命中或者通信域恢复后缓存失效，进行反序列化并存入缓存
+            resCtx = DeserializeResCtx(param);
+            g_cacheManager.Put(param->algTag, *resCtx, param->commName);
+            resCtxPtr = resCtx.get();
+            if (isStaleCache) {
+                HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
+                    __func__, param->algTag, cachedResCtxHolder->commInfoPtr, param->hcclComm);
+            } else {
+                HCCL_INFO("[%s] Cache MISS and stored for algTag[%s]", __func__, param->algTag);
+            }
+        }
+
+        // 获取Device测主thread
+        ThreadHandle thread = resCtxPtr->threads[0];
+        if (HcommBatchModeStart(param->algTag) != HCCL_SUCCESS) {
+            HCCL_ERROR("failed set batch mode, tag is %s.", param->algTag);
+            return 1;
+        }
+
+        // 要在下第一个task之前上报
+        HcclDfxOpInfoCompat dfxOpInfo{};
+        if (ConvertToHcclDfxOpInfo(param, &dfxOpInfo) != HCCL_SUCCESS) {
+            HCCL_ERROR("ConvertToHcclDfxOpInfo fail, commName is %s, tag is %s", param->commName, param->algTag);
+            return 1;
+        }
+        if (HcclDfxRegOpInfoByCommId(param->commName, (&dfxOpInfo)) != HCCL_SUCCESS) {
+            HCCL_ERROR("HcclDfxRegOpInfoByCommId fail, commName is %s, tag is %s", param->commName, param->algTag);
+            return 1;
+        }
+
+        // 上报上报mainstream数据,第一个任务
+        if (HcommProfilingReportKernelStartTask(thread, param->commName) != HCCL_SUCCESS) {
+            HCCL_ERROR("%sfailed to report MainStream And FirstTask, thread %lu, param->commName %s.", __func__, thread, param->commName);
+            return 1;
+        }
+
+        std::shared_ptr<InsCollAlgBase> executor = 
+            CollAlgExecRegistryV2::Instance().GetAlgExec(param->opType, algName);
+        if (executor.get() == nullptr) {
+            HCCL_ERROR("Fail to find executor for algName[%s], opType[%d]", 
+                    algName.c_str(), static_cast<int>(param->opType));
+            HcommReleaseComm(param->commName);
+            return 1;
+        }
+
+        ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
+        HcclResult ret = HCCL_SUCCESS;
+        ret = executor->OrchestrateWithThread(*param, *resCtxPtr, sendRecvThread);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
+                    param->algName, static_cast<int>(param->opType));
+            HcommReleaseComm(param->commName);
+            return 1;
+        }
+        // 上报mainstream数据,最后一个任务
+        if (HcommProfilingReportKernelEndTask(thread, param->commName) != HCCL_SUCCESS) {
+            HCCL_ERROR("%s failed to report MainStream And LastTask, thread %lu, param->commName %s.",  __func__, thread, param->commName);
+            return 1;
+        }
+        if (HcommProfilingReportDeviceOp(param->commName) != HCCL_SUCCESS) {
+            HCCL_ERROR("%s HcommProfilingReportDeviceOp fail, commName[%s]", __func__, param->commName);
+            return 1;
+        }
+        if (HcommBatchModeEnd(param->algTag) != HCCL_SUCCESS) {
+            HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
+            return 1;
+        }
+    }
+    else {
+        HCCL_ERROR("%s P2P only support OpsV2, algName[%s], deviceType[%d]", 
+                __func__, param->algName, static_cast<int>(param->deviceType));
+        HcommReleaseComm(param->commName);
+        return 1;
+    }
+
+    if (HcommReleaseComm(param->commName) != HCCL_SUCCESS) {
+        HCCL_ERROR("%s HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+        return 1;
+    }
+    HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
+    return 0;
+}
+
 HcclResult ops_hccl::RestoreVarDataBatchSendRecv(OpParam &param)
 {
     u64 sendRecvItemSize = static_cast<u64>(sizeof(HcclSendRecvItem));
@@ -674,6 +854,14 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
             if (statusRet != HCCL_SUCCESS) {
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
                 return 1;
+            }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
             }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));

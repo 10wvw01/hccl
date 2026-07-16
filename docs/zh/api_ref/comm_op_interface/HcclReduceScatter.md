@@ -44,18 +44,36 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
 
 ### dataType说明
 
+<!-- npu="950" id10 -->
 - 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、int16、int32、int64、uint64、float16、float32、float64、bfp16。针对int64、uint64、float64，当前仅支持节点内通信。
+<!-- end id10 -->
+<!-- npu="A3" id11 -->
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、int16、int32、int64、float16、float32、bfp16。
+<!-- end id11 -->
+<!-- npu="910b" id12 -->
 - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、int16、int32、int64、float16、float32、bfp16。需要注意，针对int64数据类型，性能会有一定的劣化。
+<!-- end id12 -->
+<!-- npu="910" id13 -->
 - 针对Atlas 训练系列产品，支持数据类型：int8、int32、int64、float16、float32。
+<!-- end id13 -->
+<!-- npu="310p" id6 -->
 - 针对Atlas 300I Duo 推理卡，支持数据类型：int8、int16、int32、float16、float32。
+<!-- end id6 -->
 
 ### op说明
 
+<!-- npu="950" id14 -->
 - 针对Ascend 950PR/Ascend 950DT，支持的操作类型为sum、prod、max、min，其中prod操作不支持int16、bfp16数据类型。
+<!-- end id14 -->
+<!-- npu="A3" id15 -->
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持的操作类型为sum、prod、max、min，其中prod操作不支持int16、bfp16数据类型。
+<!-- end id15 -->
+<!-- npu="910b" id16 -->
 - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持的操作类型为sum、prod、max、min，其中prod操作不支持int16、bfp16数据类型。
+<!-- end id16 -->
+<!-- npu="310p" id7 -->
 - 针对Atlas 300I Duo 推理卡，支持的操作类型为sum、prod、max、min，其中prod、max、min操作不支持int16数据类型。
+<!-- end id7 -->
 
 ## 返回值
 
@@ -67,11 +85,12 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
 <!-- npu="310p" id12 -->
 - 针对Atlas 300I Duo 推理卡，仅支持单Server场景，单Server中最大支持部署16张Atlas 300I Duo 推理卡（即32个NPU）。
 <!-- end id12 -->
-- 算子算子的输入输出地址（sendBuf与recvBuf）根据不同的数据类型，应满足如下对齐要求：
-  - int8按照1 Byte地址对齐。
-  - int16、float16、bfp16按照2 Byte地址对齐。
-  - int32、float32按照4 Byte地址对齐。
-  - int64、uint64、float64按照8 Byte地址对齐。
+- 算子的输入输出地址（sendBuf与recvBuf）根据不同的数据类型，应满足如下对齐要求：
+
+  - int8按照1Byte地址对齐。
+  - int16、float16、bfp16按照2Byte地址对齐。
+  - int32、float32按照4Byte地址对齐。
+  - int64、uint64、float64按照8Byte地址对齐。
 
 ## 调用示例
 

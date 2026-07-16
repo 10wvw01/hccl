@@ -14,10 +14,10 @@
 #include "alg_param.h"
 #include "topo_host.h"
 #include "channel.h"
-#include "alg_v2_template_base.h"
 #include "utils.h"
 #include "log.h"
 #include "workflow.h"
+#include "alg_v2_template_base.h"
 #include "sal.h"
 #include "config_log.h"
 #include "executor_v2_base.h"
@@ -30,7 +30,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 class InsV2AllReduceSequenceExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllReduceSequenceExecutor();
-    ~InsV2AllReduceSequenceExecutor() = default;
+    ~InsV2AllReduceSequenceExecutor() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
@@ -50,8 +50,6 @@ protected:
     HcclResult InitExectorInfo(const OpParam& param);
     HcclResult SplitData(const u64 &dataCount, const uint64_t &rankSize, TemplateDataParams &tempAlgParams);
     u64 RoundUp(const u64 dividend, const u64 divisor);
-    
-    // std::vector<AllReduceSliceInfo> sliceInfoList_;
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};

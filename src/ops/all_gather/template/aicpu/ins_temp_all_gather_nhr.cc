@@ -12,6 +12,7 @@
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
 
+
 namespace ops_hccl {
 InsTempAllGatherNHR::InsTempAllGatherNHR(const OpParam &param, const u32 rankId,
                                          const std::vector<std::vector<u32>> &subCommRanks)
@@ -26,26 +27,34 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
 {
     std::vector<HcclChannelDesc> level1Channels;
     std::vector<HcclChannelDesc> myChannelDescs;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
+    u64 dataSize = param.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        CHK_RET(CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, subCommRanks_, myChannelDescs, CommTopo::COMM_TOPO_CLOS)); 
+        bool isIsolation = !(IsAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH) || dataSize <= SMALL_SIZE_512KB);
+        CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, isIsolation)); 
         for(auto channel : myChannelDescs) {
             if(channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
                 level1Channels.push_back(channel);
             }
         }
-        HCCL_DEBUG("[InsTempAllGatherNHR::CalcRes] Get Channel Success!");
     } else {
         CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, subCommRanks_, myChannelDescs));
         level1Channels = myChannelDescs;
     }
     resourceRequest.channels.push_back(level1Channels);
     channelsPerRank_ = CalcChannelsPerRank(level1Channels);
+    if (channelsPerRank_ > MAX_JETTY_NUM) {
+        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u", __func__, channelsPerRank_, MAX_JETTY_NUM);
+    } else {
+        HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
+    }
     CHK_RET(GetRes(resourceRequest));
     return HCCL_SUCCESS;
 }
 HcclResult InsTempAllGatherNHR::GetRes(AlgResourceRequest &resourceRequest) const
 {
     u32 threadNum = GetThreadNum();
+    HCCL_INFO("[InsTempAllGatherNHR][GetRes] threadNum[%u]", threadNum);
     resourceRequest.slaveThreadNum = threadNum - 1;
     // 一个notify用于主从流之间的同步，另一个用于PostLocalCopy和NHR最后一个step并行执行时的前同步
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 2);
@@ -66,9 +75,18 @@ u64 InsTempAllGatherNHR::CalcScratchMultiple(BufferType inBuffType, BufferType o
     return scratchMultiple;
 }
 
-HcclResult InsTempAllGatherNHR::PreprareDataSplitForMultiChannel(const TemplateResource &templateResource) {
+HcclResult InsTempAllGatherNHR::PrepareDataSplitForMultiChannel(const TemplateResource &templateResource) {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u64 totalDataCount = tempAlgParams_.sliceSize / dataTypeSize;
+    if (templateResource.channels.empty() || templateResource.channels.begin()->second.empty()) {
+        dataSplit_.assign(1, tempAlgParams_.sliceSize);
+        dataOffset_.assign(1, 0);
+        if (tempAlgParams_.tailSize > 0) {
+            dataSplitTail_.assign(1, tempAlgParams_.tailSize);
+            dataOffsetTail_.assign(1, 0);
+        }
+        return HCCL_SUCCESS;
+    }
     std::vector<u64> elemCountOut;
     CHK_RET(CalcDataSplitByPortGroup(totalDataCount, dataTypeSize, templateResource.channels.begin()->second, elemCountOut, dataSplit_, dataOffset_));
     if (tempAlgParams_.tailSize > 0) {
@@ -100,7 +118,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     bool isPcieProtocal = IsPcieProtocol(templateResource.channels);  // 判断是否存在pcie链路
     isDmaRead_ = isPcieProtocal;  // 是否使用Read模式
     HCCL_DEBUG("[InsTempAllGatherNHR] Use Dma Read[%d]", isDmaRead_);
-    CHK_RET(PreprareDataSplitForMultiChannel(templateResource));
+    CHK_RET(PrepareDataSplitForMultiChannel(templateResource));
     readLastStepToOutput_ = CanReadLastStepToOutput();
     HCCL_DEBUG("[InsTempAllGatherNHR] Read last step to output[%d]", readLastStepToOutput_);
 
@@ -110,11 +128,14 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
+
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         bool postLocalCopyLaunched = false;
-        CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));   // input buffer拷贝到scratch buffer上
-        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
-            postLocalCopyLaunched));
+ 	    CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));  // input buffer拷贝到scratch buffer上
+        if (templateRankSize_ > 1) {
+            CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
+                postLocalCopyLaunched));
+        }
         if (!postLocalCopyLaunched) {
             CHK_RET(PostLocalCopy(templateResource.threads[channelIdx], channelIdx));
         }

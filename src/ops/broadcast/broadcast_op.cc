@@ -42,13 +42,6 @@ HcclResult HcclBroadcast(void *buf, uint64_t count, HcclDataType dataType, uint3
     OpParam param;
     CHK_RET(BroadcastInitAndCheck(comm, buf, count, dataType, root, stream, param));
 
-    // 9.0.0 ccu模式走老流程
-    if ((GetHcommVersion() == CANN_VERSION(9, 0, 0)) &&
-        (GetExternalInputHcclCcuMSMode() ||
-        GetExternalInputHcclCcuSchedMode())) {
-        return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
-    }
-
     CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcast"));
 
     // 执行Broadcast
@@ -79,7 +72,7 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
     ResPackGraphMode resPack;
     // 设置tag
     if (strncpy_s(resPack.tag, sizeof(resPack.tag), tag, sizeof(resPack.tag) - 1) != 0) {
-        HCCL_ERROR("failed to fill resPack.tag");
+        HCCL_ERROR("failed to fill broadcast resPack.tag");
         return HCCL_E_INTERNAL;
     }
     // 设置streams
@@ -89,8 +82,8 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
         }
     }
     // 设置scratchMem
-    resPack.scratchMemAddr = scratchMemAddr;
     resPack.scratchMemSize = scratchMemSize;
+    resPack.scratchMemAddr = scratchMemAddr;
     std::string tagStr = tag;
 
     CHK_RET(BroadcastEntryLog(buf, count, dataType, root, stream, param.tag, "HcclBroadcastGraphMode", true));
@@ -106,7 +99,6 @@ HcclResult HcclBroadcastGraphMode(void *buf, uint64_t count, HcclDataType dataTy
 namespace ops_hccl {
 HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclDataType dataType, uint32_t root, const aclrtStream stream, OpParam &param)
 {
-    (void) root;
     (void) stream;
     // 入口的地方先解析环境变量，在初始化环境变量的时候需要设置为AICPU展开
     CHK_RET(InitEnvConfig());
@@ -122,6 +114,7 @@ HcclResult BroadcastInitAndCheck(HcclComm comm, void *buf, uint64_t count, HcclD
     CHK_RET(HcclGetRankId(comm, &userRank));
     CHK_RET(HcclCheckTag(param.tag));
     CHK_RET(HcomCheckUserRank(rankSize, userRank));
+    CHK_RET(HcomCheckUserRank(rankSize, root));
     CHK_RET(CheckCount(count));
     CHK_RET(CheckDataType(dataType, false));
 
@@ -157,8 +150,8 @@ HcclResult BroadcastOutPlaceCommon(void *buf, uint64_t count, HcclDataType dataT
 
     OpParam param;
     CHK_RET(HcclGetCommName(comm, param.commName));
-    param.stream = stream;
     param.opMode = opMode;
+    param.stream = stream;
 
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
@@ -172,8 +165,8 @@ HcclResult BroadcastOutPlaceCommon(void *buf, uint64_t count, HcclDataType dataT
 
     // 参数准备
     param.inputPtr = buf;
-    param.inputSize = inputSize;
     param.outputPtr = buf;
+    param.inputSize = inputSize;
     param.outputSize = outputSize;
     param.DataDes.count = count;
     param.DataDes.dataType = dataType;
@@ -185,6 +178,7 @@ HcclResult BroadcastOutPlaceCommon(void *buf, uint64_t count, HcclDataType dataT
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
     CHK_RET(HcclGetOpExpansionMode(comm, param));
+
     CHK_RET(Selector(comm, param, topoInfo, algName));
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
         return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
@@ -240,9 +234,22 @@ HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclData
     
     CHK_RET(HcclGetOpExpansionMode(comm, param));
 
+    // 9.0.0 ccu模式走老流程
+    if (GetHcommVersion() == CANN_VERSION(9, 0, 0) && param.engine == CommEngine::COMM_ENGINE_CCU) {
+        return HcclBroadcastInner(buf, count, dataType, root, comm, stream);
+    }
+
     CcuFastLaunchCtx *ccuFastLaunchCtx = nullptr;
     if (ShouldGoCcuFastLaunch(comm, param, &ccuFastLaunchCtx)) {
         return HcclExecOpCcuFastLaunch(comm, param, ccuFastLaunchCtx);
+    }
+
+    if (param.engine == CommEngine::COMM_ENGINE_AIV) {
+        bool aivCacheHit = false;
+        CHK_RET(HcclAivCacheCheckAndReplay(comm, param, aivCacheHit));
+        if (aivCacheHit) {
+            return HCCL_SUCCESS;
+        }
     }
 
     std::string algName;
@@ -257,8 +264,6 @@ HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclData
         return HcclResult::HCCL_SUCCESS;
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName));
-
-    HCCL_INFO("Execute BroadcastOutPlace success.");
     return HCCL_SUCCESS;
 }
 

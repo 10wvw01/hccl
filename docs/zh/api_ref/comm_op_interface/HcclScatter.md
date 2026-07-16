@@ -34,7 +34,7 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDat
 | --- | --- | --- |
 | sendBuf | 输入 | 源数据buffer地址。 |
 | recvBuf | 输出 | 目的数据buffer地址，集合通信结果输出至此buffer中。 |
-| recvCount | 输入 | 参与scatter操作的recvBuf的数据个数，比如只有一个int32数据参与，则count=1。 |
+| recvCount | 输入 | 参与scatter操作的recvBuf的数据个数，比如只有一个int32数据参与，则recvcount=1。 |
 | dataType | 输入 | Scatter操作的数据类型，[HcclDataType](https://gitcode.com/cann/hcomm/blob/master/docs/zh/api_ref/comm_mgr_c/data_type_definition/HcclDataType.md)类型。<br>不同的型号支持的数据类型不同，详细请参见[数据类型说明](#数据类型说明)。|
 | root | 输入 | 作为scatter root的rank id。 |
 | comm | 输入 | 集合通信操作所在的通信域。 |
@@ -42,10 +42,18 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDat
 
 ### 数据类型说明
 
+<!-- npu="950" id10 -->
 - 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float8-e5m2、float8-e4m3、float8-e8m0、hifloat8、float16、float32、float64、bfp16。
+<!-- end id10 -->
+<!-- npu="A3" id11 -->
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+<!-- end id11 -->
+<!-- npu="910b" id12 -->
 - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+<!-- end id12 -->
+<!-- npu="910" id13 -->
 - 针对Atlas 训练系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64。
+<!-- end id13 -->
 
 ## 返回值
 

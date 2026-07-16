@@ -61,7 +61,7 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::CalcRes(HcclComm comm, const O
         uint32_t dieId = 0;
         CHK_RET(GetChannelDieId(comm, myRank_, channel, dieId));
         CHK_PRT_RET(dieId >= DIE_NUM,
-            HCCL_ERROR("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot][CalcRes] dieId is invalid"), HCCL_E_INTERNAL);
+            HCCL_ERROR("[CcuTempReduceScatterMeshMem2Mem1D2Die][CalcRes] dieId is invalid"), HCCL_E_INTERNAL);
         channelDescsVec[dieId].push_back(channel);
         subRankGroup[dieId].push_back(channel.remoteRank);
     }

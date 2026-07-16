@@ -128,7 +128,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::DoLocalCopy(const TemplateDataPar
                                   tempAlgParams.sliceSize, tempAlgParams.count);
         auto dstSlice = DataSlice(dstAddr, tempAlgParams.buffInfo.outBuffBaseOff + i * tempAlgParams.outputSliceStride,
                                   tempAlgParams.sliceSize, tempAlgParams.count);
-        HCCL_INFO("myRank[%u], i[%u],  srcSlice:%s, dstSlice:%s", myRank_, i, srcSlice.Describe().c_str(),
+        HCCL_INFO("myRank[%u], i[%u], srcSlice:%s, dstSlice:%s", myRank_, i, srcSlice.Describe().c_str(),
                   dstSlice.Describe().c_str());
         CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
     }
@@ -271,7 +271,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatter(const std::map<u
         }
         SendRecvInfo sendRecvInfo{{linkRemote, linkRemote}, {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}};
 
-        CHK_PRT_RET(SendRecvWrite(sendRecvInfo, threads[queIdx]),
+        CHK_PRT_RET(SendRecvBatchWrite(sendRecvInfo, threads[queIdx]),
                     HCCL_ERROR("[InsTempReduceScatterOmniPipeMesh1D] RunReduceScatter Send failed"),
                     HcclResult::HCCL_E_INTERNAL);
     }

@@ -94,7 +94,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     resourceRequest.channels.resize(SEQUENCE_EXECUTOR_LEVEL_NUM);
     resourceRequest.channels[0] = resReqInter.channels[0];
     resourceRequest.channels[1] = resReqIntra.channels[0];
-    HCCL_INFO("slaveThreadNum is [%u], notifyNumOnMainThread is [%u], level 1 chanel size [%u], level 2 channel size [%u]",
+    HCCL_INFO("slaveThreadNum is [%u], notifyNumOnMainThread is [%u], level 1 channel size [%u], level 2 channel size [%u]",
         resourceRequest.slaveThreadNum, resourceRequest.notifyNumPerThread, resourceRequest.channels[0].size(), resourceRequest.channels[1].size());
     return HCCL_SUCCESS;
 }
@@ -131,7 +131,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter excutor kernel run failed",
+        HCCL_ERROR("[InsV2ReduceScatterSequenceExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }

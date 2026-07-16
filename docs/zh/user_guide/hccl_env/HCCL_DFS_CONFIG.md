@@ -20,8 +20,6 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
 
     **说明**：关闭集群心跳监测开关后，通信操作执行超时的异常情况无法探测，集群故障扩散能力丢失，且根节点故障信息不会记录到运行日志中。
 
-    **当前版本Ascend 950PR/Ascend 950DT仅支持配置cluster_heartbeat字段。**
-
 - **stuck_detection**：进程卡死检测开关。
 
     该参数支持两种取值：on（开启进程卡死检测能力）、off（关闭进程卡死检测能力），默认值为on。
@@ -36,6 +34,17 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
 
     **说明**：此功能不支持检测HcclBatchSendRecv算子和图模式场景，且开启后会生成数据缓存，占用HOST侧内存。
 
+<!-- npu="950" id5 -->
+- **task_exception**：task执行异常检测开关。用于在通信算子下发到Device侧异步执行失败时，通过回调函数通知HCCL异常task信息（stream和taskId），HCCL据此检索下发时的task信息，打印失败task的详细信息及其所在算子信息，辅助定位task执行异常问题。
+
+    该参数支持两种取值：on（开启task执行异常检测能力）、off（关闭task执行异常检测能力），默认值为on。
+
+    关闭该开关后，HCCL将不再记录与检索异常task的详细信息，task执行异常相关的维测信息将无法获取。
+
+    **说明**：该功能当前仅支持Ascend 950PR/Ascend 950DT。
+<!-- end id5 -->
+
+<!-- npu="A3" id4 -->
 - **task_monitor_interval**：算子的展开模式为AI CPU的场景下，开启算子task执行耗时时间监控。
 
     “task_monitor_interval”参数的取值范围为：\[0, 7200000\]，单位ms，默认为0。
@@ -50,6 +59,7 @@ HCCL提供了多种故障检测功能的开关设置，包括建链故障探测�
     3. 当该配置取值小于100ms时，无法保证功能的完备性，同时可能对业务执行性能、功能造成较大影响，甚至可能导致业务执行失败。
     4. 该配置取值较小时，存在“$HOME/ascend/log/run/device-\*/”目录下日志刷屏的风险。
     5. 该功能可作为task exception的辅助维测补充，在此场景下，建议配置数值略小于“1/2 \* HCCL_EXEC_TIMEOUT环境变量取值”。
+<!-- end id4 -->
 
 > [!NOTE]说明
 > 本环境变量提供的检测功能仅用于辅助定位集群故障点位置，在某些复杂场景下可能不是集群业务失败的根因位置。请基于探测事件的生成时间、被检测节点的具体报错进一步确认故障根节点位置。
@@ -62,12 +72,22 @@ export HCCL_DFS_CONFIG="connection_fault_detection_time:30,cluster_heartbeat:on,
 
 ## 使用约束
 
-无
+**当前版本Ascend 950PR/Ascend 950DT仅支持配置以下三个字段：task_exception、cluster_heartbeat、inconsistent_check。**
 
-## 支持的型号
+## 产品支持情况
 
-Ascend 950PR/Ascend 950DT
-
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
-
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+<!-- npu="950" id1 -->
+- Ascend 950PR/Ascend 950DT：支持
+<!-- end id1 -->
+<!-- npu="A3" id2 -->
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+<!-- end id2 -->
+<!-- npu="910b" id3 -->
+- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+<!-- end id3 -->
+<!-- npu="910" id6 -->
+- Atlas 训练系列产品：不支持
+<!-- end id6 -->
+<!-- npu="310p" id7 -->
+- Atlas 推理系列产品：不支持
+<!-- end id7 -->

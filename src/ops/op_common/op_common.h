@@ -34,6 +34,10 @@ extern "C" {
 namespace ops_hccl {
 HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, std::string &algName, const ResPackGraphMode &resPack = ResPackGraphMode());
 
+bool IsStreamInCaptureMode(aclrtStream stream);
+
+bool IsAivCacheSupported(const OpParam &param);
+
 HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string &algName,
                                 std::unique_ptr<InsCollAlgBase> &executor,
                                 AlgResourceCtxSerializable &resCtxHost);
@@ -97,6 +101,8 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
 
 HcclResult HcclExecOpCcuFastLaunch(HcclComm comm, OpParam &param, const CcuFastLaunchCtx *ccuFastLaunchCtx);
 
+HcclResult HcclAivCacheCheckAndReplay(HcclComm comm, OpParam &param, bool &cacheHit);
+
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence);
 
@@ -137,8 +143,6 @@ HcclResult SetOpParamFallbackTag(OpParam &param, const std::string &algName);
 HcclResult SaveMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle thread, u32 notifyNum);
 
 HcclResult GetMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle &thread, u32 &notifyNum);
-
-HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo);
 
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                          std::string &algName);
@@ -182,9 +186,11 @@ HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startu
 
 HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
-HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam);
+HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam, bool ifCreate);
 
-HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
+HcclResult SetMultipleDimensionSplitRatio(HcclComm comm, OpParam &param);
+
+HcclResult GetCommMultipleDimensionSplitRatio(HcclComm comm, double &ratio, bool &isConfigured);
 
 HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
 

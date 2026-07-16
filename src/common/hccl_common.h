@@ -162,6 +162,55 @@ inline std::string GetDataStr(const void *data, u32 totalRanks)
     return dataCounts;
 }
 
+// Entry Log中u64数组按rank区间分片打印的单片段最大长度，避免触发LOG_TMPBUF_SIZE截断
+constexpr size_t ENTRY_ARRAY_LOG_CHUNK_SIZE = 384;
+constexpr u32 ENTRY_ARRAY_LOG_RESERVE_EXTRA = 32;   // 预留额外容量
+constexpr u32 ENTRY_ARRAY_LOG_SEPARATOR_LEN = 2;    // 分隔符长度(", ")
+
+// 按rank区间分片打印变长算子Entry Log中的u64数组参数，规避512字节栈缓冲截断
+inline void PrintEntryArrayLog(const std::string &opName, const std::string &tag,
+    const char *name, const void *data, u32 totalRanks)
+{
+    if (data == nullptr || name == nullptr) {
+        HCCL_RUN_INFO("Entry-%s: tag[%s], %s data is null",
+            opName.c_str(), tag.c_str(), name == nullptr ? "array" : name);
+        return;
+    }
+
+    if (totalRanks == 0) {
+        HCCL_RUN_INFO("Entry-%s: tag[%s], %s[empty]",
+            opName.c_str(), tag.c_str(), name);
+        return;
+    }
+
+    const u64 *values = static_cast<const u64 *>(data);
+    std::string chunk;
+    chunk.reserve(ENTRY_ARRAY_LOG_CHUNK_SIZE + ENTRY_ARRAY_LOG_RESERVE_EXTRA); // 预留容量，避免增长时多次重分配
+    u32 startRank = 0;
+
+    for (u32 i = 0; i < totalRanks; ++i) {
+        std::string num = std::to_string(values[i]);
+        // 加入分隔符和当前数值后若超出单片段长度，则先flush当前chunk
+        if (!chunk.empty() && chunk.size() + ENTRY_ARRAY_LOG_SEPARATOR_LEN + num.size() > ENTRY_ARRAY_LOG_CHUNK_SIZE) {
+            HCCL_RUN_INFO("Entry-%s: tag[%s], %s[%u..%u]/%u=[%s]",
+                opName.c_str(), tag.c_str(), name, startRank, i - 1, totalRanks, chunk.c_str());
+            chunk.clear();
+            startRank = i;
+            chunk = std::move(num);
+        } else {
+            if (!chunk.empty()) {
+                chunk += ", ";
+            }
+            chunk += num;
+        }
+    }
+
+    if (!chunk.empty()) {
+        HCCL_RUN_INFO("Entry-%s: tag[%s], %s[%u..%u]/%u=[%s]",
+            opName.c_str(), tag.c_str(), name, startRank, totalRanks - 1, totalRanks, chunk.c_str());
+    }
+}
+
 // server内link类型
 enum class LinkTypeInServer {
     HCCS_TYPE = 0,

@@ -44,9 +44,15 @@ HcclResult HcclAlltoAllVC(const void *sendBuf, const void *sendCountMatrix, Hccl
 
 ### 数据类型说明
 
+<!-- npu="950" id10 -->
 - 针对Ascend 950PR/Ascend 950DT，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float8-e5m2、float8-e4m3、float8-e8m0、hifloat8、float16、float32、float64、bfp16。
+<!-- end id10 -->
+<!-- npu="A3" id11 -->
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+<!-- end id11 -->
+<!-- npu="910b" id12 -->
 - 针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，支持数据类型：int8、uint8、int16、uint16、int32、uint32、int64、uint64、float16、float32、float64、bfp16。
+<!-- end id12 -->
 
 ## 返回值
 
@@ -77,9 +83,9 @@ aclrtStream stream;
 aclrtCreateStream(&stream);
 
 // 设置收发数据量，收发数据量相同
-std::vector&lt;uint64_t> sendCountMatrix(rankSize * rankSize);
-for (uint32_t i = 0; i &lt; rankSize; ++i) {
-    for (uint32_t j = 0; j &lt; rankSize; ++j) {
+std::vector<uint64_t> sendCountMatrix(rankSize * rankSize);
+for (uint32_t i = 0; i < rankSize; ++i) {
+    for (uint32_t j = 0; j < rankSize; ++j) {
         sendCountMatrix[i * rankSize + j] = count / rankSize;
     }
 }

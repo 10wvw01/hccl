@@ -21,6 +21,17 @@ extern "C" {
 DECL_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStatus *status);
 DECL_SUPPORT_FLAG(HcclCommGetStatus);
 
+DECL_WEAK_FUNC(HcclResult, HcclGroupStatusGet, bool *isGroupEnabled);
+DECL_SUPPORT_FLAG(HcclGroupStatusGet);
+
+DECL_WEAK_FUNC(HcclResult, HcclAicpuKernelLaunch, HcclComm comm, const HcclOpDesc *opInfo,
+    const HcclKernelFuncInfo *funcInfo, ThreadHandle aicpuThreadHandle, aclrtStream userStream,
+    const HcclKernelLaunchCfg *kernelLaunchCfg);
+DECL_SUPPORT_FLAG(HcclAicpuKernelLaunch);
+
+DECL_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallback, const char *regName, HcclCommStateCallback cb, void *args);
+DECL_SUPPORT_FLAG(HcclCommRegCommStateCallback);
+
 void HcclDeviceCommDlInit(void* libHcommHandle);
 
 #ifdef __cplusplus

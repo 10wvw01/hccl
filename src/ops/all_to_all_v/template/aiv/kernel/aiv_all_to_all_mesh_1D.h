@@ -30,13 +30,13 @@ public:
         }
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
     }
- 
+
     __aicore__ inline void Process()
     {
         if (coreIdx_ >= coreNum_) {
             return;
         }
- 
+
         if (coreNum_ >= rankSize_) {
             ProcessMultiCore();
         } else {

@@ -15,22 +15,24 @@
 #include "topo_host.h"
 #include "channel.h"
 #include "alg_v2_template_base.h"
-#include "utils.h"
-#include "log.h"
-#include "workflow.h"
 #include "sal.h"
 #include "config_log.h"
 #include "executor_v2_base.h"
 #include "coll_alg_v2_exec_registry.h"
+#include "utils.h"
+#include "log.h"
+#include "workflow.h"
 
 namespace ops_hccl {
 template <typename InsAlgTemplate>
 class InsV2SendSoleExecutor : public InsCollAlgBase {
 public:
     explicit InsV2SendSoleExecutor();
-    ~InsV2SendSoleExecutor() = default;
+    ~InsV2SendSoleExecutor() override = default;
     std::string Describe() const override;
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
+    HcclResult OrchestrateWithThread(
+        const OpParam &param, const AlgResourceCtxSerializable &resCtx, ThreadHandle sendRecvThread) override;
 
     /* *************** 资源计算 *************** */
     // 这些函数为ExecutorBase纯虚函数，必须重写

@@ -21,7 +21,7 @@ class InsV2AllGatherConcurrentExecutor : public InsCollAlgBase {
 public:
     explicit InsV2AllGatherConcurrentExecutor();
     ~InsV2AllGatherConcurrentExecutor() override = default;
-
+    
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
 
     /* *************** 资源计算 *************** */
@@ -38,7 +38,6 @@ public:
                                  const TemplateResource &templateAlgRes1, u32 notifyNumOnMainThread);
 #endif
 
-
 private:
     /* *************** 算法编排 *************** */
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
@@ -47,7 +46,7 @@ private:
     HcclResult InitCommInfo(const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
                             const AlgHierarchyInfoForAllLevel &algHierarchyInfo);
 
-    void GetParallelDataSplit(std::vector<float> &splitDataSize) const;
+    void GetParallelDataSplit(const OpParam &param, std::vector<float> &splitDataSize) const;
 
     void GenTemplateAlgParams(const OpParam &param, const AlgResourceCtxSerializable &resCtx, const u64 dataOffset,
                                   const u64 dataCountPerLoop, const u64 scratchOffset,

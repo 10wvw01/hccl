@@ -72,17 +72,16 @@ target_compile_options(hccl PRIVATE
     -fstack-protector-all
 )
 
-# libhccl
-target_link_directories(hccl PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-)
-
 if(NOT STATIC_MODE)
     add_dependencies(hccl hccl_compat)
 endif()
 
 if(BUILD_OPEN_PROJECT)
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:mmpa_headers>
+        $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
         -Wl,--no-as-needed
         hcomm
         hccl_compat
@@ -93,6 +92,7 @@ if(BUILD_OPEN_PROJECT)
     )
 else()
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:ofed_headers>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:npu_runtime_headers>
@@ -104,7 +104,6 @@ else()
         c_sec
         unified_dlog
         -Wl,--no-as-needed
-        ofed_headers
     )
 endif()
 
@@ -115,44 +114,6 @@ if(NOT STATIC_MODE)
         -Wl,-z,noexecstack
         $<$<CONFIG:Release>:-s>
     )
-endif()
-
-target_link_directories(hccl PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/lib64
-)
-
-if(STATIC_MODE)
-    target_link_libraries(hccl PRIVATE
-        hcomm
-        acl_rt
-        c_sec
-        unified_dlog
-    )
-else()
-    if(BUILD_OPEN_PROJECT)
-        target_link_libraries(hccl PRIVATE
-            -Wl,--no-as-needed
-            hcomm
-            acl_rt
-            c_sec
-            unified_dlog
-            -Wl,--no-as-needed
-        )
-    else()
-        target_link_libraries(hccl PRIVATE
-            $<BUILD_INTERFACE:slog_headers>
-            $<BUILD_INTERFACE:msprof_headers>
-            $<BUILD_INTERFACE:npu_runtime_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
-            -Wl,--no-as-needed
-            hcomm
-            acl_rt
-            c_sec
-            unified_dlog
-            -Wl,--no-as-needed
-            ofed_headers
-        )
-    endif()
 endif()
 
 if(STATIC_MODE)
@@ -201,6 +162,11 @@ target_compile_options(opgraph_hccl PRIVATE
     -fvisibility=hidden
 )
 target_link_libraries(opgraph_hccl PRIVATE
+    $<BUILD_INTERFACE:msprof_headers>
+    $<BUILD_INTERFACE:mmpa_headers>
+    $<BUILD_INTERFACE:runtime_headers>
+    $<BUILD_INTERFACE:hcomm_headers>
+    unified_dlog
     ${_op_proto_link_libs}
     -Wl,--whole-archive
     rt2_registry
@@ -230,7 +196,7 @@ add_dependencies(hccl opgraph_hccl)
 list(APPEND CMAKE_MODULE_PATH "${ASCEND_CANN_PACKAGE_PATH}/include/ge/cmake")
 find_package(GenerateEsPackage REQUIRED)
 
-add_es_library(
+add_es_library_and_whl(
     ES_LINKABLE_AND_ALL_TARGET es_hccl
     OPP_PROTO_TARGET opgraph_hccl
     OUTPUT_PATH ${CMAKE_BINARY_DIR}/es_output
@@ -240,6 +206,12 @@ add_dependencies(hccl es_hccl)
 
 install(DIRECTORY ${CMAKE_BINARY_DIR}/es_output/include/es_hccl
     DESTINATION ${INSTALL_INCLUDE_DIR}/es/
+    ${INSTALL_OPTIONAL}
+    COMPONENT hccl
+)
+
+install(DIRECTORY ${CMAKE_BINARY_DIR}/es_output/whl/
+    DESTINATION ${WHL_INSTALL_DIR}/es_packages/whl
     ${INSTALL_OPTIONAL}
     COMPONENT hccl
 )

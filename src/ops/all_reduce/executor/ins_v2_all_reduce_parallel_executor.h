@@ -22,9 +22,9 @@
 #include "config_log.h"
 #include "executor_v2_base.h"
 #include "coll_alg_v2_exec_registry.h"
+#include "topo_match_ubx.h"
 #include "topo_match_base.h"
 #include "topo_match_1d.h"
-#include "topo_match_ubx.h"
 
 namespace ops_hccl {
 
@@ -32,7 +32,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 class InsAllReduceParallelExecutor : public InsCollAlgBase {
 public:
     explicit InsAllReduceParallelExecutor();
-    ~InsAllReduceParallelExecutor() = default;
+    ~InsAllReduceParallelExecutor() override = default;
 
     std::string Describe() const override
     {
@@ -158,7 +158,9 @@ private:
 
     std::map<u32, std::pair<u64, u64>> nhrPartDataMap_;
     std::map<u32, std::pair<u64, u64>> meshPartDataMap_;
-    double multipleDimensionSplitRatio_{0.8};
+    double multipleDimensionSplitRatio_{0.5};
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource_ =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
     std::vector<std::vector<u32>> temp0HierarchyInfo_;
     std::vector<std::vector<u32>> temp1HierarchyInfo_;
 };
