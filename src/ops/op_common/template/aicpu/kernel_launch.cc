@@ -274,6 +274,14 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         return 1;
     }
 
+    // TODO:notify1的操作。STEP1：导出流；STEP2:notify record
+    // 获取Host侧保序流
+    ThreadHandle exportHostOrderThread;
+    exportHostOrderThread = param->exportHostOrderThread;
+    ThreadHandle deviceOrderThread;
+    deviceOrderThread = param.deviceOrderThread;
+    HcommThreadNotifyRecordOnThread(deviceOrderThread, exportHostOrderThread, HOST_ORDER_THREAD_NOTIFY_IDX);
+
     std::string algName = std::string(param->algName);
     if (!ops_hccl::IsOpsV2(param->algName, param->deviceType)) {
         ScatterOpInfo opInfo;
