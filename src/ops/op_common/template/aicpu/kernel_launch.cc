@@ -30,8 +30,6 @@
 #include "hccl_device_comm_dl.h"
 #include "exec_timeout_manager.h"
 #include "alg_data_trans_wrapper.h"
-#include "ins_send_executor.h"
-#include "ins_recv_executor.h"
 
 using namespace ops_hccl;
 namespace {
@@ -219,7 +217,7 @@ namespace {
     };
 
     //全局缓存管理器实例
-    thread_local CommDomainCacheManager g_cacheManager;
+    static CommDomainCacheManager g_cacheManager;
 
     std::unique_ptr<AlgResourceCtxSerializable> DeserializeResCtx(const OpParam *param)
     {
@@ -304,6 +302,14 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             if (statusRet != HCCL_SUCCESS) {
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
                 return 1;
+            }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
             }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));
@@ -596,6 +602,14 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
                 return 1;
             }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
+            }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));
                 return 1;
@@ -670,14 +684,7 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
 
         ExecTimeoutManager::Instance().SetExecTimeout(param->opConfig.execTimeout);
         HcclResult ret = HCCL_SUCCESS;
-        if (param->opType == HcclCMDType::HCCL_CMD_SEND) {
-            InsSendExecutor *sendExecutor = dynamic_cast<InsSendExecutor *>(executor.get());
-            ret = sendExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
-        } else {
-            InsRecvExecutor *recvExecutor = dynamic_cast<InsRecvExecutor *>(executor.get());
-            ret = recvExecutor->OrchestrateP2p(*param, *resCtxPtr, sendRecvThread);
-        }
-
+        ret = executor->OrchestrateWithThread(*param, *resCtxPtr, sendRecvThread);
         if (ret != HCCL_SUCCESS) {
             HCCL_ERROR("orchestrate failed for alg:%s, opType[%d]", 
                     param->algName, static_cast<int>(param->opType));
@@ -843,6 +850,14 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
             if (statusRet != HCCL_SUCCESS) {
                 HCCL_ERROR("%s HcclCommGetStatus fail, commName[%s], ret = %d", __func__, param->commName, statusRet);
                 return 1;
+            }
+            if (commStatus == HCCL_COMM_STATUS_SUSPENDING) {
+                if (HcommReleaseComm(param->commName) == HCCL_SUCCESS) {
+                    HCCL_WARNING("%s commStatus is suspending, release commName[%s]", __func__, param->commName);
+                } else {
+                    HCCL_ERROR("%s commStatus is suspending, HcommReleaseComm fail, commName[%s]", __func__, param->commName);
+                }
+                return 301U; /* 301U: AICPUSUSPENDING_ERROR */
             }
             if (commStatus != HCCL_COMM_STATUS_READY) {
                 HCCL_ERROR("%s commStatus is not ready!, commStatus = %d", __func__, static_cast<int>(commStatus));

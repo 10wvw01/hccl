@@ -38,6 +38,8 @@ constexpr uint64_t UB_MAX_DATA_SIZE = 256*1024*1024; // Byte, UB协议一次传�
 
 constexpr u32 MAX_NUM_BLOCKS = 56; // 56-72
 
+constexpr u32 HCCL_LOGIC_TOPO_LEVEL_NUM = 4; // HCCL逻辑拓扑层级最多4级
+
 constexpr uint32_t DATATYPE_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
     2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
     8, 2, 16, 2, 1, 1, 1, 1};
@@ -76,6 +78,10 @@ constexpr uint64_t AICPU_ALIGN_SIZE = 4096;
 constexpr u32 MESH_CHANNELS_NUM = 1;
 
 constexpr uint64_t CCU_MAX_RANK_SIZE = 128;
+
+constexpr u32 TOPO_LEVEL_NUM_1 = 1;
+constexpr u32 TOPO_LEVEL_NUM_2 = 2;
+constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
@@ -263,6 +269,9 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> netLayerDetails.netInstNumOfLayer;
         binaryStream >> netLayerDetails.instSizeListOfLayer;
         binaryStream >> netLayerDetails.localNetInsSizeOfLayer;
+        if (topoInstDetailsOfLayerSize > HCCL_LOGIC_TOPO_LEVEL_NUM) {
+            topoInstDetailsOfLayerSize = HCCL_LOGIC_TOPO_LEVEL_NUM;
+        }
         topoInstDetailsOfLayer.resize(topoInstDetailsOfLayerSize);
         for (uint32_t idx = 0; idx < topoInstDetailsOfLayerSize; idx++) {
             binaryStream >> topoInstDetailsOfLayer[idx].topoInstNum;
@@ -356,8 +365,6 @@ struct AlgResourceRequest {
     std::vector<u32> ccuKernelNum;
 };
 
-constexpr u32 HCCL_LOGIC_TOPO_LEVEL_NUM = 4; // HCCL逻辑拓扑层级最多4级
-
 struct SubCommInfo {
     u32 localRank = 0;
     u32 localRankSize = 1;
@@ -375,6 +382,7 @@ struct ChannelInfo {
     EndpointLocType locationType = EndpointLocType::ENDPOINT_LOC_TYPE_RESERVED;
     u32 notifyNum = 0;
     u32 portGroupSize = 1; // A5用的, 端口组大小，用于数据分片比例计算
+    u32 dieId = INVALID_VALUE_RANKID; // A5用的, 用于识别Server间双Die POD链路
     ChannelHandle handle = 0;
     HcclMem remoteCclMem; // A5用的
     HcclMem remoteInputGraphMode;   // A5用的, 图模式下远端sendBuf地址
@@ -500,10 +508,17 @@ struct AlgResourceCtxSerializable {
     }
 };
 
+enum class MultipleDimensionSplitRatioSource : uint8_t {
+    BUILTIN_FORMULA = 0,
+    ENV_CONFIG,
+    COMM_CONFIG
+};
+
 struct DevAicpuOpConfig {
     u32 execTimeout = 0;
-    double multipleDimensionSplitRatio = 0.8;
-    // 如要新增配置类字段，在此处添加
+    double multipleDimensionSplitRatio = 0.5;
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource =
+        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
 };
 
 struct OpParam { // 不申请ctx，每个算子单独下发
