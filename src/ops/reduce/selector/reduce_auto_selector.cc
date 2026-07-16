@@ -14,6 +14,7 @@
 namespace ops_hccl {
 constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
+constexpr u32 REDUCE_MAX_RANK_NUM_FOR_SEQ_ALGO = 8;
 
 SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
@@ -120,8 +121,9 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->userRankSize == 0 ||
-            dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+        if ((topoInfo->userRankSize == 0 ||
+            dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) &&
+            topoInfo->userRankSize > REDUCE_MAX_RANK_NUM_FOR_SEQ_ALGO) {
             HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
                 topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
             return SelectorStatus::NOT_MATCH;
