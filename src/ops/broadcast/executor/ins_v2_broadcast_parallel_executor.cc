@@ -287,8 +287,8 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     rankIdxLevel1_ = myRank_ / intraLocalRankSize_;
     interLocalRoot_ = root_ / intraLocalRankSize_ * intraLocalRankSize_ + rankIdxLevel0_;
     intraLocalRoot_ = root_ % intraLocalRankSize_ + rankIdxLevel1_ * intraLocalRankSize_;
-    HCCL_DEBUG("[DEBUG] new myrank[%u], rankIdxLevel0_[%u] ,rankIdxLevel1_[%u] interlocalroot[%u] intralocalroot[%u]",
-               myRank_, rankIdxLevel0_,rankIdxLevel1_, interlocalroot, intralocalroot);
+    HCCL_DEBUG("[DEBUG] new myrank[%u], rankIdxLevel0_[%u] ,rankIdxLevel1_[%u] interLocalRoot_[%u] intraLocalRoot_[%u]",
+               myRank_, rankIdxLevel0_,rankIdxLevel1_, interLocalRoot_, intraLocalRoot_);
     HCCL_INFO("[CalcLocalRoot] localRoot: myRank[%d] intraLocalRoot[%u] interLocalRoot[%u]",
               myRank_, intraLocalRoot_, interLocalRoot_);
     return HcclResult::HCCL_SUCCESS;
