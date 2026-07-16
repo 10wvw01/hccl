@@ -41,7 +41,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
     (void)configAlgMap;
     HCCL_DEBUG("[AlltoAllAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
-        HCCL_ERROR("[AlltoAllAutoSelector][%s] ccu schedule is not supported with 3 level topo, reset to default.",
+        HCCL_INFO("[AlltoAllAutoSelector][%s] ccu schedule is not supported with 3 level topo, reset to default.",
             __func__);
         return SelectorStatus::NOT_MATCH;
     }
