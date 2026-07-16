@@ -54,7 +54,7 @@ case "${ut_type}" in
         echo "=====4===="
         git log -n 10
         echo "=====5===="
-        bash build.sh --st
+        bash build.sh --st > test_st.log
         ret=$?
         coverage_save="false"
         ;;
