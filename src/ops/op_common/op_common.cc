@@ -772,7 +772,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         (void)memset_s(&funcInfo, sizeof(HcclKernelFuncInfo), 0, sizeof(HcclKernelFuncInfo));
         
         (void)sprintf_s(funcInfo.kernelSoName, sizeof(funcInfo.kernelSoName), 
-                          "libscatter_aicpu_kernel.so");
+                          "libhccl_aicpu_kernel.so");
 
         (void)sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName), 
                           "HcclLaunchP2pAicpuKernel");
