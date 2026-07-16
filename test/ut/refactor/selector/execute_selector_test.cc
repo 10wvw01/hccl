@@ -35,7 +35,13 @@ TEST_F(SelectorTest, SelectReturnsParallelAlgorithm)
 
     HcclResult ret = Selector(nullptr, *param, topoInfo, alg);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(alg.algoExecDesc.execPolicy, HcclAlgExecPolicy::PARALLEL);
+    // 外层两个并行子树串行组合
+    EXPECT_EQ(alg.algoExecDesc.execPolicy, HcclAlgExecPolicy::SEQUENCE);
+    EXPECT_EQ(alg.algoExecDesc.children.size(), 2UL);
+    const auto &child0 = std::get<std::shared_ptr<AlgoExecDesc>>(alg.algoExecDesc.children[0]);
+    const auto &child1 = std::get<std::shared_ptr<AlgoExecDesc>>(alg.algoExecDesc.children[1]);
+    EXPECT_EQ(child0->execPolicy, HcclAlgExecPolicy::PARALLEL);
+    EXPECT_EQ(child1->execPolicy, HcclAlgExecPolicy::PARALLEL);
     EXPECT_EQ(alg.engineType, HcclAlgEngineType::AICPU);
     EXPECT_EQ(alg.hcclCmdType, HcclCMDType::HCCL_CMD_ALLGATHER);
 }

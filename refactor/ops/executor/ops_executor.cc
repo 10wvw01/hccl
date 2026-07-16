@@ -145,7 +145,7 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
         subThreads_.at(0).assign(subThreadBegin, subThreadEnd);
     } else {
         for (size_t subCommIndex = 0; subCommIndex < topoLevelNum; subCommIndex++) {
-            subThreadBegin = (subCommIndex == 0 ? subThreadBegin : subThreadEnd) + 1;
+            subThreadBegin = (subCommIndex == 0 ? subThreadBegin + 1 : subThreadEnd);
             subThreadEnd = subThreadBegin + 1 + maxSlaveThreadNum_.at(subCommIndex);
             subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
         }
@@ -460,7 +460,7 @@ inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
 
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
-    HCCL_INFO("[RunTemplateDesc] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d",
+    HCCL_ERROR("[RunTemplateDesc] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d",
         static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
         static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
@@ -471,7 +471,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
-    HCCL_INFO("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
+    HCCL_ERROR("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
               "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
               "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
         static_cast<int>(templateDataParams.inputBufferType), static_cast<int>(templateDataParams.outputBufferType),
