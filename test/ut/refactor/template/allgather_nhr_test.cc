@@ -105,11 +105,11 @@ TEST(AllGatherNhrRunAlgorithmTest, EightRankThreeStepsBuildsTxRxSlicesLists)
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 2. GetRes 分组 (DMA 消减算法: threadNum = channelsPerRank * 2, notifyPerThread = 2)
+// 2. GetRes 分组 (基类默认: threadNum = channelsPerRank, notifyPerThread = 1)
 // ═══════════════════════════════════════════════════════════════════
 
-// TC05 GetRes channelsPerRank=1 → threadNum=2, slaveThreadNum=1, notifyPerThread=2
-TEST(AllGatherNhrGetResTest, ChannelsPerRankOneDoublesThread)
+// TC05 GetRes channelsPerRank=1 → threadNum=1, slaveThreadNum=0, notifyNumPerThread 为空
+TEST(AllGatherNhrGetResTest, ChannelsPerRankOneNoSlaveThread)
 {
     AllGatherNhrTemplate tmpl(0, {0, 1}, TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER,
         HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY});
@@ -117,15 +117,14 @@ TEST(AllGatherNhrGetResTest, ChannelsPerRankOneDoublesThread)
     AlgResourceRequest res;
     HcclResult ret = tmpl.GetRes(res);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // threadNum = 1 * 2 = 2, slaveThreadNum = 1
-    EXPECT_EQ(res.slaveThreadNum, 1u);
-    EXPECT_EQ(res.notifyNumPerThread.size(), 1u);
-    EXPECT_EQ(res.notifyNumPerThread[0], 2u);
-    EXPECT_EQ(res.notifyNumOnMainThread, 1u);
+    // threadNum = 1, slaveThreadNum = 0
+    EXPECT_EQ(res.slaveThreadNum, 0u);
+    EXPECT_TRUE(res.notifyNumPerThread.empty());
+    EXPECT_EQ(res.notifyNumOnMainThread, 0u);
 }
 
-// TC06 GetRes channelsPerRank=2 → threadNum=4, slaveThreadNum=3, notifyPerThread=2
-TEST(AllGatherNhrGetResTest, ChannelsPerRankTwoDoublesThread)
+// TC06 GetRes channelsPerRank=2 → threadNum=2, slaveThreadNum=1, notifyPerThread=1
+TEST(AllGatherNhrGetResTest, ChannelsPerRankTwoSingleSlaveThread)
 {
     AllGatherNhrTemplate tmpl(0, {0, 1, 2, 3}, TemplateDesc{HcclCMDType::HCCL_CMD_ALLGATHER,
         HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY});
@@ -133,13 +132,11 @@ TEST(AllGatherNhrGetResTest, ChannelsPerRankTwoDoublesThread)
     AlgResourceRequest res;
     HcclResult ret = tmpl.GetRes(res);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // threadNum = 2 * 2 = 4, slaveThreadNum = 3
-    EXPECT_EQ(res.slaveThreadNum, 3u);
-    EXPECT_EQ(res.notifyNumPerThread.size(), 3u);
-    for (u32 i = 0; i < 3; i++) {
-        EXPECT_EQ(res.notifyNumPerThread[i], 2u);
-    }
-    EXPECT_EQ(res.notifyNumOnMainThread, 3u);
+    // threadNum = 2, slaveThreadNum = 1
+    EXPECT_EQ(res.slaveThreadNum, 1u);
+    EXPECT_EQ(res.notifyNumPerThread.size(), 1u);
+    EXPECT_EQ(res.notifyNumPerThread[0], 1u);
+    EXPECT_EQ(res.notifyNumOnMainThread, 1u);
 }
 
 // ═══════════════════════════════════════════════════════════════════

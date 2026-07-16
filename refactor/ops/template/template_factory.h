@@ -4,20 +4,21 @@
 #include <memory>
 #include "base_template.h"
 #include "aicpu/allgather_mesh.h"
+#include "aicpu/allgather_nhr.h"
 
 namespace ops_hccl {
 
-// 根据算法类型创建对应的模板子类。
-// 当前仅实现 AllGather Mesh 1D，后续扩展时按 templateDesc 分发到不同子类。
 inline std::unique_ptr<BaseTemplate> GetTemplate(const TemplateDesc &templateDesc,
     const std::vector<u32> &ranks, u32 myRank)
 {
-    if (templateDesc.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER &&
-        (templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH ||
-         templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT)) {
-        return std::make_unique<AllGatherMeshTemplate>(myRank, ranks, templateDesc);
+    if (templateDesc.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER) {
+        if (templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH) {
+            return std::make_unique<AllGatherMeshTemplate>(myRank, ranks, templateDesc);
+        }
+        if (templateDesc.algType == HcclAlgoType::HCCL_ALGO_TYPE_NHR) {
+            return std::make_unique<AllGatherNhrTemplate>(myRank, ranks, templateDesc);
+        }
     }
-    // 兜底：返回基类（KernelRun 默认实现为空，不产生数据任务）
     return std::make_unique<BaseTemplate>(myRank, ranks, templateDesc);
 }
 

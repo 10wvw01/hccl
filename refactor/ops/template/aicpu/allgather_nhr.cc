@@ -13,18 +13,6 @@
 
 namespace ops_hccl {
 
-HcclResult AllGatherNhrTemplate::GetRes(AlgResourceRequest &res) const
-{
-    // AllGather NHR 使用 DMA 消减算法：多申请一倍流用于 PostLocalCopy 和最后一步并行执行。
-    // 对应原始 InsTempAllGatherNHR::GetRes / GetThreadNum。
-    const u32 threadNum = channelsPerRank_ * 2;
-    res.slaveThreadNum = threadNum - 1;
-    // 一个 notify 用于主从流之间的同步，另一个用于 PostLocalCopy 和 NHR 最后一个 step 并行执行时的前同步。
-    res.notifyNumPerThread.assign(res.slaveThreadNum, 2);
-    res.notifyNumOnMainThread = threadNum - 1;
-    return HCCL_SUCCESS;
-}
-
 HcclResult AllGatherNhrTemplate::RunAlgorithm(TemplateResource &templateResource,
                                                 std::vector<TxRxSlicesList> &txRxSlicesLists,
                                                 std::vector<u32> &ranksForOutputData)
