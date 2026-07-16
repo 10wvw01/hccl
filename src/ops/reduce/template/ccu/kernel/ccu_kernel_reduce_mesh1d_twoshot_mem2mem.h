@@ -42,7 +42,6 @@ struct ReduceMesh1DTwoShotMem2MemContext: CcuKernelCtxBase {
     ccu::Variable lastSliceSize;
     ccu::Variable mySliceSize;
     ccu::Variable myScratchOffset;
-    ccu::Variable peerSliceSize;
     ccu::Variable repeatNumVar;
     ccu::Variable inputRepeatStride;
     ccu::Variable outputRepeatStride;
