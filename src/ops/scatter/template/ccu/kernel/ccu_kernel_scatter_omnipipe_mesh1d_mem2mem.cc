@@ -120,20 +120,33 @@ static CcuResult DoScatter(ScatterOmniPipeMesh1DMem2MemContext &ctx)
 
     for (uint64_t rankIdx = 0; rankIdx < ctx.rankSize; rankIdx++) {
         uint64_t mask = 1ULL << rankIdx;
-        CCU_IF(ctx.inputSliceSizeVec[rankIdx] != 0)
-        {
-            if (rankIdx == ctx.rankId) {
-                CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
-            } else {
+        if (rankIdx == ctx.rankId) {
+            CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
+        } else {
+            CCU_IF(ctx.inputSliceSizeVec[rankIdx] != 0) {
                 CCU_CHK_RET(ccu::Write(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx],
                     ctx.inputSliceSizeVec[rankIdx], ctx.event, mask));
-                channelId++;
             }
+            CCU_IF(ctx.inputSliceSizeVec[rankIdx] == 0) {
+                CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
+            }
+            channelId++;
+
         }
-        CCU_IF(ctx.inputSliceSizeVec[rankIdx] == 0)
-        {
-            CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
-        }
+        // CCU_IF(ctx.inputSliceSizeVec[rankIdx] != 0)
+        // {
+        //     if (rankIdx == ctx.rankId) {
+        //         CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
+        //     } else {
+        //         CCU_CHK_RET(ccu::Write(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx],
+        //             ctx.inputSliceSizeVec[rankIdx], ctx.event, mask));
+        //         channelId++;
+        //     }
+        // }
+        // CCU_IF(ctx.inputSliceSizeVec[rankIdx] == 0)
+        // {
+        //     CCU_CHK_RET(ccu::EventRecord(ctx.event, mask));
+        // }
     }
 
     CCU_CHK_RET(ccu::EventWait(ctx.event, (1ULL << ctx.rankSize) - 1));
