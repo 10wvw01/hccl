@@ -43,6 +43,8 @@ HcclResult FillAllReduceOpParam(void *sendBuf, void *recvBuf, uint64_t count, Hc
 HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, HcclComm comm,
                                    aclrtStream stream, OpMode opMode, const ResPackGraphMode &resPack, OpParam &param);
 
+bool AllReduceSupportSymmetricMemory(OpParam &opParam);
+
 HcclResult CheckAllReduceInputPara(const HcclComm comm, const void* sendBuf, const void* recvBuf, const aclrtStream stream);
 
 HcclResult AllReduceInitAndCheck(HcclComm comm, void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, const aclrtStream stream, OpParam &param);

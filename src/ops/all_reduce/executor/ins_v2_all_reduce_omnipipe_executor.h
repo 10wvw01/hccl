@@ -52,7 +52,8 @@ protected:
     HcclResult InitCommInfo(
         HcclComm comm, const OpParam &param, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo);
     HcclResult InitExectorInfo(const OpParam &param, const AlgResourceCtxSerializable &resCtx);
-    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo) const;
+    HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo,
+        u64 loopOffsetCount = 0, bool supportSymmetricMemory = false) const;
 
     HcclResult RestoreChannelMap(const AlgResourceCtxSerializable &resCtx,
         std::vector<std::map<u32, std::vector<ChannelInfo>>> &rankIdToChannelInfo) const override;
