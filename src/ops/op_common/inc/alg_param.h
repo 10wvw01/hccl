@@ -599,6 +599,8 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
     u64 varMemSize{0};
     u8 varData[0];
+    ThreadHandle orderHostThread;       // host侧Thread映射到device
+    ThreadHandle deviceHostThread;      // device侧Thread映射到host
 };
 
 struct AlgDesc {
