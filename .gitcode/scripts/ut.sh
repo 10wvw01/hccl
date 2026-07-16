@@ -45,7 +45,11 @@ case "${ut_type}" in
         sudo chmod 777 /home/jenkins/Ascend
         yes "y" | bash cann-hccl_linux-x86_64_ubuntu24.run --full --install-path=/home/jenkins/Ascend
         export ASCEND_HOME_PATH=/home/jenkins/Ascend/cann
+        echo "=====1===="
         source /home/jenkins/Ascend/cann/bin/setenv.bash
+        echo "=====2===="
+        ls -l /home/jenkins/Ascend/cann-9.1.0/share/info/
+        echo "=====3===="
         bash build.sh --st
         ret=$?
         coverage_save="false"
