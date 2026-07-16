@@ -199,7 +199,7 @@ stages:
             uses: cann/.gitcode/actions/api-check@master
             with:
               org_name: ${{ env.org_name }}
-              task_name: "api-check"
+              mode: "check"
               repo_name: ${{ env.repo_name }}
               source_branch: ${{ env.SOURCE_BRANCH }}
               target_branch: ${{ env.TARGET_BRANCH }}
