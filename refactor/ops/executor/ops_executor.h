@@ -45,10 +45,11 @@ struct ExecDataInfo {
 
 struct AlgoExecDataDesc {
     u64 dataOffset{0};
-    u64 stride{0};
+    u64 dataStride{0};
     u64 sliceCount{0};
     u64 sliceOffset{0};
     u64 scratchSize{0}; // 输出参数
+    u64 scratchStride{0};
     u64 tailCount{0};
     std::vector<u32> ranksForInputData;
     std::vector<u32> ranksForOutputData; // 输出参数
@@ -71,7 +72,7 @@ public:
 
 private:
     HcclResult GetRes(AlgResourceRequest &resReq);
-    // 调用template CalcRes获取Channel资源，Host侧才可以使用,需要知道comm   
+    // 调用template CalcRes获取Channel资源，Host侧才可以使用,需要知道comm
     HcclResult CalcChannelResRecursion(HcclComm comm, AlgoExecDesc &algoExecDesc);
     // 调用template CalcRes获取Channel资源，Host侧和Kernel都可以使用，不需要知道comm
     HcclResult GetResRecursion(AlgoExecDesc &algoExecDesc, u32 &subCommMask);
@@ -83,7 +84,8 @@ private:
     inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
-    inline void InitAlgoExecDataDesc(AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount);
+    inline void InitAlgoExecDataDesc(
+        AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount, u64 dataStride);
     inline void UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
