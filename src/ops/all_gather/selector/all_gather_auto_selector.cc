@@ -181,7 +181,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
-        HCCL_ERROR("[AllGatherAutoSelector][%s] ccu schedule is not supported with 3 level topo, reset to default.",
+        HCCL_INFO("[AllGatherAutoSelector][%s] ccu schedule is not supported with 3 level topo, reset to default.",
             __func__);
         return SelectorStatus::NOT_MATCH;
     }
