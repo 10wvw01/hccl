@@ -52,6 +52,8 @@ case "${ut_type}" in
         echo "=====3===="
         cat /home/jenkins/change_cann_pkgs.log
         echo "=====4===="
+        git log -n 10
+        echo "=====5===="
         bash build.sh --st
         ret=$?
         coverage_save="false"

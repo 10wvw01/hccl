@@ -35,7 +35,7 @@ stages:
           -
             name: show_output
             run: |
-              echo "image: ${{ steps.revise_image.outputs.Compile_Ascend_X86  }}"
+              echo "image: ${{ steps.revise_image.outputs.Compile_Ascend_X86 }}"
         if: "${{ default() }}"
         runs-on: ["codearts-hosted", "ubuntu-latest", "x64", "large"]
       JOB_pr:  

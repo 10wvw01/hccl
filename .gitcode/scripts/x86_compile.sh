@@ -23,6 +23,9 @@ bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script
 ret=$?
 
 if [[ "${task_name}" == *ubuntu24* ]]; then
+    echo "=====1===="
+    git log -n 10
+    echo "=====2===="
     cp ./build_out/cann-hccl*x86_64.run ./build_out/cann-hccl_linux-x86_64_ubuntu24.run
 fi
 exit $ret
