@@ -59,9 +59,9 @@ void RunAllGatherAicpuA5(const TopoMeta &topoInfo, const u64 &sendCount, const H
 {
     // 仿真模型初始化
     SimWorld::Global()->Init(topoInfo, DevType::DEV_TYPE_950);
-    EnableCheckerPrintTask();  // 打开任务打印（默认关闭）
+    EnableCheckerPrintTask(); // 打开任务打印（默认关闭）
     DisableCheckerPrintTask(); // 用完后关闭（可选）
-    // 设置展开模式为HOST_TS
+    //  设置展开模式为HOST_TS
     setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
 
@@ -153,7 +153,50 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_4rank_fp32_big_d
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1, 2, 3}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 1024 * 1024 * 1024;                // 单卡数据量
+    auto sendCount = 1024 * 1024 * 1024;               // 单卡数据量
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32; // 数据类型
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_2rank_int64_small_data_test)
+{
+    // 仿真模型初始化
+    TopoMeta topoMeta{{{0}, {1}}}; // 三维数组指定超节点-Server-Device信息
+
+    // 算子执行参数设置
+    auto sendCount = 100;                               // 单卡数据量
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64; // 数据类型
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_2rank_int8_big_data_test)
+{
+    // 仿真模型初始化
+    TopoMeta topoMeta{{{0}, {1}}}; // 三维数组指定超节点-Server-Device信息
+
+    // 算子执行参数设置
+    auto sendCount = 250 * 1024 * 1024;                // 单卡数据量
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8; // 数据类型
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_8rank_fp64_small_data_test)
+{
+    // 仿真模型初始化
+    TopoMeta topoMeta{{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}}}; // 三维数组指定超节点-Server-Device信息
+
+    // 算子执行参数设置
+    auto sendCount = 100;                              // 单卡数据量
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP64; // 数据类型
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_4rank_fp32_big_data_test)
+{
+    // 仿真模型初始化
+    TopoMeta topoMeta{{{0}, {1}, {2}, {3}}}; // 三维数组指定超节点-Server-Device信息
+    // 算子执行参数设置
+    auto sendCount = 1024 * 1024 * 1024;               // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
