@@ -23,6 +23,7 @@ TopoMatch1D::~TopoMatch1D()
 HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfoExector)
 {
 #ifndef AICPU_COMPILE
+    u32 myRank = topoInfo->userRank;
     CHK_PRT_RET(topoInfo->topoLevelNums == 0 || topoInfo->topoLevelNums > COMM_LAYER_SIZE_3,
         HCCL_ERROR("[CalcTopoLevelNums] topoLevelNum[%u] is invalid.",
             topoInfo->topoLevelNums),
@@ -32,7 +33,7 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
         HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] Rank [%d], deviceType not supported yet.", myRank_),
         HcclResult::HCCL_E_PARA);
     CHK_PRT_RET((topoInfo->userRankSize == 0),
-                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] Rank [%d], rankSize is 0.", myRank_),
+                HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh1D] Rank [%d], rankSize is 0.", myRank),
                 HcclResult::HCCL_E_PARA);
 
     for (const auto &netLayerIdx : topoInfo->netLayerDetails.netLayers) {
@@ -43,12 +44,13 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
                 HcclResult::HCCL_E_PARA);
     }
 
+    std::vector<u32> rankIds;
     for (uint32_t rankId = 0; rankId < topoInfo->userRankSize; rankId++) {
-        rankIds_.push_back(rankId);
+        rankIds.push_back(rankId);
     }
     algHierarchyInfoExector.infos.resize(1);
     algHierarchyInfoExector.infos[0].resize(1);
-    algHierarchyInfoExector.infos[0][0] = rankIds_;
+    algHierarchyInfoExector.infos[0][0] = rankIds;
 #endif
     return HcclResult::HCCL_SUCCESS;
 }
