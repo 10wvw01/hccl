@@ -190,7 +190,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
                 return SelectorStatus::MATCH;
-            } else if (dataSize <= 64 * 1024 * 1024 && topoInfo->userRankSize < ccuSize) {
+            } else if (dataSize <= CCU_PARALLEL_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
                 return SelectorStatus::MATCH;
             } else if(IsSmallDataCCU(dataSize, topoInfo->userRankSize)){//64M以下跑ccu
