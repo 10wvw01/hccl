@@ -12,7 +12,7 @@
 #include "hccl_aiv_utils.h"
 
 namespace ops_hccl {
-constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 constexpr int TOPO_LEVEL_3 = 3;
 
@@ -151,7 +151,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
             return SelectorStatus::NOT_MATCH;
         }
     } else {
-        selectAlgName = "CcuReduceMesh1DTwoShotMem2Mem";
+        return SelectMeshAlgoCcuSchedule(topoInfo, opParam, selectAlgName);
     }
     HCCL_INFO("[ReduceAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
@@ -168,11 +168,11 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[ReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
-        } else if (dataSize >= REDUCE_AICPU_1D_MAX_DATA_SIZE) {
-            HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] >= 8MB, fallback to aicpu.", dataSize);
+        } else if (dataSize > REDUCE_AICPU_1D_MAX_DATA_SIZE) {
+            HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] > 16MB, fallback to aicpu.", dataSize);
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuReduceMesh1DMem2Mem";
+            selectAlgName = "CcuReduceMesh1DTwoShotMem2Mem";
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
