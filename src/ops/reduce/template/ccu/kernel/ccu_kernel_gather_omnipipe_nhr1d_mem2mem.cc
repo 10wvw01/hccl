@@ -69,8 +69,6 @@ static CcuResult LoadArgs(GatherOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.myRankIdx], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.localCopyFlag, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
@@ -122,8 +120,6 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
     ccu::LocalAddr dst;
     u32                    toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
     u32                    fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-    ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
-    ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
     const std::vector<u32> sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
     const std::vector<u32> recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
@@ -141,8 +137,6 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         u32 fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
         u32 recvSliceIdx = 0;
         ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
-        // src.token                        = ctx.token[ctx.myRankIdx];
-        // dst.token                        = ctx.token[fromRankIdx];
         src.token                        = ctx.token[fromRankIdx];
         dst.token                        = ctx.token[ctx.myRankIdx];
 
