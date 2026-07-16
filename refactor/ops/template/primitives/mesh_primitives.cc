@@ -208,23 +208,23 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
     for (u32 rankIdx = 1; rankIdx < rankSize; ++rankIdx) {
         const u32 connectedAlgRank = (myAlgRank + rankIdx) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
-        const u64 connectedSliceSize = (tailSize > 0 && connectedAlgRank == rankSize - 1) ? tailSize : sliceSize;
-        const u64 localSliceSize = (tailSize > 0 && myAlgRank == rankSize - 1) ? tailSize : sliceSize;
+        const u64 txSliceSize = (tailSize > 0 && connectedAlgRank == rankSize - 1) ? tailSize : sliceSize;
+        const u64 rxSliceSize = (tailSize > 0 && myAlgRank == rankSize - 1) ? tailSize : sliceSize;
         const u64 txSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
-        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myAlgRank) * connectedSliceSize;
+        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myAlgRank) * txSliceSize;
         const u64 rxSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
-        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedAlgRank) * localSliceSize;
+        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedAlgRank) * rxSliceSize;
         std::vector<DataSlice> txSrcSlices;
         std::vector<DataSlice> txDstSlices;
         std::vector<DataSlice> rxSrcSlices;
         std::vector<DataSlice> rxDstSlices;
 
-        txSrcSlices.emplace_back(tempAlgParams.cclBufferPtr, txSrcOffset, connectedSliceSize,
-                                 connectedSliceSize / dataTypeSize);
-        txDstSlices.emplace_back(nullptr, txDstOffset, connectedSliceSize, connectedSliceSize / dataTypeSize);
-        rxSrcSlices.emplace_back(nullptr, rxSrcOffset, localSliceSize, localSliceSize / dataTypeSize);
-        rxDstSlices.emplace_back(tempAlgParams.cclBufferPtr, rxDstOffset, localSliceSize,
-                                 localSliceSize / dataTypeSize);
+        txSrcSlices.emplace_back(tempAlgParams.cclBufferPtr, txSrcOffset, txSliceSize,
+                                 txSliceSize / dataTypeSize);
+        txDstSlices.emplace_back(nullptr, txDstOffset, txSliceSize, txSliceSize / dataTypeSize);
+        rxSrcSlices.emplace_back(nullptr, rxSrcOffset, rxSliceSize, rxSliceSize / dataTypeSize);
+        rxDstSlices.emplace_back(tempAlgParams.cclBufferPtr, rxDstOffset, rxSliceSize,
+                                 rxSliceSize / dataTypeSize);
 
         txRxSlicesLists.emplace_back(SlicesList(txSrcSlices, txDstSlices),
                                      SlicesList(rxSrcSlices, rxDstSlices), connectedRank, connectedRank);
