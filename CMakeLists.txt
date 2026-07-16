@@ -142,7 +142,7 @@ elseif(BUILD_OPEN_PROJECT)
     # 配置打包
     pack_built_in()
     # 添加子目录
-    add_subdirectory(src)
+    add_subdirectory(refactor)
     if(ENABLE_EXPERIMENTAL)
         add_subdirectory(experimental/ops/)
     endif()

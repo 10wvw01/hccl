@@ -162,7 +162,7 @@ function build_test() {
     fi
 
     # 除算法的测试用例都依赖编译出来的so文件，所以需要额外加入环境变量
-    LIBRARY_DIR="${BUILD_DIR}/src:${BUILD_DIR}/src/algorithm:${BUILD_DIR}/src/framework:${BUILD_DIR}/src/platform: \
+    LIBRARY_DIR="${BUILD_DIR}/refactor:${BUILD_DIR}/refactor/ops: \
     ${BUILD_DIR}/test:${ASCEND_HOME_PATH}/lib64:"
 }
 
@@ -244,7 +244,7 @@ function build_static() {
  
  
      # 检查静态库是否生成 
-     local STATIC_LIB="${BUILD_DIR}/src/libhccl_static.a" 
+     local STATIC_LIB="${BUILD_DIR}/refactor/libhccl_static.a" 
      if [ ! -f "${STATIC_LIB}" ]; then 
          log "Error: Static library not found at expected location: ${STATIC_LIB}" 
          exit 1 
@@ -302,7 +302,7 @@ function build_static() {
          rm -f "${EXTRACT_DIR}/${AIV_STEM}.bin" 
          AIV_EMBED_COUNT=$((AIV_EMBED_COUNT + 1)) 
          log "Info: Embedded AIV kernel: ${AIV_BASENAME}" 
-     done < <(find "${BUILD_DIR}/src/ops" -type f \ 
+     done < <(find "${BUILD_DIR}/refactor/ops" -type f \ 
                  -name 'hccl_aiv_*_op_910_95.o' -print0) 
      log "Info: Total AIV kernels embedded: ${AIV_EMBED_COUNT}" 
  
@@ -598,13 +598,13 @@ function make_st_gov() {
         # 提取目标路径
         if [ -n "${LCOV_IGNORE_ERRORS}" ] ; then
             lcov -e coverage.info \
-                    */src/* \
+                    */refactor/* \
                 ${LCOV_PARALLEL} \
                 --ignore-errors "${LCOV_IGNORE_ERRORS}" \
                 -o coverage.info
         else
             lcov -e coverage.info \
-                    */src/* \
+                    */refactor/* \
                 ${LCOV_PARALLEL} \
                 -o coverage.info
         fi
