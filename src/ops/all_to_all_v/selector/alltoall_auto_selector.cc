@@ -40,6 +40,11 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
 {
     (void)configAlgMap;
     HCCL_DEBUG("[AlltoAllAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[AlltoAllAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     // ccu schedule 模式不支持 inplace 场景
     CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
         HCCL_WARNING("[Algo][AlltoAllAutoSelector] ccu schedule does not support inplace alltoall."),
@@ -210,8 +215,13 @@ SelectorStatus AlltoAllAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDet
             selectAlgName = "InsAlltoAllMesh1DDPU";
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsAlltoAllClosMesh1DDPU";
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsAlltoAllClosMesh1DDPU";
+                return SelectorStatus::MATCH;
+            } else {
+                selectAlgName = "InsAlltoAllMesh1DDPU";
+                return SelectorStatus::MATCH;
+            }
         }
     }
 

@@ -46,7 +46,6 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        // todo 这里的subThreads的size是0，就是说templateResource.threads给的值不对
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     HCCL_DEBUG("MT channelsPerRank_ = %llu, templateRankSize_ = %llu", channelsPerRank_, templateRankSize_);
@@ -61,7 +60,6 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        // todo 这里的subThreads的size是0，就是说templateResource.threads给的值不对
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
     HCCL_DEBUG("MT channelsPerRank_ = %llu, templateRankSize_ = %llu", channelsPerRank_, templateRankSize_);
@@ -230,7 +228,7 @@ HcclResult InsTempAllGatherOmniPipeNHR::RunAllGatherNHR(const std::vector<Thread
 
         if (!omniLastStepRead_ || step!=nSteps-1){
             if (isPcieProtocal) {
-                CHK_PRT_RET(SendRecvBatchRead(sendRecvInfo, threads[channelIdx]),
+                CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[channelIdx]),
                         HCCL_ERROR("[InsTempAllGatherOmniPipeNHR] sendrecv failed (step=%u)", step),
                         HcclResult::HCCL_E_INTERNAL);
             }else {
