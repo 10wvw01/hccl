@@ -16,8 +16,7 @@
 namespace ops_hccl {
 
 HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
-                                        TemplateResource &templateResource,
-                                        std::vector<u32> &ranksForOutputData)
+    TemplateResource &templateResource, std::vector<u32> &ranksForOutputData)
 {
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
 
@@ -85,8 +84,8 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
 
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
-HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
-                                       TemplateResource &templateResource)
+HcclResult AicpuBaseTemplate::SendAll(
+    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists, TemplateResource &templateResource)
 {
     for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
@@ -100,7 +99,6 @@ HcclResult AicpuBaseTemplate::SendAll(BaseEngine &engine, const std::vector<TxRx
     }
     return HCCL_SUCCESS;
 }
-
 
 HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
 {
@@ -135,11 +133,11 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
         }
         const u64 sliceCount = curSliceSize / dataTypeSize;
 
-        const u64 inOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.stride;
+        const u64 inOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.dataStride;
 
         // input -> ccl buffer（input 与 ccl 相同时跳过）
         if (!inputEqCcl) {
-            const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
+            const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
             DataSlice srcSlice(tempAlgParams_.inputBufferPtr, inOff, curSliceSize, sliceCount);
             DataSlice dstSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
             CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
@@ -184,8 +182,8 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
             continue;
         }
         const u64 sliceCount = curSliceSize / dataTypeSize;
-        const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
-        const u64 outOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + rank * tempAlgParams_.stride;
+        const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
+        const u64 outOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + rank * tempAlgParams_.dataStride;
         DataSlice srcSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams_.outputBufferPtr, outOff, curSliceSize, sliceCount);
         CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));
@@ -195,4 +193,4 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     return HCCL_SUCCESS;
 }
 
-}  // namespace ops_hccl
+} // namespace ops_hccl

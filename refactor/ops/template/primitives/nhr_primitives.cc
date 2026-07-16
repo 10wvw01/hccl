@@ -19,52 +19,50 @@ namespace ops_hccl {
 
 namespace {
 
-// 根据当前输入数据来源和目标 rank 的全局偏移，生成该目标 rank 当前持有的数据来源列表。
-inline HcclResult GetNhrConnectedInputRanks(const std::vector<u32> &ranksForInputData,
-                                            long long connectedOffset,
-                                            std::vector<u32> &connectedInputRanks)
-{
-    connectedInputRanks.clear();
-    connectedInputRanks.reserve(ranksForInputData.size());
-    for (u32 rankId : ranksForInputData) {
-        const long long connectedRankId = static_cast<long long>(rankId) + connectedOffset;
-        CHK_PRT_RET(connectedRankId < 0 ||
-                        connectedRankId > static_cast<long long>(std::numeric_limits<u32>::max()),
-                    HCCL_ERROR("[RunNhrAllGather] connectedRankId is invalid, rankId=%u, connectedOffset=%lld.",
-                               rankId, connectedOffset),
-                    HCCL_E_PARA);
-        HCCL_DEBUG("[RunNhrAllGather] GetNhrConnectedInputRanks: rankId=%u, connectedOffset=%lld, "
-                   "connectedRankId=%lld",
-                   rankId, connectedOffset, connectedRankId);
-        connectedInputRanks.emplace_back(static_cast<u32>(connectedRankId));
+    // 根据当前输入数据来源和目标 rank 的全局偏移，生成该目标 rank 当前持有的数据来源列表。
+    inline HcclResult GetNhrConnectedInputRanks(
+        const std::vector<u32> &ranksForInputData, long long connectedOffset, std::vector<u32> &connectedInputRanks)
+    {
+        connectedInputRanks.clear();
+        connectedInputRanks.reserve(ranksForInputData.size());
+        for (u32 rankId : ranksForInputData) {
+            const long long connectedRankId = static_cast<long long>(rankId) + connectedOffset;
+            CHK_PRT_RET(
+                connectedRankId < 0 || connectedRankId > static_cast<long long>(std::numeric_limits<u32>::max()),
+                HCCL_ERROR("[RunNhrAllGather] connectedRankId is invalid, rankId=%u, connectedOffset=%lld.", rankId,
+                    connectedOffset),
+                HCCL_E_PARA);
+            HCCL_DEBUG("[RunNhrAllGather] GetNhrConnectedInputRanks: rankId=%u, connectedOffset=%lld, "
+                       "connectedRankId=%lld",
+                rankId, connectedOffset, connectedRankId);
+            connectedInputRanks.emplace_back(static_cast<u32>(connectedRankId));
+        }
+        return HCCL_SUCCESS;
     }
-    return HCCL_SUCCESS;
-}
 
-// 按全局 rankId 槽位追加 NHR AllGather 的一组 src/dst DataSlice。
-inline void AddNhrRankDataSlices(const TemplateDataParams &tempAlgParams, const std::vector<u32> &rankIds,
-                                 u32 tailRankId, NhrAllGatherSlicePair &slicePair)
-{
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
-    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
-    for (u32 rankId : rankIds) {
-        const u64 offset = tempAlgParams.sliceOffset + static_cast<u64>(rankId) * tempAlgParams.stride;
-        const u64 dataSize = (tailSize > 0 && rankId == tailRankId) ? tailSize : sliceSize;
-        HCCL_DEBUG("[RunNhrAllGather] AddNhrRankDataSlices: rankId=%u, sliceOffset=%lu, stride=%lu, "
-                   "offset=%lu, size=%lu, count=%lu",
-                   rankId, tempAlgParams.sliceOffset, tempAlgParams.stride, offset, dataSize,
-                   dataSize / dataTypeSize);
-        slicePair.srcSlices.emplace_back(slicePair.srcPtr, offset, dataSize, dataSize / dataTypeSize);
-        slicePair.dstSlices.emplace_back(slicePair.dstPtr, offset, dataSize, dataSize / dataTypeSize);
+    // 按全局 rankId 槽位追加 NHR AllGather 的一组 src/dst DataSlice。
+    inline void AddNhrRankDataSlices(const TemplateDataParams &tempAlgParams, const std::vector<u32> &rankIds,
+        u32 tailRankId, NhrAllGatherSlicePair &slicePair)
+    {
+        const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+        const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
+        const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+        for (u32 rankId : rankIds) {
+            const u64 offset = tempAlgParams.sliceOffset + static_cast<u64>(rankId) * tempAlgParams.scratchStride;
+            const u64 dataSize = (tailSize > 0 && rankId == tailRankId) ? tailSize : sliceSize;
+            HCCL_DEBUG("[RunNhrAllGather] AddNhrRankDataSlices: rankId=%u, sliceOffset=%lu, stride=%lu, "
+                       "offset=%lu, size=%lu, count=%lu",
+                rankId, tempAlgParams.sliceOffset, tempAlgParams.scratchStride, offset, dataSize,
+                dataSize / dataTypeSize);
+            slicePair.srcSlices.emplace_back(slicePair.srcPtr, offset, dataSize, dataSize / dataTypeSize);
+            slicePair.dstSlices.emplace_back(slicePair.dstPtr, offset, dataSize, dataSize / dataTypeSize);
+        }
     }
-}
 
 } // namespace
 
-
 HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks, u32 myRank,
-                           std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
+    std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
 {
     txRxSlicesLists.clear();
     CHK_RET(CheckInputDataRanks(tempAlgParams, "RunNhrAllGather"));
@@ -72,8 +70,7 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
     u32 rankSize = static_cast<u32>(ranks.size());
     if (rankSize <= 1) {
         ranksForOutputData = tempAlgParams.ranksForInputData;
-        HCCL_INFO("[RunNhrAllGather] no sendRecv needed, ranksForOutputDataNum=%zu",
-                  ranksForOutputData.size());
+        HCCL_INFO("[RunNhrAllGather] no sendRecv needed, ranksForOutputDataNum=%zu", ranksForOutputData.size());
         return HCCL_SUCCESS;
     }
     u32 myAlgRank = 0;
@@ -85,15 +82,15 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
     u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
     u32 nSteps = 0;
-    //计算ceil(log2(rankSize))
+    // 计算ceil(log2(rankSize))
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
     }
-    HCCL_INFO("[RunNhrAllGather] myAlgRank=%u, dataTypeSize=%u, sliceSize=%lu, tailSize=%lu, nSteps=%u",
-              myAlgRank, dataTypeSize, sliceSize, tailSize, nSteps);
+    HCCL_INFO("[RunNhrAllGather] myAlgRank=%u, dataTypeSize=%u, sliceSize=%lu, tailSize=%lu, nSteps=%u", myAlgRank,
+        dataTypeSize, sliceSize, tailSize, nSteps);
 
     ranksForOutputData = ranksForInputData;
     for (u32 step = 0; step < nSteps; ++step) {
-        //delta 从 rankSize/2 开始，每次减半，直到 1
+        // delta 从 rankSize/2 开始，每次减半，直到 1
         u32 delta = 1 << (nSteps - 1 - step);
         u32 sendToAlgRank = (myAlgRank + delta) % rankSize;
         u32 recvFromAlgRank = (myAlgRank + rankSize - delta) % rankSize;
@@ -102,8 +99,8 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
         u32 nSlices = (rankSize - 1 + delta) / algRankStep;
         HCCL_INFO("[RunNhrAllGather] step=%u, delta=%u, sendToAlgRank=%u, sendToRank=%u, "
                   "recvFromAlgRank=%u, recvFromRank=%u, algRankStep=%u, nSlices=%u",
-                  step, delta, sendToAlgRank, ranks[sendToAlgRank], recvFromAlgRank, ranks[recvFromAlgRank],
-                  algRankStep, nSlices);
+            step, delta, sendToAlgRank, ranks[sendToAlgRank], recvFromAlgRank, ranks[recvFromAlgRank], algRankStep,
+            nSlices);
 
         std::vector<DataSlice> txSrc, txDst, rxSrc, rxDst;
         // tx: 本端持有的数据发给对端；rx: 对端持有的数据发给本端。
@@ -113,16 +110,15 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
         std::vector<u32> rxRankIds;
         const u32 tailRankId = ranks[rankSize - 1];
         for (u32 i = 0; i < nSlices; ++i) {
-            const long long txConnectedOffset =
-                static_cast<long long>(ranks[txAlgRank]) - static_cast<long long>(myRank);
-            const long long rxConnectedOffset =
-                static_cast<long long>(ranks[rxAlgRank]) - static_cast<long long>(myRank);
+            const long long txConnectedOffset
+                = static_cast<long long>(ranks[txAlgRank]) - static_cast<long long>(myRank);
+            const long long rxConnectedOffset
+                = static_cast<long long>(ranks[rxAlgRank]) - static_cast<long long>(myRank);
             CHK_RET(GetNhrConnectedInputRanks(ranksForInputData, txConnectedOffset, txRankIds));
             CHK_RET(GetNhrConnectedInputRanks(ranksForInputData, rxConnectedOffset, rxRankIds));
             HCCL_DEBUG("[RunNhrAllGather] slice=%u, txAlgRank=%u, txConnectedOffset=%lld, "
                        "rxAlgRank=%u, rxConnectedOffset=%lld, txRankNum=%zu, rxRankNum=%zu",
-                       i, txAlgRank, txConnectedOffset, rxAlgRank, rxConnectedOffset, txRankIds.size(),
-                       rxRankIds.size());
+                i, txAlgRank, txConnectedOffset, rxAlgRank, rxConnectedOffset, txRankIds.size(), rxRankIds.size());
             NhrAllGatherSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrc, txDst};
             AddNhrRankDataSlices(tempAlgParams, txRankIds, tailRankId, txSlicePair);
             NhrAllGatherSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrc, rxDst};
@@ -131,19 +127,19 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
             txAlgRank = (txAlgRank + rankSize - algRankStep) % rankSize;
             rxAlgRank = (rxAlgRank + rankSize - algRankStep) % rankSize;
         }
-        txRxSlicesLists.emplace_back(SlicesList(txSrc, txDst), SlicesList(rxSrc, rxDst),
-                                     ranks[recvFromAlgRank], ranks[sendToAlgRank]);
+        txRxSlicesLists.emplace_back(
+            SlicesList(txSrc, txDst), SlicesList(rxSrc, rxDst), ranks[recvFromAlgRank], ranks[sendToAlgRank]);
     }
     std::sort(ranksForOutputData.begin(), ranksForOutputData.end());
-    HCCL_INFO("[RunNhrAllGather] end: txRxSlicesListNum=%zu, ranksForOutputDataNum=%zu",
-              txRxSlicesLists.size(), ranksForOutputData.size());
+    HCCL_INFO("[RunNhrAllGather] end: txRxSlicesListNum=%zu, ranksForOutputDataNum=%zu", txRxSlicesLists.size(),
+        ranksForOutputData.size());
     return HCCL_SUCCESS;
 }
 
 // 待改动
 HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                               const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
-                               std::vector<SendRecvInfo> &sendRecvInfos)
+    const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
+    std::vector<SendRecvInfo> &sendRecvInfos)
 {
     sendRecvInfos.clear();
 
@@ -160,7 +156,7 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, Template
     u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
     u64 sliceOffset = tempAlgParams.sliceOffset;
-    u64 stride = tempAlgParams.stride;
+    u64 stride = tempAlgParams.scratchStride;
     u32 nSteps = 0;
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
     }
@@ -195,8 +191,7 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, Template
             rxAlgRank = (rxAlgRank + rankSize - algRankStep) % rankSize;
         }
 
-        TxRxSlicesList sendRecvSlicesList({txSrc, txDst}, {rxSrc, rxDst},
-                                         ranks[recvFromAlgRank], ranks[sendToAlgRank]);
+        TxRxSlicesList sendRecvSlicesList({txSrc, txDst}, {rxSrc, rxDst}, ranks[recvFromAlgRank], ranks[sendToAlgRank]);
         TxRxChannels sendRecvChannels(linkSend, linkRecv);
         sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, dataType);
     }
@@ -206,8 +201,8 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, Template
 }
 
 HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                         const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
-                         std::vector<SendRecvInfo> &sendRecvInfos)
+    const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
+    std::vector<SendRecvInfo> &sendRecvInfos)
 {
     sendRecvInfos.clear();
 
@@ -225,7 +220,7 @@ HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResour
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
     u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     u64 sliceOffset = tempAlgParams.sliceOffset;
-    u64 stride = tempAlgParams.stride;
+    u64 stride = tempAlgParams.scratchStride;
     u32 myRel = (myAlgRank + rankSize - rootAlgRank) % rankSize;
     u32 nSteps = 0;
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
@@ -247,8 +242,7 @@ HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResour
         std::vector<DataSlice> rxSrc{{linkRecv.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
         std::vector<DataSlice> rxDst{{tempAlgParams.cclBufferPtr, off, sz, sz / dataTypeSize}};
 
-        TxRxSlicesList sendRecvSlicesList({txSrc, txDst}, {rxSrc, rxDst},
-                                         ranks[recvFromAlgRank], ranks[sendToAlgRank]);
+        TxRxSlicesList sendRecvSlicesList({txSrc, txDst}, {rxSrc, rxDst}, ranks[recvFromAlgRank], ranks[sendToAlgRank]);
         TxRxChannels sendRecvChannels(linkSend, linkRecv);
         sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, dataType);
     }
@@ -257,4 +251,4 @@ HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResour
     return HCCL_SUCCESS;
 }
 
-}
+} // namespace ops_hccl

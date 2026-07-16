@@ -76,7 +76,7 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
     }
 
     const u32 rankSize = static_cast<u32>(ranks.size());
-    const u64 stride = tempAlgParams.stride;
+    const u64 stride = tempAlgParams.scratchStride;
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
@@ -149,7 +149,7 @@ HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::ve
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
     const u32 tailRankId = ranks[rankSize - 1];
-    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.stride, tailRankId};
+    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.scratchStride, tailRankId};
     HCCL_INFO("[RunMeshScatter] myAlgRank=%u, rootAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rootAlgRank, rankSize, dataTypeSize, sliceSize);
     // root 只发不收
@@ -203,7 +203,7 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
     const u32 tailRankId = ranks[rankSize - 1];
-    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.stride, tailRankId};
+    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.scratchStride, tailRankId};
     HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
 

@@ -75,7 +75,8 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         AlgoExecDataDesc algoExecDataDesc;
         HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
             loopIdx, processCount, offsetCount, tailCount);
-        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount);
+        InitAlgoExecDataDesc(algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount,
+            maxProcCntPerLoop * dataTypeSize_);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
@@ -345,7 +346,7 @@ HcclResult OpsExecutor::GenTemplateRes(const u32 subCommIndex, TemplateResource 
 }
 
 inline void OpsExecutor::InitAlgoExecDataDesc(
-    AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount)
+    AlgoExecDataDesc &algoExecDataDesc, u64 dataOffset, u64 dataCount, u64 tailCount, u64 dataStride)
 {
     algoExecDataDesc.dataOffset = dataOffset;
     algoExecDataDesc.tailCount = tailCount;
@@ -364,7 +365,8 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
         }
     }
     // 初始化之后这个值递归过程中不再变化，后续传递给template使用
-    algoExecDataDesc.stride = algoExecDataDesc.sliceCount * dataTypeSize_;
+    algoExecDataDesc.scratchStride = algoExecDataDesc.sliceCount * dataTypeSize_;
+    algoExecDataDesc.dataStride = dataStride;
 }
 
 inline void OpsExecutor::GenTemplateDataParams(
@@ -385,7 +387,8 @@ inline void OpsExecutor::GenTemplateDataParams(
     templateDataParams.root = root_;
     templateDataParams.enableRemoteMemAccess = opMode_ == OpMode::OFFLOAD;
     templateDataParams.ranksForInputData = algoExecDataDesc.ranksForInputData;
-    templateDataParams.stride = algoExecDataDesc.stride;
+    templateDataParams.dataStride = algoExecDataDesc.dataStride;
+    templateDataParams.scratchStride = algoExecDataDesc.scratchStride;
     return;
 }
 
@@ -458,13 +461,14 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
     HCCL_INFO("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
-              "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, stride=%lu, "
-              "reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
+              "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
+              "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
         static_cast<int>(templateDataParams.inputBufferType), static_cast<int>(templateDataParams.outputBufferType),
         static_cast<int>(templateDataParams.cclBufferType), static_cast<int>(templateDataParams.dataType),
         templateDataParams.dataOffset, templateDataParams.sliceCount, templateDataParams.sliceOffset,
-        templateDataParams.tailCount, templateDataParams.stride, static_cast<int>(templateDataParams.reduceOp),
-        templateDataParams.root, static_cast<int>(templateDataParams.enableRemoteMemAccess));
+        templateDataParams.tailCount, templateDataParams.dataStride, templateDataParams.scratchStride,
+        static_cast<int>(templateDataParams.reduceOp), templateDataParams.root,
+        static_cast<int>(templateDataParams.enableRemoteMemAccess));
     for (size_t i = 0; i < templateDataParams.ranksForInputData.size(); ++i) {
         HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
     }
