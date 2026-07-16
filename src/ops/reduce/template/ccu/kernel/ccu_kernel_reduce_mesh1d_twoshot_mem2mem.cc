@@ -133,7 +133,6 @@ static void InitSliceInfo(ReduceMesh1DTwoShotMem2MemContext &ctx)
         ctx.myScratchOffset += ctx.normalSliceSize;
     }
 
-    // scratch 布局：position k = rank k 的数据，间距为 sliceSize（区分正常块/尾块）
     ccu::Variable scratchOffset;
     scratchOffset = 0;
     for (uint32_t k = 0; k < ctx.arg->rankSize; k++) {
@@ -146,7 +145,6 @@ static void InitSliceInfo(ReduceMesh1DTwoShotMem2MemContext &ctx)
 
 // ============================================
 // CreateReduceLoop + ReduceLoopGroup
-// 参考 all_reduce 的实现，用 LoopGroup 机制实现分块流水线 reduce
 // ============================================
 static CcuResult CreateReduceLoop(ReduceMesh1DTwoShotMem2MemContext &ctx)
 {
