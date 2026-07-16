@@ -38,6 +38,10 @@ HcclResult DlHcommFunction::DlHcommFunctionInterInit()
         "HcclThreadResGetInfo");
     dlHcclConfigGetInfo = (HcclResult(*)(HcclComm, HcclConfigType, uint32_t, void*))dlsym(handle_,
         "HcclConfigGetInfo");
+    /* TODO
+    dlHcommThreadResGetInfo = (HcclResult(*)(ThreadHandle, void*, uint32_t, void**))dlsym(handle_,
+        "HcommThreadResGetInfo");
+    */
     return HCCL_SUCCESS;
 }
 
