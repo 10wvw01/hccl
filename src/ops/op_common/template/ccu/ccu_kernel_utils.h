@@ -19,6 +19,14 @@
 namespace ops_hccl {
 
 enum class CcuVersion { CCU_V1, CCU_V2, CCU_INVALID, INVALID };
+
+inline CcuVersion GetCcuVersion()
+{
+    DevType deviceType;
+    hrtGetDeviceType(deviceType);
+    return (deviceType == DevType::DEV_TYPE_950) ? CcuVersion::CCU_V1 : CcuVersion::CCU_V2;
+}
+
 constexpr uint16_t LOC_CPY_LOOP_NUM = 8;
 constexpr uint64_t UB_MAX_TRANS_SIZE = 256 * 1024 * 1024;  // UB单次最大传输量256*1024*1024 Byte
 constexpr uint64_t MAX_LOOP_GROUP_TRANS_SIZE = 256 * 1024 * 1024;  // 暂时为 256M
