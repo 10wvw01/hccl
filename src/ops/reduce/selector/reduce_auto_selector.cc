@@ -12,7 +12,8 @@
 #include "hccl_aiv_utils.h"
 
 namespace ops_hccl {
-constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
+constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 constexpr int TOPO_LEVEL_3 = 3;
 
@@ -168,7 +169,7 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[ReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
-        } else if (dataSize > REDUCE_AICPU_1D_MAX_DATA_SIZE) {
+        } else if (dataSize > REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE) {
             HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] > 16MB, fallback to aicpu.", dataSize);
             return SelectorStatus::NOT_MATCH;
         } else {
