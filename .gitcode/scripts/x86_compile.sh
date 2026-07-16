@@ -17,7 +17,9 @@ fi
 gcc --version
 source /home/jenkins/Ascend/cann/bin/setenv.bash
 set +e
-
+    echo "=====11===="
+    cat /home/jenkins/change_cann_pkgs.log
+    echo "=====22===="
 echo "exec cmd: [bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann]"
 bash build.sh --pkg --cann_3rd_lib_path="/home/jenkins/opensource" --sign-script scripts/sign/community_sign_build.py --full -p /home/jenkins/Ascend/cann
 ret=$?

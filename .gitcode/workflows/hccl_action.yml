@@ -136,7 +136,7 @@ stages:
         name: arm_compile_ubuntu24
         uses: .gitcode/workflows/arm_compile_action.yml
         with:
-          task_name: 'arm_compile_24'
+          task_name: 'arm_compile_ubuntu24'
           image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_ARM_ubuntu24 }}
       JOB_arm_compile_monitor:
         name: arm_compile_monitor
