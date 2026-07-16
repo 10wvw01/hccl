@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .title { font: 700 43px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .section { font: 700 26px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .label { font: 700 19px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .small { font: 400 16px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .tiny { font: 400 13px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #647184; }
+      .mono { font: 700 18px Consolas, "Courier New", monospace; fill: #172033; }
+      .monoSmall { font: 600 14px Consolas, "Courier New", monospace; fill: #526071; }
+      .white { fill: #ffffff; }
+      .panel { fill: #ffffff; stroke: #d9e2ee; stroke-width: 1.5; rx: 18; }
+      .chip { fill: #eef4fb; stroke: #cfdae8; stroke-width: 1; rx: 15; }
+      .part0 { fill: #4f80d9; }
+      .part1 { fill: #16a39a; }
+      .mesh { fill: #16a39a; }
+      .clos { fill: #f07d63; }
+      .formula { fill: #7057d3; }
+      .cardBlue { fill: #f1f6ff; stroke: #bad0f6; stroke-width: 1.4; rx: 16; }
+      .cardGreen { fill: #f0fbfa; stroke: #a8ddd8; stroke-width: 1.4; rx: 16; }
+      .cardPurple { fill: #f5f2ff; stroke: #c7bcf0; stroke-width: 1.4; rx: 16; }
+      .line { stroke: #c8d3df; stroke-width: 1.5; }
+      .arrow { stroke: #25344d; stroke-width: 2.5; fill: none; marker-end: url(#arrowHead); }
+      .softArrow { stroke: #647184; stroke-width: 2; fill: none; marker-end: url(#arrowSmall); }
+      .shadow { filter: url(#softShadow); }
+    </style>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#152238" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#25344d"/>
+    </marker>
+    <marker id="arrowSmall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#647184"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <text class="title" x="70" y="82">GetParallelDataSplit：设置 ratio 的性能优化原理</text>
+  <text class="subtitle" x="72" y="120">通过 ratio 将数据切成 intra 先行 / inter 先行两路，让 mesh 与 CLOS 在两个 Step 中并发工作，减少链路空闲等待。</text>
+
+  <rect class="panel shadow" x="70" y="155" width="455" height="400"/>
+  <rect class="panel shadow" x="555" y="155" width="610" height="400"/>
+  <rect class="panel shadow" x="1195" y="155" width="335" height="400"/>
+
+  <text class="section" x="105" y="205">1. 每轮数据切成两份</text>
+  <text class="small" x="105" y="236">ratio 控制 Part0 / Part1 的数据占比</text>
+
+  <g transform="translate(105 275)">
+    <rect class="part0" x="0" y="0" width="142" height="88" rx="12"/>
+    <rect class="part1" x="144" y="0" width="238" height="88" rx="12"/>
+    <text class="white label" x="33" y="36">Part0</text>
+    <text class="white small" x="28" y="64">1 - ratio</text>
+    <text class="white label" x="219" y="36">Part1</text>
+    <text class="white small" x="225" y="64">ratio</text>
+    <text class="tiny" x="8" y="118">intra 先行路径</text>
+    <text class="tiny" x="235" y="118">inter 先行路径</text>
+  </g>
+
+  <g transform="translate(105 430)">
+    <rect class="chip" x="0" y="0" width="382" height="72"/>
+    <text class="monoSmall" x="18" y="28">splitDataSize[0] = 1 - ratio</text>
+    <text class="monoSmall" x="18" y="54">splitDataSize[1] = ratio</text>
+  </g>
+
+  <text class="section" x="590" y="205">2. 两步交叉流水线</text>
+  <text class="small" x="590" y="236">每个 Step 中 mesh 与 CLOS 并发，Step2 依赖 Step1 输出</text>
+
+  <g transform="translate(590 276)">
+    <text class="label" x="0" y="20">Step 1</text>
+    <text class="label" x="0" y="176">Step 2</text>
+
+    <rect class="mesh" x="105" y="0" width="210" height="72" rx="12"/>
+    <rect class="clos" x="345" y="0" width="210" height="72" rx="12"/>
+    <text class="white label" x="128" y="28">Intra0 mesh</text>
+    <text class="white small" x="128" y="54">Part0：本 server 内</text>
+    <text class="white label" x="369" y="28">Inter1 NHR</text>
+    <text class="white small" x="369" y="54">Part1：server 间</text>
+
+    <path class="softArrow" d="M 210 82 C 210 105, 210 118, 210 142"/>
+    <path class="softArrow" d="M 450 82 C 450 105, 450 118, 450 142"/>
+    <text class="tiny" x="250" y="116">数据依赖：Step2 读取 Step1 的 OUTPUT</text>
+
+    <rect class="clos" x="105" y="156" width="210" height="78" rx="12"/>
+    <rect class="mesh" x="345" y="156" width="210" height="78" rx="12"/>
+    <text class="white label" x="128" y="185">Inter0 NHR</text>
+    <text class="white small" x="124" y="212">Part0 × n0：走 CLOS</text>
+    <text class="white label" x="369" y="185">Intra1 mesh</text>
+    <text class="white small" x="365" y="212">Part1 × n1：走 mesh</text>
+
+    <path class="arrow" d="M 315 36 H 342"/>
+    <path class="arrow" d="M 315 195 H 342"/>
+    <text class="tiny" x="255" y="32">并发</text>
+    <text class="tiny" x="255" y="191">并发</text>
+  </g>
+
+  <text class="section" x="1230" y="205">3. 调节 Step2</text>
+  <text class="section" x="1230" y="238">负载占比</text>
+  <text class="small" x="1230" y="272">Step2 存在 AllGather 放大，</text>
+  <text class="small" x="1230" y="298">ratio 会影响两链路等待。</text>
+
+  <g transform="translate(1230 325)">
+    <rect class="chip" x="0" y="0" width="265" height="92"/>
+    <text class="monoSmall" x="16" y="32">CLOS: n0*(1-r)*D / Be</text>
+    <text class="monoSmall" x="16" y="62">mesh: n1*r*D / Bi</text>
+
+    <rect x="0" y="120" width="265" height="92" rx="16" class="formula"/>
+    <text class="white label" x="24" y="156">按带宽比分配负载</text>
+    <text class="white small" x="24" y="185">快链路多承担，慢链路少承担</text>
+  </g>
+
+  <rect class="panel shadow" x="70" y="590" width="1460" height="245"/>
+  <text class="section" x="105" y="638">设置 ratio 带来的性能提升机制</text>
+  <text class="small" x="105" y="668">ratio 不是额外流程开销，而是改变 Part0 / Part1 的负载分布，使两条物理链路在流水线中更少空闲。</text>
+
+  <g transform="translate(105 700)">
+    <rect class="cardBlue" x="0" y="0" width="420" height="100"/>
+    <circle cx="42" cy="50" r="22" class="part0"/>
+    <path d="M30 50 h24 M42 38 v24" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <text class="label" x="78" y="38">双链路并发</text>
+    <text class="small" x="78" y="66">Step1 / Step2 中 mesh 与 CLOS 同时工作，</text>
+    <text class="small" x="78" y="90">减少串行执行时的一忙一闲。</text>
+  </g>
+
+  <g transform="translate(590 700)">
+    <rect class="cardGreen" x="0" y="0" width="420" height="100"/>
+    <circle cx="42" cy="50" r="22" class="mesh"/>
+    <path d="M30 58 C38 35, 51 66, 59 42" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text class="label" x="78" y="38">负载按链路能力分配</text>
+    <text class="small" x="78" y="66">ratio 让快链路承担更多数据，</text>
+    <text class="small" x="78" y="90">慢链路承担较少放大后数据。</text>
+  </g>
+
+  <g transform="translate(1075 700)">
+    <rect class="cardPurple" x="0" y="0" width="420" height="100"/>
+    <circle cx="42" cy="50" r="22" class="formula"/>
+    <path d="M31 50 h22 M53 50 l-8 -8 M53 50 l-8 8" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="78" y="38">减少 Step2 等待</text>
+    <text class="small" x="78" y="66">Step2 数据被 n0 / n1 放大，</text>
+    <text class="small" x="78" y="90">合理 ratio 可降低并发模板互等时间。</text>
+  </g>
+
+  <g transform="translate(105 850)">
+    <text class="mono" x="0" y="0">总结：</text>
+    <text class="small" x="70" y="0">设置 ratio 的本质是带宽感知的负载均衡，让 mesh 与 CLOS 在交叉流水线中更充分并发。</text>
+  </g>
+</svg>

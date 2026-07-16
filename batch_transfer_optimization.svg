@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .title { font: 700 44px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 21px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .section { font: 700 28px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .label { font: 700 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .small { font: 400 17px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .tiny { font: 400 14px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #647184; }
+      .mono { font: 700 17px Consolas, "Courier New", monospace; fill: #172033; }
+      .monoSmall { font: 600 14px Consolas, "Courier New", monospace; fill: #526071; }
+      .white { fill: #ffffff; }
+      .panel { fill: #ffffff; stroke: #d9e2ee; stroke-width: 1.5; rx: 18; }
+      .mini { fill: #eef4fb; stroke: #cfdae8; stroke-width: 1.2; rx: 10; }
+      .nonbatch { fill: #4f80d9; }
+      .batch { fill: #16a39a; }
+      .doorbell { fill: #f07d63; }
+      .cqe { fill: #7057d3; }
+      .wqe { fill: #ffd166; }
+      .host { fill: #e8eef8; stroke: #cbd7e6; stroke-width: 1.2; rx: 12; }
+      .device { fill: #eef9f8; stroke: #b7ddd9; stroke-width: 1.2; rx: 12; }
+      .sq { fill: #fff8e3; stroke: #e9cc72; stroke-width: 1.2; rx: 10; }
+      .cq { fill: #f2efff; stroke: #c7bcf0; stroke-width: 1.2; rx: 10; }
+      .arrow { stroke: #25344d; stroke-width: 2.6; fill: none; marker-end: url(#arrowHead); }
+      .softArrow { stroke: #647184; stroke-width: 2; fill: none; marker-end: url(#arrowSmall); }
+      .dash { stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 7 7; fill: none; }
+      .shadow { filter: url(#softShadow); }
+    </style>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#152238" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#25344d"/>
+    </marker>
+    <marker id="arrowSmall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#647184"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <text class="title" x="70" y="84">BatchTransfer 接口性能提升原理</text>
+  <text class="subtitle" x="72" y="122">同步 notify record / wait 流程保持一致，性能差异来自数据传输阶段：N 次独立提交合并为 1 次批量提交。</text>
+
+  <rect class="panel shadow" x="70" y="160" width="700" height="450"/>
+  <rect class="panel shadow" x="830" y="160" width="700" height="450"/>
+
+  <text class="section" x="105" y="210">非 Batch：每个 slice 独立调用</text>
+  <text class="small" x="105" y="242">SendRecvWrite：for 循环内逐个 HcommWriteOnThread</text>
+
+  <g transform="translate(105 275)">
+    <rect class="host" x="0" y="0" width="165" height="278"/>
+    <text class="label" x="43" y="34">Host</text>
+    <text class="tiny" x="28" y="62">repeatNum = N</text>
+
+    <rect class="nonbatch" x="25" y="88" width="115" height="42" rx="8"/>
+    <rect class="nonbatch" x="25" y="143" width="115" height="42" rx="8"/>
+    <rect class="nonbatch" x="25" y="198" width="115" height="42" rx="8"/>
+    <text class="white label" x="51" y="116">slice1</text>
+    <text class="white label" x="51" y="171">slice2</text>
+    <text class="white label" x="52" y="226">sliceN</text>
+    <text class="tiny" x="76" y="193">...</text>
+
+    <path class="arrow" d="M 172 109 H 265"/>
+    <path class="arrow" d="M 172 164 H 265"/>
+    <path class="arrow" d="M 172 219 H 265"/>
+
+    <g transform="translate(275 0)">
+      <rect class="device" x="0" y="0" width="330" height="278"/>
+      <text class="label" x="130" y="34">Device SQ / CQ</text>
+      <g transform="translate(30 75)">
+        <rect class="sq" x="0" y="0" width="92" height="48"/>
+        <rect class="doorbell" x="110" y="0" width="92" height="48" rx="8"/>
+        <rect class="cq" x="220" y="0" width="62" height="48"/>
+        <text class="monoSmall" x="23" y="30">WQE1</text>
+        <text class="white monoSmall" x="123" y="30">DB1</text>
+        <text class="monoSmall" x="235" y="30">CQE</text>
+      </g>
+      <g transform="translate(30 130)">
+        <rect class="sq" x="0" y="0" width="92" height="48"/>
+        <rect class="doorbell" x="110" y="0" width="92" height="48" rx="8"/>
+        <rect class="cq" x="220" y="0" width="62" height="48"/>
+        <text class="monoSmall" x="23" y="30">WQE2</text>
+        <text class="white monoSmall" x="123" y="30">DB2</text>
+        <text class="monoSmall" x="235" y="30">CQE</text>
+      </g>
+      <g transform="translate(30 185)">
+        <rect class="sq" x="0" y="0" width="92" height="48"/>
+        <rect class="doorbell" x="110" y="0" width="92" height="48" rx="8"/>
+        <rect class="cq" x="220" y="0" width="62" height="48"/>
+        <text class="monoSmall" x="23" y="30">WQEN</text>
+        <text class="white monoSmall" x="123" y="30">DBN</text>
+        <text class="monoSmall" x="235" y="30">CQE</text>
+      </g>
+      <text class="tiny" x="145" y="185">...</text>
+    </g>
+
+    <rect class="mini" x="0" y="305" width="605" height="44"/>
+    <text class="monoSmall" x="22" y="333">N slices → N 次 HcommWriteOnThread → N 次 doorbell + N 个 CQE</text>
+  </g>
+
+  <text class="section" x="865" y="210">Batch：先打包，再一次性提交</text>
+  <text class="small" x="865" y="242">SendRecvBatchWrite：构建 desc vector 后调用 HcclHcommBatchTransferOnThread</text>
+
+  <g transform="translate(865 275)">
+    <rect class="host" x="0" y="0" width="185" height="278"/>
+    <text class="label" x="52" y="34">Host</text>
+    <text class="tiny" x="25" y="62">vector&lt;desc&gt;</text>
+
+    <rect class="batch" x="24" y="86" width="137" height="40" rx="8"/>
+    <rect class="batch" x="24" y="134" width="137" height="40" rx="8"/>
+    <rect class="batch" x="24" y="182" width="137" height="40" rx="8"/>
+    <text class="white label" x="51" y="113">desc1</text>
+    <text class="white label" x="51" y="161">desc2</text>
+    <text class="white label" x="52" y="209">descN</text>
+    <text class="tiny" x="86" y="180">...</text>
+
+    <path class="arrow" d="M 192 154 H 292"/>
+
+    <g transform="translate(302 0)">
+      <rect class="device" x="0" y="0" width="340" height="278"/>
+      <text class="label" x="135" y="34">Device SQ / CQ</text>
+      <rect class="sq" x="34" y="88" width="58" height="62"/>
+      <rect class="sq" x="96" y="88" width="58" height="62"/>
+      <rect class="sq" x="158" y="88" width="58" height="62"/>
+      <rect class="sq" x="220" y="88" width="58" height="62"/>
+      <text class="monoSmall" x="49" y="124">W1</text>
+      <text class="monoSmall" x="111" y="124">W2</text>
+      <text class="monoSmall" x="172" y="124">...</text>
+      <text class="monoSmall" x="234" y="124">WN</text>
+      <rect class="doorbell" x="94" y="177" width="128" height="52" rx="10"/>
+      <text class="white mono" x="123" y="210">1 次 DB</text>
+      <rect class="cq" x="242" y="177" width="68" height="52"/>
+      <text class="monoSmall" x="258" y="209">CQE</text>
+      <path class="softArrow" d="M 249 150 V 173"/>
+      <text class="tiny" x="35" y="69">N 个 WQE 连续填入 SQ</text>
+      <text class="tiny" x="216" y="249">仅最后 WQE 完成</text>
+    </g>
+
+    <rect class="mini" x="0" y="305" width="642" height="44"/>
+    <text class="monoSmall" x="22" y="333">N desc → 1 次 BatchTransfer → 1 次 doorbell + 1 个 CQE</text>
+  </g>
+
+  <g transform="translate(735 360)">
+    <circle cx="65" cy="40" r="40" fill="#25344d"/>
+    <text class="white label" x="34" y="35">N → 1</text>
+    <text class="white tiny" x="28" y="58">提交合并</text>
+  </g>
+
+  <rect class="panel shadow" x="70" y="645" width="1460" height="175"/>
+  <text class="section" x="105" y="694">性能收益根因</text>
+
+  <g transform="translate(105 715)">
+    <rect x="0" y="0" width="420" height="78" rx="14" fill="#fff7f4" stroke="#f0c0b5" stroke-width="1.4"/>
+    <circle cx="38" cy="39" r="20" class="doorbell"/>
+    <path d="M28 39 h20 M40 28 v22" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <text class="label" x="70" y="32">Doorbell 摊销</text>
+    <text class="small" x="70" y="60">host→device 任务提交从 O(N) 降到 O(1)</text>
+  </g>
+
+  <g transform="translate(590 715)">
+    <rect x="0" y="0" width="420" height="78" rx="14" fill="#f5f2ff" stroke="#c7bcf0" stroke-width="1.4"/>
+    <circle cx="38" cy="39" r="20" class="cqe"/>
+    <path d="M27 39 h22 M49 39 l-9 -9 M49 39 l-9 9" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="70" y="32">CQE 减少</text>
+    <text class="small" x="70" y="60">A5/UB 路径仅最后 1 个 WQE 产生完成事件</text>
+  </g>
+
+  <g transform="translate(1075 715)">
+    <rect x="0" y="0" width="420" height="78" rx="14" fill="#f0fbfa" stroke="#a8ddd8" stroke-width="1.4"/>
+    <circle cx="38" cy="39" r="20" class="batch"/>
+    <path d="M27 47 C35 24, 48 55, 56 31" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text class="label" x="70" y="32">固定开销摊薄</text>
+    <text class="small" x="70" y="60">buffer、fence、profiling、taskId 等初始化少做</text>
+  </g>
+
+  <g transform="translate(105 835)">
+    <text class="mono" x="0" y="0">总结：</text>
+    <text class="small" x="70" y="0">BatchTransfer 将多 slice 的 WQE 连续填入 SQ 后统一敲门铃，降低 CPU 下发开销与 device 调度 / 完成事件压力；slice 数 N 越大收益越明显。</text>
+  </g>
+</svg>

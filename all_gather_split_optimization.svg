@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .title { font: 700 46px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 21px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .section { font: 700 27px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .label { font: 700 20px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #172033; }
+      .small { font: 400 17px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #526071; }
+      .tiny { font: 400 14px "Microsoft YaHei", "PingFang SC", Arial, sans-serif; fill: #647184; }
+      .white { fill: #ffffff; }
+      .panel { fill: #ffffff; stroke: #d9e2ee; stroke-width: 1.5; rx: 18; }
+      .chip { fill: #eef4fb; stroke: #cfdae8; stroke-width: 1; rx: 16; }
+      .traditional { fill: #4f80d9; }
+      .tail { fill: #f07d63; }
+      .optimized { fill: #16a39a; }
+      .alignLoss { fill: #ffd166; }
+      .sync { fill: #7057d3; }
+      .arrow { stroke: #25344d; stroke-width: 3; fill: none; marker-end: url(#arrowHead); }
+      .thinArrow { stroke: #647184; stroke-width: 2; fill: none; marker-end: url(#arrowSmall); }
+      .shadow { filter: url(#softShadow); }
+      .mono { font: 700 18px Consolas, "Courier New", monospace; fill: #172033; }
+      .monoSmall { font: 600 15px Consolas, "Courier New", monospace; fill: #526071; }
+    </style>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#152238" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#25344d"/>
+    </marker>
+    <marker id="arrowSmall" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#647184"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="900"/>
+
+  <text class="title" x="70" y="86">AllGather Parallel Executor 切分优化原理</text>
+  <text class="subtitle" x="72" y="124">从“前面取满、尾轮吃余数”改为“每轮按剩余数据动态均分”，在不增加 loop / 同步次数的前提下降低长尾。</text>
+
+  <rect class="panel shadow" x="70" y="165" width="705" height="360"/>
+  <rect class="panel shadow" x="825" y="165" width="705" height="360"/>
+
+  <text class="section" x="105" y="213">传统切分：满载轮 + 极小尾轮</text>
+  <text class="small" x="105" y="246">dataCount = 1000, maxCountPerLoop = 300, loopTimes = 4</text>
+
+  <g transform="translate(105 290)">
+    <rect class="traditional" x="0" y="35" width="160" height="82" rx="10"/>
+    <rect class="traditional" x="176" y="35" width="160" height="82" rx="10"/>
+    <rect class="traditional" x="352" y="35" width="160" height="82" rx="10"/>
+    <rect class="tail" x="528" y="35" width="64" height="82" rx="10"/>
+    <text class="white label" x="54" y="84">300</text>
+    <text class="white label" x="230" y="84">300</text>
+    <text class="white label" x="406" y="84">300</text>
+    <text class="white label" x="541" y="84">100</text>
+    <text class="tiny" x="34" y="145">loop 0</text>
+    <text class="tiny" x="210" y="145">loop 1</text>
+    <text class="tiny" x="386" y="145">loop 2</text>
+    <text class="tiny" x="525" y="145">loop 3</text>
+    <path class="thinArrow" d="M 530 24 C 548 6, 579 16, 585 51"/>
+    <text class="label" x="476" y="20" fill="#b64d3a">长尾 r</text>
+  </g>
+
+  <rect class="chip" x="105" y="465" width="615" height="36"/>
+  <text class="monoSmall" x="128" y="489">currDataCount = last ? dataCount - processed : maxCountPerLoop</text>
+
+  <text class="section" x="860" y="213">优化切分：剩余数据动态均分</text>
+  <text class="small" x="860" y="246">currCount = ceil(remainingCount / remainingLoopTimes)</text>
+
+  <g transform="translate(860 290)">
+    <rect class="optimized" x="0" y="35" width="140" height="82" rx="10"/>
+    <rect class="optimized" x="156" y="35" width="140" height="82" rx="10"/>
+    <rect class="optimized" x="312" y="35" width="140" height="82" rx="10"/>
+    <rect class="optimized" x="468" y="35" width="140" height="82" rx="10"/>
+    <text class="white label" x="47" y="84">250</text>
+    <text class="white label" x="203" y="84">250</text>
+    <text class="white label" x="359" y="84">250</text>
+    <text class="white label" x="515" y="84">250</text>
+    <text class="tiny" x="25" y="145">loop 0</text>
+    <text class="tiny" x="181" y="145">loop 1</text>
+    <text class="tiny" x="337" y="145">loop 2</text>
+    <text class="tiny" x="493" y="145">loop 3</text>
+  </g>
+
+  <rect class="chip" x="860" y="465" width="615" height="36"/>
+  <text class="monoSmall" x="883" y="489">while (processed &lt; total) { curr = ceil(remaining / loopsLeft); }</text>
+
+  <path class="arrow" d="M 775 345 C 792 345, 808 345, 825 345"/>
+  <text class="label" x="763" y="388">重分配</text>
+
+  <rect class="panel shadow" x="70" y="560" width="1460" height="260"/>
+  <text class="section" x="105" y="610">优化收益</text>
+
+  <g transform="translate(105 640)">
+    <rect x="0" y="0" width="330" height="140" rx="16" fill="#fff7f4" stroke="#f0c0b5" stroke-width="1.5"/>
+    <circle cx="40" cy="39" r="20" class="tail"/>
+    <path d="M30 39 h20 M40 29 v20" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <text class="label" x="72" y="36">消除长尾效应</text>
+    <text class="small" x="24" y="76">每个 loop 固定 4 次线程同步屏障，</text>
+    <text class="small" x="24" y="104">尾轮过小会放大固定同步成本。</text>
+  </g>
+
+  <g transform="translate(462 640)">
+    <rect x="0" y="0" width="330" height="140" rx="16" fill="#fffbed" stroke="#ecd28a" stroke-width="1.5"/>
+    <circle cx="40" cy="39" r="20" class="alignLoss"/>
+    <path d="M29 48 L50 27 M32 28 h16 v16" stroke="#624a00" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="72" y="36">吸收 4K 对齐损耗</text>
+    <text class="small" x="24" y="76">非末轮 Part0 / Part1 向下对齐，</text>
+    <text class="small" x="24" y="104">每轮重算 remaining 可补齐进度。</text>
+  </g>
+
+  <g transform="translate(819 640)">
+    <rect x="0" y="0" width="330" height="140" rx="16" fill="#f0fbfa" stroke="#a8ddd8" stroke-width="1.5"/>
+    <circle cx="40" cy="39" r="20" class="optimized"/>
+    <path d="M28 39 h24 M40 27 v24" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    <text class="label" x="72" y="36">并行负载均衡</text>
+    <text class="small" x="24" y="76">intra / inter 并发执行，耗时取 max，</text>
+    <text class="small" x="24" y="104">均匀轮次减少同步空闲等待。</text>
+  </g>
+
+  <g transform="translate(1176 640)">
+    <rect x="0" y="0" width="330" height="140" rx="16" fill="#f5f2ff" stroke="#c7bcf0" stroke-width="1.5"/>
+    <circle cx="40" cy="39" r="20" class="sync"/>
+    <path d="M28 48 C36 23, 48 55, 55 30" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <text class="label" x="72" y="36">硬件利用率稳定</text>
+    <text class="small" x="24" y="76">避免极小尾轮造成 DMA / CCU 欠载，</text>
+    <text class="small" x="24" y="104">更容易维持高带宽传输。</text>
+  </g>
+
+  <g transform="translate(105 800)">
+    <rect x="0" y="0" width="1370" height="1.5" fill="#d9e2ee"/>
+    <text class="mono" x="0" y="42">数学保证：</text>
+    <text class="small" x="116" y="42">若 dataCount = q * M + r，0 &lt; r &lt; M，则 loopTimes = q + 1，ceil(dataCount / loopTimes) &lt; M。</text>
+    <text class="small" x="116" y="72">因此 loop 次数与同步次数不变，只重新分配各轮工作量。</text>
+  </g>
+</svg>
