@@ -147,7 +147,7 @@ public:
             return 0;
         }
 
-        return SIZE_TABLE[dataType];
+        return HCCL_SIZE_TABLE[dataType];
     }
 
     static std::vector<bool> CalcLinksRelation(const u32 rank, const u32 rankSize, const u32 rootRank = 0,

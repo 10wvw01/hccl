@@ -2339,13 +2339,9 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
     }
 
     // A5仅通过HcclConfigGetInfo获取展开模式，其他型号保留环境变量方式
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950 || !useConfigOpExpansionMode) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95 || !useConfigOpExpansionMode) {
-    #endif
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
+    if (deviceType != HcclDevType::DEV_TYPE_950 || !useConfigOpExpansionMode) {
         if (GetExternalInputHcclAicpuUnfold() == true) {
             finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU;
         } else if (GetExternalInputHcclAivOnlyMode() == true) {
@@ -2762,13 +2758,13 @@ bool IsHostDpu(HcclComm comm)
     HcclResult ret;
     bool hostDpuOnly = false;
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    ret = hrtGetDeviceType(deviceType);
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    ret = HcclGetDeviceType(deviceType);
     if (ret != HCCL_SUCCESS) {
-        HCCL_ERROR("[IsHostDpu]hrtGetDeviceType fail, ret:%d", ret);
+        HCCL_ERROR("[IsHostDpu]HcclGetDeviceType fail, ret:%d", ret);
         return false;
     }
-    if (deviceType != DevType::DEV_TYPE_910B) {
+    if (deviceType != HcclDevType::DEV_TYPE_910B) {
         return false;
     }
 

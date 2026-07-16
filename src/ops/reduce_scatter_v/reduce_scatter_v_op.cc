@@ -29,14 +29,10 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
         return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
     // 非95设备转到老流程
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
@@ -181,8 +177,8 @@ HcclResult PrepareReduceScatterVParam(void *sendBuf, const void *sendDispls, con
     param.reduceType = op;
     param.opMode = opMode;
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
 
     // topoInfo的tag，所有相同的算子可以共享
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());

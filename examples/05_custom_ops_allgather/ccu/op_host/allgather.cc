@@ -70,7 +70,7 @@ HcclResult HcclAllGatherCustom(void *sendBuf, void *recvBuf, uint64_t sendCount,
     CHK_RET(HcclGetRankId(comm, &param.myRank));
     CHK_RET(HcclGetRankSize(comm, &param.rankSize));
 
-    uint32_t perDataSize = SIZE_TABLE[dataType];
+    uint32_t perDataSize = HCCL_SIZE_TABLE[dataType];
     uint64_t inputSize = sendCount * perDataSize;
     uint64_t outputSize = inputSize * param.rankSize;
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", "hccl_custom_allgather");

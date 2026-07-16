@@ -56,13 +56,9 @@ HcclResult HcclRecv(
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
@@ -166,8 +162,8 @@ namespace ops_hccl {
         param.opType = HcclCMDType::HCCL_CMD_RECEIVE;
         param.enableDetour = false;
 
-        DevType deviceType = DevType::DEV_TYPE_COUNT;
-        CHK_RET(hrtGetDeviceType(deviceType));
+        HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+        CHK_RET(HcclGetDeviceType(deviceType));
         param.deviceType = deviceType;
 
         // topoInfo的tag，所有相同的算子可以共享

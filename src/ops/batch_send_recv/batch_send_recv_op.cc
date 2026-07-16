@@ -27,13 +27,9 @@ HcclResult HcclBatchSendRecv(HcclSendRecvItem *sendRecvInfo, uint32_t itemNum, H
         return HcclBatchSendRecvInner(sendRecvInfo, itemNum, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return HcclBatchSendRecvInner(sendRecvInfo, itemNum, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
@@ -114,8 +110,8 @@ HcclResult BatchSendRecvOutPlace(HcclSendRecvItem *sendRecvInfo, uint32_t itemNu
     param.stream = stream;
     param.opMode = OpMode::OPBASE;
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());
     if (ret <= 0) {
         HCCL_ERROR("failed to fill param.tag!");

@@ -31,14 +31,10 @@ HcclResult HcclReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType
         return HcclReduceInner(sendBuf, recvBuf, count, dataType, op, root, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
     // 非95设备转到老流程
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return HcclReduceInner(sendBuf, recvBuf, count, dataType, op, root, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
@@ -190,8 +186,8 @@ HcclResult ReduceConstructOpParam(void *sendBuf, void *recvBuf, uint64_t count, 
     param.opMode = opMode;
     param.stream = stream;
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
 
     // topoInfo的tag，所有相同的算子可以共享
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());

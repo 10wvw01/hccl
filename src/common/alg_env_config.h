@@ -178,7 +178,7 @@ const std::map<HcclCMDType, std::vector<HcclAlgoType>> GetExternalInputHcclAlgoC
 
 bool GetExternalInputExecTimeout(double &execTimeOut);
 
-bool RunIndependentOpExpansion(DevType deviceType);
+bool RunIndependentOpExpansion(HcclDevType deviceType);
 
 bool GetExternalInputMultipleDimensionSplitRatio(double &multipleDimensionSplitRatio);
 

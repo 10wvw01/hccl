@@ -158,7 +158,7 @@ struct OpParam {
     DeviceType devType = DEVICE_TYPE_A5;
 };
 
-constexpr uint32_t SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
+constexpr uint32_t HCCL_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(int8_t), sizeof(int16_t), sizeof(int32_t),
     2, sizeof(float), sizeof(int64_t), sizeof(uint64_t), sizeof(uint8_t), sizeof(uint16_t), sizeof(uint32_t),
     8, 2, 16, 2, 1, 1, 1, 1};
 

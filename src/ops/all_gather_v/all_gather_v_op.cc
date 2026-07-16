@@ -27,13 +27,9 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
  
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
@@ -205,8 +201,8 @@ HcclResult AllGatherVOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount,c
     param.opMode = OpMode::OPBASE;
     param.stream = stream;
  
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
  
     // topoInfo的tag，所有相同的算子可以共享
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());
@@ -303,8 +299,8 @@ HcclResult AllGatherVOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t se
     OpParam& param = *paramPtr;
     CHK_RET(HcclGetCommName(comm, param.commName));
  	  	 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
- 	CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+ 	CHK_RET(HcclGetDeviceType(deviceType));
  	  	 
  	// topoInfo的tag，所有相同的算子可以共享
  	int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());

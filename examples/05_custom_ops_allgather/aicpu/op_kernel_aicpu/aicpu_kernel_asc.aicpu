@@ -25,7 +25,7 @@ constexpr uint32_t NOTIFY_IDX_FIN_ACK = 2;
 
 HcclResult ExecOp(OpParam &param, AlgResourceCtx &resCtx)
 {
-    uint32_t dataTypeSize = SIZE_TABLE[param.dataType];
+    uint32_t dataTypeSize = HCCL_SIZE_TABLE[param.dataType];
     uint64_t dataSize = param.count * dataTypeSize;
     uint64_t count = param.count;
 

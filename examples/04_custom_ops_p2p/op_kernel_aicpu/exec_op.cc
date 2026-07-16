@@ -14,7 +14,7 @@
 namespace ops_hccl_p2p {
 HcclResult ExecOp(OpParam &param, AlgResourceCtx* resCtx)
 {
-    uint64_t size = param.count * SIZE_TABLE[param.dataType];
+    uint64_t size = param.count * HCCL_SIZE_TABLE[param.dataType];
     if (param.opType == HcclCMDType::HCCL_CMD_SEND) {
         // 拷贝到中转内存
         CHK_RET(HcommLocalCopyOnThread(resCtx->aicpuThread, resCtx->localBuffer.addr, param.inputPtr, size));

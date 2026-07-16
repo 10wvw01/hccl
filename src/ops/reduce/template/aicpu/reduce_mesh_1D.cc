@@ -84,7 +84,7 @@ HcclResult ReduceMesh1D::KernelRun(
     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
 
     HCCL_INFO(
-        "[KernelRun] sliceSize: %u, count_: %u, typeSize: %u", tempAlgParams.sliceSize, count_, SIZE_TABLE[dataType_]);
+        "[KernelRun] sliceSize: %u, count_: %u, typeSize: %u", tempAlgParams.sliceSize, count_, HCCL_SIZE_TABLE[dataType_]);
 
     const std::map<u32, std::vector<ChannelInfo>> &channels = templateResource.channels;
     CHK_RET(RunReduce(channels, threads, tempAlgParams, param));

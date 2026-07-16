@@ -49,13 +49,9 @@ HcclResult HcclBarrier(HcclComm comm, aclrtStream stream)
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
+    if (deviceType != HcclDevType::DEV_TYPE_950) {
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
@@ -114,8 +110,8 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
     param.stream = stream;
     param.opMode = OpMode::OPBASE;
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType = HcclDevType::DEV_TYPE_COUNT;
+    CHK_RET(HcclGetDeviceType(deviceType));
 
     int ret = sprintf_s(param.tag, sizeof(param.tag), "%s", tag.c_str());
     if (ret <= 0) {

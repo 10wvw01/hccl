@@ -19,7 +19,7 @@
 #include "adapter_error_manager_pub.h"
 #include "config_log.h"
 #include "sal.h"
-#include "dtype_common.h"
+#include "dev_type.h"
 
 namespace ops_hccl {
 
@@ -778,10 +778,10 @@ HcclResult ParseOpExpansion()
         return HCCL_SUCCESS;
     } 
     
-    DevType deviceType;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    HcclDevType deviceType;
+    CHK_RET(HcclGetDeviceType(deviceType));
     // 910_93默认打开AICPU展开
-    if (deviceType == DevType::DEV_TYPE_910_93) {
+    if (deviceType == HcclDevType::DEV_TYPE_910_93) {
         g_algEnvConfig.aicpuUnfold = true;
     }
 
@@ -793,7 +793,7 @@ HcclResult ParseOpExpansion()
     }
 
     if (opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "AICPU_TS") {
-        if (deviceType == DevType::DEV_TYPE_910) {
+        if (deviceType == HcclDevType::DEV_TYPE_910) {
             HCCL_WARNING("910 do not support AICPU unfold.");
         } else {
             g_algEnvConfig.aicpuUnfold = true;
@@ -807,13 +807,13 @@ HcclResult ParseOpExpansion()
         g_algEnvConfig.aivMode = false;
         g_algEnvConfig.aicpuUnfold = false;
     } else if (opExpansionModeEnv == "HOST_TS") {
-        if (deviceType == DevType::DEV_TYPE_910B) {
+        if (deviceType == HcclDevType::DEV_TYPE_910B) {
             g_algEnvConfig.enableFfts = false;
         } else {
             HCCL_WARNING("deviceType[%u] do not support HOST_TS", deviceType);
         }
     } else if (opExpansionModeEnv == "AICPU_CacheDisable") {
-        if (deviceType == DevType::DEV_TYPE_910) {
+        if (deviceType == HcclDevType::DEV_TYPE_910) {
             HCCL_WARNING("910 do not support AICPU unfold.");
         } else {
             g_algEnvConfig.aicpuUnfold = true;
@@ -960,19 +960,13 @@ HcclResult ParseDeterministic()
     }
     if (hcclDeterministicEnv == "STRICT") {
         // 规约保序场景（严格的确定性计算，在确定性的基础上强保证规约顺序一致）
-        DevType deviceType;
-        CHK_RET(hrtGetDeviceType(deviceType));
+        HcclDevType deviceType;
+        CHK_RET(HcclGetDeviceType(deviceType));
         // 规约保序支持A2 A3 A5场景
         bool supportedDevice = false;
-        #ifdef MACRO_DEV_TYPE_NEW
-        supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
-                          deviceType == DevType::DEV_TYPE_910_93 || 
-                          deviceType == DevType::DEV_TYPE_950);
-        #else
-        supportedDevice = (deviceType == DevType::DEV_TYPE_910B || 
-                          deviceType == DevType::DEV_TYPE_910_93 || 
-                          deviceType == DevType::DEV_TYPE_910_95);
-        #endif
+        supportedDevice = (deviceType == HcclDevType::DEV_TYPE_910B || 
+                          deviceType == HcclDevType::DEV_TYPE_910_93 || 
+                          deviceType == HcclDevType::DEV_TYPE_950);
         if (!supportedDevice) {
             HCCL_ERROR("HCCL_DETERMINISTIC is set to [%s], Reduce order preservation is not supported for "
                        "deviceType[%d], please check",
@@ -1130,18 +1124,14 @@ const u8 &GetExternalInputHcclDeterministic()
     return g_algEnvConfig.hcclDeterministic;
 }
 
-bool RunIndependentOpExpansion(DevType deviceType)
+bool RunIndependentOpExpansion(HcclDevType deviceType)
 {
     std::string opExpansionModeEnv = GetEnv("HCCL_OP_EXPANSION_MODE");
-    if (deviceType == DevType::DEV_TYPE_910_93) {
+    if (deviceType == HcclDevType::DEV_TYPE_910_93) {
         return opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "HOST_TS" || opExpansionModeEnv == "EmptyString";
     }
 
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType == DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType == DevType::DEV_TYPE_910_95) {
-    #endif
+    if (deviceType == HcclDevType::DEV_TYPE_950) {
         return opExpansionModeEnv == "AI_CPU" || opExpansionModeEnv == "AICPU_TS" ||
                opExpansionModeEnv == "HOST_TS" ||
                opExpansionModeEnv == "EmptyString" || opExpansionModeEnv == "AIV" ||
@@ -1150,7 +1140,7 @@ bool RunIndependentOpExpansion(DevType deviceType)
     }
 
     // HOST_TS为Host展开
-    if (deviceType == DevType::DEV_TYPE_910B) {
+    if (deviceType == HcclDevType::DEV_TYPE_910B) {
         return opExpansionModeEnv == "HOST_TS" || opExpansionModeEnv == "HOST";
     }
     return false;

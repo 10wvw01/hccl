@@ -45,7 +45,7 @@ static HcclResult ThreadSyncAfter(const std::vector<ThreadHandle> &threads)
 
 HcclResult ExecOp(const OpParam &param, const AlgResourceCtx &resCtx)
 {
-    uint32_t dataTypeSize = SIZE_TABLE[param.dataType];
+    uint32_t dataTypeSize = HCCL_SIZE_TABLE[param.dataType];
     uint64_t dataSize = param.count * dataTypeSize;
     uint64_t count = param.count;
 
