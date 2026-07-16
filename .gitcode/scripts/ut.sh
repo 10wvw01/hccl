@@ -32,6 +32,7 @@ set +e
 case "${ut_type}" in
     ut)
         bash build.sh --ut --cann_3rd_lib_path=/home/jenkins/opensource
+        touch test_ut.log
         ret=$?
         coverage_save="false"
         ;;
