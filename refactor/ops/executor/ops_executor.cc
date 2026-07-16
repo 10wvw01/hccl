@@ -80,8 +80,12 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         AlgoExecDataDesc algoExecDataDesc;
         HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
             loopIdx, processCount, offsetCount, tailCount);
+        // 非allgather的dataOffset是每卡数据内的偏移（offsetCount/rankSize），allgather是整个输入的偏移
+        u64 dataOffset = (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER)
+            ? offsetCount * dataTypeSize_
+            : (offsetCount / rankSize_) * dataTypeSize_;
         InitAlgoExecDataDesc(
-            algoExecDataDesc, offsetCount * dataTypeSize_, processCount - tailCount, tailCount, dataStride);
+            algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
@@ -102,8 +106,10 @@ u64 OpsExecutor::GetMaxProcCntPerLoop(u64 dataCount)
     u64 maxByUb = UB_MAX_DATA_SIZE / dataTypeSize_;
     // 取最小值（总量、CCL scratch、UB传输三者约束）
     u64 resCount = std::min({dataCount, maxByCcl, maxByUb});
-    // 如果不是allgather需要对齐,其他情况一定能够保证resCount > ranksize
+    // 非allgather：dataStride是每卡数据量，单轮处理量不能超过单卡数据量
     if (algo_.hcclCmdType != HCCL_CMD_ALLGATHER) {
+        u64 dataStrideCount = (rankSize_ > 0) ? (dataInfo_.inputSize / rankSize_ / dataTypeSize_) : dataCount;
+        resCount = std::min(resCount, dataStrideCount);
         resCount = (resCount / rankSize_) * rankSize_;
     }
     // 保护：保证至少返回 1，避免 Orchestrate 中 (dataCount_ + maxProcCntPerLoop - 1) / maxProcCntPerLoop 除零
