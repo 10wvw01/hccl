@@ -82,6 +82,13 @@ constexpr u32 TOPO_LEVEL_NUM_1 = 1;
 constexpr u32 TOPO_LEVEL_NUM_2 = 2;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 
+// 按序下发需要
+constexpr u32 UNFLOD_THREAD_NOTIFY_IDX = 0;
+constexpr u32 UNFLOD_THREAD_NOTIFY_NUM = 1;             // unflod thread notify数量
+constexpr u32 HOST_ORDER_THREAD_NOTIFY_IDX = 0;
+constexpr u32 HOST_ORDER_THREAD_NOTIFY_NUM = 1; 
+constexpr u32 DEVICE_ORDER_THREAD_NOTIFY_NUM = 0; 
+
 enum class TopoType {
     TOPO_TYPE_COMMON = 0,           // 普通拓扑类型 ，default单层拓扑使用
     TOPO_TYPE_8P_RING = 1,          // 特殊场景, 服务器内8 rank组成一个ring，4个逻辑环
@@ -599,6 +606,8 @@ struct OpParam { // 不申请ctx，每个算子单独下发
     DevAicpuOpConfig opConfig; // 收编算子配置类变量
     u64 varMemSize{0};
     u8 varData[0];
+    ThreadHandle exportHostOrderThread;         // host侧保序流映射到device
+    ThreadHandle deviceOrderThread;             // device侧保序流
 };
 
 struct AlgDesc {
