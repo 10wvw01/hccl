@@ -647,8 +647,11 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
             HCCL_DEBUG("[%s] AG local copy end", __func__);
         }
-
-        processedDataCount += currDataCount;
+        if (i == rankSize_ - 1 && rankSize_ > 1) {
+            processedDataCount +=  maxCountPerLoop;
+        } else {
+            processedDataCount += currDataCount;
+        }
     }
 
     HCCL_INFO("[%s][OrchestrateLoop] End.", __func__);
