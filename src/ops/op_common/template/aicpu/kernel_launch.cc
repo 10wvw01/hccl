@@ -24,8 +24,8 @@
 #include "kernel_launch.h"
 #include "hcomm_diag_dl.h"
 #include "hcomm_device_profiling_dl.h"
+#include <unordered_map>
 #include <mutex>
-#include <map>
 #include <atomic>
 #include "hccl_device_comm_dl.h"
 #include "exec_timeout_manager.h"
@@ -54,7 +54,7 @@ namespace {
         public:
             explicit CommDomainCache(const std::string& commName) : commName_(commName) {}
 
-            const std::string& GetCommName() const { return commName_; }
+            const std::string& GetCommName() const {return commName_; }
 
             //获得缓存项，返回共享所有权保证使用期间对象稳定存活
             std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag) {
@@ -102,6 +102,7 @@ namespace {
             //获取算法缓存
             std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag, const std::string& paramCommName) {
                 std::string commName = ExtractCommName(algTag);
+                //提取失败时使用参数中的commName
                 if (commName.empty()) commName = paramCommName;
 
                 auto commCache = GetOrCreateComm(commName);
@@ -117,6 +118,7 @@ namespace {
                 return nullptr;
             }
 
+            //缓存算法结果
             void Put(const std::string& algTag, const AlgResourceCtxSerializable& value, const std::string& paramCommName) {
                 std::string commName = ExtractCommName(algTag);
                 if (commName.empty()) commName = paramCommName;
@@ -127,11 +129,13 @@ namespace {
                 }
             }
 
+            //释放通信域缓存
             bool ReleaseComm(const std::string& commName) {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 return commCaches_.erase(commName) > 0;
             }
 
+            //获得通信域统计信息
             bool GetCommStats(const std::string& commName, CacheStats& outStats, size_t& outCacheSize) const {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 auto it = commCaches_.find(commName);
@@ -144,6 +148,7 @@ namespace {
                 return false;
             }
 
+            //获得全局统计信息
             void GetGlobalStats(size_t& totalCommDomains, size_t& totalcacheEntries, uint64_t& totalHits, uint64_t& totalMisses) const {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 totalCommDomains = commCaches_.size();
@@ -151,6 +156,7 @@ namespace {
                 totalHits = 0;
                 totalMisses = 0;
                 for (const auto& pair : commCaches_) {
+                    const auto& commName = pair.first;
                     const auto& commCache = pair.second;
                     totalcacheEntries += commCache->GetCacheSize();
                     totalHits += commCache->GetStats().hits.load();
@@ -158,11 +164,13 @@ namespace {
                 }
             }
 
+            //清空所有缓存
             void ClearAll() {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 commCaches_.clear();
             }
 
+            //从algTag中提取通信域名称
             std::string ExtractCommName(const std::string& algTag) {
                 size_t firstUnderscore = algTag.find('_');
                 if (firstUnderscore == std::string::npos) return "";
@@ -174,6 +182,7 @@ namespace {
             }
 
         private:
+            //获取或创建通信域缓存
             std::shared_ptr<CommDomainCache> GetOrCreateComm(const std::string& commName) {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 auto it = commCaches_.find(commName);
@@ -301,22 +310,25 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         const AlgResourceCtxSerializable* resCtxPtr{nullptr};
         u32 hitRateNum = 100;
         if (param->opType != HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
-             //通过缓存实现反序列化优化
-             cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
-             if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
-                 HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
+            //通过缓存实现反序列化优化
+            cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
+            if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
+                HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
+                std::string commName = g_cacheManager.ExtractCommName(param->algTag);
+                if (commName.empty()) commName = param->commName;
 
-                 CacheStats stats;
-                 size_t cacheSize;
-                 if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
-                     HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
-                     __func__, param->commName, stats.hitRate() * hitRateNum, cacheSize);
-                 }
-                 resCtxPtr = cachedResCtxHolder.get();
-             } else {
-                 bool isStaleCache = (cachedResCtxHolder != nullptr);
-                 resCtx = DeserializeResCtx(param);
-                 g_cacheManager.Put(param->algTag, *resCtx, param->commName);
+                CacheStats stats;
+                size_t cacheSize;
+                if (g_cacheManager.GetCommStats(commName, stats, cacheSize)) {
+                    HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
+                    __func__, commName.c_str(), stats.hitRate() * hitRateNum, cacheSize);
+                }
+                resCtxPtr = cachedResCtxHolder.get();
+            } else {
+                bool isStaleCache = (cachedResCtxHolder != nullptr);
+                //未命中或者通信域恢复后缓存失效，进行反序列化并存入缓存
+                resCtx = DeserializeResCtx(param);
+                g_cacheManager.Put(param->algTag, *resCtx, param->commName);
                 resCtxPtr = resCtx.get();
                 if (isStaleCache) {
                     HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
@@ -601,22 +613,25 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
         if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
             HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
+            std::string commName = g_cacheManager.ExtractCommName(param->algTag);
+            if (commName.empty()) commName = param->commName;
 
             CacheStats stats;
             size_t cacheSize;
-            if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
+            if (g_cacheManager.GetCommStats(commName, stats, cacheSize)) {
                 HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
-                __func__, param->commName, stats.hitRate() * hitRateNum, cacheSize);
+                __func__, commName.c_str(), stats.hitRate() * hitRateNum, cacheSize);
             }
             resCtxPtr = cachedResCtxHolder.get();
         } else {
             bool isStaleCache = (cachedResCtxHolder != nullptr);
+            //未命中或者通信域恢复后缓存失效，进行反序列化并存入缓存
             resCtx = DeserializeResCtx(param);
             g_cacheManager.Put(param->algTag, *resCtx, param->commName);
             resCtxPtr = resCtx.get();
             if (isStaleCache) {
                 HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
-                    __func__, param->algTag, cachedResCtxHolder->commInfoPtr, param->commName);
+                    __func__, param->algTag, cachedResCtxHolder->commInfoPtr, param->hcclComm);
             } else {
                 HCCL_INFO("[%s] Cache MISS and stored for algTag[%s]", __func__, param->algTag);
             }
@@ -846,16 +861,19 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
             cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
             if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
                 HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
+                std::string commName = g_cacheManager.ExtractCommName(param->algTag);
+                if (commName.empty()) commName = param->commName;
 
                 CacheStats stats;
                 size_t cacheSize;
-                if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
+                if (g_cacheManager.GetCommStats(commName, stats, cacheSize)) {
                     HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
-                    __func__, param->commName, stats.hitRate() * 100, cacheSize);
+                    __func__, commName.c_str(), stats.hitRate() * 100, cacheSize);
                 }
                 resCtxPtr = cachedResCtxHolder.get();
             } else {
                 bool isStaleCache = (cachedResCtxHolder != nullptr);
+                //未命中或者通信域恢复后缓存失效，进行反序列化并存入缓存
                 resCtx = DeserializeResCtx(param);
                 g_cacheManager.Put(param->algTag, *resCtx, param->commName);
                 resCtxPtr = resCtx.get();
