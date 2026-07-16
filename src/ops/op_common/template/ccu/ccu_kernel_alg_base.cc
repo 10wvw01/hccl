@@ -170,7 +170,7 @@ CcuResult CreateMultiOpReduceV2(CcuKernelCtxBase &ctx, GroupReduceVar &var,
         ccu::Event loopEvt2 = ctx.moRes.completedEvent[index * CCU_LOOP_CKE_NUM_REDUCE_V2 + 2];
 
         loops.body[index].reset(new ccu::Func(
-            [&ctx, index, bufBase, loopEvt, channelSize, size, channels, dataType, outputDataType, opType, &var]() {
+            [&ctx, index, bufBase, loopEvt0, loopEvt1, loopEvt2, channelSize, size, channels, dataType, outputDataType, opType, &var]() {
             for (uint32_t i = 0; i < channelSize; i++) {
                 ccu::Read(channels[i], ctx.moRes.ccuBuf[bufBase + i], var.loopRemoteSrc[index][i], var.loopLen[index], loopEvt0, 1 << i);
             }
@@ -353,7 +353,7 @@ CcuResult GroupReduceV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
         var.loopDst[0].token = dst.token;
         var.loopLen[0]       = sliceSize;
         var.loopLenExp[0]    = sliceSizeExpansion;
-        paraCfg = GetParallelParamV2(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, CCU_LOOP_CKE_NUM_REDUCE_V2);
         loops.loopParam[0] = goSize.loopParam;
         loops.addrOffset[0] = GetLoopGsaOffset(ctx.moConfig.memSlice * ctx.moConfig.loopCount);
@@ -371,7 +371,9 @@ CcuResult GroupReduceV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
         for (uint32_t i = 0; i < expansionNum; i++) {
             dst.addr += goSize.addrOffset;
         }
-        sliceSizeExpansion = expansionNum * goSize.residual;
+        ccu::Variable tmpExp;
+        tmpExp = expansionNum;
+        sliceSizeExpansion = tmpExp * goSize.residual;
 
         for (uint32_t i = 0; i < size - 1; ++i) {
             var.loopRemoteSrc[0][i].addr = src[i].addr;
@@ -479,7 +481,7 @@ CcuResult CreateMultiOpBroadcastV2(CcuKernelCtxBase &ctx, GroupBroadcastVar &var
         ccu::Event loopEvt1 = ctx.moRes.completedEvent[index * CCU_LOOP_CKE_NUM_BCAST_V2 + 1];
 
         loops.body[index].reset(new ccu::Func(
-            [&ctx, index, bufBase, loopEvt, channelSize, channels, &var]() {
+            [&ctx, index, bufBase, loopEvt0, loopEvt1, channelSize, channels, &var]() {
             ccu::LocalCopy(ctx.moRes.ccuBuf[bufBase], var.loopSrc[index], var.loopLen[index], loopEvt0, 1);
             ccu::EventWait(loopEvt0, 1);
 
@@ -620,7 +622,7 @@ CcuResult GroupBroadcastV2(CcuKernelCtxBase &ctx, const size_t channels[], uint3
         loops.addrOffset[0] = GetLoopGsaOffset(ctx.moConfig.memSlice * ctx.moConfig.loopCount);
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
 
-        paraCfg = GetParallelParamV2(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, CCU_LOOP_CKE_NUM_BCAST_V2);
         xnOffsetCfg = 0;
         ccu::LoopGroup group(paraCfg, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
@@ -981,7 +983,7 @@ CcuResult CreateMultiOpCopyV2(CcuKernelCtxBase &ctx, GroupCopyVar &var)
         ccu::Event loopEvt1 = ctx.moRes.completedEvent[index * CCU_LOOP_CKE_NUM_COPY_V2 + 1];
 
         loops.body[index].reset(new ccu::Func(
-            [&ctx, index, bufBase, loopEvt, usedBufNum, &var]() {
+            [&ctx, index, bufBase, loopEvt0, loopEvt1, usedBufNum, &var]() {
             ccu::LocalCopy(ctx.moRes.ccuBuf[bufBase], var.loopSrc[index], var.loopLen[index], loopEvt0, 1);
             ccu::EventWait(loopEvt0, 1);
             ccu::LocalCopy(var.loopDst[index], ctx.moRes.ccuBuf[bufBase], var.loopLen[index], loopEvt1, 1);
@@ -1098,12 +1100,18 @@ CcuResult GroupCopyV2(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr 
 
     CCU_IF(goSize.parallelParam != 0)
     {
-        ccu::Variable loopIterNum0 = 1;
-        ccu::Variable loopGsaStride0 = 0;
-        ccu::Variable loopContextId0 = 0;
-        ccu::Variable loopIterNum1 = 1;
-        ccu::Variable loopGsaStride1 = 0;
-        ccu::Variable loopContextId1 = 0;
+        ccu::Variable loopIterNum0;
+        ccu::Variable loopGsaStride0;
+        ccu::Variable loopContextId0;
+        ccu::Variable loopIterNum1;
+        ccu::Variable loopGsaStride1;
+        ccu::Variable loopContextId1;
+        loopIterNum0 = 1;
+        loopGsaStride0 = 0;
+        loopContextId0 = 0;
+        loopIterNum1 = 1;
+        loopGsaStride1 = 0;
+        loopContextId1 = 0;
         src.addr += goSize.addrOffset;
         dst.addr += goSize.addrOffset;
 
