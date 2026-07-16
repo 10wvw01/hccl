@@ -64,9 +64,24 @@ HcclResult CcuTempReduceScatterMeshMem2Mem1D2Die::CalcRes(HcclComm comm, const O
             HCCL_ERROR("[CcuTempReduceScatterMeshMem2Mem1D2Die][CalcRes] dieId is invalid"), HCCL_E_INTERNAL);
         channelDescsVec[dieId].push_back(channel);
         subRankGroup[dieId].push_back(channel.remoteRank);
+        HCCL_INFO("[CcuTempReduceScatterMeshMem2Mem1D2Die][CalcRes] Rank[%u] channel to remoteRank[%u], insert to "
+            "channels(dieId[%u]).", myRank_, channel.remoteRank, dieId);
     }
 
-    subRankGroup[UDIE1].push_back(myRank_);
+    // 适配不同卡上两个 die 连线方向相反的场景：
+    // 与 alltoallv 的 PartitionChannels 逻辑保持一致，
+    // 将 myRank_ 加入到 channels 较少的那个 die 中，保证两个 die 上的 rankGroup 负载均衡。
+    uint32_t minChannels = std::min(channelDescsVec[0].size(), channelDescsVec[1].size());
+    uint32_t maxChannels = std::max(channelDescsVec[0].size(), channelDescsVec[1].size());
+    CHK_PRT_RET(minChannels + 1 != maxChannels,
+        HCCL_ERROR("[CcuTempReduceScatterMeshMem2Mem1D2Die][CalcRes] Rank[%u], Unexpected channels size, "
+            "die0 channels[%u], die1 channels[%u].", myRank_, channelDescsVec[0].size(), channelDescsVec[1].size()),
+        HcclResult::HCCL_E_PARA);
+    if (channelDescsVec[0].size() < channelDescsVec[1].size()) {
+        subRankGroup[0].push_back(myRank_);
+    } else {
+        subRankGroup[1].push_back(myRank_);
+    }
 
     uint32_t tmpDieId   = myRank_ < subRankGroup[UDIE0].back() ? 0 : 1;
     localReduceOffset_  = subRankGroup[1 - tmpDieId][0];
