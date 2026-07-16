@@ -19,6 +19,7 @@
 #include "load_kernel.h"
 #include "hccl_algorithm.h"
 #include "binary_stream.h"
+#include "hccl_rank_graph_dl.h"    // EndpointDesc / EndpointAttr
 
 namespace ops_hccl {
 namespace testing {
@@ -321,6 +322,10 @@ HcclResult HcclThreadNotifyWaitOnThreadDefault(ThreadHandle, uint32_t, uint32_t)
 namespace ops_hccl {
 aclrtBinHandle g_binKernelHandle = nullptr;
 }
+
+// HcclRankGraphGetEndpointInfo stub (hccl_rank_graph_dl.cc 中定义, UT 不编译该文件)
+HcclResult HcclRankGraphGetEndpointInfo(HcclComm, uint32_t, const EndpointDesc*,
+    EndpointAttr, uint32_t, void*) { return HCCL_SUCCESS; }
 
 // DlHcommFunction::GetInstance() stub
 namespace ops_hccl {

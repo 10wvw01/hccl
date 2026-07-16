@@ -105,7 +105,8 @@ protected:
         params.dataType = HCCL_DATA_TYPE_INT32;
         params.sliceCount = sliceCount;
         params.sliceOffset = 0;
-        params.stride = sliceCount * sizeof(int32_t);
+        params.dataStride = sliceCount * sizeof(int32_t);
+        params.scratchStride = sliceCount * sizeof(int32_t);
         params.ranksForInputData = ranksForInputData;
         return params;
     }
@@ -189,7 +190,8 @@ protected:
         params.dataType = HCCL_DATA_TYPE_INT32;
         params.sliceCount = sliceCount;
         params.sliceOffset = 0;
-        params.stride = sliceCount * sizeof(int32_t);
+        params.dataStride = sliceCount * sizeof(int32_t);
+        params.scratchStride = sliceCount * sizeof(int32_t);
         params.ranksForInputData = ranksForInputData;
         return params;
     }

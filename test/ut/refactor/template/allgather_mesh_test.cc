@@ -22,7 +22,8 @@ TEST(AllGatherMeshRunAlgorithmTest, SingleRankNoTransfer)
     tmpl.tempAlgParams_.cclBufferPtr = reinterpret_cast<void *>(0x10000000);
     tmpl.tempAlgParams_.dataType = HCCL_DATA_TYPE_INT32;
     tmpl.tempAlgParams_.sliceCount = 4;
-    tmpl.tempAlgParams_.stride = 16;
+    tmpl.tempAlgParams_.scratchStride = 16;
+    tmpl.tempAlgParams_.dataStride = 16;
     tmpl.tempAlgParams_.ranksForInputData = {0};
     tmpl.templateRankSize_ = 1;
 
@@ -45,7 +46,8 @@ TEST(AllGatherMeshRunAlgorithmTest, MultiRankBuildsTxRxSlicesLists)
     tmpl.tempAlgParams_.cclBufferPtr = reinterpret_cast<void *>(0x10000000);
     tmpl.tempAlgParams_.dataType = HCCL_DATA_TYPE_INT32;
     tmpl.tempAlgParams_.sliceCount = 4;
-    tmpl.tempAlgParams_.stride = 16;
+    tmpl.tempAlgParams_.scratchStride = 16;
+    tmpl.tempAlgParams_.dataStride = 16;
     tmpl.tempAlgParams_.ranksForInputData = {0};
     tmpl.templateRankSize_ = 4;
 
@@ -71,7 +73,8 @@ TEST(AllGatherMeshRunAlgorithmTest, EmptyInputRanksReturnsError)
     tmpl.tempAlgParams_.cclBufferPtr = reinterpret_cast<void *>(0x10000000);
     tmpl.tempAlgParams_.dataType = HCCL_DATA_TYPE_INT32;
     tmpl.tempAlgParams_.sliceCount = 4;
-    tmpl.tempAlgParams_.stride = 16;
+    tmpl.tempAlgParams_.scratchStride = 16;
+    tmpl.tempAlgParams_.dataStride = 16;
     // ranksForInputData 为空
     tmpl.templateRankSize_ = 2;
 

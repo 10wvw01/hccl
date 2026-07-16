@@ -14,8 +14,12 @@
 namespace ops_hccl {
 int32_t HcclLaunchDPUKernel(uint64_t ptr, int32_t size)
 {
-    (void)ptr;
-    (void)size;
+    if ((ptr == 0) || (size <= 0)) {
+        HCCL_ERROR("%s get nullptr or error size", __func__);
+        return static_cast<int32_t>(HCCL_E_PTR);
+    }
+    // DPU kernel launch 需要依赖 template 注册框架（InsAlgTemplateRegistry），
+    // 当前重构尚未引入该框架，保持桩实现。
     HCCL_ERROR("[HcclLaunchDPUKernel] DPU kernel launch not implemented in refactor");
     return static_cast<int32_t>(HCCL_E_NOT_SUPPORT);
 }

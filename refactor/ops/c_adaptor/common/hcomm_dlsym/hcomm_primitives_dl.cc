@@ -48,6 +48,7 @@ DEFINE_WEAK_FUNC(int32_t, HcommWriteReduceOnThread, ThreadHandle thread, Channel
 DEFINE_WEAK_FUNC(int32_t, HcommReadOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
 DEFINE_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, uint32_t timeOut);
 DEFINE_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread, uint32_t notifyIdx);
+DEFINE_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, uint32_t timeOut);
 
 // ---------- 初始化函数 ----------
 void HcommPrimitivesDlInit(void* libHcommHandle) {
@@ -80,6 +81,7 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommReadOnThread);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommSetNotifyWaitTimeOut);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
+    INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadResAcquireTimeOut);
 }
 
 bool IsHcommDefaultTimeoutSupported()
@@ -103,4 +105,12 @@ HcclResult HcclThreadNotifyWaitOnThreadDefault(ThreadHandle thread, uint32_t not
         return static_cast<HcclResult>(HcommThreadNotifyWaitOnThreadWithDefaultTimeout(thread, notifyIdx));
     }
     return static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(thread, notifyIdx, fallbackTimeout));
+}
+
+HcclResult HcclThreadResAcquireTimeOut(uint32_t timeout)
+{
+    if (!HcommIsSupportHcommThreadResAcquireTimeOut()) {
+        return HCCL_E_NOT_SUPPORT;
+    }
+    return static_cast<HcclResult>(HcommThreadResAcquireTimeOut(timeout));
 }

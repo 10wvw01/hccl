@@ -35,13 +35,16 @@ DECL_WEAK_FUNC(int32_t, HcommReadReduceOnThread, ThreadHandle thread, ChannelHan
     uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
 DECL_WEAK_FUNC(int32_t, HcommSetNotifyWaitTimeOut, uint32_t timeOut);
 DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread, uint32_t notifyIdx);
+DECL_WEAK_FUNC(int32_t, HcommThreadResAcquireTimeOut, uint32_t timeOut);
 
 DECL_SUPPORT_FLAG(HcommSetNotifyWaitTimeOut);
 DECL_SUPPORT_FLAG(HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
+DECL_SUPPORT_FLAG(HcommThreadResAcquireTimeOut);
 
 bool IsHcommDefaultTimeoutSupported();
 HcclResult HcclSetNotifyWaitTimeOut(uint32_t timeout);
 HcclResult HcclThreadNotifyWaitOnThreadDefault(ThreadHandle thread, uint32_t notifyIdx, uint32_t fallbackTimeout);
+HcclResult HcclThreadResAcquireTimeOut(uint32_t timeout);
 
 void HcommPrimitivesDlInit(void* libHcommHandle);  // 本模块独立初始化
 

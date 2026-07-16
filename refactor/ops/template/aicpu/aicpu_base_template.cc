@@ -156,10 +156,7 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     if (tempAlgParams_.outputBufferType == BufferType::HCCL_BUFFER) {
         return HCCL_SUCCESS;
     }
-    // 输入是 ccl buffer 时（ccl -> output 已在通信中完成）也无需后处理。
-    if (tempAlgParams_.inputBufferType == BufferType::HCCL_BUFFER) {
-        return HCCL_SUCCESS;
-    }
+    
     // remote mem 访问模式下数据已直接写到 output，无需后处理。
     if (tempAlgParams_.enableRemoteMemAccess) {
         return HCCL_SUCCESS;

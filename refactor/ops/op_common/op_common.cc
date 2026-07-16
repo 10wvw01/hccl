@@ -48,15 +48,6 @@ HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
 
     CHK_RET(engine->CreateRes(comm, param, alg, algHierarchyInfo, resReq, *topoInfo));
 
-    // 创建 host CPU TS 线程并导出给 AICPU_TS（对应原始 HcclExecOp 中的 cpuTsThread 逻辑）
-    if (param.engine == COMM_ENGINE_AICPU_TS || param.engine == COMM_ENGINE_CPU) {
-        ThreadHandle cpuTsThread{0};
-        CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
-        ThreadHandle exportedAicpuTsThread{0};
-        CHK_RET(HcclThreadExportToCommEngine(comm, 1, &cpuTsThread, COMM_ENGINE_AICPU_TS, &exportedAicpuTsThread));
-        param.opThread = exportedAicpuTsThread;
-    }
-
     CHK_RET(engine->LaunchKernel(param));
 
     return HCCL_SUCCESS;

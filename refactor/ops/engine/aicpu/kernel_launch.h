@@ -35,6 +35,15 @@ HcclResult RestoreVarDataReduceScatterV(OpParam &param, const AlgResourceCtxSeri
  */
 HcclResult RestoreVarDataAllGatherV(OpParam &param, const AlgResourceCtxSerializable &resCtx);
 
+/**
+ * 判断缓存的 AlgResourceCtxSerializable 是否可复用。
+ * 条件：param.cacheValid 为 true 且缓存的 commInfoPtr 与当前 param.hcclComm 一致。
+ */
+inline bool IsResCtxCacheReusable(const AlgResourceCtxSerializable &cachedResCtx, const OpParam &param)
+{
+    return param.cacheValid && cachedResCtx.commInfoPtr == param.hcclComm;
+}
+
 } // namespace ops_hccl
 
 #endif // OPS_HCCL_AICPU_KERNEL_LAUNCH_H
