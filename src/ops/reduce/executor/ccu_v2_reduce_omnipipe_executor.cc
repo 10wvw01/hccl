@@ -545,15 +545,15 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
             HCCL_INFO("[%s][KernelRun] myRank[%u] rankIdxLevel1_[%u], rankSizeLevel0_[%u], rootx[%u] param.root[%u]", __func__, myRank_, rankIdxLevel1_, rankSizeLevel0_, rootx, param.root);
             // NHR算法时，root的同y轴都需要执行y轴任务
-            // if (isSameYAxisAsRoot || myRank_ == param.root) {
-            //     gAlgTempY.ifDoTask_ = true;
-            // } else {
-            //     gAlgTempY.ifDoTask_ = false;
-            // }
+            if (isSameYAxisAsRoot || myRank_ == param.root) {
+                gAlgTempY.ifDoTask_ = true;
+            } else {
+                gAlgTempY.ifDoTask_ = false;
+            }
 
             if (i == 0) { // 第一步
                 // 第一步nhr全部卡doTask=true ///其他的只有root和root同列的doTask=true
-                // gAlgTempY.ifDoTask_ = true;
+                gAlgTempY.ifDoTask_ = true;
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
                 HCCL_INFO("[%s][KernelRun] lastStep.", __func__);
@@ -693,6 +693,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                CcuTempGatherOmniPipeNHR1DMem2Mem);
 }

@@ -69,8 +69,6 @@ static CcuResult LoadArgs(GatherOmniPipeNHR1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.myRankIdx], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.localCopyFlag, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
@@ -90,7 +88,7 @@ static CcuResult PreSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.myRankIdx],
             INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
-        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.scratch[ctx.myRankIdx],
+        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.output[ctx.myRankIdx],
             SCRATCH_XN_ID, CKE_IDX_0, 1 << SCRATCH_XN_ID);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.myRankIdx],
             TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
@@ -122,8 +120,6 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
     ccu::LocalAddr dst;
     u32                    toRankIdx        = ctx.rank2ChannelIdx[nhrStepInfo.toRank];
     u32                    fromRankIdx      = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
-    ChannelHandle          sendChannel      = ctx.arg->channels[toRankIdx];
-    ChannelHandle          recvChannel      = ctx.arg->channels[fromRankIdx];
     const std::vector<u32> sendSliceIdxList = nhrStepInfo.txSliceIdxs; // 发送
     const std::vector<u32> recvSliceIdxList = nhrStepInfo.rxSliceIdxs; // 接受
 
@@ -141,8 +137,6 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         u32 fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
         u32 recvSliceIdx = 0;
         ChannelHandle recvChannel        = ctx.arg->channels[fromRankIdx];
-        // src.token                        = ctx.token[ctx.myRankIdx];
-        // dst.token                        = ctx.token[fromRankIdx];
         src.token                        = ctx.token[fromRankIdx];
         dst.token                        = ctx.token[ctx.myRankIdx];
 
@@ -152,11 +146,12 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
             recvSliceIdx = recvSliceIdxList[i];
             if (nhrStepInfo.fromRank == recvSliceIdx) {
                 src.addr = ctx.input[fromRankIdx];
+                src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
             } else {
                 src.addr = ctx.scratch[fromRankIdx];
+                src.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
             }
-            src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
-
+            
             dst.addr = ctx.output;
             dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
             ctx.sliceSize = ctx.sliceSizeOmniSliceStrideVec[recvSliceIdx];

@@ -174,7 +174,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
             std::vector<uint64_t> outputOmniSliceStrideVec = {};
             std::vector<uint64_t> sliceSizeOmniSliceStrideVec = {};
             if (ifDoTask_) {
-                for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
+                for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {//y轴卡数
                     uint64_t inputOmniSliceStrideTmp = stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt];
                     uint64_t outputOmniSliceStrideTmp = stepSliceInfo.outputOmniPipeSliceStride[ridx][rpt];
                     uint64_t sliceSizeOmniSliceStrideTmp = stepSliceInfo.stepSliceSize[ridx][rpt];
@@ -199,8 +199,6 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
                 token, 
                 localCopyFlag, 
                 sliceSize, 
-                // inputOmniPipeSliceStride, 
-                // outputOmniPipeSliceStride, 
                 isStepOne_, 
                 isLastStep_
             };
@@ -287,47 +285,36 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
     stepInfo.fromRank = templateRankSize_;
     stepInfo.step = step;
     stepInfo.myRank = virtRankIdx;
-    uint32_t rootId = subCommRootId_;
-    u32 deltaRoot = (rootId + templateRankSize_ - virtRankIdx) % templateRankSize_;
+
     // Gather: 用 nSteps-1-step
     u32 deltaRankPair = 1 << (nSteps - 1 - step);
     // 数据份数和数据编号增量
     u32 nSlices = (templateRankSize_ - 1 + (1 << (nSteps - 1 - step))) / (1 << (nSteps - step));
     u32 deltaSliceIndex = 1 << (nSteps - step);
-    // 是否为2的幂
-    u32 nRanks = 0;
-    bool isPowerOfTwo = (templateRankSize_ & (templateRankSize_ - 1)) == 0;
-    if (!isPowerOfTwo && step == nSteps - 1) {
-        nRanks = templateRankSize_ - (1 << (nSteps - 1 - step));
-    } else {
-        nRanks = deltaRankPair;
+
+    u32 sendTo = (virtRankIdx + deltaRankPair) % templateRankSize_;
+    u32 recvFrom = (virtRankIdx + templateRankSize_ - deltaRankPair) % templateRankSize_;
+    u32 txSliceIdx = virtRankIdx;
+    for (u32 i = 0; i < nSlices; i++) {
+        stepInfo.txSliceIdxs.push_back(txSliceIdx);
+        HCCL_DEBUG("GetStepInfo [%s] step[%u] myRank[%u] mySubCommRank[%u] txSliceIdx[%u] sendTo[%u] slice-i[%u]",
+            __func__, step, myRank_, mySubCommRank_, txSliceIdx, sendTo, i);
+        txSliceIdx = (txSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
     }
 
-    if (deltaRoot >= deltaRankPair && deltaRoot < nRanks + deltaRankPair) {
-        u32 sendTo = (virtRankIdx + deltaRankPair) % templateRankSize_;
-        u32 txSliceIdx = virtRankIdx;
-        for (u32 i = 0; i < nSlices; i++) {
-            stepInfo.txSliceIdxs.push_back(txSliceIdx);
-            HCCL_DEBUG("GetStepInfo [%s] step[%u] myRank[%u] mySubCommRank[%u] txSliceIdx[%u] sendTo[%u] slice-i[%u]",
-                __func__, step, myRank_, mySubCommRank_, txSliceIdx, sendTo, i);
-            txSliceIdx = (txSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
-        }
-        stepInfo.toRank = sendTo; // TODO ranks[sendTo];
-        stepInfo.nSlices = nSlices;
-    } else if (deltaRoot < nRanks) {
-        u32 recvFrom = (virtRankIdx + templateRankSize_ - deltaRankPair) % templateRankSize_;
-        u32 rxSliceIdx = recvFrom;
-        for (u32 i = 0; i < nSlices; i++) {
-            stepInfo.rxSliceIdxs.push_back(rxSliceIdx);
-            HCCL_DEBUG("GetStepInfo [%s] step[%u] myRank[%u] mySubCommRank[%u] rxSliceIdx[%u] recvFrom[%u] slice-i[%u]",
-                __func__, step, myRank_, mySubCommRank_, rxSliceIdx, recvFrom, i);
-            rxSliceIdx = (rxSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
-        }
-        stepInfo.fromRank = recvFrom; // TODO ranks[recvFrom];
-        stepInfo.nSlices = nSlices;
+    u32 rxSliceIdx = recvFrom;
+    for (u32 i = 0; i < nSlices; i++) {
+        stepInfo.rxSliceIdxs.push_back(rxSliceIdx);
+        HCCL_DEBUG("GetStepInfo [%s] step[%u] myRank[%u] mySubCommRank[%u] rxSliceIdx[%u] recvFrom[%u] slice-i[%u]",
+            __func__, step, myRank_, mySubCommRank_, rxSliceIdx, recvFrom, i);
+        rxSliceIdx = (rxSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
     }
+    stepInfo.toRank = sendTo; // TODO ranks[sendTo];
+    stepInfo.fromRank = recvFrom; // TODO ranks[recvFrom];
+    stepInfo.nSlices = nSlices;
+    
 
-    HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subRoot[%u] subCommRootId_[%u]", __func__, myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_, subCommRootId_);
+    HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subCommRootId_[%u]", __func__, myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_);
     return HcclResult::HCCL_SUCCESS;
 }
 } // namespace ops_hccl
