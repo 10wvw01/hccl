@@ -52,7 +52,9 @@ namespace {
     //通信域缓存
     class CommDomainCache {
         public:
-            CommDomainCache() = default;
+            explicit CommDomainCache(const std::string& commName) : commName_(commName) {}
+
+            const std::string& GetCommName() const { return commName_; }
 
             //获得缓存项，返回共享所有权保证使用期间对象稳定存活
             std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag) {
@@ -88,6 +90,7 @@ namespace {
             }
 
         private:
+            std::string commName_;
             std::map<std::string, std::shared_ptr<const AlgResourceCtxSerializable>> cache_;
             CacheStats stats_;
             mutable std::mutex mutex_;
@@ -97,8 +100,11 @@ namespace {
     class CommDomainCacheManager {
         public:
             //获取算法缓存
-            std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag, void* commHandle) {
-                auto commCache = GetOrCreateComm(commHandle);
+            std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag, const std::string& paramCommName) {
+                std::string commName = ExtractCommName(algTag);
+                if (commName.empty()) commName = paramCommName;
+
+                auto commCache = GetOrCreateComm(commName);
                 if (commCache) {
                     auto& stats = commCache->GetStats();
                     auto result = commCache->Get(algTag);
@@ -111,21 +117,24 @@ namespace {
                 return nullptr;
             }
 
-            void Put(const std::string& algTag, const AlgResourceCtxSerializable& value, void* commHandle) {
-                auto commCache = GetOrCreateComm(commHandle);
+            void Put(const std::string& algTag, const AlgResourceCtxSerializable& value, const std::string& paramCommName) {
+                std::string commName = ExtractCommName(algTag);
+                if (commName.empty()) commName = paramCommName;
+
+                auto commCache = GetOrCreateComm(commName);
                 if (commCache) {
                     commCache->Put(algTag, value);
                 }
             }
 
-            bool ReleaseComm(void* commHandle) {
+            bool ReleaseComm(const std::string& commName) {
                 std::lock_guard<std::mutex> lock(mapMutex_);
-                return commCaches_.erase(commHandle) > 0;
+                return commCaches_.erase(commName) > 0;
             }
 
-            bool GetCommStats(void* commHandle, CacheStats& outStats, size_t& outCacheSize) const {
+            bool GetCommStats(const std::string& commName, CacheStats& outStats, size_t& outCacheSize) const {
                 std::lock_guard<std::mutex> lock(mapMutex_);
-                auto it = commCaches_.find(commHandle);
+                auto it = commCaches_.find(commName);
                 if (it != commCaches_.end()) {
                     outStats.hits = it->second->GetStats().hits.load();
                     outStats.misses = it->second->GetStats().misses.load();
@@ -154,22 +163,32 @@ namespace {
                 commCaches_.clear();
             }
 
+            std::string ExtractCommName(const std::string& algTag) {
+                size_t firstUnderscore = algTag.find('_');
+                if (firstUnderscore == std::string::npos) return "";
+
+                size_t secondUnderscore = algTag.find('_', firstUnderscore + 1);
+                if (secondUnderscore == std::string::npos) return "";
+
+                return algTag.substr(firstUnderscore+1, secondUnderscore - firstUnderscore - 1);
+            }
+
         private:
-            std::shared_ptr<CommDomainCache> GetOrCreateComm(void* commHandle) {
+            std::shared_ptr<CommDomainCache> GetOrCreateComm(const std::string& commName) {
                 std::lock_guard<std::mutex> lock(mapMutex_);
-                auto it = commCaches_.find(commHandle);
+                auto it = commCaches_.find(commName);
                 if (it != commCaches_.end()) {
                     return it->second;
                 }
                 auto result = commCaches_.emplace(
-                    commHandle,
-                    std::make_shared<CommDomainCache>("")
+                    commName,
+                    std::make_shared<CommDomainCache>(commName)
                 );
                 return result.first->second;
             }
 
             mutable std::mutex mapMutex_;
-            std::map<void*, std::shared_ptr<CommDomainCache>> commCaches_;
+            std::map<std::string, std::shared_ptr<CommDomainCache>> commCaches_;
     };
 
     //全局缓存管理器实例
@@ -283,13 +302,13 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         u32 hitRateNum = 100;
         if (param->opType != HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
              //通过缓存实现反序列化优化
-             cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->hcclComm);
+             cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
              if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
                  HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
 
                  CacheStats stats;
                  size_t cacheSize;
-                 if (g_cacheManager.GetCommStats(param->hcclComm, stats, cacheSize)) {
+                 if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
                      HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
                      __func__, param->commName, stats.hitRate() * hitRateNum, cacheSize);
                  }
@@ -297,7 +316,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
              } else {
                  bool isStaleCache = (cachedResCtxHolder != nullptr);
                  resCtx = DeserializeResCtx(param);
-                 g_cacheManager.Put(param->algTag, *resCtx, param->hcclComm);
+                 g_cacheManager.Put(param->algTag, *resCtx, param->commName);
                 resCtxPtr = resCtx.get();
                 if (isStaleCache) {
                     HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
@@ -579,13 +598,13 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         u32 hitRateNum = 100;
 
         //通过缓存实现反序列化优化
-        cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->hcclComm);
+        cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
         if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
             HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
 
             CacheStats stats;
             size_t cacheSize;
-            if (g_cacheManager.GetCommStats(param->hcclComm, stats, cacheSize)) {
+            if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
                 HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
                 __func__, param->commName, stats.hitRate() * hitRateNum, cacheSize);
             }
@@ -593,11 +612,11 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
         } else {
             bool isStaleCache = (cachedResCtxHolder != nullptr);
             resCtx = DeserializeResCtx(param);
-            g_cacheManager.Put(param->algTag, *resCtx, param->hcclComm);
+            g_cacheManager.Put(param->algTag, *resCtx, param->commName);
             resCtxPtr = resCtx.get();
             if (isStaleCache) {
                 HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
-                    __func__, param->algTag, cachedResCtxHolder->commInfoPtr, param->hcclComm);
+                    __func__, param->algTag, cachedResCtxHolder->commInfoPtr, param->commName);
             } else {
                 HCCL_INFO("[%s] Cache MISS and stored for algTag[%s]", __func__, param->algTag);
             }
@@ -824,13 +843,13 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
         const AlgResourceCtxSerializable* resCtxPtr{nullptr};
         if (param->opType != HcclCMDType::HCCL_CMD_BATCH_SEND_RECV) {
             //通过缓存实现反序列化优化
-            cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->hcclComm);
+            cachedResCtxHolder = g_cacheManager.Get(param->algTag, param->commName);
             if (cachedResCtxHolder != nullptr && IsResCtxCacheReusable(*cachedResCtxHolder, *param)) {
                 HCCL_INFO("[%s] Cache HIT for algTag[%s]", __func__, param->algTag);
 
                 CacheStats stats;
                 size_t cacheSize;
-                if (g_cacheManager.GetCommStats(param->hcclComm, stats, cacheSize)) {
+                if (g_cacheManager.GetCommStats(param->commName, stats, cacheSize)) {
                     HCCL_DEBUG("[%s] comm[%s] hitRate=%.2f%%, cacheSize=%zu",
                     __func__, param->commName, stats.hitRate() * 100, cacheSize);
                 }
@@ -838,7 +857,7 @@ extern "C" unsigned int HcclLaunchAicpuKernelA3(OpParam *param)
             } else {
                 bool isStaleCache = (cachedResCtxHolder != nullptr);
                 resCtx = DeserializeResCtx(param);
-                g_cacheManager.Put(param->algTag, *resCtx, param->hcclComm);
+                g_cacheManager.Put(param->algTag, *resCtx, param->commName);
                 resCtxPtr = resCtx.get();
                 if (isStaleCache) {
                     HCCL_INFO("[%s] Cache STALE and refreshed for algTag[%s], cachedComm[%p], currentComm[%p]",
