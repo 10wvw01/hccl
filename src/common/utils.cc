@@ -19,8 +19,8 @@ HcclMem HcclMemRange(HcclMem inMem, u64 offset, u64 size)
         HCCL_ERROR("HcclMem addr is null");
         return outMem;
     }
-    if (offset + size > inMem.size){
-        HCCL_ERROR("HcclMem request range[%llu] is out of size[%llu]", offset + size, inMem.size);
+    if (offset > inMem.size || size > inMem.size - offset) {
+        HCCL_ERROR("HcclMem request offset[%llu] size[%llu] is out of size[%llu]", offset, size, inMem.size);
         return outMem;
     }
     outMem.type = inMem.type;
