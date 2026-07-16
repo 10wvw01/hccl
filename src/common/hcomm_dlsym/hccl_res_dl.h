@@ -64,6 +64,16 @@ static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
     return 0;
 }
 
+typedef enum {
+    DED_THREAD_TYPE_INVALID = -1,
+    DED_THREAD_TYPE_AICPU_UNFOLD = 0,
+    DED_THREAD_TYPE_AICPU_UNFOLD_GE = 1,
+    DED_THREAD_TYPE_AICPU_ORDER_LAUNCH_OPBASE = 2,
+    DED_THREAD_TYPE_AICPU_ORDER_LAUNCH_ACLGRAPH = 3,
+    DED_THREAD_TYPE_AICPU_ORDER_LAUNCH_GE = 4,
+    DED_THREAD_TYPE_AICPU_ORDER_LAUNCH_DEVICE = 5
+} HcclDedicatedThreadType;
+
 #endif
 
 #ifdef __cplusplus
@@ -86,6 +96,10 @@ DECL_SUPPORT_FLAG(HcclThreadExportToCommEngine);
 DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
     ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
 DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
+
+DECL_WEAK_FUNC(HcclResult, HcclDedicatedThreadAcquire, HcclComm comm, HcclDedicatedThreadType useType,
+    uint32_t notifyNumPerThread, ThreadHandle *thread);
+DECL_SUPPORT_FLAG(HcclDedicatedThreadAcquire);
 // 动态库管理接口（大驼峰命名）
 void HcclResDlInit(void* libHcommHandle);
 
