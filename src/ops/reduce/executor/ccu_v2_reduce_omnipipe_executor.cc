@@ -427,6 +427,10 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
     HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
+    if (multiLoopAllRankSplitData[0][0] != multiLoopAllRankSplitData[0][rankSize_ - 1] && dataSize_ > perLoopSize) {
+        dataSizePerLoop[rankSize_ - 1] = multiLoopAllRankSplitData[0][rankSize_ - 1];
+    }
+    HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = dataSizePerLoop;
@@ -647,11 +651,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
             HCCL_DEBUG("[%s] AG local copy end", __func__);
         }
-        if (i == rankSize_ - 1 && rankSize_ > 1) {
-            processedDataCount +=  maxCountPerLoop;
-        } else {
-            processedDataCount += currDataCount;
-        }
+        // if (i == rankSize_ - 1 && rankSize_ > 1) {
+        //     processedDataCount +=  maxCountPerLoop;
+        // } else {
+        //     processedDataCount += currDataCount;
+        // }
+        processedDataCount += currDataCount;
     }
 
     HCCL_INFO("[%s][OrchestrateLoop] End.", __func__);
