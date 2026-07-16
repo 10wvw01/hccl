@@ -24,7 +24,7 @@ SelectorStatus AlltoAllVCAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithN
 {
     HCCL_DEBUG("[AlltoAllVCAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
-        HCCL_ERROR("[AlltoAllVCAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+        HCCL_INFO("[AlltoAllVCAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
             __func__);
         return SelectorStatus::NOT_MATCH;
     }
