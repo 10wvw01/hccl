@@ -54,6 +54,7 @@ HcclResult InsTempAllGatherNHR::CalcRes(HcclComm comm, const OpParam &param, con
 HcclResult InsTempAllGatherNHR::GetRes(AlgResourceRequest &resourceRequest) const
 {
     u32 threadNum = GetThreadNum();
+    HCCL_INFO("[InsTempAllGatherNHR][GetRes] threadNum[%u]", threadNum);
     resourceRequest.slaveThreadNum = threadNum - 1;
     // 一个notify用于主从流之间的同步，另一个用于PostLocalCopy和NHR最后一个step并行执行时的前同步
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 2);
@@ -74,9 +75,18 @@ u64 InsTempAllGatherNHR::CalcScratchMultiple(BufferType inBuffType, BufferType o
     return scratchMultiple;
 }
 
-HcclResult InsTempAllGatherNHR::PreprareDataSplitForMultiChannel(const TemplateResource &templateResource) {
+HcclResult InsTempAllGatherNHR::PrepareDataSplitForMultiChannel(const TemplateResource &templateResource) {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     u64 totalDataCount = tempAlgParams_.sliceSize / dataTypeSize;
+    if (templateResource.channels.empty() || templateResource.channels.begin()->second.empty()) {
+        dataSplit_.assign(1, tempAlgParams_.sliceSize);
+        dataOffset_.assign(1, 0);
+        if (tempAlgParams_.tailSize > 0) {
+            dataSplitTail_.assign(1, tempAlgParams_.tailSize);
+            dataOffsetTail_.assign(1, 0);
+        }
+        return HCCL_SUCCESS;
+    }
     std::vector<u64> elemCountOut;
     CHK_RET(CalcDataSplitByPortGroup(totalDataCount, dataTypeSize, templateResource.channels.begin()->second, elemCountOut, dataSplit_, dataOffset_));
     if (tempAlgParams_.tailSize > 0) {
@@ -108,7 +118,7 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     bool isPcieProtocal = IsPcieProtocol(templateResource.channels);  // 判断是否存在pcie链路
     isDmaRead_ = isPcieProtocal;  // 是否使用Read模式
     HCCL_DEBUG("[InsTempAllGatherNHR] Use Dma Read[%d]", isDmaRead_);
-    CHK_RET(PreprareDataSplitForMultiChannel(templateResource));
+    CHK_RET(PrepareDataSplitForMultiChannel(templateResource));
     readLastStepToOutput_ = CanReadLastStepToOutput();
     HCCL_DEBUG("[InsTempAllGatherNHR] Read last step to output[%d]", readLastStepToOutput_);
 
@@ -122,8 +132,10 @@ HcclResult InsTempAllGatherNHR::KernelRun(const OpParam &param, const TemplateDa
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         bool postLocalCopyLaunched = false;
  	    CHK_RET(LocalDataCopy(templateResource.threads, channelIdx));  // input buffer拷贝到scratch buffer上
-        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
-            postLocalCopyLaunched));
+        if (templateRankSize_ > 1) {
+            CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx,
+                postLocalCopyLaunched));
+        }
         if (!postLocalCopyLaunched) {
             CHK_RET(PostLocalCopy(templateResource.threads[channelIdx], channelIdx));
         }

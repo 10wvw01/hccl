@@ -10,7 +10,7 @@
 #### CPACK to package run #####
 
 # download makeself package
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/third_party/makeself-fetch.cmake)
+add_cann_third_party(makeself-fetch)
 
 function(pack_custom)
   message(STATUS "System processor: ${CMAKE_SYSTEM_PROCESSOR}")
@@ -39,8 +39,20 @@ function(pack_custom)
 
   # ============= CPack =============
   set(CPACK_PACKAGE_NAME "cann-hccl-${CUSTOM_OPS_NAME}-${CUSTOM_OPS_VENDOR}")
-  set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}")
+  set(CUSTOM_PACKAGE_VERSION "")
+  set(_version_cmake "${CMAKE_SOURCE_DIR}/version.cmake")
+  if(EXISTS "${_version_cmake}")
+      file(STRINGS "${_version_cmake}" _ver_pkg_line
+          REGEX "set_cann_package[ \t]*\\([ \t]*hccl[ \t]+VERSION[ \t]+\"[0-9]+\\.[0-9]+\\.[0-9]+\"")
+      if(_ver_pkg_line)
+          string(REGEX MATCH "\"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ "${_ver_pkg_line}")
+          if(CMAKE_MATCH_1)
+              set(CUSTOM_PACKAGE_VERSION "${CMAKE_MATCH_1}")
+          endif()
+      endif()
+  endif()
+  set(CPACK_PACKAGE_VERSION "${CUSTOM_PACKAGE_VERSION}")
+  set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CUSTOM_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}")
 
   set(CPACK_INSTALL_PREFIX "/")
 

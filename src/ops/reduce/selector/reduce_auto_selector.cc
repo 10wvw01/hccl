@@ -13,6 +13,7 @@
 
 namespace ops_hccl {
 constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 constexpr int TOPO_LEVEL_3 = 3;
 
 SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
@@ -115,8 +116,18 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
         return SelectorStatus::NOT_MATCH;
     }
     
+    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
+    u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
+    u64 dataSize = opParam.DataDes.count * perDataSize;
+
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            if (topoInfo->userRankSize == 0 ||
+                dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+                HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
+                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+                return SelectorStatus::NOT_MATCH;
+            }
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1) {
                 // 每框出 1 卡
                 selectAlgName = "CcuReduceNHR1DMem2Mem";
@@ -127,7 +138,12 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                 HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet"
                 " for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
-                selectAlgName = "CcuReduceParallelMesh1DNHR";
+                u64 perRankSize = (topoInfo->userRankSize > 0) ? (dataSize / topoInfo->userRankSize) : dataSize;
+                if (perRankSize <= REDUCE_NHR_CCU_MAX_DATA_SIZE) {
+                    selectAlgName = "CcuReduceNHR1DMem2Mem";
+                } else {
+                    selectAlgName = "CcuReduceParallelMesh1DNHR";
+                }
             }
         } else {
             HCCL_WARNING("[SelectCcuScheduleAlgo] layer0Shape[%d] is not supported yet for ccu schedule mode.",
@@ -197,14 +213,16 @@ SelectorStatus ReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDet
         SelectorStatus::NOT_MATCH);
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_3) {
+        if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
+            selectAlgName = "ReduceAicpuReduceNHR";
+        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_3) {
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
                 selectAlgName = "ReduceAicpuReduceNHR";
             } else {
                 selectAlgName = "ReduceParallelNHRNHRUboe";
             }
-        } else if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
-            selectAlgName = "ReduceAicpuReduceNHR";
+        } else if (topoInfo->Level1Nhr) {
+            selectAlgName = "ReduceNHR";
         } else if (topoInfo->deviceNumPerModule > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "ReduceParallelMesh1DNHR";
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1 || topoInfo->level0Topo == Level0Shape::CLOS) {
@@ -283,6 +301,13 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
     CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
         SelectorStatus::NOT_MATCH);
     (void)configAlgMap;
+
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     // aiv 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] ReduceOp[%d] is not supported yet for aiv mode.", opParam.reduceType),
@@ -305,6 +330,12 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] HcclGetHcclBuffer failed."), SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+    if (opParam.opExecuteConfig != OpExecuteConfig::AIV_ONLY &&
+        dataSize >= AIV_MAX_PER_RANK_DATA_SIZE * topoInfo->userRankSize) {
+        HCCL_DEBUG("[ReduceAutoSelector][%s] dataSize[%llu] larger than AIV_MAX_PER_RANK_DATA_SIZE[%llu] * rankSize[%u]",
+            __func__, dataSize, AIV_MAX_PER_RANK_DATA_SIZE, topoInfo->userRankSize);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (dataSize > cclBufferSize * AIV_MAX_CCL_LOOP_NUM) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] dataSize[%llu] too large for cclBufferSize [%llu]", __func__, dataSize, cclBufferSize);
         return SelectorStatus::NOT_MATCH;

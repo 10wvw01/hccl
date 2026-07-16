@@ -189,9 +189,11 @@ HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startu
 
 HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
-HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam);
+HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam, bool ifCreate);
 
-HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
+HcclResult SetMultipleDimensionSplitRatio(HcclComm comm, OpParam &param);
+
+HcclResult GetCommMultipleDimensionSplitRatio(HcclComm comm, double &ratio, bool &isConfigured);
 
 HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
 

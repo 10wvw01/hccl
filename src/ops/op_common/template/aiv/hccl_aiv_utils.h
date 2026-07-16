@@ -20,7 +20,7 @@
 
 namespace ops_hccl {
 constexpr u32 MAX_RANK_SIZE = 512; // 注意要和device侧的一致
- constexpr u32 MAX_RANK_SIZE_V = 64; // 注意要和device侧的一致
+constexpr u32 MAX_RANK_SIZE_V = 56; // 注意要和device侧的一致
 constexpr s32 TOPO_LEN = MAX_RANK_SIZE; // 当前一级拓扑，暂时和MAX_RANK_SIZE保持一致
 
 constexpr u32 AIV_TAG_ADDR_OFFSET = 16 * 1024;
@@ -28,7 +28,7 @@ constexpr u32 AIV_TOPO_ADDR_OFFSET = 32 * 1024;
 constexpr u32 AIV_TOPO_BUFF_LEN = 8 * 1024;
 constexpr u32 AIV_FLAG_ADDR_OFFSET = 40 * 1024;
 constexpr u32 AIV_FLAG_AREA_SIZE = 1000 * 1024;
-constexpr u32 AIV_TAG_BUFF_LEN = 65 * 1024 * 1024;
+constexpr u32 AIV_TAG_BUFF_LEN = 33 * 1024 * 1024;
 
 constexpr u32 AIV_MAX_CCL_LOOP_NUM = 16;
 
@@ -217,6 +217,9 @@ HcclResult ReplayAivInstructions(const AivInstruction *instructions, u32 insCoun
 
 HcclResult StoreAivCacheCtx(HcclComm comm, const std::string &ctxTag, u64 keyHash, const std::string &algName,
                             AivCacheIndexCtx *indexCtx);
+
+HcclResult ClearAivTagCb(HcclComm comm, HcclCommStatePhase state, void* userPtr);
+
 }
  
 #endif // HCCL_AIV_UTILS_H

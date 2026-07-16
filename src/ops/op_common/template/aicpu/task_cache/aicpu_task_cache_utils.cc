@@ -24,7 +24,7 @@ bool AicpuTaskCacheUtils::IsNonVariableOpType(HcclCMDType opType)
 }
 
 HcclResult AicpuTaskCacheUtils::GetInputOutputInfoForCache(
-    const OpParam &param, uint32_t rankSize, uint64_t &inputSize, uint64_t &outputSize)
+    const OpParam &param, const uint32_t rankSize, uint64_t &inputSize, uint64_t &outputSize)
 {
     const HcclCMDType opType = param.opType;
 
@@ -34,7 +34,6 @@ HcclResult AicpuTaskCacheUtils::GetInputOutputInfoForCache(
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL) { // alltoall算子
         // 注意: sendType和recvType一定相同
         HcclDataType sendType = param.all2AllDataDes.sendType;
-        HcclDataType recvType = param.all2AllDataDes.recvType;
 
         // 注意: 对于alltoall算子, inputSize和outputSize一定相同 (但不能直接使用param.input/outputSize,
         // alltoall算子不会设置这两个字段)
@@ -45,9 +44,9 @@ HcclResult AicpuTaskCacheUtils::GetInputOutputInfoForCache(
         // 因为alltoall使用sendCount来表示send/recvCount, 而recvCount本身为0
         outputSize = inputSize;
 
-        HCCL_DEBUG("[AicpuTaskCacheUtils][%s] opType[%u] rankSize[%u] sendType[%u] recvType[%u] "
+        HCCL_DEBUG("[AicpuTaskCacheUtils][%s] opType[%u] rankSize[%u] sendType[%u] "
                    "inputSize[%llu] outputSize[%llu] sendCount[%llu] dataTypeSize[%u]",
-            __func__, opType, rankSize, sendType, recvType, inputSize, outputSize, sendCount, SIZE_TABLE[sendType]);
+            __func__, opType, rankSize, sendType, inputSize, outputSize, sendCount, SIZE_TABLE[sendType]);
     } else {
         inputSize = param.inputSize;
         outputSize = param.outputSize;

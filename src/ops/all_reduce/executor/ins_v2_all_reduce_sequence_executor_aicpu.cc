@@ -24,6 +24,7 @@
 namespace ops_hccl {
 
 constexpr u32 SEQUENCE_EXECUTOR_LEVEL_NUM = 2;
+constexpr u32 CCL_MEM_HALF_DIVISOR = 2;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
@@ -381,7 +382,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 template <typename InsAlgTemplate>
 HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
     InsAlgTemplate3>::GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
-    const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempReousrce) const
+    const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempResource) const
 {
     AlgResourceRequest req;
     algTemplate->GetRes(req);
@@ -390,8 +391,8 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
             "than remoteRankToChannelInfo_.size()[%u]", channelLevelIdx, remoteRankToChannelInfo_.size());
         return HCCL_E_INTERNAL;
     }
-    tempReousrce.channels = remoteRankToChannelInfo_[channelLevelIdx];
-    tempReousrce.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
+    tempResource.channels = remoteRankToChannelInfo_[channelLevelIdx];
+    tempResource.threads.assign(resCtx.threads.begin(), resCtx.threads.begin() + 1 + req.slaveThreadNum);
     return HCCL_SUCCESS;
 }
 
@@ -401,7 +402,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
     InsAlgTemplate3>::OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu][OrchestrateLoop] Start");
-    scratchBlockSize_ = resCtx.cclMem.size / 2;
+    scratchBlockSize_ = resCtx.cclMem.size / CCL_MEM_HALF_DIVISOR;
 
     TemplateDataParams tempAlgParamsStepOne; // 框内ReduceScatter的模板参数
     TemplateDataParams tempAlgParamsStepTwo; // 框间ReduceScatter的模板参数

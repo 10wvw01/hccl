@@ -15,11 +15,11 @@
 
 namespace ops_hccl {
 
-HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, const TopoInfoWithNetLayerDetails &topoInfo, 
-    const AlgResourceCtxSerializable &resCtxHost, bool isCapture, bool &isCacheEnable)
+HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(
+    const OpParam &param, const AlgResourceCtxSerializable &resCtx, bool &isCacheEnable)
 {
     isCacheEnable = false;
-    if (!GetExternalInputHcclAicpuCacheEnable()) {
+    if (!param.aicpuCacheEnable) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] AICPU_CacheDisable is not supported");
         return HCCL_SUCCESS;
     }
@@ -37,7 +37,7 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     }
 
     // aclgraph 不支持
-    if (isCapture) {
+    if (param.isCapture) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] aclgraph is not supported");
         return HCCL_SUCCESS;
     }
@@ -50,14 +50,14 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
 
     // 屏蔽inplace场景
     bool isInplace = false;
-    CHK_RET(IsInplaceForCache(param, isInplace, topoInfo));
+    CHK_RET(IsInplaceForCache(param, resCtx.topoInfo.userRankSize, isInplace));
     if (isInplace) {
         HCCL_INFO("[AicpuTaskCachePolicy][IsAicpuTaskCacheEnable] inplace case is not supported for operator unfolding "
                   "cache");
         return HCCL_SUCCESS;
     }
 
-    if(!IsTopoSupported(resCtxHost)) {
+    if(!IsTopoSupported(resCtx)) {
         return HCCL_SUCCESS;
     }
 
@@ -66,14 +66,13 @@ HcclResult AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(const OpParam &param, co
     return HCCL_SUCCESS;
 }
 
-HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &isInplace,
-    const TopoInfoWithNetLayerDetails &topoInfo)
+HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const uint32_t rankSize, bool &isInplace)
 {
     // 准备input/output size
     uint64_t inputSize = 0;
     uint64_t outputSize = 0;
 
-    CHK_RET(AicpuTaskCacheUtils::GetInputOutputInfoForCache(param, topoInfo.userRankSize, inputSize, outputSize));
+    CHK_RET(AicpuTaskCacheUtils::GetInputOutputInfoForCache(param, rankSize, inputSize, outputSize));
 
     // 注意: A3下alltoall/alltoallv/alltoallvc可能存在inputSize/outputSize为0的情况, 导致不分配user input/output
     //     但会使用tinySendRecvMem_更新algResource.paramInput/OutputMem用于建链, 导致cache无法区分给定地址字段的地址类型
@@ -81,7 +80,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &i
     // 注意: 这里继承A3, 不支持同时为0的场景
     if (inputSize == 0 && outputSize == 0) {
         isInplace = true;
-        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is overlapping with outputSize[%u] -> isInplace[%d]",
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%llu] is overlapping with outputSize[%llu] -> isInplace[%d]",
             inputSize, outputSize, isInplace);
         return HCCL_SUCCESS;
     }
@@ -127,9 +126,9 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, bool &i
     return HCCL_SUCCESS;
 }
 
-bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtxHost)
+bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtx)
 {
-    for (const auto& levelChannels : resCtxHost.channels) {
+    for (const auto& levelChannels : resCtx.channels) {
         for (const auto& channel : levelChannels) {
             if (!channel.isValid) {
                 continue;
@@ -140,7 +139,7 @@ bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &res
             if (channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_CTP &&
                 channel.protocol != CommProtocol::COMM_PROTOCOL_UBC_TP &&
                 channel.protocol != CommProtocol::COMM_PROTOCOL_UBOE) {
-                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%] not supported",
+                HCCL_INFO("[AicpuTaskCachePolicy][IsTopoSupported] found channel protocol[%d] not supported",
                     channel.protocol);
                 return false;
             }

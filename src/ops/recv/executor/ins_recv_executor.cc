@@ -12,6 +12,7 @@
 #include "alg_data_trans_wrapper.h"
 
 namespace ops_hccl {
+constexpr u32 P2P_CHANNEL_REPEAT_NUM = 2;
 
     std::string InsRecvExecutor::Describe() const {
         return "Instruction based Recv Executor.";
@@ -80,7 +81,7 @@ namespace ops_hccl {
             CHK_RET(HcclGroupStatusGet(&isGroupEnabled));
         }
         if (isGroupEnabled) {
-            CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels, 2));
+            CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels, P2P_CHANNEL_REPEAT_NUM));
         } else {
             CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, remoteRank_, level0Channels));
         }
@@ -134,7 +135,7 @@ namespace ops_hccl {
         return HcclResult::HCCL_SUCCESS;
     }
 
-    HcclResult InsRecvExecutor::OrchestrateP2p(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
+    HcclResult InsRecvExecutor::OrchestrateWithThread(const OpParam &param, const AlgResourceCtxSerializable &resCtx,
         ThreadHandle sendRecvThread) {
         opMode_ = param.opMode;
         myRank_ = resCtx.topoInfo.userRank;
@@ -146,8 +147,8 @@ namespace ops_hccl {
         dataTypeSize_ = static_cast<u64>(DATATYPE_SIZE_TABLE[dataType_]);
         dataSize_ = dataCount_ * dataTypeSize_;
         
-        HCCL_DEBUG("[InsRecvExecutor][OrchestrateP2p][%d]->[%d] Start.", myRank_, remoteRank_);
-        HCCL_INFO("[InsRecvExecutor][OrchestrateP2p] resCtx channels size [%zu].", resCtx.channels.at(0).size());
+        HCCL_DEBUG("[InsRecvExecutor][OrchestrateWithThread][%d]<-[%d] Start.", myRank_, remoteRank_);
+        HCCL_INFO("[InsRecvExecutor][OrchestrateWithThread] resCtx channels size [%zu].", resCtx.channels.at(0).size());
 
         // 给channels_赋值
         const ChannelInfo &channel
@@ -165,7 +166,7 @@ namespace ops_hccl {
         } else {
             CHK_RET(OrchestrateOpbase(param, resCtx, sendRecvThread, channel));
         }
-        HCCL_DEBUG("[InsRecvExecutor][OrchestrateP2p][%d]->[%d] Success.", myRank_, remoteRank_);
+        HCCL_DEBUG("[InsRecvExecutor][OrchestrateWithThread][%d]<-[%d] Success.", myRank_, remoteRank_);
  
         return HcclResult::HCCL_SUCCESS;
     }

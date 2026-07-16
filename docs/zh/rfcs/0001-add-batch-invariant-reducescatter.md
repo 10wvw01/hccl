@@ -71,7 +71,7 @@ The BIRS algorithm is designed for the 2D topology characteristics of A3 servers
 
 The BIRS algorithm is integrated into HCCL as an experimental feature, isolated from existing algorithms through an independent code path and build option.
 
-```
+```text
 HCCL
 ├── src/ops/reduce_scatter/          # Existing ReduceScatter implementation
 │   └── reduce_scatter_op.cc/.h      # Entry function (with BIRS dispatch logic added)
@@ -99,7 +99,7 @@ HCCL
 
 **Data Flow**:
 
-```
+```text
 User calls HcclReduceScatter()
     │
     ├── HCCL_BIRS_ENABLE != TRUE → Take existing HcclReduceScatterInner() path
@@ -134,6 +134,7 @@ User calls HcclReduceScatter()
 #### 2.2 Build Options
 
 Run the following command from the root directory of the hccl repository:
+
 ```
 # host + device + experimental
 bash build.sh --pkg --full --experimental

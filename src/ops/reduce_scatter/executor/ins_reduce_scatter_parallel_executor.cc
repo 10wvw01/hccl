@@ -120,7 +120,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GenTemplateAlgParamsIntra0(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, 
-    const u64 dataOffset, const u64 dataCountPerLoopAixs0,
+    const u64 dataOffset, const u64 dataCountPerLoopAxis0,
     std::vector<u64> &scratchOffVec, TemplateDataParams &tempAlgParamsIntra0) const
 {
     tempAlgParamsIntra0.buffInfo.inputPtr = param.inputPtr;
@@ -132,24 +132,24 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsIntra0.buffInfo.outBuffType = BufferType::HCCL_BUFFER; // 第一步最后的数据存储在scratch buffer上
     tempAlgParamsIntra0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
     tempAlgParamsIntra0.buffInfo.inBuffBaseOff = dataOffset;
-    tempAlgParamsIntra0.buffInfo.outBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+    tempAlgParamsIntra0.buffInfo.outBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAxis0 * dataTypeSize_;
     tempAlgParamsIntra0.buffInfo.hcclBuffBaseOff = scratchOffVec[0];
-    tempAlgParamsIntra0.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
+    tempAlgParamsIntra0.sliceSize = dataCountPerLoopAxis0 * dataTypeSize_;
     tempAlgParamsIntra0.tailSize = tempAlgParamsIntra0.sliceSize;
-    tempAlgParamsIntra0.count = dataCountPerLoopAixs0;
+    tempAlgParamsIntra0.count = dataCountPerLoopAxis0;
 
     tempAlgParamsIntra0.inputSliceStride = dataSize_;
     tempAlgParamsIntra0.outputSliceStride = 0;
     tempAlgParamsIntra0.repeatNum = rankSizeLevel1_;
     tempAlgParamsIntra0.inputRepeatStride = dataSize_ * rankSizeLevel0_;
-    tempAlgParamsIntra0.outputRepeatStride = dataCountPerLoopAixs0 * dataTypeSize_ * rankSizeLevel0_;
+    tempAlgParamsIntra0.outputRepeatStride = dataCountPerLoopAxis0 * dataTypeSize_ * rankSizeLevel0_;
     return;
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GenTemplateAlgParamsInter0(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, 
-    const u64 dataOffset, const u64 dataCountPerLoopAixs0,
+    const u64 dataOffset, const u64 dataCountPerLoopAxis0,
     std::vector<u64> &scratchOffVec, TemplateDataParams &tempAlgParamsInter0) const
 {
     tempAlgParamsInter0.buffInfo.inputPtr = resCtx.cclMem.addr;
@@ -160,18 +160,18 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter0.buffInfo.inBuffType =  BufferType::HCCL_BUFFER;
     tempAlgParamsInter0.buffInfo.outBuffType = BufferType::OUTPUT;
     tempAlgParamsInter0.buffInfo.hcclBuffType = BufferType::HCCL_BUFFER;
-    tempAlgParamsInter0.buffInfo.inBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+    tempAlgParamsInter0.buffInfo.inBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAxis0 * dataTypeSize_;
     tempAlgParamsInter0.buffInfo.outBuffBaseOff = dataOffset;
     if (engine_ == CommEngine::COMM_ENGINE_CCU) {
         tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[2];
     } else {
-        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAixs0 * dataTypeSize_;
+        tempAlgParamsInter0.buffInfo.hcclBuffBaseOff = scratchOffVec[0] + rankIdxLevel0_ * dataCountPerLoopAxis0 * dataTypeSize_;
     }
-    tempAlgParamsInter0.sliceSize = dataCountPerLoopAixs0 * dataTypeSize_;
+    tempAlgParamsInter0.sliceSize = dataCountPerLoopAxis0 * dataTypeSize_;
     tempAlgParamsInter0.tailSize = tempAlgParamsInter0.sliceSize;
-    tempAlgParamsInter0.count = dataCountPerLoopAixs0;
+    tempAlgParamsInter0.count = dataCountPerLoopAxis0;
 
-    tempAlgParamsInter0.inputSliceStride = dataCountPerLoopAixs0 * dataTypeSize_ * rankSizeLevel0_;
+    tempAlgParamsInter0.inputSliceStride = dataCountPerLoopAxis0 * dataTypeSize_ * rankSizeLevel0_;
     tempAlgParamsInter0.outputSliceStride = 0;
     tempAlgParamsInter0.repeatNum = 1;
     tempAlgParamsInter0.inputRepeatStride = 0;
@@ -182,7 +182,7 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GenTemplateAlgParamsInter1(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx,
-    const u64 dataOffset, const u64 dataCountPerLoopAixs1,
+    const u64 dataOffset, const u64 dataCountPerLoopAxis1,
     std::vector<u64> &scratchOffVec, TemplateDataParams &tempAlgParamsInter1) const
 {
     tempAlgParamsInter1.buffInfo.inputPtr = param.inputPtr;
@@ -196,26 +196,26 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     tempAlgParamsInter1.buffInfo.inBuffBaseOff = dataOffset;
     tempAlgParamsInter1.buffInfo.outBuffBaseOff = scratchOffVec[3];
     tempAlgParamsInter1.buffInfo.hcclBuffBaseOff = scratchOffVec[3];
-    tempAlgParamsInter1.sliceSize = dataCountPerLoopAixs1 * dataTypeSize_;
+    tempAlgParamsInter1.sliceSize = dataCountPerLoopAxis1 * dataTypeSize_;
     tempAlgParamsInter1.tailSize = tempAlgParamsInter1.sliceSize;
-    tempAlgParamsInter1.count = dataCountPerLoopAixs1;
+    tempAlgParamsInter1.count = dataCountPerLoopAxis1;
 
     tempAlgParamsInter1.inputSliceStride = dataSize_ * rankSizeLevel0_;
     if (engine_ == CommEngine::COMM_ENGINE_CCU) {
         tempAlgParamsInter1.outputSliceStride = 0;
     } else {
-        tempAlgParamsInter1.outputSliceStride = dataCountPerLoopAixs1 * dataTypeSize_;
+        tempAlgParamsInter1.outputSliceStride = dataCountPerLoopAxis1 * dataTypeSize_;
     }
     tempAlgParamsInter1.repeatNum = rankSizeLevel0_;
     tempAlgParamsInter1.inputRepeatStride = dataSize_;
-    tempAlgParamsInter1.outputRepeatStride = dataCountPerLoopAixs1 * dataTypeSize_ * rankSizeLevel1_;
+    tempAlgParamsInter1.outputRepeatStride = dataCountPerLoopAxis1 * dataTypeSize_ * rankSizeLevel1_;
     return;
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GenTemplateAlgParamsIntra1(
     const OpParam &param, const AlgResourceCtxSerializable &resCtx, 
-    const u64 dataOffset, const u64 dataCountPerLoopAixs1, 
+    const u64 dataOffset, const u64 dataCountPerLoopAxis1, 
     std::vector<u64> &scratchOffVec, TemplateDataParams &tempAlgParamsIntra1) const
 {
     tempAlgParamsIntra1.buffInfo.inputPtr = resCtx.cclMem.addr;
@@ -229,15 +229,15 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
     if (engine_ == CommEngine::COMM_ENGINE_CCU) {
         tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3]; 
     } else {
-        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3] + rankIdxLevel1_ * dataCountPerLoopAixs1 * dataTypeSize_;
+        tempAlgParamsIntra1.buffInfo.inBuffBaseOff = scratchOffVec[3] + rankIdxLevel1_ * dataCountPerLoopAxis1 * dataTypeSize_;
     }
     tempAlgParamsIntra1.buffInfo.outBuffBaseOff = dataOffset;
     tempAlgParamsIntra1.buffInfo.hcclBuffBaseOff = scratchOffVec[1];
-    tempAlgParamsIntra1.sliceSize = dataCountPerLoopAixs1 * dataTypeSize_;
+    tempAlgParamsIntra1.sliceSize = dataCountPerLoopAxis1 * dataTypeSize_;
     tempAlgParamsIntra1.tailSize = tempAlgParamsIntra1.sliceSize;
-    tempAlgParamsIntra1.count = dataCountPerLoopAixs1;
+    tempAlgParamsIntra1.count = dataCountPerLoopAxis1;
 
-    tempAlgParamsIntra1.inputSliceStride = dataCountPerLoopAixs1 * dataTypeSize_ * rankSizeLevel1_;
+    tempAlgParamsIntra1.inputSliceStride = dataCountPerLoopAxis1 * dataTypeSize_ * rankSizeLevel1_;
     tempAlgParamsIntra1.outputSliceStride = 0;
     tempAlgParamsIntra1.repeatNum = 1;
     tempAlgParamsIntra1.inputRepeatStride = 0;
@@ -248,10 +248,20 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GetParallelDataSplit(std::vector<float> &splitDataSize) const
 {
-    double splitData = multipleDimensionSplitRatio_;
-    splitDataSize.push_back(splitData);
-    splitDataSize.push_back(1 - splitData);
-    HCCL_INFO("[InsReduceScatterParallelExecutor] splitDataSize is %f, %f", splitDataSize[0], splitDataSize[1]);
+    double ratio = multipleDimensionSplitRatio_;
+    if (multipleDimensionSplitRatioSource_ == MultipleDimensionSplitRatioSource::BUILTIN_FORMULA) {
+        ratio = CalcParallelDataSplitRatio(
+            rankSizeLevel0_,
+            rankSizeLevel1_,
+            intraChannelMap_,
+            interChannelMap_,
+            ParallelDataSplitType::REDUCE_SCATTER_WITH_LOCAL_REDUCE,
+            multipleDimensionSplitRatio_);
+    }
+    splitDataSize.push_back(ratio);
+    splitDataSize.push_back(1.0 - ratio);
+    HCCL_INFO("[InsReduceScatterParallelExecutor] meshFirstRatio[%f], closFirstRatio[%f]",
+              splitDataSize[0], splitDataSize[1]);
     return;
 }
 
@@ -340,7 +350,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     HcclResult ret = OrchestrateLoop(param, resCtx, intraTempAlg, interTempAlg);
     CHK_PRT_RET(
         ret != HCCL_SUCCESS,
-        HCCL_ERROR("[InsV2AllGatherParallelExecutor][Orchestrate]errNo[0x%016llx] All Gather excutor kernel run failed",
+        HCCL_ERROR("[InsReduceScatterParallelExecutor][Orchestrate]errNo[0x%016llx] Reduce scatter executor kernel run failed",
                    HCCL_ERROR_CODE(ret)),
         ret);
     return HCCL_SUCCESS;
@@ -355,6 +365,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     HCCL_INFO("[InsReduceScatterParallelExecutor] AlgTemplate inter server is [%s]", tempAlgIntra.Describe().c_str());
     HCCL_INFO("[InsReduceScatterParallelExecutor] AlgTemplate intra server is [%s]", tempAlgInter.Describe().c_str());
     multipleDimensionSplitRatio_ = param.opConfig.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatioSource_ = param.opConfig.multipleDimensionSplitRatioSource;
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
     u64 alignedSize = 16 * 1024; //假设需要16K对齐
@@ -591,7 +602,7 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, InsReduceSc
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHR,
-    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterMesh1DMem2Mem);
+    InsReduceScatterParallelExecutor, TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterParallelMesh1DNHRMultiJetty,

@@ -8,8 +8,4 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set(UT_COMMON_INCLUDE_LIST
-    ${CANN_3RD_LIB_PATH}/gtest/include/
-)
-
 add_subdirectory(common/prepare_ut_env)

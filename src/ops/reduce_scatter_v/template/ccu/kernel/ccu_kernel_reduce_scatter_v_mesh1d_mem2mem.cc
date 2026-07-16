@@ -26,7 +26,7 @@ static CcuResult ParseKernelArg(
     ctx.outputDataType = ctx.dataType;
     if (ctx.outputDataType == HcclDataType::HCCL_DATA_TYPE_RESERVED) {
         ctx.outputDataType = ctx.dataType;
-        HCCL_DEBUG("[CcuKernelReduceScatterMesh1DMem2Mem] outputDataType is [INVALID], set outputDataType to[%d]",
+        HCCL_DEBUG("[CcuKernelReduceScatterVMesh1DMem2Mem] outputDataType is [INVALID], set outputDataType to[%d]",
             ctx.dataType);
     }
 
@@ -59,7 +59,7 @@ static CcuResult InitResource(ReduceScatterVMesh1DMem2MemContext &ctx)
             channelIdx++;
         }
     }
-    ctx.moConfig.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
+    ctx.moConfig.loopCount = CCU_M2M_LOCAL_COPY_LOOP_COUNT;
     ctx.moConfig.msInterleave = CCU_MS_INTERLEAVE;
     ctx.moConfig.memSlice = CCU_MS_SIZE;
     ctx.resourceAllocated = false;

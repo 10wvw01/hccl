@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <algorithm>
 #include "hccl_aiv_utils.h"
 #include "aiv/aiv_temp_all_to_all_mesh_1D.h"
 
@@ -35,7 +36,18 @@ HcclResult AivTempAlltoAllMesh1D::CalcRes(HcclComm comm, const OpParam& param, c
     OpParam param_ = param;
 
     std::vector<HcclChannelDesc> level0Channels;
-    CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+    if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
+        std::vector<HcclChannelDesc> myChannelDescs;
+        CHK_RET(CalcChannelRequestMeshClosMultiJetty(comm, param, topoInfo, subCommRanks_, myChannelDescs, true));
+        for(auto channel : myChannelDescs) {
+            if(channel.channelProtocol == COMM_PROTOCOL_UB_MEM) {
+                level0Channels.push_back(channel);
+            }
+        }
+        HCCL_DEBUG("[AivTempAlltoAllMesh1D::CalcRes] Get Channel Success!");
+    } else {
+        CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+    }
     resourceRequest.channels.push_back(level0Channels);
     HCCL_WARNING("Resource calculation is temporarily not performed in the template.");
     return HCCL_SUCCESS;
@@ -45,22 +57,26 @@ HcclResult AivTempAlltoAllMesh1D::CalNumBlocks(u32& numBlocks, u64 dataSize, u32
 {
     HCCL_INFO("[AivTempAlltoAllMesh1D] Limit core num[%u]", numBlocksLimit);
 
-    // 0核场景报错
-    CHK_PRT_RET(numBlocksLimit == 0, HCCL_ERROR("[AivTempAlltoAllMesh1D][CalNumBlocks] Available core Num is 0"),
-        HcclResult::HCCL_E_INTERNAL);
+    // 小于1的场景
+    if (numBlocksLimit < 1) {
+        numBlocks = numBlocksLimit;
+        return HcclResult::HCCL_SUCCESS;
+    }
 
-    u64 smallDataSize = 512 * 1024;
-    HCCL_DEBUG("[AivTempAlltoAllMesh1D] dataSize is [%llu]", dataSize);
-    if (numBlocksLimit < tempRankSize_) {
-        // 少核场景
+    // rankSize在部分范围时，最多使用指定倍数个核
+    constexpr u64 DATA_SIZE_CORE_CAP_THRESHOLD = 2 * 1024 * 1024;
+    constexpr u32 RANK_SIZE_CORE_CAP_THRESHOLD = 8;
+    constexpr u32 MAX_CORE_MULTIPLE_OF_RANK_SIZE = 4;
+    if (tempRankSize_ == RANK_SIZE_CORE_CAP_THRESHOLD && dataSize >= DATA_SIZE_CORE_CAP_THRESHOLD) {
+        u32 maxBlocks = MAX_CORE_MULTIPLE_OF_RANK_SIZE * tempRankSize_;
+        numBlocksLimit = std::min(numBlocksLimit, maxBlocks);
+    }
+
+    if (numBlocksLimit >= tempRankSize_) {
+        numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
+    } else {
         u32 rankPerCore = (tempRankSize_ + numBlocksLimit - 1) / numBlocksLimit;  // 向上取整
         numBlocks = (tempRankSize_ + rankPerCore - 1) / rankPerCore;  // 向上取整
-    } else if (dataSize <= smallDataSize) {
-        // 多核小数据量场景
-        numBlocks = tempRankSize_;
-    } else {
-        // 多核大数据量场景
-        numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
     }
 
     HCCL_INFO("[AivTempAlltoAllMesh1D] Actually use core num[%u]", numBlocks);

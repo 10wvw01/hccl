@@ -16,6 +16,8 @@
 #include <string>
 #include <sstream>
 #include <list>
+#include <cmath>
+#include <algorithm>
 #include "alg_param.h"
 #include "binary_stream.h"
 
@@ -243,6 +245,7 @@ struct TemplateDataParams {
     u64 outputRepeatStride{0};
     u64 tailSize{0};
     bool enableRemoteMemAccess{false};
+    bool supportSymmetricMemory{false};
     u64 processedDataCount{0};
     u64 root{0};
     HcclDataType dataType{HCCL_DATA_TYPE_INT8};
@@ -258,6 +261,7 @@ struct TemplateDataParams {
     BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
     StepSliceInfo omniReadDstStepSliceInfo;
     bool omniLastStepRead_ = false;
+    u64 localCopyFlag{0};
 
     std::vector<char> Serialize() const
     {
@@ -272,6 +276,7 @@ struct TemplateDataParams {
         binaryStream << outputRepeatStride;
         binaryStream << tailSize;
         binaryStream << enableRemoteMemAccess;
+        binaryStream << supportSymmetricMemory;
         binaryStream << allRankSliceSize;
         binaryStream << allRankDispls;
         binaryStream << sendCounts;
@@ -285,6 +290,7 @@ struct TemplateDataParams {
         binaryStream << opType;
         binaryStream << omniReadDstStepSliceInfo.Serialize();
         binaryStream << omniLastStepRead_;
+        binaryStream << localCopyFlag;
         std::vector<char> result;
         binaryStream.Dump(result);
         return result;
@@ -303,6 +309,7 @@ struct TemplateDataParams {
         binaryStream >> outputRepeatStride;
         binaryStream >> tailSize;
         binaryStream >> enableRemoteMemAccess;
+        binaryStream >> supportSymmetricMemory;
         binaryStream >> allRankSliceSize;
         binaryStream >> allRankDispls;
         binaryStream >> sendCounts;
@@ -321,6 +328,7 @@ struct TemplateDataParams {
         binaryStream >> omniReadDstStepSliceInfoData;
         omniReadDstStepSliceInfo.DeSerialize(omniReadDstStepSliceInfoData);
         binaryStream >> omniLastStepRead_;
+        binaryStream >> localCopyFlag;
     }
 };
 
@@ -484,6 +492,26 @@ HcclResult CalcDataSplitByPortGroupZAxisDetour(const u64 totalDataCount,
                                                 const float level0DataRatio = 0.5f);
 
 bool IsAllConnetedWithTopo(const TopoInfoWithNetLayerDetails *topoInfo, const u32 netLayer, const CommTopo topoType);
+
+enum class ParallelDataSplitType {
+    REDUCE_SCATTER_WITH_LOCAL_REDUCE = 0,
+    ALL_GATHER = 1,
+    SCATTER = 2
+};
+
+bool GetPortGroupSize(
+    const std::map<u32, std::vector<ChannelInfo>> &channels,
+    uint64_t &portGroupSize);
+
+double CalcParallelDataSplitRatio(
+    uint64_t intraRankSize,
+    uint64_t interRankSize,
+    const std::map<u32, std::vector<ChannelInfo>> &intraChannels,
+    const std::map<u32, std::vector<ChannelInfo>> &interChannels,
+    ParallelDataSplitType splitType,
+    double fallbackRatio);
+
+const char* ParallelDataSplitTypeToStr(ParallelDataSplitType splitType);
 
 }
 #endif

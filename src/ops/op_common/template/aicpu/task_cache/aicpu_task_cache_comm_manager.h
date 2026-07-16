@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <shared_mutex>
 
+#include "hccl_comm.h"
+
 namespace ops_hccl {
 
 class AicpuTaskCacheCommManager {
@@ -23,10 +25,13 @@ public:
     static AicpuTaskCacheCommManager &Instance();
 
     // 记录通信域与tag的关系
-    void AddCommTagMap(const std::string& commName, const std::string& tagName);
-    const std::vector<std::string>& GetTagsByCommName(const std::string& commName) const;
-    std::vector<std::string> GetAllCommNames() const;
-    void RemoveCommTagMapByCommName(const std::string& commName);
+    void AddCommTagMap(HcclComm comm, const std::string &tagName);
+
+    // 清除特定通信域的缓存
+    void EvitTaskCache(HcclComm comm);
+
+    // 清除所有缓存
+    void EvitAllTaskCache();
 
 private:
     AicpuTaskCacheCommManager() = default;
@@ -38,7 +43,7 @@ private:
     AicpuTaskCacheCommManager(AicpuTaskCacheCommManager &&) = delete;
     AicpuTaskCacheCommManager &operator=(AicpuTaskCacheCommManager &&) = delete;
 
-    std::unordered_map<std::string, std::vector<std::string>> commToTagMap_;
+    std::unordered_map<HcclComm, std::vector<std::string>> commToTagMap_;
     mutable std::shared_timed_mutex mutex_;
 };
 } // namespace ops_hccl
