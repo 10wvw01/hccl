@@ -107,8 +107,8 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::SplitDataFor2Dies(uint64_t dataCount, u
     constexpr uint64_t MULTIPLIER = 4;
     
     if (dataCount <= templateRankSize_ * MULTIPLIER) {   // 数据量极小，不划分die
-        die0Size = 0;
-        die1Size = dataCount * DataTypeSizeGet(dataType_);
+        die0Size = dataCount * DataTypeSizeGet(dataType_);
+        die1Size = 0;
         return HcclResult::HCCL_SUCCESS;
     }
 
