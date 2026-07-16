@@ -462,6 +462,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<u64> processedDataCountTmp(rankSize_, 0);
     for (u64 loop = 0; loop < loopTimes; loop++) {//loopTimes
         gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx);
+        gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
         CHK_PRT_RET(
             multiLoopAllRankSplitData.size() <= loop,
             HCCL_ERROR("[CcuV2ReduceOmniPipeExecutor][Orchestrate] multiLoopAllRankSplitData.size() <= loop"),
@@ -541,17 +542,18 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
             gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); //当前卡的y坐标 * xSize + root的x坐标 root是1 ，当前是2  1*2 + 1 = 3
+            gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
             HCCL_INFO("[%s][KernelRun] myRank[%u] rankIdxLevel1_[%u], rankSizeLevel0_[%u], rootx[%u] param.root[%u]", __func__, myRank_, rankIdxLevel1_, rankSizeLevel0_, rootx, param.root);
             // NHR算法时，root的同y轴都需要执行y轴任务
-            if (isSameYAxisAsRoot || myRank_ == param.root) {
-                gAlgTempY.ifDoTask_ = true;
-            } else {
-                gAlgTempY.ifDoTask_ = false;
-            }
+            // if (isSameYAxisAsRoot || myRank_ == param.root) {
+            //     gAlgTempY.ifDoTask_ = true;
+            // } else {
+            //     gAlgTempY.ifDoTask_ = false;
+            // }
 
             if (i == 0) { // 第一步
                 // 第一步nhr全部卡doTask=true ///其他的只有root和root同列的doTask=true
-                gAlgTempY.ifDoTask_ = true;
+                // gAlgTempY.ifDoTask_ = true;
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
                 HCCL_INFO("[%s][KernelRun] lastStep.", __func__);
@@ -565,11 +567,13 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else if (isSameXAxisAsRoot && !isRoot) { // 1,2
                     HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    gAlgTempY.UnsetRoot(myRank_);
                 } else if(isRoot){
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
                 } else{//4,5
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
                     gAlgTempX.UnsetRoot(myRank_);
+                    gAlgTempY.UnsetRoot(myRank_);
                 }
             } else {  // 中间的所有步
                 HCCL_INFO("[%s][KernelRun] middlestep start.", __func__);
@@ -585,9 +589,11 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 } else if (isSameXAxisAsRoot && !isRoot) {
                     HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    gAlgTempY.UnsetRoot(myRank_);
                 } else {
                     HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
+                    gAlgTempY.UnsetRoot(myRank_);
                 }
                 HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
             }
@@ -687,6 +693,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
-                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+                                CcuTempGatherOmniPipeMesh1DMem2MemY);
+                                // CcuTempGatherOmniPipeNHR1DMem2Mem);
 }
