@@ -126,6 +126,7 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
             if (ctx.rankId != rankIdx) {
                 ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
                 HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2MemY] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx,ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize);
+                channelId++;
             } else {
                 ccu::EventRecord(ctx.event, rankMask);
             }
@@ -135,7 +136,6 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContextY &ctx)
         {
             ccu::EventRecord(ctx.event, rankMask);
         }
-        channelId++;
     }
     
     ccu::EventWait(ctx.event, (1 << ctx.rankSize) - 1);
