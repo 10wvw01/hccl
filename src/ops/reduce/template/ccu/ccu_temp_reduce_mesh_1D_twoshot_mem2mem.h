@@ -28,7 +28,7 @@ public:
 
     std::string Describe() const override
     {
-        return StringFormat("Template of Reduce ccu mesh 1D TwoShot Mem2Mem with tempRankSize [%u].",
+        return StringFormat("Template of Reduce ccu mesh 1D TwoShot Mem2Mem with tempRankSize [%zu].",
                             subCommRanks_[0].size());
     }
 
