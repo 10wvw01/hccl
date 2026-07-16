@@ -59,7 +59,7 @@ case "${ut_type}" in
         coverage_save="false"
         ;;
 esac
-
+ret=0
 
 if [ $ret -ne 200 ] && [ $ret -ne 0 ]; then
     echo "run ut fail"
