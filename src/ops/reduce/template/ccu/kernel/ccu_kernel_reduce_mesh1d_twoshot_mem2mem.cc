@@ -19,7 +19,6 @@ constexpr int OUTPUT_XN_ID    = 2;
 constexpr int TOKEN_XN_ID     = 3;
 constexpr int POST_SYNC_ID    = 4;
 constexpr int CKE_IDX_0       = 0;
-constexpr uint16_t GROUP_REDUCE_MAX_PIECE_CNT = 8;
 
 static CcuResult ParseKernelArg(ReduceMesh1DTwoShotMem2MemContext &ctx,
                                 CcuKernelArgReduceMesh1DTwoShotMem2Mem *kernelArg)
@@ -109,17 +108,6 @@ static void PostSync(ReduceMesh1DTwoShotMem2MemContext &ctx)
     }
 }
 
-// ============================================
-// 算法整体流程：ReduceScatter + Gather（TwoShot）
-// 数据按 rankSize 分块，正常块为 normalSliceSize，尾块为 lastSliceSize
-// ============================================
-
-// ============================================
-// 初始化本 rank 的 slice 信息和 scratch 布局
-// myScratchOffset：本 rank 负责的 slice 在 input 中的偏移（按 normalSliceSize 累加）
-// sliceSize：本 rank 的 slice 大小（正常块=normalSliceSize，尾块=lastSliceSize）
-// scratchMem[k]：本地 scratch 第 k 个位置，间距为 sliceSize
-// ============================================
 static void InitSliceInfo(ReduceMesh1DTwoShotMem2MemContext &ctx)
 {
     if (ctx.arg->rankId == ctx.arg->rankSize - 1) {
