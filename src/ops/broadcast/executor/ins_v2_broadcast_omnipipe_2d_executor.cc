@@ -625,7 +625,7 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
             // 第一步做完后回到主流做尾同步
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
         }
-        processedDataCount += currDataCount;
+        processedDataCount += maxCountPerLoop;
     }
 
     HCCL_DEBUG("[%s][OrchestrateLoop] End.", __func__);
