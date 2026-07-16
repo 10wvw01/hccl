@@ -42,8 +42,14 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
 private:
-    uint32_t localReduceOffset_ = 0;
+    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
+                                 uint32_t &meshDieId,
+                                 std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc);
+
     uint32_t mySubCommRank_ = 0;
+    std::map<uint32_t, std::vector<HcclChannelDesc>> channels_;   // key is DieId
+    std::map<uint32_t, std::vector<u32>> rankGroup_;              // key is DieId
+    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
 };
 
 }// namespace ops_hccl
