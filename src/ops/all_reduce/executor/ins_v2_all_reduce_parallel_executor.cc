@@ -156,7 +156,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
                                             interTempRequest1.ccuKernelInfos.begin(),
                                             interTempRequest1.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(interTempRequest1.ccuKernelNum[0]);
-        resourceRequest.dieSplitRatio = interTempRequest.dieSplitRatio;
+        resourceRequest.dieSplitRatio = interTempRequest1.dieSplitRatio;
     }
 
     HCCL_DEBUG("[InsAllReduceParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
