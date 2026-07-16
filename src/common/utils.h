@@ -33,7 +33,6 @@ static inline u64 RoundUpWithDivisor(u64 value, u64 divisor)
 
 template <typename... Args> inline std::string StringFormat(const char *format, Args... args)
 {
-    using namespace std;
     constexpr size_t bufSize = BUFSIZ;
     char             buffer[bufSize];
     size_t           actualSize = snprintf_s(&buffer[0], bufSize, bufSize, format, args...);
