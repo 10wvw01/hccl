@@ -42,8 +42,17 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
 private:
-    uint32_t localReduceOffset_ = 0;
+    // 适配 mesh1d + clos 二级拓扑场景的链路筛选：
+    //   - mesh 单链路划入 meshDieId 的 channels_，clos 双链路只把非 meshDieId 的 die 划入对应 channels_
+    //   - myRank_ 加入 meshDieId 的 rankGroup_（mesh 链路所在的 die 负责 reduce 到 output）
+    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs,
+                                 uint32_t &meshDieId,
+                                 std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc);
+
     uint32_t mySubCommRank_ = 0;
+    std::map<uint32_t, std::vector<HcclChannelDesc>> channels_;   // key is DieId
+    std::map<uint32_t, std::vector<u32>> rankGroup_;              // key is DieId
+    std::map<u32, std::vector<HcclChannelDesc>> rankIdToChannelDesc_;
 };
 
 }// namespace ops_hccl
