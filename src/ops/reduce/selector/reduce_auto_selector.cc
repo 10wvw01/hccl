@@ -21,6 +21,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDet
 {
     CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
         SelectorStatus::NOT_MATCH);
+    HCCL_DEBUG("[ReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
         HCCL_WARNING("[ReduceAutoSelector] layerNum > 1 is not supported yet for ccu_ms mode.");
