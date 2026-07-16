@@ -429,8 +429,8 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
     std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
     OmniPipeSliceParam sliceParam;
-    sliceParam.dataSizePerLoop = dataSizePerLoop;
-    sliceParam.dataWholeSize = dataWholeSize;
+    sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[0], dataTypeSize_);
+    sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
     sliceParam.endpointAttrBw = {3.0, 4.0, 1.0};
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
@@ -626,14 +626,15 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 tempAlgParamLocalCopy.count = currDataCountTmp; // 128
                 tempAlgParamLocalCopy.sliceSize = currDataCountTmp * dataTypeSize_ ; // 128*4
                 tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_; // i * 512
-                tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
 
                 if (i == param.root) {
                     tempAlgParamLocalCopy.buffInfo.inputPtr = param.inputPtr;
                     tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::INPUT;
+                    tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
                 } else {
                     tempAlgParamLocalCopy.buffInfo.inputPtr = resCtx.cclMem.addr;
                     tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+                    tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
                 }
 
                 // HCCL_DEBUG("[%s] tempAlgParamLocalCopyxx.buffInfo.inputPtr[%u] ",&(param.inputPtr));
@@ -647,11 +648,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 
             HCCL_DEBUG("[%s] AG local copy end", __func__);
         }
-        if (i == rankSize_ - 1 && rankSize_ > 1) {
-            processedDataCount +=  maxCountPerLoop;
-        } else {
-            processedDataCount += currDataCount;
-        }
+        // if (i == rankSize_ - 1 && rankSize_ > 1) {
+        //     processedDataCount +=  maxCountPerLoop;
+        // } else {
+        //     processedDataCount += currDataCount;
+        // }
+        processedDataCount += maxCountPerLoop;
     }
 
     HCCL_INFO("[%s][OrchestrateLoop] End.", __func__);
