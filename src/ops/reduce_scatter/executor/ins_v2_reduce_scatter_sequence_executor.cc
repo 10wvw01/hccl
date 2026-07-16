@@ -11,6 +11,7 @@
 #include "ins_v2_reduce_scatter_sequence_executor.h"
 #include "ins_temp_reduce_scatter_mesh_1D.h"
 #include "ins_temp_reduce_scatter_mesh_1d_dpu.h"
+#include "ins_temp_reduce_scatter_nhr_dpu.h"
 
 namespace ops_hccl {
 
@@ -262,4 +263,11 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
                                 TopoMatchMultilevel,
                                 InsTempReduceScatterMesh1D,
                                 InsTempReduceScatterMesh1dDpu);
+
+REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
+                                InsReduceScatterSequenceMeshNhrDPU,
+                                InsV2ReduceScatterSequenceExecutor,
+                                TopoMatchMultilevel,
+                                InsTempReduceScatterMesh1D,
+                                InsTempReduceScatterNhrDpu);
 }

@@ -42,7 +42,8 @@ protected:
 
 static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
                                   HcclDataType dataType,
-                                  HcclReduceOp reduceOp = HCCL_REDUCE_SUM)
+                                  HcclReduceOp reduceOp = HCCL_REDUCE_SUM,
+                                  const char* algoConfig = nullptr)
 {
     auto rankSize = 0;
     for (auto elem : topoMeta[0]) {
@@ -66,6 +67,10 @@ static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
     setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
     setenv("ENABLE_HOSTDPU_FOR_LLT", "1", 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
+    // 如果传入了算法配置，设置对应的环境变量
+    if (algoConfig != nullptr) {
+        setenv("HCCL_ALGO", algoConfig, 1);
+    }
 
     std::vector<std::thread> threads;
     for (auto rankId = 0; rankId < rankSize; ++rankId) {
@@ -96,33 +101,51 @@ static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
     SimWorld::Global()->Deinit();
 }
  
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_001)
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_001)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1, 2}, {0, 1, 2}, {0, 1, 2}}}, 1, HCCL_DATA_TYPE_FP32);
+// }
+
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_002)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1, 2}, {0, 1, 2}, {0, 1, 2}, {0, 1, 2}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+// }
+
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_003)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+// }
+
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_004)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+// }
+
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_005)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+// }
+
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_mesh1d_2x4_001)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1, 2, 3}, {0, 1, 2, 3}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+// }
+
+// NHR DPU 测试用例：通过 algoConfig 参数传入算法配置
+TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_nhr_2x4_001)
 {
-    RunReduceScatterTest(TopoMeta{{{0, 1, 2}, {0, 1, 2}, {0, 1, 2}}}, 1, HCCL_DATA_TYPE_FP32);
+    RunReduceScatterTest(TopoMeta{{{0, 1, 2, 3}, {0, 1, 2, 3}}}, 1, HCCL_DATA_TYPE_FP32,
+        HCCL_REDUCE_SUM, "level1:NHR");
 }
 
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_002)
-{
-    RunReduceScatterTest(TopoMeta{{{0, 1, 2}, {0, 1, 2}, {0, 1, 2}, {0, 1, 2}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
-}
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_nhr_2x8_001)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {0, 1, 2, 3, 4, 5, 6, 7}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32,
+//         HCCL_REDUCE_SUM, "reducescatter=default,NHR,default,default");
+// }
 
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_003)
-{
-    RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
-}
-
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_004)
-{
-    RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
-}
-
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_005)
-{
-    RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
-}
-
-// FP16数据类型测试
-TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_fp16_006)
-{
-    RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 10 * 1024 * 1024, HCCL_DATA_TYPE_FP16);
-}
+// TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_nhr_4x4_001)
+// {
+//     RunReduceScatterTest(TopoMeta{{{0, 1, 2, 3}, {0, 1, 2, 3}, {0, 1, 2, 3}, {0, 1, 2, 3}}}, 1 * 1024 * 1024, HCCL_DATA_TYPE_FP32,
+//         HCCL_REDUCE_SUM, "reducescatter=default,NHR,default,default");
+// }

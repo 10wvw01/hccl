@@ -479,13 +479,35 @@ SelectorStatus ReduceScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLay
                                                         std::string &selectAlgName) const
 {
     HCCL_INFO("topoInfo->topoLevelNums is %u, topoInfo->level0Topo is %u", topoInfo->topoLevelNums, topoInfo->level0Topo);
-    (void)configAlgMap;
+
+    // 获取用户配置的算法类型
+    std::vector<HcclAlgoType> algos = std::vector<HcclAlgoType>(HCCL_ALGO_LEVEL_NUM, HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT);
+    auto it = configAlgMap.find(opParam.opType);
+    if ((it != configAlgMap.end()) && (it->second.size() > 1)) {
+        algos = it->second;
+    }
+
+    HCCL_ERROR("hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u",
+        opParam.opType, algos[0], algos[1], algos[2], algos[3]);
+
+    // DPU算法仅支持2层拓扑
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        // 检查是否配置了NHR算法（level1）
+        bool useNhr = (algos[1] == HcclAlgoType::HCCL_ALGO_TYPE_NHR);
+
+        if (useNhr && (topoInfo->level0Topo == Level0Shape::MESH_1D ||
+                       topoInfo->level0Topo == Level0Shape::CLOS)) {
+            // 使用NHR DPU executor：InsTempReduceScatterNhrDpu（框内）+ NHR DPU（框间）
+            selectAlgName = "InsReduceScatterSequenceMeshNhrDPU";
+            HCCL_INFO("Using algo InsReduceScatterSequenceMeshNhrDPU");
+            return SelectorStatus::MATCH;
+        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             selectAlgName = "InsV2ReduceScatterOmniPipe";
             HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
             return SelectorStatus::MATCH;
-        } else {
+        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D ||
+                   topoInfo->level0Topo == Level0Shape::CLOS) {
+            // 默认使用 Mesh1D DPU executor
             selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
             HCCL_INFO("Using algo InsReduceScatterSequenceMeshMeshDPU");
             return SelectorStatus::MATCH;
