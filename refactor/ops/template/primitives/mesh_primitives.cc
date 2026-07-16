@@ -202,29 +202,36 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
-    const u32 tailRankId = ranks[rankSize - 1];
-    const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.scratchStride, tailRankId};
     HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
 
     for (u32 rankIdx = 1; rankIdx < rankSize; ++rankIdx) {
         const u32 connectedAlgRank = (myAlgRank + rankIdx) % rankSize;
         const u32 connectedRank = ranks[connectedAlgRank];
+        const u64 connectedSliceSize = (tailSize > 0 && connectedAlgRank == rankSize - 1) ? tailSize : sliceSize;
+        const u64 localSliceSize = (tailSize > 0 && myAlgRank == rankSize - 1) ? tailSize : sliceSize;
+        const u64 txSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
+        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myAlgRank) * connectedSliceSize;
+        const u64 rxSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
+        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedAlgRank) * localSliceSize;
         std::vector<DataSlice> txSrcSlices;
         std::vector<DataSlice> txDstSlices;
         std::vector<DataSlice> rxSrcSlices;
         std::vector<DataSlice> rxDstSlices;
 
-        MeshSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrcSlices, txDstSlices};
-        AddRankDataSlices(sliceInfo, {connectedRank}, txSlicePair);
-        MeshSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrcSlices, rxDstSlices};
-        AddRankDataSlices(sliceInfo, {myRank}, rxSlicePair);
+        txSrcSlices.emplace_back(tempAlgParams.cclBufferPtr, txSrcOffset, connectedSliceSize,
+                                 connectedSliceSize / dataTypeSize);
+        txDstSlices.emplace_back(nullptr, txDstOffset, connectedSliceSize, connectedSliceSize / dataTypeSize);
+        rxSrcSlices.emplace_back(nullptr, rxSrcOffset, localSliceSize, localSliceSize / dataTypeSize);
+        rxDstSlices.emplace_back(tempAlgParams.cclBufferPtr, rxDstOffset, localSliceSize,
+                                 localSliceSize / dataTypeSize);
 
         txRxSlicesLists.emplace_back(SlicesList(txSrcSlices, txDstSlices),
                                      SlicesList(rxSrcSlices, rxDstSlices), connectedRank, connectedRank);
-        HCCL_INFO("[RunMeshReduceScatter] Build TxRxSlicesList: connectedRank=%u, txOffset=%lu, "
-                  "rxOffset=%lu, txRxSlicesListNum=%zu",
-                  connectedRank, txSrcSlices[0].offset_, rxDstSlices[0].offset_, txRxSlicesLists.size());
+        HCCL_INFO("[RunMeshReduceScatter] Build TxRxSlicesList: connectedRank=%u, connectedAlgRank=%u, "
+                  "txSrcOffset=%lu, txDstOffset=%lu, rxSrcOffset=%lu, rxDstOffset=%lu, txRxSlicesListNum=%zu",
+                  connectedRank, connectedAlgRank, txSrcSlices[0].offset_, txDstSlices[0].offset_,
+                  rxSrcSlices[0].offset_, rxDstSlices[0].offset_, txRxSlicesLists.size());
     }
     return HCCL_SUCCESS;
 }
