@@ -15,6 +15,9 @@
 #include "sim_task_queue.h"
 #include "checker.h"
 
+inline void EnableCheckerPrintTask() { HcclSim::Checker::EnablePrintTask(); }
+inline void DisableCheckerPrintTask() { HcclSim::Checker::DisablePrintTask(); }
+
 /**
  * @brief 检查AllReduce操作的语义是否正确
  *

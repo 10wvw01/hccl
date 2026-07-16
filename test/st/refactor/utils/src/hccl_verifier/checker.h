@@ -22,6 +22,8 @@ public:
     ~Checker();
     HcclResult GenAndCheckGraph(AllRankTaskQueues& allRankTaskQueues, TaskCheckOpSemantics& opSemanticsChcker);
     void CloseRankMemCheck();
+    static void EnablePrintTask();
+    static void DisablePrintTask();
     void PrintTask(const AllRankTaskQueues &allRankTaskQueues);
 
 private:
@@ -29,6 +31,7 @@ private:
     vector<HcclSim::TaskStub*> toDeleteCopyTaskResource_;
     vector<TaskNodePtr> toDeleteCopyTaskNodeResource_;
     bool closeRankMemCheck_ = false;
+    static bool printTaskEnabled_;
 };
 }
 #endif

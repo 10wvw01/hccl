@@ -25,6 +25,18 @@ using namespace std;
 
 namespace HcclSim {
 
+bool Checker::printTaskEnabled_ = false;
+
+void Checker::EnablePrintTask()
+{
+    printTaskEnabled_ = true;
+}
+
+void Checker::DisablePrintTask()
+{
+    printTaskEnabled_ = false;
+}
+
 Checker::~Checker()
 {
     for (auto& ele : toDeleteCopyTaskNodeResource_) {
@@ -55,7 +67,9 @@ HcclResult Checker::GenAndCheckGraph(AllRankTaskQueues& allRankTaskQueues, TaskC
     }
 
     // 打印Task队列
-    PrintTask(allRankTaskQueues);
+    if (printTaskEnabled_) {
+        PrintTask(allRankTaskQueues);
+    }
 
     // 1. 检查从流
     HCCL_INFO("1. 检查从流");
