@@ -167,7 +167,7 @@ static CcuResult DoAllReduce(AllReduceMesh1DContext &ctx)
             localDst.token = ctx.token[rankIdx];
         }
     }
-    GroupBroadcast(ctx, arg->channels, arg->channelCount, localDst, allGatherDst, allGatherSrc, ctx.goSize);
+    GroupBroadcast(ctx, arg->channels, arg->channelCount, localDst, allGatherDst, allGatherSrc, ctx.goSize, GetCcuVersion());
 
     return CCU_SUCCESS;
 }

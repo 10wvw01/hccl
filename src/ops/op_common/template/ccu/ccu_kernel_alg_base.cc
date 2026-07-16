@@ -22,6 +22,15 @@ std::vector<uint64_t> CalGoSize(uint64_t size)
     return CalGoSize(size, config);
 }
 
+std::vector<uint64_t> CalGoSize(uint64_t size, CcuVersion ccuVersion)
+{
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount    = CCU_MS_DEFAULT_LOOP_COUNT;
+    config.memSlice     = CCU_MS_SIZE;
+    return CalGoSize(size, config, ccuVersion);
+}
+
 CcuResult AllocGoResource(LoopGroupConfig &config, LoopGroupResource &res, bool &allocated, uint32_t parallelDim, uint32_t msPerLoop)
 {
     if (allocated) {
@@ -42,7 +51,7 @@ CcuResult AllocGoResource(LoopGroupConfig &config, LoopGroupResource &res, bool 
     return CCU_SUCCESS;
 }
 
-std::vector<uint64_t> CalGoSize(uint64_t size, const LoopGroupConfig &config)
+std::vector<uint64_t> CalGoSize(uint64_t size, const LoopGroupConfig &config, CcuVersion ccuVersion)
 {
     uint64_t loopSize = config.loopCount * config.memSlice;
     uint64_t maxSize  = loopSize * (GetMaxLoopIterNum() + 1);
@@ -65,15 +74,6 @@ std::vector<uint64_t> CalGoSize(uint64_t size, const LoopGroupConfig &config)
     uint64_t loopExtendNum = 0;
     uint64_t tailSize      = 0;
     uint64_t LoopNumTwo  = 2;
-    CcuVersion ccuVersion = CcuVersion::INVALID;
-    DevType deviceType;
-    hrtGetDeviceType(deviceType);
-    if (deviceType == DevType::DEV_TYPE_950) {
-        ccuVersion = CcuVersion::CCU_V1;
-    }
-    else {
-        ccuVersion = CcuVersion::CCU_V2;
-    }
     if (n == 0 && p == 0) {
         loopExtendNum = 0;
         tailSize      = 0;
@@ -196,11 +196,9 @@ CcuResult CreateMultiOpReduceV2(CcuKernelCtxBase &ctx, GroupReduceVar &var,
 
 CcuResult GroupReduce(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount, ccu::LocalAddr dst,
                         std::vector<ccu::RemoteAddr> src, ccu::LocalAddr localSrc, GroupOpSizeVars goSize, HcclDataType dataType,
-                        HcclDataType outputDataType, HcclReduceOp opType)
+                        HcclDataType outputDataType, HcclReduceOp opType, CcuVersion ccuVersion)
 {   
-    DevType deviceType;
-    hrtGetDeviceType(deviceType);
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (ccuVersion == CcuVersion::CCU_V1) {
         HCCL_INFO("select GroupReduceV1");
         return GroupReduceV1(ctx, channels, channelCount, dst, src, localSrc,
         goSize, dataType, outputDataType, opType);
@@ -253,7 +251,7 @@ CcuResult GroupReduceV1(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
         var.loopDst[0].token = dst.token;
         var.loopLen[0]       = sliceSize;
         var.loopLenExp[0]    = sliceSizeExpansion;
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V1);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
         loops.loopParam[0] = loopParam;
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
@@ -353,7 +351,7 @@ CcuResult GroupReduceV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
         var.loopDst[0].token = dst.token;
         var.loopLen[0]       = sliceSize;
         var.loopLenExp[0]    = sliceSizeExpansion;
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V2);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, CCU_LOOP_CKE_NUM_REDUCE_V2);
         loops.loopParam[0] = goSize.loopParam;
         loops.addrOffset[0] = GetLoopGsaOffset(ctx.moConfig.memSlice * ctx.moConfig.loopCount);
@@ -502,11 +500,10 @@ CcuResult CreateMultiOpBroadcastV2(CcuKernelCtxBase &ctx, GroupBroadcastVar &var
 }
 
 CcuResult GroupBroadcast(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount,
-                        ccu::LocalAddr localDst, std::vector<ccu::RemoteAddr> dst, ccu::LocalAddr src, GroupOpSizeVars goSize)
+                        ccu::LocalAddr localDst, std::vector<ccu::RemoteAddr> dst, ccu::LocalAddr src, GroupOpSizeVars goSize,
+                        CcuVersion ccuVersion)
 {
-    DevType deviceType;
-    hrtGetDeviceType(deviceType);
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (ccuVersion == CcuVersion::CCU_V1) {
         HCCL_INFO("select GroupBroadcastV1");
         return GroupBroadcastV1(ctx, channels, channelCount, localDst, dst, src, goSize);
     }
@@ -543,7 +540,7 @@ CcuResult GroupBroadcastV1(CcuKernelCtxBase &ctx, const size_t channels[], uint3
             var.loopRemoteDst[0][i].token = dst[i].token;
         }
         var.loopLen[0] = sliceSize;
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V1);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
 
         loops.loopParam[0] = loopParam;
@@ -622,7 +619,7 @@ CcuResult GroupBroadcastV2(CcuKernelCtxBase &ctx, const size_t channels[], uint3
         loops.addrOffset[0] = GetLoopGsaOffset(ctx.moConfig.memSlice * ctx.moConfig.loopCount);
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
 
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V2);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, CCU_LOOP_CKE_NUM_BCAST_V2);
         xnOffsetCfg = 0;
         ccu::LoopGroup group(paraCfg, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
@@ -1006,11 +1003,10 @@ static void SetupLoopAddress(GroupCopyVar& var, ccu::LocalAddr& src, ccu::LocalA
     var.loopLen[index] = size;
 }
 
-CcuResult GroupCopy(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr src, GroupOpSizeVars goSize)
+CcuResult GroupCopy(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr src, GroupOpSizeVars goSize,
+                    CcuVersion ccuVersion)
 {
-    DevType deviceType;
-    hrtGetDeviceType(deviceType);
-    if (deviceType == DevType::DEV_TYPE_950) {
+    if (ccuVersion == CcuVersion::CCU_V1) {
         HCCL_INFO("select GroupCopyV1");
         return GroupCopyV1(ctx, dst, src, goSize);
     }
@@ -1041,7 +1037,7 @@ CcuResult GroupCopyV1(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr 
         SetupLoopAddress(var, src, dst, 0, sliceSize);
 
         loops.loopParam[0] = loopParam;
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V1);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
         ccu::LoopGroup group(paraCfg, offsetCfg, ctx.moConfig.loopCount, grpLoops);
@@ -1092,7 +1088,7 @@ CcuResult GroupCopyV2(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr 
         loops.addrOffset[0] = GetLoopGsaOffset(ctx.moConfig.memSlice * ctx.moConfig.loopCount);
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
         
-        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1, CcuVersion::CCU_V2);
         offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, CCU_LOOP_CKE_NUM_COPY_V2);
         xnOffsetCfg = 0;
         ccu::LoopGroup group(paraCfg, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
