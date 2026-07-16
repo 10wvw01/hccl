@@ -218,7 +218,7 @@ stages:
           ut_type: 'ut'
           ut_package: 'coverage_*.info'
           token: ${{secrets.GIT_TOKEN}}
-          image_version: ${{ jobs.JOB_image.outputs.UT_Test }}
+          image_version: ${{ jobs.JOB_image.outputs.UT_Test  }}
       JOB_ST_TEST:
         name: ST_TEST
         select: selected_by_default

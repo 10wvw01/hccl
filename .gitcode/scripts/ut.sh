@@ -50,6 +50,8 @@ case "${ut_type}" in
         echo "=====2===="
         ls -l /home/jenkins/Ascend/cann-9.1.0/share/info/
         echo "=====3===="
+        cat /home/jenkins/change_cann_pkgs.log
+        echo "=====4===="
         bash build.sh --st
         ret=$?
         coverage_save="false"
