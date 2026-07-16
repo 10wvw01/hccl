@@ -274,6 +274,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         return 1;
     }
 
+    // TODO:notify1的操作。STEP1：导出流；STEP2:notify record
     std::string algName = std::string(param->algName);
     if (!ops_hccl::IsOpsV2(param->algName, param->deviceType)) {
         ScatterOpInfo opInfo;

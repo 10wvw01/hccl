@@ -804,10 +804,45 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     // Host stream通知Device主thread，使用主流上idx最大的notify
     CHK_RET(static_cast<HcclResult>(HcommThreadNotifyRecordOnThread(cpuTsThread, exportedCpuTsThread,
         notifyNumOnMainThread - 1)));
+
+    // TODO:按序下发开关。比较 通信域数 与 AICPU核数
+    /************TODO:第一阶段 ************/
+    bool isCapture = false;
+    CHK_RET(IsAclGraphCapture(param.stream, isCapture));
+    // 获取执行超时时间
+    u32 execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+    // 获取展开流-----TODO
+    aclrtStream kfcOpStream;
+    if (isCapture) {
+        // TODO：申请event0,考虑其他参数----Acl graph
+        HcclAclgraphLaunchInOrderToOrderStream(comm, kernelStream );
+    } else if (param.opMode == OpMode::OPBASE) {
+        // TODO：考虑其他参数
+        HcclOpbaseLaunchInOrderToOrderStream(comm, kernelStream );
+    } else if (param.opMode == OpMode::OFFLOAD) {
+        // TODO：考虑其他参数
+        HcclHcommLaunchInOrderToOrderStream(comm, kernelStream );
+    }
+    /************ ************/
+
     // AicpuKernel report
     uint64_t beginTime = HcommGetProfilingSysCycleTime();
     CHK_RET(AicpuKernelLaunch(comm, param, unfoldThread));
     CHK_PTR_NULL(comm);
+
+    /************TODO:第二阶段 *************/
+    if (isCapture) {
+        // TODO：申请event0,考虑其他参数
+        HcclAclgraphLaunchInOrderToKernelStream(comm, kernelStream );
+    } else if (param.opMode == OpMode::OPBASE) {
+        // TODO：考虑其他参数
+        HcclOpbaseLaunchInOrderToKernelStream(comm, kernelStream );
+    } else if (param.opMode == OpMode::OFFLOAD) {
+        // TODO：考虑其他参数
+        HcclHcommLaunchInOrderToKernelStream(comm, kernelStream );
+    }
+    /************ *************/
+
     std::string kernelName = "HcclLaunchAicpuKernel";
     char* kernelNameCStr = const_cast<char*>(kernelName.c_str());
     HcclResult ret = HcclReportAicpuKernel(comm, beginTime, kernelNameCStr);
@@ -902,6 +937,30 @@ HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std:
         HCCL_ERROR("[%s] block num less than 1, block num[%d]", __func__, numBlocksLimit), HCCL_E_PARA);
     param.numBlocksLimit = numBlocksLimit;
     HCCL_INFO("[%s] Aiv core limit is [%d].", __func__, numBlocksLimit);
+    return HCCL_SUCCESS;
+}
+
+HcclResult IsAclGraphCapture(aclrtStream stream, bool &isCapture)
+{
+    isCapture = false;
+    aclmdlRI rtModel = nullptr;
+    aclmdlRICaptureStatus captureStatus = aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_NONE;
+    aclError ret = aclmdlRICaptureGetInfo(stream, &captureStatus, &rtModel);
+    if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+        HCCL_WARNING("[%s]Stream capture not support.", __func__);
+        return HCCL_SUCCESS;
+    } else {
+        CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[%s]aclmdlRICaptureGetInfo fail. return[%d].", __func__, ret),
+            HCCL_E_RUNTIME);
+    }
+
+    if (captureStatus == aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_ACTIVE) {
+        isCapture = true;
+        HCCL_INFO("[%s]captureStatus is active, captureStatus[%d]", __func__, captureStatus);
+    } else {
+        HCCL_INFO("[%s]captureStatus is not active, captureStatus[%d]", __func__, captureStatus);
+    }
+
     return HCCL_SUCCESS;
 }
 
@@ -1403,6 +1462,7 @@ static HcclResult HcclGetAicpuThread(HcclComm comm, const OpParam &param, AlgRes
         if (!unfoldReady) {
             CHK_RET(HcclThreadAcquire(comm, COMM_ENGINE_CPU, 1, 0, &resCtxHost->unfoldThread));
         }
+        // TODO:这里需要加上notify、device侧的order_stream(Thread)
         CHK_RET(SaveMainThreadInfo(comm, param, threads[0], maxNotifyNum + 1));
     }
     if (!unfoldReady) {
