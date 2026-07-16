@@ -201,10 +201,12 @@ static CcuResult DoReduceLoopM(ReduceMesh1DTwoShotMem2MemContext &ctx, uint32_t 
     CCU_IF(ctx.goSize.loopParam != 0)
     {
         ccu::Variable sliceSize;
-        ccu::Variable loopParam = GetLoopParam(0, ctx.moConfig.memSlice * ctx.moConfig.loopCount, 0);
+        ccu::Variable loopParam;
+        loopParam = GetLoopParam(0, ctx.moConfig.memSlice * ctx.moConfig.loopCount, 0);
         loopParam = loopParam + ctx.goSize.loopParam;
         sliceSize = ctx.moConfig.memSlice;
-        ccu::Variable sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
+        ccu::Variable sliceSizeExpansion;
+        sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
 
         for (uint32_t i = 0; i < size; i++) {
             ctx.loopScratch[0][i].addr = scratch[i].addr;
@@ -216,8 +218,10 @@ static CcuResult DoReduceLoopM(ReduceMesh1DTwoShotMem2MemContext &ctx, uint32_t 
         ctx.loopDst[0].token = dst.token;
         ctx.loopLen[0]       = sliceSize;
         ctx.loopLenExp[0]    = sliceSizeExpansion;
-        ccu::Variable paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
-        ccu::Variable offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
+        ccu::Variable paraCfg;
+        paraCfg = GetParallelParam(ctx.moConfig.loopCount - 1, 0, 1);
+        ccu::Variable offsetCfg;
+        offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
 
         loops.loopParam[0] = loopParam;
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0] };
@@ -239,7 +243,8 @@ static CcuResult DoReduceLoopP(ReduceMesh1DTwoShotMem2MemContext &ctx, uint32_t 
         for (uint32_t i = 0; i < expansionNum; i++) {
             dst.addr += ctx.goSize.addrOffset;
         }
-        ccu::Variable sliceSizeExpansion = 0;
+        ccu::Variable sliceSizeExpansion;
+        sliceSizeExpansion = 0;
         for (uint32_t i = 0; i < expansionNum; i++) {
             sliceSizeExpansion = sliceSizeExpansion + ctx.goSize.residual;
         }
@@ -273,7 +278,8 @@ static CcuResult DoReduceLoopN(ReduceMesh1DTwoShotMem2MemContext &ctx, uint32_t 
             dst.addr += ctx.goSize.residual;
         }
         sliceSize = ctx.moConfig.memSlice;
-        ccu::Variable sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
+        ccu::Variable sliceSizeExpansion;
+        sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
         for (uint32_t i = 0; i < size; i++) {
             ctx.loopScratch[1][i].addr = scratch[i].addr;
             ctx.loopScratch[1][i].token = scratch[i].token;
@@ -284,9 +290,12 @@ static CcuResult DoReduceLoopN(ReduceMesh1DTwoShotMem2MemContext &ctx, uint32_t 
         ctx.loopDst[1].token = dst.token;
         ctx.loopLen[1]    = sliceSize;
         ctx.loopLenExp[1] = sliceSizeExpansion;
-        ccu::Variable loopCfg0 = GetLoopParam(0, 0, 1);
-        ccu::Variable loopCfg1 = GetLoopParam(0, 0, 1);
-        ccu::Variable offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
+        ccu::Variable loopCfg0;
+        loopCfg0 = GetLoopParam(0, 0, 1);
+        ccu::Variable loopCfg1;
+        loopCfg1 = GetLoopParam(0, 0, 1);
+        ccu::Variable offsetCfg;
+        offsetCfg = GetOffsetParam(ctx.moConfig.memSlice, ctx.moConfig.msInterleave, 1);
         loops.loopParam[0] = loopCfg0;
         loops.loopParam[1] = loopCfg1;
         std::vector<ccu::Loop> grpLoops{ *loops.loops[0], *loops.loops[1] };
@@ -315,7 +324,8 @@ static CcuResult ReduceLoopGroup(ReduceMesh1DTwoShotMem2MemContext &ctx,
     CCU_CHK_RET(CreateReduceLoop(ctx));
     uint32_t expansionNum = GetReduceExpansionNum(ctx.reduceOp, ctx.dataType, ctx.outputDataType);
     if (expansionNum != 1) {
-        ccu::Variable tmp = GetExpansionParam(expansionNum);
+        ccu::Variable tmp;
+        tmp = GetExpansionParam(expansionNum);
         dst.token = dst.token + tmp;
     }
 
