@@ -397,7 +397,7 @@ TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 8U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 2U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 16U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 4U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 0U);
