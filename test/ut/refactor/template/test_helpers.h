@@ -16,6 +16,8 @@
 #include "template/aicpu/aicpu_base_template.h"
 #include "template/aicpu/allgather_mesh.h"
 #include "template/aicpu/allgather_nhr.h"
+#include "template/aicpu/reducescatter_mesh.h"
+#include "template/aicpu/reducescatter_nhr.h"
 #include "template/primitives/mesh_primitives.h"
 #include "template/primitives/nhr_primitives.h"
 #include "base_engine.h"
@@ -181,6 +183,18 @@ protected:
                             HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
     }
 
+    TemplateDesc MakeReduceScatterMeshDesc()
+    {
+        return TemplateDesc{HcclCMDType::HCCL_CMD_REDUCE_SCATTER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
+                            HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
+    }
+
+    TemplateDesc MakeReduceScatterNhrDesc()
+    {
+        return TemplateDesc{HcclCMDType::HCCL_CMD_REDUCE_SCATTER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
+                            HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
+    }
+
     TemplateDataParams MakeTmplParams(const std::vector<u32> &ranksForInputData, u64 sliceCount = 4)
     {
         TemplateDataParams params;
@@ -201,6 +215,25 @@ protected:
         TemplateResource res;
         for (u32 i = 0; i < threadNum; ++i) {
             res.threads.push_back(static_cast<ThreadHandle>(0x10 + i));
+        }
+        return res;
+    }
+
+    TemplateResource MakeTmplResourceWithChannels(const std::vector<u32> &ranks, u32 myRank, u32 threadNum = 1)
+    {
+        TemplateResource res;
+        for (u32 i = 0; i < threadNum; ++i) {
+            res.threads.push_back(static_cast<ThreadHandle>(0x10 + i));
+        }
+        for (u32 rank : ranks) {
+            if (rank == myRank) {
+                continue;
+            }
+            ChannelInfo channel;
+            channel.remoteRank = rank;
+            channel.remoteCclMem.addr = reinterpret_cast<void *>(0x20000000 + rank * 0x1000);
+            channel.remoteCclMem.size = 0x10000;
+            res.channels[rank].emplace_back(channel);
         }
         return res;
     }

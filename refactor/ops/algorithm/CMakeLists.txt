@@ -17,3 +17,8 @@ if(REFACTOR_ALGORITHM AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/all_gather/CMakeLists
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/all_gather
                      ${CMAKE_CURRENT_BINARY_DIR}/all_gather)
 endif()
+
+if(REFACTOR_ALGORITHM AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/reduce_scatter/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/reduce_scatter
+                     ${CMAKE_CURRENT_BINARY_DIR}/reduce_scatter)
+endif()

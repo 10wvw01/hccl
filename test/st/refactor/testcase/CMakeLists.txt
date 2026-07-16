@@ -6,6 +6,7 @@
 set(src_list
     main.cc
     all_gather_aicpu_testcase.cc
+    reduce_scatter_aicpu_testcase.cc
 )
 
 add_executable(hccl_checker_ops_stest ${src_list})

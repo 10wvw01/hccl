@@ -205,15 +205,17 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
     HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
 
-    for (u32 rankIdx = 1; rankIdx < rankSize; ++rankIdx) {
-        const u32 connectedAlgRank = (myAlgRank + rankIdx) % rankSize;
+    for (u32 connectedAlgRank = 0; connectedAlgRank < rankSize; ++connectedAlgRank) {
         const u32 connectedRank = ranks[connectedAlgRank];
+        if (connectedRank == myRank) {
+            continue;
+        }
         const u64 txSliceSize = (tailSize > 0 && connectedAlgRank == rankSize - 1) ? tailSize : sliceSize;
         const u64 rxSliceSize = (tailSize > 0 && myAlgRank == rankSize - 1) ? tailSize : sliceSize;
         const u64 txSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
-        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myAlgRank) * txSliceSize;
+        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
         const u64 rxSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
-        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedAlgRank) * rxSliceSize;
+        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
         std::vector<DataSlice> txSrcSlices;
         std::vector<DataSlice> txDstSlices;
         std::vector<DataSlice> rxSrcSlices;

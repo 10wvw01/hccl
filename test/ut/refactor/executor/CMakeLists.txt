@@ -20,10 +20,12 @@ set(UT_EXECUTOR_SRC
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel_request.cc
-    # template 源文件 (template_factory 内联实例化 AllGatherMeshTemplate，需 vtable)
+    # template 源文件 (template_factory 内联实例化模板子类，需 vtable)
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/aicpu_base_template.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_mesh.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_nhr.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_mesh.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/mesh_primitives.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/nhr_primitives.cc
 )

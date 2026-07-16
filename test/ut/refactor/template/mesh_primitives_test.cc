@@ -330,12 +330,12 @@ TEST_F(MeshReduceScatterTransferTest, BuildTransferForEachPeerInRingOrder)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(ranksForOutputData, std::vector<u32>({1}));
-    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 2U);
-    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 2U);
-    EXPECT_EQ(txRxSlicesLists[1].srcRankId_, 3U);
-    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 3U);
-    EXPECT_EQ(txRxSlicesLists[2].srcRankId_, 0U);
-    EXPECT_EQ(txRxSlicesLists[2].dstRankId_, 0U);
+    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 0U);
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 0U);
+    EXPECT_EQ(txRxSlicesLists[1].srcRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[2].srcRankId_, 3U);
+    EXPECT_EQ(txRxSlicesLists[2].dstRankId_, 3U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, BuildTxPeerSliceAndRxLocalSlice)
@@ -353,16 +353,16 @@ TEST_F(MeshReduceScatterTransferTest, BuildTxPeerSliceAndRxLocalSlice)
     EXPECT_EQ(TxDst(txRxSlicesLists[0]).addr_, nullptr);
     EXPECT_EQ(RxSrc(txRxSlicesLists[0]).addr_, nullptr);
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, localCclMem_);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 32U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 0U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 0U);
     EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 16U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 32U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 48U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 16U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 48U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 0U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 16U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 32U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 16U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks)
@@ -376,10 +376,10 @@ TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks
 
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 96U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 64U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 64U);
     EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 80U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 80U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
@@ -397,10 +397,10 @@ TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 8U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 2U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 16U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 4U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).size_, 8U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).count_, 2U);
 }
@@ -418,7 +418,7 @@ TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(ranksForOutputData, std::vector<u32>({3}));
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).size_, 8U);
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).count_, 2U);
 }

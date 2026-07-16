@@ -90,6 +90,13 @@ enum class HcclAicpuAllGatherAlgoType {
     AICPU_ALLGATHER_ALGO_TYPE_COUNT,                // 算法类型总数，用于数组下标上限
 };
 
+// AICPU 模式 ReduceScatter 算法枚举，对应 reduce_scatter_auto_selector.cc 中 SelectAicpuAlgo 的算法
+enum class HcclAicpuReduceScatterAlgoType {
+    AICPU_REDUCESCATTER_NHR,                        // InsReduceScatterNHR
+    AICPU_REDUCESCATTER_MESH1D,                     // InsReduceScatterMesh1D
+    AICPU_REDUCESCATTER_ALGO_TYPE_COUNT,            // 算法类型总数，用于数组下标上限
+};
+
 struct TemplateDesc {
     HcclCMDType hcclCmdType;
     HcclAlgoType algType;
@@ -210,6 +217,11 @@ public:
 // HcclAicpuAllGatherAlgoType 枚举值为数组下标。
 extern const HcclAlgorithm
     g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)];
+
+// 全局 AICPU ReduceScatter 算法表（定义在 algorithm/reduce_scatter/algorithm_reduce_scatter_aicpu.cc），
+// 以 HcclAicpuReduceScatterAlgoType 枚举值为数组下标。
+extern const HcclAlgorithm
+    g_aicpuReduceScatterAlgoMap[static_cast<size_t>(HcclAicpuReduceScatterAlgoType::AICPU_REDUCESCATTER_ALGO_TYPE_COUNT)];
 
 } // namespace ops_hccl
 

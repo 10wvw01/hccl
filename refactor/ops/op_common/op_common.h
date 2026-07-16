@@ -51,6 +51,8 @@ HcclResult LogHcclExit(const std::string &opName, const char *tag, HcclUs startu
 HcclResult HcclCheckTag(const char *tag);
 HcclResult CheckCount(const u64 count);
 HcclResult CheckDataType(const HcclDataType dataType, bool needReduce);
+HcclResult CheckReduceOp(const HcclDataType dataType, const HcclReduceOp op);
+std::string GetReduceProdSupportDataType();
 HcclResult SingleRankProc(HcclComm comm, OpParam &param);
 HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
 HcclResult RegisterKernel();

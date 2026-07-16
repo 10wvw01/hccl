@@ -21,6 +21,7 @@
 #include "hccl_algorithm.h"
 #include "base_engine.h"
 #include "log.h"
+#include "adapter_error_manager_pub.h"
 #include "topo/topo_host.h"
 #include "exec_timeout_manager.h"
 #include "binary_stream.h"
@@ -149,6 +150,39 @@ HcclResult CheckDataType(const HcclDataType dataType, bool needReduce)
             HCCL_ERROR("[Check][DataType]errNo[0x%016llx] data type[%s] not supported, support range=[%s]",
                 HCCL_ERROR_CODE(HCCL_E_NOT_SUPPORT), GetDataTypeEnumStr(dataType).c_str(),
                 GetSupportDataType(needReduce).c_str());
+            return HCCL_E_NOT_SUPPORT;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+std::string GetReduceProdSupportDataType()
+{
+    std::vector<HcclDataType> supportList = {HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_INT32, HCCL_DATA_TYPE_INT64, HCCL_DATA_TYPE_UINT64,
+                                             HCCL_DATA_TYPE_FP16, HCCL_DATA_TYPE_FP32, HCCL_DATA_TYPE_FP64};
+    std::string supportInfo = "";
+    for (u32 i = 0; i < supportList.size(); i++) {
+        if (i != 0) {
+            supportInfo += ", ";
+        }
+        supportInfo += GetDataTypeEnumStr(supportList[i]);
+    }
+
+    return supportInfo;
+}
+
+HcclResult CheckReduceOp(const HcclDataType dataType, const HcclReduceOp op)
+{
+    std::vector<HcclDataType> prodSupportList = {HCCL_DATA_TYPE_INT8, HCCL_DATA_TYPE_INT32, HCCL_DATA_TYPE_INT64, HCCL_DATA_TYPE_UINT64,
+                                                 HCCL_DATA_TYPE_FP16, HCCL_DATA_TYPE_FP32, HCCL_DATA_TYPE_FP64};
+    const std::vector<std::string> infoTitle({"ccl_op", "value", "parameter", "expect"});
+    if (op == HcclReduceOp::HCCL_REDUCE_PROD) {
+        if (std::find(prodSupportList.begin(), prodSupportList.end(), dataType) == prodSupportList.end()) {
+            RPT_INPUT_ERR(true, "EI0003", infoTitle, std::vector<std::string>({"CheckReduceDataType", GetDataTypeEnumStr(dataType), "dataType",
+                GetReduceProdSupportDataType()}));
+            HCCL_ERROR("[Check][ReduceOp][DataType]errNo[0x%016llx] reduceop is [%s] data type[%s] not supported, support range=[%s]",
+                        HCCL_ERROR_CODE(HCCL_E_NOT_SUPPORT), GetReduceOpEnumStr(op).c_str(), GetDataTypeEnumStr(dataType).c_str(),
+                        GetReduceProdSupportDataType().c_str());
             return HCCL_E_NOT_SUPPORT;
         }
     }

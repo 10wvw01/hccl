@@ -20,4 +20,6 @@ target_sources(hccl PRIVATE
     aicpu_base_template.cc
     allgather_mesh.cc
     allgather_nhr.cc
+    reducescatter_mesh.cc
+    reducescatter_nhr.cc
 )
