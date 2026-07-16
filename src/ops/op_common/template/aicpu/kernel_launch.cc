@@ -102,10 +102,9 @@ namespace {
             //获取算法缓存
             std::shared_ptr<const AlgResourceCtxSerializable> Get(const std::string& algTag, const std::string& paramCommName) {
                 std::string commName = ExtractCommName(algTag);
-                //提取失败时使用参数中的commName
                 if (commName.empty()) commName = paramCommName;
 
-                CommDomainCache* commCache = GetOrCreateComm(commName);
+                auto commCache = GetOrCreateComm(commName);
                 if (commCache) {
                     auto& stats = commCache->GetStats();
                     auto result = commCache->Get(algTag);
@@ -118,12 +117,11 @@ namespace {
                 return nullptr;
             }
 
-            //缓存算法结果
             void Put(const std::string& algTag, const AlgResourceCtxSerializable& value, const std::string& paramCommName) {
                 std::string commName = ExtractCommName(algTag);
                 if (commName.empty()) commName = paramCommName;
 
-                CommDomainCache* commCache = GetOrCreateComm(commName);
+                auto commCache = GetOrCreateComm(commName);
                 if (commCache) {
                     commCache->Put(algTag, value);
                 }
@@ -135,20 +133,18 @@ namespace {
                 return commCaches_.erase(commName) > 0;
             }
 
-            //获得通信域统计信息
             bool GetCommStats(const std::string& commName, CacheStats& outStats, size_t& outCacheSize) const {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 auto it = commCaches_.find(commName);
                 if (it != commCaches_.end()) {
-                    outStats.hits = it->second.GetStats().hits.load();
-                    outStats.misses = it->second.GetStats().misses.load();
-                    outCacheSize = it->second.GetCacheSize();
+                    outStats.hits = it->second->GetStats().hits.load();
+                    outStats.misses = it->second->GetStats().misses.load();
+                    outCacheSize = it->second->GetCacheSize();
                     return true;
                 }
                 return false;
             }
 
-            //获得全局统计信息
             void GetGlobalStats(size_t& totalCommDomains, size_t& totalcacheEntries, uint64_t& totalHits, uint64_t& totalMisses) const {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 totalCommDomains = commCaches_.size();
@@ -156,11 +152,10 @@ namespace {
                 totalHits = 0;
                 totalMisses = 0;
                 for (const auto& pair : commCaches_) {
-                    const auto& commName = pair.first;
                     const auto& commCache = pair.second;
-                    totalcacheEntries += commCache.GetCacheSize();
-                    totalHits += commCache.GetStats().hits.load();
-                    totalMisses += commCache.GetStats().misses.load();
+                    totalcacheEntries += commCache->GetCacheSize();
+                    totalHits += commCache->GetStats().hits.load();
+                    totalMisses += commCache->GetStats().misses.load();
                 }
             }
 
@@ -183,22 +178,22 @@ namespace {
 
         private:
             //获取或创建通信域缓存
-            CommDomainCache* GetOrCreateComm(const std::string& commName) {
+            std::shared_ptr<CommDomainCache> GetOrCreateComm(const std::string& commName) {
                 std::lock_guard<std::mutex> lock(mapMutex_);
                 auto it = commCaches_.find(commName);
                 if (it != commCaches_.end()) {
-                    return &it->second;
+                    return it->second;
                 }
                 auto result = commCaches_.emplace(
                     std::piecewise_construct,
                     std::forward_as_tuple(commName),
-                    std::forward_as_tuple(commName)
+                    std::forward_as_tuple(std::make_shared<CommDomainCache>(commName))
                 );
-                return &result.first->second;
+                return result.first->second;
             }
 
             mutable std::mutex mapMutex_;
-            std::map<std::string, CommDomainCache> commCaches_;
+            std::map<std::string, std::shared_ptr<CommDomainCache>> commCaches_;
     };
 
     //全局缓存管理器实例
