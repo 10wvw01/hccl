@@ -68,7 +68,7 @@ target_compile_options(hccl PRIVATE
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -fstack-protector-all
 )
 
@@ -77,6 +77,9 @@ if(NOT STATIC_MODE)
 endif()
 
 if(BUILD_OPEN_PROJECT)
+    target_link_directories(hccl PRIVATE
+        ${ASCEND_CANN_PACKAGE_PATH}/lib64
+    )
     target_link_libraries(hccl PRIVATE
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:mmpa_headers>
@@ -157,7 +160,7 @@ target_compile_options(opgraph_hccl PRIVATE
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -fstack-protector-all
     -fvisibility=hidden
 )

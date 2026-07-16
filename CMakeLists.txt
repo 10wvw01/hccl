@@ -13,12 +13,14 @@ option(STATIC_MODE "Build static library mode." OFF)
 option(ENABLE_EXPERIMENTAL "Enable experimental features" OFF)
 option(ENABLE_BUILD_DEVICE "Build hccl device project." OFF)
 option(ENABLE_BUILD_AARCH "Build hccl aarch project." OFF)
+option(REFACTOR_OPS "Enable refactored ops path (refactor/ops/)" ON)
+option(REFACTOR_ONLY "Only compile refactor code, skip src/ops/" OFF)
+option(REFACTOR "Enable all refactor sub-modules (convenience switch)" OFF)
 message(STATUS "STATIC_MODE=${STATIC_MODE}")
 
 if(STATIC_MODE AND NOT ENABLE_BUILD_DEVICE)
     set(ENABLE_BUILD_DEVICE ON)
 endif()
-
 # 默认只编译 host 侧
 if(NOT DEFINED PRODUCT_SIDE)
     set(PRODUCT_SIDE "host")
@@ -59,11 +61,22 @@ include(cmake/fetch_cann_cmake.cmake)
 project(hccl)
 
 # 初始化 CANN 项目配置
-init_cann_project(PREPEND_MODULE_PATH)
+init_cann_project()
 
-# 采用 C++14 标准
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 开源编译下 CANN 包中的 header-only INTERFACE 库可能未被定义，
+# 导致后续 target_link_libraries 将其当作 -l 参数传给 ld 而失败。
+# 在此预先创建 stub 以避免 "cannot find -lxxx_headers" 错误。
+if(BUILD_OPEN_PROJECT)
+    foreach(_lib msprof_headers mmpa_headers runtime_headers hcomm_headers error_manager_headers)
+        if(NOT TARGET ${_lib})
+            add_library(${_lib} INTERFACE)
+        endif()
+    endforeach()
+endif()
+
+# 采用 C++17 标准（refactor 代码使用 std::variant 需要）
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard" FORCE)
+set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "" FORCE)
 set(CMAKE_C_FLAGS_RELEASE "")
 set(CMAKE_CXX_FLAGS_RELEASE "")
 
@@ -71,7 +84,7 @@ if(ENABLE_TEST)
     include(cmake/config.cmake)
     include(cmake/intf_pub_gccnative.cmake)
     include(cmake/function.cmake)
-    add_cann_third_party(gtest)
+    include(cmake/third_party/gtest.cmake)
     add_subdirectory(test)
 
 elseif(ENABLE_CUSTOM)
@@ -109,7 +122,6 @@ elseif(ENABLE_CUSTOM)
     include(cmake/config.cmake)
     include(cmake/func.cmake)
     include(cmake/package.cmake)
-    include(version.cmake)
 
     # AICPU Device 构建目标
     add_custom_target(custom_aicpu)
@@ -123,19 +135,7 @@ elseif(BUILD_OPEN_PROJECT)
     include(cmake/package.cmake)
     include(cmake/func.cmake)
     include(version.cmake)
-
-    find_cann_package(acl_rt MODULE REQUIRED)
-    find_cann_package(msprof MODULE REQUIRED)
-    find_cann_package(securec MODULE REQUIRED)
-    find_cann_package(unified_dlog MODULE REQUIRED)
-    find_cann_package(mmpa MODULE REQUIRED)
-    find_cann_package(runtime MODULE REQUIRED)
-    find_cann_package(error_manager MODULE REQUIRED)
-    find_cann_package(graph MODULE REQUIRED)
-    find_cann_package(asc_devkit MODULE REQUIRED)
-    find_cann_package(tsdclient MODULE REQUIRED)
-    find_cann_package(hcomm MODULE REQUIRED)
-
+    
     # 检查构建依赖
     check_pkg_build_deps("hccl")
     add_version_info_targets()
@@ -145,6 +145,10 @@ elseif(BUILD_OPEN_PROJECT)
     add_subdirectory(src)
     if(ENABLE_EXPERIMENTAL)
         add_subdirectory(experimental/ops/)
+    endif()
+    if(REFACTOR_OPS)
+        set(REFACTOR_TEMPLATE ON CACHE BOOL "Build refactor/ops/template" FORCE)
+        add_subdirectory(refactor)
     endif()
 
     # Device 侧编译构建
@@ -164,13 +168,11 @@ elseif(BUILD_OPEN_PROJECT)
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                 -DCMAKE_INSTALL_PREFIX=${HCCL_DEVICE_BUILD_PATH}/_install
                 -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
-                -DASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}
                 -DBUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}
                 -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
                 -DENABLE_SIGN=${ENABLE_SIGN}
                 -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
                 -DVERSION_INFO=${VERSION_INFO}
-                -DENABLE_EXPERIMENTAL=${ENABLE_EXPERIMENTAL}
             INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
             BUILD_ALWAYS TRUE
         )
@@ -200,5 +202,3 @@ elseif(BUILD_OPEN_PROJECT)
         COMPONENT hccl
     )
 endif()
-
-# this is a test commit
