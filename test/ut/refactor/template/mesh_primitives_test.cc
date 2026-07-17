@@ -342,6 +342,7 @@ TEST_F(MeshReduceScatterTransferTest, BuildTxPeerSliceAndRxLocalSlice)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
     TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.inputBufferPtr = reinterpret_cast<void *>(0x30000000);
     std::vector<u32> ranksForOutputData;
     std::vector<TxRxSlicesList> txRxSlicesLists;
 
@@ -349,26 +350,28 @@ TEST_F(MeshReduceScatterTransferTest, BuildTxPeerSliceAndRxLocalSlice)
 
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).addr_, localCclMem_);
+    // tx 源=input，tx 目标=对端 ccl[myRank 槽]。
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).addr_, params.inputBufferPtr);
     EXPECT_EQ(TxDst(txRxSlicesLists[0]).addr_, nullptr);
+    // rx 目标=本卡 ccl[connectedRank 槽]，rx 源占位 nullptr。
     EXPECT_EQ(RxSrc(txRxSlicesLists[0]).addr_, nullptr);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, localCclMem_);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, params.cclBufferPtr);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 0U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 0U);
-    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 16U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 0U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 32U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 32U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 32U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks)
 {
     std::vector<u32> ranks = {4, 5, 6};
     TemplateDataParams params = MakeParams({4, 5, 6});
+    params.inputBufferPtr = reinterpret_cast<void *>(0x30000000);
     std::vector<u32> ranksForOutputData;
     std::vector<TxRxSlicesList> txRxSlicesLists;
 
@@ -376,10 +379,10 @@ TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks
 
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 64U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 64U);
-    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 80U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 80U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 0U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 80U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 32U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 80U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
@@ -387,6 +390,7 @@ TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
     std::vector<u32> ranks = {0, 1, 2, 3};
     TemplateDataParams params = MakeParams({0, 1, 2, 3});
     params.tailCount = 2;
+    params.inputBufferPtr = reinterpret_cast<void *>(0x30000000);
     std::vector<u32> ranksForOutputData;
     std::vector<TxRxSlicesList> txRxSlicesLists;
 
@@ -397,19 +401,20 @@ TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 24U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 6U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 16U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 4U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 0U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).size_, 24U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).count_, 6U);
 }
 
-TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
+TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTxDstAtMyRankSlot)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
     TemplateDataParams params = MakeParams({0, 1, 2, 3});
     params.tailCount = 2;
+    params.inputBufferPtr = reinterpret_cast<void *>(0x30000000);
     std::vector<u32> ranksForOutputData;
     std::vector<TxRxSlicesList> txRxSlicesLists;
 
@@ -418,9 +423,16 @@ TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(ranksForOutputData, std::vector<u32>({3}));
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 0U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 0U);
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).size_, 24U);
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).count_, 6U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 48U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 32U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).size_, 16U);
 }
 
 } // namespace testing

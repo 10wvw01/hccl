@@ -61,9 +61,9 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
     std::vector<TxRxSlicesList> txRxSlicesLists;
     CHK_RET(RunAlgorithm(templateResource, txRxSlicesLists, ranksForOutputData));
 
-    // 4. SendAll：统一逐个执行 SendRecv。
+    // 4. SendAll：统一逐个执行 SendRecv（子类可在通信后做本地归约）。
     if (!txRxSlicesLists.empty()) {
-        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource));
+        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource, templateResource.threads));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -85,8 +85,10 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
 HcclResult AicpuBaseTemplate::SendAll(
-    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists, TemplateResource &templateResource)
+    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+    TemplateResource &templateResource, const std::vector<ThreadHandle> &threads)
 {
+    (void)threads;
     for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
         ctx.enableRemoteMemAccess = tempAlgParams_.enableRemoteMemAccess;

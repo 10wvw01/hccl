@@ -96,9 +96,10 @@ protected:
     /**
      * 统一逐个执行 SendRecv。
      * 由 KernelRun 在 RunAlgorithm 返回后调用。
+     * threads 用于子类在通信完成后做本地归约（LocalReduce）等后处理。
      */
-    HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
-                        TemplateResource &templateResource);
+    virtual HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+                               TemplateResource &templateResource, const std::vector<ThreadHandle> &threads);
 
     /** 工具：判断 channels 是否为 PCIe 协议（决定 Read/Write 模式）。 */
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels) const

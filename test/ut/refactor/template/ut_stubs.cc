@@ -135,6 +135,14 @@ int32_t HcommLocalCopyOnThread(ThreadHandle thread, void *dst, const void *src, 
     return tmplRetCode("LocalCopy");
 }
 
+int32_t HcommLocalReduceOnThread(ThreadHandle thread, void *dst, const void *src, uint64_t count,
+    HcommDataType dataType, HcommReduceOp reduceOp)
+{
+    (void)dataType; (void)reduceOp;
+    g_tmplRecords.push_back({"LocalReduce", (unsigned long)thread, 0, 0xFFFFFFFF, dst, src, count});
+    return tmplRetCode("LocalReduce");
+}
+
 int32_t HcommThreadNotifyRecordOnThread(ThreadHandle mainThread, ThreadHandle subThread, uint32_t idx)
 {
     g_tmplRecords.push_back({"NotifyRecord", (unsigned long)mainThread, (unsigned long)subThread, idx,

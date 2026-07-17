@@ -13,6 +13,7 @@
 #include "base_template.h"
 #include "base_engine.h"
 #include "ops_executor.h"
+#include "utils.h"
 
 extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 {
@@ -91,6 +92,13 @@ HcclResult PostSyncInterThreads(const ThreadHandle &mainThread, const std::vecto
 HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice)
 {
     HCCL_INFO("LocalCopy thread: %d, size: %llu", thread, srcSlice.size_);
+    return HCCL_SUCCESS;
+}
+
+HcclResult LocalReduce(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice,
+                       HcclDataType dataType, HcclReduceOp reduceOp)
+{
+    HCCL_INFO("LocalReduce thread: %d, size: %llu, reduceOp: %d", thread, srcSlice.size_, reduceOp);
     return HCCL_SUCCESS;
 }
 
