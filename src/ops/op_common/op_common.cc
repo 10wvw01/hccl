@@ -323,7 +323,10 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
 HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tagSize, HcclDfxOpInfoCompat& hcclDfxOpInfo,
     ThreadHandle cpuTsThread)
 {
-    hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+    bool isAclGraph = IsStreamInCaptureMode(param.opMode);
+    if(hcclDfxOpInfo.opMode = isAclGraph){
+        hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+    }
     hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
     hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
     CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
@@ -2200,7 +2203,10 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
         // Op注册
         HcclDfxOpInfoCompat hcclDfxOpInfo{};
-        hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+        bool isAclGraph = IsStreamInCaptureMode(param.opMode);
+        if(hcclDfxOpInfo.opMode = isAclGraph){
+            hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+        }
         hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
         hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
         CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
