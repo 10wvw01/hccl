@@ -35,6 +35,7 @@ constexpr uint32_t CCU_M2M_LOCAL_COPY_LOOP_COUNT = 16;
 constexpr uint64_t CCU_LOOP_CKE_NUM_BCAST_V2 = 2; 
 constexpr uint64_t CCU_LOOP_CKE_NUM_REDUCE_V2 = 3;
 constexpr uint64_t CCU_LOOP_CKE_NUM_COPY_V2 = 2;
+constexpr uint64_t CCU_LOOP_CKE_NUM_REDUCE_LOOP_V2 = 3;
 
 struct LoopGroupConfig {
     uint32_t msInterleave;  // loop使用的ms步长，即与前一个loop间的间距
