@@ -236,10 +236,15 @@ HcclResult AllGatherOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t sendCo
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
     }
-    // 仅标准两层 Mesh+NHR Omni 入口启用对称内存；PCIe、多层和 UBoE 入口继续使用普通内存路径。
-    const bool isTwoLevelMeshNhrOmni = (algName == "InsV2AllGatherOmniPipe");
+    // 单个 MESH_1D_CLOS 网络层在 Omni executor 内展开为 Mesh+NHR 两层；
+    // 额外网络层会继续展开出 DPU 第三层，因此不能进入当前对称内存路径。
+    const bool isTwoLevelMeshNhrOmni = algName == "InsV2AllGatherOmniPipe" &&
+        topoInfo->topoLevelNums == TOPO_LEVEL_NUM_1 &&
+        topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix;
+    // 保留已有 Mesh1D executor 的对称内存能力，本次层级限制只约束新增加的 Omni 路径。
+    const bool isAllGatherMesh1D = (algName == "InsAllGatherMesh1D");
     if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE &&
-        isTwoLevelMeshNhrOmni) {
+        (isAllGatherMesh1D || isTwoLevelMeshNhrOmni)) {
         // 窗口探测失败只关闭对称内存优化，算子继续使用普通内存路径执行。
         AllGatherSupportSymmetricMemory(param);
     }

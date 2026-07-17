@@ -173,7 +173,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::KernelRun(const OpParam& param, c
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
     // 这个PostReduce处理的是当前轴的规约任务
-    PostReduce(tempAlgParams, templateResource.threads);
+    CHK_RET(PostReduce(tempAlgParams, templateResource.threads));
     HCCL_INFO("[InsTempReduceScatterOmniPipeMesh1D][KernelRun] Mesh reduce-scatter template completed, rank[%u].",
               myRank_);
     return HcclResult::HCCL_SUCCESS;
