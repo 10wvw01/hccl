@@ -200,15 +200,17 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, Template
     return HCCL_SUCCESS;
 }
 
-HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-    const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
-    std::vector<SendRecvInfo> &sendRecvInfos)
+HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks, u32 myRank,
+    std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
 {
-    sendRecvInfos.clear();
+    txRxSlicesLists.clear();
+    CHK_RET(CheckInputDataRanks(tempAlgParams, "RunNhrScatter"));
 
     u32 rankSize = static_cast<u32>(ranks.size());
-    if (rankSize <= 1 || templateResource.channels.empty()) {
-        ranksForOutputData = {myRank};
+    // Scatter outputs only the local rank block, so PostCopy only needs myRank.
+    ranksForOutputData = {myRank};
+    if (rankSize <= 1) {
+        HCCL_INFO("[RunNhrScatter] no sendRecv needed, ranksForOutputDataNum=%zu", ranksForOutputData.size());
         return HCCL_SUCCESS;
     }
     u32 myAlgRank = 0;
@@ -216,35 +218,62 @@ HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResour
     u32 rootAlgRank = 0;
     CHK_RET(GetAlgRank(tempAlgParams.root, ranks, rootAlgRank));
 
-    HcclDataType dataType = tempAlgParams.dataType;
-    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
-    u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    u64 sliceOffset = tempAlgParams.sliceOffset;
-    u64 stride = tempAlgParams.scratchStride;
-    u32 myRel = (myAlgRank + rankSize - rootAlgRank) % rankSize;
+    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
+    const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
+    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u32 tailRankId = ranks[rankSize - 1];
+    // myRelRoot 是在以 root 为基准的排序中的 rank 位置
+    const u32 myRelRoot = (myAlgRank + rankSize - rootAlgRank) % rankSize;
     u32 nSteps = 0;
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
     }
 
     for (u32 step = 0; step < nSteps; ++step) {
-        u32 delta = 1 << (nSteps - 1 - step);
-        u32 sendToAlgRank = ((myRel + delta) % rankSize + rootAlgRank) % rankSize;
-        u32 recvFromAlgRank = ((myRel + rankSize - delta) % rankSize + rootAlgRank) % rankSize;
+        const u32 delta = 1U << (nSteps - 1 - step);
+        // 每一步都将以 root 为基准的 ranks 分为左半部分和右半部分。
+        const u32 groupSize = delta << 1;
+        const u32 groupOffset = myRelRoot % groupSize;
 
-        const ChannelInfo &linkSend = templateResource.channels.at(ranks[sendToAlgRank])[0];
-        const ChannelInfo &linkRecv = templateResource.channels.at(ranks[recvFromAlgRank])[0];
-        u32 myRankId = ranks[myAlgRank];
-        u64 off = sliceOffset + static_cast<u64>(myRankId) * stride;
-        u64 sz = sliceSize;
-
-        std::vector<DataSlice> txSrc{{tempAlgParams.cclBufferPtr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> txDst{{linkSend.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxSrc{{linkRecv.remoteCclMem.addr, off, sz, sz / dataTypeSize}};
-        std::vector<DataSlice> rxDst{{tempAlgParams.cclBufferPtr, off, sz, sz / dataTypeSize}};
-
-        TxRxSlicesList sendRecvSlicesList({txSrc, txDst}, {rxSrc, rxDst}, ranks[recvFromAlgRank], ranks[sendToAlgRank]);
-        TxRxChannels sendRecvChannels(linkSend, linkRecv);
-        sendRecvInfos.emplace_back(sendRecvChannels, sendRecvSlicesList, dataType);
+        std::vector<DataSlice> txSrc;
+        std::vector<DataSlice> txDst;
+        std::vector<DataSlice> rxSrc;
+        std::vector<DataSlice> rxDst;
+        // 左半部分的领头 rank 将所有右半部分的目标数据块发送给右半部分的领头 rank
+        if (groupOffset == 0 && myRelRoot + delta < rankSize) {
+            const u32 sendToRel = myRelRoot + delta;
+            const u32 sendToAlgRank = (rootAlgRank + sendToRel) % rankSize;
+            // 最后一组可能不完整，限制在 rankSize 范围内
+            const u32 lastRel = std::min(myRelRoot + groupSize, rankSize);
+            std::vector<u32> txRankIds;
+            for (u32 rel = sendToRel; rel < lastRel; ++rel) {
+                txRankIds.emplace_back(ranks[(rootAlgRank + rel) % rankSize]);
+            }
+            // txRankIds 是对端子树所拥有的所有数据块；偏移量仍使用全局 rank 槽位
+            NhrAllGatherSlicePair txSlicePair{tempAlgParams.cclBufferPtr, nullptr, txSrc, txDst};
+            AddNhrRankDataSlices(tempAlgParams, txRankIds, tailRankId, txSlicePair);
+            txRxSlicesLists.emplace_back(SlicesList(txSrc, txDst), SlicesList({}, {}),
+                ranks[sendToAlgRank], ranks[sendToAlgRank]);
+            HCCL_INFO("[RunNhrScatter] Build tx TxRxSlicesList: step=%u, remoteRank=%u, txRankNum=%zu",
+                step, ranks[sendToAlgRank], txRankIds.size());
+            continue;
+        }
+        // 右半部分的领头 rank 从左半部分的领头 rank 接收其子树的数据块
+        if (groupOffset == delta) {
+            const u32 recvFromRel = myRelRoot - delta;
+            const u32 recvFromAlgRank = (rootAlgRank + recvFromRel) % rankSize;
+            const u32 lastRel = std::min(myRelRoot + delta, rankSize);
+            std::vector<u32> rxRankIds;
+            for (u32 rel = myRelRoot; rel < lastRel; ++rel) {
+                rxRankIds.emplace_back(ranks[(rootAlgRank + rel) % rankSize]);
+            }
+            // rxRankIds 是本子树所拥有的数据块；后续步骤可能会转发其中的一部分
+            NhrAllGatherSlicePair rxSlicePair{nullptr, tempAlgParams.cclBufferPtr, rxSrc, rxDst};
+            AddNhrRankDataSlices(tempAlgParams, rxRankIds, tailRankId, rxSlicePair);
+            txRxSlicesLists.emplace_back(SlicesList({}, {}), SlicesList(rxSrc, rxDst),
+                ranks[recvFromAlgRank], ranks[recvFromAlgRank]);
+            HCCL_INFO("[RunNhrScatter] Build rx TxRxSlicesList: step=%u, remoteRank=%u, rxRankNum=%zu",
+                step, ranks[recvFromAlgRank], rxRankIds.size());
+        }
     }
     // Scatter 语义：输出仅对应本 rank。
     ranksForOutputData = {myRank};

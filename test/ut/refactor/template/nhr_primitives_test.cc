@@ -142,5 +142,145 @@ TEST_F(NhrAllGatherTransferTest, UpdateOutputRanksForPostCopy)
     EXPECT_EQ(ranksForOutputData, ranks);
 }
 
+class NhrScatterParamTest : public NhrAllGatherTest {};
+
+TEST_F(NhrScatterParamTest, EmptyInputRanksReturnsError)
+{
+    std::vector<u32> ranks = {0, 1};
+    TemplateDataParams params = MakeParams({});
+    params.root = 0;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    EXPECT_NE(ret, HCCL_SUCCESS);
+    EXPECT_TRUE(txRxSlicesLists.empty());
+}
+
+TEST_F(NhrScatterParamTest, SingleRankReturnsWithoutTransfer)
+{
+    std::vector<u32> ranks = {0};
+    TemplateDataParams params = MakeParams({0});
+    params.root = 0;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    EXPECT_TRUE(txRxSlicesLists.empty());
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({0}));
+}
+
+class NhrScatterTransferTest : public NhrAllGatherTest {};
+
+TEST_F(NhrScatterTransferTest, RootBuildsTreeTxSteps)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.root = 0;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 2U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({0}));
+    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[1].srcRankId_, 1U);
+    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 1U);
+    EXPECT_TRUE(txRxSlicesLists[0].rxSlicesList_.srcSlices_.empty());
+    ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).offset_, 32U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 48U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 16U);
+}
+
+TEST_F(NhrScatterTransferTest, IntermediateRankReceivesThenForwards)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.root = 0;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 2, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 2U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({2}));
+    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 0U);
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 0U);
+    EXPECT_TRUE(txRxSlicesLists[0].txSlicesList_.srcSlices_.empty());
+    ASSERT_EQ(txRxSlicesLists[0].rxSlicesList_.dstSlices_.size(), 2U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0], 0).offset_, 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0], 1).offset_, 48U);
+    EXPECT_EQ(txRxSlicesLists[1].srcRankId_, 3U);
+    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 3U);
+    EXPECT_TRUE(txRxSlicesLists[1].rxSlicesList_.dstSlices_.empty());
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 48U);
+}
+
+TEST_F(NhrScatterTransferTest, LeafRankReceivesOnlyWhenItsStepArrives)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.root = 0;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 3, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 1U);
+    EXPECT_EQ(txRxSlicesLists[0].srcRankId_, 2U);
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 2U);
+    EXPECT_TRUE(txRxSlicesLists[0].txSlicesList_.srcSlices_.empty());
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
+}
+
+TEST_F(NhrScatterTransferTest, BuildTailRankSlice)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.root = 0;
+    params.tailCount = 2;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 2U);
+    ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 48U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).size_, 8U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).count_, 2U);
+}
+
+TEST_F(NhrScatterTransferTest, NonZeroRootUsesRootRelativeTreeOrder)
+{
+    std::vector<u32> ranks = {4, 5, 6, 7};
+    TemplateDataParams params = MakeParams({4, 5, 6, 7});
+    params.root = 5;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunNhrScatter(params, ranks, 5, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 2U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({5}));
+    EXPECT_EQ(txRxSlicesLists[0].dstRankId_, 7U);
+    EXPECT_EQ(txRxSlicesLists[1].dstRankId_, 6U);
+    ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).offset_, 112U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 64U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 96U);
+}
+
 } // namespace testing
 } // namespace ops_hccl

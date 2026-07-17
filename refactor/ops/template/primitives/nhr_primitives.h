@@ -38,9 +38,9 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, Template
                                std::vector<SendRecvInfo> &sendRecvInfos);
 
 // 构造 NHR Scatter 的通信描述符列表，实际 SendRecv 由 template 执行。
-HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, TemplateResource &templateResource,
-                         const std::vector<u32> &ranks, u32 myRank, std::vector<u32> &ranksForOutputData,
-                         std::vector<SendRecvInfo> &sendRecvInfos);
+HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
+                         u32 myRank, std::vector<u32> &ranksForOutputData,
+                         std::vector<TxRxSlicesList> &txRxSlicesLists);
 }
 
 #endif
