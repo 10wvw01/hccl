@@ -117,7 +117,7 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
 
-    if (tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr) {
+    if (tempAlgParams_.inputBufferType == BufferType::HCCL_BUFFER) {
         return HCCL_SUCCESS;
     }
 
@@ -128,9 +128,7 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     // ccl 偏移使用 rank 值：cclOff = rank * stride（每个 rank 的数据在 ccl buffer 中按 rank 排列）
     for (size_t idx = 0; idx < tempAlgParams_.ranksForInputData.size(); ++idx) {
         u32 rank = tempAlgParams_.ranksForInputData[idx];
-        u32 algRank = 0;
-        CHK_RET(GetAlgRank(rank, ranks_, algRank));
-        const u64 curSliceSize = (tailSize != 0 && algRank == templateRankSize_ - 1) ? tailSize : sliceSize;
+        u64 curSliceSize = idx == tempAlgParams_.ranksForInputData.size() - 1 ? sliceSize + tailSize : sliceSize;
         if (curSliceSize == 0) {
             continue;
         }
@@ -173,14 +171,19 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     // 将 ccl buffer 中 ranksForOutputData 对应 rank 的数据搬回 output。
     for (size_t idx = 0; idx < ranksForOutputData_.size(); ++idx) {
         u32 rank = ranksForOutputData_[idx];
-        u32 algRank = 0;
-        CHK_RET(GetAlgRank(rank, ranks_, algRank));
-        const u64 curSliceSize = (tailSize != 0 && algRank == templateRankSize_ - 1) ? tailSize : sliceSize;
+        u64 curSliceSize = idx == ranksForOutputData_.size() - 1 ? sliceSize + tailSize : sliceSize;
         if (curSliceSize == 0) {
             continue;
         }
         const u64 sliceCount = curSliceSize / dataTypeSize;
         const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
+        // 输出偏移：
+        //   - dataStride == scratchStride 时（如 AllGather），output 按 rank 排列，
+        //     rank r 位于 r*dataStride；两层并行拓扑中 ranksForOutputData 非连续（如 [0,2]），
+        //     必须用 rank 才能放到正确的全局位置。
+        //   - dataStride != scratchStride 时（如 ReduceScatter），output 由 dataOffset
+        //     跟踪当前位置，ranksForOutputData 通常仅含 myRank，用 idx 即可。
+        //   单层拓扑：ranksForOutputData_ 连续 [0,1,...]，idx == rank，二者等价。
         const u64 outOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.dataStride;
         DataSlice srcSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams_.outputBufferPtr, outOff, curSliceSize, sliceCount);
