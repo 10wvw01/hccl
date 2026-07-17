@@ -228,7 +228,7 @@ HcclResult ScatterExecOp(OpParam &param, void *sendBuf, void *recvBuf, uint64_t 
 HcclResult ScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, uint32_t root,
     HcclComm comm, aclrtStream stream, u32 userRankSize)
 {
-    uint64_t beginTime;
+    uint64_t beginTime = 0;
     if (HcommIsProfilingSupported()) {
         beginTime = HcommGetProfilingSysCycleTime();
     }
@@ -349,7 +349,7 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
         }
 
         // 执行device测的算法编排
-        uint64_t beginTime;
+        uint64_t beginTime = 0;
         if (HcommIsProfilingSupported()) {
             beginTime = HcommGetProfilingSysCycleTime();
         } 
@@ -531,6 +531,7 @@ HcclResult SetAlgoLevel1(TopoInfo* topoInfo, HcclAlgoType algoConfig, AlgTypeLev
         case HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH:
         case HcclAlgoType::HCCL_ALGO_TYPE_PAIRWISE:
             HCCL_WARNING("level1:fullmesh algo is not supported. the config is ignored.");
+            [[fallthrough]];
         default:
             algoConfigShadow = HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT;
             break;

@@ -63,12 +63,17 @@ endif()
 
 target_compile_options(hccl PRIVATE
     -Werror
+    -Wno-error=maybe-uninitialized
+    -Wno-overloaded-virtual
+    -Wno-unused-parameter
+    -Wno-sign-compare
+    -Wno-unused-variable
+    -Wno-unused-value
     -fno-common
     -fno-strict-aliasing
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
     -fstack-protector-all
 )
 
@@ -78,6 +83,7 @@ endif()
 
 if(BUILD_OPEN_PROJECT)
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:msprof_headers>
@@ -92,6 +98,7 @@ if(BUILD_OPEN_PROJECT)
     )
 else()
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:ofed_headers>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:msprof_headers>
@@ -152,16 +159,17 @@ target_include_directories(opgraph_hccl PRIVATE
     ${OP_PROTO_INCLUDE}
 )
 target_compile_options(opgraph_hccl PRIVATE
+    -Wno-error=cpp
     -fno-common
     -fno-strict-aliasing
     -pipe
     $<$<CONFIG:Release>:-O3>
     $<$<CONFIG:Debug>:-O3 -g>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=c++14>
     -fstack-protector-all
     -fvisibility=hidden
 )
 target_link_libraries(opgraph_hccl PRIVATE
+    $<BUILD_INTERFACE:intf_pub>
     $<BUILD_INTERFACE:msprof_headers>
     $<BUILD_INTERFACE:mmpa_headers>
     $<BUILD_INTERFACE:runtime_headers>
