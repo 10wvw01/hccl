@@ -51,8 +51,9 @@ struct AlgoExecDataDesc {
     u64 scratchSize{0}; // 输出参数
     u64 scratchStride{0};
     u64 tailCount{0};
-    std::vector<u32> ranksForInputData;
-    std::vector<u32> ranksForOutputData; // 输出参数
+    // 有可能是多组ranks和children数值对应，也有可能是多个children共一组ranks
+    std::vector<std::vector<u32>> ranksForInputDataGroup;
+    std::vector<std::vector<u32>> ranksForOutputDataGroup;
     BufferType inputBufferType{BufferType::INPUT};
     BufferType outputBufferType{BufferType::OUTPUT};
     BufferType cclBufferType{BufferType::HCCL_BUFFER};
@@ -90,7 +91,7 @@ private:
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
-    inline void MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
+    HcclResult MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);

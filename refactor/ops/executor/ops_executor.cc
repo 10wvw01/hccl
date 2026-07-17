@@ -59,11 +59,11 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
     // 循环下发阶段（按照每轮最大处理数据量，循环展开）
     u64 loopTimes = (dataCount + maxProcCntPerLoop - 1) / maxProcCntPerLoop;
     u64 offsetCount = 0;
-    // dataStride是每张卡输入或者输出的总数据大小，allgather的输入含义不一样    
+    // dataStride是每张卡输入或者输出的总数据大小，allgather的输入含义不一样
     u64 dataStride = dataInfo_.inputSize / rankSize_;
     if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER) {
         dataStride = dataInfo_.inputSize;
-    }    
+    }
     for (u64 loopIdx = 0; loopIdx < loopTimes; ++loopIdx) {
         u64 processCount = maxProcCntPerLoop;
         if (loopIdx == loopTimes - 1) {
@@ -82,10 +82,9 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
             loopIdx, processCount, offsetCount, tailCount);
         // 非allgather的dataOffset是每卡数据内的偏移（offsetCount/rankSize），allgather是整个输入的偏移
         u64 dataOffset = (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER)
-            ? offsetCount * dataTypeSize_
-            : (offsetCount / rankSize_) * dataTypeSize_;
-        InitAlgoExecDataDesc(
-            algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
+                             ? offsetCount * dataTypeSize_
+                             : (offsetCount / rankSize_) * dataTypeSize_;
+        InitAlgoExecDataDesc(algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
         OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
         // 偏移增加
         offsetCount += processCount;
@@ -368,12 +367,12 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
     algoExecDataDesc.cclBufferType = BufferType::HCCL_BUFFER;
     if (algo_.hcclCmdType == HCCL_CMD_ALLGATHER) {
         algoExecDataDesc.sliceCount = dataCount;
-        algoExecDataDesc.ranksForInputData.emplace_back(myRank_);
+        algoExecDataDesc.ranksForInputDataGroup.push_back({myRank_});
     } else {
         algoExecDataDesc.sliceCount = dataCount / rankSize_;
-        for (int i = 0; i < rankSize_; i++) {
-            algoExecDataDesc.ranksForInputData.emplace_back(i);
-        }
+        std::vector<u32> ranksForInputData(rankSize_);
+        std::iota(ranksForInputData.begin(), ranksForInputData.end(), 0);
+        algoExecDataDesc.ranksForInputDataGroup.push_back(std::move(ranksForInputData));
     }
     // 初始化之后这个值递归过程中不再变化，后续传递给template使用
     algoExecDataDesc.scratchStride = algoExecDataDesc.sliceCount * dataTypeSize_;
@@ -397,9 +396,15 @@ inline void OpsExecutor::GenTemplateDataParams(
     templateDataParams.reduceOp = dataInfo_.reduceOp;
     templateDataParams.root = root_;
     templateDataParams.enableRemoteMemAccess = opMode_ == OpMode::OFFLOAD;
-    templateDataParams.ranksForInputData = algoExecDataDesc.ranksForInputData;
     templateDataParams.dataStride = algoExecDataDesc.dataStride;
     templateDataParams.scratchStride = algoExecDataDesc.scratchStride;
+    // 如果是template就只能有1组ranks，否则就会出错
+    if (algoExecDataDesc.ranksForInputDataGroup.size() != 1) {
+        HCCL_ERROR("[GenTemplateDataParams] ranksForInputDataGroup size = %d!",
+            algoExecDataDesc.ranksForInputDataGroup.size());
+        return;
+    }
+    templateDataParams.ranksForInputData = algoExecDataDesc.ranksForInputDataGroup.at(0);
     return;
 }
 
@@ -425,6 +430,22 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     childrenAlgoExecDataDesc.at(childrenId).sliceCount = sliceCount;
     childrenAlgoExecDataDesc.at(childrenId).tailCount
         = (childrenId == childrenSize - 1) ? algoExecDataDesc.tailCount : 0;
+    // 如果父亲节点的ranksForInputDataGroup只有一个就都取父亲节点数据，否则取对应一个节点
+    childrenAlgoExecDataDesc.at(childrenId).ranksForInputDataGroup.clear();
+    size_t ranksForInputDataGroupSize = algoExecDataDesc.ranksForInputDataGroup.size();
+    if (ranksForInputDataGroupSize != 1 && ranksForInputDataGroupSize != childrenSize) {
+        HCCL_ERROR(
+            "[UpdateDataSplitParallel] ranksForInputDataGroupSize (%zu) matches neither 1 nor childrenSize (%zu)!",
+            ranksForInputDataGroupSize, childrenSize);
+        return;
+    }
+    if (ranksForInputDataGroupSize == 1) {
+        childrenAlgoExecDataDesc.at(childrenId)
+            .ranksForInputDataGroup.emplace_back(algoExecDataDesc.ranksForInputDataGroup.at(0));
+    } else {
+        childrenAlgoExecDataDesc.at(childrenId)
+            .ranksForInputDataGroup.emplace_back(algoExecDataDesc.ranksForInputDataGroup.at(childrenId));
+    }
     return;
 }
 
@@ -434,8 +455,8 @@ inline void OpsExecutor::UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, Alg
     size_t childrenSize = algoExecDesc.children.size();
     if (childrenId > 0) {
         // 如果是串行需要将当前节点的输入设置为上个子节点的输出
-        childrenAlgoExecDataDesc.at(childrenId).ranksForInputData
-            = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForOutputData;
+        childrenAlgoExecDataDesc.at(childrenId).ranksForInputDataGroup
+            = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputDataGroup;
         childrenAlgoExecDataDesc.at(childrenId).inputBufferType
             = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
     }
@@ -444,18 +465,43 @@ inline void OpsExecutor::UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, Alg
     return;
 }
 
-inline void OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
+HcclResult OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
     const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
+    if (childrenAlgoExecDataDesc.empty()) {
+        HCCL_ERROR("[MergeChildrenOutput] childrenAlgoExecDataDesc is empty.");
+        return HCCL_E_INTERNAL;
+    }
     if (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL) {
         u64 sliceCount = 0;
         for (const auto &child : childrenAlgoExecDataDesc) {
             sliceCount += child.sliceCount;
         }
         algoExecDataDesc.sliceCount = sliceCount;
+        bool allEqual = true;
+        const auto &first = childrenAlgoExecDataDesc[0].ranksForOutputDataGroup;
+        for (size_t i = 1; i < childrenAlgoExecDataDesc.size(); ++i) {
+            if (childrenAlgoExecDataDesc[i].ranksForOutputDataGroup != first) {
+                allEqual = false;
+                break;
+            }
+        }
+        if (allEqual) {
+            algoExecDataDesc.ranksForOutputDataGroup = childrenAlgoExecDataDesc.back().ranksForOutputDataGroup;
+        } else {
+            algoExecDataDesc.ranksForOutputDataGroup.clear();
+            for (const auto &child : childrenAlgoExecDataDesc) {
+                if (child.ranksForOutputDataGroup.empty()) {
+                    HCCL_ERROR("[MergeChildrenOutput] child.ranksForOutputDataGroup is empty.");
+                    return HCCL_E_INTERNAL;
+                }
+                algoExecDataDesc.ranksForOutputDataGroup.emplace_back(child.ranksForOutputDataGroup.at(0));
+            }
+        }
+    } else {
+        algoExecDataDesc.ranksForOutputDataGroup = childrenAlgoExecDataDesc.back().ranksForOutputDataGroup;
     }
-    algoExecDataDesc.ranksForOutputData = childrenAlgoExecDataDesc.back().ranksForOutputData;
-    return;
+    return HCCL_SUCCESS;
 }
 
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
@@ -472,8 +518,8 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
     HCCL_ERROR("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
-              "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
-              "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
+               "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
+               "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
         static_cast<int>(templateDataParams.inputBufferType), static_cast<int>(templateDataParams.outputBufferType),
         static_cast<int>(templateDataParams.cclBufferType), static_cast<int>(templateDataParams.dataType),
         templateDataParams.dataOffset, templateDataParams.sliceCount, templateDataParams.sliceOffset,
@@ -483,8 +529,9 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     for (size_t i = 0; i < templateDataParams.ranksForInputData.size(); ++i) {
         HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
     }
-    CHK_RET(
-        baseTemplate->KernelRun(*engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputData));
+    algoExecDataDesc.ranksForOutputDataGroup.resize(1);
+    CHK_RET(baseTemplate->KernelRun(
+        *engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
 }
 
@@ -515,7 +562,7 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
         }
     }
     // 整个执行器的数据输出直接用最后一个子节点的执行器的数据输出
-    MergeChildrenOutput(algoExecDesc, childrenAlgoExecDataDesc, algoExecDataDesc);
+    CHK_RET(MergeChildrenOutput(algoExecDesc, childrenAlgoExecDataDesc, algoExecDataDesc));
     // 如果是并行需要回到主流做尾同步
     if (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL && childrenSize > 1) {
         CHK_RET(PostSyncBySubCommMask(algoExecDesc));
