@@ -197,9 +197,11 @@ HcclResult InitEnvConfig()
     RPT_ENV_ERR(ret != HCCL_SUCCESS,
         "EI0001",
         std::vector<std::string>({"value", "env", "expect"}),
-        std::vector<std::string>({"PCIE enable: " + std::string(GetEnv("HCCL_INTRA_PCIE_ENABLE")) + " or ROCE enable: "
-        + std::string(GetEnv("HCCL_INTRA_ROCE_ENABLE")), "HCCL_INTRA_PCIE_ENABLE or HCCL_INTRA_ROCE_ENABLE",
-            "0 or 1 (but not both 1)"}));
+        std::vector<std::string>({
+            "PCIE enable: " + std::string(GetEnv("HCCL_INTRA_PCIE_ENABLE")) + " or ROCE enable: "
+            + std::string(GetEnv("HCCL_INTRA_ROCE_ENABLE")), 
+            "HCCL_INTRA_PCIE_ENABLE or HCCL_INTRA_ROCE_ENABLE", "0 or 1 (but not both 1)"
+        }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] In init env variable param, parse intra "
                    "comm type failed. errorno[%d]",
@@ -249,8 +251,9 @@ HcclResult InitEnvConfig()
     // 解析执行超时
     ret = ParseExecTimeout();
     RPT_ENV_ERR(ret != HCCL_SUCCESS, "EI0001", std::vector<std::string>({"value", "env", "expect"}),
-        std::vector<std::string>({GetEnv("HCCL_EXEC_TIMEOUT"), "HCCL_EXEC_TIMEOUT",
-        "a non-negative number with up to 2 decimals"}));
+        std::vector<std::string>({
+            GetEnv("HCCL_EXEC_TIMEOUT"), "HCCL_EXEC_TIMEOUT", "a non-negative number with up to 2 decimals"
+        }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] In init env variable param, parse HCCL_EXEC_TIMEOUT failed. "
             "errorno[%d]", HCCL_ERROR_CODE(ret), ret), ret);
@@ -260,8 +263,9 @@ HcclResult InitEnvConfig()
     const char* multipleDimensionSplitRatioEnv = std::getenv("HCCL_ALG_MULTIPLE_DIMENSION_SPLIT_RATIO");
     std::string multipleDimensionSplitRatioStr = (multipleDimensionSplitRatioEnv != nullptr) ? std::string(multipleDimensionSplitRatioEnv) : "EmptyString";
     RPT_ENV_ERR(ret != HCCL_SUCCESS, "EI0001", std::vector<std::string>({"value", "env", "expect"}),
-        std::vector<std::string>({multipleDimensionSplitRatioStr, "HCCL_ALG_MULTIPLE_DIMENSION_SPLIT_RATIO",
-        "a non-negative number"}));
+        std::vector<std::string>({
+            multipleDimensionSplitRatioStr, "HCCL_ALG_MULTIPLE_DIMENSION_SPLIT_RATIO", "a non-negative number"
+        }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] In init env variable param, parse HCCL_ALG_MULTIPLE_DIMENSION_SPLIT_RATIO failed. "
             "errorno[%d]", HCCL_ERROR_CODE(ret), ret), ret);
@@ -271,8 +275,10 @@ HcclResult InitEnvConfig()
     RPT_ENV_ERR(ret != HCCL_SUCCESS,
         "EI0001",
         std::vector<std::string>({"value", "env", "expect"}),
-        std::vector<std::string>({GetEnv("HCCL_ALGO"), "HCCL_ALGO",
-            "level0:NA;level1:<algo> or <op0>=level0:NA;level1:<algo0>/<op1>=level0:NA;level1:<algo1>"}));
+        std::vector<std::string>({
+            GetEnv("HCCL_ALGO"), "HCCL_ALGO",
+            "level0:NA;level1:<algo> or <op0>=level0:NA;level1:<algo0>/<op1>=level0:NA;level1:<algo1>"
+        }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[Init][EnvVarParam]errNo[0x%016llx] In init env variable param, parse "
                    "hccl algorithm config failed. errorno[%d]",
@@ -301,8 +307,10 @@ HcclResult InitEnvConfig()
     RPT_ENV_ERR(ret != HCCL_SUCCESS,
         "EI0001",
         std::vector<std::string>({"value", "env", "expect"}),
-        std::vector<std::string>({dfsEnvValue, "HCCL_DFS_CONFIG",
-            "inconsistent_check:on or inconsistent_check:first or inconsistent_check:off"}));
+        std::vector<std::string>({
+            dfsEnvValue, "HCCL_DFS_CONFIG",
+            "inconsistent_check:on or inconsistent_check:first or inconsistent_check:off"
+        }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[InitEnvParam]errNo[0x%016llx] In init environment param, parse "
                    "HCCL_DFS_CONFIG failed. errorno[%d]",
@@ -964,8 +972,8 @@ HcclResult ParseDeterministic()
         CHK_RET(HcclGetDeviceType(deviceType));
         // 规约保序支持A2 A3 A5场景
         bool supportedDevice = false;
-        supportedDevice = (deviceType == HcclDevType::DEV_TYPE_910B || 
-                          deviceType == HcclDevType::DEV_TYPE_910_93 || 
+        supportedDevice = (deviceType == HcclDevType::DEV_TYPE_910B ||
+                          deviceType == HcclDevType::DEV_TYPE_910_93 ||
                           deviceType == HcclDevType::DEV_TYPE_950);
         if (!supportedDevice) {
             HCCL_ERROR("HCCL_DETERMINISTIC is set to [%s], Reduce order preservation is not supported for "
