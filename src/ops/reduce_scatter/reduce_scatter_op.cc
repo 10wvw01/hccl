@@ -185,19 +185,20 @@ bool ReduceScatterSupportSymmetricMemory(OpParam &opParam)
     HcclResult ret = HcclCommSymWinGet(opParam.hcclComm, opParam.inputPtr, opParam.inputSize,
                                        &opParam.inputSymWindow, &inputOffset);
     CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.inputSymWindow == nullptr,
-                HCCL_INFO("[%s] input[%p] size[%llu] is not support symmetric memory",
-                    __func__, opParam.inputPtr, opParam.inputSize), false);
+                HCCL_INFO("[ReduceScatterSupportSymmetricMemory] input symmetric-window lookup failed; "
+                          "disable symmetric-memory optimization, input[%p], size[%llu], ret[%d].",
+                          opParam.inputPtr, opParam.inputSize, ret), false);
     ret = HcclCommSymWinGet(opParam.hcclComm, opParam.outputPtr, opParam.outputSize,
                             &opParam.outputSymWindow, &outputOffset);
     CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.outputSymWindow == nullptr,
-                HCCL_INFO("[%s] output[%p] size[%llu] is not support symmetric memory",
-                    __func__, opParam.outputPtr, opParam.outputSize), false);
+                HCCL_INFO("[ReduceScatterSupportSymmetricMemory] output symmetric-window lookup failed; "
+                          "disable symmetric-memory optimization, output[%p], size[%llu], ret[%d].",
+                          opParam.outputPtr, opParam.outputSize, ret), false);
     opParam.supportSymmetricMemory = true;
     opParam.inputOffset = inputOffset;
     opParam.outputOffset = outputOffset;
     return true;
 }
-
 HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
     HcclReduceOp op, HcclComm comm, aclrtStream stream, u32 userRankSize)
 {
@@ -237,6 +238,7 @@ HcclResult ReduceScatterOutPlace(OpParam &param, void *sendBuf, void *recvBuf, u
         return HcclResult::HCCL_SUCCESS;
     }
     if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE) {
+        // 窗口探测失败只关闭对称内存优化，算子继续使用普通内存路径执行。
         ReduceScatterSupportSymmetricMemory(param);
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName));
