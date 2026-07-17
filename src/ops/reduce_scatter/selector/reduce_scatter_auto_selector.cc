@@ -18,7 +18,7 @@ namespace ops_hccl {
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
 constexpr u64 RS_AICPU_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
-constexpr u64 RS_FLATTEN_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 RS_FLATTEN_MAX_DATA_SIZE = 512 * 1024;
 constexpr u64 RS_AICPU_1D_MIN_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 RS_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD = 1536 * 1024 * 1024;
 
@@ -29,7 +29,6 @@ constexpr u64 RS_AICPU_SEQUENCE_SIZE_THRESHOLD = 4ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_RS_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_SCHED_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_MS_DATA_SIZE = 2 * 1024 * 1024;
-constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 SelectorStatus ReduceScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
@@ -130,6 +129,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                                                     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     (void)configAlgMap;
     u32 ccuSize = 64;
     
@@ -174,8 +178,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                 HCCL_WARNING("[ReduceScatterAutoSelector] dataType[%d] is not supported yet for ccu schedule mode.",
                     opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
-                if ((dataSize * topoInfo->userRankSize) <= RS_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize && (!IsInputOutputOverlap(opParam))) {
+                if ((dataSize * topoInfo->userRankSize) < RS_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize && (!IsInputOutputOverlap(opParam))) {
                     selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
+                    return SelectorStatus::MATCH;
+                } else if (dataSize * topoInfo->userRankSize < RS_CCU_64P_SEQ_DATA_SIZE && topoInfo->userRankSize < ccuSize) {
+                    selectAlgName = "CcuReduceScatterSequenceMeshMesh";
                     return SelectorStatus::MATCH;
                 } else if (dataSize * topoInfo->userRankSize <= RS_CCU_64P_SEQ_DATA_SIZE && topoInfo->userRankSize == ccuSize) {
                     selectAlgName = "CcuReduceScatterSequenceMeshMesh";
@@ -429,6 +436,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLay
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     // 保序模式不支持AIV，需要回退到AICPU
     CHK_PRT_RET(IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize),
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector] DETERMINISTIC_STRICT mode is not supported yet for AIV mode."),
@@ -492,26 +505,25 @@ SelectorStatus ReduceScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLay
 
     // DPU算法仅支持2层拓扑
     if (topoInfo->topoLevelNums > 1) {
-        // 检查是否配置了NHR算法（level1）
-        bool useNhr = (algos[1] == HcclAlgoType::HCCL_ALGO_TYPE_NHR);
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsV2ReduceScatterOmniPipe";
+                HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
+                return SelectorStatus::MATCH;
+            }
+        }
 
-        if (useNhr && (topoInfo->level0Topo == Level0Shape::MESH_1D ||
-                       topoInfo->level0Topo == Level0Shape::CLOS)) {
-            // 使用NHR DPU executor：InsTempReduceScatterNhrDpu（框内）+ NHR DPU（框间）
+        // 对于MESH_1D、CLOS或MESH_1D_CLOS的PCIE混合场景
+        // 根据配置决定使用NHR还是Mesh
+        bool useNhr = (algos[1] == HcclAlgoType::HCCL_ALGO_TYPE_NHR);
+        if (useNhr) {
             selectAlgName = "InsReduceScatterSequenceMeshNhrDPU";
             HCCL_INFO("Using algo InsReduceScatterSequenceMeshNhrDPU");
-            return SelectorStatus::MATCH;
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsV2ReduceScatterOmniPipe";
-            HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
-            return SelectorStatus::MATCH;
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D ||
-                   topoInfo->level0Topo == Level0Shape::CLOS) {
-            // 默认使用 Mesh1D DPU executor
+        } else {
             selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
             HCCL_INFO("Using algo InsReduceScatterSequenceMeshMeshDPU");
-            return SelectorStatus::MATCH;
         }
+        return SelectorStatus::MATCH;
     }
 
     return SelectorStatus::NOT_MATCH;

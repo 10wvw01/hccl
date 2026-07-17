@@ -25,7 +25,6 @@ constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 OMNI_UBX_AG_DATA_SIZE = 16 * 1024 * 1024;
-constexpr u32 TOPO_LEVEL_NUM_3 = 3;
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
@@ -181,19 +180,24 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[AllGatherAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     (void)configAlgMap;
     u32 ccuMaxSize = 64;
     u32 ccuSize = 32;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->topoLevelNums > 1) {
-        constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
-        if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize > MAX_RANK_NUM_FOR_SEQ_ALGO) {
-            HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
-            return SelectorStatus::NOT_MATCH;
-        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
+            if (dataSize >= AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize > MAX_RANK_NUM_FOR_SEQ_ALGO) {
+                HCCL_INFO("[AllGatherAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
+                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+                return SelectorStatus::NOT_MATCH;
+            }
             // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
                 HCCL_WARNING("[Algo][AllGatherAutoSelector] ccu_sched does not support inplace allgather."),
@@ -350,6 +354,12 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
         return SelectorStatus::NOT_MATCH;
     }
 
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     void *cclBufferAddr;
     uint64_t cclBufferSize;
     CHK_PRT_RET(HcclGetHcclBuffer(opParam.hcclComm, &cclBufferAddr, &cclBufferSize) != HCCL_SUCCESS,
@@ -386,9 +396,15 @@ SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
             HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsV2AllGatherOmniPipe";
-            HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsV2AllGatherOmniPipe";
+                HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
+                return SelectorStatus::MATCH;
+            } else {
+                selectAlgName = "InsAllGatherMeshNhrDPU";
+                HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
+                return SelectorStatus::MATCH;
+            }
         } 
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] end", __func__);

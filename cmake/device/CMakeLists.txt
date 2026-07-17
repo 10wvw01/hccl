@@ -18,6 +18,9 @@ project(hccl_device)
 # 初始化 CANN 项目配置
 init_cann_project(PREPEND_MODULE_PATH)
 
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH})
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH})
+
 message(STATUS "BUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}")
 message(STATUS "ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}")
 message(STATUS "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}")
@@ -26,10 +29,26 @@ message(STATUS "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}")
 include(${HCCL_DIR}/cmake/config.cmake)
 include(${HCCL_DIR}/cmake/func.cmake)
 
+find_cann_package(msprof MODULE REQUIRED)
+find_cann_package(unified_dlog MODULE REQUIRED)
+find_cann_package(mmpa MODULE REQUIRED)
+find_cann_package(runtime MODULE REQUIRED)
+find_cann_package(hcomm MODULE REQUIRED)
+find_cann_package(asc_devkit MODULE REQUIRED)
+
 # 添加子目录
 add_cann_subdirectories_relative(${HCCL_DIR}
     ${HCCL_DIR}/src
 )
+
+# 实验特性: 复用 experimental/ops/CMakeLists.txt 中 if(TARGET scatter_aicpu_kernel) 的注入逻辑
+# (sources / includes / ENABLE_EXPERIMENTAL 定义),与 host 侧构建保持单一来源;新增实验算子
+# 无需在此同步维护。必须在 add_cann_subdirectories_relative(src) 之后调用,以保证
+# scatter_aicpu_kernel 目标已存在;experimental 子目录的 target_sources(hccl ...) 已用
+# if(TARGET hccl) 守护,device 构建无 hccl 目标时自动跳过。
+if(ENABLE_EXPERIMENTAL)
+    add_subdirectory(${HCCL_DIR}/experimental/ops experimental/ops)
+endif()
 
 pack_targets_and_files(
     OUTPUT_TARGET "generate_device_aicpu_package"

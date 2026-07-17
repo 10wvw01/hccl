@@ -144,8 +144,6 @@ HcclResult SaveMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle 
 
 HcclResult GetMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle &thread, u32 &notifyNum);
 
-HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo);
-
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
                          std::string &algName);
 
@@ -190,7 +188,9 @@ HcclResult GetAivParamStorage(const char *group, AivParamStorage **aivParam);
 
 HcclResult GetAivParamStorageByComm(HcclComm comm, AivParamStorage **aivParam, bool ifCreate);
 
-HcclResult SetMultipleDimensionSplitRatio(OpParam &param);
+HcclResult SetMultipleDimensionSplitRatio(HcclComm comm, OpParam &param);
+
+HcclResult GetCommMultipleDimensionSplitRatio(HcclComm comm, double &ratio, bool &isConfigured);
 
 HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetails* topoInfo, bool &hostDPUOnly);
 

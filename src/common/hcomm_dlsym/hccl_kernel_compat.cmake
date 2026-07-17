@@ -28,15 +28,17 @@ target_compile_options(hccl_kernel_compat PRIVATE
     -fstack-protector-all
 )
 
+target_link_libraries(hccl_kernel_compat PRIVATE
+    $<BUILD_INTERFACE:runtime_headers>
+    $<BUILD_INTERFACE:hcomm_headers>
+    unified_dlog
+)
+
 target_link_options(hccl_kernel_compat PRIVATE
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-z,noexecstack
     $<$<CONFIG:Release>:-s>
-)
-
-target_link_directories(hccl_kernel_compat PRIVATE
-    ${ASCEND_CANN_PACKAGE_PATH}/devlib/device
 )
 
 install(TARGETS hccl_kernel_compat

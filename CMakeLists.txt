@@ -59,13 +59,16 @@ include(cmake/fetch_cann_cmake.cmake)
 project(hccl)
 
 # 初始化 CANN 项目配置
-init_cann_project()
+init_cann_project(PREPEND_MODULE_PATH)
 
 # 采用 C++14 标准
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_FLAGS_RELEASE "")
 set(CMAKE_CXX_FLAGS_RELEASE "")
+
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH})
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${RULE_LAUNCH})
 
 if(ENABLE_TEST)
     include(cmake/config.cmake)
@@ -123,7 +126,19 @@ elseif(BUILD_OPEN_PROJECT)
     include(cmake/package.cmake)
     include(cmake/func.cmake)
     include(version.cmake)
-    
+
+    find_cann_package(acl_rt MODULE REQUIRED)
+    find_cann_package(msprof MODULE REQUIRED)
+    find_cann_package(securec MODULE REQUIRED)
+    find_cann_package(unified_dlog MODULE REQUIRED)
+    find_cann_package(mmpa MODULE REQUIRED)
+    find_cann_package(runtime MODULE REQUIRED)
+    find_cann_package(error_manager MODULE REQUIRED)
+    find_cann_package(graph MODULE REQUIRED)
+    find_cann_package(asc_devkit MODULE REQUIRED)
+    find_cann_package(tsdclient MODULE REQUIRED)
+    find_cann_package(hcomm MODULE REQUIRED)
+
     # 检查构建依赖
     check_pkg_build_deps("hccl")
     add_version_info_targets()
@@ -152,11 +167,14 @@ elseif(BUILD_OPEN_PROJECT)
                 -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                 -DCMAKE_INSTALL_PREFIX=${HCCL_DEVICE_BUILD_PATH}/_install
                 -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
+                -DASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}
                 -DBUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}
                 -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
                 -DENABLE_SIGN=${ENABLE_SIGN}
                 -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
                 -DVERSION_INFO=${VERSION_INFO}
+                -DENABLE_EXPERIMENTAL=${ENABLE_EXPERIMENTAL}
+                -DRULE_LAUNCH=${RULE_LAUNCH}
             INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
             BUILD_ALWAYS TRUE
         )

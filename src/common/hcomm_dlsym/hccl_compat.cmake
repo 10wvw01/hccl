@@ -63,6 +63,8 @@ else()
 
     if(BUILD_OPEN_PROJECT)
         target_link_libraries(hccl_compat PRIVATE
+            $<BUILD_INTERFACE:runtime_headers>
+            $<BUILD_INTERFACE:hcomm_headers>
             -Wl,--no-as-needed
             unified_dlog
             acl_rt
@@ -77,10 +79,6 @@ else()
             -Wl,--no-as-needed
         )
     endif()
-
-    target_link_directories(hccl_compat PRIVATE
-        ${ASCEND_CANN_PACKAGE_PATH}/lib64
-    )
 
     install(TARGETS hccl_compat
         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 

@@ -248,10 +248,20 @@ void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTempl
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 void InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GetParallelDataSplit(std::vector<float> &splitDataSize) const
 {
-    double splitData = multipleDimensionSplitRatio_;
-    splitDataSize.push_back(splitData);
-    splitDataSize.push_back(1 - splitData);
-    HCCL_INFO("[InsReduceScatterParallelExecutor] splitDataSize is %f, %f", splitDataSize[0], splitDataSize[1]);
+    double ratio = multipleDimensionSplitRatio_;
+    if (multipleDimensionSplitRatioSource_ == MultipleDimensionSplitRatioSource::BUILTIN_FORMULA) {
+        ratio = CalcParallelDataSplitRatio(
+            rankSizeLevel0_,
+            rankSizeLevel1_,
+            intraChannelMap_,
+            interChannelMap_,
+            ParallelDataSplitType::REDUCE_SCATTER_WITH_LOCAL_REDUCE,
+            multipleDimensionSplitRatio_);
+    }
+    splitDataSize.push_back(ratio);
+    splitDataSize.push_back(1.0 - ratio);
+    HCCL_INFO("[InsReduceScatterParallelExecutor] meshFirstRatio[%f], closFirstRatio[%f]",
+              splitDataSize[0], splitDataSize[1]);
     return;
 }
 
@@ -355,6 +365,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     HCCL_INFO("[InsReduceScatterParallelExecutor] AlgTemplate inter server is [%s]", tempAlgIntra.Describe().c_str());
     HCCL_INFO("[InsReduceScatterParallelExecutor] AlgTemplate intra server is [%s]", tempAlgInter.Describe().c_str());
     multipleDimensionSplitRatio_ = param.opConfig.multipleDimensionSplitRatio;
+    multipleDimensionSplitRatioSource_ = param.opConfig.multipleDimensionSplitRatioSource;
     std::vector<float> dataSplitSize;
     GetParallelDataSplit(dataSplitSize);
     u64 alignedSize = 16 * 1024; //假设需要16K对齐
