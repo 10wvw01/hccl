@@ -13,6 +13,7 @@
 #include "hccl_aiv_utils.h"
 #include "ins_v2_all_reduce_order_preserved_executor.h"
 #include "order_preserved_common.h"
+#include "op_common.h"
 
 namespace ops_hccl {
 constexpr u64 RS_MAX_DATA_SIZE = 16 * 1024 * 1024;
@@ -613,8 +614,16 @@ SelectorStatus AllReduceAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDe
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             if (!topoInfo->level0PcieMix) {
-                selectAlgName = "InsV2AllReduceOmniPipe";
-                HCCL_INFO("Using algo InsV2AllReduceOmniPipe");
+                const char* enableNda = std::getenv("ENABLE_NDA");
+                bool isSupportNda = false;
+                if ((enableNda != nullptr) && (strcmp(enableNda, "1") == 0) &&
+                    (CheckSupportNda(opParam.hcclComm, topoInfo, isSupportNda) == HCCL_SUCCESS) && isSupportNda) {
+                    selectAlgName = "InsV2AllReduceNdaOmniPipe";
+                    HCCL_INFO("Using algo InsV2AllReduceNdaOmniPipe");
+                } else {
+                    selectAlgName = "InsV2AllReduceOmniPipe";
+                    HCCL_INFO("Using algo InsV2AllReduceOmniPipe");
+                }
                 return SelectorStatus::MATCH;
             } else {
                 selectAlgName = "InsAllReduceSequenceMeshNhrDPU";
