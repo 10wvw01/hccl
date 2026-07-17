@@ -41,8 +41,8 @@ typedef struct {
 constexpr uint32_t HCOMM_HOST_MAX_TASK_ARG_NUM = 10;
 
 struct HcommHostKernelArgs {
-    uint64_t taskArgs[HCOMM_HOST_MAX_TASK_ARG_NUM];
-    uint32_t taskArgNum;
+    // uint64_t taskArgs[HCOMM_HOST_MAX_TASK_ARG_NUM];
+    // uint32_t taskArgNum;
     void *kernelArg;
 };
 
@@ -76,9 +76,8 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
 
     const void *kernelArgs[] = {launchArgs->kernelArg};
 
-    constexpr uint32_t dieId = 1; // 预留接口，暂无含义
     constexpr uint32_t kernelArgNum = 1;
-    CcuResult regRet = HcommCcuKernelRegister(cfg->ccuIns, dieId, attrs->kernelName,
+    CcuResult regRet = HcommCcuKernelRegister(cfg->ccuIns, cfg->ccuSchd.phyDieMask, attrs->kernelName,
                                                 reinterpret_cast<void*>(kernelFunc),
                                                 kernelArgs, kernelArgNum, attrs->kernelHandle); // 注册kernel
 
@@ -96,11 +95,11 @@ HcclResult HcommCcuHostKernelLaunch(__CcuHostKernelFunc kernelFunc, HcommLaunchK
     // Todo: 根据kernelHandle获取taskArgs参数个数 当前 case taskargLen 是10
     // uint32_t sqeArgsNums = HcommCcuArgsNumGet(*attrs->kernelHandle);
 
-    CcuResult launchRet = HcommCcuKernelLaunch(attrs->thread, *attrs->kernelHandle,
-                                                launchArgs->taskArgs, launchArgs->taskArgNum);
-    // Todo : taskargs通过aicore写入，不通过kernellaunch传递
     // CcuResult launchRet = HcommCcuKernelLaunch(attrs->thread, *attrs->kernelHandle,
-    //                                             nullptr, 0);
+    //                                             launchArgs->taskArgs, launchArgs->taskArgNum);
+    // Todo : taskargs通过aicore写入，不通过kernellaunch传递
+    CcuResult launchRet = HcommCcuKernelLaunch(attrs->thread, *attrs->kernelHandle,
+                                                nullptr, 0);
     if (launchRet != CCU_SUCCESS) {
         HCCL_ERROR("[CcuTempAllGatherMesh1DMem2Mem::ExecOp] kernel launch failed, ccuRet -> %d", launchRet);
         return ConvertCcuToHccl(launchRet);
@@ -173,23 +172,26 @@ static HcclResult LaunchCcuKernel(HcclComm comm, const OpParam &param, AlgResour
     };
     cfg.attrs = &attrs;
 
+    // HcommHostKernelArgs launchArgs = {
+    //     {
+    //         inputAddr,
+    //         outputAddr,
+    //         token,
+    //         currentRankSliceInputOffset,
+    //         currentRankSliceOutputOffset,
+    //         sliceSize,
+    //         goSize[0],
+    //         goSize[1],
+    //         goSize[2],
+    //         goSize[3]
+    //     },
+    //     10,
+    //     kernelInfo.kernelArg,
+    // };
+
     HcommHostKernelArgs launchArgs = {
-        {
-            inputAddr,
-            outputAddr,
-            token,
-            currentRankSliceInputOffset,
-            currentRankSliceOutputOffset,
-            sliceSize,
-            goSize[0],
-            goSize[1],
-            goSize[2],
-            goSize[3]
-        },
-        10,
         kernelInfo.kernelArg,
     };
-
 
     CHK_RET(HcommCcuHostKernelLaunch(reinterpret_cast<__CcuHostKernelFunc *>(kernelInfo.kernelFunc), &cfg,
                                      &launchArgs));

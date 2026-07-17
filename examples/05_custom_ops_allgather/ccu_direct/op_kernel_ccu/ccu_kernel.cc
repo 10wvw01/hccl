@@ -194,6 +194,23 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
 {
     auto *kernelArg = static_cast<CcuKernelArgAllGatherMesh1DMem2Mem *>(arg);
 
+    // Todo : HcommCcuVariableAlloc接口申请的资源与本kernel内ctx里初始 物理资源ID重叠 先预留
+    ccu::Variable inputPlaceHolder;
+    ccu::Variable outputPlaceHolder0;
+    ccu::Variable outputPlaceHolder1;
+    ccu::Variable tokenPlaceHolder0;
+    ccu::Variable tokenPlaceHolder1;
+    ccu::Variable currentRankSliceInputOffsetPlaceHolder;
+    ccu::Variable currentRankSliceOutputOffsetPlaceHolder;
+    ccu::Variable sliceSizePlaceHolder;
+    ccu::Variable goSizePlaceHolder0;
+    ccu::Variable goSizePlaceHolder1;
+    ccu::Variable goSizePlaceHolder2;
+    ccu::Variable goSizePlaceHolder3;
+
+    ccu::Event eventPlaceHolder0;
+    ccu::Event eventPlaceHolder1;
+
     AllGatherMesh1DMem2MemContext ctx;
     ctx.arg = kernelArg;
 
@@ -220,30 +237,30 @@ CcuResult CcuAllGatherMesh1DMem2MemKernel(CcuKernelArg arg)
     ccu::EventWait(events[0]);
 
     // 2.加载参数
-    uint32_t argId = 0;
-    CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.output[ctx.arg->rankId], argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.arg->rankId], argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceInputOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceOutputOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.addrOffset, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.loopParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.parallelParam, argId++));
-    CCU_CHK_RET(ccu::LoadArg(ctx.goSize.residual, argId++));
+    // uint32_t argId = 0;
+    // CCU_CHK_RET(ccu::LoadArg(ctx.input, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.output[ctx.arg->rankId], argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.arg->rankId], argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceInputOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.currentRankSliceOutputOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.addrOffset, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.loopParam, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.parallelParam, argId++));
+    // CCU_CHK_RET(ccu::LoadArg(ctx.goSize.residual, argId++));
 
     // Todo: 读取aicore中设置的taskargs
-    // ccu::Array<ccu::Variable> vars(ctx.arg->varHandle, ctx.arg->varNum);
-    // ctx.input = vars[0];
-    // ctx.output[ctx.arg->rankId] = vars[1];
-    // ctx.token[ctx.arg->rankId] = vars[2];
-    // ctx.currentRankSliceInputOffset = vars[3];
-    // ctx.currentRankSliceOutputOffset = vars[4];
-    // ctx.sliceSize = vars[5];
-    // ctx.goSize.addrOffset = vars[6];
-    // ctx.goSize.loopParam = vars[7];
-    // ctx.goSize.parallelParam = vars[8];
-    // ctx.goSize.residual = vars[9];
+    ccu::Array<ccu::Variable> vars(ctx.arg->varHandle, ctx.arg->varNum);
+    ctx.input = vars[0];
+    ctx.output[ctx.arg->rankId] = vars[1];
+    ctx.token[ctx.arg->rankId] = vars[2];
+    ctx.currentRankSliceInputOffset = vars[3];
+    ctx.currentRankSliceOutputOffset = vars[4];
+    ctx.sliceSize = vars[5];
+    ctx.goSize.addrOffset = vars[6];
+    ctx.goSize.loopParam = vars[7];
+    ctx.goSize.parallelParam = vars[8];
+    ctx.goSize.residual = vars[9];
 
 
     // 3.前同步
