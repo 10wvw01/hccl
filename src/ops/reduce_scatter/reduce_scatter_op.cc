@@ -71,7 +71,7 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
 
 HcclResult HcclReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType,
     HcclReduceOp op, const char* group, aclrtStream stream, const char* tag, void** streams,
- 	size_t streamCount, void* scratchMemAddr, uint64_t scratchMemSize)
+    size_t streamCount, void* scratchMemAddr, uint64_t scratchMemSize)
 {
     HCCL_INFO("Start to run execute HcclReduceScatterGraphMode");
     CHK_PTR_NULL(group);

@@ -48,8 +48,7 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     // 校验sendCounts全部为0的情况
     const u64* sendCountsAddr = reinterpret_cast<const u64*>(sendCounts);
     CHK_PRT_RET(std::all_of(sendCountsAddr, sendCountsAddr + rankSize, [](auto count) { return count == 0; }),
-            HCCL_WARNING("input all %u elements in sendCounts are 0, return success", rankSize),
-            HCCL_SUCCESS);
+        HCCL_WARNING("input all %u elements in sendCounts are 0, return success", rankSize), HCCL_SUCCESS);
     u32 userRank = INVALID_VALUE_RANKID;
     CHK_RET(HcclGetRankId(comm, &userRank));
     char commName[COMM_INDENTIFIER_MAX_LENGTH];

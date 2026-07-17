@@ -1591,8 +1591,9 @@ HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceReques
     return HCCL_SUCCESS;
 }
 
-HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &param, std::vector<HcclChannelDesc>& channelRequest,
-                              const CommEngine commEngine, AlgResourceCtxSerializable* resCtxHost, MemRegInfo &memRegInfo)
+HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &param,
+    std::vector<HcclChannelDesc>& channelRequest, const CommEngine commEngine,
+    AlgResourceCtxSerializable* resCtxHost, MemRegInfo &memRegInfo)
 {
     // 获取子通信域的建链数量
     if (channelRequest.empty()) {
@@ -1665,7 +1666,7 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
     return HCCL_SUCCESS;
 }
 
-HcclResult RegGraphModeBuffers(HcclComm comm, const OpParam &param,char* inputBuffTag,
+HcclResult RegGraphModeBuffers(HcclComm comm, const OpParam &param, char* inputBuffTag,
                                char* outputBuffTag, std::vector<HcclMemHandle>& memHandles)
 {
     HCCL_INFO("[RegGraphModeBuffers] param.tag[%s]", param.tag);
