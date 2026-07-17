@@ -29,7 +29,7 @@ HcclResult TopoMatch1D::MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* to
             topoInfo->topoLevelNums),
         HCCL_E_INTERNAL);
 
-    CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_950,
+    CHK_PRT_RET(topoInfo->deviceType != HcclDevType::DEV_TYPE_950,
         HCCL_ERROR("[CollAlgFactory] [TopoMatchMesh] Rank [%d], deviceType not supported yet.", myRank),
         HcclResult::HCCL_E_PARA);
 
