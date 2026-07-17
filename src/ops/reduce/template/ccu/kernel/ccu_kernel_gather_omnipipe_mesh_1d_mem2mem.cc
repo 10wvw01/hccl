@@ -23,9 +23,6 @@ static CcuResult ParseKernelArg(GatherOmniPipeMesh1DMem2MemContext &ctx, CcuKern
     ctx.arg = kernelArg;
     ctx.rankSize = kernelArg->rankSize;
     ctx.rankId = kernelArg->rankId;
-    // ctx.rootId = kernelArg->rootId;
-    // ctx.dataType = kernelArg->opParam.DataDes.dataType;
-    // ctx.subRankIdx2RankIdx = kernelArg->subRankIdx2RankIdx;
     return CCU_SUCCESS;
 }
 
@@ -69,8 +66,6 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.token[ctx.rankId], argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.localCopyFlag, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.sliceSize, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.inputOmniPipeSliceStride, argId++));
-    // CCU_CHK_RET(ccu::LoadArg(ctx.outputOmniPipeSliceStride, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
