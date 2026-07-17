@@ -1586,7 +1586,6 @@ HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceReques
         CHK_RET(HcclGetChannelImpl(level, comm, param, deviceChannelRequest, COMM_ENGINE_AICPU_TS, resCtxHost, memRegInfo));
         // host建链
         CHK_RET(HcclGetChannelImpl(level, comm, param, hostChannelRequest, COMM_ENGINE_CPU, resCtxHost, memRegInfo));
-
     }
     return HCCL_SUCCESS;
 }
