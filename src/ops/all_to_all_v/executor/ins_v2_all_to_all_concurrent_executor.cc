@@ -371,10 +371,10 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     std::vector<u64> processedDataCount = {0, 0};
     u32 notifyPreSyncIdx = resCtx.slaveThreadNum - resCtx.notifyNumOnMainThread;
     u32 notifyPostSyncIdx = resCtx.notifyNumOnMainThread - 1;
-    std::vector<u32> notifyPreSync = {notifyPreSyncIdx};
-    std::vector<u32> notifyPostSync = {notifyPostSyncIdx};
+    std::vector<u32> notifyIdxesMainToSub = {notifyPreSyncIdx};
+    std::vector<u32> notifyIdxesSubToMain = {notifyPostSyncIdx};
     u64 loop = 0;
-    CHK_RET(PreSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notifyPreSync));
+    CHK_RET(PreSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notifyIdxesMainToSub));
     while (loop < loopTimes0 || loop < loopTimes1) {
         if (loop < loopTimes0) {
             u64 currDataCount = (loop == loopTimes0 - 1) ?
@@ -395,7 +395,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         }
         loop++;
     }
-    CHK_RET(PostSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notifyPostSync));
+    CHK_RET(PostSyncInterThreads(templateAlgRes0.threads[0], {templateAlgRes1.threads[0]}, notifyIdxesSubToMain));
 #ifndef AICPU_COMPILE
     if (loopTimes0 == 1 && loopTimes1 == 1 && param.engine == CommEngine::COMM_ENGINE_CCU && param.opMode != OpMode::OFFLOAD) {
         CHK_RET(FastLaunchSaveCtx(param, templateAlgRes0, templateAlgRes1, resCtx.notifyNumOnMainThread));
