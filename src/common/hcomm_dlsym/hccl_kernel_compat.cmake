@@ -18,6 +18,11 @@ add_library(hccl_kernel_compat SHARED
 
 hccl_apply_cann_compat(hccl_kernel_compat)
 
+target_include_directories(hccl_kernel_compat BEFORE PRIVATE
+    ${ASCEND_INSTALL_PATH}/include
+    ${ASCEND_INSTALL_PATH}/include/hccl
+)
+
 target_include_directories(hccl_kernel_compat PRIVATE
     ${INCLUDE_LIST}
 )

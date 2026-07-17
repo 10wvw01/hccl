@@ -50,10 +50,16 @@ if(ENABLE_EXPERIMENTAL)
     add_subdirectory(${HCCL_DIR}/experimental/ops experimental/ops)
 endif()
 
+# 当 REFACTOR_OPS 开启且 refactor_aicpu_kernel target 存在时，一并打入包
+set(DEVICE_KERNEL_TARGETS scatter_aicpu_kernel hccl_kernel_compat)
+if(REFACTOR_OPS AND TARGET refactor_aicpu_kernel)
+    list(APPEND DEVICE_KERNEL_TARGETS refactor_aicpu_kernel)
+endif()
+
 pack_targets_and_files(
     OUTPUT_TARGET "generate_device_aicpu_package"
     OUTPUT "aicpu_hccl.tar.gz"
-    TARGETS scatter_aicpu_kernel hccl_kernel_compat
+    TARGETS ${DEVICE_KERNEL_TARGETS}
     MANIFEST "bin_hash.cfg"
     TAR_ROOT_DIR "aicpu_kernels_device"
 )
