@@ -570,7 +570,13 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
         VariantType &v = algoExecDesc.children[i];
         // 处理 TemplateExecDesc
         if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
+            if (algoExecDesc.execPolicy == HcclAlgExecPolicy::SEQUENCE && childrenSize > 1) {
+                CHK_RET(PreSyncSingleSubDomain(templateExeDes->subCommIndex));
+            }
             CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(i)));
+            if (algoExecDesc.execPolicy == HcclAlgExecPolicy::SEQUENCE && childrenSize > 1) {
+                CHK_RET(PostSyncSingleSubDomain(templateExeDes->subCommIndex));
+            }
         }
         // 处理 AlgoExecDesc（递归）
         else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
@@ -587,4 +593,17 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
     }
     return HCCL_SUCCESS;
 }
+HcclResult OpsExecutor::PreSyncSingleSubDomain(u32 subCommIndex)
+{
+    ThreadHandle subMain = subThreads_.at(subCommIndex).at(0);
+    u32 notifyIdx = notifyNumOnSubMainThread_.at(subCommIndex) - 1;
+    return PreSyncInterThreads(mainThread_, {subMain}, {notifyIdx});
+}
+
+HcclResult OpsExecutor::PostSyncSingleSubDomain(u32 subCommIndex)
+{
+    ThreadHandle subMain = subThreads_.at(subCommIndex).at(0);
+    return PostSyncInterThreads(mainThread_, {subMain}, {subCommIndex});
+}
+
 } // namespace ops_hccl

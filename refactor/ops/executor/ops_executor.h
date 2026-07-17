@@ -91,6 +91,8 @@ private:
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
     inline void UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc, u32 childrenId,
         std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc);
+    HcclResult PreSyncSingleSubDomain(u32 subCommIndex);
+    HcclResult PostSyncSingleSubDomain(u32 subCommIndex);
     HcclResult MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
