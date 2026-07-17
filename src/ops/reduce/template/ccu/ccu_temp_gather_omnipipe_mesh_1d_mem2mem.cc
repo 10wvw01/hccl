@@ -211,12 +211,10 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
             taskArgs.insert(taskArgs.end(), sliceSizeOmniSliceStrideVec.begin(), sliceSizeOmniSliceStrideVec.end());
             taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
             taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
-            // if (ifNewRoot && sliceSize!=0) {
             HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] rpt=%u inputAddr=%llu outputAddr=%llu  inBuffBaseOff=%llu outBuffBaseOff=%llu"
                         " sliceSize=%llu localCopyFlag=%llu ifNewRoot=%llu isloopOne_t=%llu isStepOne_=%llu isLastStep_=%llu  myRank[%u]  subroot[%d]]",
                         rpt, inputAddr, outputAddr, inBuffBaseOff, outBuffBaseOff, sliceSize, localCopyFlag, ifNewRoot, isloopOne_, isStepOne_, isLastStep_, myRank_, subCommRootId_);
         
-            // }
             uint64_t argSize = taskArgs.size();
             CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
             if (launchRet != CCU_SUCCESS) {
