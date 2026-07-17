@@ -13,6 +13,7 @@
 // #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
+#include "ccu_temp_reduce_scatter_omnipipe_mesh1d.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
@@ -690,7 +691,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 // CcuTempGatherOmniPipeMesh1DMem2MemY);
