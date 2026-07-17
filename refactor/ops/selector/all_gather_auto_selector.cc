@@ -76,7 +76,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     } else {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (IsTwoLevelNetLayer(topoInfo) && dataSize * topoInfo->userRankSize > AG_AICPU_1D_TWO_LEVER_DATA_SIZE_THRESHOLD) {
-                selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR;
+                selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR;
             } else {
                 selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D;
             }
@@ -103,12 +103,10 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             HCCL_ERROR("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
             if (isMeshNumEqualToClosNum && topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO) {
                 if (dataSize > SMALL_COUNT_512KB) {
-                    selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR;
+                    selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR_UBX;
                 } else {
                     selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D;
                 }
-            } else if(isClosNumMultipleOfMeshNum && dataSize > SMALL_COUNT_512KB) {
-                selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY;
             } else {
                 // 4P外非对称场景，大小数据量都用NHR算法
                 selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_NHR;
