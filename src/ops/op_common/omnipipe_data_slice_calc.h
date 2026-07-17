@@ -242,6 +242,7 @@ u64 CalReducescatterDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, dou
                                u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam& omniPipeScratchParam);
 OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
+OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std::vector<u64>& allRankSplitData,
                              const std::vector<u64>& curLoopAllRankSplitData, std::vector<DataSlice>& srcDataSlice,
                              std::vector<DataSlice>& dstDataSlice, u64 dataTypeSize);
