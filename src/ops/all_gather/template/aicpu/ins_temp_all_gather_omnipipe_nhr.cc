@@ -40,6 +40,35 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
     // NHR 按每个对端配置的通道数并行处理数据分片。
     HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR][KernelRun] prepare multi-channel NHR, channelsPerRank[%u].",
                channelsPerRank_);
+    InitKernelParams(param, tempAlgParams);
+
+    CHK_RET(PrepareOmniPipeDataSplitForMultiChannel(static_cast<CommonAlgTemplateBase*>(this), tempAlgParams_,
+                                                    dataType_, templateResource, dataSplitVec_, dataOffsetVec_));
+
+    CHK_RET(SyncInterThreads(templateResource.threads, true));
+    HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR][KernelRun] launch NHR channels, channelsPerRank[%u], "
+               "templateRankSize[%u].", channelsPerRank_, templateRankSize_);
+    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
+        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx));
+    }
+    CHK_RET(SyncInterThreads(templateResource.threads, false));
+    CHK_RET(SyncInterThreads(templateResource.threads, true));
+    HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR][KernelRun] check last-step scratch data for output copy, "
+               "channelsPerRank[%u], templateRankSize[%u], lastStepCopy[%d].",
+               channelsPerRank_, templateRankSize_, lastStepNhrCopy_);
+    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
+        if (lastStepNhrCopy_) {
+            DoLastStepCopyNhr(templateResource.threads, templateResource.channels, channelIdx);
+        }
+    }
+    CHK_RET(SyncInterThreads(templateResource.threads, false));
+    HCCL_INFO("[InsTempAllGatherOmniPipeNHR][KernelRun] finish NHR all-gather template, rank[%u].", myRank_);
+    return HcclResult::HCCL_SUCCESS;
+}
+
+void InsTempAllGatherOmniPipeNHR::InitKernelParams(const OpParam& param,
+                                                   const TemplateDataParams& tempAlgParams)
+{
     threadNum_ = GetThreadNum();
     tempAlgParams_ = tempAlgParams;
     dataType_ = param.DataDes.dataType;
@@ -50,45 +79,20 @@ HcclResult InsTempAllGatherOmniPipeNHR::KernelRun(const OpParam& param, const Te
     inputOffset_ = param.inputOffset;
     outputOffset_ = param.outputOffset;
     supportSymmetricMemory_ = param.supportSymmetricMemory;
-    
-    CHK_RET(PrepareOmniPipeDataSplitForMultiChannel(static_cast<CommonAlgTemplateBase*>(this), tempAlgParams_, dataType_, templateResource, 
-        dataSplitVec_, dataOffsetVec_));
+}
 
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+HcclResult InsTempAllGatherOmniPipeNHR::SyncInterThreads(const std::vector<ThreadHandle>& threads, bool mainToSub)
+{
+    if (threadNum_ <= 1) {
+        return HcclResult::HCCL_SUCCESS;
+    }
+    std::vector<ThreadHandle> subThreads(threads.begin() + 1, threads.end());
+    if (mainToSub) {
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
+        return PreSyncInterThreads(threads[0], subThreads, notifyIdxMainToSub_);
     }
-    HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR][KernelRun] launch NHR channels, channelsPerRank[%u], "
-               "templateRankSize[%u].", channelsPerRank_, templateRankSize_);
-    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
-        CHK_RET(RunAllGatherNHR(templateResource.threads, templateResource.channels, channelIdx));
-    }
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
-        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
-    }
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
-    }
-    HCCL_DEBUG("[InsTempAllGatherOmniPipeNHR][KernelRun] check last-step scratch data for output copy, "
-               "channelsPerRank[%u], templateRankSize[%u], lastStepCopy[%d].",
-               channelsPerRank_, templateRankSize_, lastStepNhrCopy_);
-    for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
-        if (lastStepNhrCopy_){
-            DoLastStepCopyNhr(templateResource.threads, templateResource.channels, channelIdx);
-        }
-    }
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
-        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
-    }
-    HCCL_INFO("[InsTempAllGatherOmniPipeNHR][KernelRun] finish NHR all-gather template, rank[%u].", myRank_);
-    return HcclResult::HCCL_SUCCESS;
+    GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+    return PostSyncInterThreads(threads[0], subThreads, notifyIdxSubToMain_);
 }
 
 HcclResult InsTempAllGatherOmniPipeNHR::DoLastStepCopyNhr(const std::vector<ThreadHandle>& threads,
