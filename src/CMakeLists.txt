@@ -206,6 +206,19 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template
 )
 
+if(BUILD_OPEN_PROJECT)
+    set(HCCL_ASC_COMM_AICPU_INCLUDE_DIR
+        ${ASCEND_CANN_PACKAGE_PATH}/asc/include/adv_api/asc-comm/aicpu/hcomm
+    )
+else()
+    set(HCCL_ASC_COMM_AICPU_INCLUDE_DIR
+        ${TOP_DIR}/asc-comm/include/aicpu/hcomm
+    )
+endif()
+list(PREPEND INCLUDE_LIST
+    ${HCCL_ASC_COMM_AICPU_INCLUDE_DIR}
+)
+
 if(NOT BUILD_OPEN_PROJECT)
     list(APPEND INCLUDE_LIST
         ${TOP_DIR}/inc
