@@ -59,9 +59,6 @@ private:
                                     const std::vector<ThreadHandle>& threads,
                                     u32 step,
                                     const AicpuNHRStepInfo& stepInfo);
-    HcclResult LocalDataCopy(const OpParam& param,
-                             const TemplateDataParams& tempAlgParams,
-                             const std::vector<ThreadHandle>& threads);
     HcclResult PostLocalCopy(const OpParam& param,
                              const TemplateDataParams& tempAlgParams,
                              const std::vector<ThreadHandle>& threads);

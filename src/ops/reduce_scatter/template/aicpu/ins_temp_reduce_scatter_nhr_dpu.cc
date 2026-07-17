@@ -51,10 +51,10 @@ u64 InsTempReduceScatterNhrDpu::CalcScratchMultiple(BufferType inBufferType, Buf
 {
     (void) inBufferType;
     (void) outBufferType;
-    // 方案3：CCL 缓冲区需要双倍空间
-    // - 前半部分（templateRankSize_）：存储本地数据
-    // - 后半部分（templateRankSize_）：临时存储远程数据，用于规约
-    u64 scratchMultiple = 2 * subCommRanks_[0].size();
+    // 使用单倍空间
+    // - CCL前半部分：临时存储远程数据
+    // - CCL后半部分[inputPtr]：存储本地数据和规约结果
+    u64 scratchMultiple = subCommRanks_[0].size();
     return scratchMultiple;
 }
 
@@ -85,14 +85,13 @@ HcclResult InsTempReduceScatterNhrDpu::KernelRun(const OpParam& param,
         return HCCL_E_INTERNAL;
     }
 
-    // Step 1: 将输入数据拷贝到 cclBuff
-    CHK_RET(LocalDataCopy(param, tempAlgParams, templateResource.threads));
-
-    // Step 2: 获取所有 step 信息
+    // Step 1: 获取所有 step 信息
     std::vector<AicpuNHRStepInfo> stepInfoList;
     CHK_RET(GetStepInfoList(stepInfoList));
 
-    // Step 3: 逐个 step 执行通信 + 规约
+    // 数据已经在CCL后半部分[inputPtr]，不需要拷贝
+
+    // Step 2: 逐个 step 执行通信 + 规约
     for (u32 step = 0; step < stepInfoList.size(); ++step) {
         // 3.1 执行当前 step 的 DPU 数据交换
         CHK_RET(RunSingleStep(param, tempAlgParams, templateResource, step));
@@ -164,9 +163,9 @@ HcclResult InsTempReduceScatterNhrDpu::LocalReduceAfterStep(const OpParam& param
                                                             u32 step,
                                                             const AicpuNHRStepInfo& stepInfo)
 {
-    // 方案3：规约逻辑
-    // DPU 已经将远程数据写入到 cclBuff[rxIdx + templateRankSize_]
-    // 需要手动规约：cclBuff[rxIdx] + cclBuff[rxIdx + templateRankSize_] → cclBuff[rxIdx]
+    // 单倍空间方案：
+    // - CCL前半部分：临时存储远程数据
+    // - CCL后半部分[inputPtr]：存储本地数据和规约结果
 
     if (stepInfo.rxSliceIdxs.empty()) {
         return HCCL_SUCCESS;
@@ -177,71 +176,34 @@ HcclResult InsTempReduceScatterNhrDpu::LocalReduceAfterStep(const OpParam& param
     const u64 rptNum = std::max<u64>(1, tempAlgParams.repeatNum);
 
     for (u64 rpt = 0; rpt < rptNum; ++rpt) {
-        const u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff
-                              + rpt * tempAlgParams.outputRepeatStride;
-
         for (u32 i = 0; i < stepInfo.nSlices; ++i) {
             const u32 rxIdx = stepInfo.rxSliceIdxs[i];
 
-            // 本地数据位置：cclBuff[rxIdx]
-            DataSlice localSlice = DataSlice(
-                tempAlgParams.buffInfo.hcclBuff.addr,
-                scratchBase + rxIdx * tempAlgParams.sliceSize,
-                processSize_, count);
-
-            // 远程数据位置：cclBuff[rxIdx + templateRankSize_]
+            // 远程数据位置：CCL前半部分，用outputSliceStride
             DataSlice remoteSlice = DataSlice(
                 tempAlgParams.buffInfo.hcclBuff.addr,
-                scratchBase + (rxIdx + templateRankSize_) * tempAlgParams.sliceSize,
+                tempAlgParams.buffInfo.hcclBuffBaseOff + rxIdx * tempAlgParams.outputSliceStride +
+                    rpt * tempAlgParams.outputRepeatStride,
                 processSize_, count);
 
-            // 规约：remote + local → local
+            // 本地数据位置：CCL后半部分[inputPtr]，用inputSliceStride（框内stride）
+            DataSlice localSlice = DataSlice(
+                tempAlgParams.buffInfo.inputPtr,
+                tempAlgParams.buffInfo.inBuffBaseOff + rxIdx * tempAlgParams.inputSliceStride +
+                    rpt * tempAlgParams.inputRepeatStride,
+                processSize_, count);
+
+            // 规约：远程数据（CCL前半部分）+ 本地数据（CCL后半部分）→ 本地数据（CCL后半部分）
             CHK_RET(static_cast<HcclResult>(LocalReduce(threads[0], remoteSlice, localSlice, dataType_, reduceOp_)));
 
             HCCL_DEBUG("[InsTempReduceScatterNhrDpu] Step[%u] LocalReduce: "
-                "cclBuff[%u] + cclBuff[%u] → cclBuff[%u]",
-                step, rxIdx + templateRankSize_, rxIdx, rxIdx);
+                "CCL前半部分[%u]（远程）+ CCL后半部分[%u]（本地）→ CCL后半部分[%u]",
+                step, rxIdx, rxIdx, rxIdx);
         }
     }
 
     HCCL_INFO("[InsTempReduceScatterNhrDpu] Step[%u] LocalReduceAfterStep completed, nSlices[%u]",
         step, stepInfo.nSlices);
-    return HCCL_SUCCESS;
-}
-
-HcclResult InsTempReduceScatterNhrDpu::LocalDataCopy(const OpParam& param,
-                                                     const TemplateDataParams& tempAlgParams,
-                                                     const std::vector<ThreadHandle>& threads)
-{
-    // 将输入数据从 inputPtr 搬运到 cclBuff
-    const u64 rptNum = std::max<u64>(1, tempAlgParams.repeatNum);
-
-    for (u64 rpt = 0; rpt < rptNum; ++rpt) {
-        u64 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
-        u64 count = processSize_ / dataTypeSize;
-
-        const u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff
-                              + rpt * tempAlgParams.outputRepeatStride;
-
-        // 将每个 rank 对应的输入数据拷贝到 cclBuff 的对应位置
-        for (u32 rankIdx = 0; rankIdx < templateRankSize_; ++rankIdx) {
-            DataSlice srcSlice = DataSlice(
-                tempAlgParams.buffInfo.inputPtr,
-                tempAlgParams.buffInfo.inBuffBaseOff
-                    + rankIdx * tempAlgParams.inputSliceStride
-                    + rpt * tempAlgParams.inputRepeatStride,
-                processSize_, count);
-
-            DataSlice dstSlice = DataSlice(
-                tempAlgParams.buffInfo.hcclBuff.addr,
-                scratchBase + rankIdx * tempAlgParams.sliceSize,
-                processSize_, count);
-
-            CHK_RET(static_cast<HcclResult>(LocalCopy(threads[0], srcSlice, dstSlice)));
-        }
-    }
-
-    HCCL_DEBUG("[InsTempReduceScatterNhrDpu] LocalDataCopy completed");
     return HCCL_SUCCESS;
 }
 
@@ -265,13 +227,12 @@ HcclResult InsTempReduceScatterNhrDpu::PostLocalCopy(const OpParam& param,
         u64 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
         u64 count = processSize_ / dataTypeSize;
 
-        const u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff
-                              + rpt * tempAlgParams.outputRepeatStride;
-
-        // 将 cclBuff[myAlgRank] 拷贝到 outputPtr
+        // 将 CCL后半部分[inputPtr + myAlgRank] 拷贝到 outputPtr
+        // 使用inputSliceStride（框内stride）
         DataSlice srcSlice = DataSlice(
-            tempAlgParams.buffInfo.hcclBuff.addr,
-            scratchBase + myAlgRank * tempAlgParams.sliceSize,
+            tempAlgParams.buffInfo.inputPtr,
+            tempAlgParams.buffInfo.inBuffBaseOff + myAlgRank * tempAlgParams.inputSliceStride +
+                rpt * tempAlgParams.inputRepeatStride,
             processSize_, count);
 
         DataSlice dstSlice = DataSlice(
@@ -421,32 +382,33 @@ HcclResult InsTempReduceScatterNhrDpu::DPUKernelRun(const TemplateDataParams& te
     void* recvRemoteCclBuffAddr = linkRecv.remoteCclMem.addr;
 
     for (u64 rpt = 0; rpt < rptNum; ++rpt) {
-        const u64 scratchBase = tempAlgParams.buffInfo.hcclBuffBaseOff
-                              + rpt * tempAlgParams.outputRepeatStride;
-
         for (u32 i = 0; i < st.nSlices; ++i) {
             const u32 txIdx = st.txSliceIdxs[i];
             const u32 rxIdx = st.rxSliceIdxs[i];
 
-            // TX: 发送本地 cclBuff[txIdx] 到远程 cclBuff[txIdx]
+            // TX: 从CCL后半部分[inputPtr]发送到远程CCL前半部分
+            // inputPtr指向CCL后半部分，用inputSliceStride计算offset（框内stride）
             DataSlice txSrcSlice = DataSlice(
-                tempAlgParams.buffInfo.hcclBuff.addr,
-                scratchBase + tempAlgParams.sliceSize * txIdx,
+                tempAlgParams.buffInfo.inputPtr,
+                tempAlgParams.buffInfo.inBuffBaseOff + txIdx * tempAlgParams.inputSliceStride +
+                    rpt * tempAlgParams.inputRepeatStride,
                 tempAlgParams.sliceSize, tempAlgParams.count);
             DataSlice txDstSlice = DataSlice(
                 sendRemoteCclBuffAddr,
-                scratchBase + tempAlgParams.sliceSize * txIdx,
+                tempAlgParams.buffInfo.hcclBuffBaseOff + txIdx * tempAlgParams.outputSliceStride +
+                    rpt * tempAlgParams.outputRepeatStride,
                 tempAlgParams.sliceSize, tempAlgParams.count);
 
-            // RX: 从远程接收数据到本地 cclBuff[rxIdx + templateRankSize_]（后半部分）
-            // 这样避免覆盖本地数据，为后续规约做准备
+            // RX: 从远程CCL后半部分接收到本地CCL前半部分
             DataSlice rxSrcSlice = DataSlice(
                 recvRemoteCclBuffAddr,
-                scratchBase + tempAlgParams.sliceSize * rxIdx,
+                tempAlgParams.buffInfo.hcclBuffBaseOff + rxIdx * tempAlgParams.outputSliceStride +
+                    rpt * tempAlgParams.outputRepeatStride,
                 tempAlgParams.sliceSize, tempAlgParams.count);
             DataSlice rxDstSlice = DataSlice(
                 tempAlgParams.buffInfo.hcclBuff.addr,
-                scratchBase + tempAlgParams.sliceSize * (rxIdx + templateRankSize_),  // 后半部分
+                tempAlgParams.buffInfo.hcclBuffBaseOff + rxIdx * tempAlgParams.outputSliceStride +
+                    rpt * tempAlgParams.outputRepeatStride,
                 tempAlgParams.sliceSize, tempAlgParams.count);
 
             ctx.txSrcSlices.push_back(txSrcSlice);
@@ -460,8 +422,8 @@ HcclResult InsTempReduceScatterNhrDpu::DPUKernelRun(const TemplateDataParams& te
     CHK_RET(DpuBatchTransfer(pairs));
 
     HCCL_INFO("[InsTempReduceScatterNhrDpu][DPUKernelRun] step[%u] toRank[%u] fromRank[%u] nSlices[%u], "
-        "remote data written to cclBuff[idx + %u]",
-        currentStep, sendToRank, recvFromRank, st.nSlices, templateRankSize_);
+        "TX: INPUT[txIdx]→remote, RX: remote→CCL[txIdx]（临时）",
+        currentStep, sendToRank, recvFromRank, st.nSlices);
 #endif
     return HCCL_SUCCESS;
 }
