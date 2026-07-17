@@ -328,7 +328,7 @@ TEST_F(AicpuBaseTemplateTest, IsPcieProtocolFalseForEmptyChannels)
 // 7. PreCopy tailCount 分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC18 PreCopy 最后一个 rank 使用 tailSize 而非 sliceSize
+// TC18 PreCopy 最后一个 rank 使用 sliceSize + tailSize
 TEST_F(AicpuBaseTemplateTest, PreCopyWithTailCountLastRankUsesTailSize)
 {
     // 4 ranks: {0, 1, 2, 3}, templateRankSize_ = 4
@@ -340,7 +340,7 @@ TEST_F(AicpuBaseTemplateTest, PreCopyWithTailCountLastRankUsesTailSize)
     // sliceCount=4, tailCount=2, dataType=INT32 (4 bytes)
     // sliceSize = 4*4 = 16 bytes
     // tailSize = 2*4 = 8 bytes
-    // 最后一个 rank (algRank=3 == templateRankSize_-1) 使用 tailSize
+    // 最后一个 rank (rank 3 == ranks_[templateRankSize_-1]) 使用 sliceSize + tailSize = 24
     params.sliceCount = 4;
     params.tailCount = 2;
     params.dataStride = 4 * sizeof(int32_t);  // = 16
@@ -353,33 +353,29 @@ TEST_F(AicpuBaseTemplateTest, PreCopyWithTailCountLastRankUsesTailSize)
 
     // PreCopy 对 4 个 rank 各调一次 LocalCopy
     auto localCopyCalls = FindTmplCalls("LocalCopy");
-    // 4 次 PreCopy + 0 次 PostCopy（RunAlgorithm 生成空 ranksForOutputData = ranks_，
-    // 但 PostCopy 会用 ranksForOutputData_ = {0,1,2,3} 执行）
-    // 实际上 PostCopy 也执行 4 次，共 8 次
+    // 4 次 PreCopy + 4 次 PostCopy（ranksForOutputData_ = {0,1,2,3}），共 8 次
     ASSERT_EQ(localCopyCalls.size(), 8u);
 
     // 前 4 次 LocalCopy 是 PreCopy:
-    // rank 0 (algRank 0): len = 16
-    // rank 1 (algRank 1): len = 16
-    // rank 2 (algRank 2): len = 16
-    // rank 3 (algRank 3 == templateRankSize_-1): len = 8 (tailSize)
+    // rank 0,1,2: len = 16 (sliceSize)
+    // rank 3 (tailRankId): len = 24 (sliceSize + tailSize)
     EXPECT_EQ(localCopyCalls[0].len, 16u);
     EXPECT_EQ(localCopyCalls[1].len, 16u);
     EXPECT_EQ(localCopyCalls[2].len, 16u);
-    EXPECT_EQ(localCopyCalls[3].len, 8u);
+    EXPECT_EQ(localCopyCalls[3].len, 24u);
 
-    // 后 4 次 LocalCopy 是 PostCopy，同样最后一个 rank 使用 tailSize
+    // 后 4 次 LocalCopy 是 PostCopy，同样最后一个 rank 使用 sliceSize + tailSize
     EXPECT_EQ(localCopyCalls[4].len, 16u);
     EXPECT_EQ(localCopyCalls[5].len, 16u);
     EXPECT_EQ(localCopyCalls[6].len, 16u);
-    EXPECT_EQ(localCopyCalls[7].len, 8u);
+    EXPECT_EQ(localCopyCalls[7].len, 24u);
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // 8. PostCopy tailCount 分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC19 PostCopy 最后一个 rank 使用 tailSize 而非 sliceSize
+// TC19 PostCopy 最后一个 rank 使用 sliceSize + tailSize
 TEST_F(AicpuBaseTemplateTest, PostCopyWithTailCountLastRankUsesTailSize)
 {
     // 4 ranks: {0, 1, 2, 3}
@@ -400,18 +396,18 @@ TEST_F(AicpuBaseTemplateTest, PostCopyWithTailCountLastRankUsesTailSize)
     EXPECT_EQ(ret, HCCL_SUCCESS);
 
     auto localCopyCalls = FindTmplCalls("LocalCopy");
-    // PreCopy: 1 次 (rank 0 only) → len = 16 (sliceSize)
-    // PostCopy: 4 次 → rank 0,1,2 use len=16, rank 3 uses len=8
+    // PreCopy: 1 次 (rank 0, ranksForInputData 最后一个) → len = 24 (sliceSize + tailSize)
+    // PostCopy: 4 次 → rank 0,1,2 use len=16, rank 3 uses len=24 (sliceSize + tailSize)
     ASSERT_EQ(localCopyCalls.size(), 5u);
 
-    // PreCopy (1 call)
-    EXPECT_EQ(localCopyCalls[0].len, 16u);
+    // PreCopy (1 call) - rank 0 是 ranksForInputData 的最后一个 → 尾 rank
+    EXPECT_EQ(localCopyCalls[0].len, 24u);
 
     // PostCopy (4 calls)
     EXPECT_EQ(localCopyCalls[1].len, 16u); // rank 0
     EXPECT_EQ(localCopyCalls[2].len, 16u); // rank 1
     EXPECT_EQ(localCopyCalls[3].len, 16u); // rank 2
-    EXPECT_EQ(localCopyCalls[4].len, 8u);  // rank 3 (tailSize)
+    EXPECT_EQ(localCopyCalls[4].len, 24u); // rank 3 (ranksForOutputData_ 最后一个 → 尾 rank)
 }
 
 } // namespace testing

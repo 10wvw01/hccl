@@ -117,10 +117,13 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
 
-    if (tempAlgParams_.inputBufferType == BufferType::HCCL_BUFFER) {
+    // input 即 ccl buffer 时无需 PreCopy（inputBufferType=HCCL_BUFFER 或指针相同）。
+    if (tempAlgParams_.inputBufferType == BufferType::HCCL_BUFFER ||
+        tempAlgParams_.inputBufferPtr == tempAlgParams_.cclBufferPtr) {
         return HCCL_SUCCESS;
     }
 
+    const size_t lastInputIdx = tempAlgParams_.ranksForInputData.size() - 1;
     // 遍历 ranksForInputData，将每个 rank 的数据从 input 拷到 ccl buffer。
     // input 偏移使用循环索引（idx）而非 rank 值：
     //   AllGather: ranksForInputData=[myRank_], idx=0 → inputOff=0（输入仅含本 rank 数据）
@@ -128,7 +131,8 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     // ccl 偏移使用 rank 值：cclOff = rank * stride（每个 rank 的数据在 ccl buffer 中按 rank 排列）
     for (size_t idx = 0; idx < tempAlgParams_.ranksForInputData.size(); ++idx) {
         u32 rank = tempAlgParams_.ranksForInputData[idx];
-        u64 curSliceSize = idx == tempAlgParams_.ranksForInputData.size() - 1 ? sliceSize + tailSize : sliceSize;
+        // ranksForInputData 最后一个为尾 rank，数据量为 sliceSize + tailSize，其余为 sliceSize。
+        u64 curSliceSize = (tailSize > 0 && idx == lastInputIdx) ? sliceSize + tailSize : sliceSize;
         if (curSliceSize == 0) {
             continue;
         }
@@ -167,11 +171,13 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams_.dataType];
     const u64 sliceSize = tempAlgParams_.sliceCount * dataTypeSize;
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
+    const size_t lastOutputIdx = ranksForOutputData_.empty() ? 0 : ranksForOutputData_.size() - 1;
 
     // 将 ccl buffer 中 ranksForOutputData 对应 rank 的数据搬回 output。
     for (size_t idx = 0; idx < ranksForOutputData_.size(); ++idx) {
         u32 rank = ranksForOutputData_[idx];
-        u64 curSliceSize = idx == ranksForOutputData_.size() - 1 ? sliceSize + tailSize : sliceSize;
+        // ranksForOutputData_ 最后一个为尾 rank，数据量为 sliceSize + tailSize，其余为 sliceSize。
+        u64 curSliceSize = (tailSize > 0 && idx == lastOutputIdx) ? sliceSize + tailSize : sliceSize;
         if (curSliceSize == 0) {
             continue;
         }
