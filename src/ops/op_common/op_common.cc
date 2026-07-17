@@ -55,6 +55,7 @@
 #include "ccu_launch_dl.h"
 #include "hccl_ccu_res_dl.h"
 #include "comm_engine_utils.h"
+#include "utils.h"
 
 namespace ops_hccl {
 thread_local bool needInconsistentCheck = false;
@@ -200,13 +201,13 @@ HcclResult AppendFastLaunchTag(OpParam &param, const char* dataTypeStr,
     if (!append_str(param.tag) || !append_str("_") || !append_str(dataTypeStr)) {
         goto fail;
     }
-    if (reduceOpStr && (!append_str("_")) || !append_str(reduceOpStr)) {
+    if (reduceOpStr && ((!append_str("_")) || !append_str(reduceOpStr))) {
         goto fail;
     }
-    if (countStr && (!append_str("_")) || !append_str(countStr)) {
+    if (countStr && ((!append_str("_")) || !append_str(countStr))) {
         goto fail;
     }
-    if (rootStr && (!append_str("_r")) || !append_str(rootStr)) {
+    if (rootStr && ((!append_str("_r")) || !append_str(rootStr))) {
         goto fail;
     }
     *dst = '\0';
@@ -763,7 +764,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         opInfo.p2p.count = param.DataDes.count;
         opInfo.p2p.remoteRank = param.sendRecvRemoteRank;
         aclrtStream resolvedStream;
-        (void)GetUnfoldStream(comm, param, unfoldThread, resolvedStream);
+        CHK_RET(GetUnfoldStream(comm, param, unfoldThread, resolvedStream));
         HCCL_INFO("unfoldThread[%llu]", unfoldThread);
 
         opInfo.p2p.unfoldStream = resolvedStream;
@@ -2547,7 +2548,7 @@ HcclResult QuerySplitRatioByConfigGetInfo(
         HCCL_ERROR("[QuerySplitRatioByConfigGetInfo] comm ratio[%f] is not finite or out of range[0, 1].", commRatio);
         return HCCL_E_PARA;
     }
-    if (commRatio == 0.0) {
+    if (IsDoubleEqual(commRatio, 0.0)) {
         HCCL_INFO("[QuerySplitRatioByConfigGetInfo] comm split ratio is not configured.");
         return HCCL_SUCCESS;
     }

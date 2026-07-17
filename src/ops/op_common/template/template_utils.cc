@@ -9,6 +9,7 @@
  */
 
 #include "template_utils.h"
+#include "utils.h"
 
 #include <limits>
 namespace ops_hccl {
@@ -291,7 +292,7 @@ static bool PrepareParallelPortInfo(
         failureReason = "scaled intraPortGroupSize is 0";
         return false;
     }
-    if (portInfo.effectiveInterPortGroupSize == 0.0 || !std::isfinite(portInfo.effectiveInterPortGroupSize)) {
+    if (IsDoubleEqual(portInfo.effectiveInterPortGroupSize, 0.0) || !std::isfinite(portInfo.effectiveInterPortGroupSize)) {
         failureReason = "effectiveInterPortGroupSize is 0 or not finite";
         return false;
     }
@@ -336,7 +337,7 @@ static bool CalcRawParallelDataSplitRatio(
     const char *&failureReason)
 {
     const double denominator = timeCoeff.clos + timeCoeff.mesh;
-    if (denominator == 0.0 || !std::isfinite(denominator)) {
+    if (IsDoubleEqual(denominator, 0.0) || !std::isfinite(denominator)) {
         failureReason = "denominator is 0 or not finite";
         return false;
     }
