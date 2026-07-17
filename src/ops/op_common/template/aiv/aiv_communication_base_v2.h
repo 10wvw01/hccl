@@ -634,6 +634,7 @@ __aicore__ inline void AivCommBase::DataCopyGM2UB(const LocalTensor<T>& dstLocal
         padParams.isPad = true;
         padParams.leftPadding = 0;
         padParams.rightPadding = 1;
+        padParams.paddingValue = 0;
         DataCopyPad(dstLocal, srcGlobal, copyParams, padParams);
     }
 }
