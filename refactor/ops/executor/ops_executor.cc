@@ -382,12 +382,30 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
 inline void OpsExecutor::GenTemplateDataParams(
     AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams)
 {
-    templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
-    templateDataParams.outputBufferPtr = dataInfo_.outputPtr;
+    templateDataParams.cclBufferType = algoExecDataDesc.cclBufferType;
     templateDataParams.cclBufferPtr = cclBufferInfo_.ptr;
     templateDataParams.inputBufferType = algoExecDataDesc.inputBufferType;
+    if (templateDataParams.inputBufferType == BufferType::INPUT) {
+        templateDataParams.inputBufferPtr = dataInfo_.inputPtr;
+    } else if (templateDataParams.inputBufferType == BufferType::OUTPUT) {
+        templateDataParams.inputBufferPtr = dataInfo_.outputPtr;
+    } else if (templateDataParams.inputBufferType == BufferType::HCCL_BUFFER) {
+        templateDataParams.inputBufferPtr = cclBufferInfo_.ptr;
+    } else {
+        HCCL_ERROR("[GenTemplateDataParams] inputBufferType = %d!", templateDataParams.inputBufferType);
+        return;
+    }
     templateDataParams.outputBufferType = algoExecDataDesc.outputBufferType;
-    templateDataParams.cclBufferType = algoExecDataDesc.cclBufferType;
+    if (templateDataParams.outputBufferType == BufferType::INPUT) {
+        templateDataParams.outputBufferPtr = dataInfo_.inputPtr;
+    } else if (templateDataParams.outputBufferType == BufferType::OUTPUT) {
+        templateDataParams.outputBufferPtr = dataInfo_.outputPtr;
+    } else if (templateDataParams.outputBufferType == BufferType::HCCL_BUFFER) {
+        templateDataParams.outputBufferPtr = cclBufferInfo_.ptr;
+    } else {
+        HCCL_ERROR("[GenTemplateDataParams] outputBufferType = %d!", templateDataParams.outputBufferType);
+        return;
+    }
     templateDataParams.dataType = dataInfo_.dataType;
     templateDataParams.sliceCount = algoExecDataDesc.sliceCount;
     templateDataParams.sliceOffset = algoExecDataDesc.sliceOffset;
