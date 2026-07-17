@@ -21,6 +21,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/sal.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/hccl_mc2.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/compat.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/dfx/hccl_dump_impl.cpp
 )
 
 # 在静态模式下添加 static_restore.cc
