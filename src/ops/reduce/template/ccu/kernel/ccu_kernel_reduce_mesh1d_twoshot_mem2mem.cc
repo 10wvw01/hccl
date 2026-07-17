@@ -14,10 +14,9 @@
 namespace ops_hccl {
 
 constexpr int INPUT_XN_ID     = 0;
-constexpr int SCRATCH_XN_ID   = 1;
-constexpr int OUTPUT_XN_ID    = 2;
-constexpr int TOKEN_XN_ID     = 3;
-constexpr int POST_SYNC_ID    = 4;
+constexpr int OUTPUT_XN_ID    = 1;
+constexpr int TOKEN_XN_ID     = 2;
+constexpr int POST_SYNC_ID    = 3;
 constexpr int CKE_IDX_0       = 0;
 
 static CcuResult ParseKernelArg(ReduceMesh1DTwoShotMem2MemContext &ctx,
@@ -55,7 +54,6 @@ static CcuResult InitResource(ReduceMesh1DTwoShotMem2MemContext &ctx)
             continue;
         }
         ctx.input[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], INPUT_XN_ID);
-        ctx.scratch[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], SCRATCH_XN_ID);
         ctx.output[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], OUTPUT_XN_ID);
         ctx.token[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], TOKEN_XN_ID);
         channelIdx++;
@@ -87,11 +85,10 @@ static void PreSync(ReduceMesh1DTwoShotMem2MemContext &ctx)
     const auto *arg = ctx.arg;
     for (uint32_t i = 0; i < arg->channelCount; i++) {
         ccu::WriteVariableWithNotify(arg->channels[i], ctx.input[arg->rankId], INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
-        ccu::WriteVariableWithNotify(arg->channels[i], ctx.scratch[arg->rankId], SCRATCH_XN_ID, CKE_IDX_0, 1 << SCRATCH_XN_ID);
         ccu::WriteVariableWithNotify(arg->channels[i], ctx.output[arg->rankId], OUTPUT_XN_ID, CKE_IDX_0, 1 << OUTPUT_XN_ID);
         ccu::WriteVariableWithNotify(arg->channels[i], ctx.token[arg->rankId], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
     }
-    uint32_t allBit = (1 << INPUT_XN_ID) | (1 << SCRATCH_XN_ID) | (1 << OUTPUT_XN_ID) | (1 << TOKEN_XN_ID);
+    uint32_t allBit = (1 << INPUT_XN_ID) | (1 << OUTPUT_XN_ID) | (1 << TOKEN_XN_ID);
     for (uint32_t i = 0; i < arg->channelCount; i++) {
         ccu::NotifyWait(arg->channels[i], CKE_IDX_0, allBit);
     }
