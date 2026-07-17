@@ -56,9 +56,6 @@ protected:
 
     HcclResult InitTemplateParamsCommon(const OpParam& param, TemplateDataParams& templateDataParams);
 
-    // HcclResult PrepareResForTemplateLevelRS(u32 level, std::shared_ptr<CcuAlgTemplateBase>& tempBase);
-    // HcclResult PrepareResForTemplateLevelAG(u32 level, std::shared_ptr<CcuAlgTemplateBase>& tempBase);
-
     HcclResult InitTemplateParams(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
                 const std::map<u32, std::shared_ptr<CcuAlgTemplateBase>>& tempMap,
                 std::map<u32, TemplateResource>& tempResMap,
@@ -83,7 +80,6 @@ protected:
 
     std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;  // 相当于之前的std::vector<InsQuePtr> tempInsQue_;
-    // std::vector<SplitSliceInfo> sliceInfoList_;
 
     // 计算RS/G在Level0(mesh)/Level1(clos)的等效带宽，Level1按(rankSizeLevel1_-1)均摊
     HcclResult CalcEndpointBandwidth(
