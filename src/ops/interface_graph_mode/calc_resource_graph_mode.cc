@@ -425,7 +425,7 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
     superKernelArgs.dataType = dataType;
     superKernelArgs.unitSize = ops_hccl::DATATYPE_SIZE_TABLE[dataType];
     superKernelArgs.reduceOp = op;
-    superKernelArgs.numBlocks = aivCoreLimit;
+    superKernelArgs.numBlocks = 32;
     superKernelArgs.tag = 0;
     superKernelArgs.clearEnable = clearEnable;
     superKernelArgs.inputSliceStride = 0;
