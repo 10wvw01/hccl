@@ -87,9 +87,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                                               resReqlevel.notifyNumPerThread.begin(),
                                               resReqlevel.notifyNumPerThread.end());
 
-    // 对称内存下，把 RS 各层 channel 合并进唯一的 channels[0]，使 op_common 只发起一次
-    // HcclChannelAcquire，避免 pending 在多层多次建链下只覆盖首层、后续层 remoteMems 为空。
-    // 非对称路径保留原 emplace_back（每层一个 entry），归层与行为均不变。
+    // 对称路径将 RS 各层通道合并到 channels[0]，使公共资源层只发起一次 HcclChannelAcquire。
+    // 对称内存句柄会随这次建链统一交换；普通路径仍按层保存通道，保持原有资源布局。
     if (addChannel && !resReqlevel.channels.empty()) {
         if (param.supportSymmetricMemory) {
             if (resourceRequest.channels.empty()) {
@@ -136,12 +135,13 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo,
             subCommRanks0, subCommRanks1, subCommRanks2, tempMap, topoInfo));
 
-    HCCL_DEBUG("[InsV2AllReduceOmniPipeExecutor] L0[%u], L1[%u], L2[%u]", rankSizeLevel0_, rankSizeLevel1_,
-               rankSizeLevel2_);
+    HCCL_DEBUG("[InsV2AllReduceOmniPipeExecutor][CalcRes] calculated per-level rank sizes, "
+               "level0[%llu], level1[%llu], level2[%llu].", rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_);
 
     resourceRequest.slaveThreadNum = 0;
     resourceRequest.notifyNumOnMainThread = 0;
-    resourceRequest.channels.clear();  // 对称路径配合 CalcResLevel 合并到 channels[0]；非对称随后 emplace_back 重建
+    // 清空已有结果：对称路径随后合并到 channels[0]，普通路径随后按层重建。
+    resourceRequest.channels.clear();
 
     for (int level = 0; level < OMNIPIPE_AR_LEVEL_NUM; level++) {
         if (tempMap.count(level) > 0) {
@@ -159,21 +159,21 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                                           InsAgAlgTemplateZ>::Orchestrate(const OpParam& param,
                                                                           const AlgResourceCtxSerializable& resCtx)
 {
-    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][Orchestrate] Orchestrate Start");
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][Orchestrate] start all-reduce execution, rank[%u], symmetric[%d].",
+              resCtx.topoInfo.userRank, param.supportSymmetricMemory);
     // 参数填充
 
     CHK_RET(InitExectorInfo(param, resCtx));
 
-    // channel 归层改在 OrchestrateLoop 内联完成（那里 local subCommRanks 已就绪）。
+    // 通道归层依赖局部子通信域，在 OrchestrateLoop 中完成。
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(
         ret != HCCL_SUCCESS,
-        HCCL_ERROR(
-            "[InsV2AllReduceOmniPipeExecutor][Orchestrate]errNo[0x%016llx] AllReduce executor kernel run failed",
-            HCCL_ERROR_CODE(ret)),
+        HCCL_ERROR("[InsV2AllReduceOmniPipeExecutor][Orchestrate] all-reduce execution failed, "
+                   "rank[%u], errorCode[0x%016llx].", myRank_, HCCL_ERROR_CODE(ret)),
         ret);
-    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][Orchestrate] Orchestrate END");
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][Orchestrate] finish all-reduce execution, rank[%u].", myRank_);
     return HCCL_SUCCESS;
 }
 
@@ -219,7 +219,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     InsAgAlgTemplateZ>::GenTemplateAlgParamsByDimData(TemplateDataParams& tempAlgParams, StepSliceInfo& stepSliceInfo,
                                                        u64 loopOffsetCount, bool supportSymmetricMemory) const
 {
-    // rs特殊处理，过程中的所有step都在ccl中进行数据搬运，在template中只使用ccl的起始地址就可以了，in和out不用赋值
+    // 先填充 RS/AG 各通信步骤共用的分片参数。普通路径在 ccl scratch 上处理；
+    // 对称路径的 RS 直接访问 user input，因此还要叠加当前 loop 在完整输入布局中的偏移。
     tempAlgParams.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
     tempAlgParams.buffInfo.outBuffType = BufferType::HCCL_BUFFER;
 
@@ -229,7 +230,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
 
     tempAlgParams.stepSliceInfo = stepSliceInfo;
     if (supportSymmetricMemory) {
-        // 对称内存的 user input 保持完整分片布局；每轮只推进 input，compact scratch 仍从 0 复用。
+        // user input 保持完整分片布局，只有输入基址随 loop 推进；ccl scratch 仍从 0 复用。
         tempAlgParams.buffInfo.inBuffBaseOff += loopOffsetCount * dataTypeSize_;
     }
     return HCCL_SUCCESS;
@@ -314,7 +315,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     InsAgAlgTemplateZ>::RestoreChannelMap(const AlgResourceCtxSerializable& resCtx,
                                           std::vector<std::map<u32, std::vector<ChannelInfo>>>& rankIdToChannelInfo) const
 {
-    // channel 归层逻辑已移到 OrchestrateLoop；此处仅满足基类虚函数契约。
+    // 通道归层依赖 OrchestrateLoop 中的局部子通信域，已在该处完成；此处仅满足基类虚函数契约。
     (void)resCtx;
     rankIdToChannelInfo.resize(OMNIPIPE_LEVEL_NUM);
     return HCCL_SUCCESS;
@@ -417,7 +418,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     levelThreadsRS_.resize(OMNIPIPE_LEVEL_NUM);
     levelThreadsAG_.resize(OMNIPIPE_LEVEL_NUM);
 
-    HCCL_DEBUG("[InsV2AllReduceOmniPipeExecutor][InitTemplate] tempMap.size()[%u]", tempMap.size());
+    HCCL_DEBUG("[InsV2AllReduceOmniPipeExecutor][InitTemplate] initialize RS and AG templates, "
+               "templateCount[%zu].", tempMap.size());
     controlThread_ = threads_.at(0);
 
     for (int level = 0; level < OMNIPIPE_AR_LEVEL_NUM; level++) {
@@ -455,6 +457,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
             tempResMap[level].npu2DpuShmemPtr = resCtx.npu2DpuShmemPtr;
             tempResMap[level].dpu2NpuShmemPtr = resCtx.dpu2NpuShmemPtr;
 
+            // 对称路径的 RS 直接读写 user input，AG 直接读写 user output；普通路径仍由本地拷贝使用这些地址。
             tempAlgParamMap[level].buffInfo.inputPtr = param.inputPtr;
             tempAlgParamMap[level].buffInfo.outputPtr = param.outputPtr;
             tempAlgParamMap[level].buffInfo.hcclBuff = resCtx.cclMem;
@@ -494,7 +497,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
         subCommRanks1 = algHierarchyInfo_.infos[1];
         subCommRanks2.emplace_back(std::vector<u32>{myRank_});
     }
-    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor]algHierarchyInfo_.info[%s]", ThreeDVecToStrOmni(algHierarchyInfo_.infos).c_str());
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][InitSubCommRanks] build per-level sub-communicators, "
+              "hierarchy[%s].", ThreeDVecToStrOmni(algHierarchyInfo_.infos).c_str());
     return HCCL_SUCCESS;
 }
 
@@ -522,8 +526,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
         }
     }
     bdvec = {bw_ag_l0, bw_ag_l1, bw_ag_l2, bw_rs_l0, bw_rs_l1, bw_rs_l2};
-    HCCL_INFO("[ClacOmniBandwidthInSever]{bw_ag_l0[%f], bw_ag_l1[%f], bw_ag_l2[%f], bw_rs_l0[%f], bw_rs_l1[%f], "
-              "bw_rs_l2[%f]}",
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][ClacOmniBandwidthInSever] select in-server bandwidth "
+              "parameters, agLevel0[%f], agLevel1[%f], agLevel2[%f], rsLevel0[%f], rsLevel1[%f], rsLevel2[%f].",
               bw_ag_l0, bw_ag_l1, bw_ag_l2, bw_rs_l0, bw_rs_l1, bw_rs_l2);
     return HCCL_SUCCESS;
 }
@@ -624,6 +628,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                                           InsAgAlgTemplateZ>::OrchestrateLoop(const OpParam& param,
                                                                               const AlgResourceCtxSerializable& resCtx)
 {
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] start RS-to-AG pipeline loops, "
+              "rank[%u], symmetric[%d].", myRank_, param.supportSymmetricMemory);
     std::vector<std::vector<u32>> subCommRanks0;
     std::vector<std::vector<u32>> subCommRanks1;
     std::vector<std::vector<u32>> subCommRanks2;
@@ -633,9 +639,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     CHK_RET(BuildSubCommAndTempMap(param, algHierarchyInfo_,
             subCommRanks0, subCommRanks1, subCommRanks2, tempMap, &(resCtx.topoInfo)));
 
-    // channel 归层（RS/AG 共用同一批 channel，按 3 层拓扑维度归到 LEVEL0/1/2）：用本函数 local
-    // subCommRanks0/1/2，按 remoteRank 与 myRank_ 同属一个子域来判定归属层。双层遍历 resCtx.channels
-    // 全部 entry：对称为合并后的单个扁平 entry，非对称为每层一个 entry，两种都正确归层。
+    // RS 与 AG 共用同一批通道。根据本 rank 和对端 rank 共同所属的子通信域，把通道归入 level0/1/2。
+    // 对称路径只有一个扁平通道集合，普通路径按层保存；遍历全部集合可同时覆盖两种资源布局。
     remoteRankToChannelInfo_.assign(OMNIPIPE_LEVEL_NUM, {});
     if (!resCtx.channels.empty()) {
         auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
@@ -659,7 +664,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                 if (tryLevel(OMNIPIPE_LEVEL0, subCommRanks0, rankSizeLevel0_, rr, channel)) { continue; }
                 if (tryLevel(OMNIPIPE_LEVEL1, subCommRanks1, rankSizeLevel1_, rr, channel)) { continue; }
                 if (tryLevel(OMNIPIPE_LEVEL2, subCommRanks2, rankSizeLevel2_, rr, channel)) { continue; }
-                HCCL_WARNING("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] remoteRank[%u] not found in any active level, dropped.", rr);
+                HCCL_WARNING("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] discard unclassified channel, "
+                             "remoteRank[%u] is absent from every active sub-communicator.", rr);
             }
         }
     }
@@ -744,7 +750,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     u64 maxCountPerLoop = loopInfo[0];
     u64 loopTimes = loopInfo[1];
 
-    HCCL_DEBUG("maxCountPerLoop[%u], loopTimes[%u]", maxCountPerLoop, loopTimes);
+    HCCL_DEBUG("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] split operation into executor loops, "
+               "maxCountPerLoop[%llu], loopCount[%llu].", maxCountPerLoop, loopTimes);
 
     // 2.4 获取每个rank，每个loop切分的数据量count
     auto multiLoopAllRankSplitData =
@@ -767,17 +774,18 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     for (u64 loop = 0; loop < loopTimes; loop++) {
         CHK_PRT_RET(
             multiLoopAllRankSplitData.size() <= loop,
-            HCCL_ERROR("[InsV2AllReduceOmniPipeExecutor][Orchestrate] multiLoopAllRankSplitData.size() <= loop"),
+            HCCL_ERROR("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] missing per-rank split data "
+                       "for loop[%llu], availableLoopCount[%zu].", loop, multiLoopAllRankSplitData.size()),
             HCCL_E_PARA);
 
-        // 对称路径的地址偏移必须是所有 rank 一致的逻辑 loop 位置，不能使用本 rank 的累计处理量。
+        // 各 rank 的单轮数据量可能不同；对称窗口必须使用所有 rank 一致的逻辑 loop 起点。
         const u64 loopOffsetCount = loop * maxCountPerLoop;
 
         // 4.1首轮计算, 或者与上轮不同loop重新计算OmniPipeSliceInfoRS、OmniPipeSliceInfoAG
         if (loop == 0 || !isSameLoop(multiLoopAllRankSplitData[loop - 1], multiLoopAllRankSplitData[loop])) {
             sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[loop], dataTypeSize_);
-            // 对称内存下 dataWholeSize 照 2d 用每 rank 分片大小（allRankSplitData），描述 user output 的
-            // N 子片布局，供 AG sym 分支 omniReadDstStepSliceInfo 寻址；非对称保持 per-loop（ccl 每 loop 处理 perLoopSize）。
+            // 对称路径按各 rank 的完整分片跨度计算，供 RS 在 user input、AG 在 user output 中寻址；
+            // 普通路径按当前 loop 的紧凑 ccl scratch 布局计算。
             sliceParam.dataWholeSize = param.supportSymmetricMemory
                 ? CalcCountToDataSize(allRankSplitData, dataTypeSize_)
                 : sliceParam.dataSizePerLoop;
@@ -790,9 +798,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
 
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
 
-        // 4.2 RS在每次loop进行之前先将所有数据从usrin拷贝到ccl
-        // intput -> ccl
-        // ccl : 从每个rank-intputmem 上面拿到的数据放到 ccl
+        // 4.2 普通路径在每个 loop 前把各 rank 的 user input 分片压紧到 ccl scratch；
+        // 对称路径的 RS 模板直接读取 user input，因此跳过本地拷贝。
         tempParamLocalcopy.buffInfo.inBuffType = BufferType::INPUT;
         tempParamLocalcopy.buffInfo.inBuffBaseOff =
             processedDataCount * dataTypeSize_;  //每轮loop对应每个rank的搬运起始地址
@@ -800,7 +807,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
         tempParamLocalcopy.repeatNum = rankSize_;
 
         CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01RS_, ntfIdxCtrlToTempLevel01RS_));
-        // 对称内存下 RS 直接读 user input，跳过 input->ccl 的 head copy（保留 Pre/PostSync 线程同步配对）
+        // 即使跳过拷贝，也保留主从线程同步配对，保证两条路径的任务时序一致。
         if (!param.supportSymmetricMemory) {
             CHK_RET(DoLocalCopy(tempParamLocalcopy, controlThread_, allRankSplitData, multiLoopAllRankSplitData[loop]));
         }
@@ -809,10 +816,11 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
         u32 interPodStepNum = OmniPipeSliceInfoRS.dataSliceLevel2.size();
         u32 intraPodStepNum = OmniPipeSliceInfoRS.dataSliceLevel0.size() / OmniPipeSliceInfoRS.dataSliceLevel2.size();
 
-        // 4.3 RS for循环2层
+        // 4.3 先遍历 level2，再遍历当前 level2 步骤内的 level0/level1 RS 步骤。
         for (int stepZ = 0; stepZ < interPodStepNum; stepZ++) {
             if (rankSizeLevel2_ > 1) {
-                HCCL_INFO("rankSizeLevel2_ > 1-----RS-Z");
+                HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-2 RS step, "
+                          "loop[%llu], stepZ[%d], rankSize[%llu].", loop, stepZ, rankSizeLevel2_);
                 CHK_RET(GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_RS_LEVEL2],
                                                       OmniPipeSliceInfoRS.dataSliceLevel2[stepZ],
                                                       loopOffsetCount, param.supportSymmetricMemory));
@@ -825,7 +833,9 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                 // XY前同步
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01RS_, ntfIdxCtrlToTempLevel01RS_));
                 if (rankSizeLevel0_ > 1) {
-                    HCCL_INFO("rankSizeLevel0_ > 1-----RS-X");
+                    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-0 RS step, "
+                              "loop[%llu], stepZ[%d], stepXY[%d], rankSize[%llu].",
+                              loop, stepZ, stepXY, rankSizeLevel0_);
                     CHK_RET(GenTemplateAlgParamsByDimData(
                         tempAlgParamMap[OMNIPIPE_RS_LEVEL0],
                         OmniPipeSliceInfoRS.dataSliceLevel0[stepZ * intraPodStepNum + stepXY],
@@ -834,7 +844,9 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                                                                    tempResMap[OMNIPIPE_RS_LEVEL0]));
                 }
                 if (rankSizeLevel1_ > 1) {
-                    HCCL_INFO("rankSizeLevel1_ > 1-----RS-Y");
+                    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-1 RS step, "
+                              "loop[%llu], stepZ[%d], stepXY[%d], rankSize[%llu].",
+                              loop, stepZ, stepXY, rankSizeLevel1_);
                     CHK_RET(GenTemplateAlgParamsByDimData(
                         tempAlgParamMap[OMNIPIPE_RS_LEVEL1],
                         OmniPipeSliceInfoRS.dataSliceLevel1[stepZ * intraPodStepNum + stepXY],
@@ -847,20 +859,22 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
             if (rankSizeLevel2_ > 1) {
                 // Z后同步
                 CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel2RS_, ntfIdxTempToCtrlLevel2RS_));
-                HCCL_INFO("PostSyncInterThreads z success.");
+                HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] finish level-2 RS step and "
+                          "synchronize template threads, loop[%llu], stepZ[%d].", loop, stepZ);
             }
         }
 
-        // 对称内存：RS reduce 结果落在 input 的本 rank 分片，照 2d AG local copy 把它 bridge 到 output 的
-        // 本 rank 分片（地址区间一致、整段搬；RS/AG 逐 step 数组不同故不逐 slice），供 AG sym 分支从 output 窗口 gather。
+        // 对称路径的 RS 结果位于 user input 的本 rank 分片。AG 从 user output 发起收集，
+        // 因此先按相同偏移把当前 loop 的本 rank 结果整段复制到 output。
         if (param.supportSymmetricMemory && currDataCount > 0) {
             std::vector<u64> perRankOffset(rankSize_, 0);
             for (u32 r = 1; r < rankSize_; ++r) {
                 perRankOffset[r] = perRankOffset[r - 1] + allRankSplitData[r - 1];
             }
             u64 bridgeOff = (perRankOffset[myRank_] + loopOffsetCount) * dataTypeSize_;
-            HCCL_INFO("[InsV2AllReduceOmniPipe][sym-bridge] myRank[%u] perRankOff[%llu] loopOffset[%llu] "
-                      "off(count)[%llu] currDataCount[%llu]", static_cast<u32>(myRank_), perRankOffset[myRank_],
+            HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] copy local RS result from user input "
+                      "to user output before symmetric AG, rank[%u], rankBaseOffset[%llu], loopOffset[%llu], "
+                      "copyOffset[%llu], count[%llu].", static_cast<u32>(myRank_), perRankOffset[myRank_],
                       loopOffsetCount, perRankOffset[myRank_] + loopOffsetCount, currDataCount);
             DataSlice src(param.inputPtr, bridgeOff, currDataCount * dataTypeSize_, currDataCount);
             DataSlice dst(param.outputPtr, bridgeOff, currDataCount * dataTypeSize_, currDataCount);
@@ -870,10 +884,12 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
         interPodStepNum = OmniPipeSliceInfoAG.dataSliceLevel2.size();
         intraPodStepNum = OmniPipeSliceInfoAG.dataSliceLevel0.size() / OmniPipeSliceInfoAG.dataSliceLevel2.size();
 
-        // 5.1 AG for循环2层
+        // 5.1 对称 AG 按完整 output 布局寻址，目标分片描述布局，loopOffsetCount 推进 loop 偏移。
+        // 先遍历 level2，再遍历当前 level2 步骤内的 level0/level1 AG 步骤。
         for (int stepZ = 0; stepZ < interPodStepNum; stepZ++) {
             if (rankSizeLevel2_ > 1) {
-                HCCL_INFO("rankSizeLevel2_ > 1-----AG-Z");
+                HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-2 AG step, "
+                          "loop[%llu], stepZ[%d], rankSize[%llu].", loop, stepZ, rankSizeLevel2_);
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel2AG_, ntfIdxCtrlToTempLevel2AG_));
                 CHK_RET(GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_AG_LEVEL2],
                                                       OmniPipeSliceInfoAG.dataSliceLevel2[stepZ]));
@@ -888,7 +904,9 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                 // XY前同步
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01AG_, ntfIdxCtrlToTempLevel01AG_));
                 if (rankSizeLevel0_ > 1) {
-                    HCCL_INFO("rankSizeLevel0_ > 1-----AG-X");
+                    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-0 AG step, "
+                              "loop[%llu], stepZ[%d], stepXY[%d], rankSize[%llu].",
+                              loop, stepZ, stepXY, rankSizeLevel0_);
                     GenTemplateAlgParamsByDimData(
                         tempAlgParamMap[OMNIPIPE_AG_LEVEL0],
                         OmniPipeSliceInfoAG.dataSliceLevel0[stepZ * intraPodStepNum + stepXY]);
@@ -899,7 +917,9 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                                                                    tempResMap[OMNIPIPE_AG_LEVEL0]));
                 }
                 if (rankSizeLevel1_ > 1) {
-                    HCCL_INFO("rankSizeLevel1_ > 1-----AG-Y");
+                    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] execute level-1 AG step, "
+                              "loop[%llu], stepZ[%d], stepXY[%d], rankSize[%llu].",
+                              loop, stepZ, stepXY, rankSizeLevel1_);
                     GenTemplateAlgParamsByDimData(
                         tempAlgParamMap[OMNIPIPE_AG_LEVEL1],
                         OmniPipeSliceInfoAG.dataSliceLevel1[stepZ * intraPodStepNum + stepXY]);
@@ -917,15 +937,14 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
                 CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel2AG_, ntfIdxTempToCtrlLevel2AG_));
             }
         }
-        // --------------------------------
-        // 5.2将当前这个loop在ccl中的数据一次性拷贝到userout中
+        // 5.2 普通路径将当前 loop 的完整结果从 ccl scratch 回拷到 user output。
         tempParamLocalcopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
         tempParamLocalcopy.buffInfo.inBuffBaseOff = 0;
         tempParamLocalcopy.buffInfo.outBuffBaseOff = processedDataCount * dataTypeSize_;
         tempParamLocalcopy.repeatNum = rankSize_;
 
         CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel01AG_, ntfIdxCtrlToTempLevel01AG_));
-        // 对称内存下 AG 已直写 user output，跳过 ccl->output 的 tail copy（保留 Pre/PostSync 线程同步配对）
+        // 对称路径的 AG 已直接写入 user output；仅保留同步配对，不执行尾拷贝。
         if (!param.supportSymmetricMemory) {
             CHK_RET(DoLocalCopy(tempParamLocalcopy, controlThread_, allRankSplitData, multiLoopAllRankSplitData[loop]));
         }
@@ -933,7 +952,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
 
         processedDataCount += currDataCount;
     }
-    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] End.");
+    HCCL_INFO("[InsV2AllReduceOmniPipeExecutor][OrchestrateLoop] finish RS-to-AG pipeline loops, rank[%u].",
+              myRank_);
     return HCCL_SUCCESS;
 }
 
@@ -952,7 +972,8 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
                               dataTypeSize_));
 
     CHK_PRT_RET(srcDataSlice.size() != dstDataSlice.size(),
-                HCCL_ERROR("[InsV2AllReduceOmniPipeExecutor][DoLocalCopy] srcDataSlice.size != dstDataSlice.size"),
+                HCCL_ERROR("[InsV2AllReduceOmniPipeExecutor][DoLocalCopy] local-copy slice counts do not match, "
+                           "sourceCount[%zu], destinationCount[%zu].", srcDataSlice.size(), dstDataSlice.size()),
                 HCCL_E_PARA);
 
     for (auto i = 0; i < srcDataSlice.size(); ++i) {
