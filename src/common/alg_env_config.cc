@@ -199,7 +199,7 @@ HcclResult InitEnvConfig()
         std::vector<std::string>({"value", "env", "expect"}),
         std::vector<std::string>({
             "PCIE enable: " + std::string(GetEnv("HCCL_INTRA_PCIE_ENABLE")) + " or ROCE enable: "
-            + std::string(GetEnv("HCCL_INTRA_ROCE_ENABLE")), 
+            + std::string(GetEnv("HCCL_INTRA_ROCE_ENABLE")),
             "HCCL_INTRA_PCIE_ENABLE or HCCL_INTRA_ROCE_ENABLE", "0 or 1 (but not both 1)"
         }));
     CHK_PRT_RET(ret != HCCL_SUCCESS,

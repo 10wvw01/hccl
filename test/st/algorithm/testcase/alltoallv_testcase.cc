@@ -86,8 +86,10 @@ protected:
                 void *sendBuf = nullptr;
                 void *recvBuf = nullptr;
                 // 打桩实现，仿真运行需标记内存是INPUT和OUTPUT
-                aclrtMalloc(&sendBuf, sendDataCount * HCCL_SIZE_TABLE[dataType], static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
-                aclrtMalloc(&recvBuf, recvDataCount * HCCL_SIZE_TABLE[dataType], static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+                aclrtMalloc(&sendBuf, sendDataCount * HCCL_SIZE_TABLE[dataType],
+                            static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+                aclrtMalloc(&recvBuf, recvDataCount * HCCL_SIZE_TABLE[dataType],
+                            static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
 
                 // 4.算子下发
                 CHK_RET(HcclAlltoAllV(sendBuf,

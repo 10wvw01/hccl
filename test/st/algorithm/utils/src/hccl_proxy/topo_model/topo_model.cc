@@ -212,7 +212,8 @@ void TopoModel::GetInstSizeByNetLayer(uint32_t curRank, uint32_t netLayer, uint3
     }
 }
 
-void TopoModel::GetLinks(HcclDevType devType, uint32_t netLayer, uint32_t srcRank, uint32_t dstRank, CommLink **linkList, uint32_t *listSize)
+void TopoModel::GetLinks(HcclDevType devType, uint32_t netLayer, uint32_t srcRank, uint32_t dstRank,
+                         CommLink **linkList, uint32_t *listSize)
 {
     auto rankPair = std::make_pair(srcRank, dstRank);
     auto it = allLinkMap_.find(rankPair);

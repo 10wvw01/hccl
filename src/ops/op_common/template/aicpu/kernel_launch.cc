@@ -688,8 +688,7 @@ extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
             HCCL_ERROR("failed set eager mode, tag is %s.", param->algTag);
             return 1;
         }
-    }
-    else {
+    } else {
         HCCL_ERROR("%s P2P only support OpsV2, algName[%s], deviceType[%d]", 
                 __func__, param->algName, static_cast<int>(param->deviceType));
         HcommReleaseComm(param->commName);

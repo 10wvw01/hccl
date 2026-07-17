@@ -352,7 +352,7 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
         aclError ret = aclrtBinaryGetFunction(g_binKernelHandle, kernelName.c_str(), &funcHandle);
         CHK_PRT_RET(ret != ACL_SUCCESS,
                     HCCL_ERROR("[aclrtBinaryGetFunction]errNo[0x%016llx] get func handle failed, kernelName:%s",
-                                ret, kernelName.c_str()),
+                               ret, kernelName.c_str()),
                     HCCL_E_RUNTIME);
 
         ret = aclrtKernelArgsInit(funcHandle, &argsHandle);
@@ -364,13 +364,13 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
         ret = aclrtKernelArgsAppend(argsHandle, &param, sizeof(OpParam), &paraHandle);
         CHK_PRT_RET(ret != ACL_SUCCESS,
                     HCCL_ERROR("[aclrtKernelArgsAppend]errNo[0x%016llx] args append failed, append size %u, kernelName:%s", ret,
-                                sizeof(OpParam), kernelName.c_str()),
+                               sizeof(OpParam), kernelName.c_str()),
                     HCCL_E_RUNTIME);
 
         ret = aclrtKernelArgsFinalize(argsHandle);
         CHK_PRT_RET(ret != ACL_SUCCESS,
                     HCCL_ERROR("[aclrtKernelArgsFinalize]errNo[0x%016llx] args finalize failed, kernelName:%s", ret,
-                                kernelName.c_str()),
+                               kernelName.c_str()),
                     HCCL_E_RUNTIME);
 
         u16 NOTIFY_DEFAULT_WAIT_TIME = 27 * 68;   // notifywait默认1836等待时长
