@@ -104,19 +104,13 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcums(
 SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
 {
+    selectAlgName = "CcuV2ReduceOmniPipe2D";
+    HCCL_INFO("[ReduceAutoSelector zq][%s] Algo match [%s]", __func__, selectAlgName.c_str());
+    return SelectorStatus::MATCH;
+
     HCCL_DEBUG("[ReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
         SelectorStatus::NOT_MATCH);
-    if (topoInfo->level2Ubg) {
-        HCCL_INFO("[ReduceAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
-            __func__);
-        return SelectorStatus::NOT_MATCH;
-    }
-    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
-        HCCL_INFO("[ReduceAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
-            __func__);
-        return SelectorStatus::NOT_MATCH;
-    }
     (void)configAlgMap;
     // ccu 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
@@ -132,13 +126,13 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
+        if (topoInfo->userRankSize == 0 ||
+            dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+            HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
+                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+            return SelectorStatus::NOT_MATCH;
+        }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            if (topoInfo->userRankSize == 0 ||
-                dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-                HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
-                return SelectorStatus::NOT_MATCH;
-            }
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1) {
                 // 每框出 1 卡
                 selectAlgName = "CcuReduceNHR1DMem2Mem";
@@ -314,13 +308,6 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
     CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
         SelectorStatus::NOT_MATCH);
     (void)configAlgMap;
-
-    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
-            __func__);
-        return SelectorStatus::NOT_MATCH;
-    }
-
     // aiv 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_WARNING, "[ReduceAutoSelector] ReduceOp[%d] is not supported yet for aiv mode.", opParam.reduceType),
@@ -380,11 +367,9 @@ SelectorStatus ReduceAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDetai
             HCCL_INFO("selectAlgName is InsReduceSequenceMeshNhrDPU");
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            if (topoInfo->level0PcieMix) {
-                selectAlgName = "InsReduceSequenceMeshNhrDPU";
-                HCCL_INFO("selectAlgName is InsReduceSequenceMeshNhrDPU");
-                return SelectorStatus::MATCH;
-            }
+            selectAlgName = "CcuV2ReduceOmniPipe2D";
+            HCCL_INFO("selectAlgName is CcuV2ReduceOmniPipe2D");
+            return SelectorStatus::MATCH;
         }
     }
     return SelectorStatus::NOT_MATCH;
