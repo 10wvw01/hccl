@@ -41,6 +41,7 @@ private:
     std::vector<std::vector<std::vector<u64>>> dataOffsetVec_;
     bool omniLastStepRead_ = false;
     bool lastStepNhrCopy_ = false;
+    // KernelRun 缓存对称窗口及窗口内偏移；NHR 数据面通过 output 窗口访问对端输出。
     u64 inputOffset_{0};
     u64 outputOffset_{0};
     void *inputSymWindow_{nullptr};
