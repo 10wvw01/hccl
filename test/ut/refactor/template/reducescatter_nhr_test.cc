@@ -52,7 +52,7 @@ TEST(ReduceScatterNhrRunAlgorithmTest, FourRankTwoStepsBuildsTxRxSlicesLists)
     tmpl.tempAlgParams_.ranksForInputData = {0, 1, 2, 3};
     tmpl.templateRankSize_ = 4;
 
-    // RunNhrReduceScatter 需要 templateResource.channels 非空
+    // channels 仅供执行层解析远端地址，primitive 不再访问
     TemplateResource res;
     for (u32 rank : ranks) {
         if (rank == 0) { continue; }
@@ -72,8 +72,8 @@ TEST(ReduceScatterNhrRunAlgorithmTest, FourRankTwoStepsBuildsTxRxSlicesLists)
     EXPECT_EQ(txRxSlicesLists.size(), 2u);
 }
 
-// TC03 空 channels 时 RunAlgorithm 直接返回（不生成 txRxSlicesLists）
-TEST(ReduceScatterNhrRunAlgorithmTest, EmptyChannelsReturnsSuccessNoTransfer)
+// TC03 primitive 不再访问 channels，空 channels 也正常生成 txRxSlicesLists
+TEST(ReduceScatterNhrRunAlgorithmTest, EmptyChannelsStillBuildsTxRxSlicesLists)
 {
     ReduceScatterNhrTemplate tmpl(0, {0, 1}, TemplateDesc{HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
         HcclAlgoType::HCCL_ALGO_TYPE_NHR, HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY});
@@ -93,8 +93,8 @@ TEST(ReduceScatterNhrRunAlgorithmTest, EmptyChannelsReturnsSuccessNoTransfer)
 
     HcclResult ret = tmpl.RunAlgorithm(res, txRxSlicesLists, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // channels 为空 → 直接返回，不生成 txRxSlicesLists
-    EXPECT_TRUE(txRxSlicesLists.empty());
+    // 2 rank → 1 步 → 1 个 TxRxSlicesList
+    EXPECT_EQ(txRxSlicesLists.size(), 1u);
 }
 
 // TC04 8 rank NHR 生成 3 步
@@ -113,7 +113,7 @@ TEST(ReduceScatterNhrRunAlgorithmTest, EightRankThreeStepsBuildsTxRxSlicesLists)
     tmpl.tempAlgParams_.ranksForInputData = {0, 1, 2, 3, 4, 5, 6, 7};
     tmpl.templateRankSize_ = 8;
 
-    // RunNhrReduceScatter 需要 templateResource.channels 非空
+    // channels 仅供执行层解析远端地址，primitive 不再访问
     TemplateResource res;
     for (u32 rank : ranks) {
         if (rank == 0) { continue; }
@@ -179,7 +179,7 @@ TEST_F(AicpuBaseTemplateTest, ReduceScatterNhrKernelRunMultiRankCallsSend)
     ReduceScatterNhrTemplate tmpl(0, ranks, MakeReduceScatterNhrDesc());
     // ReduceScatter 输入包含所有 rank 的数据
     TemplateDataParams params = MakeTmplParams({0, 1, 2, 3});
-    // RunNhrReduceScatter 需要 channels 非空
+    // channels 仅供执行层解析远端地址
     TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
 
