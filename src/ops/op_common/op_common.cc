@@ -819,6 +819,8 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
     AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
     u32 hostNotifyWaitTime = IsHcommDefaultTimeoutSupported() ? timeout.hostNotifyTimeout :
         AddAicpuTimeoutOffset(param.opConfig.execTimeout, HOST_NOTIFY_TIMEOUT_OFFSET);
+    HCCL_INFO("[TIMEOUT-TRACE][LegacyOpCommon] execTimeout=%u hostNotifyWaitTime=%u defaultSupported=%u",
+        param.opConfig.execTimeout, hostNotifyWaitTime, static_cast<u32>(IsHcommDefaultTimeoutSupported()));
     if (HcommIsSupportHcommSetNotifyWaitTimeOut()) {
         CHK_RET(HcclSetNotifyWaitTimeOut(hostNotifyWaitTime));
     }
