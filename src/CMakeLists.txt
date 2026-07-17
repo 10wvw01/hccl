@@ -206,7 +206,48 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template
 )
 
-if(NOT BUILD_OPEN_PROJECT)
+if(BUILD_OPEN_PROJECT)
+    list(APPEND INCLUDE_LIST
+        ${ASCEND_CANN_PACKAGE_PATH}/include
+        ${ASCEND_CANN_PACKAGE_PATH}/include/acl
+
+        # hcomm头文件
+        ${ASCEND_CANN_PACKAGE_PATH}/include/ccu
+        ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
+        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
+        ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
+
+        # runtime头文件
+        ${ASCEND_CANN_PACKAGE_PATH}/include/
+        ${ASCEND_CANN_PACKAGE_PATH}/include/base/
+        ${ASCEND_CANN_PACKAGE_PATH}/include/driver/
+        ${ASCEND_CANN_PACKAGE_PATH}/include/dump/
+        ${ASCEND_CANN_PACKAGE_PATH}/include/external/
+        ${ASCEND_CANN_PACKAGE_PATH}/include/platform/
+
+        # driver头文件
+        ${ASCEND_CANN_PACKAGE_PATH}/include/driver/
+
+        # driver头文件
+        ${ASCEND_CANN_PACKAGE_PATH}/include/driver/
+
+        # 包间接口
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hccl
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/runtime/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/aicpu/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/profiling/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/base/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/dump/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/trace/
+        ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/mmpa
+        ${ASCEND_CANN_PACKAGE_PATH}/include/mmpa
+    )
+    # pkg_inc/hcomm/ccu 仅 9.0.0 CANN 存在，8.5.0 下直接不加入 include 路径
+    if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hcomm/ccu)
+        list(APPEND INCLUDE_LIST ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc/hcomm/ccu)
+    endif()
+else()
     list(APPEND INCLUDE_LIST
         ${TOP_DIR}/inc
         ${TOP_DIR}/inc/aicpu/tsd
@@ -241,8 +282,6 @@ if(NOT BUILD_OPEN_PROJECT)
         ${TOP_DIR}/hcomm/inc/hccl
         ${TOP_DIR}/hcomm/pkg_inc
         ${TOP_DIR}/hcomm/pkg_inc/hccl
-        ${TOP_DIR}/hcomm/pkg_inc/legacy
-        ${TOP_DIR}/hcomm/pkg_inc/legacy/hccl
         ${TOP_DIR}/hcomm/pkg_inc/hcomm/ccu
         ${TOP_DIR}/hcomm/include
         ${TOP_DIR}/hcomm/include/hccl
@@ -258,8 +297,16 @@ else()
     include(scatter_aicpu_kernel.cmake)
 endif()
 
-add_subdirectory(common)
-add_subdirectory(ops)
+if(NOT REFACTOR_ONLY)
+    add_subdirectory(common)
+    add_subdirectory(ops)
+endif()
+
+# refactor 路径接入（由顶层 REFACTOR_OPS 开关控制）
+# 必须在 include(hccl.cmake) 之后，因为下面的 CMakeLists 会 target_sources(hccl ...)
+if(REFACTOR_OPS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../refactor/CMakeLists.txt)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../refactor/CMakeLists.txt)
+endif()
 
 
 # 定义AIV算子聚合目标
