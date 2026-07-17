@@ -2203,7 +2203,7 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
         // Op注册
         HcclDfxOpInfoCompat hcclDfxOpInfo{};
-        bool isAclGraph = IsStreamInCaptureMode(param.opMode);
+        bool isAclGraph = IsStreamInCaptureMode(param.stream);
         hcclDfxOpInfo.opMode = isAclGraph 
             ? static_cast<u32>(ops_hccl::OpMode::ACLGRAPH) 
             : static_cast<u32>(param.opMode);
