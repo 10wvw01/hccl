@@ -82,7 +82,8 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    // 尾块语义与 PreCopy/PostCopy 对齐：tailCount 是均分后的零头，尾块 = 整块 + 零头
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     HCCL_INFO("[RunMeshAllGather] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
@@ -147,7 +148,7 @@ HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::ve
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.scratchStride, tailRankId};
     HCCL_INFO("[RunMeshScatter] myAlgRank=%u, rootAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
@@ -201,7 +202,7 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
 

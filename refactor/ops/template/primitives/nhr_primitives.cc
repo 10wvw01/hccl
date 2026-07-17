@@ -46,7 +46,8 @@ namespace {
     {
         const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
         const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-        const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+        // 尾块语义与 PreCopy/PostCopy 对齐：tailCount 是均分后的零头，尾块 = 整块 + 零头
+        const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
         for (u32 rankId : rankIds) {
             const u64 offset = tempAlgParams.sliceOffset + static_cast<u64>(rankId) * tempAlgParams.scratchStride;
             const u64 dataSize = (tailSize > 0 && rankId == tailRankId) ? tailSize : sliceSize;
@@ -79,7 +80,7 @@ HcclResult RunNhrAllGather(const TemplateDataParams &tempAlgParams, const std::v
     HcclDataType dataType = tempAlgParams.dataType;
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType];
     u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
     u32 nSteps = 0;
     // 计算ceil(log2(rankSize))
@@ -154,7 +155,7 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     u32 nSteps = 0;
     // 计算ceil(log2(rankSize))
@@ -226,7 +227,7 @@ HcclResult RunNhrScatter(const TemplateDataParams &tempAlgParams, const std::vec
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     // myRelRoot 是在以 root 为基准的排序中的 rank 位置
     const u32 myRelRoot = (myAlgRank + rankSize - rootAlgRank) % rankSize;

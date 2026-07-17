@@ -125,8 +125,8 @@ TEST_F(NhrAllGatherTransferTest, BuildTailRankSlice)
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
     ASSERT_EQ(txRxSlicesLists[1].rxSlicesList_.dstSlices_.size(), 2U);
     EXPECT_EQ(RxDst(txRxSlicesLists[1], 0).offset_, 48U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[1], 0).size_, 8U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[1], 0).count_, 2U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1], 0).size_, 24U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1], 0).count_, 6U);
 }
 
 TEST_F(NhrAllGatherTransferTest, UpdateOutputRanksForPostCopy)
@@ -257,8 +257,8 @@ TEST_F(NhrScatterTransferTest, BuildTailRankSlice)
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
     ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 48U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).size_, 8U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).count_, 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).size_, 24U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).count_, 6U);
 }
 
 TEST_F(NhrScatterTransferTest, NonZeroRootUsesRootRelativeTreeOrder)
@@ -449,11 +449,11 @@ TEST_F(NhrReduceScatterTransferTest, BuildTailRankSlice)
 
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
-    // step0 tx 槽位 [3, 1]：rank3 是尾块（tailCount=2 → 8B），rank1 是整块（sliceCount=4 → 16B）
+    // step0 tx 槽位 [3, 1]：rank3 是尾块（整块 16B + 零头 8B = 24B），rank1 是整块（16B）
     ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).offset_, 48U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).size_, 8U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).count_, 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).size_, 24U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).count_, 6U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 16U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).size_, 16U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).count_, 4U);

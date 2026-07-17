@@ -19,6 +19,14 @@ namespace ops_hccl {
 
 struct TemplateDataParams;
 
+struct NHRSliceInfo {
+    const TemplateDataParams &tempAlgParams;
+    u64 sliceSize;
+    u64 tailSize;
+    u64 stride;
+    u32 tailRankId;
+};
+
 struct NhrAllGatherSlicePair {
     void *srcPtr;
     void *dstPtr;

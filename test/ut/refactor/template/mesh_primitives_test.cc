@@ -131,8 +131,8 @@ TEST_F(MeshAllGatherTransferTest, BuildTailRankSlice)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 8U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 2U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 24U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 6U);
 }
 
 // 校验输出数据归属表按全局 rank 排序后返回给 PostCopy。
@@ -264,8 +264,8 @@ TEST_F(MeshScatterTransferTest, BuildTailRankSlice)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 8U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 24U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 6U);
 }
 
 TEST_F(MeshScatterTransferTest, NonZeroRootSkipsSelfAndKeepsRankOrder)
@@ -395,14 +395,14 @@ TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 8U);
-    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).size_, 24U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[2]).count_, 6U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).size_, 16U);
     EXPECT_EQ(RxDst(txRxSlicesLists[2]).count_, 4U);
     EXPECT_EQ(TxDst(txRxSlicesLists[2]).offset_, 48U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).size_, 8U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[2]).count_, 2U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).size_, 24U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[2]).count_, 6U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
@@ -419,8 +419,8 @@ TEST_F(MeshReduceScatterTransferTest, LocalTailRankBuildsTailRxSlice)
     ASSERT_EQ(txRxSlicesLists.size(), 3U);
     EXPECT_EQ(ranksForOutputData, std::vector<u32>({3}));
     EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).size_, 8U);
-    EXPECT_EQ(RxDst(txRxSlicesLists[0]).count_, 2U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).size_, 24U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).count_, 6U);
 }
 
 } // namespace testing
