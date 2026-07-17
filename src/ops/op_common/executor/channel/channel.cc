@@ -653,7 +653,7 @@ static bool IsEndPointEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1)
             (memcmp(endPoint0.commAddr.eid, endPoint1.commAddr.eid, sizeof(endPoint0.commAddr.eid)) == 0);
     }
 }
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType)
 {
