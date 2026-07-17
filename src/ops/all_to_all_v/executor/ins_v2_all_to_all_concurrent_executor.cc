@@ -26,6 +26,8 @@ constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
 constexpr u32 MESH_BW = 100;
 constexpr u32 CLOS_BW = 113;
+constexpr u32 MESH_BW_AICPU = 10;
+constexpr u32 CLOS_BW_AICPU = 12;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllToAllConcurrentExecutor()
@@ -269,6 +271,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         factorMesh = MESH_BW;
         factorClos = CLOS_BW;
+    } else if (param.engine == CommEngine::COMM_ENGINE_AICPU_TS) {
+        factorMesh = MESH_BW_AICPU;
+        factorClos = CLOS_BW_AICPU;
     }
     uint32_t factor = factorMesh + factorClos;
     for (u64 i = 0; i < rankSize_; i++) {
