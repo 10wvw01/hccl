@@ -10,12 +10,10 @@
  
 #include "ccu_v2_reduce_omnipipe_executor.h"
 #include "alg_data_trans_wrapper.h"
-// #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
-#include "ccu_temp_gather_omnipipe_mesh_1d_mem2memY.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_alg_template_base.h"
 namespace ops_hccl {
@@ -179,7 +177,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     resourceRequest.slaveThreadNum += 1; // 需要一个主流和一个从流来并行2d   
     resourceRequest.notifyNumOnMainThread += 1; 
     resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
-    // resourceRequest.notifyNumPerThread.emplace_back(1);
     HCCL_DEBUG("[%s] slaveThreadNum:%d, notifyNumOnMainThread:%d", __func__, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread);
     HCCL_DEBUG("end CalcRes");
     return HCCL_SUCCESS;
@@ -307,7 +304,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     tempAlgParams.inputSliceStride = 0;
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
-    // tempAlgParams.root = param.root;
 
     tempAlgParams.localCopyFlag = 0;
     tempAlgParams.repeatNum = stepSliceInfo.stepCount.size();
@@ -478,7 +474,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             HCCL_INFO("[%s] endpointAttrBwAvgRS:%f, endpointAttrBwAvgG:%f", __func__, endpointAttrBwAvgRS, endpointAttrBwAvgG);
         }
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
-        // std::cout<<sliceParam.toString()<<std::endl;
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j].size();k++){
@@ -667,7 +662,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                     tempAlgParamLocalCopy.stepSliceInfo.buffInfo.inBuffBaseOff = rankLoopOffset;
                 }
 
-                // HCCL_DEBUG("[%s] tempAlgParamLocalCopyxx.buffInfo.inputPtr[%u] ",&(param.inputPtr));
                 HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
@@ -696,6 +690,5 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
-                                // CcuTempGatherOmniPipeMesh1DMem2MemY);
                                 CcuTempGatherOmniPipeNHR1DMem2Mem);
 }

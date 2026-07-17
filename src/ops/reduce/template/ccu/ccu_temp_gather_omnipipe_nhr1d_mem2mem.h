@@ -49,7 +49,6 @@ public:
     bool ifRealRoot_ = false;
     bool isStepOne_ = false;
     bool isLastStep_ = false;
-    // bool ifNewRoot = false;
 
     u64 localCopyFlag = 0;
     bool isSameXAxis = false;
