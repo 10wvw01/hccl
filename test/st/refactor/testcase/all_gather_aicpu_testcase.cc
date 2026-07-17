@@ -221,7 +221,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_sm
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_3x3rank_int64_media_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x4rank_int64_media_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1, 2, 3}, {0, 1, 2, 3}}}; // 三维数组指定超节点-Server-Device信息
