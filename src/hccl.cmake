@@ -78,6 +78,7 @@ endif()
 
 if(BUILD_OPEN_PROJECT)
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:intf_pub_cxx14>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:msprof_headers>
@@ -92,6 +93,7 @@ if(BUILD_OPEN_PROJECT)
     )
 else()
     target_link_libraries(hccl PRIVATE
+        $<BUILD_INTERFACE:intf_pub_cxx14>
         $<BUILD_INTERFACE:ofed_headers>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:msprof_headers>
@@ -162,6 +164,7 @@ target_compile_options(opgraph_hccl PRIVATE
     -fvisibility=hidden
 )
 target_link_libraries(opgraph_hccl PRIVATE
+    $<BUILD_INTERFACE:intf_pub_cxx14>
     $<BUILD_INTERFACE:msprof_headers>
     $<BUILD_INTERFACE:mmpa_headers>
     $<BUILD_INTERFACE:runtime_headers>
