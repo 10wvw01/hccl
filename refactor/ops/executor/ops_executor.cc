@@ -474,7 +474,7 @@ inline void OpsExecutor::UpdateDataSplitSequence(AlgoExecDesc &algoExecDesc, Alg
     if (childrenId > 0) {
         // 如果是串行需要将当前节点的输入设置为上个子节点的输出
         childrenAlgoExecDataDesc.at(childrenId).ranksForInputDataGroup
-            = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForInputDataGroup;
+            = childrenAlgoExecDataDesc.at(childrenId - 1).ranksForOutputDataGroup;
         childrenAlgoExecDataDesc.at(childrenId).inputBufferType
             = childrenAlgoExecDataDesc.at(childrenId - 1).outputBufferType;
     }
