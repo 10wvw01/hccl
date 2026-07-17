@@ -90,7 +90,8 @@ static CcuResult PreSync(GatherOmniPipeNHR1DMem2MemContext &ctx)
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.myRankIdx],
             INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
-        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.scratch[ctx.myRankIdx],
+        // 复用 SCRATCH_XN_ID 传递 output 地址，用于多步 Gather 转发时从对端 output 读取上一步收到的数据
+        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.output,
             SCRATCH_XN_ID, CKE_IDX_0, 1 << SCRATCH_XN_ID);
         ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.myRankIdx],
             TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
@@ -151,11 +152,16 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         for (u32 i = 0; i < recvSliceIdxSize; i++) {
             recvSliceIdx = recvSliceIdxList[i];
             if (nhrStepInfo.fromRank == recvSliceIdx) {
+                // 发送方发送的是自己的原始数据，从对端 input 读取
                 src.addr = ctx.input[fromRankIdx];
+                src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
             } else {
+                // 发送方转发的是上一步收到的数据，从对端 output 读取
+                // ctx.scratch[fromRankIdx] 实际存储的是对端 output 地址（在 PreSync 中传递）
                 src.addr = ctx.scratch[fromRankIdx];
+                src.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
             }
-            src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
+            // src.addr += ctx.inputOmniSliceStrideVec[recvSliceIdx];
 
             dst.addr = ctx.output;
             dst.addr += ctx.outputOmniSliceStrideVec[recvSliceIdx];
