@@ -9,6 +9,10 @@
 # ----------------------------------------------------------------------------
 
 if(STATIC_MODE)
+    target_compile_options(hccl PRIVATE
+        -Wno-unused-parameter
+    )
+
     target_sources(hccl PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/hccl_rank_graph_dl.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/hccl_res_dl.cc
@@ -45,6 +49,7 @@ else()
 
     target_compile_options(hccl_compat PRIVATE
         -Werror
+        -Wno-unused-parameter
         -fno-common
         -fno-strict-aliasing
         -pipe
@@ -63,6 +68,7 @@ else()
 
     if(BUILD_OPEN_PROJECT)
         target_link_libraries(hccl_compat PRIVATE
+            $<BUILD_INTERFACE:intf_pub_cxx14>
             $<BUILD_INTERFACE:runtime_headers>
             $<BUILD_INTERFACE:hcomm_headers>
             -Wl,--no-as-needed
@@ -72,6 +78,7 @@ else()
         )
     else()
         target_link_libraries(hccl_compat PRIVATE
+            $<BUILD_INTERFACE:intf_pub_cxx14>
             $<BUILD_INTERFACE:slog_headers>
             -Wl,--no-as-needed
             unified_dlog
