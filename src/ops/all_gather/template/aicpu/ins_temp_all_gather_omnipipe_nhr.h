@@ -30,6 +30,8 @@ public:
                          TemplateResource& templateResource) override;
 
 private:
+    HcclResult PreSyncSubThreads(const std::vector<ThreadHandle>& threads);
+    HcclResult PostSyncSubThreads(const std::vector<ThreadHandle>& threads);
     HcclResult RunAllGatherNHR(const std::vector<ThreadHandle>& threads,
                                const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
 

@@ -40,6 +40,10 @@ public:
 private:
     HcclResult GetStepInfoList(std::vector<AicpuNHRStepInfo> &stepInfoList);
     HcclResult RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx);
+    HcclResult RunNHRStep(const AicpuNHRStepInfo &stepInfo, const std::vector<ThreadHandle> &threads,
+        u32 channelIdx, u32 dataTypeSize, u64 repeatNum, bool isPcieProtocol);
+    HcclResult GetNHRRemoteAddrs(u32 sendToRank, u32 recvFromRank, const ChannelInfo &linkSend,
+        const ChannelInfo &linkRecv, void *&sendRemoteAddr, void *&recvRemoteAddr) const;
 
     HcclResult GetNHRDataSize(const AicpuNHRStepInfo& st, const u32 channelIdx, 
         void* sendCclBuffAddr, void* recvCclBuffAddr, const u32 dataTypeSize, const u64 rptNum,
