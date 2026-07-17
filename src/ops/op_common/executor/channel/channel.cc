@@ -324,6 +324,8 @@ HcclResult GetRankFullMeshLayers(HcclComm comm, const std::vector<std::vector<u3
     }
     return HCCL_SUCCESS;
 #endif
+
+return HCCL_SUCCESS;
 }
 
 HcclResult CalcChannelRequestMesh1D(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

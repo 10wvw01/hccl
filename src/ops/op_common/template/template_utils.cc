@@ -291,7 +291,7 @@ static bool PrepareParallelPortInfo(
         failureReason = "scaled intraPortGroupSize is 0";
         return false;
     }
-    if (portInfo.effectiveInterPortGroupSize == 0.0 || !std::isfinite(portInfo.effectiveInterPortGroupSize)) {
+    if (std::fpclassify(portInfo.effectiveInterPortGroupSize) == FP_ZERO || !std::isfinite(portInfo.effectiveInterPortGroupSize)) {
         failureReason = "effectiveInterPortGroupSize is 0 or not finite";
         return false;
     }
@@ -336,7 +336,7 @@ static bool CalcRawParallelDataSplitRatio(
     const char *&failureReason)
 {
     const double denominator = timeCoeff.clos + timeCoeff.mesh;
-    if (denominator == 0.0 || !std::isfinite(denominator)) {
+    if (std::fpclassify(denominator) == FP_ZERO || !std::isfinite(denominator)) {
         failureReason = "denominator is 0 or not finite";
         return false;
     }
