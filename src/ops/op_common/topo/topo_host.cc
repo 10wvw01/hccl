@@ -12,7 +12,7 @@
 #include <vector>
 #include "topo_host.h"
 #include "hccl_rank_graph.h"
-#include "hcomm_primitives.h"
+#include "aicpu/hcomm/hcomm_primitives.h"
 #include "hccl_res.h"
 #include "hccl.h"
 #include "adapter_acl.h"
