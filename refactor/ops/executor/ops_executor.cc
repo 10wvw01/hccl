@@ -78,8 +78,8 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         }
         // 子类实现
         AlgoExecDataDesc algoExecDataDesc;
-        HCCL_INFO("[Orchestrate] loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d", loopTimes,
-            loopIdx, processCount, offsetCount, tailCount);
+        HCCL_INFO("[Orchestrate] myRank_ =%d, loopTimes=%d, loopIdx=%d, processCount=%d, offsetCount=%d, tailCount=%d",
+            myRank_, loopTimes, loopIdx, processCount, offsetCount, tailCount);
         // 非allgather的dataOffset是每卡数据内的偏移（offsetCount/rankSize），allgather是整个输入的偏移
         u64 dataOffset = (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_ALLGATHER)
                              ? offsetCount * dataTypeSize_
@@ -506,7 +506,7 @@ HcclResult OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
 
 HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
 {
-    HCCL_ERROR("[RunTemplateDesc] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d",
+    HCCL_INFO("[RunTemplateDesc][myRank_:%d:] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d", myRank_,
         static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
         static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
@@ -517,14 +517,14 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
     GenTemplateDataParams(algoExecDataDesc, templateDataParams);
-    HCCL_ERROR("[RunTemplateDesc] templateDataParams: inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
-               "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
-               "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
-        static_cast<int>(templateDataParams.inputBufferType), static_cast<int>(templateDataParams.outputBufferType),
-        static_cast<int>(templateDataParams.cclBufferType), static_cast<int>(templateDataParams.dataType),
-        templateDataParams.dataOffset, templateDataParams.sliceCount, templateDataParams.sliceOffset,
-        templateDataParams.tailCount, templateDataParams.dataStride, templateDataParams.scratchStride,
-        static_cast<int>(templateDataParams.reduceOp), templateDataParams.root,
+    HCCL_INFO("[RunTemplateDesc][myRank_:%d:] inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
+              "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
+              "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
+        myRank_, static_cast<int>(templateDataParams.inputBufferType),
+        static_cast<int>(templateDataParams.outputBufferType), static_cast<int>(templateDataParams.cclBufferType),
+        static_cast<int>(templateDataParams.dataType), templateDataParams.dataOffset, templateDataParams.sliceCount,
+        templateDataParams.sliceOffset, templateDataParams.tailCount, templateDataParams.dataStride,
+        templateDataParams.scratchStride, static_cast<int>(templateDataParams.reduceOp), templateDataParams.root,
         static_cast<int>(templateDataParams.enableRemoteMemAccess));
     for (size_t i = 0; i < templateDataParams.ranksForInputData.size(); ++i) {
         HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
