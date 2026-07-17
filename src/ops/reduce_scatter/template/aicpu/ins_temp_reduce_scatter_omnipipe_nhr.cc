@@ -36,31 +36,36 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
                                               const TemplateDataParams& tempAlgParams,
                                               TemplateResource& templateResource)
 {
-    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR] GenExtIns start");
+    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][KernelRun] start NHR reduce-scatter template, "
+              "rank[%u], symmetric[%d].", myRank_, param.supportSymmetricMemory);
     if (templateRankSize_ == 1) {
-        HCCL_INFO("[InsTempReduceScatterOmniPipeNHR] Rank [%d], template ranksize is 1.", myRank_);
+        HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][KernelRun] skip communication for single-rank template, "
+                  "rank[%u].", myRank_);
         return HcclResult::HCCL_SUCCESS;
     }
     tempAlgParams_       = tempAlgParams;
     channels_            = templateResource.channels;
     dataType_ = param.DataDes.dataType;
-    // 对称内存：缓存 user input 对称窗口/偏移/开关，供 RunNHR 取对端 input peer 指针
+    // 缓存 user input 对称窗口、窗口内偏移和开关，供 RunNHR 获取对端 input 地址。
     supportSymmetricMemory_ = param.supportSymmetricMemory;
     inputSymWindow_         = param.inputSymWindow;
     inputOffset_            = param.inputOffset;
 
     threadNum_ = GetThreadNum();
 
-    // 这里的步骤nhr无需流同步、前后copy单独拿出来在executor中控制执行
+    // 模板内部只处理 NHR 主从线程同步；每个 loop 的前后本地拷贝由 executor 统一编排。
     CHK_RET(PrepareOmniPipeDataSplitForMultiChannel(static_cast<CommonAlgTemplateBase*>(this), tempAlgParams_, dataType_, templateResource, 
         dataSplitVec_, dataOffsetVec_));
-    HCCL_DEBUG("MT channelsPerRank_ = %llu, templateRankSize_ = %llu", channelsPerRank_, templateRankSize_);
+    HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][KernelRun] data split prepared for multi-channel NHR, "
+               "channelsPerRank[%u], templateRankSize[%u].", channelsPerRank_, templateRankSize_);
     if (threadNum_ > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
         GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        // 主线程通知各子线程开始处理其对应通道。
         CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
     }
-    HCCL_DEBUG("MT channelsPerRank_ = %llu, templateRankSize_ = %llu", channelsPerRank_, templateRankSize_);
+    HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][KernelRun] launch NHR communication tasks, "
+               "channelCount[%u].", channelsPerRank_);
     for (u32 channelIdx = 0; channelIdx < channelsPerRank_; channelIdx++) {
         CHK_RET(RunNHR(templateResource.threads, channelIdx));
     }
@@ -69,20 +74,23 @@ HcclResult InsTempReduceScatterOmniPipeNHR::KernelRun(const OpParam& param,
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
-    HCCL_INFO("[InsTempAllGatherOmniPipeNHR] Run End");
+    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][KernelRun] NHR reduce-scatter template completed, rank[%u].",
+              myRank_);
     return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult InsTempReduceScatterOmniPipeNHR::DoLocalCopy(
     const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads)
 {
-    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][DoLocalCopy] DoLocalCopy myRank_ = [%u]", myRank_);
+    HCCL_INFO("[InsTempReduceScatterOmniPipeNHR][DoLocalCopy] start local copy, rank[%u], repeatNum[%llu].",
+              myRank_, tempAlgParams.repeatNum);
     u32 rankIdx = 0;
     auto iter = std::find(subCommRanks_[0].begin(), subCommRanks_[0].end(), myRank_);
     if (iter != subCommRanks_[0].end()) {
         rankIdx = std::distance(subCommRanks_[0].begin(), iter);
     } else {
-        HCCL_ERROR("[%s]subCommRanks_ or myRank_ is error.", __func__);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][DoLocalCopy] local rank is absent from the sub-communicator, "
+                   "rank[%u].", myRank_);
         return HCCL_E_INTERNAL;
     }
 
@@ -96,7 +104,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::DoLocalCopy(
         srcAddr = tempAlgParams.buffInfo.hcclBuff.addr;
         dstAddr = tempAlgParams.buffInfo.outputPtr;
     } else {
-        HCCL_ERROR("[%s]InputBufferType Error.", __func__);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][DoLocalCopy] unsupported input buffer type[%d].",
+                   static_cast<int>(tempAlgParams.buffInfo.inBuffType));
         return HCCL_E_PARA;
     }
     // 这里的循环precopy是ranksize-1，postcopy是1
@@ -130,7 +139,7 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRDataSize(const AicpuNHRStepInf
             const u64 txScOff = scratchBaseTx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[txIdx];
             const u64 rxScOff = scratchBaseRx + tempAlgParams_.stepSliceInfo.stepInputSliceStride[rxIdx];
 
-            // 对称内存：本端地址用 user input（reduce 落 input）；对端地址由 RunNHR 传入（peer input）
+            // 对称路径在 user input 上原位归约，对端地址由 RunNHR 传入。
             void* localAddr = supportSymmetricMemory_ ? tempAlgParams_.buffInfo.inputPtr
                                                        : tempAlgParams_.buffInfo.hcclBuff.addr;
             DataSlice txSrcSlice = DataSlice(localAddr,
@@ -140,15 +149,15 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRDataSize(const AicpuNHRStepInf
             DataSlice txDstSlice = DataSlice(sendCclBuffAddr,
                 txScOff,
                 dataSplitVec_[txIdx][rpt][channelIdx],
-                dataSplitVec_[txIdx][rpt][channelIdx]/dataTypeSize);  // 发送目标（sym 时为对端 input）
+                dataSplitVec_[txIdx][rpt][channelIdx]/dataTypeSize);  // 发送目标（对称路径为对端 input）
             DataSlice rxSrcSlice = DataSlice(recvCclBuffAddr,
                 rxScOff,
                 dataSplitVec_[rxIdx][rpt][channelIdx],
-                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收源（sym 时为对端 input）
+                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收源（对称路径为对端 input）
             DataSlice rxDstSlice = DataSlice(localAddr,
                 rxScOff,
                 dataSplitVec_[rxIdx][rpt][channelIdx],
-                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收目标，sym 时 reduce 落本地 input
+                dataSplitVec_[rxIdx][rpt][channelIdx]/dataTypeSize);  // 接收目标（对称路径归约到本端 input）
             txSrcSlices.emplace_back(txSrcSlice);
             txDstSlices.emplace_back(txDstSlice);
             rxSrcSlices.emplace_back(rxSrcSlice);
@@ -162,7 +171,8 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 {
     u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     CHK_PRT_RET(threads.empty(),
-        HCCL_ERROR("[RS-NHR][RunNHR] empty queue"), HcclResult::HCCL_E_INTERNAL);
+        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] no thread is available for NHR communication."),
+        HcclResult::HCCL_E_INTERNAL);
 
     if (templateRankSize_ <= 1) return HcclResult::HCCL_SUCCESS;
     bool isPcieProtocal = IsPcieProtocol(channels_);
@@ -172,42 +182,50 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
     // 预计算步骤列表（算法序）
     std::vector<AicpuNHRStepInfo> steps;
     CHK_RET(GetStepInfoList(steps));
-    // 基础位置由 hcclBuffBaseOff 和 inputOmniPipeSliceStride 确定
+    // 每一步的基础位置由输入基址和 inputOmniPipeSliceStride 共同确定；
+    // 对称路径的输入基址已包含当前 loop 在完整 user input 中的偏移。
     for (u32 s = 0; s < steps.size(); ++s) {
         const auto &st = steps[s];
         const u32 recvFromRank = subCommRanks_[0].at(st.fromRank);
         const u32 sendToRank   = subCommRanks_[0].at(st.toRank);
         CHK_PRT_RET(recvFromRank == static_cast<u32>(-1) || sendToRank == static_cast<u32>(-1),
-            HCCL_ERROR("[RS-NHR][RunNHR] rank map failed: from[%u] to[%u]", st.fromRank, st.toRank),
+            HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to map algorithm ranks to user ranks, "
+                       "fromAlgRank[%u], toAlgRank[%u], step[%u].", st.fromRank, st.toRank, st.step),
             HcclResult::HCCL_E_INTERNAL);
 
         CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
                     channels_[recvFromRank].size() == 0 || channels_[sendToRank].size() == 0,
-                    HCCL_ERROR("[RS-NHR][RunNHR] link missing: recvFrom=%d sendTo=%d", recvFromRank, sendToRank),
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] required communication channel is missing, "
+                               "recvFromRank[%u], sendToRank[%u], step[%u].", recvFromRank, sendToRank, st.step),
             HcclResult::HCCL_E_INTERNAL);
 
         ChannelInfo linkRecv = channels_[recvFromRank].at(channelIdx);
         ChannelInfo linkSend = channels_[sendToRank].at(channelIdx);
-        HCCL_DEBUG("recvFromRank=[%u], sendToRank=[%u], linkRecv.remoteRank=[%u], linkSend.remoteRank=[%u]", recvFromRank, sendToRank, linkRecv.remoteRank, linkSend.remoteRank);
+        HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][RunNHR] selected channels for current step, "
+                   "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u], recvChannelRank[%u], "
+                   "sendChannelRank[%u].", st.step, channelIdx, recvFromRank, sendToRank,
+                   linkRecv.remoteRank, linkSend.remoteRank);
 
         std::vector<DataSlice> txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices;
 
         void* sendRemoteAddr = nullptr;
         void* recvRemoteAddr = nullptr;
         if (supportSymmetricMemory_) {
-            // 对称内存：对端地址取对端 user input 的 peer 指针，reduce 直接在 input 间进行
+            // 对称路径通过窗口取得对端 user input 地址，归约直接在各 rank 的 input 之间进行。
             HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, sendToRank, &sendRemoteAddr);
             CHK_PRT_RET(ret != HCCL_SUCCESS || sendRemoteAddr == nullptr,
-                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] HcclSymWinGetPeerPointer failed, "
-                                   "sendToRank[%u] ret[%d] ptr[%p]", sendToRank, ret, sendRemoteAddr),
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
+                                   "the send target, sendToRank[%u], ret[%d], ptr[%p].",
+                                   sendToRank, ret, sendRemoteAddr),
                         HcclResult::HCCL_E_INTERNAL);
             ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &recvRemoteAddr);
             CHK_PRT_RET(ret != HCCL_SUCCESS || recvRemoteAddr == nullptr,
-                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] HcclSymWinGetPeerPointer failed, "
-                                   "recvFromRank[%u] ret[%d] ptr[%p]", recvFromRank, ret, recvRemoteAddr),
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
+                                   "the receive source, recvFromRank[%u], ret[%d], ptr[%p].",
+                                   recvFromRank, ret, recvRemoteAddr),
                         HcclResult::HCCL_E_INTERNAL);
         } else {
-            // 非对称：在 SCRATCH 上进行规约交换
+            // 普通路径在 ccl scratch 上进行归约交换。
             sendRemoteAddr = linkSend.remoteCclMem.addr;
             recvRemoteAddr = linkRecv.remoteCclMem.addr;
         }
@@ -220,10 +238,14 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
         };
         if (isPcieProtocal) {
             CHK_PRT_RET(SendRecvReadReduce(info, threads[channelIdx]),
-                HCCL_ERROR("[RS-NHR][RunNHR] SendRecvReduce failed (step=%u)", st.step), HcclResult::HCCL_E_INTERNAL);
+                HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] read-reduce communication failed, "
+                           "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
+                           st.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
         } else {
             CHK_PRT_RET(SendRecvBatchWriteReduce(info, threads[channelIdx]),
-                HCCL_ERROR("[RS-NHR][RunNHR] SendRecvReduce failed (step=%u)", st.step), HcclResult::HCCL_E_INTERNAL);
+                HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] batch write-reduce communication failed, "
+                           "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
+                           st.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
         }
     }
     return HcclResult::HCCL_SUCCESS;
@@ -264,7 +286,9 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetStepInfoList(std::vector<AicpuNHR
         for (u32 i = 0; i < nSlices; i++) {
             currStepInfo.txSliceIdxs.push_back(txSliceIdx);
             currStepInfo.rxSliceIdxs.push_back(rxSliceIdx);
-            HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][GetStepInfoList] i[%u] txSliceIdx[%u] rxSliceIdx[%u], step[%u]", i, txSliceIdx, rxSliceIdx, step);
+            HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][GetStepInfoList] build slice mapping for NHR step, "
+                       "step[%u], sliceOrder[%u], txSliceIdx[%u], rxSliceIdx[%u].",
+                       step, i, txSliceIdx, rxSliceIdx);
             txSliceIdx = (txSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
             rxSliceIdx = (rxSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
         }
@@ -272,4 +296,4 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetStepInfoList(std::vector<AicpuNHR
     return HcclResult::HCCL_SUCCESS;
 }
 
-} // namespace Hccl
+} // namespace ops_hccl
