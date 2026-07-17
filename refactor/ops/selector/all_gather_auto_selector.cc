@@ -23,6 +23,8 @@ constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
+constexpr u32 TOPO_LEVEL_NUM_4 = 4;
+
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 // 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
@@ -40,7 +42,9 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     HcclAicpuAllGatherAlgoType selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_4) {
+            selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_SEQUENCE_MESH1D_NHR_NHR_Mesh1DOcs;
+        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_UBOE;
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {

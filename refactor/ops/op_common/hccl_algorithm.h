@@ -87,6 +87,7 @@ enum class HcclAicpuAllGatherAlgoType {
     AICPU_ALLGATHER_OMNIPIPE_PCIE,                  // InsV2AllGatherOmniPipePcie
     AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherConcurrentMesh1DNHR
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY, // InsAllGatherParallelMesh1DNHRMultiJetty
+    AICPU_ALLGATHER_SEQUENCE_MESH1D_NHR_NHR_Mesh1DOcs, // InsAllGatherSequenceMesh1DNHRNHRMesh1DOcs
     AICPU_ALLGATHER_ALGO_TYPE_COUNT,                // 算法类型总数，用于数组下标上限
 };
 
@@ -108,7 +109,8 @@ struct TemplateDesc {
 enum SubCommIndexType : int {
     SUB_COMM_INDEX_INTRA = 0,
     SUB_COMM_INDEX_INTER = 1,
-    SUB_COMM_INDEX_POD = 2,
+    SUB_COMM_INDEX_POD   = 2,
+    SUB_COMM_INDEX_GROUP = 3,
 };
 
 struct TemplateExecDesc {
