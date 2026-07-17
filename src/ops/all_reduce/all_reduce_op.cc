@@ -240,7 +240,10 @@ HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count,
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
     }
-    if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE) {
+    // 仅标准两层 Mesh+NHR Omni 入口启用对称内存；PCIe、多层和 UBoE 入口继续使用普通内存路径。
+    const bool isTwoLevelMeshNhrOmni = (algName == "InsV2AllReduceOmniPipe");
+    if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE &&
+        isTwoLevelMeshNhrOmni) {
         // 窗口探测失败只关闭对称内存优化，算子继续使用普通内存路径执行。
         AllReduceSupportSymmetricMemory(param);
     }
