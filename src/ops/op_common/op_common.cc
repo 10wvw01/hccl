@@ -125,7 +125,8 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     return HCCL_SUCCESS;
 }
 
-HcclResult GetHcclDfxOpInfoDataCount(const OpParam &param, const u32 &rankSize, uint64_t &sendCount) {
+HcclResult GetHcclDfxOpInfoDataCount(const OpParam &param, const u32 &rankSize, uint64_t &sendCount)
+{
     sendCount = 0;
     if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL) {
         CHK_PTR_NULL(param.all2AllVDataDes.sendCounts);

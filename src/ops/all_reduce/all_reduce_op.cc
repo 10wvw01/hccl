@@ -250,7 +250,7 @@ HcclResult AllReduceOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t cou
 }
 
 HcclResult AllReduceOutPlace(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op, HcclComm comm,
-                                      aclrtStream stream, OpParam &param)
+                             aclrtStream stream, OpParam &param)
 {
     HCCL_INFO("Start to execute AllReduceOutPlace");
     CHK_RET(AllReduceOutPlaceCommon(sendBuf, recvBuf, count, dataType, op, comm, stream, OpMode::OPBASE, ResPackGraphMode(), param));

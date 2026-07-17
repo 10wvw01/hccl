@@ -200,7 +200,7 @@ HcclResult BroadcastOutPlaceGraphMode(void *buf, uint64_t count, HcclDataType da
 
 
 HcclResult BroadcastOutPlace(OpParam &param, void *buf, uint64_t count, HcclDataType dataType, uint32_t root, HcclComm comm,
-                                      aclrtStream stream)
+                             aclrtStream stream)
 {
     HCCL_INFO("Start to execute BroadcastOutPlace");
     u32 userRankSize;

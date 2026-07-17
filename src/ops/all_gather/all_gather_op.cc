@@ -249,7 +249,7 @@ HcclResult AllGatherOutPlaceGraphMode(void *sendBuf, void *recvBuf, uint64_t sen
 
 
 HcclResult AllGatherOutPlace(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, HcclComm comm,
-                                      aclrtStream stream, const std::string &tag)
+                             aclrtStream stream, const std::string &tag)
 {
     HCCL_INFO("Start to execute AllGatherOutPlace");
     CHK_RET(AllGatherOutPlaceCommon(sendBuf, recvBuf, sendCount, dataType, comm, stream, tag, OpMode::OPBASE, ResPackGraphMode()));
