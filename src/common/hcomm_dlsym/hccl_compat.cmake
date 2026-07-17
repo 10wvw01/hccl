@@ -63,6 +63,12 @@ else()
 
     if(BUILD_OPEN_PROJECT)
         target_link_libraries(hccl_compat PRIVATE
+<<<<<<< Updated upstream
+=======
+            $<BUILD_INTERFACE:intf_pub_cxx14>
+            $<BUILD_INTERFACE:runtime_headers>
+            $<BUILD_INTERFACE:hcomm_headers>
+>>>>>>> Stashed changes
             -Wl,--no-as-needed
             unified_dlog
             acl_rt
@@ -70,6 +76,7 @@ else()
         )
     else()
         target_link_libraries(hccl_compat PRIVATE
+            $<BUILD_INTERFACE:intf_pub_cxx14>
             $<BUILD_INTERFACE:slog_headers>
             -Wl,--no-as-needed
             unified_dlog

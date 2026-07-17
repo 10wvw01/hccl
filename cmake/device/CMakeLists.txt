@@ -17,6 +17,10 @@ project(hccl_device)
 
 # 初始化 CANN 项目配置
 init_cann_project(PREPEND_MODULE_PATH)
+add_cann_target_options()
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 message(STATUS "BUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}")
 message(STATUS "ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}")

@@ -28,6 +28,13 @@ target_compile_options(hccl_kernel_compat PRIVATE
     -fstack-protector-all
 )
 
+target_link_libraries(hccl_kernel_compat PRIVATE
+    $<BUILD_INTERFACE:intf_pub_cxx14>
+    $<BUILD_INTERFACE:runtime_headers>
+    $<BUILD_INTERFACE:hcomm_headers>
+    unified_dlog
+)
+
 target_link_options(hccl_kernel_compat PRIVATE
     -Wl,-z,relro
     -Wl,-z,now

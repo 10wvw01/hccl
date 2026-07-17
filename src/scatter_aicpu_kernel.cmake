@@ -217,6 +217,12 @@ target_link_directories(scatter_aicpu_kernel PRIVATE
 
 if(NOT HCCL_CANN_COMPAT_850)
     target_link_libraries(scatter_aicpu_kernel PRIVATE
+        $<BUILD_INTERFACE:intf_pub_cxx14>
+        $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:mmpa_headers>
+        $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:hcomm_headers>
+        unified_dlog
         -Wl,--no-as-needed
         ccl_kernel
         hccl_kernel_compat
@@ -224,6 +230,7 @@ if(NOT HCCL_CANN_COMPAT_850)
     )
 else()
     target_link_libraries(scatter_aicpu_kernel PRIVATE
+        $<BUILD_INTERFACE:intf_pub_cxx14>
         -Wl,--no-as-needed
         hccl_kernel_compat
         -Wl,--no-as-needed
