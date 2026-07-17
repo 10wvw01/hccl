@@ -123,8 +123,8 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
     auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
     parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc1->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTRA},
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTER}};
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER},
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA}};
     parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
 
     // 两个并行子树串行组合
