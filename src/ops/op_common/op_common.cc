@@ -324,12 +324,12 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
     ThreadHandle cpuTsThread)
 {
     bool isAclGraph = IsStreamInCaptureMode(param.opMode);
-    if(hcclDfxOpInfo.opMode = isAclGraph){
-        hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
-    }
-    hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
-    hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
-    CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
+        hcclDfxOpInfo.opMode = isAclGraph 
+            ? static_cast<u32>(Hccl::OpMode::ACLGRAPH) 
+            : static_cast<u32>(param.opMode);
+        hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
+        hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
+        CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
 
     // rankSize获取指定算子的dataCount
     u32 userRankSize{0};
@@ -2204,9 +2204,9 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         // Op注册
         HcclDfxOpInfoCompat hcclDfxOpInfo{};
         bool isAclGraph = IsStreamInCaptureMode(param.opMode);
-        if(hcclDfxOpInfo.opMode = isAclGraph){
-            hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
-        }
+        hcclDfxOpInfo.opMode = isAclGraph 
+            ? static_cast<u32>(Hccl::OpMode::ACLGRAPH) 
+            : static_cast<u32>(param.opMode);
         hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
         hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
         CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
