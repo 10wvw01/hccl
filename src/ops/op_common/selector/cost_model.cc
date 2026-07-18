@@ -45,4 +45,20 @@ HcclResult AddAlgToAllAlgos(HcclCMDType opType, const char *algName, const char 
     return HcclResult::HCCL_SUCCESS;
 }
 
+CostModelManager::CostModelManager() {}
+
+CostModelManager::~CostModelManager() {}
+
+HcclResult CostModelManager::Load()
+{
+    HCCL_DEBUG("[CostModelManager] load cost model, count=%d.", costModel_.count);
+    return HcclResult::HCCL_SUCCESS;
+}
+
+double CostModelManager::Estimate(const std::string &algName, u64 dataSize) const
+{
+    HCCL_DEBUG("[CostModelManager] estimate algName=%s dataSize=%llu.", algName.c_str(), dataSize);
+    return 0.0;
+}
+
 } // namespace ops_hccl

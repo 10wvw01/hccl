@@ -12,4 +12,32 @@
 
 namespace ops_hccl {
 
+CostTableManager *CostTableManager::Global()
+{
+    static CostTableManager *globalCostTableManager = new CostTableManager;
+    return globalCostTableManager;
+}
+
+CostTableManager::~CostTableManager() {}
+
+HcclResult CostTableManager::Load()
+{
+    const std::lock_guard<std::mutex> lock(mu_);
+    HCCL_DEBUG("[CostTableManager] load cost table, count=%d.", costTable_.count);
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CostTableManager::Query(const std::string &algName, u64 dataSize, double &cost) const
+{
+    const std::lock_guard<std::mutex> lock(mu_);
+    for (int i = 0; i < costTable_.count; ++i) {
+        if (algName == costTable_.costs[i].algName) {
+            cost = costTable_.costs[i].cost;
+            return HcclResult::HCCL_SUCCESS;
+        }
+    }
+    HCCL_WARNING("[CostTableManager] no entry matched algName=%s dataSize=%llu.", algName.c_str(), dataSize);
+    return HcclResult::HCCL_E_PARA;
+}
+
 } // namespace ops_hccl

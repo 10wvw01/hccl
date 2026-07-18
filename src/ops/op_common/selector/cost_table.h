@@ -13,7 +13,6 @@
 
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include "alg_param.h"
 #include "log.h"
@@ -29,6 +28,22 @@ typedef struct {
     AlgoCost *costs;
     int count;
 } CostTable;
+
+class CostTableManager {
+public:
+    static CostTableManager *Global();
+
+    ~CostTableManager();
+
+    HcclResult Load();
+    HcclResult Query(const std::string &algName, u64 dataSize, double &cost) const;
+
+private:
+    CostTableManager() = default;
+
+    CostTable      costTable_{nullptr, 0};
+    mutable std::mutex mu_;
+};
 
 } // namespace ops_hccl
 
