@@ -54,6 +54,18 @@ typedef struct {
     int count;
 } CostModel;
 
+class CostModelManager {
+public:
+    CostModelManager();
+    ~CostModelManager();
+
+    HcclResult Load();
+    double Estimate(const std::string &algName, u64 dataSize) const;
+
+private:
+    CostModel costModel_{nullptr, 0};
+};
+
 } // namespace ops_hccl
 
 #endif
