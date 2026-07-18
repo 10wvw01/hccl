@@ -104,12 +104,14 @@ struct TemplateDesc {
     HcclAlgJettyMode jettyMode;
 };
 
-// 子通信域索引：Intra=0（组内/网络层级 level 0），Inter=1（组间/网络层级 level 1）
+// 子通信域索引：0=组内/网络层级 level 0，1=组间/网络层级 level 1，以此类推到 5
 enum SubCommIndexType : int {
-    SUB_COMM_INDEX_INTRA = 0,
-    SUB_COMM_INDEX_INTER = 1,
-    SUB_COMM_INDEX_POD   = 2,
-    SUB_COMM_INDEX_GROUP = 3,
+    SUB_COMM_INDEX_0 = 0,
+    SUB_COMM_INDEX_1 = 1,
+    SUB_COMM_INDEX_2 = 2,
+    SUB_COMM_INDEX_3 = 3,
+    SUB_COMM_INDEX_4 = 4,
+    SUB_COMM_INDEX_5 = 5,
 };
 
 struct TemplateExecDesc {

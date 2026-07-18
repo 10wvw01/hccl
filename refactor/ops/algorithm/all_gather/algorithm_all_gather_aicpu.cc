@@ -44,7 +44,7 @@ static AlgoExecDesc MakeAicpuAllGatherNhrAlgoExecDesc()
 {
     TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
@@ -70,16 +70,16 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()
     auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
     parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc0->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTRA},
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER}};
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_0},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
     // 第二个并行子树：nhr→INTER，nhr→INTRA（位置交换）
     auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
     parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc1->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER},
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTRA}};
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_0}};
     parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
 
     // 两个并行子树串行组合
@@ -109,11 +109,11 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
     auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
     parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc0->children = {
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA},
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER}};
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {parallelDesc0, templateExecDesc1};
@@ -141,16 +141,16 @@ static AlgoExecDesc MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()
     auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
     parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc0->children = {
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA},
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER}};
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
     // 第二个并行子树：fullmesh→INTER，nhr→INTRA
     auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
     parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
     parallelDesc1->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_INTER},
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA}};
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1},
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}};
     parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
 
     // 两个并行子树串行组合
@@ -172,7 +172,7 @@ static AlgoExecDesc MakeAicpuAllGatherMesh1DAlgoExecDesc()
 {
     TemplateDesc templateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
@@ -193,8 +193,8 @@ static AlgoExecDesc MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
     TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_0};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_1};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::PARALLEL;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1};
@@ -215,10 +215,10 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceMesh1DNHRNHRMesh1DOcsAlgoExecDesc(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
     TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_GROUP};
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_POD};
-    TemplateExecDesc templateExecDesc2{nhrTemplateDesc, SUB_COMM_INDEX_INTER};
-    TemplateExecDesc templateExecDesc3{fullmeshTemplateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc0{fullmeshTemplateDesc, SUB_COMM_INDEX_3};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_2};
+    TemplateExecDesc templateExecDesc2{nhrTemplateDesc, SUB_COMM_INDEX_1};
+    TemplateExecDesc templateExecDesc3{fullmeshTemplateDesc, SUB_COMM_INDEX_0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc0, templateExecDesc1, templateExecDesc2, templateExecDesc3};

@@ -41,7 +41,7 @@ static AlgoExecDesc MakeAicpuReduceScatterNhrAlgoExecDesc()
 {
     TemplateDesc templateDesc = g_reduceScatterTemplateDescMap[static_cast<size_t>(
         HcclReduceScatterTemplateDescType::REDUCESCATTER_TEMPLATE_NHR_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};
@@ -59,7 +59,7 @@ static AlgoExecDesc MakeAicpuReduceScatterMesh1DAlgoExecDesc()
 {
     TemplateDesc templateDesc = g_reduceScatterTemplateDescMap[static_cast<size_t>(
         HcclReduceScatterTemplateDescType::REDUCESCATTER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
-    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_INTRA};
+    TemplateExecDesc templateExecDesc{templateDesc, SUB_COMM_INDEX_0};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {templateExecDesc};

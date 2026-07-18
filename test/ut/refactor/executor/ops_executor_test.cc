@@ -88,16 +88,16 @@ protected:
         AlgoExecDesc d1;
         d1.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d1.children = {
-            TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
+            TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_0},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_1},
         };
         d1.dataSplitRatio = {1, 1};
 
         AlgoExecDesc d2;
         d2.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d2.children = {
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_INTER},
-            TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_INTRA},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_1},
+            TemplateExecDesc{meshTmpl_, SUB_COMM_INDEX_0},
         };
         d2.dataSplitRatio = {1, 1};
 
@@ -115,14 +115,14 @@ protected:
         d4.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d4.children = {
             sharedD3,
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_2},
         };
         d4.dataSplitRatio = {2, 2};
 
         AlgoExecDesc d5;
         d5.execPolicy = HcclAlgExecPolicy::PARALLEL;
         d5.children = {
-            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_POD},
+            TemplateExecDesc{nhrTmpl_, SUB_COMM_INDEX_2},
             sharedD3,
         };
         d5.dataSplitRatio = {2, 2};
