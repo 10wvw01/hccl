@@ -136,6 +136,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                                                     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     (void)configAlgMap;
     u32 ccuSize = 64;
     
@@ -497,9 +502,15 @@ SelectorStatus ReduceScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLay
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsV2ReduceScatterOmniPipe";
-            HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsV2ReduceScatterOmniPipe";
+                HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
+                return SelectorStatus::MATCH;
+            } else {
+                selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
+                HCCL_INFO("Using algo InsReduceScatterSequenceMeshMeshDPU");
+                return SelectorStatus::MATCH;
+            }
         } else {
             selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
             HCCL_INFO("Using algo InsReduceScatterSequenceMeshMeshDPU");
@@ -532,7 +543,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoAicpuForMesh1DClos(const
         if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterMesh1D";
         } else if (!IsSmallData(dataSize)) {
-            selectAlgName = "InsReduceScatterMesh1D";
+            selectAlgName = "InsReduceScatterConcurrentMeshNHR";
         } else {
             if (dataSize * ratio > RS_AICPU_1D_MAX_DATA_SIZE) {
                 selectAlgName = "InsReduceScatterMesh1DMeshChunk";

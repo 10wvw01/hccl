@@ -161,6 +161,12 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     u32 ccuSize = 64;
     HCCL_DEBUG("[AllReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[AllReduceAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     // 保序模式不支持CCU_SCHED，需要回退到AICPU
     CHK_PRT_RET(IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize),
         HCCL_DEBUG("[AllReduceAutoSelector] DETERMINISTIC_STRICT mode not supported for CCU_SCHED, fallback to AICPU."),
@@ -441,7 +447,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpuUBX(const TopoInfoWithN
             selectAlgName = "InsAllReduceMesh1DOneShot";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "InsAllReduceMesh1DTwoShot";
+            selectAlgName = "InsAllReduceConcurrent";
         }
     } else if (isDataTypeOrReduceTypeSpecial) {
         selectAlgName = "InsAllReduceAicpuReduceNHR";
@@ -621,9 +627,15 @@ SelectorStatus AllReduceAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDe
             HCCL_INFO("Using algo InsAllReduceSequenceMeshNhrDPU");
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsV2AllReduceOmniPipe";
-            HCCL_INFO("Using algo InsV2AllReduceOmniPipe");
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsV2AllReduceOmniPipe";
+                HCCL_INFO("Using algo InsV2AllReduceOmniPipe");
+                return SelectorStatus::MATCH;
+            } else {
+                selectAlgName = "InsAllReduceSequenceMeshNhrDPU";
+                HCCL_INFO("Using algo InsAllReduceSequenceMeshNhrDPU");
+                return SelectorStatus::MATCH;
+            }
         }
     }
 
