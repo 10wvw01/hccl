@@ -16,6 +16,7 @@
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
 #include "topo_match_squeeze_2d.h"
+#include "topo_match_concurrent.h"
 
 namespace ops_hccl {
 
@@ -113,7 +114,7 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()
         TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
-    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_1};
+    TemplateExecDesc templateExecDesc1{nhrTemplateDesc, SUB_COMM_INDEX_2};
     AlgoExecDesc algoExecDesc;
     algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
     algoExecDesc.children = {parallelDesc0, templateExecDesc1};
@@ -248,7 +249,7 @@ const HcclAlgorithm
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchSqueeze2D>(), MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
-            std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()),
+            std::make_shared<TopoMatchConcurrent>(), MakeAicpuAllGatherSequenceNhrMesh1DAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
@@ -256,7 +257,7 @@ const HcclAlgorithm
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchPcieMix>(), MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>()),
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchUBX>(), MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchConcurrent>(), MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherSequenceMesh1DNHRNHRMesh1DOcsAlgoExecDesc()),
 };

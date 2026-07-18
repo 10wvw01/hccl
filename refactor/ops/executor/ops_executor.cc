@@ -35,17 +35,6 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(
     rankSize_ = topoInfo->userRankSize;
     // TODO：topoMatch暂不修改参数
     algo_.topoMatch->MatchTopo(comm, topoInfo, algHierarchyInfo);
-    // UBX机型特殊处理待修改MatchTopo算法后去掉特殊处理：topoMatch 用 Describe() 字符串判定。
-    // sub-comm 0、SERVER_CLOS inst 作为 sub-comm 1，让上层算法看到两层子域。
-    const std::string topoMatchDesc = algo_.topoMatch->Describe();
-    const bool isUbxTopo = topoMatchDesc.find("layer 0 Mesh, layer 1 NHR") != std::string::npos;
-    if (isUbxTopo && algHierarchyInfo.infos.size() >= 1 && algHierarchyInfo.infos[0].size() >= 2) {
-        std::vector<std::vector<u32>> temp0HierarchyInfo = {algHierarchyInfo.infos[0][0]};
-        std::vector<std::vector<u32>> temp1HierarchyInfo = {algHierarchyInfo.infos[0][1]};
-        algHierarchyInfo.infos.clear();
-        algHierarchyInfo.infos.push_back(std::move(temp0HierarchyInfo));
-        algHierarchyInfo.infos.push_back(std::move(temp1HierarchyInfo));
-    }
     algHierarchyInfo_ = algHierarchyInfo;
     return HCCL_SUCCESS;
 }
