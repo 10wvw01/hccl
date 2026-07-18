@@ -30,21 +30,6 @@ typedef struct {
     int count;
 } CostTable;
 
-class CostTable {
-public:
-    static CostTable *Global();
-
-    HcclResult Load();
-    HcclResult Query(const std::string &algName, u64 dataSize, double &cost) const;
-
-private:
-    CostTable() = default;
-    ~CostTable() = default;
-
-    std::vector<CostTableEntry> entries_;
-    mutable std::mutex          mu_;
-};
-
 } // namespace ops_hccl
 
 #endif
