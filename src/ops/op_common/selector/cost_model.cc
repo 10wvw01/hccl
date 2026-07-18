@@ -122,4 +122,22 @@ double CostModelManager::Estimate(const std::string &algName, u64 dataSize) cons
     return 0.0;
 }
 
+CostModelParam CostModelManager::CalcMeshParam(u64 dataSize, u32 rankSize)
+{
+    HCCL_DEBUG("[CostModelManager] CalcMeshParam dataSize=%llu rankSize=%u.", dataSize, rankSize);
+    return {0.0f, 0.0f, 0.0f};
+}
+
+CostModelParam CostModelManager::CalcNHRParams(u64 dataSize, u32 rankSize)
+{
+    HCCL_DEBUG("[CostModelManager] CalcNHRParams dataSize=%llu rankSize=%u.", dataSize, rankSize);
+    return {0.0f, 0.0f, 0.0f};
+}
+
+CostModelParam CostModelManager::CalcLatencyParams(u64 dataSize, u32 rankSize)
+{
+    HCCL_DEBUG("[CostModelManager] CalcLatencyParams dataSize=%llu rankSize=%u.", dataSize, rankSize);
+    return {0.0f, 0.0f, 0.0f};
+}
+
 } // namespace ops_hccl
