@@ -32,15 +32,12 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(
     HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
     myRank_ = topoInfo->userRank;
+    rankSize_ = topoInfo->userRankSize;    
     // TODO：topoMatch暂不修改参数
     algo_.topoMatch->MatchTopo(comm, topoInfo, algHierarchyInfo);
     algHierarchyInfo_ = algHierarchyInfo;
     // 算rankSize
     u32 topoLevelNum = algHierarchyInfo_.infos.size();
-    rankSize_ = 1;
-    for (size_t i = 0; i < topoLevelNum; i++) {
-        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
-    }
     return HCCL_SUCCESS;
 }
 
@@ -129,12 +126,9 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
+    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重新获取rankSize和myRank 
     myRank_ = resCtx.topoInfo.userRank;
-    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重算rankSize
-    rankSize_ = 1;
-    for (size_t i = 0; i < topoLevelNum; i++) {
-        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
-    }
+    rankSize_ = resCtx.topoInfo.userRankSize;
     AlgResourceRequest resourceRequest;
     // kernel侧需要先调用GetRes函数初始化成员变量execDescSubCommMaskMap_和maxSlaveThreadNum_等
     GetRes(resourceRequest);
