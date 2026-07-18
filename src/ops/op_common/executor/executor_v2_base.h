@@ -12,6 +12,7 @@
 #define EXECUTOR_BASE_V2_H
 
 #include "alg_param.h"
+#include "cost_model.h"
 #include "topo_host.h"
 #include "channel.h"
 #include "alg_template_base.h"
@@ -32,6 +33,8 @@ public:
     virtual ~InsCollAlgBase();
 
     virtual std::string Describe() const;
+
+    virtual CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
 
     virtual HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
                                             AlgHierarchyInfoForAllLevel& algHierarchyInfo) = 0;

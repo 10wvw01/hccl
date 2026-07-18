@@ -60,9 +60,11 @@ public:
     ~CostModelManager();
 
     HcclResult Load();
+    HcclResult InitCostModel(const AllAlgos &allAlgos);
     double Estimate(const std::string &algName, u64 dataSize) const;
 
 private:
+    void FreeCostModel();
     CostModel costModel_{nullptr, 0};
 };
 

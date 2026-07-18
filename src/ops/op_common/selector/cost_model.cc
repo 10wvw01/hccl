@@ -11,6 +11,9 @@
 #include "cost_model.h"
 
 #include <new>
+#include <memory>
+
+#include "coll_alg_v2_exec_registry.h"
 
 namespace ops_hccl {
 
@@ -47,11 +50,69 @@ HcclResult AddAlgToAllAlgos(HcclCMDType opType, const char *algName, const char 
 
 CostModelManager::CostModelManager() {}
 
-CostModelManager::~CostModelManager() {}
+CostModelManager::~CostModelManager()
+{
+    FreeCostModel();
+}
+
+void CostModelManager::FreeCostModel()
+{
+    delete[] costModel_.costAlgoParams;
+    costModel_.costAlgoParams = nullptr;
+    costModel_.count = 0;
+}
 
 HcclResult CostModelManager::Load()
 {
     HCCL_DEBUG("[CostModelManager] load cost model, count=%d.", costModel_.count);
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
+{
+    FreeCostModel();
+
+    int algNum = allAlgos.count;
+    if (algNum <= 0) {
+        HCCL_WARNING("[CostModelManager] InitCostModel with empty AllAlgos.");
+        return HcclResult::HCCL_SUCCESS;
+    }
+
+    costModel_.costAlgoParams = new (std::nothrow) CostAlgoParams[algNum];
+    if (costModel_.costAlgoParams == nullptr) {
+        HCCL_ERROR("[CostModelManager] alloc CostAlgoParams failed, algNum=%d.", algNum);
+        return HcclResult::HCCL_E_PARA;
+    }
+    costModel_.count = 0;
+
+    for (int i = 0; i < algNum; ++i) {
+        const AlgElement &alg = allAlgos.algElements[i];
+
+        std::unique_ptr<InsCollAlgBase> exec =
+            CollAlgExecRegistryV2::Instance().GetAlgExec(alg.opType, alg.algName);
+        if (exec == nullptr) {
+            HCCL_WARNING("[CostModelManager] executor not registered, skip algName=%s opType=%d.",
+                         alg.algName, alg.opType);
+            continue;
+        }
+
+        CostAlgoParams cap = exec->CalcCostCoeff();
+        if (cap.count == 0 || cap.param == nullptr) {
+            HCCL_WARNING("[CostModelManager] CalcCostCoeff uncalibrated, skip algName=%s.", alg.algName);
+            continue;
+        }
+
+        costModel_.costAlgoParams[costModel_.count] = cap;
+        ++costModel_.count;
+    }
+
+    if (costModel_.count == 0) {
+        delete[] costModel_.costAlgoParams;
+        costModel_.costAlgoParams = nullptr;
+    }
+
+    HCCL_DEBUG("[CostModelManager] InitCostModel done, total=%d calibrated=%d.",
+               algNum, costModel_.count);
     return HcclResult::HCCL_SUCCESS;
 }
 
