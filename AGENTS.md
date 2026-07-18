@@ -81,7 +81,14 @@ bash build.sh -j64                       # 并行编译
 
 参考：[CANN 编码规范](https://gitcode.com/cann/community/tree/master/contributor/coding-standards)、[CANN CI 指南](https://gitcode.com/cann/community/blob/master/contributor/repository/ci-guide.md)、[pre-commit 指导](./docs/zh/build/pre-commit-guide.md)、`.clang-format`、`OAT.xml`。
 
-## 6. 贡献流程
+## 6. 文档编写规范
+
+- 目录组织：`docs/zh/`（中文）与 `docs/en/`（英文）分开存放；API 文档使用 PascalCase（如 `HcclAllReduce.md`）；环境变量文档使用 UPPER_SNAKE_CASE（如 `HCCL_ALGO.md`）。
+- **产品名称特殊规则**：单位与数字、中文与英文之间不加空格（如 `50m`、`昇腾AI处理器`），但**产品名称内部允许保留空格**（如 `Ascend 950PR/Ascend 950DT`、`Atlas A3 训练系列产品`），以保持官方产品标识的完整性和可读性。
+
+参考：[CANN 文档编写规范](https://gitcode.com/cann/community/blob/master/contributor/docs/document_writing_specs.md)。
+
+## 7. 贡献流程
 
 - 简单问题：Issue → 认领 → PR → Committer 检视 → `/lgtm` + `/approve` 合入。
 - 新功能：Requirement Issue → SIG 决策 → `docs/zh/rfcs/` RFC 评审 → 实现（含 UT+ST）→ 检视合入。
@@ -89,7 +96,7 @@ bash build.sh -j64                       # 并行编译
 
 详见 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。
 
-## 7. Agent 工作原则
+## 8. Agent 工作原则
 
 - 优先小而可审查的变更；除非用户明确要求，避免大范围重构。
 - 编辑前先定位文件，用 3-6 条说明计划。

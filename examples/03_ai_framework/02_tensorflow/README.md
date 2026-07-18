@@ -1,4 +1,4 @@
-# 使用 Tensorflow 执行 AllReduce 操作
+# 使用 TensorFlow 执行 AllReduce 操作
 
 ## 样例介绍
 
