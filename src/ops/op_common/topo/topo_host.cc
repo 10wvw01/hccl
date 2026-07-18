@@ -673,7 +673,7 @@ static HcclResult CalcLevel2Ubg(const HcclComm comm, TopoInfoWithNetLayerDetails
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
             topoInfo->level2Ubg = (links[0].linkAttr.linkProtocol == CommProtocol::COMM_PROTOCOL_UBG);
 #else
-            // 8.5.0 CANN 无 UBG 枚举值；
+            // 参考Uboe判断版本
             // 主源已由算子入口 GetHcommVersion() 守护避免运行时调用；
             topoInfo->level2Ubg = false;
 #endif
