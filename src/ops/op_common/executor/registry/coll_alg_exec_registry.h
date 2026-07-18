@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include "executor_base.h"
+#include "cost_model.h"
 
 namespace ops_hccl {
 
@@ -42,7 +43,9 @@ private:
 
 #define REGISTER_EXEC_HELPER(ctr, tag, name, collExecBase)       \
     static HcclResult g_func_##name##_##ctr             \
-        = CollAlgExecRegistry::Instance().Register(tag, DefaultExecCreator<collExecBase>)
+        = CollAlgExecRegistry::Instance().Register(tag, DefaultExecCreator<collExecBase>); \
+    static HcclResult g_alg_##name##_##ctr \
+        = AddAlgToAllAlgos(HcclCMDType::HCCL_CMD_INVALID, tag, #collExecBase, nullptr, 0)
 
 #define REGISTER_EXEC_HELPER_1(ctr, tag, name, collExecBase) REGISTER_EXEC_HELPER(ctr, tag, name, collExecBase)
 
