@@ -63,6 +63,10 @@ public:
     HcclResult InitCostModel(const AllAlgos &allAlgos);
     double Estimate(const std::string &algName, u64 dataSize) const;
 
+    static CostModelParam CalcMeshParam(u64 dataSize, u32 rankSize);
+    static CostModelParam CalcNHRParams(u64 dataSize, u32 rankSize);
+    static CostModelParam CalcLatencyParams(u64 dataSize, u32 rankSize);
+
 private:
     void FreeCostModel();
     CostModel costModel_{nullptr, 0};
