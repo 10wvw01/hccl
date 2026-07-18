@@ -22,7 +22,7 @@
 ## AI 框架
 
 - [PyTorch](./03_ai_framework/01_pytorch)
-- [Tensorflow](./03_ai_framework/02_tensorflow)
+- [TensorFlow](./03_ai_framework/02_tensorflow)
 
 ## 自定义点对点通信算子
 
