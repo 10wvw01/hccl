@@ -228,6 +228,71 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceMesh1DNHRNHRMesh1DOcsAlgoExecDesc(
 }
 
 /**
+ * 构造 AICPU AllGather OmniPipeUboe 算法的 AlgoExecDesc。
+ * 对应注册宏 InsV2AllGatherOmniPipeUboe，使用 TopoMatch3Level。
+ * 编排结构（四层嵌套），其中 sequence0 在 parallel2 与 parallel3 中复用同一个 shared_ptr：
+ *   final(SEQUENCE)
+ *   ├── parallel2(PARALLEL) = [sequence0, NHR→SUB_COMM_INDEX_2]
+ *   └── parallel3(PARALLEL) = [NHR→SUB_COMM_INDEX_2, sequence0]（位置交换）
+ *   其中 sequence0(SEQUENCE) = [parallel0, parallel1]
+ *     - parallel0(PARALLEL) = [FULLMESH→INTRA, NHR→INTER]
+ *     - parallel1(PARALLEL) = [NHR→INTER, FULLMESH→INTRA]（位置交换）
+ * 各层 dataSplitRatio 均为 1:1。
+ */
+static AlgoExecDesc MakeAicpuAllGatherOmniPipeAlgoExecDesc()
+{
+    TemplateDesc fullmeshTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_FULLMESH_SINGLE_JETTY)];
+    TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
+        HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
+
+    // parallel0：fullmesh→INTRA，nhr→INTER
+    auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
+    parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc0->children = {
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0},
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
+    parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
+
+    // parallel1：nhr→INTER，fullmesh→INTRA（位置交换）
+    auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
+    parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc1->children = {
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1},
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}};
+    parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
+
+    // sequence0：parallel0 与 parallel1 串行组合
+    auto sequenceDesc0 = std::make_shared<AlgoExecDesc>();
+    sequenceDesc0->execPolicy = HcclAlgExecPolicy::SEQUENCE;
+    sequenceDesc0->children = {parallelDesc0, parallelDesc1};
+    sequenceDesc0->dataSplitRatio = {1, 1}; // 1:1
+
+    // parallel2：sequence0 与 nhr→SUB_COMM_INDEX_2 并行
+    auto parallelDesc2 = std::make_shared<AlgoExecDesc>();
+    parallelDesc2->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc2->children = {
+        sequenceDesc0,
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_2}};
+    parallelDesc2->dataSplitRatio = {1, 1}; // 1:1
+
+    // parallel3：nhr→SUB_COMM_INDEX_2 与 sequence0 并行（位置交换）
+    auto parallelDesc3 = std::make_shared<AlgoExecDesc>();
+    parallelDesc3->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc3->children = {
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_2},
+        sequenceDesc0};
+    parallelDesc3->dataSplitRatio = {1, 1}; // 1:1
+
+    // parallel2 与 parallel3 串行组合作为最终输出
+    AlgoExecDesc algoExecDesc;
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
+    algoExecDesc.children = {parallelDesc2, parallelDesc3};
+    algoExecDesc.dataSplitRatio = {1, 1}; // 1:1
+    return algoExecDesc;
+}
+
+/**
  * 全局 AICPU AllGather 算法表。
  * 以 HcclAicpuAllGatherAlgoType 枚举值为数组下标，元素为对应的 HcclAlgorithm 实例
  * （hcclCmdType=HCCL_CMD_ALLGATHER, engineType=AICPU，topoMatch 为对应 executor 类模板参数的
@@ -244,7 +309,8 @@ static AlgoExecDesc MakeAicpuAllGatherSequenceMesh1DNHRNHRMesh1DOcsAlgoExecDesc(
 const HcclAlgorithm
     g_aicpuAllGatherAlgoMap[static_cast<size_t>(HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT)]
     = {
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch3Level>()),
+        MakeAicpuAllGatherAlgo(
+            std::make_shared<TopoMatch3Level>(), MakeAicpuAllGatherOmniPipeAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherNhrAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchSqueeze2D>(), MakeAicpuAllGatherParallelMesh1DNhrUboeAlgoExecDesc()),
@@ -256,7 +322,7 @@ const HcclAlgorithm
         MakeAicpuAllGatherAlgo(std::make_shared<TopoMatch1D>(), MakeAicpuAllGatherMesh1DAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchPcieMix>(), MakeAicpuAllGatherParallelMesh1DNhrAlgoExecDesc()),
-        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>()),
+        MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchPcieMix>(), MakeAicpuAllGatherOmniPipeAlgoExecDesc()),    // 待区分DPU
         MakeAicpuAllGatherAlgo(std::make_shared<TopoMatchConcurrent>(), MakeAicpuAllGatherConcurrentMesh1DNhrAlgoExecDesc()),
         MakeAicpuAllGatherAlgo(
             std::make_shared<TopoMatchMultilevel>(), MakeAicpuAllGatherSequenceMesh1DNHRNHRMesh1DOcsAlgoExecDesc()),
