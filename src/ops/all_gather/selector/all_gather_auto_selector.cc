@@ -141,7 +141,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
     } else {
 #ifdef Ascend_950_CCU_V2
         if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-            selectAlgName = "CcuAllGatherMesh1DMem2Mem";//
+            selectAlgName = "CcuAllGatherMesh1DMultiPlaneNHRMem";//
         } else
 #endif
         {
