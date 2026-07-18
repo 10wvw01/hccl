@@ -451,9 +451,6 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConc
     TopoMatchUBX, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMultiJettyMem2Mem);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConcurrentMesh1DNHRUBX, InsV2AllGatherConcurrentExecutor, 
 TopoMatchUBX, CcuTempAllGatherMesh1D, CcuTempAllGatherNHR1DMultiJettyMem2Mem);
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConcurrentMesh1DNHRMem, InsV2AllGatherConcurrentExecutor,
-    TopoMatchConcurrent, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
- 
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherConcurrentMesh1DNHR,
                                InsV2AllGatherConcurrentExecutor, TopoMatchConcurrent, CcuTempAllGatherMesh1D,
                                CcuTempAllGatherNHR1DMem2Mem);
