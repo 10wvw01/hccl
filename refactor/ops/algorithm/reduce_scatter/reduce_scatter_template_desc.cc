@@ -20,8 +20,12 @@ namespace ops_hccl {
  *
  * 去重依据：所有 TemplateDesc 的 hcclCmdType 恒为 HCCL_CMD_REDUCE_SCATTER，
  * shotMode 恒为 ONE_SHOT，仅 algType 与 jettyMode 存在差异，共 2 种组合：
- *   - NHR + SINGLE_JETTY        （InsReduceScatterNHR）
- *   - FULLMESH + SINGLE_JETTY   （InsReduceScatterMesh1D）
+ *   - NHR + SINGLE_JETTY        （InsReduceScatterNHR / Parallel / Sequence / Concurrent 子项 NHR 复用）
+ *   - FULLMESH + SINGLE_JETTY   （InsReduceScatterMesh1D / Parallel / Sequence / Concurrent 子项 Mesh1D 复用）
+ * Parallel/Sequence/Concurrent 复合算法不引入新的 TemplateDesc 组合，均通过上述两项拼装得到：
+ *   - Parallel（Mesh1D+NHR）      : 子树0 [FULLMESH→INTRA, NHR→INTER] + 子树1 [NHR→INTER, FULLMESH→INTRA]，外层 SEQUENCE
+ *   - Sequence（Mesh1DZAxisDetour + NHR）: SEQUENCE [FULLMESH→level0, NHR→level2]
+ *   - Concurrent（Mesh1D + NHR）  : PARALLEL [FULLMESH→INTRA, NHR→INTER]
  */
 const TemplateDesc
     g_reduceScatterTemplateDescMap[static_cast<size_t>(

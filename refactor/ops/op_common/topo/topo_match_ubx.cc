@@ -10,6 +10,8 @@
 
 #include "topo_match_ubx.h"
 
+#include <cstdio>
+
 namespace ops_hccl {
 TopoMatchUBX::TopoMatchUBX()
     : TopoMatchBase()
@@ -82,6 +84,9 @@ HcclResult TopoMatchUBX::TopoForLayer1(const HcclComm comm, uint32_t layer0Size,
     uint32_t rankNum;
     CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 1, topoInsts[0], &ranks, &rankNum));
     HCCL_DEBUG("[TopoMatchUBX::MeshNHRTopoForLayer1] Rank [%d], all [%u] ranks in layer1", myRank, rankNum);
+    fprintf(stderr, "[TopoForLayer1] myRank=%u layer0Size=%u rankNum=%u ranks=", myRank, layer0Size, rankNum);
+    for (uint32_t i = 0; i < rankNum; i++) { fprintf(stderr, "%u,", ranks[i]); }
+    fprintf(stderr, "\n");
     // 2. 取出同序号卡，作为layer1的ranks
     std::vector<uint32_t> rankVecLayer1WithSameIdx;
     for (uint32_t i = 0; i < rankNum; i++) {
@@ -91,16 +96,23 @@ HcclResult TopoMatchUBX::TopoForLayer1(const HcclComm comm, uint32_t layer0Size,
             continue;
         }
         if (rankId % layer0Size != myRank % layer0Size) {
+            fprintf(stderr, "[TopoForLayer1] myRank=%u rankId=%u skip (idx mismatch: %u vs %u)\n",
+                myRank, rankId, rankId % layer0Size, myRank % layer0Size);
             continue;
         }
         CommLink *links;
         uint32_t linkNum = 0;
         HcclRankGraphGetLinks(comm, 1, myRank, rankId, &links, &linkNum);
+        fprintf(stderr, "[TopoForLayer1] myRank=%u rankId=%u linkNum=%u (sameIdx)\n", myRank, rankId, linkNum);
         if (linkNum == 0) {
             continue;
         }
         rankVecLayer1WithSameIdx.push_back(rankId);
     }
+    fprintf(stderr, "[TopoForLayer1] myRank=%u layer1Ranks(size=%zu)=",
+        myRank, rankVecLayer1WithSameIdx.size());
+    for (uint32_t r : rankVecLayer1WithSameIdx) { fprintf(stderr, "%u,", r); }
+    fprintf(stderr, "\n");
     algHierarchyInfo.infos[1].push_back({rankVecLayer1WithSameIdx});
 #endif
     return HcclResult::HCCL_SUCCESS;
