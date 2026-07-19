@@ -172,7 +172,7 @@ extern HcclResult HcclRecv(void* recvBuf, uint64_t count, HcclDataType dataType,
  * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvType Datatype of receive buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -194,7 +194,7 @@ extern HcclResult HcclAlltoAllVC(const void *sendBuf, const void *sendCountMatri
  * @param rdispls Integer(uint64) array, where entry j specifies the displacement (offset from recvbuf, in units of recvtype)
  * to which data from rank j should be written.
  * @param recvType Datatype of receive buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -213,7 +213,7 @@ extern HcclResult HcclAlltoAllV(const void *sendBuf, const void *sendCounts, con
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount Integer, number of elements received from any process.
  * @param recvType Datatype of receive buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
