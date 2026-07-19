@@ -41,7 +41,7 @@ extern HcclResult HcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, Hc
  * @param buf A pointer identifying the data address of the operator.
  * @param count An integer(u64) identifying the number of the data.
  * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param root An integer(u32) identifying the root rank in the operator.
  * @param comm A pointer identifying the communication resource based on
  * @param stream A pointer identifying the stream information.
@@ -92,7 +92,7 @@ extern HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, cons
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount An integer(u64) identifying the number of the data.
  * @param dataType The data type of the operator, must be one of the following types: int8, uint8, int16,
- * uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16.
+ * uint16, int32, uint32, int64, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param root An integer(u32) identifying the root rank in the operator.
  * @param comm A pointer identifying the communication resource based on
  * @param stream A pointer identifying the stream information.
@@ -108,7 +108,7 @@ extern HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, 
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param sendCount An integer(u64) identifying the number of the input data.
  * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -126,7 +126,7 @@ extern HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount
  * @param recvDispls Integer(uint64) array, where entry i specifies the displacement (offset from recvbuf, in units of recvtype)
  * from which to recv data from rank i.
  * @param dataType The data type of the operator, must be one of the following types: int8, uint8, int16, uint16,
- * int32, uint32, int64, uint64, float16, float32, float64, bfp16.
+ * int32, uint32, int64, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -140,7 +140,7 @@ extern HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBu
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param count An integer(u64) identifying the number of the send data.
  * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param destRank An integer identifying the destination rank.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
@@ -154,7 +154,7 @@ extern HcclResult HcclSend(void* sendBuf, uint64_t count, HcclDataType dataType,
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param count An integer(u64) identifying the number of the receive data.
  * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param srcRank An integer identifying the source rank.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
@@ -169,7 +169,7 @@ extern HcclResult HcclRecv(void* recvBuf, uint64_t count, HcclDataType dataType,
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param sendCountMatrix A two-dimensional(uint64) array representing the data volume directly sent by all ranks.
  * @param sendType Datatype of send buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvType Datatype of receive buffer elements, must be one of the following types: int8, int16, int32, int64,
  * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
@@ -188,7 +188,7 @@ extern HcclResult HcclAlltoAllVC(const void *sendBuf, const void *sendCountMatri
  * @param sdispls Integer(uint64) array, where entry i specifies the displacement (offset from sendbuf, in units of sendtype)
  * from which to send data to rank i.
  * @param sendType Datatype of send buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCounts Integer(uint64) array, where entry j specifies the number of elements to receive from rank j.
  * @param rdispls Integer(uint64) array, where entry j specifies the displacement (offset from recvbuf, in units of recvtype)
@@ -209,7 +209,7 @@ extern HcclResult HcclAlltoAllV(const void *sendBuf, const void *sendCounts, con
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param sendCount Integer, number of elements to send to each process.
  * @param sendType Datatype of send buffer elements, must be one of the following types: int8, int16, int32, int64,
- * uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * uint8, uint16, uint32, uint64, float8-e5m2, float8-e4m3, float8-e8m0, hifloat8, float16, float32, float64, bfp16.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount Integer, number of elements received from any process.
  * @param recvType Datatype of receive buffer elements, must be one of the following types: int8, int16, int32, int64,
