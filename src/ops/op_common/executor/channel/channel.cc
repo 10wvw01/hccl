@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -69,21 +69,21 @@ HcclResult ProcessMeshInfo(const HcclComm comm,const std::vector<std::vector<u32
     constexpr u32 DIE_0 = 0;
     constexpr u32 DIE_1 = 1;
     for(u32 rank: subcommInfo[COMM_LEVEL0]){
-        HCCL_INFO("rank = %lld",rank);
+        HCCL_INFO("rank = %u",rank);
         if (rank == myRank) {
             continue;
         }
         if (enableDieNum == DIE_NUM_1) {
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, enableDieId,
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
-            HCCL_INFO("enableDieNum = %lld",enableDieNum);
+            HCCL_INFO("enableDieNum = %u",enableDieNum);
         } else if (enableDieNum == DIE_NUM_2) {
             // 加入fromRank 2个die的链路
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_0,
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_1,
                 rank2ChannelIdx, channelsPerDie[DIE_1]));
-            HCCL_INFO("enableDieNum = %lld",enableDieNum);
+            HCCL_INFO("enableDieNum = %u",enableDieNum);
         }
     }
     return HcclResult::HCCL_SUCCESS;
