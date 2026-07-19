@@ -77,7 +77,7 @@ extern HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvC
  * @param recvCount An integer(u64) identifying the number of the output data.
  * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
  * float16, float32, bfp16.
- * @param op The reduction type of the operator, must be one of the following types: sum, prod, max, min.
+ * @param op The reduction type of the operator, must be one of the following types: sum, prod, max, min. For Ascend 950PR/Ascend 950DT, prod is supported (prod does not support int16 or bfp16). For other products, must be one of the following types: sum, max, min.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
