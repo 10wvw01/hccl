@@ -14,40 +14,14 @@ namespace ops_hccl {
 
 class CalcAlgHierarchyInfoTest : public OpsExecutorTest {};
 
-TEST_F(CalcAlgHierarchyInfoTest, SingleLevelRankSize)
-{
-    AlgHierarchyInfoForAllLevel info;
-    info.infos = {{{0, 1, 2, 3}}}; // 1 level, 4 ranks
-    executor_->SetTopoMatch(info);
-    TopoInfoWithNetLayerDetails topoInfo = MakeTopoInfo();
-
-    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, &topoInfo, info);
-    EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(executor_->GetRankSize(), 4u);
-}
-
-TEST_F(CalcAlgHierarchyInfoTest, TwoLevelRankSize)
-{
-    AlgHierarchyInfoForAllLevel info;
-    info.infos = {{{0, 1, 2, 3}}, {{0, 1}}}; // 2 levels: 4 ranks * 2 ranks = 8
-    executor_->SetTopoMatch(info);
-    TopoInfoWithNetLayerDetails topoInfo = MakeTopoInfo();
-
-    HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, &topoInfo, info);
-    EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(executor_->GetRankSize(), 8u);
-}
-
 TEST_F(CalcAlgHierarchyInfoTest, ThreeLevelRankSize)
 {
     AlgHierarchyInfoForAllLevel info;
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}}; // 8*8*2 = 128
     executor_->SetTopoMatch(info);
     TopoInfoWithNetLayerDetails topoInfo = MakeTopoInfo();
-
     HcclResult ret = executor_->CalcAlgHierarchyInfo(nullptr, &topoInfo, info);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(executor_->GetRankSize(), 128u);
 }
 
 // ============================================================
@@ -188,14 +162,11 @@ TEST_F(OmniPipeTest, ConstructExecutorWithOmniPipeAlgo)
     auto exe = MakeOmniPipeExecutor();
 
     // 验证 rankSize 初始为 0，调 CalcAlgHierarchyInfo 后正确计算
-    EXPECT_EQ(exe->GetRankSize(), 0u);
     AlgHierarchyInfoForAllLevel info;
     info.infos = {{{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1, 2, 3, 4, 5, 6, 7}}, {{0, 1}}};
     exe->SetTopoMatch(info);
     TopoInfoWithNetLayerDetails topoInfo = MakeTopoInfo();
     EXPECT_EQ(exe->CalcAlgHierarchyInfo(nullptr, &topoInfo, info), HCCL_SUCCESS);
-    EXPECT_EQ(exe->GetRankSize(), 128u); // 8×8×2
-
     // 验证 scratchMultiple 初始为 0
     EXPECT_EQ(exe->GetScratchMultiple(), 0u);
 

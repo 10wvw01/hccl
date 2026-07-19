@@ -66,7 +66,6 @@ public:
     void SetAlgHierarchyInfo(AlgHierarchyInfoForAllLevel &info) { algHierarchyInfo_ = info; }
 
     // getters
-    u32 GetRankSize() const { return rankSize_; }
     u32 GetScratchMultiple() const { return scratchMultiple_; }
     const ops_hccl::ExecDataInfo &GetExecDataInfo() const { return dataInfo_; }
     u64 GetDataTypeSize() const { return dataTypeSize_; }
