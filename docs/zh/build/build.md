@@ -125,7 +125,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 安装编译生成的HCCL软件包：
 
 ```shell
-bash ./build_out/cann-hccl_<version>_linux-<arch>.run --full
+bash ./build_out/cann-hccl_<version>_linux-<arch>.run --full --install-path=${install_path}
 ```
 
 请注意：编译时需要将上述命令中的软件包名称替换为实际软件包名称。
@@ -137,7 +137,7 @@ bash ./build_out/cann-hccl_<version>_linux-<arch>.run --full
 若您想卸载编译生成的HCCL软件包，恢复到安装完CANN Toolkit开发套件包的状态，可参考如下命令：
 
 ```shell
-bash ./build_out/cann-hccl_<version>_linux-<arch>.run --uninstall
+bash ./build_out/cann-hccl_<version>_linux-<arch>.run --uninstall --install-path=${install_path}
 ```
 
 请注意：卸载时需要将上述命令中的软件包名称替换为实际软件包名称。

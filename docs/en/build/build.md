@@ -125,7 +125,7 @@ After compilation, the `cann-hccl_<version>_linux-<arch>.run` software package i
 Install the compiled HCCL software package:
 
 ```shell
-bash ./build_out/cann-hccl_<version>_linux-<arch>.run --full
+bash ./build_out/cann-hccl_<version>_linux-<arch>.run --full --install-path=${install_path}
 ```
 
 Replace the software package name in the command with the actual package name.
@@ -137,7 +137,7 @@ After installation, the compiled HCCL software package replaces the HCCL-related
 To uninstall the compiled HCCL software package and restore to the state after installing the CANN Toolkit development kit package, run the following command:
 
 ```shell
-bash ./build_out/cann-hccl_<version>_linux-<arch>.run --uninstall
+bash ./build_out/cann-hccl_<version>_linux-<arch>.run --uninstall --install-path=${install_path}
 ```
 
 Replace the software package name in the command with the actual package name.
