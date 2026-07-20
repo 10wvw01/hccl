@@ -23,29 +23,6 @@ public:
         const OpParam &param, const uint32_t rankSize, uint64_t &inputSize, uint64_t &outputSize);
 };
 
-class CacheSubmitGuard {
-public:
-    explicit CacheSubmitGuard(std::string tag) : tag_(std::move(tag))
-    {
-    }
-    ~CacheSubmitGuard()
-    {
-        if (!committed_ && HcommIsSupportHcommAicpuTsTaskCacheClear()) {
-            HCCL_ERROR("[CacheSubmitGuard]cache submit error, clear tag[%s]", tag_.c_str());
-            (void)HcommAicpuTsTaskCacheClear(tag_.c_str());
-        }
-    }
-    void Commit()
-    {
-        committed_ = true;
-    }
-    CacheSubmitGuard(const CacheSubmitGuard &) = delete;
-    CacheSubmitGuard &operator=(const CacheSubmitGuard &) = delete;
-
-private:
-    std::string tag_;
-    bool committed_ = false;
-};
 } // namespace ops_hccl
 
 #endif
