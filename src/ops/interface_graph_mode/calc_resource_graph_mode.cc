@@ -306,6 +306,10 @@ HcclResult RecordAivOpArgsGraphMode(const char *group, u64 count, HcclDataType d
     param.opMode = ops_hccl::OpMode::OFFLOAD;
     param.numBlocksLimit = aivCoreLimit;
 
+    void *sendCountsHost = nullptr;
+    void *recvCountsHost = nullptr;
+    void *sdisplsHost = nullptr;
+    void *rdisplsHost = nullptr;
     if (opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
         opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
         param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
@@ -313,10 +317,6 @@ HcclResult RecordAivOpArgsGraphMode(const char *group, u64 count, HcclDataType d
         param.all2AllVDataDes.recvType = dataType;
 
         u64 arrSize = rankSize * sizeof(u64);
-        void *sendCountsHost = nullptr;
-        void *recvCountsHost = nullptr;
-        void *sdisplsHost = nullptr;
-        void *rdisplsHost = nullptr;
         ACLCHECK(aclrtMallocHost(&sendCountsHost, arrSize));
         ACLCHECK(aclrtMallocHost(&recvCountsHost, arrSize));
         ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
@@ -395,6 +395,20 @@ HcclResult RecordAivOpArgsGraphMode(const char *group, u64 count, HcclDataType d
     ops_hccl::g_baseInputAddr = 0;
     ops_hccl::g_baseOutputAddr = 0;
     ops_hccl::g_recordOnlyMode = false;
+
+    // 释放AllToAll主机内存
+    if (sendCountsHost != nullptr) {
+        aclrtFreeHost(sendCountsHost);
+    }
+    if (recvCountsHost != nullptr) {
+        aclrtFreeHost(recvCountsHost);
+    }
+    if (sdisplsHost != nullptr) {
+        aclrtFreeHost(sdisplsHost);
+    }
+    if (rdisplsHost != nullptr) {
+        aclrtFreeHost(rdisplsHost);
+    }
 
     return HCCL_SUCCESS;
 }
