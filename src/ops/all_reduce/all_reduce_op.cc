@@ -240,11 +240,8 @@ HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count,
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
     }
-    // 单个 MESH_1D_CLOS 网络层在 Omni executor 内展开为 Mesh+NHR 两层；
-    // 额外网络层会继续展开出 DPU 第三层，因此不能进入当前对称内存路径。
-    const bool isTwoLevelMeshNhrOmni = algName == "InsV2AllReduceOmniPipe" &&
-        topoInfo->topoLevelNums == TOPO_LEVEL_NUM_1 &&
-        topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix;
+    // 仅标准两层 Mesh+NHR Omni 入口启用对称内存；PCIe、多层和 UBoE 入口继续使用普通内存路径。
+    const bool isTwoLevelMeshNhrOmni = (algName == "InsV2AllReduceOmniPipe");
     if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE &&
         isTwoLevelMeshNhrOmni) {
         // 窗口探测失败只关闭对称内存优化，算子继续使用普通内存路径执行。
