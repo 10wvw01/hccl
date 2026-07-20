@@ -12,7 +12,6 @@
 
 #include "hccl/base.h"
 #include <atomic>
-#include <string>
 
 namespace ops_hccl {
 

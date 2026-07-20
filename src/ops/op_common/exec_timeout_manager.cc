@@ -11,6 +11,7 @@
 #include "log.h"
 #include "hccl_common.h"
 #include <cstdlib>
+#include <cerrno>
 
 namespace ops_hccl {
 
@@ -56,8 +57,9 @@ u32 ExecTimeoutManager::LoadFromEnv()
         return 0;
     }
     char* endptr = nullptr;
+    errno = 0;
     long val = strtol(envVal, &endptr, 10);
-    if (endptr == envVal || *endptr != '\0' || val <= 0 ||
+    if (errno == ERANGE || endptr == envVal || *endptr != '\0' || val <= 0 ||
         static_cast<u64>(val) > static_cast<u64>(UINT32_MAX)) {
         HCCL_WARNING("[ExecTimeoutManager] Invalid HCCL_EXEC_TIMEOUT value: %s, using default", envVal);
         return 0;
