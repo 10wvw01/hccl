@@ -410,7 +410,7 @@ SelectorStatus AllGatherAutoSelector::SelectDPUAlgo(
                 HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
                 return SelectorStatus::MATCH;
             }
-        } 
+        }
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] end", __func__);
     return SelectorStatus::NOT_MATCH;

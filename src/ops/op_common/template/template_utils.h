@@ -323,7 +323,7 @@ struct TemplateDataParams {
         binaryStream >> stepSliceInfoData;
         stepSliceInfo.DeSerialize(stepSliceInfoData);
         binaryStream >> opType;
-        
+
         std::vector<char> omniReadDstStepSliceInfoData;
         binaryStream >> omniReadDstStepSliceInfoData;
         omniReadDstStepSliceInfo.DeSerialize(omniReadDstStepSliceInfoData);

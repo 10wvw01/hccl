@@ -45,7 +45,7 @@ CcuTempAllToAllMesh1D2Die::~CcuTempAllToAllMesh1D2Die()
 }
 
 HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& param,
- 	     const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
+    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
     CHK_PRT_RET(subCommRanks_.size() != 1 || subCommRanks_[0].empty(),
         HCCL_ERROR("[CcuTempAllToAllMesh1D2Die][CalcRes] Invalid subCommRanks[%u] or subCommRanks empty.",
@@ -53,11 +53,11 @@ HcclResult CcuTempAllToAllMesh1D2Die::CalcRes(HcclComm comm, const OpParam& para
     HCCL_DEBUG("[CcuTempAllToAllMesh1D2Die][CalcRes] rankSize[%u] subCommRanks0[%u].", templateRankSize_,
         subCommRanks_[0].size());
 
- 	std::vector<HcclChannelDesc> channelDescs;
- 	CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
- 	CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
- 	HCCL_INFO("channelDescs size[%u]", channelDescs.size());
- 	 
+	std::vector<HcclChannelDesc> channelDescs;
+	CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, channelDescs));
+	CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
+	HCCL_INFO("channelDescs size[%u]", channelDescs.size());
+
     CHK_RET(PartitionChannels(comm, rankIdToChannelDesc_));
     double ratio = 1.0;
     CHK_RET(CalcDieSplitRatio(comm, myRank_, is2Plus6_,
@@ -198,9 +198,9 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
 {
     constexpr u32 argInIdx            = 0;
     constexpr u32 argOutIdx           = 1;
-    constexpr u32 metaOutBaseOffIdx   = 10;   
-    constexpr u32 metaInCombineOffIdx = 11;   
-    constexpr u32 taskArgSize         = 10;   
+    constexpr u32 metaOutBaseOffIdx   = 10;
+    constexpr u32 metaInCombineOffIdx = 11;
+    constexpr u32 taskArgSize         = 10;
 
     u32 kernelCount = static_cast<u32>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
     if (kernelCount == 0) {
@@ -220,8 +220,8 @@ HcclResult CcuTempAllToAllMesh1D2Die::FastLaunch(const OpParam &param, const Tem
 
     for (u32 i = 0; i < kernelCount; i++) {
         uint64_t *args = const_cast<uint64_t *>(tempFastLaunchCtx.ccuKernelSubmitInfos[i].cachedArgs);
-        args[argInIdx]  = inputAddr  + args[metaInCombineOffIdx];   
-        args[argOutIdx] = outputAddr + args[metaOutBaseOffIdx];     
+        args[argInIdx]  = inputAddr  + args[metaInCombineOffIdx];
+        args[argOutIdx] = outputAddr + args[metaOutBaseOffIdx];
 
         CcuResult launchRet = HcommCcuKernelLaunch(
             tempFastLaunchCtx.threads[i],

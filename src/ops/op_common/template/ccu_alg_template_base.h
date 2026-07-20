@@ -41,14 +41,14 @@ public:
                                  const TemplateDataParams& templateDataParams,
                                  TemplateResource& templateResource) override;
     HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;
-                                 
+
     HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;
     u64 GetThreadNum() const override;
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
     uint64_t PointerToAddr(void* pointer) const;
-    
+
     HcclResult GetToken(const BuffInfo &buffinfo, uint64_t &token) const;
 
     static HcclResult GetChannelDieId(HcclComm comm, uint32_t rankId, const HcclChannelDesc& channelDesc, uint32_t& dieId) ;

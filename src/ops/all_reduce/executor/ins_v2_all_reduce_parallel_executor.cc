@@ -52,7 +52,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 {
     myRank_ = topoInfo->userRank;
     HCCL_INFO("[InsAllReduceParallelExecutor] CalcRes start, rank[%d]", myRank_);
-    
+
     std::vector<std::vector<u32>> temp0HierarchyInfo;
     std::vector<std::vector<u32>> temp1HierarchyInfo;
     if(topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
@@ -87,7 +87,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     CHK_RET(algTemplate0->CalcRes(comm, param, topoInfo, intraTempRequest));
     CHK_RET(algTemplate1->CalcRes(comm, param, topoInfo, interTempRequest));
     CHK_RET(algTemplate2->CalcRes(comm, param, topoInfo, intraTempRequest1));
-    CHK_RET(algTemplate3->CalcRes(comm, param, topoInfo, interTempRequest1)); 
+    CHK_RET(algTemplate3->CalcRes(comm, param, topoInfo, interTempRequest1));
 
     for (auto &KernelInfo : intraTempRequest.ccuKernelInfos) {
         KernelInfo.resGroup = 0;
@@ -173,12 +173,12 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
  #ifndef AICPU_COMPILE
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunchSaveCtx(
-    const OpParam &param, const TemplateResource &templateAlgResIntra, const TemplateResource &templateAlgResInter, 
+    const OpParam &param, const TemplateResource &templateAlgResIntra, const TemplateResource &templateAlgResInter,
     const TemplateResource &templateAlgResIntra1, const TemplateResource &templateAlgResInter1, u32 notifyNumOnMainThread)
 {
     HCCL_INFO("[InsAllReduceParallelExecutor] loopTimes==1, save fast launch ctx.");
     u32 threadNum = threads_.size();
-    u32 ccuKernelNum = ccuKernelLaunchNumIntra1_ + ccuKernelLaunchNumInter0_ + ccuKernelLaunchNumIntra0_ + ccuKernelLaunchNumInter1_ + 
+    u32 ccuKernelNum = ccuKernelLaunchNumIntra1_ + ccuKernelLaunchNumInter0_ + ccuKernelLaunchNumIntra0_ + ccuKernelLaunchNumInter1_ +
                        ccuKernelLaunchNumIntra11_ + ccuKernelLaunchNumInter00_ + ccuKernelLaunchNumIntra00_ + ccuKernelLaunchNumInter11_;
     if (ccuKernelNum < 1) {
         HCCL_INFO("[InsAllReduceParallelExecutor] ccu kernel num is 0, no need to save.");
@@ -204,7 +204,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     for (u32 i = 0; i < threadNum; i++) {
         threads[i] = threads_[i];
     }
-        
+
     // 3 ccu kernel handle, taskArg入参
     u32 templateIdx = 0;
     ccuFastLaunchCtx->ccuKernelNum[templateIdx++] = ccuKernelLaunchNumIntra0_;
@@ -216,7 +216,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     ccuFastLaunchCtx->ccuKernelNum[templateIdx++] = ccuKernelLaunchNumIntra00_;
     ccuFastLaunchCtx->ccuKernelNum[templateIdx++] = ccuKernelLaunchNumInter11_;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    
+
     for (u32 i = 0; i < threadNum; i++) {
         threads[i] = threads_[i];
     }
@@ -251,13 +251,13 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2, typename InsAlgTemplate3>
 HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2, InsAlgTemplate3>::FastLaunch(
         const OpParam &param, const CcuFastLaunchCtx *ctx)
-{   
+{
     HCCL_INFO("[InsAllReduceParallelExecutor][FastLaunch] Start.");
     InsAlgTemplate0 intraTempAlg{};
     InsAlgTemplate1 interTempAlg{};
     InsAlgTemplate2 intraTempAlg1{};
     InsAlgTemplate3 interTempAlg1{};
-    
+
     TemplateFastLaunchCtx tempFastLaunchCtxIntra0, tempFastLaunchCtxInter0;
     TemplateFastLaunchCtx tempFastLaunchCtxInter1, tempFastLaunchCtxIntra1;
     TemplateFastLaunchCtx tempFastLaunchCtxIntra00, tempFastLaunchCtxInter00;
@@ -266,9 +266,9 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     TemplateResource templateAlgResIntra, templateAlgResInter, templateAlgResIntra1, templateAlgResInter1;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg, intraTempAlg1)); 
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg, intraTempAlg1));
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
-    
+
     //第一步开始前同步
     CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
     //数据0的server内的mesh算法
@@ -633,7 +633,7 @@ void InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1
         rankStridePart2 = RoundDown(curSizePart1, (part2 * dataTypeSize_)) * dataTypeSize_;
         for (u32 j = 0; j < part2; ++j) {
             curSizePart2 = (j == (part2 - 1)) ? (curSizePart1 - rankStridePart2 * j) : rankStridePart2;
-            
+
             if (isInter) {
                 rankId = CalcRankIdInter(i, j, part2);
             } else {
@@ -1095,10 +1095,10 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, InsAllReducePar
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceParallelMesh1DNHR, InsAllReduceParallelExecutor,
-    TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, 
+    TopoMatchMultilevel, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem,
     CcuTempAllGatherNHR1DMem2Mem);
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceParallelNHR1DMutiJetty, InsAllReduceParallelExecutor,
-    TopoMatchUBX, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem, 
+    TopoMatchUBX, CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNHR1DMem2Mem, CcuTempAllGatherMesh1DMem2Mem,
     CcuTempAllGatherNHR1DMem2Mem);
 
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */

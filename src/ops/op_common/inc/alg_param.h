@@ -230,7 +230,7 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream.Dump(result);
         return result;
     }
- 
+
     void DeSerialize(std::vector<char> &data)
     {
         BinaryStream binaryStream(data);
@@ -339,7 +339,7 @@ struct CcuFastLaunchCtx {
     CcuKernelSubmitInfo *GetCcuKernelSubmitInfoPtr() const
     {
         size_t offset = offsetof(CcuFastLaunchCtx, ccuKernelNum)
-                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO 
+                        + sizeof(u32) * MAX_TEMP_NUM_IN_ALGO
                         + sizeof(ThreadHandle) * threadNum;
         return reinterpret_cast<CcuKernelSubmitInfo*>(
                     reinterpret_cast<char*>(const_cast<CcuFastLaunchCtx*>(this)) + offset
@@ -348,8 +348,8 @@ struct CcuFastLaunchCtx {
 
     static u64 GetCtxSize(u32 threadNum, u32 totalCcuKernelNum)
     {
-        return sizeof(CcuFastLaunchCtx) 
-               + sizeof(ThreadHandle) * threadNum 
+        return sizeof(CcuFastLaunchCtx)
+               + sizeof(ThreadHandle) * threadNum
                + sizeof(CcuKernelSubmitInfo) * totalCcuKernelNum;
     }
 };
@@ -705,5 +705,5 @@ struct OpExchangeInfo {
     char tag[TAG_LENGTH] = {0};
 };
 
-} 
+}
 #endif

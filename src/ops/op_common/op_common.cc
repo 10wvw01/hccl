@@ -490,9 +490,9 @@ HcclResult ExecuteAivCacheLogic(HcclComm comm, OpParam &param, const std::string
     return HCCL_SUCCESS;
 }
 
-HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo, 
+HcclResult FallbackOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     std::string &algName, const ResPackGraphMode &resPack)
-{   
+{
     void* fallbackCtx = nullptr;
     uint64_t fallbackCtxSize = ALG_MAX_LENGTH;
     CHK_RET(HcclEngineCtxCreate(comm, param.fallbackTag, CommEngine::COMM_ENGINE_CCU, fallbackCtxSize, &fallbackCtx));
@@ -743,21 +743,21 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         CHK_RET(static_cast<HcclResult>(HcclTaskRegister(comm, param.algTag, HcclLaunchDPUKernel)));
     }
 
-    if (HcommIsSupportHcclAicpuKernelLaunch() && 
+    if (HcommIsSupportHcclAicpuKernelLaunch() &&
         (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE)) {
         HCCL_INFO("[HcclAicpuKernelEntranceLaunch] P2P opType[%d], use HcclAicpuKernelLaunch",
             static_cast<int>(param.opType));
- 
+
         // 构造 HcclOpDesc
         HcclOpDesc opInfo;
-        
+
         (void)memset_s(&opInfo, sizeof(HcclOpDesc), 0, sizeof(HcclOpDesc));
         opInfo.opDescType = 1;  // 1: P2P
 
         std::string opNameStr = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? "HcclSend" : "HcclRecv";
         (void)strncpy_s(opInfo.opName, HCCL_OP_DESC_OP_NAME_MAX_LEN, opNameStr.c_str(), opNameStr.size());
 
-        opInfo.p2p.buffer = (param.opType == HcclCMDType::HCCL_CMD_SEND) ? 
+        opInfo.p2p.buffer = (param.opType == HcclCMDType::HCCL_CMD_SEND) ?
                             param.inputPtr : param.outputPtr;
         opInfo.p2p.cmdType = param.opType;
         opInfo.p2p.dataType = param.DataDes.dataType;
@@ -771,25 +771,25 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         // 构造 HcclKernelFuncInfo
         HcclKernelFuncInfo funcInfo;
         (void)memset_s(&funcInfo, sizeof(HcclKernelFuncInfo), 0, sizeof(HcclKernelFuncInfo));
-        
-        (void)sprintf_s(funcInfo.kernelSoName, sizeof(funcInfo.kernelSoName), 
+
+        (void)sprintf_s(funcInfo.kernelSoName, sizeof(funcInfo.kernelSoName),
                           "libscatter_aicpu_kernel.so");
 
-        (void)sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName), 
+        (void)sprintf_s(funcInfo.kernelFuncName, sizeof(funcInfo.kernelFuncName),
                           "HcclLaunchP2pAicpuKernel");
-  
+
         // 获取 aicpuThreadHandle
         ThreadHandle aicpuThreadHandle;
         u32 mainNotifyNum;
         CHK_RET(GetMainThreadInfo(comm, param, aicpuThreadHandle, mainNotifyNum));
-        
+
         // 调用 HcclAicpuKernelLaunch
         void* args = &param;
         uint32_t argSize = sizeof(OpParam) + param.varMemSize;
- 
+
         funcInfo.args = args;
         funcInfo.argSize = argSize;
-        
+
         HcclKernelLaunchCfg kernelLaunchCfg;
         AicpuTimeout timeout = DeriveAicpuTimeout(param.opConfig.execTimeout);
         u16 kernelLaunchTimeout = IsHcommDefaultTimeoutSupported() ? timeout.kernelLaunchTimeout :
@@ -1083,7 +1083,7 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     if (ret == HCCL_SUCCESS && aivParam != nullptr) {
         numBlocksLimit = aivParam->aivCoreLimit;
         exchangeInfo.aivCoreLimit = numBlocksLimit;
-    } 
+    }
     if (numBlocksLimit == 0 && param.opMode == OpMode::OPBASE) {
         ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
         exchangeInfo.aivCoreLimit = numBlocksLimit;
@@ -2714,7 +2714,7 @@ HcclResult SetExecTimeout(OpParam &param) {
     } else {
         // 验证转换后的值是否合理
         if (execTimeoutValue < 0 || execTimeoutValue > UINT32_MAX) {
-            HCCL_WARNING("[OpCommon] Exec timeout value %.2f out of range, use default: %u seconds", 
+HCCL_WARNING("[OpCommon] Exec timeout value %.2f out of range, use default: %u seconds",
                          execTimeoutValue, ExecTimeoutManager::Instance().GetExecTimeout());
             param.opConfig.execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
         } else {

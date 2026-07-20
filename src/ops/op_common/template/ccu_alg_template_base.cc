@@ -125,8 +125,8 @@ HcclResult CcuAlgTemplateBase::GetChannelBwCoeff(HcclComm comm, uint32_t rankId,
 
 /* nhr算法，需要遍历得到的channelDesc，判断使用几个die，如果是1个die，则还需要得到dieId。
    以便于算法挑选相应dieId的channelDesc */
-HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm, 
-    const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc, 
+HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm,
+    const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc,
     u32 myRankId, uint32_t &dieNum, uint32_t &dieId)
 {
     constexpr u32 LINK_NUM_1 = 1;
@@ -140,8 +140,8 @@ HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm,
             GetChannelDieId(comm, myRankId, channels[0], dieId);
             HCCL_INFO("[CcuAlgTemplateBase::GetDieNumFromChannelDescs] only 1 channel, dieNum = 1, dieId = %u.", dieId);
             return HcclResult::HCCL_SUCCESS;
-        } 
-        
+        }
+
         if (channels.size() == LINK_NUM_2) {
             // 检查2个channel是否在2个die上
             uint32_t dieId0 = 0;
@@ -167,7 +167,7 @@ HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm,
 
 /* 从rankIdToChannelDesc的map中，挑选出指定die上的channel加入到vec中，并将Index放入rank2ChannelIdx*/
 HcclResult CcuAlgTemplateBase::SelectChannelToVec(const HcclComm comm, const u32 myRankId, const u32 rmtRankId,
-    const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc, const u32 dieId, 
+    const std::map<u32, std::vector<HcclChannelDesc>> &rankIdToChannelDesc, const u32 dieId,
     std::map<u32, u32>& rank2ChannelIdx, std::vector<HcclChannelDesc>& channels)
 {
     auto it = rank2ChannelIdx.find(rmtRankId);
@@ -205,11 +205,11 @@ HcclResult CcuAlgTemplateBase::SelectChannelToVec(const HcclComm comm, const u32
 }
 
 /* 当2个die出框链路端口数不一致时，使用端口数（而非dieId）区分channel */
-HcclResult CcuAlgTemplateBase::ReverseChannelPerDieIfNeed(const HcclComm comm, const u32 myRankId, 
+HcclResult CcuAlgTemplateBase::ReverseChannelPerDieIfNeed(const HcclComm comm, const u32 myRankId,
     std::vector<std::vector<HcclChannelDesc>>& channelsPerDie)
 {
     if (channelsPerDie.size() <= 1) {
-        HCCL_ERROR("[ReverseChannelPerDieIfNeed] channelsPerDie.size() = [%u], there's no channel on both dies", 
+        HCCL_ERROR("[ReverseChannelPerDieIfNeed] channelsPerDie.size() = [%u], there's no channel on both dies",
             channelsPerDie.size());
         return HCCL_E_PTR;
     }

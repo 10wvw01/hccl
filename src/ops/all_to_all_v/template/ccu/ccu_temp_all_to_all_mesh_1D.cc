@@ -154,7 +154,7 @@ HcclResult CcuTempAlltoAllMesh1D::KernelRun(const OpParam& param,
     uint64_t outputAddr         = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
-    
+
     uint64_t srcStride = templateDataParams.outputSliceStride;
     uint64_t dstStride = templateDataParams.outputSliceStride;
 
@@ -201,12 +201,12 @@ HcclResult CcuTempAlltoAllMesh1D::KernelRun(const OpParam& param,
 
     CcuKernelSubmitInfo subCommInfo;
     subCommInfo.kernelHandle = templateResource.ccuKernels[0];
-    CHK_RET(FillCachedArgs(subCommInfo, inputAddr, outputAddr,  
-        token, sliceSize, srcStride, srcOffset, dstOffset, 
+    CHK_RET(FillCachedArgs(subCommInfo, inputAddr, outputAddr,
+        token, sliceSize, srcStride, srcOffset, dstOffset,
         goSize[0], goSize[1], goSize[2], goSize[3],
         buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff));
     templateResource.submitInfos.push_back(subCommInfo);
-     
+
     HCCL_DEBUG("[CcuTempAlltoAllMesh1D::KernelRun] end");
 
     return HcclResult::HCCL_SUCCESS;
