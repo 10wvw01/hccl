@@ -692,7 +692,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         processedDataCount += maxCountPerLoop;
     }
 
-    HCCL_INFO("[%s][OrchestrateLoop] End.", __func__);
+    HCCL_INFO("[%s][OrchestrateLoop] Endxx.", __func__);
     return HCCL_SUCCESS;
 }
 
@@ -703,8 +703,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-                                // CcuTempReduceScatterOmniPipeMesh1D,
+                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeNHR1DMem2Mem);
