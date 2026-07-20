@@ -504,6 +504,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             HCCL_INFO("[HcclLaunchAicpuKernel] isCacheHit[%d] for cacheTag[%s]", isCacheHit, cacheTag.c_str());
 
             if (!isCacheHit) { // cache miss
+                CacheSubmitGuard guard(cacheTag); // 缓存未正常提交时, 则Clear
                 // 算子展开前, 通知aicpu task cache开始缓存task
                 if (HcommIsSupportHcommAicpuTsTaskCacheStart()) {
                     CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheStart(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT)));
@@ -521,6 +522,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                 if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
                     CHK_RET(static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str())));
                 }
+                guard.Commit(); // 缓存正常提交，不再clear
 
                 // 首次缓存记录通信域与tag关系
                 AicpuTaskCacheCommManager::Instance().AddCommTagMap(param->hcclComm, cacheTag);
