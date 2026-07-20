@@ -196,14 +196,18 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
                                               resReqlevel.notifyNumPerThread.begin(),
                                               resReqlevel.notifyNumPerThread.end());
-    // 将各层通道合并到 channels[0]，使公共资源层只发起一次 HcclChannelAcquire。
-    // 对称内存句柄会随这次建链统一交换，避免分层建链时只有首层回填远端内存。
+    // 对称路径将各层通道合并到 channels[0]，使公共资源层只发起一次 HcclChannelAcquire。
+    // 对称内存句柄会随这次建链统一交换；普通路径仍按层保存通道，保持原有资源布局。
     if (!resReqlevel.channels.empty()) {
-        if (resourceRequest.channels.empty()) {
-            resourceRequest.channels.resize(1);
+        if (param.supportSymmetricMemory) {
+            if (resourceRequest.channels.empty()) {
+                resourceRequest.channels.resize(1);
+            }
+            resourceRequest.channels[0].insert(resourceRequest.channels[0].end(),
+                resReqlevel.channels[0].begin(), resReqlevel.channels[0].end());
+        } else {
+            resourceRequest.channels.emplace_back(resReqlevel.channels[0]);
         }
-        resourceRequest.channels[0].insert(resourceRequest.channels[0].end(),
-            resReqlevel.channels[0].begin(), resReqlevel.channels[0].end());
     }
     return HCCL_SUCCESS;
 }
@@ -283,8 +287,8 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     controlThread_ = threads_.at(0);
     levelThreads_.resize(OMNIPIPE_LEVEL_NUM);
 
-    // 建链结果已扁平存入 channels[0]，这里根据本 rank 与对端 rank 所属的子通信域重新归层。
-    // 子通信域是当前函数的局部结果，RestoreChannelMap 无法完成该映射，因此在此处直接处理。
+    // 对称路径的建链结果扁平存入 channels[0]，普通路径仍按层保存；遍历全部集合后，
+    // 根据本 rank 与对端 rank 所属的子通信域重新归层，可同时兼容两种资源布局。
     remoteRankToChannelInfo_.assign(OMNIPIPE_LEVEL_NUM, {});
     if (!resCtx.channels.empty()) {
         auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
@@ -302,13 +306,15 @@ HcclResult InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
             }
             return false;
         };
-        for (const auto& channel : resCtx.channels[0]) {
-            u32 rr = channel.remoteRank;
-            if (tryLevel(OMNIPIPE_LEVEL0, subCommRanks0, rr, channel)) { continue; }
-            if (tryLevel(OMNIPIPE_LEVEL1, subCommRanks1, rr, channel)) { continue; }
-            if (tryLevel(OMNIPIPE_LEVEL2, subCommRanks2, rr, channel)) { continue; }
-            HCCL_WARNING("[InsV2AllGatherOmniPipeExecutor][Orchestrate] discard unclassified channel, "
-                         "remoteRank[%u] is absent from every active sub-communicator.", rr);
+        for (const auto& channelVec : resCtx.channels) {
+            for (const auto& channel : channelVec) {
+                u32 rr = channel.remoteRank;
+                if (tryLevel(OMNIPIPE_LEVEL0, subCommRanks0, rr, channel)) { continue; }
+                if (tryLevel(OMNIPIPE_LEVEL1, subCommRanks1, rr, channel)) { continue; }
+                if (tryLevel(OMNIPIPE_LEVEL2, subCommRanks2, rr, channel)) { continue; }
+                HCCL_WARNING("[InsV2AllGatherOmniPipeExecutor][Orchestrate] discard unclassified channel, "
+                             "remoteRank[%u] is absent from every active sub-communicator.", rr);
+            }
         }
     }
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
@@ -550,12 +556,12 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
             if (omniUbxLastStepRead_) {
                 CHK_RET(UbxLocalCopy(param, omniPipeSliceInfo, omniPipeSliceLocalcopyInfo,
                         tempAlgParamMap, processedDataCount, level0StepCount));
-            }else {
+            } else {
                 for (u32 rank = 0; rank < rankSize_; rank++) {
                     DataSlice dst(param.outputPtr, (rank * dataCount_ + processedDataCount) * dataTypeSize_,
                                     currDataCount * dataTypeSize_, currDataCount);
-                    DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, currDataCount * dataTypeSize_,
-                                    currDataCount);
+                    DataSlice src(resCtx.cclMem.addr, rank * currDataCount * dataTypeSize_, 
+                                    currDataCount * dataTypeSize_, currDataCount);
                     CHK_RET(LocalCopy(controlThread_, src, dst));
                 }
             }
