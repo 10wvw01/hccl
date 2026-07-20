@@ -61,9 +61,6 @@ HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, const void 
 
 ### op说明
 
-<!-- npu="950" id14 -->
-- 针对Ascend 950PR/Ascend 950DT，支持的操作类型为sum、prod、max、min，其中prod操作不支持int16、bfp16数据类型。
-<!-- end id14 -->
 <!-- npu="A3" id15 -->
 - 针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，支持的操作类型为sum、max、min。
 <!-- end id15 -->
