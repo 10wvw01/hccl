@@ -21,6 +21,7 @@
 #include <future>
 #include <map>
 #include <string>
+#include "exec_timeout_manager.h"
 
 using namespace std;
 using namespace ops_hccl;
@@ -405,7 +406,7 @@ HcclResult ExecOp(HcclComm comm, OpParam &param)
         if (HcommIsExportThreadSupported()) {
             CHK_RET(static_cast<HcclResult>(HcommThreadNotifyWaitOnThread(cpuTsThread, 0, NOTIFY_DEFAULT_WAIT_TIME)));
         } else {
-            if (aclrtWaitAndResetNotify(g_notifiesMap[comm][1], param.stream, CUSTOM_TIMEOUT) != ACL_SUCCESS) {
+            if (aclrtWaitAndResetNotify(g_notifiesMap[comm][1], param.stream, ExecTimeoutManager::Instance().GetExecTimeout()) != ACL_SUCCESS) {
                 HCCL_ERROR("failed to wait from aicpu stream");
                 return HCCL_E_INTERNAL;
  	        }

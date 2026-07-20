@@ -10,6 +10,7 @@
 
 #include "alg_template_register.h"
 #include "scatter_nhr.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 ScatterNHR::ScatterNHR()
@@ -73,7 +74,7 @@ HcclResult ScatterNHR::SdmaRx(ChannelInfo &channelLeft, ChannelInfo &channelRigh
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK)));
     }
     if (channelLeft.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
 
         void* srcMemPtr = channelLeft.remoteOutput.addr;
         for (u32 i = 0; i < stepInfo.nSlices; i++) {
@@ -86,7 +87,7 @@ HcclResult ScatterNHR::SdmaRx(ChannelInfo &channelLeft, ChannelInfo &channelRigh
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL)));
     }
     if (channelRight.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL, ExecTimeoutManager::Instance().GetExecTimeout())));
     }
     return HCCL_SUCCESS;
 }
@@ -100,7 +101,7 @@ HcclResult ScatterNHR::RdmaTxRx(ChannelInfo &channelLeft, ChannelInfo &channelRi
     }
 
     if (channelRight.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
 
         void* dstMemPtr = channelRight.remoteOutput.addr;
         for (u32 i = 0; i < stepInfo.nSlices; i++) {
@@ -111,11 +112,11 @@ HcclResult ScatterNHR::RdmaTxRx(ChannelInfo &channelLeft, ChannelInfo &channelRi
             CHK_RET(static_cast<HcclResult>(HcommWriteOnThread(thread_, channelRight.handle, dst, src, txSlice.size)));
         }
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL))); // rdma数据发完
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_FIN_ACK, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_FIN_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
     }
 
     if (channelLeft.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));  // rdma数据收完
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, ExecTimeoutManager::Instance().GetExecTimeout())));  // rdma数据收完
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelLeft.handle, NOTIFY_IDX_FIN_ACK)));
     }
 
@@ -228,15 +229,15 @@ HcclResult ScatterNHR::ExecuteBarrierNhr(ChannelInfo &channelLeft, ChannelInfo &
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelLeft.handle, NOTIFY_IDX_ACK)));
     }
     if (channelRight.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL)));
     }
     if (channelLeft.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, ExecTimeoutManager::Instance().GetExecTimeout())));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelLeft.handle, NOTIFY_IDX_FIN_ACK)));
     }
     if (channelRight.isValid) {
-        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_FIN_ACK, CUSTOM_TIMEOUT)));
+        CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_FIN_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
     }
 
     return HCCL_SUCCESS;

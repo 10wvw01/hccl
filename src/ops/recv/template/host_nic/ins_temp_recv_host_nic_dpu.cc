@@ -10,6 +10,7 @@
 #include <cstdint>
 #include "alg_template_base.h"
 #include "ins_temp_recv_host_nic_dpu.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 InsTempRecvHostNicDpu::InsTempRecvHostNicDpu()
@@ -142,14 +143,14 @@ HcclResult InsTempRecvHostNicDpu::DPUKernelRun(const TemplateDataParams &tempAlg
             CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, 0)));
 
             CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 0,
-                CUSTOM_TIMEOUT)));
+                ExecTimeoutManager::Instance().GetExecTimeout())));
 
             // 等待数据接收完成
             offset += sizePerRound;
             sizePerRound = (sizeResidue > cclOutputSize) ? cclOutputSize : sizeResidue;
             HCCL_DEBUG("rx async outputmem's offset[%llu], size[%llu]", offset, sizePerRound);
             CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(0, channels.at(rankIdx)[0].handle, 1,
-                CUSTOM_TIMEOUT)));
+                ExecTimeoutManager::Instance().GetExecTimeout())));
 
             // 后同步，通知发送端数据接收完成
             CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(0, channels.at(rankIdx)[0].handle, notifyNum)));

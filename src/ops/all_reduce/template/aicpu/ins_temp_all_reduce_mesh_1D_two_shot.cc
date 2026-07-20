@@ -9,6 +9,7 @@
  */
 
 #include "ins_temp_all_reduce_mesh_1D_two_shot.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 
@@ -178,7 +179,7 @@ HcclResult InsTempAllReduceMesh1DTwoShot::RunReduceScatter(const OpParam& param,
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
         for (const auto &thread : threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
         }
     }
 

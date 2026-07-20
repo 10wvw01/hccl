@@ -10,6 +10,7 @@
 
 #include "ins_temp_reduce_scatter_mesh_1d_dpu.h"
 #include "dpu_alg_nhr_opt_wrapper.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 InsTempReduceScatterMesh1dDpu::InsTempReduceScatterMesh1dDpu()
@@ -207,7 +208,7 @@ HcclResult InsTempReduceScatterMesh1dDpu::PostLocalReduce(const OpParam &param, 
             CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
             CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
             for (const auto &thread : threads) {
-                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
             }
         }
 

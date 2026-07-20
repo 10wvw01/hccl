@@ -11,6 +11,7 @@
 #include "ins_temp_all_reduce_aicpu_reduce_nhr.h"
 #include "alg_data_trans_wrapper.h"
 #include "template_utils.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 InsTempAllReduceAicpuReduceNHR::InsTempAllReduceAicpuReduceNHR(const OpParam &param,
@@ -221,7 +222,7 @@ HcclResult InsTempAllReduceAicpuReduceNHR::RunReduce(const std::map<u32, std::ve
 
     CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(algTag.c_str())));
     CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(algTag.c_str())));
-    CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread_, CUSTOM_TIMEOUT)));
+    CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread_, ExecTimeoutManager::Instance().GetExecTimeout())));
 
     for (u32 idx = 0; idx < subCommRanks_.at(0).size(); ++idx) {
         if (idx == myRank_) {

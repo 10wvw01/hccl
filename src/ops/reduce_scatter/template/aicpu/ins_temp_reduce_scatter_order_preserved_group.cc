@@ -12,6 +12,7 @@
 #include "ins_temp_reduce_scatter_order_preserved_group.h"
 #include "alg_env_config.h"
 #include "order_preserved_common.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 
@@ -105,7 +106,7 @@ HcclResult InsTempReduceScatterOrderPreservedGroup::KernelRun(
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
         for (const auto &thread : templateResource.threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
         }
     }
 

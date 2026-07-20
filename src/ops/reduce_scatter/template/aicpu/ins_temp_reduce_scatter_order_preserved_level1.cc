@@ -11,6 +11,7 @@
 // 包含本类的头文件声明
 #include "ins_temp_reduce_scatter_order_preserved_level1.h"
 #include "alg_env_config.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 
@@ -100,7 +101,7 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
         for (const auto &thread : templateResource.threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
         }
     }
 

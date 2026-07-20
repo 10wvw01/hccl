@@ -9,14 +9,22 @@
  */
 #include "exec_timeout_manager.h"
 #include "log.h"
-#include "alg_param.h"
+#include "hccl_common.h"
+#include <cstdlib>
 
 namespace ops_hccl {
 
 ExecTimeoutManager::ExecTimeoutManager() 
-    : execTimeout_(CUSTOM_TIMEOUT),
+    : execTimeout_(HCCL_DEFAULT_TIMEOUT),
       timeoutSet_(false) {
-    HCCL_INFO("[ExecTimeoutManager] Initialized with default timeout: %u seconds", CUSTOM_TIMEOUT);
+    u32 envTimeout = LoadFromEnv();
+    if (envTimeout > 0) {
+        execTimeout_.store(envTimeout, std::memory_order_relaxed);
+        timeoutSet_.store(true, std::memory_order_relaxed);
+        HCCL_INFO("[ExecTimeoutManager] Initialized with env HCCL_EXEC_TIMEOUT: %u seconds", envTimeout);
+    } else {
+        HCCL_INFO("[ExecTimeoutManager] Initialized with default timeout: %u seconds", HCCL_DEFAULT_TIMEOUT);
+    }
 }
 
 ExecTimeoutManager::~ExecTimeoutManager() {
@@ -36,9 +44,25 @@ void ExecTimeoutManager::SetExecTimeout(u32 execTimeout) {
 
 u32 ExecTimeoutManager::GetExecTimeout() {
     bool isSet = timeoutSet_.load(std::memory_order_relaxed);
-    u32 timeout = isSet ? execTimeout_.load(std::memory_order_relaxed) : CUSTOM_TIMEOUT;
+    u32 timeout = isSet ? execTimeout_.load(std::memory_order_relaxed) : HCCL_DEFAULT_TIMEOUT;
     HCCL_DEBUG("[ExecTimeoutManager] Getting exec timeout: %u seconds.", timeout);
     return timeout;
+}
+
+u32 ExecTimeoutManager::LoadFromEnv()
+{
+    const char* envVal = getenv("HCCL_EXEC_TIMEOUT");
+    if (envVal == nullptr) {
+        return 0;
+    }
+    char* endptr = nullptr;
+    long val = strtol(envVal, &endptr, 10);
+    if (endptr == envVal || *endptr != '\0' || val <= 0 ||
+        static_cast<u64>(val) > static_cast<u64>(UINT32_MAX)) {
+        HCCL_WARNING("[ExecTimeoutManager] Invalid HCCL_EXEC_TIMEOUT value: %s, using default", envVal);
+        return 0;
+    }
+    return static_cast<u32>(val);
 }
 
 } // namespace ops_hccl

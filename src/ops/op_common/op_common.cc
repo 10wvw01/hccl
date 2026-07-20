@@ -55,6 +55,7 @@
 #include "ccu_launch_dl.h"
 #include "hccl_ccu_res_dl.h"
 #include "comm_engine_utils.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 thread_local bool needInconsistentCheck = false;
@@ -2708,14 +2709,14 @@ HcclResult CheckHostDPUOnly(const HcclComm comm, const TopoInfoWithNetLayerDetai
 HcclResult SetExecTimeout(OpParam &param) {
     double execTimeoutValue = 0;
     if (!GetExternalInputExecTimeout(execTimeoutValue)) {
-        param.opConfig.execTimeout = CUSTOM_TIMEOUT;
-        HCCL_INFO("[OpCommon] Exec timeout is not set, use default value: %u seconds", CUSTOM_TIMEOUT);
+        param.opConfig.execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
+        HCCL_INFO("[OpCommon] Exec timeout is not set, use default value: %u seconds", ExecTimeoutManager::Instance().GetExecTimeout());
     } else {
         // 验证转换后的值是否合理
         if (execTimeoutValue < 0 || execTimeoutValue > UINT32_MAX) {
             HCCL_WARNING("[OpCommon] Exec timeout value %.2f out of range, use default: %u seconds", 
-                         execTimeoutValue, CUSTOM_TIMEOUT);
-            param.opConfig.execTimeout = CUSTOM_TIMEOUT;
+                         execTimeoutValue, ExecTimeoutManager::Instance().GetExecTimeout());
+            param.opConfig.execTimeout = ExecTimeoutManager::Instance().GetExecTimeout();
         } else {
             param.opConfig.execTimeout = static_cast<uint32_t>(execTimeoutValue);
             if (param.opConfig.execTimeout == 0) {

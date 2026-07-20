@@ -9,6 +9,7 @@
  */
 
 #include "aicpu/ins_temp_reduce_scatter_v_mesh_1D.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 InsTempReduceScatterVMesh1D::InsTempReduceScatterVMesh1D(
@@ -107,7 +108,7 @@ HcclResult InsTempReduceScatterVMesh1D::PostCopy(const OpParam& param,
             CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
             CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
             for (const auto &thread : threads) {
-                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
             }
         }
         

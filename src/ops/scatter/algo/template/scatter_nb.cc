@@ -10,6 +10,7 @@
 
 #include "alg_template_register.h"
 #include "scatter_nb.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 ScatterNB::ScatterNB()
@@ -68,7 +69,7 @@ HcclResult ScatterNB::RunScatterTx(const u32 step, std::vector<ChannelInfo> &cha
         sliceIdx = (sliceIdx + deltaSliceIndex) % interRankSize_;
     }
 
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, CUSTOM_TIMEOUT)));
+    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_ACK, ExecTimeoutManager::Instance().GetExecTimeout())));
 
     if (channelRight.protocol == COMM_PROTOCOL_ROCE) {
         ret = RdmaTx(channelRight, txSlices);
@@ -79,7 +80,7 @@ HcclResult ScatterNB::RunScatterTx(const u32 step, std::vector<ChannelInfo> &cha
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL)));
 
     // 为了避免在大数据量场景下触发网卡轮询机制，这里添加一组Data Notify，确保对端数据接收完成才进行下一次通信任务
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
+    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelRight.handle, NOTIFY_IDX_DATA_SIGNAL, ExecTimeoutManager::Instance().GetExecTimeout())));
     return HCCL_SUCCESS;
 }
 
@@ -105,7 +106,7 @@ HcclResult ScatterNB::RunScatterRx(const u32 step, std::vector<ChannelInfo> &cha
 
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(thread_, channelLeft.handle, NOTIFY_IDX_ACK)));
 
-    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
+    CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(thread_, channelLeft.handle, NOTIFY_IDX_DATA_SIGNAL, ExecTimeoutManager::Instance().GetExecTimeout())));
     if (channelLeft.protocol != COMM_PROTOCOL_ROCE) {
         ret = SdmaRx(channelLeft, rxSlices);
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Run][Scatter]rank[%u] step[%u] Right Link rx slices count [%u] "\

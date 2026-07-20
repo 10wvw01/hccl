@@ -9,6 +9,7 @@
  */
 
 #include "aicpu/ins_temp_reduce_scatter_mesh_1D.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 InsTempReduceScatterMesh1D::InsTempReduceScatterMesh1D(
@@ -92,7 +93,7 @@ HcclResult InsTempReduceScatterMesh1D::KernelRun(const OpParam& param,
         CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
         CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
         for (const auto &thread : templateResource.threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
         }
     }
     PostCopy(param, tempAlgParams, templateResource.threads);
@@ -140,7 +141,7 @@ HcclResult InsTempReduceScatterMesh1D::PostCopy(const OpParam& param,const Templ
             CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
             CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
             for (const auto &thread : threads) {
-                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, CUSTOM_TIMEOUT)));
+                CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
             }
         }
         // 把其他卡的数据input累加到output
