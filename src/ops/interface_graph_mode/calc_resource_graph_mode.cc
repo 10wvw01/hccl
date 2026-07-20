@@ -284,13 +284,124 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     return HCCL_SUCCESS;
 }
 
-HcclResult HcclCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *numBlocks)
+HcclResult HcclCalcAivCoreNumGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op,
+                                       HcclCMDType opType, u32 aivCoreLimit, u32 *numBlocks)
 {
+    HCCL_INFO("[HcclCalcAivCoreNumGraphMode] group[%s] count[%llu] dataType[%u] reduceOp[%u] opType[%u] aivCoreLimit[%u]",
+        group != nullptr ? group : "nullptr", count, static_cast<int>(dataType), static_cast<int>(op),
+        static_cast<int>(opType), aivCoreLimit);
+
     if (numBlocks == nullptr) {
         HCCL_ERROR("[HcclCalcAivCoreNumGraphMode] Invalid parameter: numBlocks is null.");
         return HCCL_E_PARA;
     }
-    *numBlocks = aivCoreLimit;
+    *numBlocks = 0;
+
+    HcclComm comm = nullptr;
+    CHK_RET(HcomGetCommHandleByGroup(group, &comm));
+    u32 rankSize = INVALID_VALUE_RANKSIZE;
+    CHK_RET(HcclGetRankSize(comm, &rankSize));
+
+    ops_hccl::OpParam param;
+    param.hcclComm = comm;
+    param.opType = opType;
+    param.DataDes.count = count;
+    param.DataDes.dataType = dataType;
+    param.reduceType = op;
+    param.opMode = ops_hccl::OpMode::OFFLOAD;
+    param.numBlocksLimit = aivCoreLimit;
+
+    if (opType == HcclCMDType::HCCL_CMD_ALLTOALL || opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+        opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+        param.varMemSize = ops_hccl::ALL_TO_ALL_V_VECTOR_NUM * rankSize * sizeof(u64);
+        param.all2AllVDataDes.sendType = dataType;
+        param.all2AllVDataDes.recvType = dataType;
+
+        u64 arrSize = rankSize * sizeof(u64);
+        void *sendCountsHost = nullptr;
+        void *recvCountsHost = nullptr;
+        void *sdisplsHost = nullptr;
+        void *rdisplsHost = nullptr;
+        ACLCHECK(aclrtMallocHost(&sendCountsHost, arrSize));
+        ACLCHECK(aclrtMallocHost(&recvCountsHost, arrSize));
+        ACLCHECK(aclrtMallocHost(&sdisplsHost, arrSize));
+        ACLCHECK(aclrtMallocHost(&rdisplsHost, arrSize));
+
+        u64 *sendCountsPtr = static_cast<u64 *>(sendCountsHost);
+        u64 *recvCountsPtr = static_cast<u64 *>(recvCountsHost);
+        u64 *sdisplsPtr = static_cast<u64 *>(sdisplsHost);
+        u64 *rdisplsPtr = static_cast<u64 *>(rdisplsHost);
+
+        u64 dataCountOffset = 0;
+        for (u32 i = 0; i < rankSize; i++) {
+            sendCountsPtr[i] = count;
+            recvCountsPtr[i] = count;
+            sdisplsPtr[i] = dataCountOffset;
+            rdisplsPtr[i] = dataCountOffset;
+            dataCountOffset += count;
+        }
+
+        param.all2AllVDataDes.sendCounts = sendCountsHost;
+        param.all2AllVDataDes.recvCounts = recvCountsHost;
+        param.all2AllVDataDes.sdispls = sdisplsHost;
+        param.all2AllVDataDes.rdispls = rdisplsHost;
+    }
+
+    CHK_RET(InitEnvConfig());
+    DevType deviceType = DevType::DEV_TYPE_COUNT;
+    CHK_RET(hrtGetDeviceType(deviceType));
+    param.deviceType = deviceType;
+
+    CHK_RET(HcclGetCommName(comm, param.commName));
+    int ret = sprintf_s(param.tag, sizeof(param.tag), "CalcAivCoreNum_%d_%s", static_cast<int>(opType), param.commName);
+    CHK_PRT_RET(ret <= 0, HCCL_ERROR("[HcclCalcAivCoreNumGraphMode] failed to fill param.tag"), HCCL_E_INTERNAL);
+    ret = sprintf_s(param.commModeTag, sizeof(param.commModeTag), "%s_offload", param.commName);
+    CHK_PRT_RET(ret <= 0, HCCL_ERROR("[HcclCalcAivCoreNumGraphMode] failed to fill param.commModeTag"), HCCL_E_INTERNAL);
+
+    CHK_RET(ops_hccl::HcclGetOpExpansionMode(comm, param));
+
+    //算法选择
+    std::unique_ptr<ops_hccl::TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<ops_hccl::TopoInfoWithNetLayerDetails>();
+    std::string algName;
+    CHK_RET(ops_hccl::Selector(comm, param, topoInfo, algName));
+
+    std::unique_ptr<ops_hccl::InsCollAlgBase> executor = ops_hccl::CollAlgExecRegistryV2::Instance().GetAlgExec(param.opType, algName);
+    CHK_PRT_RET(executor.get() == nullptr,
+                  HCCL_ERROR("[HcclCalcAivCoreNumGraphMode] Failed to find executor for algName[%s]", algName.c_str()),
+                HCCL_E_PARA);
+
+    // 启用Only录制模式
+    ops_hccl::g_recordingQueue = std::make_shared<ops_hccl::InsQueue>();
+    ops_hccl::g_baseInputAddr = 0;
+    ops_hccl::g_baseOutputAddr = 0;
+    ops_hccl::g_recordOnlyMode = true;
+
+    // 计算AlgHierarchyInfo
+    ops_hccl::AlgHierarchyInfoForAllLevel algHierarchyInfo;
+    CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get(), algHierarchyInfo));
+    // 资源计算
+    ops_hccl::AlgResourceRequest resRequest;
+    CHK_RET(executor->CalcRes(comm, param, topoInfo.get(), algHierarchyInfo, resRequest));
+    // host侧资源
+    void* resCtxSequence = nullptr;
+    CHK_RET(ops_hccl::GetAlgResAiv(comm, param, resRequest, topoInfo.get(), algHierarchyInfo, &resCtxSequence));
+    // 编排
+    ops_hccl::AlgResourceCtxSerializable* resCtxHost = static_cast<ops_hccl::AlgResourceCtxSerializable*>(resCtxSequence);
+    CHK_RET(executor->Orchestrate(param, *resCtxHost));
+
+    // 从录制的指令队列中获取aivOpArgs
+    ops_hccl::AivOpArgs aivOpArgs;
+    if (ops_hccl::g_recordingQueue && !ops_hccl::g_recordingQueue->empty()) {
+        aivOpArgs = (*ops_hccl::g_recordingQueue)[0].opArgs;
+    }
+
+    // 清除录制
+    ops_hccl::g_recordingQueue = nullptr;
+    ops_hccl::g_baseInputAddr = 0;
+    ops_hccl::g_baseOutputAddr = 0;
+    ops_hccl::g_recordOnlyMode = false;
+
+    *numBlocks = aivOpArgs.numBlocks;
     HCCL_INFO("[HcclCalcAivCoreNumGraphMode] Success. numBlocks=%u", *numBlocks);
     return HCCL_SUCCESS;
 }
@@ -425,7 +536,7 @@ HcclResult HcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 
     superKernelArgs.dataType = dataType;
     superKernelArgs.unitSize = ops_hccl::DATATYPE_SIZE_TABLE[dataType];
     superKernelArgs.reduceOp = op;
-    superKernelArgs.numBlocks = aivCoreLimit;
+    superKernelArgs.numBlocks = aivOpArgs.numBlocks;
     superKernelArgs.tag = 0;
     superKernelArgs.clearEnable = clearEnable;
     superKernelArgs.inputSliceStride = 0;
