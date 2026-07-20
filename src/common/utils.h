@@ -24,8 +24,11 @@ HcclMem HcclMemRange(HcclMem inMem, u64 offset, u64 size);
 
 static inline u64 RoundUpWithDivisor(u64 value, u64 divisor)
 {
-    if ((value == 0) || (divisor == 0)) {
-        return divisor;
+    if (divisor == 0) {
+        return value;
+    }
+    if (value == 0) {
+        return 0;
     }
     // divisor必须大于等于1, 返回value向上取divisor的整数倍的值
     return ((value + (divisor - 1)) / divisor) * divisor;
