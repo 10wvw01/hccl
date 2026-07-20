@@ -141,13 +141,9 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
 
     const u32 rankSize = static_cast<u32>(ranks.size());
     const size_t inputSize = tempAlgParams.ranksForInputData.size();
-    // ReduceScatter 语义：inputSize 个来源 rank 按 rankSize 等分，每份 outputGroupSize 个；
-    //   本卡（myAlgRank）只持有第 myAlgRank 份归约集合。
-    //   - 单层 ReduceScatter（inputSize == rankSize）：outputGroupSize=1，输出 {myRank 全局 rankId}，与原语义一致。
-    //   - 两阶段流水第一阶段（inputSize > rankSize）：outputGroupSize=inputSize/rankSize，
-    //     输出 intra-subgroup 全部 rank 的槽位归属（如 2x4 rank0 输出 [0,1,2,3]）。
-    ranksForOutputData = {myRank};
     if (rankSize <= 1) {
+        // 单 rank 场景：本 rank 持有自身归约结果。
+        ranksForOutputData = {myRank};
         HCCL_INFO("[RunNhrReduceScatter] no sendRecv needed, ranksForOutputDataNum=%zu", ranksForOutputData.size());
         return HCCL_SUCCESS;
     }
@@ -163,14 +159,13 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
         HCCL_ERROR("[RunNhrReduceScatter] inputSize %zu not divisible by rankSize %u", inputSize, rankSize),
         HCCL_E_PARA);
     const size_t outputGroupSize = inputSize / rankSize;
-    // 多 rank 分支：ranksForOutputData 重新按 myAlgRank 归约集合填充。
-    ranksForOutputData.clear();
     // 本卡归约集合：ranksForInputData[myAlgRank * outputGroupSize .. (myAlgRank+1) * outputGroupSize)
+    ranksForOutputData.clear();
     for (size_t i = 0; i < outputGroupSize; ++i) {
         ranksForOutputData.emplace_back(tempAlgParams.ranksForInputData[myAlgRank * outputGroupSize + i]);
     }
+    // 计算ceil(log2(rankSize))，即递归通信所需步数。
     u32 nSteps = 0;
-    // 计算ceil(log2(rankSize))
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
     }
     HCCL_INFO("[RunNhrReduceScatter] myAlgRank=%u, rankSize=%u, outputGroupSize=%zu, dataTypeSize=%u, "

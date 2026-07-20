@@ -128,13 +128,13 @@ TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_mesh_1d_2rank_in
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_mesh_1d_2rank_int8_big_data_test)
+TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_mesh_1d_2rank_int8_500M_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}}}; // 三维数组指定超节点-Server-Device信息
 
     // 算子执行参数设置
-    auto recvCount = 250 * 1024 * 1024;                 // 单卡数据量
+    auto recvCount = 250 * 1024 * 1024;                 // 单卡数据量250M(int8:1B), 总数据250M*2=500M
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8; // 数据类型
     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;      // 归约类型
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
@@ -221,12 +221,13 @@ TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_seq_2x2rank_int6
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);
 }
 
-TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_parallel_2x2rank_int8_8M_data_test)
+TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_parallel_2x2rank_int8_32M_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto recvCount = 2 * 1024 * 1024;                  // 单卡数据量
+    // recvCount=8M(int8:1B) -> 单卡8MB > 4MB阈值触发Parallel; 总数据8M*4=32MB < 4GB -> 走Parallel而非Sequence
+    auto recvCount = 8 * 1024 * 1024;                  // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8; // 数据类型
     auto reduceOp = HcclReduceOp::HCCL_REDUCE_SUM;      // 归约类型
     RunReduceScatterAicpuA5(topoMeta, recvCount, dataType, reduceOp);

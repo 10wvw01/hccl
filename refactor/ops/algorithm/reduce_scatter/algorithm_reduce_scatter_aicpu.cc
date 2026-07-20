@@ -15,6 +15,7 @@
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
 #include "topo_match_squeeze_2d.h"
+#include "topo_match_concurrent.h"
 
 namespace ops_hccl {
 
@@ -193,7 +194,7 @@ const HcclAlgorithm
         MakeAicpuReduceScatterAlgo(
             std::make_shared<TopoMatchMultilevel>(), MakeAicpuReduceScatterSequenceNhrMesh1DAlgoExecDesc()),
         MakeAicpuReduceScatterAlgo(
-            std::make_shared<TopoMatchUBX>(), MakeAicpuReduceScatterConcurrentMeshNhrAlgoExecDesc()),
+            std::make_shared<TopoMatchConcurrent>(), MakeAicpuReduceScatterConcurrentMeshNhrAlgoExecDesc()),
 };
 
 } // namespace ops_hccl

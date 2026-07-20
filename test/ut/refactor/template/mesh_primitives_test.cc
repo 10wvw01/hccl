@@ -379,10 +379,13 @@ TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks
 
     ASSERT_EQ(ret, HCCL_SUCCESS);
     ASSERT_EQ(txRxSlicesLists.size(), 2U);
+    // INPUT 场景 tx 目标 slot 按 algRank 维度寻址：(idx/rankSize*rankSize + myAlgRank)*stride。
+    //   myRank=5 → myAlgRank=1；connectedAlgRank=0 时 isTx idx=0，targetIdx=0/3*3+1=1 → 1*16=16；
+    //   connectedAlgRank=2 时 isTx idx=2，targetIdx=2/3*3+1=1 → 1*16=16。
     EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 0U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 80U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 16U);
     EXPECT_EQ(TxSrc(txRxSlicesLists[1]).offset_, 32U);
-    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 80U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 16U);
 }
 
 TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)

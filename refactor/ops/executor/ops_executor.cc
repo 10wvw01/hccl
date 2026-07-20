@@ -11,8 +11,6 @@
 #include "ops_executor.h"
 #include "base_engine.h"
 
-#include <cstdio>
-
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param) : algo_(algo), rankSize_(0), root_(param.root)
 {
@@ -426,12 +424,12 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     size_t childrenSize = algoExecDesc.children.size();
     u32 dataSplitRatioSum = std::accumulate(algoExecDesc.dataSplitRatio.begin(), algoExecDesc.dataSplitRatio.end(), 0);
     float dataSplitRatio = static_cast<float>(algoExecDesc.dataSplitRatio.at(childrenId)) / dataSplitRatioSum;
-    // 根据algoExecDesc中的数据切分比例切分
     if (childrenId > 0) {
         childrenAlgoExecDataDesc.at(childrenId).sliceOffset
             = childrenAlgoExecDataDesc.at(childrenId - 1).sliceOffset
               + childrenAlgoExecDataDesc.at(childrenId - 1).sliceCount * dataTypeSize_;
     }
+    // 根据algoExecDesc中的数据切分比例切分
     u64 sliceCount = algoExecDataDesc.sliceCount * dataSplitRatio;
     if (childrenId == childrenSize - 1) {
         sliceCount = algoExecDataDesc.sliceCount;
@@ -446,8 +444,7 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     childrenAlgoExecDataDesc.at(childrenId).ranksForInputDataGroup.clear();
     size_t ranksForInputDataGroupSize = algoExecDataDesc.ranksForInputDataGroup.size();
     if (ranksForInputDataGroupSize != 1 && ranksForInputDataGroupSize != childrenSize) {
-        HCCL_ERROR(
-            "[UpdateDataSplitParallel] ranksForInputDataGroupSize (%zu) matches neither 1 nor childrenSize (%zu)!",
+        HCCL_ERROR("[UpdateDataSplitParallel] ranksForInputDataGroupSize (%zu) matches neither 1 nor childrenSize (%zu)!",
             ranksForInputDataGroupSize, childrenSize);
         return;
     }
@@ -521,20 +518,6 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     HCCL_INFO("[RunTemplateDesc][myRank_:%d:] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d", myRank_,
         static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
         static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
-    // 定位 mesh1dclos 用例：打印每个 template 调用的关键参数，确认算法走的路径和 PARALLEL 切分后的参数。
-    fprintf(stderr, "[RunTemplateDesc] myRank=%u hcclCmdType=%d algType=%d subCommIndex=%d "
-            "inputBufType=%d outputBufType=%d cclBufType=%d sliceOffset=%lu sliceCount=%lu tailCount=%lu "
-            "dataOffset=%lu dataStride=%lu scratchStride=%lu ranksForInputDataSize=%zu\n",
-        myRank_,
-        static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
-        static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex,
-        static_cast<int>(algoExecDataDesc.inputBufferType), static_cast<int>(algoExecDataDesc.outputBufferType),
-        static_cast<int>(algoExecDataDesc.cclBufferType),
-        static_cast<unsigned long>(algoExecDataDesc.sliceOffset), static_cast<unsigned long>(algoExecDataDesc.sliceCount),
-        static_cast<unsigned long>(algoExecDataDesc.tailCount),
-        static_cast<unsigned long>(algoExecDataDesc.dataOffset), static_cast<unsigned long>(algoExecDataDesc.dataStride),
-        static_cast<unsigned long>(algoExecDataDesc.scratchStride),
-        algoExecDataDesc.ranksForInputDataGroup.empty() ? 0 : algoExecDataDesc.ranksForInputDataGroup.at(0).size());
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数
