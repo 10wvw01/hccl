@@ -169,10 +169,9 @@ static void TestInitAndParse(void)
     commInfo.structSize = sizeof(commInfo);
 
     hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
-    HcclResult ret = hcclTunerGetFuncs(NULL) == HCCL_E_PTR ? HCCL_E_PTR : HCCL_SUCCESS;
     hcclTunerFuncs_t funcs = {};
     hcclTunerGetFuncs(&funcs);
-    ret = funcs.init((HcclComm)0x1, &commInfo, &hf);
+    HcclResult ret = funcs.init((HcclComm)0x1, &commInfo, &hf);
     ASSERT(ret == HCCL_SUCCESS, "init success");
 
     StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
@@ -466,6 +465,104 @@ static void TestSchemaMissingRequired(void)
     ASSERT(costTable[CostIdx(0, 0, 0)] == 100.0f, "does not intervene when config invalid");
 }
 
+/* 11. defaults 块合并 */
+static void TestDefaultsMerge(void)
+{
+    ResetPluginState();
+    FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
+    fputs("{\"version\":1,\"defaults\":{\"engine\":2,\"executor\":1,\"template\":3},"
+          "\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8,\"max_bytes\":65536,"
+          "\"data_type\":\"fp16\"},\"cost\":0.0}]}}}",
+          fp);
+    fclose(fp);
+    setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
+
+    hcclTunerCommInfo_t commInfo = {};
+    commInfo.nRanks = 8;
+    commInfo.structSize = sizeof(commInfo);
+    hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
+    hcclTunerFuncs_t funcs = {};
+    hcclTunerGetFuncs(&funcs);
+    funcs.init((HcclComm)0x1, &commInfo, &hf);
+
+    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
+    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
+        costTable[i] = 100.0f;
+    }
+    hcclTunerCollInfo_t collInfo = {};
+    collInfo.collType = HCCL_OP_ALLREDUCE;
+    collInfo.nBytes = 4096;
+    collInfo.dataType = HCCL_DATA_TYPE_FP16;
+    collInfo.structSize = sizeof(collInfo);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    /* 规则省略 engine/executor/template，从 defaults 继承 2/1/3 */
+    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "defaults merged: engine=2 executor=1 template=3");
+
+    /* 恢复测试配置 */
+    WriteTestConfig("/tmp/hccl_tuner_test_cfg.json");
+}
+
+/* 12. -1 值表示"不检查"，不阻断匹配 */
+static void TestMatchMinusOne(void)
+{
+    ResetPluginState();
+    FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":-1,\"min_bytes\":0,"
+          "\"max_bytes\":65536},\"engine\":2,\"executor\":1,\"template\":3,\"cost\":0.0}]}}}",
+          fp);
+    fclose(fp);
+    setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
+
+    hcclTunerCommInfo_t commInfo = {};
+    commInfo.nRanks = 8;
+    commInfo.structSize = sizeof(commInfo);
+    hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
+    hcclTunerFuncs_t funcs = {};
+    hcclTunerGetFuncs(&funcs);
+    funcs.init((HcclComm)0x1, &commInfo, &hf);
+
+    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
+    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
+        costTable[i] = 100.0f;
+    }
+    hcclTunerCollInfo_t collInfo = {};
+    collInfo.collType = HCCL_OP_ALLREDUCE;
+    collInfo.nBytes = 4096;
+    collInfo.structSize = sizeof(collInfo);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    /* min_ranks=-1 应跳过检查，规则仍命中 */
+    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "min_ranks=-1 does not block match");
+
+    WriteTestConfig("/tmp/hccl_tuner_test_cfg.json");
+}
+
+/* 13. engine 越界值报 Schema error */
+static void TestEngineOutOfRange(void)
+{
+    ResetPluginState();
+    FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":99,"
+          "\"executor\":0,\"template\":0,\"cost\":0.0}]}}}",
+          fp);
+    fclose(fp);
+    setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
+
+    hcclTunerCommInfo_t commInfo = {};
+    commInfo.nRanks = 8;
+    commInfo.structSize = sizeof(commInfo);
+    hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
+    hcclTunerFuncs_t funcs = {};
+    hcclTunerGetFuncs(&funcs);
+    funcs.init((HcclComm)0x1, &commInfo, &hf);
+
+    /* engine=99 越界 → SchemaError → configValid=0 */
+    StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
+    ASSERT(ctx != NULL, "context stored");
+    ASSERT(ctx->configValid == 0, "configValid=0 when engine out of range");
+
+    WriteTestConfig("/tmp/hccl_tuner_test_cfg.json");
+}
+
 int main(void)
 {
     TestDescriptorAndFuncs();
@@ -478,6 +575,9 @@ int main(void)
     TestOpTypeIsolation();
     TestSchemaTypoDetection();
     TestSchemaMissingRequired();
+    TestDefaultsMerge();
+    TestMatchMinusOne();
+    TestEngineOutOfRange();
 
     printf("\n=== %d/%d tests passed ===\n", g_testsPass, g_testsRun);
     unlink("/tmp/hccl_tuner_test_cfg.json");
