@@ -471,7 +471,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
             sliceParam.endpointAttrBw = endpointAttrBwAvgG;
             omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-            HCCL_INFO("[%s] endpointAttrBwAvgRS:%f, endpointAttrBwAvgG:%f", __func__, endpointAttrBwAvgRS, endpointAttrBwAvgG);
+            HCCL_INFO("[%s] endpointAttrBwAvgRS0:%f, endpointAttrBwAvgRS1:%f, endpointAttrBwAvgG0:%f, endpointAttrBwAvgG1:%f", __func__, endpointAttrBwAvgRS[0], endpointAttrBwAvgRS[1], endpointAttrBwAvgG[0], endpointAttrBwAvgG[1]);
         }
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
@@ -686,8 +686,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-                                CcuTempReduceScatterOmniPipeMesh1D,
+                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                // CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeNHR1DMem2Mem);
