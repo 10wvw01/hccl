@@ -9,9 +9,9 @@
 ASCEND_HOME_PATH ?= /usr/local/Ascend/ascend-toolkit/latest
 PLUGIN_INCLUDE ?= ../../../include
 
-CXX ?= g++
-CXXFLAGS := -fPIC -shared -O2 -Wall -Wextra -std=c++14
-CXXFLAGS += -I$(ASCEND_HOME_PATH)/include -I$(ASCEND_HOME_PATH)/x86_64-linux/include -I$(PLUGIN_INCLUDE)
+CC ?= gcc
+CFLAGS := -fPIC -shared -O2 -Wall -Wextra -std=c11
+CFLAGS += -I$(ASCEND_HOME_PATH)/include -I$(ASCEND_HOME_PATH)/x86_64-linux/include -I$(PLUGIN_INCLUDE)
 
 TARGET := hccl_tuner_example.so
 SRC := plugin.c
@@ -21,7 +21,7 @@ SRC := plugin.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) -o $@ $<
 
 test:
 	$(MAKE) -C test

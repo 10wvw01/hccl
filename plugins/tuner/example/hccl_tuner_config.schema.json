@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HCCL Tuner Plugin Configuration",
+  "type": "object",
+  "required": ["version", "op_types"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "meta": {
+      "type": "object",
+      "description": "配置文件元信息，纯管理用途，插件解析时跳过",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "author": { "type": "string" },
+        "plugin_version": { "type": "string" }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "全局默认值，规则中省略的字段自动继承",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "type": "string", "enum": ["auto", "AICPU", "AIV", "CCU_MS", "CCU_SCHED", "HOSTCPU"] },
+        "executor": { "type": "string", "enum": ["auto", "SOLE", "SEQUENCE", "PARALLEL", "CONCURRENT", "OMNIPIPE", "ORDER_PRESERVED", "TWO_SHOT_SOLE"] },
+        "template": { "type": "string" },
+        "args": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "chunk_size_kb": { "type": "integer", "minimum": 0 },
+            "n_channels": { "type": "integer", "minimum": 0 },
+            "split_ratio": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "op_types": {
+      "type": "object",
+      "required": ["rules"],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(allreduce|allgather|broadcast|reduce|reduce_scatter|scatter|alltoall|alltoallv)$": {
+          "type": "object",
+          "required": ["rules"],
+          "additionalProperties": false,
+          "properties": {
+            "rules": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["match", "cost"],
+                "additionalProperties": false,
+                "properties": {
+                  "match": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "min_ranks": { "type": "integer", "minimum": -1 },
+                      "max_ranks": { "type": "integer", "minimum": -1 },
+                      "min_servers": { "type": "integer", "minimum": -1 },
+                      "max_servers": { "type": "integer", "minimum": -1 },
+                      "min_npus_per_server": { "type": "integer", "minimum": -1 },
+                      "max_npus_per_server": { "type": "integer", "minimum": -1 },
+                      "min_pods": { "type": "integer", "minimum": -1 },
+                      "max_pods": { "type": "integer", "minimum": -1 },
+                      "min_super_pods": { "type": "integer", "minimum": -1 },
+                      "max_super_pods": { "type": "integer", "minimum": -1 },
+                      "min_bytes": { "type": "integer", "minimum": -1 },
+                      "max_bytes": { "type": "integer", "minimum": -1 },
+                      "buffer_size": { "type": "integer", "minimum": -1 },
+                      "data_type": { "type": "string" },
+                      "comm_name": { "type": "string" }
+                    }
+                  },
+                  "engine": { "type": "string", "enum": ["auto", "AICPU", "AIV", "CCU_MS", "CCU_SCHED", "HOSTCPU"] },
+                  "executor": { "type": "string", "enum": ["auto", "SOLE", "SEQUENCE", "PARALLEL", "CONCURRENT", "OMNIPIPE", "ORDER_PRESERVED", "TWO_SHOT_SOLE"] },
+                  "template": { "type": "string" },
+                  "cost": { "type": "number" },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {
+                      "chunk_size_kb": { "type": "integer", "minimum": 0 },
+                      "n_channels": { "type": "integer", "minimum": 0 },
+                      "split_ratio": { "type": "number", "minimum": 0, "maximum": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

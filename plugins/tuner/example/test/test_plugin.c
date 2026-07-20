@@ -400,6 +400,72 @@ static void TestOpTypeIsolation(void)
     ASSERT(costTable[CostIdx(2, 1, 3)] == 100.0f, "allreduce position not affected by allgather op");
 }
 
+/* 9. Schema 校验：拼写错误检测 */
+static void TestSchemaTypoDetection(void)
+{
+    ResetPluginState();
+    /* "mtach" 是 "match" 的拼写错误 */
+    FILE *fp = fopen("/tmp/hccl_tuner_test_typo.json", "w");
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"mtach\":{\"min_ranks\":8},\"engine\":0,"
+          "\"executor\":0,\"template\":0,\"cost\":0.0}]}}}",
+          fp);
+    fclose(fp);
+    setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_typo.json", 1);
+
+    hcclTunerCommInfo_t commInfo = {};
+    commInfo.nRanks = 8;
+    commInfo.structSize = sizeof(commInfo);
+    hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
+    hcclTunerFuncs_t funcs = {};
+    hcclTunerGetFuncs(&funcs);
+    HcclResult ret = funcs.init((HcclComm)0x1, &commInfo, &hf);
+    ASSERT(ret == HCCL_SUCCESS, "init success despite typo");
+    ASSERT(g_schemaWarnings > 0, "typo 'mtach' detected as warning");
+
+    /* 拼写错误导致缺 match → schema error → configValid=0 */
+    StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
+    ASSERT(ctx != NULL, "context stored");
+    ASSERT(ctx->configValid == 0, "configValid=0 when schema has errors");
+}
+
+/* 10. Schema 校验：缺必填字段不干预 */
+static void TestSchemaMissingRequired(void)
+{
+    ResetPluginState();
+    /* 缺少必填字段 cost */
+    FILE *fp = fopen("/tmp/hccl_tuner_test_typo.json", "w");
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":0,"
+          "\"executor\":0,\"template\":0}]}}}",
+          fp);
+    fclose(fp);
+    setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_typo.json", 1);
+
+    hcclTunerCommInfo_t commInfo = {};
+    commInfo.nRanks = 8;
+    commInfo.structSize = sizeof(commInfo);
+    hcclTunerHostFunctions_t hf = MakeMockHostFuncs();
+    hcclTunerFuncs_t funcs = {};
+    hcclTunerGetFuncs(&funcs);
+    funcs.init((HcclComm)0x1, &commInfo, &hf);
+
+    StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
+    ASSERT(ctx != NULL, "context stored");
+    ASSERT(ctx->configValid == 0, "configValid=0 when missing required field 'cost'");
+
+    /* configValid=0 → getCollInfo 不干预 */
+    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
+    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
+        costTable[i] = 100.0f;
+    }
+    hcclTunerCollInfo_t collInfo = {};
+    collInfo.collType = HCCL_OP_ALLREDUCE;
+    collInfo.nBytes = 4096;
+    collInfo.dataType = HCCL_DATA_TYPE_FP16;
+    collInfo.structSize = sizeof(collInfo);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    ASSERT(costTable[CostIdx(0, 0, 0)] == 100.0f, "does not intervene when config invalid");
+}
+
 int main(void)
 {
     TestDescriptorAndFuncs();
@@ -410,8 +476,11 @@ int main(void)
     TestDataTypeMatch();
     TestCommNameMatch();
     TestOpTypeIsolation();
+    TestSchemaTypoDetection();
+    TestSchemaMissingRequired();
 
     printf("\n=== %d/%d tests passed ===\n", g_testsPass, g_testsRun);
     unlink("/tmp/hccl_tuner_test_cfg.json");
+    unlink("/tmp/hccl_tuner_test_typo.json");
     return (g_testsPass == g_testsRun) ? 0 : 1;
 }

@@ -8,9 +8,9 @@
 ASCEND_HOME_PATH ?= /usr/local/Ascend/ascend-toolkit/latest
 PLUGIN_INCLUDE ?= ../../../../include
 
-CXX ?= g++
-CXXFLAGS := -O0 -g -Wall -Wextra -std=c++14 -D_GNU_SOURCE
-CXXFLAGS += -I.. -I$(ASCEND_HOME_PATH)/include -I$(ASCEND_HOME_PATH)/x86_64-linux/include -I$(PLUGIN_INCLUDE)
+CC ?= gcc
+CFLAGS := -O0 -g -Wall -Wextra -std=c11 -D_GNU_SOURCE
+CFLAGS += -I.. -I$(ASCEND_HOME_PATH)/include -I$(ASCEND_HOME_PATH)/x86_64-linux/include -I$(PLUGIN_INCLUDE)
 LDFLAGS := -lm
 
 TARGET := test_plugin
@@ -21,7 +21,7 @@ SRC := test_plugin.c
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 run: $(TARGET)
 	./$(TARGET)

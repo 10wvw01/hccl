@@ -40,7 +40,7 @@ export HCCL_TUNER_CONFIG_FILE=/path/to/hccl_tuner_config.json
             "min_bytes": 0, "max_bytes": 65536,
             "data_type": "fp16",
             "comm_name": "world",
-            "min_npus": 8, "max_npus": 8,
+            "min_npus_per_server": 8, "max_npus_per_server": 8,
             "min_servers": 1
           },
           "engine": 2,
@@ -62,8 +62,11 @@ export HCCL_TUNER_CONFIG_FILE=/path/to/hccl_tuner_config.json
 | `min_bytes` / `max_bytes` | size_t | 数据量范围（字节） |
 | `data_type` | string | 数据类型（fp16/fp32/int8/...） |
 | `comm_name` | string | 通信域名（子串匹配） |
-| `min_npus` / `max_npus` | uint32 | 每服务器 NPU 数范围 |
-| `min_servers` | uint32 | 最小服务器数 |
+| `min_npus_per_server` / `max_npus_per_server` | uint32 | 每服务器 NPU 数范围 |
+| `min_servers` / `max_servers` | uint32 | 服务器数范围 |
+| `min_pods` / `max_pods` | uint32 | Pod 数范围 |
+| `min_super_pods` / `max_super_pods` | uint32 | 超节点数范围 |
+| `buffer_size` | uint64 | 通信域 buffer 大小（精确匹配） |
 
 ### 命中行为
 

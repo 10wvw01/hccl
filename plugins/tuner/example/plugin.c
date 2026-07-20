@@ -19,6 +19,7 @@
  */
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,25 +41,37 @@ typedef struct {
     int hasMaxBytes;
     int hasDataType;
     int hasCommName;
-    int hasMinNpus;
-    int hasMaxNpus;
+    int hasMinNpusPerServer;
+    int hasMaxNpusPerServer;
     int hasMinServers;
+    int hasMaxServers;
+    int hasMinPods;
+    int hasMaxPods;
+    int hasMinSuperPods;
+    int hasMaxSuperPods;
+    int hasBufferSize;
     uint32_t minRanks;
     uint32_t maxRanks;
     size_t minBytes;
     size_t maxBytes;
     char dataType[MAX_STR_LEN];
     char commName[MAX_STR_LEN];
-    uint32_t minNpus;
-    uint32_t maxNpus;
+    uint32_t minNpusPerServer;
+    uint32_t maxNpusPerServer;
     uint32_t minServers;
+    uint32_t maxServers;
+    uint32_t minPods;
+    uint32_t maxPods;
+    uint32_t minSuperPods;
+    uint32_t maxSuperPods;
+    uint64_t bufferSize;
 } MatchCond;
 
 typedef struct {
     MatchCond match;
     int engine;
     int executor;
-    int tmpl;
+    int template;
     float cost;
     int hasCost;
 } Rule;
@@ -75,11 +88,48 @@ typedef struct {
     int opSetCount;
     hcclTunerCommInfo_t commInfo;
     char commNameBuf[COMM_NAME_BUF_LEN];
+    int configValid; /* Schema 校验结果：1=有效可干预，0=无效不干预 */
 } StoredContext;
 
 /* ===== 全局 hostFuncs（函数表，全进程相同）===== */
 static hcclTunerHostFunctions_t g_hostFuncs;
 static int g_hostFuncsReady = 0;
+
+/* ===== Schema 校验状态（每次 LoadConfig 前重置）===== */
+static int g_schemaErrors = 0;
+static int g_schemaWarnings = 0;
+static int g_foundVersion = 0;
+static int g_foundOpTypes = 0;
+
+static void SchemaReset(void)
+{
+    g_schemaErrors = 0;
+    g_schemaWarnings = 0;
+    g_foundVersion = 0;
+    g_foundOpTypes = 0;
+}
+
+static void SchemaWarn(const char *scope, const char *field)
+{
+    g_schemaWarnings++;
+    if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+        g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__,
+                                "Schema: unknown field '%s' in %s, skipping", field, scope);
+    }
+}
+
+static void SchemaError(const char *fmt, ...)
+{
+    g_schemaErrors++;
+    if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+        va_list args;
+        va_start(args, fmt);
+        char buf[256] = {0};
+        (void)vsnprintf(buf, sizeof(buf), fmt, args);
+        va_end(args);
+        g_hostFuncs.logFunction(HCCL_TUNER_LOG_ERROR, __FILE__, __LINE__, "Schema: %s", buf);
+    }
+}
 
 /* ===== 算子类型 / 数据类型字符串映射 ===== */
 static const struct {
@@ -258,22 +308,53 @@ static void ParseMatchField(JsonParser *p, const char *key, Rule *r)
             strncpy(r->match.commName, buf, sizeof(r->match.commName) - 1);
             r->match.hasCommName = 1;
         }
-    } else if (strcmp(key, "min_npus") == 0) {
+    } else if (strcmp(key, "min_npus_per_server") == 0) {
         if (JsonReadNumber(p, &v) == 0) {
-            r->match.hasMinNpus = 1;
-            r->match.minNpus = (uint32_t)v;
+            r->match.hasMinNpusPerServer = 1;
+            r->match.minNpusPerServer = (uint32_t)v;
         }
-    } else if (strcmp(key, "max_npus") == 0) {
+    } else if (strcmp(key, "max_npus_per_server") == 0) {
         if (JsonReadNumber(p, &v) == 0) {
-            r->match.hasMaxNpus = 1;
-            r->match.maxNpus = (uint32_t)v;
+            r->match.hasMaxNpusPerServer = 1;
+            r->match.maxNpusPerServer = (uint32_t)v;
         }
     } else if (strcmp(key, "min_servers") == 0) {
         if (JsonReadNumber(p, &v) == 0) {
             r->match.hasMinServers = 1;
             r->match.minServers = (uint32_t)v;
         }
+    } else if (strcmp(key, "max_servers") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasMaxServers = 1;
+            r->match.maxServers = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasMinPods = 1;
+            r->match.minPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasMaxPods = 1;
+            r->match.maxPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_super_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasMinSuperPods = 1;
+            r->match.minSuperPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_super_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasMaxSuperPods = 1;
+            r->match.maxSuperPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "buffer_size") == 0) {
+        if (JsonReadNumber(p, &v) == 0) {
+            r->match.hasBufferSize = 1;
+            r->match.bufferSize = (uint64_t)v;
+        }
     } else {
+        SchemaWarn("match", key);
         JsonSkipValue(p);
     }
 }
@@ -283,7 +364,8 @@ static void ParseRule(JsonParser *p, Rule *r)
     memset(r, 0, sizeof(*r));
     r->engine = -1;
     r->executor = -1;
-    r->tmpl = -1;
+    r->template = -1;
+    int foundMatch = 0;
     if (!JsonMatch(p, '{')) {
         return;
     }
@@ -298,6 +380,7 @@ static void ParseRule(JsonParser *p, Rule *r)
         }
         JsonMatch(p, ':');
         if (strcmp(key, "match") == 0) {
+            foundMatch = 1;
             if (JsonMatch(p, '{')) {
                 while (p->pos < p->len) {
                     if (JsonMatch(p, '}')) {
@@ -325,7 +408,7 @@ static void ParseRule(JsonParser *p, Rule *r)
         } else if (strcmp(key, "template") == 0) {
             double v = 0;
             if (JsonReadNumber(p, &v) == 0) {
-                r->tmpl = (int)v;
+                r->template = (int)v;
             }
         } else if (strcmp(key, "cost") == 0) {
             double v = 0;
@@ -333,16 +416,31 @@ static void ParseRule(JsonParser *p, Rule *r)
                 r->cost = (float)v;
                 r->hasCost = 1;
             }
+        } else if (strcmp(key, "args") == 0) {
+            JsonSkipValue(p); /* optional，允许自定义字段 */
         } else {
+            SchemaWarn("rule", key);
             JsonSkipValue(p);
         }
+    }
+    /* 必填字段校验 */
+    if (!foundMatch) {
+        SchemaError("rule missing required field 'match'");
+    }
+    if (!r->hasCost) {
+        SchemaError("rule missing required field 'cost'");
     }
 }
 
 static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName)
 {
     hcclOpType_t opType = LookupOpType(opName);
-    if (opType == HCCL_OP_INVALID || ctx->opSetCount >= MAX_OP_TYPES) {
+    if (opType == HCCL_OP_INVALID) {
+        SchemaError("unknown op_type '%s'", opName);
+        JsonSkipValue(p);
+        return;
+    }
+    if (ctx->opSetCount >= MAX_OP_TYPES) {
         JsonSkipValue(p);
         return;
     }
@@ -378,8 +476,12 @@ static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName)
                 }
             }
         } else {
+            SchemaWarn("op_type", key);
             JsonSkipValue(p);
         }
+    }
+    if (set->ruleCount == 0) {
+        SchemaError("op_type '%s' has no rules (minItems=1)", opName);
     }
     ctx->opSetCount++;
 }
@@ -399,7 +501,14 @@ static void ParseConfig(JsonParser *p, StoredContext *ctx)
             break;
         }
         JsonMatch(p, ':');
-        if (strcmp(key, "op_types") == 0) {
+        if (strcmp(key, "version") == 0) {
+            g_foundVersion = 1;
+            double v = 0;
+            if (JsonReadNumber(p, &v) == 0 && (int)v != 1) {
+                SchemaError("version must be 1, got %d", (int)v);
+            }
+        } else if (strcmp(key, "op_types") == 0) {
+            g_foundOpTypes = 1;
             if (JsonMatch(p, '{')) {
                 while (p->pos < p->len) {
                     if (JsonMatch(p, '}')) {
@@ -414,9 +523,18 @@ static void ParseConfig(JsonParser *p, StoredContext *ctx)
                     ParseOpRules(p, ctx, opName);
                 }
             }
+        } else if (strcmp(key, "meta") == 0 || strcmp(key, "defaults") == 0) {
+            JsonSkipValue(p); /* optional，跳过 */
         } else {
+            SchemaWarn("config root", key);
             JsonSkipValue(p);
         }
+    }
+    if (!g_foundVersion) {
+        SchemaError("missing required field 'version'");
+    }
+    if (!g_foundOpTypes) {
+        SchemaError("missing required field 'op_types'");
     }
 }
 
@@ -457,12 +575,25 @@ static int LoadConfig(StoredContext *ctx)
         size_t len = 0;
         char *content = ReadFile(paths[i], &len);
         if (content != NULL) {
+            SchemaReset();
             JsonParser p = {content, 0, len};
             ParseConfig(&p, ctx);
             free(content);
             if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
                 g_hostFuncs.logFunction(HCCL_TUNER_LOG_INFO, __FILE__, __LINE__,
-                                        "tuner config loaded from %s, opSetCount=%d", paths[i], ctx->opSetCount);
+                                        "tuner config loaded from %s, opSetCount=%d, schemaErrors=%d, schemaWarnings=%d",
+                                        paths[i], ctx->opSetCount, g_schemaErrors, g_schemaWarnings);
+            }
+            /* Schema 校验：有 error 则标记无效，getCollInfo 不干预 */
+            if (g_schemaErrors > 0) {
+                if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+                    g_hostFuncs.logFunction(HCCL_TUNER_LOG_ERROR, __FILE__, __LINE__,
+                                            "Schema validation failed (%d errors), plugin will not intervene",
+                                            g_schemaErrors);
+                }
+                ctx->configValid = 0;
+            } else {
+                ctx->configValid = 1;
             }
             return 1;
         }
@@ -495,13 +626,31 @@ static int MatchRule(const Rule *r, const hcclTunerCollInfo_t *collInfo, const h
             return 0;
         }
     }
-    if (r->match.hasMinNpus && commInfo->nNpusPerServer < r->match.minNpus) {
+    if (r->match.hasMinNpusPerServer && commInfo->nNpusPerServer < r->match.minNpusPerServer) {
         return 0;
     }
-    if (r->match.hasMaxNpus && commInfo->nNpusPerServer > r->match.maxNpus) {
+    if (r->match.hasMaxNpusPerServer && commInfo->nNpusPerServer > r->match.maxNpusPerServer) {
         return 0;
     }
     if (r->match.hasMinServers && commInfo->nServers < r->match.minServers) {
+        return 0;
+    }
+    if (r->match.hasMaxServers && commInfo->nServers > r->match.maxServers) {
+        return 0;
+    }
+    if (r->match.hasMinPods && commInfo->nPods < r->match.minPods) {
+        return 0;
+    }
+    if (r->match.hasMaxPods && commInfo->nPods > r->match.maxPods) {
+        return 0;
+    }
+    if (r->match.hasMinSuperPods && commInfo->nSuperPods < r->match.minSuperPods) {
+        return 0;
+    }
+    if (r->match.hasMaxSuperPods && commInfo->nSuperPods > r->match.maxSuperPods) {
+        return 0;
+    }
+    if (r->match.hasBufferSize && commInfo->bufferSize != r->match.bufferSize) {
         return 0;
     }
     return 1;
@@ -510,9 +659,9 @@ static int MatchRule(const Rule *r, const hcclTunerCollInfo_t *collInfo, const h
 static void ApplyRule(const Rule *r, float *costTable)
 {
     if (r->engine >= 0 && r->engine < HCCL_NUM_ENGINES && r->executor >= 0 && r->executor < HCCL_NUM_EXECUTORS &&
-        r->tmpl >= 0 && r->tmpl < HCCL_NUM_TEMPLATES) {
+        r->template >= 0 && r->template < HCCL_NUM_TEMPLATES) {
         int idx =
-            r->engine * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES + r->executor * HCCL_NUM_TEMPLATES + r->tmpl;
+            r->engine * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES + r->executor * HCCL_NUM_TEMPLATES + r->template;
         costTable[idx] = r->hasCost ? r->cost : 0.0f;
     }
 }
@@ -543,7 +692,7 @@ static HcclResult MyInit(HcclComm comm, const hcclTunerCommInfo_t *commInfo, con
     tmp->commInfo = *commInfo;
     if (commInfo->commName != NULL) {
         strncpy(tmp->commNameBuf, commInfo->commName, sizeof(tmp->commNameBuf) - 1);
-        tmp->commInfo.commName = tmp->commNameBuf;
+        /* 注意：此处不设 tmp->commInfo.commName 指针，memcpy 后再重定向到 storedCtx */
     }
     /* 持久化到通信域 host 内存（经 __tuner_ 前缀的 ctxCreate） */
     void *storedCtx = NULL;
@@ -555,6 +704,10 @@ static HcclResult MyInit(HcclComm comm, const hcclTunerCommInfo_t *commInfo, con
         return HCCL_SUCCESS;
     }
     memcpy(storedCtx, tmp, sizeof(StoredContext));
+    /* memcpy 复制的是 tmp 中的指针值，需重定向 commName 到 storedCtx 自身的 commNameBuf */
+    if (commInfo->commName != NULL) {
+        ((StoredContext *)storedCtx)->commInfo.commName = ((StoredContext *)storedCtx)->commNameBuf;
+    }
     free(tmp);
     if (g_hostFuncs.logFunction != NULL) {
         g_hostFuncs.logFunction(HCCL_TUNER_LOG_INFO, __FILE__, __LINE__,
@@ -578,6 +731,11 @@ static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collIn
         return HCCL_SUCCESS;
     }
     StoredContext *ctx = (StoredContext *)ctxPtr;
+
+    /* Schema 校验失败时，不干预算法选择 */
+    if (!ctx->configValid) {
+        return HCCL_SUCCESS;
+    }
 
     for (int i = 0; i < ctx->opSetCount; i++) {
         OpRuleSet *set = &ctx->opSets[i];
