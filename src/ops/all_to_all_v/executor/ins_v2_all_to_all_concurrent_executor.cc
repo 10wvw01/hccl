@@ -464,8 +464,8 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
 
     tempAlgParams.sliceSize = currDataCount * dataTypeSize_; // 这是每次循环处理的数据大小
     tempAlgParams.tailSize = tempAlgParams.sliceSize;
-    // 这里的stride当成传统意义上的sreide 间隔
-    tempAlgParams.inputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 变长算子不涉及,这里是每一块数据的大小，这个值被sendCounts代替了
+    // cclBuffer内每个rank块之间的间隔，防止并发时不同rank的数据写到cclBuffer同一起点导致覆盖
+    tempAlgParams.inputSliceStride = maxDataCountPerLoop * dataTypeSize_;
     tempAlgParams.outputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
  
     for (u64 i = 0; i < rankSize_; i++) {
@@ -493,8 +493,8 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     HCCL_INFO("[InsV2AllToAllConcurrentExecutor] loop = %u, tempAlgParams.buffInfo.inBuffBaseOff = %u,"
         "tempAlgParams.buffInfo.outBuffBaseOff = %u, tempAlgParams.inputSliceStride = %u,"
         "tempAlgParams.outputSliceStride = %u, tempAlgParams.sliceSize = %u",
-        loop, tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff,
-        tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride, tempAlgParams.sliceSize);
+        loop, tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride, tempAlgParams.sliceSize,	 
+        tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff);
 
     // 不需要重复
     tempAlgParams.repeatNum = 1;
