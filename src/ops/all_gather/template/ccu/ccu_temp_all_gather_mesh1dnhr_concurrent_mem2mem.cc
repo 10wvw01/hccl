@@ -11,6 +11,7 @@
 #include "ccu_temp_all_gather_mesh1dnhr_concurrent_mem2mem.h"
 #include "alg_data_trans_wrapper.h"
 #include "alg_template_base.h"
+#include "ccu_launch_dl.h"
 
 namespace ops_hccl {
 
@@ -218,7 +219,164 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
     CHK_RET(PostSyncInterThreads(templateResource.threads[0],
                                  {templateResource.threads[1]}, {NOTIFY_IDX_POST_SYNC}));
 
+    // 回填 sub-template 的 submitInfos 到 templateResource,供 FastLaunchSaveCtx 读取。
+    // 顺序: mesh 在前, NHR 在后, 与 ccuKernels 切分顺序一致。
+    templateResource.submitInfos.insert(templateResource.submitInfos.end(),
+        meshRes.submitInfos.begin(), meshRes.submitInfos.end());
+    templateResource.submitInfos.insert(templateResource.submitInfos.end(),
+        nhrRes.submitInfos.begin(), nhrRes.submitInfos.end());
+
     HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][KernelRun] rank[%u] end.", myRank_);
+    return HCCL_SUCCESS;
+}
+
+// FastLaunch: 复用 KernelRun 保存的 cachedArgs, 仅重算与 input/output 地址相关的 arg, 然后
+// 按 KernelRun 的同步时序回放 kernel launch。arg 索引约定见设计文档 9.3 节, 来源于
+// CcuTempAllGatherMesh1DMem2Mem::PrepareLaunchArgs 与 CcuTempAllGatherNHR1DMem2Mem::PrepareLaunchArgs。
+HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
+    const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx)
+{
+    (void)param;
+    u32 totalKernelNum = static_cast<u32>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
+    if (totalKernelNum == 0) {
+        HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] ccu kernel num is 0, just success.");
+        return HCCL_SUCCESS;
+    }
+    if (tempFastLaunchCtx.threads.size() < 1) {
+        HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] thread num is 0.");
+        return HCCL_E_INTERNAL;
+    }
+    HCCL_DEBUG("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] start, totalKernelNum[%u], threadNum[%zu]",
+               totalKernelNum, tempFastLaunchCtx.threads.size());
+
+    // submitInfos 顺序: mesh 在前(1 个), NHR 在后(1 或 2 个, 与 KernelRun 回填顺序一致)
+    u32 meshKernelNum = 1;
+    u32 nhrKernelNum = (totalKernelNum > meshKernelNum) ? (totalKernelNum - meshKernelNum) : 0;
+    bool hasMesh = (meshKernelNum > 0);
+    bool hasNhr = (nhrKernelNum > 0);
+
+    // 1. 更新 mesh kernel args
+    //    mesh args 布局(来自 CcuTempAllGatherMesh1DMem2Mem): argSize=15, cachedArgs 存 17 个
+    //    [0]=inputAddr [1]=outputAddr [10]=isInputOutputEqual
+    //    [15]=inBuffBaseOff(用作 input offset) [16]=outBuffBaseOff(用作 output offset)
+    if (hasMesh) {
+        uint64_t *meshArgs = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
+        constexpr u32 meshInputIdx = 0;
+        constexpr u32 meshOutputIdx = 1;
+        constexpr u32 meshCurrentRankSliceInputOffsetIdx = 3;
+        constexpr u32 meshCurrentRankSliceOutputOffsetIdx = 4;
+        constexpr u32 meshIsInputOutputEqualIdx = 10;
+        constexpr u32 meshInputOffsetIdx = 15;
+        constexpr u32 meshOutputOffsetIdx = 16;
+        constexpr u32 meshArgSize = 15;
+
+        uint64_t meshInputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + meshArgs[meshInputOffsetIdx];
+        uint64_t meshOutputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + meshArgs[meshOutputOffsetIdx];
+        uint64_t meshCurrentRankSliceInputOffset = meshArgs[meshCurrentRankSliceInputOffsetIdx];
+        uint64_t meshCurrentRankSliceOutputOffset = meshArgs[meshCurrentRankSliceOutputOffsetIdx];
+        bool meshInputOutputEqual = (meshInputAddr + meshCurrentRankSliceInputOffset ==
+                                     meshOutputAddr + meshCurrentRankSliceOutputOffset);
+        meshArgs[meshInputIdx] = meshInputAddr;
+        meshArgs[meshOutputIdx] = meshOutputAddr;
+        meshArgs[meshIsInputOutputEqualIdx] = static_cast<uint64_t>(meshInputOutputEqual);
+        (void)meshArgSize;
+    }
+
+    // 2. 更新 NHR kernel args
+    //    NHR args 布局(来自 CcuTempAllGatherNHR1DMem2Mem): argSize=13, cachedArgs 存 16 个
+    //    [0]=inputAddr [1]=outputAddr [6]=inputSliceStride [7]=outputSliceStride
+    //    [10]=isInputOutputEqual [13]=inBuffBaseOff [14]=outBuffBaseOff [15]=mySubCommRank
+    uint64_t nhrArgSize = 13;
+    if (hasNhr) {
+        uint64_t *nhrArgs = const_cast<uint64_t*>(
+            tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum].cachedArgs);
+        constexpr u32 nhrInputIdx = 0;
+        constexpr u32 nhrOutputIdx = 1;
+        constexpr u32 nhrInputSliceStrideIdx = 6;
+        constexpr u32 nhrOutputSliceStrideIdx = 7;
+        constexpr u32 nhrIsInputOutputEqualIdx = 10;
+        constexpr u32 nhrInputOffsetIdx = 13;
+        constexpr u32 nhrOutputOffsetIdx = 14;
+        constexpr u32 nhrMySubCommRankIdx = 15;
+
+        uint64_t nhrInputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + nhrArgs[nhrInputOffsetIdx];
+        uint64_t nhrOutputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + nhrArgs[nhrOutputOffsetIdx];
+        uint64_t nhrInputSliceStride = nhrArgs[nhrInputSliceStrideIdx];
+        uint64_t nhrOutputSliceStride = nhrArgs[nhrOutputSliceStrideIdx];
+        uint64_t nhrMySubCommRank = nhrArgs[nhrMySubCommRankIdx];
+        bool nhrInputOutputEqual = (nhrInputAddr + nhrInputSliceStride * nhrMySubCommRank ==
+                                    nhrOutputAddr + nhrOutputSliceStride * nhrMySubCommRank);
+        nhrArgs[nhrInputIdx] = nhrInputAddr;
+        nhrArgs[nhrOutputIdx] = nhrOutputAddr;
+        nhrArgs[nhrIsInputOutputEqualIdx] = static_cast<uint64_t>(nhrInputOutputEqual);
+    }
+
+    // 3. outer PreSync: threads[0](mesh 主流) -> threads[1](NHR 主流), notifyIdx=NOTIFY_IDX_PRE_SYNC
+    if (hasNhr && tempFastLaunchCtx.threads.size() >= 2) {
+        CHK_RET(PreSyncInterThreads(tempFastLaunchCtx.threads[0],
+            {tempFastLaunchCtx.threads[1]}, {NOTIFY_IDX_PRE_SYNC}));
+    }
+
+    // 4. launch mesh kernel
+    if (hasMesh) {
+        uint64_t *meshArgs = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
+        constexpr u32 meshArgSize = 15;
+        void *taskArgs = reinterpret_cast<void*>(meshArgs);
+        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[0],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle, taskArgs, meshArgSize);
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] mesh kernel launch failed, ccuRet -> %d",
+                       launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
+    }
+
+    // 5. NHR 内部 PreSync(若 NHR 有 2 个 kernel, threads[1] -> threads[2])
+    if (hasNhr && nhrKernelNum > 1 && tempFastLaunchCtx.threads.size() >= 3) {
+        CHK_RET(PreSyncInterThreads(tempFastLaunchCtx.threads[1],
+            {tempFastLaunchCtx.threads[2]}, {0}));
+    }
+
+    // 6. launch NHR kernel(s)
+    if (hasNhr) {
+        uint64_t *nhrArgs = const_cast<uint64_t*>(
+            tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum].cachedArgs);
+        void *taskArgs = reinterpret_cast<void*>(nhrArgs);
+        // NHR 主流 threads[1] 下发第一个 NHR kernel
+        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[1],
+            tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum].kernelHandle, taskArgs,
+            static_cast<uint32_t>(nhrArgSize));
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] nhr kernel0 launch failed, ccuRet -> %d",
+                       launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
+        // NHR 第二个 kernel(die1) 由 threads[2] 下发
+        if (nhrKernelNum > 1 && tempFastLaunchCtx.threads.size() >= 3) {
+            launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[2],
+                tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum + 1].kernelHandle, taskArgs,
+                static_cast<uint32_t>(nhrArgSize));
+            if (launchRet != CCU_SUCCESS) {
+                HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] nhr kernel1 launch failed, ccuRet -> %d",
+                           launchRet);
+                return ConvertCcuToHccl(launchRet);
+            }
+        }
+    }
+
+    // 7. NHR 内部 PostSync(若 NHR 有 2 个 kernel, threads[1] <- threads[2])
+    if (hasNhr && nhrKernelNum > 1 && tempFastLaunchCtx.threads.size() >= 3) {
+        CHK_RET(PostSyncInterThreads(tempFastLaunchCtx.threads[1],
+            {tempFastLaunchCtx.threads[2]}, {0}));
+    }
+
+    // 8. outer PostSync: threads[0](mesh 主流) <- threads[1](NHR 主流), notifyIdx=NOTIFY_IDX_POST_SYNC
+    if (hasNhr && tempFastLaunchCtx.threads.size() >= 2) {
+        CHK_RET(PostSyncInterThreads(tempFastLaunchCtx.threads[0],
+            {tempFastLaunchCtx.threads[1]}, {NOTIFY_IDX_POST_SYNC}));
+    }
+
+    HCCL_DEBUG("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] end");
     return HCCL_SUCCESS;
 }
 
