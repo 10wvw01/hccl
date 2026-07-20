@@ -13,13 +13,15 @@
 
 #include "log.h"
 
+#include <algorithm>
+#include <cstdio>
+
 namespace ops_hccl {
 
 HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
     TemplateResource &templateResource, std::vector<u32> &ranksForOutputData)
 {
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
-
     tempAlgParams_ = tempAlgParams;
     templateRankSize_ = static_cast<u32>(ranks_.size());
 
@@ -33,15 +35,24 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
         return HCCL_SUCCESS;
     }
 
-    // 1. PreCopy：本地数据预处理（input -> output / ccl buffer）。
+    // 1. PreCopy：本地数据预处理（input -> ccl buffer），仅第一步（input 为 userBuffer）执行。
     if (templateResource.threads.empty()) {
         HCCL_ERROR("[AicpuBaseTemplate][KernelRun] threads is empty.");
         return HCCL_E_INTERNAL;
     }
-    CHK_RET(PreCopy(templateResource.threads));
+    if (tempAlgParams.inputBufferType == BufferType::INPUT) {
+        CHK_RET(PreCopy(templateResource.threads));
+    }
 
     // 单 rank 时无需通信。
     if (templateRankSize_ <= 1) {
+        // 定位 mesh1dclos 用例：打印短路时的关键参数，确认是否 nhr 子分支被短路导致 PostCopy 未执行。
+        fprintf(stderr, "[KernelRun] SHORTCUT myRank=%u rankSize=%zu inputBufType=%d outputBufType=%d "
+                "sliceOffset=%lu sliceCount=%lu dataOffset=%lu ranksForOutputDataSize=%zu (skip PostCopy)\n",
+            myRank_, ranks_.size(),
+            static_cast<int>(tempAlgParams.inputBufferType), static_cast<int>(tempAlgParams.outputBufferType),
+            static_cast<unsigned long>(tempAlgParams.sliceOffset), static_cast<unsigned long>(tempAlgParams.sliceCount),
+            static_cast<unsigned long>(tempAlgParams.dataOffset), tempAlgParams.ranksForInputData.size());
         ranksForOutputData = tempAlgParams.ranksForInputData;
         ranksForOutputData_ = ranksForOutputData;
         return HCCL_SUCCESS;
@@ -75,8 +86,10 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
 
     ranksForOutputData_ = ranksForOutputData;
 
-    // 6. PostCopy：后处理（ccl buffer -> output），若需要。
-    CHK_RET(PostCopy(templateResource.threads));
+    // 6. PostCopy：后处理（ccl buffer -> output），仅最后一步（output 为 userBuffer）执行。
+    if (tempAlgParams_.outputBufferType == BufferType::OUTPUT) {
+        CHK_RET(PostCopy(templateResource.threads));
+    }
 
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] end.");
     return HCCL_SUCCESS;
@@ -160,7 +173,7 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     if (tempAlgParams_.outputBufferType == BufferType::HCCL_BUFFER) {
         return HCCL_SUCCESS;
     }
-    
+
     // remote mem 访问模式下数据已直接写到 output，无需后处理。
     if (tempAlgParams_.enableRemoteMemAccess) {
         return HCCL_SUCCESS;
@@ -175,6 +188,32 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     const u64 tailSize = tempAlgParams_.tailCount * dataTypeSize;
     const size_t lastOutputIdx = ranksForOutputData_.empty() ? 0 : ranksForOutputData_.size() - 1;
 
+    // 明确算法执行到 PostCopy 时，ccl buffer 里 slot=myrank 的数据是否是经过所有 rank reduce 过的数据，
+    // 且最终要 PostCopy 到 output 的 0 位置。
+    // ranksForOutputData 是当前 primitive 输出的归约集合（每项对应一个 ccl slot rank）；
+    // ReduceScatter 语义要求最终 PostCopy 的数据应覆盖全 rank 归约到 myRank 的那一段，
+    // 且输出落在 outOff=0 位置（idx=0 时 outOff=dataOffset+sliceOffset）。
+    fprintf(stderr, "[PostCopy] ENTER myRank=%u globalRankSize=%zu inputBufType=%d outputBufType=%d "
+            "sliceOffset=%lu scratchStride=%lu dataOffset=%lu dataStride=%lu sliceSize=%lu tailSize=%lu "
+            "ranksForOutputData(size=%zu)=[",
+        myRank_, ranks_.size(),
+        static_cast<int>(tempAlgParams_.inputBufferType),
+        static_cast<int>(tempAlgParams_.outputBufferType),
+        static_cast<unsigned long>(tempAlgParams_.sliceOffset),
+        static_cast<unsigned long>(tempAlgParams_.scratchStride),
+        static_cast<unsigned long>(tempAlgParams_.dataOffset),
+        static_cast<unsigned long>(tempAlgParams_.dataStride),
+        static_cast<unsigned long>(sliceSize), static_cast<unsigned long>(tailSize),
+        ranksForOutputData_.size());
+    for (size_t i = 0; i < ranksForOutputData_.size(); ++i) {
+        fprintf(stderr, "%u%s", ranksForOutputData_[i],
+            (ranksForOutputData_[i] == myRank_) ? "(myRank)" : "");
+        if (i + 1 < ranksForOutputData_.size()) {
+            fprintf(stderr, ",");
+        }
+    }
+    fprintf(stderr, "]\n");
+
     // 将 ccl buffer 中 ranksForOutputData 对应 rank 的数据搬回 output。
     for (size_t idx = 0; idx < ranksForOutputData_.size(); ++idx) {
         u32 rank = ranksForOutputData_[idx];
@@ -185,14 +224,18 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
         }
         const u64 sliceCount = curSliceSize / dataTypeSize;
         const u64 cclOff = tempAlgParams_.sliceOffset + rank * tempAlgParams_.scratchStride;
-        // 输出偏移：
-        //   - dataStride == scratchStride 时（如 AllGather），output 按 rank 排列，
-        //     rank r 位于 r*dataStride；两层并行拓扑中 ranksForOutputData 非连续（如 [0,2]），
-        //     必须用 rank 才能放到正确的全局位置。
-        //   - dataStride != scratchStride 时（如 ReduceScatter），output 由 dataOffset
-        //     跟踪当前位置，ranksForOutputData 通常仅含 myRank，用 idx 即可。
-        //   单层拓扑：ranksForOutputData_ 连续 [0,1,...]，idx == rank，二者等价。
         const u64 outOff = tempAlgParams_.dataOffset + tempAlgParams_.sliceOffset + idx * tempAlgParams_.dataStride;
+        // 日志聚焦：ccl slot=rank 的数据 PostCopy 到 outOff；
+        //   - slotRankIsMyRank=1 表示本条 PostCopy 取的是 ccl slot(myRank) 的数据；
+        //   - outOffIsZero=1 表示本条 PostCopy 目标在 output 0 位置（idx=0）；
+        //   - ranksForOutputDataContainsMyRank=1 表示归约集合包含 myRank（即 slot=myRank 的数据会被 PostCopy）。
+        fprintf(stderr, "[PostCopy] COPY myRank=%u idx=%zu slotRank=%u slotRankIsMyRank=%d outOff=%lu outOffIsZero=%d "
+                "curSliceSize=%lu ranksForOutputDataContainsMyRank=%d\n",
+            myRank_, idx, rank, static_cast<int>(rank == myRank_),
+            static_cast<unsigned long>(outOff), static_cast<int>(outOff == 0),
+            static_cast<unsigned long>(curSliceSize),
+            static_cast<int>(std::find(ranksForOutputData_.begin(), ranksForOutputData_.end(), myRank_) !=
+                             ranksForOutputData_.end()));
         DataSlice srcSlice(tempAlgParams_.cclBufferPtr, cclOff, curSliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams_.outputBufferPtr, outOff, curSliceSize, sliceCount);
         CHK_RET(LocalCopy(threads[0], srcSlice, dstSlice));

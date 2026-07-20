@@ -94,6 +94,12 @@ enum class HcclAicpuAllGatherAlgoType {
 enum class HcclAicpuReduceScatterAlgoType {
     AICPU_REDUCESCATTER_NHR,                        // InsReduceScatterNHR
     AICPU_REDUCESCATTER_MESH1D,                     // InsReduceScatterMesh1D
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR,        // InsReduceScatterParallelMesh1DNHR
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR_UBX,   // InsReduceScatterParallelMesh1DNHRUBX
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR_PCIE,  // InsReduceScatterParallelMesh1DNHRPcie
+    AICPU_REDUCESCATTER_PARALLEL_NHR_NHR_UBOE,     // InsReduceScatterParallelNHRNHRUboe
+    AICPU_REDUCESCATTER_SEQUENCE_NHR_MESH1D,       // InsReduceScatterSequenceMesh1DNhr
+    AICPU_REDUCESCATTER_CONCURRENT_MESH1D_NHR,     // InsReduceScatterConcurrentMeshNHR
     AICPU_REDUCESCATTER_ALGO_TYPE_COUNT,            // 算法类型总数，用于数组下标上限
 };
 

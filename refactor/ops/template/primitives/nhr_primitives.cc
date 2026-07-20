@@ -51,10 +51,6 @@ namespace {
         for (u32 rankId : rankIds) {
             const u64 offset = tempAlgParams.sliceOffset + static_cast<u64>(rankId) * tempAlgParams.scratchStride;
             const u64 dataSize = (tailSize > 0 && rankId == tailRankId) ? tailSize : sliceSize;
-            HCCL_DEBUG("[RunNhrAllGather] AddNhrRankDataSlices: rankId=%u, sliceOffset=%lu, stride=%lu, "
-                       "offset=%lu, size=%lu, count=%lu",
-                rankId, tempAlgParams.sliceOffset, tempAlgParams.scratchStride, offset, dataSize,
-                dataSize / dataTypeSize);
             slicePair.srcSlices.emplace_back(slicePair.srcPtr, offset, dataSize, dataSize / dataTypeSize);
             slicePair.dstSlices.emplace_back(slicePair.dstPtr, offset, dataSize, dataSize / dataTypeSize);
         }
@@ -144,7 +140,12 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
     CHK_RET(CheckInputDataRanks(tempAlgParams, "RunNhrReduceScatter"));
 
     const u32 rankSize = static_cast<u32>(ranks.size());
-    // ReduceScatter 语义：本 rank 最终只持有自己负责归约的那一块，输出归属恒为 myRank。
+    const size_t inputSize = tempAlgParams.ranksForInputData.size();
+    // ReduceScatter 语义：inputSize 个来源 rank 按 rankSize 等分，每份 outputGroupSize 个；
+    //   本卡（myAlgRank）只持有第 myAlgRank 份归约集合。
+    //   - 单层 ReduceScatter（inputSize == rankSize）：outputGroupSize=1，输出 {myRank 全局 rankId}，与原语义一致。
+    //   - 两阶段流水第一阶段（inputSize > rankSize）：outputGroupSize=inputSize/rankSize，
+    //     输出 intra-subgroup 全部 rank 的槽位归属（如 2x4 rank0 输出 [0,1,2,3]）。
     ranksForOutputData = {myRank};
     if (rankSize <= 1) {
         HCCL_INFO("[RunNhrReduceScatter] no sendRecv needed, ranksForOutputDataNum=%zu", ranksForOutputData.size());
@@ -157,13 +158,24 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
     const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
+    // 每个 algRank 负责的归约集合大小：inputSize 按 rankSize 等分。
+    CHK_PRT_RET(inputSize % rankSize != 0,
+        HCCL_ERROR("[RunNhrReduceScatter] inputSize %zu not divisible by rankSize %u", inputSize, rankSize),
+        HCCL_E_PARA);
+    const size_t outputGroupSize = inputSize / rankSize;
+    // 多 rank 分支：ranksForOutputData 重新按 myAlgRank 归约集合填充。
+    ranksForOutputData.clear();
+    // 本卡归约集合：ranksForInputData[myAlgRank * outputGroupSize .. (myAlgRank+1) * outputGroupSize)
+    for (size_t i = 0; i < outputGroupSize; ++i) {
+        ranksForOutputData.emplace_back(tempAlgParams.ranksForInputData[myAlgRank * outputGroupSize + i]);
+    }
     u32 nSteps = 0;
     // 计算ceil(log2(rankSize))
     for (u32 tmp = rankSize - 1; tmp != 0; tmp >>= 1, nSteps++) {
     }
-    HCCL_INFO("[RunNhrReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu, tailSize=%lu, "
-              "nSteps=%u",
-        myAlgRank, rankSize, dataTypeSize, sliceSize, tailSize, nSteps);
+    HCCL_INFO("[RunNhrReduceScatter] myAlgRank=%u, rankSize=%u, outputGroupSize=%zu, dataTypeSize=%u, "
+              "sliceSize=%lu, tailSize=%lu, nSteps=%u",
+        myAlgRank, rankSize, outputGroupSize, dataTypeSize, sliceSize, tailSize, nSteps);
 
     for (u32 step = 0; step < nSteps; ++step) {
         // ReduceScatter 与 AllGather 相反：delta 从 1 开始每步翻倍，直到 rankSize/2
@@ -178,15 +190,19 @@ HcclResult RunNhrReduceScatter(const TemplateDataParams &tempAlgParams, const st
             step, delta, sendToAlgRank, ranks[sendToAlgRank], recvFromAlgRank, ranks[recvFromAlgRank], algRankStep,
             nSlices);
 
-        // tx: 发送对端归约集合所需的槽位（从 sendToAlgRank 起、间隔 algRankStep）；
-        // rx: 对端数据落入本端归约集合槽位（从 myAlgRank 起、间隔 algRankStep），由执行层与本端数据归约。
+        // tx: 发送对端归约集合所需槽位（从 sendToAlgRank 起、间隔 algRankStep，每个 algRank 取其
+        //     outputGroupSize 个来源 rank 的槽位）；
+        // rx: 对端数据落入本端归约集合槽位（从 myAlgRank 起、间隔 algRankStep，每个 algRank 取其
+        //     outputGroupSize 个来源 rank 的槽位），由执行层与本端数据归约。
         std::vector<u32> txRankIds;
         std::vector<u32> rxRankIds;
         u32 txAlgRank = sendToAlgRank;
         u32 rxAlgRank = myAlgRank;
         for (u32 i = 0; i < nSlices; ++i) {
-            txRankIds.emplace_back(ranks[txAlgRank]);
-            rxRankIds.emplace_back(ranks[rxAlgRank]);
+            for (size_t g = 0; g < outputGroupSize; ++g) {
+                txRankIds.emplace_back(tempAlgParams.ranksForInputData[txAlgRank * outputGroupSize + g]);
+                rxRankIds.emplace_back(tempAlgParams.ranksForInputData[rxAlgRank * outputGroupSize + g]);
+            }
             txAlgRank = (txAlgRank + rankSize - algRankStep) % rankSize;
             rxAlgRank = (rxAlgRank + rankSize - algRankStep) % rankSize;
         }

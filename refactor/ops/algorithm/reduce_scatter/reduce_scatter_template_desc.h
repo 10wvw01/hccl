@@ -21,6 +21,8 @@ namespace ops_hccl {
  * 均可归并为以下 2 种组合（hcclCmdType 恒为 HCCL_CMD_REDUCE_SCATTER，shotMode 恒为 ONE_SHOT）：
  *   - NHR + SINGLE_JETTY
  *   - FULLMESH + SINGLE_JETTY
+ * Parallel / Sequence / Concurrent 复合算法不引入新的 TemplateDesc 组合，
+ * 均通过上述两项拼装得到（与 AllGather 的并行/串行/并发复用基础 TemplateDesc 的方式一致）。
  * 枚举顺序与 g_reduceScatterTemplateDescMap 数组定义顺序严格一致。
  */
 enum class HcclReduceScatterTemplateDescType {

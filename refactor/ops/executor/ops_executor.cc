@@ -11,6 +11,8 @@
 #include "ops_executor.h"
 #include "base_engine.h"
 
+#include <cstdio>
+
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param) : algo_(algo), rankSize_(0), root_(param.root)
 {
@@ -519,6 +521,20 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     HCCL_INFO("[RunTemplateDesc][myRank_:%d:] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d", myRank_,
         static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
         static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex);
+    // 定位 mesh1dclos 用例：打印每个 template 调用的关键参数，确认算法走的路径和 PARALLEL 切分后的参数。
+    fprintf(stderr, "[RunTemplateDesc] myRank=%u hcclCmdType=%d algType=%d subCommIndex=%d "
+            "inputBufType=%d outputBufType=%d cclBufType=%d sliceOffset=%lu sliceCount=%lu tailCount=%lu "
+            "dataOffset=%lu dataStride=%lu scratchStride=%lu ranksForInputDataSize=%zu\n",
+        myRank_,
+        static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
+        static_cast<int>(templateExeDes->templateDesc.algType), templateExeDes->subCommIndex,
+        static_cast<int>(algoExecDataDesc.inputBufferType), static_cast<int>(algoExecDataDesc.outputBufferType),
+        static_cast<int>(algoExecDataDesc.cclBufferType),
+        static_cast<unsigned long>(algoExecDataDesc.sliceOffset), static_cast<unsigned long>(algoExecDataDesc.sliceCount),
+        static_cast<unsigned long>(algoExecDataDesc.tailCount),
+        static_cast<unsigned long>(algoExecDataDesc.dataOffset), static_cast<unsigned long>(algoExecDataDesc.dataStride),
+        static_cast<unsigned long>(algoExecDataDesc.scratchStride),
+        algoExecDataDesc.ranksForInputDataGroup.empty() ? 0 : algoExecDataDesc.ranksForInputDataGroup.at(0).size());
     std::vector<u32> templateRanks = algHierarchyInfo_.infos[templateExeDes->subCommIndex].at(0);
     std::unique_ptr<BaseTemplate> baseTemplate = GetTemplate(templateExeDes->templateDesc, templateRanks, myRank_);
     // 根据阶段生成template的资源参数

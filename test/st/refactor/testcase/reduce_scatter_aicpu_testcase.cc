@@ -247,8 +247,8 @@ TEST_F(ST_REDUCE_SCATTER_AICPU_TEST, st_reduce_scatter_a5_aicpu_concurrent_mesh1
 {
     setenv("HCCL_SIM_FORCE_MESH1D_CLOS_TOPO", "1", 1);
 
-    // 仿真模型初始化：1 server 3 卡，layer0 Mesh + layer1 NHR 共享同一组卡
-    TopoMeta topoMeta{{{0, 1, 2}}};
+    // 仿真模型初始化：1 server 4 卡，layer0 Mesh + layer1 NHR 共享同一组卡
+    TopoMeta topoMeta{{{0, 1, 2, 3}}};
     // 算子执行参数设置
     auto recvCount = 256 * 1024 * 1024;            // 单卡数据量（FP16: 2字节 -> 总 512MB > 512KB 阈值）
     auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16; // 数据类型
