@@ -11,18 +11,16 @@
 #ifndef HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
 #define HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
 
-#include "graph/custom_op.h"
+#include "hccl_custom_op.h"
 
 namespace hccl {
 /**
- * HcomAllReduce 的 EagerExecuteOp 适配层。
- * 将 GE custom op v2 EagerExecute 接口桥接到 HCCL 算子库。
+ * HcomAllReduce 的 custom op 适配层。
+ * 继承 HcclCustomOpBase，后续按需 override 各流程步骤。
  */
-class HcclAllReduceOp : public ge::EagerExecuteOp {
+class HcclAllReduceOp : public HcclCustomOpBase {
  public:
   ~HcclAllReduceOp() override = default;
-
-  ge::graphStatus Execute(gert::EagerOpExecutionContext *ctx) override;
 };
 }  // namespace hccl
 

@@ -7,3 +7,12 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+
+#include "hccl_custom_op.h"
+
+namespace hccl {
+ge::graphStatus HcclCustomOpBase::Execute(gert::EagerOpExecutionContext *ctx)
+{
+  return ge::GRAPH_SUCCESS;
+}
+}  // namespace hccl
