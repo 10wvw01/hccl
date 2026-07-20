@@ -14,10 +14,6 @@
 #include "ccu_temp_all_reduce_mesh_1D.h"
 #include "ccu_temp_all_reduce_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_reduce_nhr_mem2mem_1D_multi_jetty.h"
-#include "ccu_temp_all_reduce_nhr_1D_mem2mem.h"
-#include "ins_temp_all_reduce_mesh_1D_two_shot_mesh_chunk.h"
-#include "topo_match_1d.h"
-#include "topo_match_concurrent.h"
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #include "ins_temp_all_reduce_nhr.h"
 #include "ins_temp_all_reduce_mesh_1D_two_shot.h"
@@ -129,6 +125,12 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     HCCL_INFO("[%s] CalcRes channelDescs0.size()[%zu], channelDescs1.size())[%zu]", __func__, channelDescs0.size(),
               channelDescs1.size());
+
+    // 两者数量应相等
+    CHK_PRT_RET(channelDescs0.size() != channelDescs1.size(),
+        HCCL_ERROR("[%s] channelDescs0.size()[%zu] is not equal to channelDescs1.size()[%zu]", __func__,
+            channelDescs0.size(), channelDescs1.size()),
+        HcclResult::HCCL_E_INTERNAL);
 
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         for (auto &kernelInfo : resReq0.ccuKernelInfos) {
@@ -472,10 +474,6 @@ HcclResult InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     return HCCL_SUCCESS;
 }
 
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceConcurrentSche, InsV2AllReduceConcurrentExecutor, TopoMatchConcurrent,
-    CcuTempAllReduceMeshMem2Mem1D, CcuTempAllReduceNHRMem2Mem1D);
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceConcurrentMs, InsV2AllReduceConcurrentExecutor, TopoMatchConcurrent,
-    CcuTempAllReduceMesh1D, CcuTempAllReduceNHRMem2Mem1D);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceConcurrentScheUBX, InsV2AllReduceConcurrentExecutor, TopoMatchUBX,
     CcuTempAllReduceMeshMem2Mem1D, CcuTempAllReduceNhrMem2Mem1DMultiJetty);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE, CcuAllReduceConcurrentMsUBX, InsV2AllReduceConcurrentExecutor, TopoMatchUBX,

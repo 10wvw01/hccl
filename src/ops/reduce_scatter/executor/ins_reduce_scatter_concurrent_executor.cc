@@ -18,14 +18,9 @@
 #include "ccu_temp_reduce_scatter_nhr_1D_multi_jetty_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
 #include "ccu_temp_reduce_scatter_mesh_1D.h"
-#include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
 #endif //CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
 
-#include "op_common.h"
- 
-constexpr u32 CLOS_PORT_NUM = 4;
-static bool isUBX = false;
 constexpr u32 MESH_BW_SCHED = 10;
 constexpr u32 CLOS_BW_SCHED = 12;
 constexpr u32 MESH_BW_MS = 11;
@@ -60,10 +55,6 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     InitCommInfo(param, topoInfo, algHierarchyInfo);
     u32 minMembers = 2;
 
-    //判断是否为UBX组网
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-        isUBX = true;
-    }
     // 拆一下algHierarchyInfo
     if (algHierarchyInfo.infos.size() == 0 || algHierarchyInfo.infos[0].size() < minMembers) {
         HCCL_ERROR("[InsReduceScatterConcurrentExecutor] algHierarchyInfo has no members, Please check the algHierarchyInfo!");
@@ -122,6 +113,11 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     CHK_PRT_RET(channelDescs1.empty(),
                 HCCL_ERROR("[%s] channelDescs1.size()[%zu] is zero.", __func__, channelDescs1.size()),
                 HcclResult::HCCL_E_INTERNAL);
+    // 两者数量应相等
+    CHK_PRT_RET(channelDescs0.size() != channelDescs1.size(),
+        HCCL_ERROR("[%s] channelDescs0.size()[%zu] is not equal to channelDescs1.size()[%zu]", __func__,
+            channelDescs0.size(), channelDescs1.size()),
+        HcclResult::HCCL_E_INTERNAL);
 
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         resourceRequest.ccuKernelNum.insert(resourceRequest.ccuKernelNum.end(),
@@ -498,8 +494,6 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceSc
     CcuTempReduceScatterMesh1DMem2Mem, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRMsUBX, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
     CcuTempReduceScatterMesh1D, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMesh1DNHR, InsReduceScatterConcurrentExecutor, TopoMatchConcurrent,
- 	CcuTempReduceScatterMesh1D, CcuTempReduceScatterNHR1DMem2Mem);
 #endif
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 }
