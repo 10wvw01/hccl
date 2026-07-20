@@ -48,7 +48,10 @@ HcclResult AddAlgToAllAlgos(HcclCMDType opType, const char *algName, const char 
     return HcclResult::HCCL_SUCCESS;
 }
 
-CostModelManager::CostModelManager() {}
+CostModelManager::CostModelManager()
+{
+    InitBandwidth();
+}
 
 CostModelManager::~CostModelManager()
 {
@@ -66,6 +69,17 @@ HcclResult CostModelManager::Load()
 {
     HCCL_DEBUG("[CostModelManager] load cost model, count=%d.", costModel_.count);
     return HcclResult::HCCL_SUCCESS;
+}
+
+void CostModelManager::InitBandwidth()
+{
+    HCCL_DEBUG("[CostModelManager] InitBandwidth.");
+    localCopyBw_ = 750;
+    localReduceBw_ = 483;
+    crossChipBw_ = 45;
+    crossChipReduceBw_ = 45;
+    HCCL_DEBUG("[CostModelManager] localCopyBw=%f localReduceBw=%f crossChipBw=%f crossChipReduceBw=%f.",
+               localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_);
 }
 
 HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
@@ -122,16 +136,42 @@ double CostModelManager::Estimate(const std::string &algName, u64 dataSize) cons
     return 0.0;
 }
 
-CostModelParam CostModelManager::CalcMeshParam(u64 dataSize, u32 rankSize)
+void CostModelManager::CalcMeshParam(float n, int netType, int portNum, float &A, float &B)
 {
-    HCCL_DEBUG("[CostModelManager] CalcMeshParam dataSize=%llu rankSize=%u.", dataSize, rankSize);
-    return {0.0f, 0.0f, 0.0f};
+    HCCL_DEBUG("[CostModelManager] CalcMeshParams n=%f netType=%d portNum=%d.", n, netType, portNum);
+    A = 0.0f;
+    B = 0.0f;
+    if (netType == 0) {
+        // cost = D/B(write) + D/B(localcopy)
+        A = 1 / crossChipBw_;
+        B = 1 / localCopyBw_;
+    } else if (netType == 1) { 
+        // cost = nD/B(write) + nD/B(localcopy)
+        A = n / (portNum * crossChipBw_);
+        B = n / localCopyBw_;
+    } else {
+        HCCL_ERROR("[CostModelManager] CalcMeshParams unsupported netType=%d.", netType);
+    }
+
+    HCCL_DEBUG("[CostModelManager] CalcMeshParams A=%f B=%f.", A, B);
+    return;
 }
 
-CostModelParam CostModelManager::CalcNHRParams(u64 dataSize, u32 rankSize)
+void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A, float &B)
 {
-    HCCL_DEBUG("[CostModelManager] CalcNHRParams dataSize=%llu rankSize=%u.", dataSize, rankSize);
-    return {0.0f, 0.0f, 0.0f};
+    HCCL_DEBUG("[CostModelManager] CalcNHRParams n=%f netType=%d portNum=%d.", n, netType, portNum);
+    A = 0.0f;
+    B = 0.0f;
+    if (netType == 0) {
+        
+    } else if (netType == 1) { 
+        
+    } else {
+        HCCL_ERROR("[CostModelManager] CalcNHRParams unsupported netType=%d.", netType);
+    }
+
+    HCCL_DEBUG("[CostModelManager] CalcNHRParams A=%f B=%f.", A, B);
+    return;
 }
 
 CostModelParam CostModelManager::CalcLatencyParams(u64 dataSize, u32 rankSize)

@@ -61,15 +61,29 @@ public:
 
     HcclResult Load();
     HcclResult InitCostModel(const AllAlgos &allAlgos);
+    void InitBandwidth();
     double Estimate(const std::string &algName, u64 dataSize) const;
 
-    static CostModelParam CalcMeshParam(u64 dataSize, u32 rankSize);
-    static CostModelParam CalcNHRParams(u64 dataSize, u32 rankSize);
+    // n: 每次发送数据量占总数据量的比例
+    // netType: 组网类型（mesh组网或clos组网）
+    // portNum: clos组网下使用的端口数量，mesh组网时为0
+    // A: 出参，接收计算得到的A值
+    // B: 出参，接收计算得到的B值
+    // 计算Mesh算法的A、B参数
+    static void CalcMeshParam(float n, int netType, int portNum, float &A, float &B);
+    // 计算NHR算法的A、B参数
+    static void CalcNHRParams(float n, int netType, int portNum, float &A, float &B);
     static CostModelParam CalcLatencyParams(u64 dataSize, u32 rankSize);
 
 private:
     void FreeCostModel();
     CostModel costModel_{nullptr, 0};
+
+    // 带宽的单位都是GB/s
+    float localCopyBw_{};       // 本地拷贝带宽
+    float localReduceBw_{};     // 本地reduce带宽
+    float crossChipBw_{};       // 跨片带宽
+    float crossChipReduceBw_{}; // 跨片reduce带宽
 };
 
 } // namespace ops_hccl
