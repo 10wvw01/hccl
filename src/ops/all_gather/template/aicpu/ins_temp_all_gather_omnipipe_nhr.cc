@@ -176,15 +176,14 @@ HcclResult InsTempAllGatherOmniPipeNHR::RunAllGatherNHR(const std::vector<Thread
             CHK_PRT_RET(ret != HCCL_SUCCESS || sendRemoteOut == nullptr,
                         HCCL_ERROR("[InsTempAllGatherOmniPipeNHR][RunAllGatherNHR] failed to get peer output "
                             "pointer for send target, remoteRank[%u], ret[%d], peerOutput[%p].",
-                            sendRank, ret, sendRemoteOut),
-                            HcclResult::HCCL_E_INTERNAL);
+                            sendRank, ret, sendRemoteOut), HcclResult::HCCL_E_INTERNAL);
 
             ret = HcclSymWinGetPeerPointer(outputSymWindow_, outputOffset_, recvRank, &recvRemoteOut);
             CHK_PRT_RET(ret != HCCL_SUCCESS || recvRemoteOut == nullptr,
                         HCCL_ERROR("[InsTempAllGatherOmniPipeNHR][RunAllGatherNHR] failed to get peer output "
                             "pointer for receive source, remoteRank[%u], ret[%d], peerOutput[%p].",
-                            recvRank, ret, recvRemoteOut),
-                            HcclResult::HCCL_E_INTERNAL);
+                            recvRank, ret, recvRemoteOut), HcclResult::HCCL_E_INTERNAL);
+
             HCCL_INFO("[InsTempAllGatherOmniPipeNHR][RunAllGatherNHR] peer output pointers are ready for "
                 "symmetric communication, sendRank[%u], sendPeerOutput[%p], recvRank[%u], recvPeerOutput[%p].",
                 sendRank, sendRemoteOut, recvRank, recvRemoteOut);
