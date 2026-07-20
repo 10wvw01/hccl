@@ -133,6 +133,9 @@ target_sources(hccl_compat PRIVATE
     hccl_inner_dl.cc
     hcomm_host_profiling_dl.cc
     hccl_host_comm_dl.cc
+    ccu_res_dl.cc
+    hccl_ccu_res_dl.cc
+    ccu_launch_dl.cc
 )
 
 if((DEVICE_MODE AND BUILD_OPEN_PROJECT) OR (NOT BUILD_OPEN_PROJECT))

@@ -6,6 +6,7 @@
 extern "C" {
 #endif
 typedef enum { CCU_SUCCESS = 0 } CcuStatus;
+typedef CcuStatus CcuResult;
 typedef struct { uint32_t dummy; } CcuInsHandle;
 typedef uint32_t CcuKernelHandle;
 #ifdef __cplusplus

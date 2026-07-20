@@ -14,11 +14,49 @@
 #include "dlsym_common.h"
 #include "hccl_comm.h"   // 原始头文件，包含所有类型和声明
 
+/* beta.1 起 hccl_comm.h 已提供 HcclOpExpansionMode/HcclConfigType，仅 < 9.1.0_beta.1 (8.5.0/9.0.0) 需要桩 */
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1)
+typedef enum {
+    HCCL_OP_EXPANSION_MODE_INVALID = -1,
+    HCCL_OP_EXPANSION_MODE_AI_CPU = 0,
+    HCCL_OP_EXPANSION_MODE_AIV = 1,
+    HCCL_OP_EXPANSION_MODE_HOST = 2,
+    HCCL_OP_EXPANSION_MODE_HOST_TS = 3,
+    HCCL_OP_EXPANSION_CCU_MS = 4,
+    HCCL_OP_EXPANSION_CCU_SCHED = 5,
+    HCCL_OP_EXPANSION_AIV_ONLY = 6
+} HcclOpExpansionMode;
+
+typedef enum {
+    HCCL_CONFIG_TYPE_INVALID = -1,
+    HCCL_CONFIG_TYPE_OP_EXPANSION_MODE = 0
+} HcclConfigType;
+
+typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
+
+#endif /* CANN_VERSION_NUM < CANN_VERSION(9, 1, 0, 1) */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+DECL_WEAK_FUNC(HcclResult, HcclCommGetStatus, const char* commId, HcclCommStatus *status);
 DECL_SUPPORT_FLAG(HcclCommGetStatus);
+
+DECL_WEAK_FUNC(HcclResult, HcclConfigGetInfo, HcclComm comm, HcclConfigType cfgType,
+    uint32_t infoLen, void *info);
+DECL_SUPPORT_FLAG(HcclConfigGetInfo);
+
+DECL_WEAK_FUNC(HcclResult, HcclGroupStatusGet, bool *isGroupEnabled);
+DECL_SUPPORT_FLAG(HcclGroupStatusGet);
+
+DECL_WEAK_FUNC(HcclResult, HcclAicpuKernelLaunch, HcclComm comm, const HcclOpDesc *opInfo,
+    const HcclKernelFuncInfo *funcInfo, ThreadHandle aicpuThreadHandle, aclrtStream userStream,
+    const HcclKernelLaunchCfg *kernelLaunchCfg);
+DECL_SUPPORT_FLAG(HcclAicpuKernelLaunch);
+
+DECL_WEAK_FUNC(HcclResult, HcclCommRegCommStateCallback, const char *regName, HcclCommStateCallback cb, void *args);
+DECL_SUPPORT_FLAG(HcclCommRegCommStateCallback);
 
 void HcclCommDlInit(void* libHcommHandle);
 

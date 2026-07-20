@@ -16,11 +16,54 @@
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_res_expt.h"
+#include "hcomm_res_defs.h"
 #endif
 
-/* Callback 类型在 SDK 头文件中未声明，HCCL 自行定义 */
-#ifndef Callback
+/* 8.5.0 桩: hccl_res.h / hcomm_res_defs.h / hccl_res_expt.h 中 9.0.0 新增类型 */
+#if CANN_VERSION_NUM < CANN_VERSION(9, 0, 0, 2)
+typedef void *HcclMemHandle;
 typedef int32_t (Callback)(uint64_t, int32_t);
+typedef int32_t HcommResult;
+
+typedef enum {
+    COMM_MEM_TYPE_INVALID = -1,
+    COMM_MEM_TYPE_DEVICE = 0,
+    COMM_MEM_TYPE_HOST = 1
+} CommMemType;
+
+typedef struct {
+    CommMemType type;
+    void *addr;
+    uint64_t size;
+} CommMem;
+
+#define COMM_PROTOCOL_UBC_CTP ((CommProtocol)4)
+#define COMM_PROTOCOL_UBC_TP  ((CommProtocol)5)
+#define COMM_PROTOCOL_UB_MEM  ((CommProtocol)6)
+
+#define COMM_ADDR_TYPE_EID ((CommAddrType)3)
+#define COMM_ADDR_EID_LEN 36
+#endif /* CANN_VERSION_NUM < CANN_VERSION(9, 0, 0) */
+
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
+#define COMM_PROTOCOL_UBOE    ((CommProtocol)7)
+typedef enum {
+    THREAD_TYPE_INVALID = -1,
+    THREAD_TYPE_TS = 0
+} ThreadType;
+
+typedef struct {
+    uint32_t notifyNumPerThread;
+} ThreadConfig;
+
+static inline HcommResult ThreadConfigInit(ThreadConfig *config, uint32_t num)
+{
+    for (uint32_t i = 0; i < num; i++) {
+        config[i].notifyNumPerThread = 0;
+    }
+    return 0;
+}
+
 #endif
 
 #ifdef __cplusplus
@@ -38,7 +81,10 @@ DECL_WEAK_FUNC(HcclResult, HcclChannelGetRemoteMems, HcclComm comm, ChannelHandl
 DECL_WEAK_FUNC(HcclResult, HcclCommMemReg, HcclComm comm, const char* memTag, const CommMem* mem, HcclMemHandle* memHandle);
 DECL_WEAK_FUNC(HcclResult, HcclEngineCtxDestroy, HcclComm comm, const char* ctxTag, CommEngine engine);
 
+DECL_WEAK_FUNC(HcclResult, HcclThreadAcquireWithConfig, HcclComm comm, CommEngine engine, uint32_t threadNum,
+    ThreadType type, const ThreadConfig *config, ThreadHandle *threads);
 DECL_SUPPORT_FLAG(HcclThreadExportToCommEngine);
+DECL_SUPPORT_FLAG(HcclThreadAcquireWithConfig);
 // 动态库管理接口（大驼峰命名）
 void HcclResDlInit(void* libHcommHandle);
 

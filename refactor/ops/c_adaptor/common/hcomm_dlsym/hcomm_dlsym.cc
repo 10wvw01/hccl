@@ -15,6 +15,9 @@
 #include "hccl_inner_dl.h"
 #include "hcomm_host_profiling_dl.h"
 #include "hccl_host_comm_dl.h"
+#include "ccu_res_dl.h"
+#include "hccl_ccu_res_dl.h"
+#include "ccu_launch_dl.h"
 #include <pthread.h>
 #include <dlfcn.h>
 #include <stdio.h>
@@ -71,4 +74,7 @@ void HcommDlInit(void) {
     HcclInnerDlInit(gLibHandle);
     HcommProfilingDlInit(gLibHandle);
     HcclCommDlInit(gLibHandle);
+    CcuResDlInit(gLibHandle);
+    HcclCcuResDlInit(gLibHandle);
+    CcuLaunchDlInit(gLibHandle);
 }
