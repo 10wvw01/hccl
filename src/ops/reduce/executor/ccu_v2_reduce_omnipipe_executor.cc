@@ -316,14 +316,27 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<double> &endpointAttrBwAvgG)
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
-    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_RS_CLOS;
+    double rXRS = ParseBandWidthRSX();
+    double rYRS = ParseBandWidthRSY();
+    double rXG = GetExternalInputBandWidthGX();
+    double rYG = GetExternalInputBandWidthGY();
+    HCCL_DEBUG("[%s] rankId[%d], rXRS[%f]", __func__, myRank_, rXRS);
+    HCCL_DEBUG("[%s] rankId[%d], rYRS[%f]", __func__, myRank_, rYRS);
+    HCCL_DEBUG("[%s] rankId[%d], rXG[%f]", __func__, myRank_, rXG);
+    HCCL_DEBUG("[%s] rankId[%d], rYG[%f]", __func__, myRank_, rYG);
+
+    // double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
+    // double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_RS_CLOS;
+    double eqBwLevel0RS = rXRS;
+    double eqBwLevel1RS = rYRS;
     eqBwLevel1RS = rankSizeLevel1_ > 1 ? eqBwLevel1RS / (rankSizeLevel1_ - 1) : eqBwLevel1RS;
     endpointAttrBwAvgRS = {eqBwLevel0RS, eqBwLevel1RS, 1.0};
 
     // G带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
-    double eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    // double eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
+    // double eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    double eqBwLevel0G = rXG;
+    double eqBwLevel1G = rYG;
     eqBwLevel1G = rankSizeLevel1_ > 1 ? eqBwLevel1G / (rankSizeLevel1_ - 1) : eqBwLevel1G;
     endpointAttrBwAvgG = {eqBwLevel0G, eqBwLevel1G, 1.0};
 
@@ -471,7 +484,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
             sliceParam.endpointAttrBw = endpointAttrBwAvgG;
             omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-            HCCL_INFO("[%s] endpointAttrBwAvgRS:%f, endpointAttrBwAvgG:%f", __func__, endpointAttrBwAvgRS, endpointAttrBwAvgG);
+            HCCL_INFO("[%s] endpointAttrBwAvgRS0:%f, endpointAttrBwAvgRS1:%f, endpointAttrBwAvgG0:%f, endpointAttrBwAvgG1:%f", __func__, endpointAttrBwAvgRS[0], endpointAttrBwAvgRS[1], endpointAttrBwAvgG[0], endpointAttrBwAvgG[1]);
         }
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
@@ -686,8 +699,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE,
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
-                                // CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-                                CcuTempReduceScatterOmniPipeMesh1D,
+                                CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
+                                // CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeNHR1DMem2Mem);
