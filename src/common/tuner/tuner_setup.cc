@@ -216,11 +216,13 @@ bool HcclTunerIsLoaded()
 HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo)
 {
     /* 1. 加载插件（mutex 保护，首次 dlopen + dlsym + 版本校验） */
+    hcclTunerFuncs_t funcs = {};
     {
         std::lock_guard<std::mutex> lock(g_tunerMutex);
         if (!LoadPluginLocked()) {
             return HCCL_SUCCESS; /* 未配置或加载失败，no-op，回退 CostModel */
         }
+        funcs = g_funcs; /* 锁内拷贝，避免 TOCTOU 竞态 */
     }
 
     /* 2. 填充 commInfo（不加锁，每个 comm 独立） */
@@ -236,11 +238,11 @@ HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo
     hcclTunerHostFunctions_t hostFuncs = {};
     BuildHostFuncs(hostFuncs);
 
-    /* 4. 调用插件 init */
+    /* 4. 调用插件 init（使用锁内拷贝的 funcs 副本） */
     HCCL_INFO("[TunerSetup] comm[%p] nRanks[%u] nServers[%u] nNpusPerServer[%u] commName[%s] bufferSize[%llu].", comm,
               commInfo.nRanks, commInfo.nServers, commInfo.nNpusPerServer,
               (commInfo.commName != nullptr) ? commInfo.commName : "?", commInfo.bufferSize);
-    ret = g_funcs.init(comm, &commInfo, &hostFuncs);
+    ret = funcs.init(comm, &commInfo, &hostFuncs);
     if (ret != HCCL_SUCCESS) {
         HCCL_WARNING("[TunerSetup] plugin init failed, ret[%d], fall back to CostModel.", ret);
         return HCCL_SUCCESS;
@@ -256,12 +258,14 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
         return HCCL_SUCCESS;
     }
 
-    /* 插件未加载时 no-op */
+    /* 插件未加载时 no-op；锁内拷贝 g_funcs 避免 TOCTOU 竞态 */
+    hcclTunerFuncs_t funcs = {};
     {
         std::lock_guard<std::mutex> lock(g_tunerMutex);
         if (g_loadStatus != LOAD_SUCCESS) {
             return HCCL_SUCCESS;
         }
+        funcs = g_funcs;
     }
 
     /* HcclCMDType → hcclOpType_t 转换，不支持的操作跳过 */
@@ -279,7 +283,8 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
     collInfo.nTemplate = HCCL_NUM_TEMPLATES;
     collInfo.structSize = sizeof(hcclTunerCollInfo_t);
 
-    HcclResult ret = g_funcs.getCollInfo(comm, &collInfo, collCostTable);
+    /* 使用锁内拷贝的 funcs 副本，避免并发 TunerCleanup 重置 g_funcs */
+    HcclResult ret = funcs.getCollInfo(comm, &collInfo, collCostTable);
     if (ret != HCCL_SUCCESS) {
         HCCL_WARNING("[Tuner] getCollInfo failed, ret[%d], ignore plugin modification.", ret);
         return HCCL_SUCCESS;

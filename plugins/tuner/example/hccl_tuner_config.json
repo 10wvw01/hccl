@@ -21,7 +21,7 @@
             "min_ranks": 8,
             "min_bytes": 65536
           },
-          "engine": 5,
+          "engine": 4,
           "executor": 0,
           "template": 6,
           "cost": 0.0

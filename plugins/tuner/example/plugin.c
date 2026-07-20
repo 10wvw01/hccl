@@ -299,9 +299,14 @@ static void JsonSkipValue(JsonParser *p)
                 }
             }
         }
-    } else {
+    } else if (peek >= 0) {
+        size_t prev = p->pos;
         double v = 0;
         JsonReadNumber(p, &v);
+        /* 确保前进：JsonReadNumber 失败时（true/false/null 等）手动跳过当前字符 */
+        if (p->pos == prev && p->pos < p->len) {
+            p->pos++;
+        }
     }
 }
 
