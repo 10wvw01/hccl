@@ -31,7 +31,7 @@ target_compile_options(hccl_kernel_compat PRIVATE
 )
 
 target_link_libraries(hccl_kernel_compat PRIVATE
-    $<BUILD_INTERFACE:intf_pub_cxx14>
+    $<BUILD_INTERFACE:intf_pub>
     $<BUILD_INTERFACE:runtime_headers>
     $<BUILD_INTERFACE:hcomm_headers>
     unified_dlog

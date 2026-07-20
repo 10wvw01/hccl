@@ -19,7 +19,7 @@ project(hccl_device)
 init_cann_project(PREPEND_MODULE_PATH)
 add_cann_target_options()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${RULE_LAUNCH})
