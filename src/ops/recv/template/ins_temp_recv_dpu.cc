@@ -34,7 +34,8 @@ namespace ops_hccl
         resourceRequest.notifyNumPerThread = {};
         resourceRequest.notifyNumOnMainThread = 0;
         std::vector<HcclChannelDesc> level0Channels;
-        CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+        static_cast<void>(topoInfo);
+        CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, param.sendRecvRemoteRank, level0Channels));
         resourceRequest.channels.push_back(level0Channels);
         HCCL_INFO("[InsTempRecvDpu][CalcRes] Successfully calres!");
         return HCCL_SUCCESS;
@@ -86,7 +87,7 @@ namespace ops_hccl
             dpuRunInfo.tempAlgParams = tempAlgParams;
             dpuRunInfo.channels = templateResource.channels;
             dpuRunInfo.myRank = myRank_;
-            dpuRunInfo.subCommRanks = subCommRanks_;
+            dpuRunInfo.subCommRanks = {{myRank_, sendRank_}};
             u32 sendMsgId = 0;
             auto dpuRunInfoSeqData = dpuRunInfo.Serialize();
 
