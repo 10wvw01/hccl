@@ -14,7 +14,6 @@
 
 #ifndef AICPU_COMPILE
 #include "ccu/ccu_temp_all_to_all_mesh1d_multi_jetty.h"
-#include "ccu_temp_all_to_all_mesh_1D.h"
 #endif
 
 namespace ops_hccl {
@@ -25,9 +24,7 @@ constexpr uint32_t CONST_1 = 1;
 constexpr uint32_t CONST_2 = 2;
 constexpr uint32_t CONST_3 = 3;
 constexpr uint32_t CONST_4 = 4;
-constexpr u32 CLOS_PORT_NUM_SERVER_V2 = 8;
- 
-static bool isUBX = false;
+
 constexpr u32 MESH_BW = 100;
 constexpr u32 CLOS_BW = 113;
 constexpr u32 MESH_BW_AICPU = 10;
@@ -79,10 +76,6 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     if (algHierarchyInfo.infos[0].size() != topoNum) {
         HCCL_ERROR("[InsV2AllToAllConcurrentExecutor[%s] toposize = %u", __FUNCTION__, algHierarchyInfo.infos[0].size());
         return HCCL_E_PARA;
-    }
-    //判断是否为UBX组网
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-        isUBX = true;
     }
  
     // 获取子通信域
@@ -275,7 +268,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
 
     // 按topo切分数据：0为topo 0，1为topo 1
     uint32_t factorMesh = rankSize_ - 1;
-    uint32_t factorClos = isUBX ? CONST_4 : CLOS_PORT_NUM_SERVER_V2;       // 端口数获取
+    uint32_t factorClos = CONST_4;       // 端口数获取
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         factorMesh = MESH_BW;
         factorClos = CLOS_BW;
@@ -472,10 +465,9 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     tempAlgParams.sliceSize = currDataCount * dataTypeSize_; // 这是每次循环处理的数据大小
     tempAlgParams.tailSize = tempAlgParams.sliceSize;
     // 这里的stride当成传统意义上的sreide 间隔
-    tempAlgParams.inputSliceStride = isUBX ? maxDataCountPerLoop * dataTypeSize_ : 0; // 变长算子不涉及,这里是每一块数据的大小，这个值被sendCounts代替了
-    tempAlgParams.outputSliceStride = isUBX ? maxDataCountPerLoop * dataTypeSize_ : sendCounts_[0] * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
+    tempAlgParams.inputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 变长算子不涉及,这里是每一块数据的大小，这个值被sendCounts代替了
+    tempAlgParams.outputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 这里用来放每张卡可以用的cclBuffer的大小，数据从ureIn到cclBuffer的时候，以这个量来分隔
  
-    HCCL_INFO("tempAlgParams.count[%llu]",tempAlgParams.count);
     for (u64 i = 0; i < rankSize_; i++) {
         if (splitData.sendCounts[i] > processedDataCount) {
             tempAlgParams.sendCounts[i] = std::min(currDataCount, splitData.sendCounts[i] - processedDataCount);
@@ -619,12 +611,6 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
                                 TopoMatchUBX,
                                 CcuTempAllToAllMesh1dMultiJetty,
                                 CcuTempAllToAllMesh1dMultiJetty);
-REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
-                                CcuAlltoAllConcurrentMesh1D,
-                                InsV2AllToAllConcurrentExecutor,
-                                TopoMatchConcurrent,
-                                CcuTempAlltoAllMesh1D,
-                                CcuTempAlltoAllMesh1D);
 #endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 #endif
 
