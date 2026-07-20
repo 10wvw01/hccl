@@ -128,6 +128,10 @@ HcclResult SelectAlgReduceScatter(HcclComm comm, OpParam &param, TopoInfo* topoI
     if (topoInfo->userRankSize == 1) {
         return HCCL_E_INTERNAL;
     } else if (topoInfo->deviceType == DevType::DEV_TYPE_910_93 && (topoInfo->userRankSize % 2 == 0)) {
+        if (topoInfo->userRankSize / topoInfo->serverNum < 4) {
+            HCCL_ERROR("The number of ranks per server less than 4 is not supported by ReduceScatterBIRS");
+            return HCCL_E_INTERNAL;
+        }
         algName = "ReduceScatterBIRSExecutor";
     }
 
