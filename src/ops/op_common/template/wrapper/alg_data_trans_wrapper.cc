@@ -14,6 +14,7 @@
 #include <atomic>
 #include <limits>
 #include <algorithm>
+#include <type_traits>
 #include <vector>
 
 namespace ops_hccl {
@@ -1225,7 +1226,15 @@ HcclResult AicpuReduceTemplate(T *dst, u64 dstSize, T *src, u64 srcSize, const H
                 *(dst + i) = srcData + dstData;
                 break;
             case HcclReduceOp::HCCL_REDUCE_PROD:
-                *(dst + i) = srcData * dstData;
+                if (std::is_same<T, int8_t>::value) {
+                    uint8_t prod = static_cast<uint8_t>(srcData) * static_cast<uint8_t>(dstData);
+                    *(dst + i) = static_cast<T>(prod);
+                } else if (std::is_same<T, int32_t>::value) {
+                    uint32_t prod = static_cast<uint32_t>(srcData) * static_cast<uint32_t>(dstData);
+                    *(dst + i) = static_cast<T>(prod);
+                } else {
+                    *(dst + i) = srcData * dstData;
+                }
                 break;
             case HcclReduceOp::HCCL_REDUCE_MAX:
                 *(dst + i) = std::max(srcData, dstData);
