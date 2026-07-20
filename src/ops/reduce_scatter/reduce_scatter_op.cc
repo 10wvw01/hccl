@@ -27,9 +27,9 @@ HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvCount, H
     if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
         return HcclReduceScatterInner(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
     }
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-if (!shouldGoOutPlace(deviceType)) {
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
 #ifdef ENABLE_EXPERIMENTAL
         return ops_hccl_experimental::ReduceScatterExperimental(sendBuf, recvBuf, recvCount, dataType, op, comm, stream);
 #else

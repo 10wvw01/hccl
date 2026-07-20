@@ -27,9 +27,9 @@ HcclResult HcclBatchSendRecv(HcclSendRecvItem *sendRecvInfo, uint32_t itemNum, H
         return HcclBatchSendRecvInner(sendRecvInfo, itemNum, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (!shouldGoOutPlace(deviceType)) {
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return HcclBatchSendRecvInner(sendRecvInfo, itemNum, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内

@@ -1005,7 +1005,7 @@ HcclResult IsIntraServerSecondLayerClos(HcclComm comm, TopoInfoWithNetLayerDetai
     }
  
     CommTopo topoType = COMM_TOPO_RESERVED;
-    HcclRankGraphGetTopoTypeByLayer(comm, secondLayerIdx, &topoType);
+    CHK_RET(HcclRankGraphGetTopoTypeByLayer(comm, secondLayerIdx, &topoType));
     if (topoType == CommTopo::COMM_TOPO_CLOS) {
         HCCL_INFO("[IsIntraServerSecondLayerClos] intra-server, second layer[%u] is CLOS.",
                   secondLayerIdx);

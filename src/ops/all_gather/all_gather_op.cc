@@ -30,10 +30,9 @@ HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclD
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (!shouldGoOutPlace(deviceType)) {
-        HCCL_INFO("go HcclAllGatherInner due to deviceType");
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return HcclAllGatherInner(sendBuf, recvBuf, sendCount, dataType, comm, stream);
     }
     CHK_PRT_RET(sendCount == 0, HCCL_WARNING("input sendCount is 0, return all gather success"), HCCL_SUCCESS);

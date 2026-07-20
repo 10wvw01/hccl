@@ -29,10 +29,10 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
         return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
     // 非95设备转到老流程
-    if (!shouldGoOutPlace(deviceType)) {
+    if (!isOutPlace) {
         return HcclReduceScatterVInner(sendBuf, sendCounts, sendDispls, recvBuf, recvCount, dataType, op, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内

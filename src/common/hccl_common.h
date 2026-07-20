@@ -269,5 +269,13 @@ inline bool shouldGoOutPlace(DevType deviceType) {
     return deviceType == DevType::DEV_TYPE_910_95;
 #endif
 }
+
+inline HcclResult IsOutPlaceDevice(bool& isOutPlace)
+{
+    DevType deviceType = DevType::DEV_TYPE_COUNT;
+    CHK_RET(hrtGetDeviceType(deviceType));
+    isOutPlace = shouldGoOutPlace(deviceType);
+    return HcclResult::HCCL_SUCCESS;
+}
  
 #endif // HCCL_COMMON_H

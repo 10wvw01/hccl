@@ -27,9 +27,9 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
  
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (!shouldGoOutPlace(deviceType)) {
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return HcclAllGatherVInner(sendBuf, sendCount, recvBuf, recvCounts, recvDispls, dataType, comm, stream);
     }
     HcclUs startut = TIME_NOW();// 走老流程的判断时间不统计在内
