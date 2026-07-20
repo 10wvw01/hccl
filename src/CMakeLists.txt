@@ -261,7 +261,7 @@ endif()
 add_subdirectory(common)
 add_subdirectory(ops)
 
-if(BUILD_HCCL_CUSTOM_OP_GE)
+if(ENABLE_HCCL_CUSTOM_OP_GE)
     add_subdirectory(custom_op_ge)
 endif()
 

@@ -10,8 +10,24 @@
 
 # HCCL custom op .so for GE (EagerExecuteOp 适配层)
 # 通过 GE 路径 B (op_graph/lib/<os>/<arch>/*.so) 加载
-add_library(custop_hccl SHARED hccl_custom_op.cc)
+add_library(custop_hccl SHARED
+    hccl_custom_op.cc
+    hcom_all_reduce_op.cc
+)
 set_target_properties(custop_hccl PROPERTIES OUTPUT_NAME custop_hccl)
+
+target_include_directories(custop_hccl PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${ASCEND_CANN_PACKAGE_PATH}/include
+)
+
+target_compile_options(custop_hccl PRIVATE
+    -std=c++14
+    -fPIC
+    -fno-common
+    -fvisibility=hidden
+    -Wall
+)
 
 # TODO: 安装路径待正式评审，当前用独立 OPP 包根隔离 libopgraph_hccl.so
 set(HCCL_GE_OP_INSTALL_DIR opp/built-in/hccl_ge/op_graph/lib/linux/${CMAKE_SYSTEM_PROCESSOR})
