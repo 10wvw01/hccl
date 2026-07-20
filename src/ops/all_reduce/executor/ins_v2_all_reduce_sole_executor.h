@@ -31,6 +31,8 @@ public:
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
                                     AlgHierarchyInfoForAllLevel& algHierarchyInfo) override;
 
+    CostAlgoParams CalcCostCoeff() override;
+
 #ifndef AICPU_COMPILE
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const;
     HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *fastLaunchCtx) override;

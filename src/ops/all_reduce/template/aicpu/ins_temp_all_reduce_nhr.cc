@@ -17,6 +17,26 @@ InsTempAllReduceNHR::InsTempAllReduceNHR(const OpParam& param, const u32 rankId,
 
 InsTempAllReduceNHR::~InsTempAllReduceNHR(){}
 
+CostAlgoParams InsTempAllReduceNHR::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsTempAllReduceNHR] CalcCostCoeff.");
+    static CostModelParam params[2];
+    static const char *algName = "AllReduceNHR";
+
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    float A = 0.0f;
+    float B = 0.0f;
+
+    CostModelManager::CalcNHRParams(n, netType, portNum, A, B);
+    params[0] = {A, B, 0.0f};
+
+    params[1] = CostModelManager::CalcLatencyParams(0, 0);
+
+    return {algName, params, 2};
+}
+
 u64 InsTempAllReduceNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void) inBuffType;

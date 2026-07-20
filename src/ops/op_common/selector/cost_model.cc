@@ -163,9 +163,11 @@ void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A
     A = 0.0f;
     B = 0.0f;
     if (netType == 0) {
+        // 
         
     } else if (netType == 1) { 
-        
+        // 
+
     } else {
         HCCL_ERROR("[CostModelManager] CalcNHRParams unsupported netType=%d.", netType);
     }
