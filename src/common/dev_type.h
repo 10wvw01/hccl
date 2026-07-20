@@ -12,6 +12,7 @@
 #define DEV_TYPE_H
 
 #include "hccl/base.h"
+#include <unordered_map>
 
 // 2 is sizeof(float16), 8 is sizeof(float64), 2 is sizeof(bfloat16)..
 constexpr u32 HCCL_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(s8), sizeof(s16), sizeof(s32),
@@ -28,8 +29,39 @@ enum class HcclDevType {
     DEV_TYPE_NOSOC = 5,
     DEV_TYPE_950 = 6,
     DEV_TYPE_MC62 = 7,
-    DEV_TYPE_COUNT = 8
+    DEV_TYPE_960 = 8,
+    DEV_TYPE_COUNT = 9
 };
+
+const std::unordered_map<std::string, HcclDevType> HCCL_SOC_VER_CONVERT{
+    {"Ascend310P1", HcclDevType::DEV_TYPE_310P3},
+    {"Ascend310P3", HcclDevType::DEV_TYPE_310P3},
+    {"Ascend310P5", HcclDevType::DEV_TYPE_310P3},
+    {"Ascend310P7", HcclDevType::DEV_TYPE_310P3},
+    {"Ascend310B1", HcclDevType::DEV_TYPE_310P3},  // 临时映射，临时当前Ascend310B1 torch_npu未与hccl的so解耦；计划20250630完成解耦，解耦后删除
+    {"Ascend910", HcclDevType::DEV_TYPE_910},
+    {"Ascend910A", HcclDevType::DEV_TYPE_910},
+    {"Ascend910B", HcclDevType::DEV_TYPE_910},
+    {"Ascend910ProA", HcclDevType::DEV_TYPE_910},
+    {"Ascend910ProB", HcclDevType::DEV_TYPE_910},
+    {"Ascend910PremiumA", HcclDevType::DEV_TYPE_910},
+    {"Ascend910B1", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910B2", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910B2C", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910B3", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910B4", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910B4-1", HcclDevType::DEV_TYPE_910B},
+    {"Ascend910_9391", HcclDevType::DEV_TYPE_910_93},
+    {"Ascend910_9381", HcclDevType::DEV_TYPE_910_93},
+    {"Ascend910_9392", HcclDevType::DEV_TYPE_910_93},   // Ascend910_9392、Ascend910_9382为预留类型，当前版本暂不支持，待跟随后续版本节奏交付
+    {"Ascend910_9382", HcclDevType::DEV_TYPE_910_93},
+    {"Ascend910_9372", HcclDevType::DEV_TYPE_910_93},
+    {"Ascend910_9362", HcclDevType::DEV_TYPE_910_93},
+    {"Ascend950PR_958b", HcclDevType::DEV_TYPE_950},
+    {"nosoc", HcclDevType::DEV_TYPE_NOSOC}};
+
+#define hccl_weak_alias(name, aliasname) _hccl_weak_alias(name, aliasname)
+#define _hccl_weak_alias(name, aliasname) extern __typeof(name) aliasname __attribute__((weak, alias(#name)))
 
 #ifdef __cplusplus
 extern "C" {
