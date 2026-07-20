@@ -17,6 +17,7 @@
 #include "alg_template_base.h"
 #include "alg_param.h"
 #include "template_utils.h"
+#include "cost_model.h"
 
 namespace ops_hccl {
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
@@ -29,6 +30,8 @@ public:
     explicit AivAlgTemplateBase(const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
                                 const std::vector<std::vector<u32>> &subCommRanks);
     virtual ~AivAlgTemplateBase();
+
+    static CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
 
     virtual std::string Describe() const = 0;
     virtual HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

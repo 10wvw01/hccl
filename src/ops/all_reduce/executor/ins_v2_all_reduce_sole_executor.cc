@@ -36,6 +36,13 @@ InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::InsV2AllReduceSoleExec
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
+CostAlgoParams InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] CalcCostCoeff delegate to template.");
+    return InsAlgTemplate::CalcCostCoeff();
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate>
 HcclResult InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcAlgHierarchyInfo(HcclComm comm,
     TopoInfoWithNetLayerDetails* topoInfo,
     AlgHierarchyInfoForAllLevel& algHierarchyInfo)

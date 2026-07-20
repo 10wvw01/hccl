@@ -15,6 +15,7 @@
 #include <array>
 #include <set>
 #include <string>
+#include "cost_model.h"
 
 
 namespace ops_hccl {
@@ -32,6 +33,8 @@ public:
                                 const std::vector<std::vector<u32>> &subCommRanks);
 
     ~CcuAlgTemplateBase() override;
+
+    static CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
 
     std::string Describe() const override = 0;
 

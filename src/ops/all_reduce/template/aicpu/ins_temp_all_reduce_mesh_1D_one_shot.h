@@ -31,6 +31,8 @@ public:
         return info;
     }
 
+    static CostAlgoParams CalcCostCoeff();
+
     // 现在的RunAsync就是之前的GenExtIns
     HcclResult KernelRun(const OpParam& param,
                          const TemplateDataParams& tempAlgParams,
