@@ -129,6 +129,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                                                     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (topoInfo->level2Ubg) {
+        HCCL_INFO("[ReduceScatterAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_INFO("[ReduceScatterAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
             __func__);
@@ -536,7 +541,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoAicpuForMesh1DClos(const
         if (Is64BitDataType(opParam.DataDes.dataType) || opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD) {
             selectAlgName = "InsReduceScatterMesh1D";
         } else if (!IsSmallData(dataSize)) {
-            selectAlgName = "InsReduceScatterMesh1D";
+            selectAlgName = "InsReduceScatterConcurrentMeshNHR";
         } else {
             if (dataSize * ratio > RS_AICPU_1D_MAX_DATA_SIZE) {
                 selectAlgName = "InsReduceScatterMesh1DMeshChunk";
