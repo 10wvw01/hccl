@@ -311,10 +311,153 @@ HcclResult InitEnvConfig()
         ret);
 
     g_algEnvConfig.initialized = true;
-
+    // 解析Omnipipe测试带宽
+    ParseBandWidthRSX(0);
+    ParseBandWidthRSY(0);
+    ParseBandWidthGX(0);
+    ParseBandWidthGY(0);
     return HCCL_SUCCESS;
 }
 
+HcclResult ParseBandWidthRSX(int flag)
+ 	 {
+ 	     char* p = getenv("HCCL_BW_RSX");
+ 	     if(p == nullptr){
+ 	         g_algEnvConfig.hccl_rs_x_bw = HCCL_BW_DEFAULT;
+ 	         HCCL_WARNING("HCCL_BW_RSX is nullptr, flag[%d]", flag);
+ 	         return HCCL_SUCCESS;
+ 	     }
+ 	     std::string bwEnv(p);
+ 	 
+ 	     if (!IsValidNumberFormat(bwEnv)) {
+ 	         HCCL_INFO("HCCL_BW_RSX[%s] format is invalid, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_rs_x_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	 
+ 	     double bw = 0;
+ 	     if (SalStrToDouble(bwEnv, bw) != HCCL_SUCCESS) {
+ 	         HCCL_INFO("HCCL_BW_RSX[%s] parse failed, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_rs_x_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	     g_algEnvConfig.hccl_rs_x_bw = bw;
+ 	     HCCL_INFO("[%s] hccl_rs_x_bw[%f], flag[%d]", __func__, g_algEnvConfig.hccl_rs_x_bw, flag);
+ 	     return HCCL_SUCCESS;
+ 	 }
+ 	 
+ 	 HcclResult ParseBandWidthRSY(int flag)
+ 	 {
+ 	     char* p = getenv("HCCL_BW_RSY");
+ 	     if(p == nullptr){
+ 	         g_algEnvConfig.hccl_rs_y_bw = HCCL_BW_DEFAULT;
+ 	         HCCL_WARNING("HCCL_BW_RSY is nullptr, flag[%d]", flag);
+ 	         return HCCL_SUCCESS;
+ 	     }
+ 	     std::string bwEnv(p);
+ 	 
+ 	     if (!IsValidNumberFormat(bwEnv)) {
+ 	         HCCL_INFO("HCCL_BW_RSY[%s] format is invalid, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_rs_y_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	 
+ 	     double bw = 0;
+ 	     if (SalStrToDouble(bwEnv, bw) != HCCL_SUCCESS) {
+ 	         HCCL_INFO("HCCL_BW_RSY[%s] parse failed, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_rs_y_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	     g_algEnvConfig.hccl_rs_y_bw = bw;
+ 	     HCCL_INFO("[%s] hccl_rs_y_bw[%f], flag[%d]", __func__, g_algEnvConfig.hccl_rs_y_bw, flag);
+ 	     return HCCL_SUCCESS;
+ 	 }
+ 	 
+ 	 HcclResult ParseBandWidthGX(int flag)
+ 	 {
+ 	     char* p = getenv("HCCL_BW_GX");
+ 	     if(p == nullptr){
+ 	         g_algEnvConfig.hccl_ag_x_bw = HCCL_BW_DEFAULT;
+ 	         HCCL_WARNING("HCCL_BW_GX is nullptr, flag[%d]", flag);
+ 	         return HCCL_SUCCESS;
+ 	     }
+ 	     std::string bwEnv(p);
+ 	 
+ 	     if (!IsValidNumberFormat(bwEnv)) {
+ 	         HCCL_INFO("HCCL_BW_GX[%s] format is invalid, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_ag_x_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	 
+ 	     double bw = 0;
+ 	     if (SalStrToDouble(bwEnv, bw) != HCCL_SUCCESS) {
+ 	         HCCL_INFO("HCCL_BW_GX[%s] parse failed, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_ag_x_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	     g_algEnvConfig.hccl_ag_x_bw = bw;
+ 	     HCCL_INFO("[%s] hccl_ag_x_bw[%f], flag[%d]", __func__, g_algEnvConfig.hccl_ag_x_bw, flag);
+ 	     return HCCL_SUCCESS;
+ 	 }
+ 	 
+ 	 HcclResult ParseBandWidthGY(int flag)
+ 	 {
+ 	     char* p = getenv("HCCL_BW_GY");
+ 	     if(p == nullptr){
+ 	         g_algEnvConfig.hccl_ag_y_bw = HCCL_BW_DEFAULT;
+ 	         HCCL_WARNING("HCCL_BW_GY is nullptr, flag[%d]", flag);
+ 	         return HCCL_SUCCESS;
+ 	     }
+ 	     std::string bwEnv(p);
+ 	 
+ 	     if (!IsValidNumberFormat(bwEnv)) {
+ 	         HCCL_INFO("HCCL_BW_GY[%s] format is invalid, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_ag_y_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	 
+ 	     double bw = 0;
+ 	     if (SalStrToDouble(bwEnv, bw) != HCCL_SUCCESS) {
+ 	         HCCL_INFO("HCCL_BW_GY[%s] parse failed, use default. flag[%d]",
+ 	             bwEnv.c_str(), flag);
+ 	         g_algEnvConfig.hccl_ag_y_bw = HCCL_BW_DEFAULT;
+ 	         return HCCL_E_PARA;
+ 	     }
+ 	     g_algEnvConfig.hccl_ag_y_bw = bw;
+ 	     HCCL_INFO("[%s] hccl_ag_y_bw[%f], flag[%d]", __func__, g_algEnvConfig.hccl_ag_y_bw, flag);
+ 	     return HCCL_SUCCESS;
+ 	 }
+ 	 
+ 	 double GetExternalInputBandWidthRSX(){
+ 	     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
+ 	     HCCL_INFO("[%s]: [%f]", __func__, g_algEnvConfig.hccl_rs_x_bw);
+ 	     return g_algEnvConfig.hccl_rs_x_bw;
+ 	 }
+ 	 
+ 	 double GetExternalInputBandWidthRSY(){
+ 	     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
+ 	     HCCL_INFO("[%s]: [%f]", __func__, g_algEnvConfig.hccl_rs_y_bw);
+ 	     return g_algEnvConfig.hccl_rs_y_bw;
+ 	 }
+ 	 
+ 	 double GetExternalInputBandWidthGX(){
+ 	     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
+ 	     HCCL_INFO("[%s]: [%f]", __func__, g_algEnvConfig.hccl_ag_x_bw);
+ 	     return g_algEnvConfig.hccl_ag_x_bw;
+ 	 }
+ 	 
+ 	 double GetExternalInputBandWidthGY(){
+ 	     std::lock_guard<std::mutex> lock(g_algEnvConfigMutex);
+ 	     HCCL_INFO("[%s]: [%f]", __func__, g_algEnvConfig.hccl_ag_y_bw);
+ 	     return g_algEnvConfig.hccl_ag_y_bw;
+ 	 }
 HcclResult ParseHcclAlgo()
 {
     std::string hcclAlgo = GetEnv("HCCL_ALGO");
