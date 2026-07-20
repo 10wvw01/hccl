@@ -1,0 +1,58 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#ifndef TUNER_SETUP_H
+#define TUNER_SETUP_H
+
+#include <cstdarg>
+#include <cstddef>
+#include "hccl_tuner_plugin.h"
+
+/* HcclCMDType 定义在 hccl/hccl_types.h 中（经 hccl_tuner_plugin.h 引入），无需前向声明。 */
+
+namespace ops_hccl {
+struct TopoInfoWithNetLayerDetails;
+}
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+/* ===== 内部 Host 函数包装（仅供 tuner_setup.cc 构造 hostFuncs 使用）===== */
+
+HcclResult TunerCtxCreate(HcclComm comm, const char *ctxTag, uint64_t size, void **ctx);
+HcclResult TunerCtxGet(HcclComm comm, const char *ctxTag, void **ctx, uint64_t *size);
+HcclResult TunerCtxDestroy(HcclComm comm, const char *ctxTag);
+void TunerLogFunction(int level, const char *file, int line, const char *fmt, ...);
+
+#if defined(__cplusplus)
+}
+#endif
+
+#if defined(__cplusplus)
+/* ===== 对外接口 ===== */
+
+/* comm 创建时调用：dlopen 插件 + dlsym + 版本校验 + 引用计数 + 构造 hostFuncs + 调用插件 init。
+ * topoInfo 用于填充 hcclTunerCommInfo_t。未配置 HCCL_TUNER_PLUGIN 或加载失败时为 no-op，返回 HCCL_SUCCESS。 */
+HcclResult TunerSetup(HcclComm comm, const ops_hccl::TopoInfoWithNetLayerDetails *topoInfo);
+
+/* 每次 op 时调用：将 HcclCMDType 转换为 hcclOpType_t，构造 collInfo，调用插件 getCollInfo。
+ * 插件未加载时为 no-op；不支持的算子类型（HCCL_OP_INVALID）跳过，返回 HCCL_SUCCESS。 */
+HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t nBytes, HcclDataType dataType,
+                                    float *collCostTable);
+
+/* comm 销毁时调用：引用计数-- ，归零时 dlclose。 */
+HcclResult TunerCleanup(HcclComm comm);
+
+/* 返回插件是否已成功加载（selector 可据此跳过 getCollInfo 调用）。 */
+bool HcclTunerIsLoaded();
+#endif
+
+#endif /* TUNER_SETUP_H */

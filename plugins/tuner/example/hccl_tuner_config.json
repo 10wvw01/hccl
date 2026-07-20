@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "op_types": {
+    "allreduce": {
+      "rules": [
+        {
+          "match": {
+            "min_ranks": 8,
+            "max_ranks": 8,
+            "min_bytes": 0,
+            "max_bytes": 65536,
+            "data_type": "fp16"
+          },
+          "engine": 2,
+          "executor": 0,
+          "template": 6,
+          "cost": 0.0
+        },
+        {
+          "match": {
+            "min_ranks": 8,
+            "min_bytes": 65536
+          },
+          "engine": 5,
+          "executor": 0,
+          "template": 6,
+          "cost": 0.0
+        }
+      ]
+    },
+    "allgather": {
+      "rules": [
+        {
+          "match": {
+            "max_bytes": 1048576
+          },
+          "engine": 2,
+          "executor": 0,
+          "template": 6,
+          "cost": 0.0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,310 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#include "tuner_setup.h"
+
+#include <dlfcn.h>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <string>
+
+#include "alg_param.h"
+#include "hccl_common.h"
+#include "hccl_tuner_plugin.h"
+
+using ops_hccl::TopoInfoWithNetLayerDetails;
+
+namespace {
+/* ===== 进程级单例状态（mutex 保护）===== */
+constexpr int32_t LOAD_READY = 0;
+constexpr int32_t LOAD_SUCCESS = 1;
+constexpr int32_t LOAD_FAILED = -1;
+
+std::mutex g_tunerMutex;
+int32_t g_loadStatus = LOAD_READY;
+uint32_t g_refCount = 0;
+void *g_libHandle = nullptr;
+hcclTunerFuncs_t g_funcs = {};
+
+constexpr uint32_t TUNER_COMM_NAME_MAX_LENGTH = 128;
+constexpr const char *TUNER_CTX_PREFIX = "__tuner_";
+
+/* 将 HCCL 内部 HcclCMDType 映射为插件接口的 hcclOpType_t。
+ * SEND/RECV/BARRIER/BATCH_SEND_RECV 等不在 hcclOpType_t 中，返回 HCCL_OP_INVALID。 */
+hcclOpType_t HcclCMDTypeToOpType(HcclCMDType cmdType)
+{
+    switch (cmdType) {
+        case HcclCMDType::HCCL_CMD_ALLREDUCE:
+            return HCCL_OP_ALLREDUCE;
+        case HcclCMDType::HCCL_CMD_ALLGATHER:
+            return HCCL_OP_ALLGATHER;
+        case HcclCMDType::HCCL_CMD_BROADCAST:
+            return HCCL_OP_BROADCAST;
+        case HcclCMDType::HCCL_CMD_REDUCE:
+            return HCCL_OP_REDUCE;
+        case HcclCMDType::HCCL_CMD_REDUCE_SCATTER:
+            return HCCL_OP_REDUCE_SCATTER;
+        case HcclCMDType::HCCL_CMD_SCATTER:
+            return HCCL_OP_SCATTER;
+        case HcclCMDType::HCCL_CMD_ALLTOALL:
+            return HCCL_OP_ALLTOALL;
+        case HcclCMDType::HCCL_CMD_ALLTOALLV:
+            return HCCL_OP_ALLTOALLV;
+        default:
+            return HCCL_OP_INVALID;
+    }
+}
+
+/* 读取环境变量，返回 string 便于比较。 */
+std::string GetEnv(const char *name)
+{
+    const char *val = std::getenv(name);
+    return (val != nullptr) ? std::string(val) : std::string();
+}
+
+/* 版本不匹配时按 HCCL_TUNER_MISMATCH 处理。
+ * fail（默认）: 不加载插件，HCCL_ERROR，回退 CostModel；
+ * warn: HCCL_WARNING，仍加载插件；
+ * silent: 静默，仍加载插件。
+ * 返回 true 表示继续加载，false 表示中止加载。 */
+bool HandleVersionMismatch(uint32_t pluginApiVer)
+{
+    std::string mode = GetEnv("HCCL_TUNER_MISMATCH");
+    if (mode.empty()) {
+        mode = "fail";
+    }
+    if (mode == "warn") {
+        HCCL_WARNING("[Tuner] plugin apiVersion[%u] > HCCL supported[%u], continue per MISMATCH=warn.", pluginApiVer,
+                     HCCL_TUNER_API_VERSION);
+        return true;
+    }
+    if (mode == "silent") {
+        return true;
+    }
+    HCCL_ERROR("[Tuner] plugin apiVersion[%u] > HCCL supported[%u], MISMATCH=fail, tuner disabled.", pluginApiVer,
+               HCCL_TUNER_API_VERSION);
+    return false;
+}
+
+/* 首次加载插件：dlopen + dlsym + 版本校验 + 获取函数表。调用前已持锁。 */
+bool LoadPluginLocked()
+{
+    if (g_loadStatus == LOAD_SUCCESS) {
+        g_refCount++;
+        return true;
+    }
+    if (g_loadStatus == LOAD_FAILED) {
+        return false;
+    }
+
+    /* LOAD_READY：首次加载 */
+    std::string pluginPath = GetEnv("HCCL_TUNER_PLUGIN");
+    if (pluginPath.empty() || pluginPath == "none") {
+        g_loadStatus = LOAD_FAILED;
+        return false;
+    }
+
+    void *handle = dlopen(pluginPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (handle == nullptr) {
+        HCCL_WARNING("[Tuner] dlopen failed, path[%s], err[%s].", pluginPath.c_str(), dlerror());
+        g_loadStatus = LOAD_FAILED;
+        return false;
+    }
+
+    auto *desc = static_cast<hcclPluginDescriptor_t *>(dlsym(handle, "hcclTunerPlugin"));
+    auto getFuncs = reinterpret_cast<HcclResult (*)(hcclTunerFuncs_t *)>(dlsym(handle, "hcclTunerGetFuncs"));
+    if (desc == nullptr || getFuncs == nullptr) {
+        HCCL_WARNING("[Tuner] dlsym failed, err[%s].", dlerror());
+        dlclose(handle);
+        g_loadStatus = LOAD_FAILED;
+        return false;
+    }
+
+    /* 版本校验：仅校验 apiVersion，hcclVersion 保留不校验。 */
+    if (desc->apiVersion > HCCL_TUNER_API_VERSION) {
+        if (!HandleVersionMismatch(desc->apiVersion)) {
+            dlclose(handle);
+            g_loadStatus = LOAD_FAILED;
+            return false;
+        }
+    }
+
+    hcclTunerFuncs_t funcs = {};
+    if (getFuncs(&funcs) != HCCL_SUCCESS || funcs.init == nullptr || funcs.getCollInfo == nullptr) {
+        HCCL_WARNING("[Tuner] hcclTunerGetFuncs failed or returned null function pointers.");
+        dlclose(handle);
+        g_loadStatus = LOAD_FAILED;
+        return false;
+    }
+
+    g_libHandle = handle;
+    g_funcs = funcs;
+    g_refCount = 1;
+    g_loadStatus = LOAD_SUCCESS;
+    HCCL_INFO("[Tuner] plugin loaded, name[%s] pluginVersion[%u] apiVersion[%u].",
+              (desc->pluginName != nullptr) ? desc->pluginName : "?", desc->pluginVersion, desc->apiVersion);
+    return true;
+}
+
+/* 从 TopoInfoWithNetLayerDetails 填充 hcclTunerCommInfo_t。 */
+HcclResult BuildCommInfo(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo, hcclTunerCommInfo_t &commInfo,
+                         char *commNameBuf, uint32_t bufLen)
+{
+    commInfo = {};
+    if (topoInfo != nullptr) {
+        commInfo.nRanks = topoInfo->userRankSize;
+        commInfo.nServers = topoInfo->serverNum;
+        const auto &layers = topoInfo->netLayerDetails;
+        if (!layers.localNetInsSizeOfLayer.empty()) {
+            commInfo.nNpusPerServer = layers.localNetInsSizeOfLayer[0];
+        }
+        if (layers.netInstNumOfLayer.size() > 1) {
+            commInfo.nPods = layers.netInstNumOfLayer[1];
+        }
+        if (layers.netInstNumOfLayer.size() > 2) {
+            commInfo.nSuperPods = layers.netInstNumOfLayer[2];
+        }
+    }
+
+    if (commNameBuf != nullptr && bufLen > 0) {
+        commNameBuf[0] = '\0';
+        HcclResult ret = HcclGetCommName(comm, commNameBuf);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_WARNING("[Tuner] HcclGetCommName failed, ret[%d].", ret);
+        }
+        commInfo.commName = commNameBuf;
+    }
+
+    void *bufferAddr = nullptr;
+    uint64_t bufferSize = 0;
+    HcclResult ret = HcclGetHcclBuffer(comm, &bufferAddr, &bufferSize);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_WARNING("[Tuner] HcclGetHcclBuffer failed, ret[%d].", ret);
+    }
+    commInfo.bufferSize = bufferSize;
+
+    commInfo.structSize = sizeof(hcclTunerCommInfo_t);
+    return HCCL_SUCCESS;
+}
+
+/* 构造 hcclTunerHostFunctions_t。 */
+void BuildHostFuncs(hcclTunerHostFunctions_t &hostFuncs)
+{
+    hostFuncs = {};
+    hostFuncs.ctxCreate = TunerCtxCreate;
+    hostFuncs.ctxGet = TunerCtxGet;
+    hostFuncs.ctxDestroy = TunerCtxDestroy;
+    hostFuncs.logFunction = TunerLogFunction;
+    hostFuncs.structSize = sizeof(hcclTunerHostFunctions_t);
+}
+} /* namespace */
+
+bool HcclTunerIsLoaded()
+{
+    std::lock_guard<std::mutex> lock(g_tunerMutex);
+    return g_loadStatus == LOAD_SUCCESS;
+}
+
+HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo)
+{
+    /* 1. 加载插件（mutex 保护，首次 dlopen + dlsym + 版本校验） */
+    {
+        std::lock_guard<std::mutex> lock(g_tunerMutex);
+        if (!LoadPluginLocked()) {
+            return HCCL_SUCCESS; /* 未配置或加载失败，no-op，回退 CostModel */
+        }
+    }
+
+    /* 2. 填充 commInfo（不加锁，每个 comm 独立） */
+    hcclTunerCommInfo_t commInfo = {};
+    char commNameBuf[TUNER_COMM_NAME_MAX_LENGTH] = {};
+    HcclResult ret = BuildCommInfo(comm, topoInfo, commInfo, commNameBuf, sizeof(commNameBuf));
+    if (ret != HCCL_SUCCESS) {
+        HCCL_WARNING("[Tuner] BuildCommInfo failed, ret[%d].", ret);
+        return HCCL_SUCCESS;
+    }
+
+    /* 3. 构造 hostFuncs */
+    hcclTunerHostFunctions_t hostFuncs = {};
+    BuildHostFuncs(hostFuncs);
+
+    /* 4. 调用插件 init */
+    HCCL_INFO("[TunerSetup] comm[%p] nRanks[%u] nServers[%u] nNpusPerServer[%u] commName[%s] bufferSize[%llu].", comm,
+              commInfo.nRanks, commInfo.nServers, commInfo.nNpusPerServer,
+              (commInfo.commName != nullptr) ? commInfo.commName : "?", commInfo.bufferSize);
+    ret = g_funcs.init(comm, &commInfo, &hostFuncs);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_WARNING("[TunerSetup] plugin init failed, ret[%d], fall back to CostModel.", ret);
+        return HCCL_SUCCESS;
+    }
+    HCCL_INFO("[TunerSetup] plugin init success, comm[%p].", comm);
+    return HCCL_SUCCESS;
+}
+
+HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t nBytes, HcclDataType dataType,
+                                    float *collCostTable)
+{
+    if (collCostTable == nullptr) {
+        return HCCL_SUCCESS;
+    }
+
+    /* 插件未加载时 no-op */
+    {
+        std::lock_guard<std::mutex> lock(g_tunerMutex);
+        if (g_loadStatus != LOAD_SUCCESS) {
+            return HCCL_SUCCESS;
+        }
+    }
+
+    /* HcclCMDType → hcclOpType_t 转换，不支持的操作跳过 */
+    hcclOpType_t opType = HcclCMDTypeToOpType(cmdType);
+    if (opType == HCCL_OP_INVALID) {
+        return HCCL_SUCCESS;
+    }
+
+    hcclTunerCollInfo_t collInfo = {};
+    collInfo.collType = opType;
+    collInfo.nBytes = nBytes;
+    collInfo.dataType = dataType;
+    collInfo.nEngine = HCCL_NUM_ENGINES;
+    collInfo.nExecutor = HCCL_NUM_EXECUTORS;
+    collInfo.nTemplate = HCCL_NUM_TEMPLATES;
+    collInfo.structSize = sizeof(hcclTunerCollInfo_t);
+
+    HcclResult ret = g_funcs.getCollInfo(comm, &collInfo, collCostTable);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_WARNING("[Tuner] getCollInfo failed, ret[%d], ignore plugin modification.", ret);
+        return HCCL_SUCCESS;
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult TunerCleanup(HcclComm comm)
+{
+    (void)comm;
+    std::lock_guard<std::mutex> lock(g_tunerMutex);
+    if (g_loadStatus != LOAD_SUCCESS) {
+        return HCCL_SUCCESS;
+    }
+    if (g_refCount > 0) {
+        g_refCount--;
+    }
+    if (g_refCount == 0) {
+        if (g_libHandle != nullptr) {
+            HCCL_INFO("[TunerCleanup] refCount reached 0, dlclose plugin.");
+            dlclose(g_libHandle);
+            g_libHandle = nullptr;
+        }
+        g_funcs = {};
+        g_loadStatus = LOAD_READY; /* 允许后续新 comm 重新加载 */
+    }
+    return HCCL_SUCCESS;
+}
