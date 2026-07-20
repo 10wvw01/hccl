@@ -30,8 +30,6 @@ public:
                          TemplateResource& templateResource) override;
 
 private:
-    void InitKernelParams(const OpParam& param, const TemplateDataParams& tempAlgParams);
-    HcclResult SyncInterThreads(const std::vector<ThreadHandle>& threads, bool mainToSub);
     HcclResult RunAllGatherNHR(const std::vector<ThreadHandle>& threads,
                                const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 &channelIdx);
 

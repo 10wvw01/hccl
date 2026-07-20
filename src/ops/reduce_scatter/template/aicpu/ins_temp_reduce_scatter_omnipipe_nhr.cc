@@ -169,105 +169,84 @@ HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRDataSize(const AicpuNHRStepInf
 
 HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandle> &threads, u32 channelIdx)
 {
-    const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
+    u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     CHK_PRT_RET(threads.empty(),
         HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] no thread is available for NHR communication."),
         HcclResult::HCCL_E_INTERNAL);
 
-    if (templateRankSize_ <= 1) {
-        return HcclResult::HCCL_SUCCESS;
-    }
-    const bool isPcieProtocol = IsPcieProtocol(channels_);
+    if (templateRankSize_ <= 1) return HcclResult::HCCL_SUCCESS;
+    bool isPcieProtocal = IsPcieProtocol(channels_);
     // 步进参数，片数由inputOmniPipeSliceStride确定
-    const u64 repeatNum = std::max<u64>(1, tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[0].size());
+    const u64 rptNum = std::max<u64>(1, tempAlgParams_.stepSliceInfo.inputOmniPipeSliceStride[0].size());
 
     // 预计算步骤列表（算法序）
     std::vector<AicpuNHRStepInfo> steps;
     CHK_RET(GetStepInfoList(steps));
-    for (const AicpuNHRStepInfo &stepInfo : steps) {
-        CHK_RET(RunNHRStep(threads, channelIdx, stepInfo, dataTypeSize, repeatNum, isPcieProtocol));
-    }
-    return HcclResult::HCCL_SUCCESS;
-}
+    // 每一步的基础位置由输入基址和 inputOmniPipeSliceStride 共同确定；
+    // 对称路径的输入基址已包含当前 loop 在完整 user input 中的偏移。
+    for (u32 s = 0; s < steps.size(); ++s) {
+        const auto &st = steps[s];
+        const u32 recvFromRank = subCommRanks_[0].at(st.fromRank);
+        const u32 sendToRank   = subCommRanks_[0].at(st.toRank);
+        CHK_PRT_RET(recvFromRank == static_cast<u32>(-1) || sendToRank == static_cast<u32>(-1),
+            HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to map algorithm ranks to user ranks, "
+                       "fromAlgRank[%u], toAlgRank[%u], step[%u].", st.fromRank, st.toRank, st.step),
+            HcclResult::HCCL_E_INTERNAL);
 
-HcclResult InsTempReduceScatterOmniPipeNHR::RunNHRStep(const std::vector<ThreadHandle> &threads, u32 channelIdx,
-    const AicpuNHRStepInfo &stepInfo, u32 dataTypeSize, u64 repeatNum, bool isPcieProtocol)
-{
-    u32 recvFromRank = 0;
-    u32 sendToRank = 0;
-    CHK_RET(ValidateNHRStepResources(stepInfo, recvFromRank, sendToRank));
-    const ChannelInfo linkRecv = channels_.at(recvFromRank).at(channelIdx);
-    const ChannelInfo linkSend = channels_.at(sendToRank).at(channelIdx);
-    HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][RunNHR] selected channels for current step, "
-               "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u], recvChannelRank[%u], "
-               "sendChannelRank[%u].", stepInfo.step, channelIdx, recvFromRank, sendToRank,
-               linkRecv.remoteRank, linkSend.remoteRank);
+        CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
+                    channels_[recvFromRank].size() == 0 || channels_[sendToRank].size() == 0,
+                    HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] required communication channel is missing, "
+                               "recvFromRank[%u], sendToRank[%u], step[%u].", recvFromRank, sendToRank, st.step),
+            HcclResult::HCCL_E_INTERNAL);
 
-    void* recvRemoteAddr = nullptr;
-    void* sendRemoteAddr = nullptr;
-    CHK_RET(GetNHRRemoteAddrs(recvFromRank, sendToRank, linkRecv, linkSend, recvRemoteAddr, sendRemoteAddr));
-    std::vector<DataSlice> txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices;
-    CHK_RET(GetNHRDataSize(stepInfo, channelIdx, sendRemoteAddr, recvRemoteAddr, dataTypeSize, repeatNum,
-                          txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
-    const SendRecvReduceInfo info{
-        { linkSend, linkRecv }, { { txSrcSlices, txDstSlices }, { rxSrcSlices, rxDstSlices } }, dataType_, reduceOp_
-    };
-    return ExchangeNHRStep(threads, channelIdx, stepInfo, recvFromRank, sendToRank, info, isPcieProtocol);
-}
+        ChannelInfo linkRecv = channels_[recvFromRank].at(channelIdx);
+        ChannelInfo linkSend = channels_[sendToRank].at(channelIdx);
+        HCCL_DEBUG("[InsTempReduceScatterOmniPipeNHR][RunNHR] selected channels for current step, "
+                   "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u], recvChannelRank[%u], "
+                   "sendChannelRank[%u].", st.step, channelIdx, recvFromRank, sendToRank,
+                   linkRecv.remoteRank, linkSend.remoteRank);
 
-HcclResult InsTempReduceScatterOmniPipeNHR::ValidateNHRStepResources(const AicpuNHRStepInfo &stepInfo,
-    u32 &recvFromRank, u32 &sendToRank)
-{
-    recvFromRank = subCommRanks_[0].at(stepInfo.fromRank);
-    sendToRank = subCommRanks_[0].at(stepInfo.toRank);
-    CHK_PRT_RET(recvFromRank == static_cast<u32>(-1) || sendToRank == static_cast<u32>(-1),
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to map algorithm ranks to user ranks, "
-                   "fromAlgRank[%u], toAlgRank[%u], step[%u].",
-                   stepInfo.fromRank, stepInfo.toRank, stepInfo.step),
-        HcclResult::HCCL_E_INTERNAL);
-    CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
-                channels_.at(recvFromRank).empty() || channels_.at(sendToRank).empty(),
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] required communication channel is missing, "
-                   "recvFromRank[%u], sendToRank[%u], step[%u].", recvFromRank, sendToRank, stepInfo.step),
-        HcclResult::HCCL_E_INTERNAL);
-    return HcclResult::HCCL_SUCCESS;
-}
+        std::vector<DataSlice> txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices;
 
-HcclResult InsTempReduceScatterOmniPipeNHR::GetNHRRemoteAddrs(u32 recvFromRank, u32 sendToRank,
-    const ChannelInfo &linkRecv, const ChannelInfo &linkSend, void *&recvRemoteAddr, void *&sendRemoteAddr)
-{
-    if (!supportSymmetricMemory_) {
-        sendRemoteAddr = linkSend.remoteCclMem.addr;
-        recvRemoteAddr = linkRecv.remoteCclMem.addr;
-        return HcclResult::HCCL_SUCCESS;
-    }
-    HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, sendToRank, &sendRemoteAddr);
-    CHK_PRT_RET(ret != HCCL_SUCCESS || sendRemoteAddr == nullptr,
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
-                   "the send target, sendToRank[%u], ret[%d], ptr[%p].", sendToRank, ret, sendRemoteAddr),
-        HcclResult::HCCL_E_INTERNAL);
-    ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &recvRemoteAddr);
-    CHK_PRT_RET(ret != HCCL_SUCCESS || recvRemoteAddr == nullptr,
-        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
-                   "the receive source, recvFromRank[%u], ret[%d], ptr[%p].", recvFromRank, ret, recvRemoteAddr),
-        HcclResult::HCCL_E_INTERNAL);
-    return HcclResult::HCCL_SUCCESS;
-}
+        void* sendRemoteAddr = nullptr;
+        void* recvRemoteAddr = nullptr;
+        if (supportSymmetricMemory_) {
+            // 对称路径通过窗口取得对端 user input 地址，归约直接在各 rank 的 input 之间进行。
+            HcclResult ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, sendToRank, &sendRemoteAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || sendRemoteAddr == nullptr,
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
+                                   "the send target, sendToRank[%u], ret[%d], ptr[%p].",
+                                   sendToRank, ret, sendRemoteAddr),
+                        HcclResult::HCCL_E_INTERNAL);
+            ret = HcclSymWinGetPeerPointer(inputSymWindow_, inputOffset_, recvFromRank, &recvRemoteAddr);
+            CHK_PRT_RET(ret != HCCL_SUCCESS || recvRemoteAddr == nullptr,
+                        HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] failed to get peer input pointer for "
+                                   "the receive source, recvFromRank[%u], ret[%d], ptr[%p].",
+                                   recvFromRank, ret, recvRemoteAddr),
+                        HcclResult::HCCL_E_INTERNAL);
+        } else {
+            // 普通路径在 ccl scratch 上进行归约交换。
+            sendRemoteAddr = linkSend.remoteCclMem.addr;
+            recvRemoteAddr = linkRecv.remoteCclMem.addr;
+        }
 
-HcclResult InsTempReduceScatterOmniPipeNHR::ExchangeNHRStep(const std::vector<ThreadHandle> &threads,
-    u32 channelIdx, const AicpuNHRStepInfo &stepInfo, u32 recvFromRank, u32 sendToRank,
-    const SendRecvReduceInfo &info, bool isPcieProtocol)
-{
-    if (isPcieProtocol) {
-        CHK_PRT_RET(SendRecvReadReduce(info, threads[channelIdx]),
-            HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] read-reduce communication failed, "
-                       "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
-                       stepInfo.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
-    } else {
-        CHK_PRT_RET(SendRecvBatchWriteReduce(info, threads[channelIdx]),
-            HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] batch write-reduce communication failed, "
-                       "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
-                       stepInfo.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
+        CHK_RET(GetNHRDataSize(st, channelIdx, sendRemoteAddr, recvRemoteAddr, dataTypeSize, rptNum,
+                    txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
+
+        SendRecvReduceInfo info{
+            { linkSend, linkRecv }, { { txSrcSlices, txDstSlices }, { rxSrcSlices, rxDstSlices } }, dataType_, reduceOp_
+        };
+        if (isPcieProtocal) {
+            CHK_PRT_RET(SendRecvReadReduce(info, threads[channelIdx]),
+                HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] read-reduce communication failed, "
+                           "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
+                           st.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
+        } else {
+            CHK_PRT_RET(SendRecvBatchWriteReduce(info, threads[channelIdx]),
+                HCCL_ERROR("[InsTempReduceScatterOmniPipeNHR][RunNHR] batch write-reduce communication failed, "
+                           "step[%u], channelIdx[%u], recvFromRank[%u], sendToRank[%u].",
+                           st.step, channelIdx, recvFromRank, sendToRank), HcclResult::HCCL_E_INTERNAL);
+        }
     }
     return HcclResult::HCCL_SUCCESS;
 }
