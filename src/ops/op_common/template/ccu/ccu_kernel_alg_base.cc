@@ -147,6 +147,7 @@ CcuResult CreateMultiOpReduceV2(CcuKernelCtxBase &ctx, GroupReduceVar &var,
                                 const size_t channels[], uint32_t channelCount, HcclDataType dataType,
                                      HcclDataType outputDataType, HcclReduceOp opType)
 {
+#ifdef Ascend_950_CCU_V2
     AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated);
 
     if (ctx.IsLoopEntityRegistered("reduce")) {
@@ -190,7 +191,7 @@ CcuResult CreateMultiOpReduceV2(CcuKernelCtxBase &ctx, GroupReduceVar &var,
         loops.loops[index].reset(
             new ccu::Loop(loops.loopParam[index], loops.addrOffset[index], *loops.body[index]));
     }
-
+#endif
     return CCU_SUCCESS;
 }
 
@@ -318,6 +319,7 @@ CcuResult GroupReduceV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
                         std::vector<ccu::RemoteAddr> src, ccu::LocalAddr localSrc, GroupOpSizeVars goSize, HcclDataType dataType,
                         HcclDataType outputDataType, HcclReduceOp opType)
 {
+#ifdef Ascend_950_CCU_V2
     GroupReduceVar var;
     ccu::Variable tmp;
     ccu::Variable sliceSize;
@@ -415,6 +417,7 @@ CcuResult GroupReduceV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t
         xnOffsetCfg = 0;
         ccu::LoopGroup group(goSize.parallelParam, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
     }
+#endif
     return CCU_SUCCESS;
 }
 
@@ -461,6 +464,7 @@ CcuResult CreateMultiOpBroadcastV1(CcuKernelCtxBase &ctx, GroupBroadcastVar &var
 CcuResult CreateMultiOpBroadcastV2(CcuKernelCtxBase &ctx, GroupBroadcastVar &var,
                                 const size_t channels[], uint32_t channelCount)
 {
+#ifdef Ascend_950_CCU_V2
     AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated);
 
     if (ctx.IsLoopEntityRegistered("broadcast")) {
@@ -495,7 +499,7 @@ CcuResult CreateMultiOpBroadcastV2(CcuKernelCtxBase &ctx, GroupBroadcastVar &var
         loops.loops[index].reset(
             new ccu::Loop(loops.loopParam[index], loops.addrOffset[index], *loops.body[index]));
     }
-
+#endif
     return CCU_SUCCESS;
 }
 
@@ -594,6 +598,7 @@ CcuResult GroupBroadcastV1(CcuKernelCtxBase &ctx, const size_t channels[], uint3
 CcuResult GroupBroadcastV2(CcuKernelCtxBase &ctx, const size_t channels[], uint32_t channelCount,
                         ccu::LocalAddr localDst, std::vector<ccu::RemoteAddr> dst, ccu::LocalAddr src, GroupOpSizeVars goSize)
 {
+#ifdef Ascend_950_CCU_V2
     GroupBroadcastVar var;
     ccu::Variable sliceSize;
     ccu::Variable paraCfg;
@@ -668,6 +673,7 @@ CcuResult GroupBroadcastV2(CcuKernelCtxBase &ctx, const size_t channels[], uint3
         xnOffsetCfg = 0;
         ccu::LoopGroup group(goSize.parallelParam, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
     }
+#endif
     return CCU_SUCCESS;
 }
 
@@ -963,6 +969,7 @@ CcuResult CreateMultiOpCopyV1(CcuKernelCtxBase &ctx, GroupCopyVar &var)
 
 CcuResult CreateMultiOpCopyV2(CcuKernelCtxBase &ctx, GroupCopyVar &var)
 {
+#ifdef Ascend_950_CCU_V2
     AllocGoResource(ctx.moConfig, ctx.moRes, ctx.resourceAllocated, CCU_MS_LOCAL_COPY_LOOP_COUNT, LOCAL_COPY_MS_PER_LOOP);
 
     std::string loopType = "localcopy";
@@ -990,7 +997,7 @@ CcuResult CreateMultiOpCopyV2(CcuKernelCtxBase &ctx, GroupCopyVar &var)
         loops.loops[index].reset(
             new ccu::Loop(loops.loopParam[index], loops.addrOffset[index], *loops.body[index]));
     }
-
+#endif
     return CCU_SUCCESS;
 }
 
@@ -1070,6 +1077,7 @@ CcuResult GroupCopyV1(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr 
 
 CcuResult GroupCopyV2(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr src, GroupOpSizeVars goSize)
 {
+#ifdef Ascend_950_CCU_V2
     GroupCopyVar &var = ctx.GetGcVar();
     ccu::Variable sliceSize;
     ccu::Variable paraCfg;
@@ -1129,6 +1137,7 @@ CcuResult GroupCopyV2(CcuKernelCtxBase &ctx, ccu::LocalAddr dst, ccu::LocalAddr 
         xnOffsetCfg = 0;
         ccu::LoopGroup group(goSize.parallelParam, offsetCfg, xnOffsetCfg, ctx.moConfig.loopCount, grpLoops);
     }
+#endif
     return CCU_SUCCESS;
 }
 

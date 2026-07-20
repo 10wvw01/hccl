@@ -56,9 +56,9 @@ HcclResult HcclRecv(
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (!shouldGoOutPlace(deviceType)) {
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return HcclRecvInner(recvBuf, count, dataType, srcRank, comm, stream);
     }
 

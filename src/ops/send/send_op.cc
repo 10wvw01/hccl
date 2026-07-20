@@ -58,9 +58,9 @@ HcclResult HcclSend(
         return HcclSendInner(sendBuf, count, dataType, destRank, comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    if (!shouldGoOutPlace(deviceType)) {
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return HcclSendInner(sendBuf, count, dataType, destRank, comm, stream);
     }
     

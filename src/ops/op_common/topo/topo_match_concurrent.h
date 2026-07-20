@@ -12,7 +12,6 @@
 #define TOPO_MATCH_CONCURRENT
 #include <string>
 #include <vector>
-#include <map>
 #include <hccl/hccl_types.h>
 #include "alg_param.h"
 #include "topo_match_base.h"
@@ -26,7 +25,7 @@ public:
  
     std::string Describe() const override
     {
-        return "Topo Match for Concurrent Algorithm (CURRENTLY only 910_95 is supported).";
+        return "Topo Match for Concurrent Algorithm (supports 950/960 out-place devices).";
     }
  
     HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
@@ -35,6 +34,6 @@ private:
     u32 myRank_{0};
     std::vector<u32> rankIds_;
 };
-} // namespace Hccl
- 
-#endif // !HCCLV2_TOPO_MATCH_CONCURRENT
+} // namespace ops_hccl
+
+#endif // TOPO_MATCH_CONCURRENT
