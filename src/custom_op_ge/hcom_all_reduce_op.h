@@ -13,15 +13,13 @@
 
 #include "hccl_custom_op.h"
 
-namespace hccl {
 /**
  * HcomAllReduce 的 custom op 适配层。
  * 继承 HcclCustomOpBase，后续按需 override 各流程步骤。
  */
-class HcclAllReduceOp : public HcclCustomOpBase {
+class HcomAllReduce : public hccl::HcclCustomOpBase {
  public:
-  ~HcclAllReduceOp() override = default;
+  ~HcomAllReduce() override = default;
 };
-}  // namespace hccl
 
 #endif  // HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H

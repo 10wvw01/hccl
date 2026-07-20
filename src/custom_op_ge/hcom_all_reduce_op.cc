@@ -10,11 +10,4 @@
 
 #include "hcom_all_reduce_op.h"
 
-namespace {
-ge::BaseCustomOp *CreateHcomAllReduceOp()
-{
-  return new hccl::HcclAllReduceOp();
-}
-
-const ge::CustomOpCreatorRegister g_hcomAllReduceOpReg("HcomAllReduce", CreateHcomAllReduceOp);
-}  // namespace
+REG_AUTO_MAPPING_OP(HcomAllReduce);
