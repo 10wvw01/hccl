@@ -320,10 +320,10 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     const char* rsBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_RS_CLOS");
     const char* gatherBwRatioXEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_MESH");
     const char* gatherBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_CLOS");
-    double rXRS = std::stod(std::string(rsBwRatioXEnv));
-    double rYRS = std::stod(std::string(rsBwRatioYEnv));
-    double rXG = std::stod(std::string(gatherBwRatioXEnv));
-    double rYG = std::stod(std::string(gatherBwRatioYEnv));
+    double rXRS = (rsBwRatioXEnv != nullptr) ? std::stod(std::string(rsBwRatioXEnv)) : BW_OMNI_UBX_CCU_SCHED_RS_MESH;
+    double rYRS = (rsBwRatioYEnv != nullptr) ? std::stod(std::string(rsBwRatioYEnv)) : BW_OMNI_UBX_CCU_SCHED_RS_CLOS;
+    double rXG = (gatherBwRatioXEnv != nullptr) ? std::stod(std::string(gatherBwRatioXEnv)) : BW_OMNI_UBX_CCU_SCHED_G_MESH;
+    double rYG = (gatherBwRatioYEnv != nullptr) ? std::stod(std::string(gatherBwRatioYEnv)) : BW_OMNI_UBX_CCU_SCHED_G_CLOS;
     HCCL_DEBUG("[%s] rankId[%d], rXRS[%f]", __func__, myRank_, rXRS);
     HCCL_DEBUG("[%s] rankId[%d], rYRS[%f]", __func__, myRank_, rYRS);
     HCCL_DEBUG("[%s] rankId[%d], rXG [%f]", __func__, myRank_, rXG);
