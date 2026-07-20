@@ -204,20 +204,18 @@ HcclResult InsTempAllGatherNHR::BuildStepSlices(const ChannelInfo &channelSend,
         for (u32 i = 0; i < stepInfo.nSlices; ++i) {
             SliceCalcInfo info = CalcSliceInfo(stepInfo, rpt, i, channelIdx);
 
-            if (mode == StepBuildMode::LAST_STEP_WRITE_THEN_READ) {
-                if (i == 0) {
-                    txSrcSlices.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, info.txScratchOff, info.txSliceSize,
-                        info.txSliceSize / dataTypeSize);
-                    txDstSlices.emplace_back(sendCclBuffAddr, info.txScratchOff, info.txSliceSize, info.txSliceSize / dataTypeSize);
-                } else {
-                    const u64 rxOutputOff = tempAlgParams_.buffInfo.outBuffBaseOff + rpt * tempAlgParams_.outputRepeatStride +
-                        tempAlgParams_.outputSliceStride * info.rxIdx + info.rxPartialOffset;
-                    rxSrcSlices.emplace_back(recvCclBuffAddr, info.rxScratchOff, info.rxSliceSize, info.rxSliceSize / dataTypeSize);
-                    rxDstSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, rxOutputOff, info.rxSliceSize,
-                        info.rxSliceSize / dataTypeSize);
-                    if (rpt == 0) {
-                        lastStepReadSliceIdxs_.push_back(info.rxIdx);
-                    }
+            if (mode == StepBuildMode::LAST_STEP_READ_TO_OUTPUT) {
+                // In the last step, fromRank already has every rx slice in its CCL buffer: rx[0] is its own
+                // slice and rx[1..] arrived in previous steps. Read all of them directly to the output.
+                const u64 rxOutputOff = tempAlgParams_.buffInfo.outBuffBaseOff +
+                    rpt * tempAlgParams_.outputRepeatStride + tempAlgParams_.outputSliceStride * info.rxIdx +
+                    info.rxPartialOffset;
+                rxSrcSlices.emplace_back(recvCclBuffAddr, info.rxScratchOff, info.rxSliceSize,
+                    info.rxSliceSize / dataTypeSize);
+                rxDstSlices.emplace_back(tempAlgParams_.buffInfo.outputPtr, rxOutputOff, info.rxSliceSize,
+                    info.rxSliceSize / dataTypeSize);
+                if (rpt == 0) {
+                    lastStepReadSliceIdxs_.push_back(info.rxIdx);
                 }
             } else {
                 txSrcSlices.emplace_back(tempAlgParams_.buffInfo.hcclBuff.addr, info.txScratchOff, info.txSliceSize,
@@ -232,7 +230,7 @@ HcclResult InsTempAllGatherNHR::BuildStepSlices(const ChannelInfo &channelSend,
     return HCCL_SUCCESS;
 }
 
-HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<ThreadHandle> &threads,
+HcclResult InsTempAllGatherNHR::RunLastStepReadToOutput(const std::vector<ThreadHandle> &threads,
     const ChannelInfo &channelSend, const ChannelInfo &channelRecv,
     const AicpuNHRStepInfo &stepInfo, const u32 &channelIdx, u32 step,
     bool &postLocalCopyLaunched)
@@ -241,17 +239,11 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
     std::vector<DataSlice> txDstSlices;
     std::vector<DataSlice> rxSrcSlices;
     std::vector<DataSlice> rxDstSlices;
-    CHK_RET(BuildLastStepWriteThenReadSlices(channelSend, channelRecv, stepInfo, channelIdx,
+    CHK_RET(BuildLastStepReadToOutputSlices(channelSend, channelRecv, stepInfo, channelIdx,
         txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices));
 
     TxRxChannels sendRecvChannels(channelSend, channelRecv);
     const std::vector<DataSlice> emptySlices;
-    TxRxSlicesList writeSlicesList({txSrcSlices, txDstSlices}, {emptySlices, emptySlices});
-    SendRecvInfo writeInfo(sendRecvChannels, writeSlicesList);
-    CHK_PRT_RET(SendRecvBatchWrite(writeInfo, threads[channelIdx]),
-        HCCL_ERROR("[InsTempAllGatherNHR] last step write failed (step=%u)", step),
-        HcclResult::HCCL_E_INTERNAL);
-
     if (rxSrcSlices.empty()) {
         return HcclResult::HCCL_SUCCESS;
     }
@@ -262,6 +254,8 @@ HcclResult InsTempAllGatherNHR::RunLastStepWriteThenRead(const std::vector<Threa
             postCopyThreadIdx, threads.size()),
         HcclResult::HCCL_E_INTERNAL);
     constexpr u32 POST_COPY_NOTIFY_IDX = 1;
+    // No last-step data is written to the local scratch. Once the previous step has completed, PostLocalCopy
+    // can consume the slices already in local scratch while the communication thread reads the remaining slices.
     CHK_RET(PreSyncInterThreads(threads[channelIdx], {threads[postCopyThreadIdx]}, {POST_COPY_NOTIFY_IDX}));
     CHK_RET(PostLocalCopy(threads[postCopyThreadIdx], channelIdx));
     postLocalCopyLaunched = true;
@@ -298,7 +292,7 @@ HcclResult InsTempAllGatherNHR::RunStepNHR(const std::vector<ThreadHandle> &thre
 
     const bool readLastStepToOutput = readLastStepToOutput_ && step == nSteps - 1 && stepInfo.nSlices > 1;
     if (readLastStepToOutput) {
-        CHK_RET(RunLastStepWriteThenRead(threads, channelSend, channelRecv, stepInfo, channelIdx, step,
+        CHK_RET(RunLastStepReadToOutput(threads, channelSend, channelRecv, stepInfo, channelIdx, step,
             postLocalCopyLaunched));
         return HCCL_SUCCESS;
     }
