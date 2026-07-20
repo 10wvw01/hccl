@@ -316,13 +316,17 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<double> &endpointAttrBwAvgG)
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double rXRS = ParseBandWidthRSX();
-    double rYRS = ParseBandWidthRSY();
-    double rXG = GetExternalInputBandWidthGX();
-    double rYG = GetExternalInputBandWidthGY();
+    const char* rsBwRatioXEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_RS_MESH");
+    const char* rsBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_RS_CLOS");
+    const char* gatherBwRatioXEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_MESH");
+    const char* gatherBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_CLOS");
+    double rXRS = std::stod(std::string(rsBwRatioXEnv));
+    double rYRS = std::stod(std::string(rsBwRatioYEnv));
+    double rXG = std::stod(std::string(gatherBwRatioXEnv));
+    double rYG = std::stod(std::string(gatherBwRatioYEnv));
     HCCL_DEBUG("[%s] rankId[%d], rXRS[%f]", __func__, myRank_, rXRS);
     HCCL_DEBUG("[%s] rankId[%d], rYRS[%f]", __func__, myRank_, rYRS);
-    HCCL_DEBUG("[%s] rankId[%d], rXG[%f]", __func__, myRank_, rXG);
+    HCCL_DEBUG("[%s] rankId[%d], rXG [%f]", __func__, myRank_, rXG);
     HCCL_DEBUG("[%s] rankId[%d], rYG[%f]", __func__, myRank_, rYG);
 
     // double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
