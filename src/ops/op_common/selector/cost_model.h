@@ -74,6 +74,7 @@ public:
     static void CalcMeshParam(float n, int netType, int portNum, float &A, float &B);
     // 计算NHR算法的A、B参数
     static void CalcNHRParams(float n, int netType, int portNum, float &A, float &B);
+    // 计算Latency参数, taskNum需要写算法的人预估
     static void CalcLatencyParams(int taskNum, float &C);
 
 private:
