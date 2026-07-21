@@ -9,6 +9,7 @@
  */
 
 #include "hccl_comm.h"
+#include "hccl_host_comm_dl.h"
 #include "load_kernel.h"
 #include "log.h"
 
