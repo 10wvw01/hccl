@@ -713,6 +713,10 @@ if(BUILD_OPEN_PROJECT)
         rt2_registry
         -Wl,--no-whole-archive
         -Wl,-Bsymbolic
+        -Wl,-z,relro
+        -Wl,-z,now
+        -Wl,-z,noexecstack
+        $<$<CONFIG:Release>:-s>
     )
 
     target_link_directories(opgraph_hccl PRIVATE
