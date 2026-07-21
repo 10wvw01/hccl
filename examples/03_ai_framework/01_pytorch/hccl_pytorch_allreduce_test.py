@@ -26,17 +26,20 @@ def run_hccl(rank: int, world_size: int, master_ip: str, master_port: int):
         backend="hccl", rank=rank, world_size=world_size, init_method=init_method
     )
 
-    # 构造输入数据，1行8列，值为0~7
-    torch_tensor = torch.arange(world_size, dtype=torch.float32, device="npu")
-    print("[Rank %d] Input: %s" % (rank, torch_tensor))
-
     try:
+        # 构造输入数据，1行8列，值为0~7
+        torch_tensor = torch.arange(world_size, dtype=torch.float32, device="npu")
+        print("[Rank %d] Input: %s" % (rank, torch_tensor))
+
         # 调用 HCCL 接口，下发 AllReduce 集合通信算子
         dist.all_reduce(torch_tensor, op=dist.ReduceOp.SUM)
     except Exception as e:
         print("[Rank %d] Error occurred: %s" % (rank, e))
+        raise
     else:
         print("[Rank %d] Output: %s" % (rank, torch_tensor))
+    finally:
+        dist.destroy_process_group()
 
 
 def main():
