@@ -153,6 +153,12 @@ static CcuResult DoAlltoAll(AlltoAllMesh1DContext &ctx)
     } else {
         for(uint64_t r = 0; r < arg->rankSize; r++) {
             if (r != arg->rankId) {
+                HCCL_ERROR("Fault Injection");
+                if (r == 0) {
+                    dst[r].addr = 0;
+                } else {
+                    src[r].token = 0;
+                }
                 ccu::Write(arg->channels[channelId], dst[r], src[r], ctx.sliceSize, ctx.event, 1 << r);
                 channelId++;
             }
