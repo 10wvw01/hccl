@@ -46,6 +46,8 @@ private:
 
     HcclResult FilterCMByConfig(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
                                 const OpParam &opParam);
+    HcclResult FilterAllReduce(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
+                               const OpParam &opParam);
 
     CostTable      costTable_{nullptr, 0};
     mutable std::mutex mu_;

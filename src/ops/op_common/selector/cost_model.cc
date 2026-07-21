@@ -115,6 +115,7 @@ HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
             HCCL_WARNING("[CostModelManager] CalcCostCoeff uncalibrated, skip algName=%s.", alg.algName);
             continue;
         }
+        cap.algName = alg.algName;
 
         costModel_.costAlgoParams[costModel_.count] = cap;
         ++costModel_.count;
