@@ -98,7 +98,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     const uint64_t outputStart = reinterpret_cast<uint64_t>(param.outputPtr);
     const uint64_t outputEnd = outputStart + outputSize - 1;
 
-    // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按(照outplace场景特殊处理, 正常使能cache
+    // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按照outplace场景特殊处理, 正常使能cache
     if (param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
         CHK_PRT_RET(!(inputStart == outputStart && inputSize == outputSize),
             HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] broadcast shoud input==output[0x%016llx, 0x%016llx] "

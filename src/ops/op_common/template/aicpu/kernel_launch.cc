@@ -535,7 +535,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
                     }
                 } while (0);
 
-                if (ret != HCCL_SUCCESS) {
+                if (UNLIKELY(ret != HCCL_SUCCESS)) {
                     if (HcommIsSupportHcommAicpuTsTaskCacheClear()) {
                         HCCL_ERROR("[%s] cache submit error, clear tag[%s]", __func__, cacheTag.c_str());
                         (void)HcommAicpuTsTaskCacheClear(cacheTag.c_str());
@@ -1233,8 +1233,6 @@ extern "C" unsigned int HcclLaunchAicpuCacheEvitKernel(HcclComm *comm)
     HCCL_INFO("Entry-%s, comm[%p]", __func__, *comm);
     if (*comm != nullptr) {
         AicpuTaskCacheCommManager::Instance().EvitTaskCache(*comm);
-    } else {
-        AicpuTaskCacheCommManager::Instance().EvitAllTaskCache();
     }
 
     return 0;

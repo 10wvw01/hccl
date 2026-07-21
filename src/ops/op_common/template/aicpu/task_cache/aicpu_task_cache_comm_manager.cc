@@ -43,18 +43,4 @@ void AicpuTaskCacheCommManager::EvitTaskCache(HcclComm comm)
     }
 }
 
-void AicpuTaskCacheCommManager::EvitAllTaskCache()
-{
-    std::unique_lock<std::shared_timed_mutex> lock(mutex_);
-    if (HcommIsSupportHcommAicpuTsTaskCacheClear()) {
-        for (const auto &pair : commToTagMap_) {
-            for (const auto &tag : pair.second) {
-                HCCL_INFO("[EvitAllTaskCache] clear cache tag[%s]", tag.c_str());
-                CHK_PRT(static_cast<HcclResult>(HcommAicpuTsTaskCacheClear(tag.c_str())));
-            }
-        }
-    }
-    commToTagMap_.clear();
-}
-
 } // namespace ops_hccl
