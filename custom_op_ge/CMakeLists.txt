@@ -10,6 +10,14 @@
 
 # HCCL custom op .so for GE (EagerExecuteOp 适配层)
 # 通过 GE 路径 B (op_graph/lib/<os>/<arch>/*.so) 加载
+find_package(graph REQUIRED)
+
+find_library(_CANN_LOWERING_LIB
+    NAMES liblowering.so
+    PATH_SUFFIXES lib64
+    NO_CMAKE_SYSTEM_PATH
+    NO_CMAKE_FIND_ROOT_PATH)
+
 add_library(custop_hccl SHARED
     hccl_custom_op.cc
     hccl_op_utils.cc
@@ -28,6 +36,8 @@ target_link_libraries(custop_hccl PRIVATE
     hcomm
     unified_dlog
     c_sec
+    graph
+    ${_CANN_LOWERING_LIB}
 )
 
 target_compile_options(custop_hccl PRIVATE
