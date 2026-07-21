@@ -379,6 +379,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
     scratchParam.opMode = param.opMode;
     scratchParam.engine = param.engine;
+    scratchParam.needSetStepNum = omniNeedSetStepNum_;
     std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
     u64 maxCountPerLoop = loopInfo[0];
     u64 loopTimes = loopInfo[1];
