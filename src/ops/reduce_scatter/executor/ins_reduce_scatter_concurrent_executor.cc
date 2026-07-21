@@ -103,7 +103,8 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     std::vector<HcclChannelDesc> channelDescs1;
     std::vector<HcclChannelDesc> channelDescsTemp1;
 
-    CHK_RET(CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1)); 
+    CHK_RET(isUBX ? CalcChannelRequestNhrMultiJetty(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1)
+                  : CalcChannelRequestNHRWithPriorityTopo(comm, param, topoInfo, temp1HierarchyInfo, channelDescsTemp1, CommTopo::COMM_TOPO_CLOS)); 
     for (auto channel : channelDescsTemp1) {
         if (channel.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
             channelDescs1.push_back(channel);
@@ -224,7 +225,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     u32 templateScratchMultiplier0 = tempAlg0->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u32 templateScratchMultiplier1 = tempAlg1->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u64 portNum0 = rankSize_ - 1;
-    u64 portNum = 4;
+    u64 portNum = isUBX ? 4 : CLOS_PORT_NUM_SERVER_V2;
     if (param.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
         portNum0 = MESH_BW_SCHED;
         portNum = CLOS_BW_SCHED;

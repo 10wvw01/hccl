@@ -8,26 +8,23 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_TEMP_REDUCE_SCATTER_CONCURRENT_MESH_NHR_H
-#define HCCL_CCU_TEMP_REDUCE_SCATTER_CONCURRENT_MESH_NHR_H
+#ifndef HCCL_CCU_TEMP_ALL_REDUCE_CONCURRENT_MESH_NHR_H
+#define HCCL_CCU_TEMP_ALL_REDUCE_CONCURRENT_MESH_NHR_H
 
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_reduce_scatter_mesh1d.h"
-#include "ccu_kernel_reduce_scatter_nhr1d_mem2mem.h"
+#include "kernel/ccu_kernel_all_reduce_mesh1d.h"
+#include "ccu_kernel_all_reduce_nhr1d_mem2mem.h"
 
 namespace ops_hccl {
 
-class CcuTempReduceScatterConcurrentMeshNHR : public CcuAlgTemplateBase {
+class CcuTempAllReduceConcurrentMeshNHR : public CcuAlgTemplateBase {
 public:
-    CcuTempReduceScatterConcurrentMeshNHR() = default;
-    explicit CcuTempReduceScatterConcurrentMeshNHR(const OpParam& param, const u32 rankId,
-                                                   const std::vector<std::vector<u32>>& subCommRanks);
-    ~CcuTempReduceScatterConcurrentMeshNHR() override;
+    CcuTempAllReduceConcurrentMeshNHR() = default;
+    explicit CcuTempAllReduceConcurrentMeshNHR(const OpParam& param, const u32 rankId,
+                                               const std::vector<std::vector<u32>>& subCommRanks);
+    ~CcuTempAllReduceConcurrentMeshNHR() override;
 
-    std::string Describe() const override
-    {
-        return "Template of ReduceScatter ccu concurrent(Mesh+NHR)";
-    }
+    std::string Describe() const override { return "Template of AllReduce ccu concurrent(Mesh+NHR)"; }
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
@@ -39,14 +36,19 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
 private:
-    HcclResult CalcDataSplit(const OpParam& param, const TemplateDataParams& templateDataParams,
+    HcclResult CalcDataSplit(const TemplateDataParams& templateDataParams,
                              TemplateDataParams& meshParams, TemplateDataParams& nhrParams,
                              u64& meshCount, u64& nhrCount) const;
     HcclResult CalcMeshRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                            CcuKernelInfo& meshKernelInfo);
     HcclResult CalcNhrRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                           CcuKernelInfo& nhrKernelInfo);
-    HcclResult GetNHRStepInfo(u32 step, NHRStepInfo& stepInfo);
+
+    // NHR 算法逻辑复刻
+    HcclResult CalcSlice(u64 dataSize, RankSliceInfo& sliceInfoVec) const;
+    HcclResult GetStepInfo(u32 step, u32 nSteps, NHRStepInfo& stepInfo) const;
+    HcclResult GetReduceScatterStepInfo(u32 step, NHRStepInfo& stepInfo) const;
+    HcclResult GetAllGatherStepInfo(u32 step, u32 nSteps, NHRStepInfo& stepInfo) const;
     HcclResult ProcessNHRStepInfo(HcclComm comm, u32 enableDieNum, u32 enableDieId,
                                   std::vector<NHRStepInfo>& stepInfoVector, std::map<u32, u32>& rank2ChannelIdx,
                                   std::vector<std::vector<HcclChannelDesc>>& channelsPerDie);
@@ -62,4 +64,4 @@ private:
 };
 
 } // namespace ops_hccl
-#endif // HCCL_CCU_TEMP_REDUCE_SCATTER_CONCURRENT_MESH_NHR_H
+#endif // HCCL_CCU_TEMP_ALL_REDUCE_CONCURRENT_MESH_NHR_H
