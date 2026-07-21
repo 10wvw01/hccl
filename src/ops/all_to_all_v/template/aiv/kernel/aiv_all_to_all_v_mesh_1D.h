@@ -20,12 +20,11 @@ public:
     __aicore__ inline AivAlltoAllVMesh1D() {
     }
 
-    __aicore__ inline void InitCoreInfo(ExtraArgs &extraArgsPerLoop, uint64_t currDataCount)
+    __aicore__ inline void InitCoreInfo(ExtraArgs &extraArgsPerLoop)
     {
-        // 发送数据的编排：从剩余 sendCounts 中取本轮量（只读不写，递减由 Process 中 coreIndex_==0 的核统一完成）
-        uint64_t sendThisLoop = min(extraArgsPerLoop.sendCounts[targetRank_], currDataCount);
-        uint64_t dataPerCore = sendThisLoop / coreNumPerRank_; // 数据量很少的时候，dataPerCore为0
-        uint64_t remainder = sendThisLoop % coreNumPerRank_;
+        // 发送数据的编排
+        uint64_t dataPerCore = extraArgsPerLoop.sendCounts[targetRank_] / coreNumPerRank_; // 数据量很少的时候，dataPerCore为0
+        uint64_t remainder = extraArgsPerLoop.sendCounts[targetRank_] % coreNumPerRank_;
         // 数据对不齐的情况
         uint64_t innerDispls = 0;
         if (coreIndex_ < remainder) { // 这部分核需要多处理一个数据
@@ -38,10 +37,9 @@ public:
         sendInputOffset_ = input_ + (extraArgsPerLoop.sendDispls[targetRank_] + innerDispls)  * sizeof(T);
         sendOutputOffset_ = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank_ * cclBufferCountPerRank_ + innerDisplsForCcl_) * sizeof(T);
 
-        //接收数据的编排：从剩余 recvCounts 中取本轮量
-        uint64_t recvThisLoop = min(extraArgsPerLoop.recvCounts[targetRank_], currDataCount);
-        dataPerCore = recvThisLoop / coreNumPerRank_;
-        remainder = recvThisLoop % coreNumPerRank_;
+        //接收数据的编排
+        dataPerCore = extraArgsPerLoop.recvCounts[targetRank_] / coreNumPerRank_;
+        remainder = extraArgsPerLoop.recvCounts[targetRank_] % coreNumPerRank_;
         if (coreIndex_ < remainder) { // 这部分核需要多处理一个数据
             innerDispls = coreIndex_ * dataPerCore + coreIndex_;
             recvCurCount_ = dataPerCore + 1;
@@ -120,7 +118,7 @@ public:
     }
 
     // 控核每轮：两阶段（先全部 put，再全部 get），flag 用 per-rank 两区
-    __aicore__ inline void ProduceConsumeCtrlCore(uint64_t loop, ExtraArgs &extraArgsPerLoop, uint64_t currDataCount)
+    __aicore__ inline void ProduceConsumeCtrlCore(uint64_t loop, ExtraArgs &extraArgsPerLoop)
     {
         // PRODUCE：本核负责的每个 dstRank，input 本轮 chunk -> GM_IN[rank_][dstRank 区]
         for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
@@ -128,7 +126,7 @@ public:
             if (dstRank >= rankSize_) {
                 break;
             }
-            sendCurCount_ = min(extraArgsPerLoop.sendCounts[dstRank], currDataCount); // 从剩余量取本轮量
+            sendCurCount_ = extraArgsPerLoop.sendCounts[dstRank];
             if (sendCurCount_ == 0) { // 与多核 Producer 一致
                 continue;
             }
@@ -143,9 +141,6 @@ public:
             CpGM2GM((__gm__ T *)sendOutputOffset_, (__gm__ T *)sendInputOffset_, sendCurCount_);
             PipeBarrier<PIPE_ALL>();
             Record(dstRank, rank_ + rankSize_, loop);               // C 区 [dstRank][rank_+rankSize] = data-ready
-            // 递减剩余量并前移 displs
-            extraArgsPerLoop.sendCounts[dstRank] -= sendCurCount_;
-            extraArgsPerLoop.sendDispls[dstRank] += sendCurCount_;
         }
         // CONSUME：本核负责的每个 dstRank，GM_IN[dstRank][rank_ 区] -> output
         for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
@@ -153,7 +148,7 @@ public:
             if (dstRank >= rankSize_) {
                 break;
             }
-            recvCurCount_ = min(extraArgsPerLoop.recvCounts[dstRank], currDataCount); // 从剩余量取本轮量
+            recvCurCount_ = extraArgsPerLoop.recvCounts[dstRank];
             if (recvCurCount_ == 0) { // 与多核 Consumer 一致
                 continue;
             }
@@ -164,9 +159,6 @@ public:
             CpGM2GM((__gm__ T *)recvOutputOffset_, (__gm__ T *)recvInputOffset_, recvCurCount_);
             PipeBarrier<PIPE_ALL>();
             Record(dstRank, rank_, loop + 1);                       // P 区 [dstRank][rank_] = ack
-            // 递减剩余量并前移 displs
-            extraArgsPerLoop.recvCounts[dstRank] -= recvCurCount_;
-            extraArgsPerLoop.recvDispls[dstRank] += recvCurCount_;
         }
     }
 
@@ -210,7 +202,6 @@ public:
         }
 
         // 这里根据ccl buffer的大小去做循环
-        // extraArgs.sendCounts/recvCounts 始终维护剩余量，由 InitCoreInfo/ProduceConsumeCtrlCore 内部取本轮量并递减
         uint64_t maxSendOrRecvDataCount = 0;
         for (uint64_t i = 0; i < rankSize_; i++) {
             maxSendOrRecvDataCount = max(maxSendOrRecvDataCount, extraArgs.sendCounts[i]);
@@ -221,27 +212,43 @@ public:
         // 每张卡的loopTimes可能是不一样的
         uint64_t loopTimes = maxSendOrRecvDataCount / cclBufferCountPerRank_ +
             static_cast<uint64_t>(maxSendOrRecvDataCount % cclBufferCountPerRank_ != 0);
+        uint64_t remainSendCounts[MAX_RANK_SIZE_V];
+        uint64_t remainRecvCounts[MAX_RANK_SIZE_V];
+        for (uint64_t i = 0; i < rankSize_; i++) {
+            remainSendCounts[i] = extraArgs.sendCounts[i]; // 初始的send count值
+            remainRecvCounts[i] = extraArgs.recvCounts[i]; // 初始的recv count值
+        }
         for (uint64_t loop = 0; loop < loopTimes; loop++) {
             uint64_t currDataCount = (loop == loopTimes - 1) ? maxSendOrRecvDataCount - processedDataCount : cclBufferCountPerRank_;
+            for (uint64_t i = 0; i < rankSize_; i++) {                
+                if (remainSendCounts[i] > 0) {
+                    extraArgs.sendCounts[i] = min(currDataCount, remainSendCounts[i]);
+                    remainSendCounts[i] -= extraArgs.sendCounts[i];
+                } else {
+                    extraArgs.sendCounts[i] = 0;
+                }
 
-            if (isCtrlCore) {
-                ProduceConsumeCtrlCore(loop, extraArgs, currDataCount);
-            } else {
-                InitCoreInfo(extraArgs, currDataCount);
-                Producer(loop); // 写数据
-                Consumer(loop); // 读数据
-                // 由 coreIndex_==0 的核统一递减剩余量并前移 displs（避免多核竞争）
-                // 必须在 SyncAll 之前完成，确保下一轮 InitCoreInfo 读到更新后的值
-                if (coreIndex_ == 0) {
-                    uint64_t sendThisLoop = min(extraArgs.sendCounts[targetRank_], currDataCount);
-                    uint64_t recvThisLoop = min(extraArgs.recvCounts[targetRank_], currDataCount);
-                    extraArgs.sendCounts[targetRank_] -= sendThisLoop;
-                    extraArgs.sendDispls[targetRank_] += sendThisLoop;
-                    extraArgs.recvCounts[targetRank_] -= recvThisLoop;
-                    extraArgs.recvDispls[targetRank_] += recvThisLoop;
+                if (remainRecvCounts[i] > 0) {
+                    extraArgs.recvCounts[i] = min(currDataCount, remainRecvCounts[i]);
+                    remainRecvCounts[i] -= extraArgs.recvCounts[i];
+                } else {
+                    extraArgs.recvCounts[i] = 0;
                 }
             }
+
+            if (isCtrlCore) {
+                ProduceConsumeCtrlCore(loop, extraArgs);
+            } else {
+                InitCoreInfo(extraArgs);
+                Producer(loop); // 写数据
+                Consumer(loop); // 读数据
+            }
             SyncAll<true>();
+            for (uint64_t i = 0; i < rankSize_; i++) {
+                // 准备下一轮的displacement
+                extraArgs.sendDispls[i] += extraArgs.sendCounts[i];
+                extraArgs.recvDispls[i] += extraArgs.recvCounts[i];
+            }
             processedDataCount += currDataCount;
         }
     }
