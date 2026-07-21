@@ -12,7 +12,9 @@
 #ifndef OMNIPIPE_TEMPLATE_UTILS_H 
 #define OMNIPIPE_TEMPLATE_UTILS_H 
  
- 
+#include <map>
+#include <vector>
+
 #include "common_alg_template_base.h" 
 #include "template_utils.h"
 #include "hccl_common.h"
@@ -27,6 +29,12 @@ HcclResult PrepareOmniPipeDataSplitForMultiChannel(CommonAlgTemplateBase* algTem
      const TemplateDataParams &tempAlgParams, HcclDataType dataType, TemplateResource &templateResource, 
      std::vector<std::vector<std::vector<u64>>> &dataSplitVec, 
      std::vector<std::vector<std::vector<u64>>> &dataOffsetVec);
+
+HcclResult ClassifyOmniPipeChannelsByLevel(
+    u32 localRank, const std::vector<std::vector<ChannelInfo>>& channels,
+    const std::vector<const std::vector<std::vector<u32>>*>& subCommsByLevel,
+    const std::vector<u64>& rankSizesByLevel,
+    std::vector<std::map<u32, std::vector<ChannelInfo>>>& channelsByLevel);
 
  } // namespace ops_hccl 
  
