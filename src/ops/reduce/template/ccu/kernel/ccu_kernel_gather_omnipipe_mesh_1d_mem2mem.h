@@ -46,6 +46,8 @@ struct GatherOmniPipeMesh1DMem2MemContext {
     ccu::Variable isStepOne;
     ccu::Variable isLastStep;
     ccu::Variable ifNewRoot;
+    ccu::Variable isFirstPiece;
+    ccu::Variable isLastPiece;
 
     std::vector<ccu::Variable> sliceSizeOmniSliceStrideVec;
     std::vector<ccu::Variable> inputOmniSliceStrideVec;
