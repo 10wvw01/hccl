@@ -37,15 +37,15 @@ ge::graphStatus HcomAllReduce::ExtractParams()
     const int64_t *fusion = attrs->GetInt(ATTR_FUSION);
     const int64_t *fusionId = attrs->GetInt(ATTR_FUSION_ID);
 
-    HcclDataType hcclDataType = hccl::GeDataTypeToHccl(inputTensor->GetDataType());
-    if (hcclDataType == HCCL_DATA_TYPE_RESERVED) {
+    dataType_ = hccl::GeDataTypeToHccl(inputTensor->GetDataType());
+    if (dataType_ == HCCL_DATA_TYPE_RESERVED) {
         HCCL_ERROR("HcomAllReduce::ExtractParams: unsupported data type %d.",
                    static_cast<int>(inputTensor->GetDataType()));
         return ge::GRAPH_FAILED;
     }
 
-    HcclReduceOp hcclReduceOp = hccl::StringToReduceOp(reduction);
-    if (hcclReduceOp == HCCL_REDUCE_RESERVED) {
+    reduceOp_ = hccl::StringToReduceOp(reduction);
+    if (reduceOp_ == HCCL_REDUCE_RESERVED) {
         HCCL_ERROR("HcomAllReduce::ExtractParams: unsupported reduction '%s'.",
                    reduction ? reduction : "(null)");
         return ge::GRAPH_FAILED;
@@ -58,18 +58,16 @@ ge::graphStatus HcomAllReduce::ExtractParams()
         return ge::GRAPH_FAILED;
     }
 
-    params_.inputPtr = const_cast<void *>(inputTensor->GetAddr());
-    params_.outputPtr = outputTensor->GetAddr();
-    params_.count = static_cast<uint64_t>(inputTensor->GetShapeSize());
-    params_.dataType = hcclDataType;
-    params_.reduceOp = hcclReduceOp;
-    params_.group = group;
-    params_.stream = ctx_->GetStream();
+    inputPtr_ = const_cast<void *>(inputTensor->GetAddr());
+    outputPtr_ = outputTensor->GetAddr();
+    count_ = static_cast<uint64_t>(inputTensor->GetShapeSize());
+    group_ = group;
+    stream_ = ctx_->GetStream();
 
     HCCL_INFO("HcomAllReduce::ExtractParams: input=%p output=%p count=%lu dataType=%d reduceOp=%d group=%s stream=%p "
               "fusion=%ld fusionId=%ld.",
-              params_.inputPtr, params_.outputPtr, params_.count, params_.dataType, params_.reduceOp,
-              params_.group ? params_.group : "(null)", params_.stream, fusion ? *fusion : -1,
+              inputPtr_, outputPtr_, count_, dataType_, reduceOp_,
+              group_ ? group_ : "(null)", stream_, fusion ? *fusion : -1,
               fusionId ? *fusionId : -1);
 
     return ge::GRAPH_SUCCESS;

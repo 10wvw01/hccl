@@ -10,6 +10,10 @@
 
 #include "hccl_custom_op.h"
 
+#include "log.h"
+
+extern "C" HcclResult HcomGetCommHandleByGroup(const char *group, HcclComm *commHandle);
+
 namespace hccl {
 ge::graphStatus HcclCustomOpBase::Execute(gert::EagerOpExecutionContext *ctx)
 {
@@ -21,6 +25,24 @@ ge::graphStatus HcclCustomOpBase::Execute(gert::EagerOpExecutionContext *ctx)
     HCCL_GE_CHK_RET(CalcResources());
     HCCL_GE_CHK_RET(LaunchHcclOp());
     HCCL_GE_CHK_RET(HandleOutput());
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcclCustomOpBase::GetCommunicator()
+{
+    if (group_ == nullptr) {
+        HCCL_ERROR("HcclCustomOpBase::GetCommunicator: group is null.");
+        return ge::GRAPH_FAILED;
+    }
+    HcclComm comm = nullptr;
+    HcclResult ret = HcomGetCommHandleByGroup(group_, &comm);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("HcclCustomOpBase::GetCommunicator: HcomGetCommHandleByGroup failed for group '%s', ret=%d.",
+                   group_, static_cast<int>(ret));
+        return ge::GRAPH_FAILED;
+    }
+    comm_ = comm;
+    HCCL_INFO("HcclCustomOpBase::GetCommunicator: group='%s' comm=%p.", group_, comm_);
     return ge::GRAPH_SUCCESS;
 }
 }  // namespace hccl

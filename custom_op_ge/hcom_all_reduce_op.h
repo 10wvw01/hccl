@@ -12,18 +12,7 @@
 #define HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
 
 #include "hccl_custom_op.h"
-#include "hccl/hccl_types.h"
 #include <cstdint>
-
-struct HcomAllReduceParams {
-    void *inputPtr;
-    void *outputPtr;
-    uint64_t count;
-    HcclDataType dataType;
-    HcclReduceOp reduceOp;
-    const char *group;
-    void *stream;
-};
 
 class HcomAllReduce : public hccl::HcclCustomOpBase {
  public:
@@ -42,7 +31,7 @@ class HcomAllReduce : public hccl::HcclCustomOpBase {
   ge::graphStatus InferDataType(gert::InferDataTypeContext *ctx) override;
 
  private:
-  HcomAllReduceParams params_{};
+  HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
 };
 
 #endif  // HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H

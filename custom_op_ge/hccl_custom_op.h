@@ -12,6 +12,7 @@
 #define HCCL_CUSTOM_OP_GE_HCCL_CUSTOM_OP_H
 
 #include "graph/custom_op.h"
+#include "hccl/hccl_types.h"
 
 namespace hccl {
 
@@ -31,9 +32,16 @@ class HcclCustomOpBase : public ge::EagerExecuteOp, public ge::ShapeInferOp {
 
  protected:
   gert::EagerOpExecutionContext *ctx_ = nullptr;
+  HcclComm comm_ = nullptr;
+  const char *group_ = nullptr;
+  void *inputPtr_ = nullptr;
+  void *outputPtr_ = nullptr;
+  uint64_t count_ = 0;
+  HcclDataType dataType_ = HCCL_DATA_TYPE_RESERVED;
+  void *stream_ = nullptr;
 
   virtual ge::graphStatus ExtractParams() = 0;
-  virtual ge::graphStatus GetCommunicator() { return ge::GRAPH_SUCCESS; }
+  ge::graphStatus GetCommunicator();
   virtual ge::graphStatus GetOptions() { return ge::GRAPH_SUCCESS; }
   virtual ge::graphStatus SelectAlgorithm() { return ge::GRAPH_SUCCESS; }
   virtual ge::graphStatus CalcResources() { return ge::GRAPH_SUCCESS; }
