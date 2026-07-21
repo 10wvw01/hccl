@@ -55,6 +55,7 @@
 #include "ccu_launch_dl.h"
 #include "hccl_ccu_res_dl.h"
 #include "comm_engine_utils.h"
+#include "selector_engine.h"
 
 namespace ops_hccl {
 thread_local bool needInconsistentCheck = false;
@@ -93,8 +94,12 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     CHK_RET(HcclCalcTopoInfo(comm, param, topoInfo));
 
     // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
-    std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
-    CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    if (IsNewSelectorEnabled()) {
+        CHK_RET(SelectorEngine::Global()->Run(comm, param, topoInfo.get(), algName));
+    } else {
+        std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
+        CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    }
     if (algName == "") {
         HCCL_ERROR("[Selector] select algname fail!");
         return HCCL_E_PTR;
@@ -516,8 +521,12 @@ HcclResult ReSelector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWit
     // 拓扑已有，无需再计算
 
     // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
-    std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
-    CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    if (IsNewSelectorEnabled()) {
+        CHK_RET(SelectorEngine::Global()->Run(comm, param, topoInfo.get(), algName));
+    } else {
+        std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
+        CHK_RET(collAlgSelector->Run(param, topoInfo.get(), algName));
+    }
     if (algName == "") {
         HCCL_ERROR("[ReSelector] select algname fail!");
         return HCCL_E_PTR;
@@ -1091,7 +1100,7 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
     s32 sRet = strncpy_s(exchangeInfo.tag, TAG_LENGTH, param.tag, TAG_LENGTH);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s],  return[%d].",
+    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s], return[%d].",
         __func__, param.tag, sRet), HCCL_E_MEMORY);
 
     HCCL_INFO("[%s] success. exchangeInfo dump: cclBufferSize[%llu], root[%u], opType[%u], opExecuteConfig[%u], "
@@ -2186,7 +2195,7 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
         CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
         s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
-        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
+        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s, return %d.",
             __func__, param.algTag, sRet), HCCL_E_MEMORY);
 
         CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));

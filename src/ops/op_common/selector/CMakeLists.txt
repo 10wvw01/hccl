@@ -12,6 +12,7 @@ set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/auto_selector_base.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/selector_registry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/execute_selector.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/selector_engine.cc
 )
 
 if(TARGET hccl)
