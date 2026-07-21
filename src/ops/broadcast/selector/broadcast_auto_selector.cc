@@ -46,7 +46,7 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuMs(const TopoInfoWithNetL
             if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
                 selectAlgName = "CcuBroadcastMesh1D";
             } else {
-                selectAlgName = "CcuBroadcastMesh1D";//
+                selectAlgName = "CcuBroadcastConcurrentMesh1DNHR";
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
@@ -149,7 +149,7 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWi
             if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
                     selectAlgName = "CcuBroadcastMesh1DMem2Mem";
             } else {
-                selectAlgName = "CcuBroadcastMesh1DMem2Mem";//
+                selectAlgName = "CcuBroadcastConcurrentMesh1DNHRMem";
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
