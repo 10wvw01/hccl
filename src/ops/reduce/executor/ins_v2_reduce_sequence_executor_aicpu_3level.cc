@@ -450,8 +450,9 @@ void InsV2ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAl
     (void)processedDataCount;
     tempAlgParamsAGL0.count = currDataCount;
     tempAlgParamsAGL0.buffInfo.inBuffBaseOff = 0;
-    tempAlgParamsAGL0.buffInfo.outBuffBaseOff = 0;
-    tempAlgParamsAGL0.buffInfo.hcclBuffBaseOff = 0;
+    // AGL0输出写到meshCommBuff区域（RSL0 scratch，AGL0时已空闲），避免与RSL0输出区[0, rsResultBuffSize_]重叠
+    tempAlgParamsAGL0.buffInfo.outBuffBaseOff = meshCommBuffOffset_;
+    tempAlgParamsAGL0.buffInfo.hcclBuffBaseOff = meshCommBuffOffset_;
 
     tempAlgParamsAGL0.sliceSize = sliceSize;
     tempAlgParamsAGL0.tailSize = tailSize;
@@ -579,7 +580,9 @@ HcclResult InsV2ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0,
         HCCL_E_INTERNAL);
     u64 processedDataCount = 0;
     u64 loop = 0;
+    HCCL_INFO("[InsV2ReduceSequenceExecutorAicpu3Level][OrchestrateLoop] dataCount_[%llu] maxCountPerLoop[%llu]", dataCount_, maxCountPerLoop);
     while (processedDataCount < dataCount_) {
+        HCCL_INFO("[InsV2ReduceSequenceExecutorAicpu3Level][OrchestrateLoop] loop[%llu] processedDataCount[%llu]", loop, processedDataCount);
         u64 remaining = dataCount_ - processedDataCount;
         u64 currDataCount;
         if (remaining <= maxCountPerLoop) {
@@ -651,7 +654,7 @@ HcclResult InsV2ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0,
         CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
 
         if (myRank_ == param.root) {
-            const DataSlice srcSlice(resCtx.cclMem.addr, 0, currDataCount * dataTypeSize_);
+            const DataSlice srcSlice(resCtx.cclMem.addr, meshCommBuffOffset_, currDataCount * dataTypeSize_);
             const DataSlice dstSlice(
                 param.outputPtr, processedDataCount * dataTypeSize_, currDataCount * dataTypeSize_);
             CHK_RET(LocalCopy(threads_.at(0), srcSlice, dstSlice));
