@@ -51,13 +51,14 @@ protected:
 };
 
 void RunAllReduceCase(const TopoMeta &topoInfo, const u64 dataCount,
-    const HcclDataType dataType, const u32 dataTypeSize, const HcclReduceOp reduceOp)
+    const HcclDataType dataType, const u32 dataTypeSize, const HcclReduceOp reduceOp,
+    const char *expansionMode = "AI_CPU", uint32_t repeatCount = 1)
 {
     // 仿真模型初始化
     SimWorld::Global()->Init(topoInfo, DevType::DEV_TYPE_950);
 
     // 设置展开模式为HOST_TS
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", expansionMode, 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
     
 
@@ -93,7 +94,9 @@ void RunAllReduceCase(const TopoMeta &topoInfo, const u64 dataCount,
             aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
 
             // 4.算子下发
-            CHK_RET(HcclAllReduce(sendBuf, recvBuf, dataCount, dataType, reduceOp, comm, stream));
+            for (uint32_t repeat = 0; repeat < repeatCount; ++repeat) {
+                CHK_RET(HcclAllReduce(sendBuf, recvBuf, dataCount, dataType, reduceOp, comm, stream));
+            }
 
             // 5.销毁通信域
             CHK_RET(HcclCommDestroy(comm));
@@ -299,4 +302,11 @@ TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_hcclbuff_add_1)
     u64 dataCount = 200 * 1024 * 1024 + 1;
     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
     RunAllReduceCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_nhr_tiny_data_single_die_payload)
+{
+    TopoMeta topoMeta{{{0}, {0}, {0}, {0}}};
+    RunAllReduceCase(topoMeta, 1, HcclDataType::HCCL_DATA_TYPE_INT8, 1,
+        HcclReduceOp::HCCL_REDUCE_SUM, "CCU_SCHED", 2);
 }
