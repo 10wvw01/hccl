@@ -126,6 +126,10 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::RunAllGatherMesh(const std::vect
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
+    // dmaRead: 输入是cclBuff、输出是user output时，本rank主动从远端读；否则本rank主动把本地output写到远端cclBuff。
+    // 重构后误删tx分支且强制SendRecvRead，导致SendRecvWrite场景下远端cclBuff无数据可读，这里恢复双向tx+rx。
+    bool dmaRead = (tempAlgParams_.buffInfo.inBuffType == BufferType::HCCL_BUFFER &&
+                    tempAlgParams_.buffInfo.outBuffType != BufferType::HCCL_BUFFER);
     u32 queIdx = 0;
     for (u32 rankIdx = 1; rankIdx < templateRankSize_; rankIdx++) {
         u32 connectedAlgRank = (myAlgRank + rankIdx) % templateRankSize_;
@@ -140,8 +144,13 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::RunAllGatherMesh(const std::vect
                     HcclResult::HCCL_E_INTERNAL);
 
         const std::vector<ChannelInfo> &curChannels = channels.at(connectedRank);
+        // tailSize 取决于主动方: dmaRead 时 rx 主动，按 connectedAlgRank 判尾；否则 tx 主动，按 myAlgRank 判尾。
         u64 sliceSize = tempAlgParams_.sliceSize;
-        if (tempAlgParams_.tailSize != 0 && connectedAlgRank == templateRankSize_ - 1) {
+        if (dmaRead) {
+            if (tempAlgParams_.tailSize != 0 && connectedAlgRank == templateRankSize_ - 1) {
+                sliceSize = tempAlgParams_.tailSize;
+            }
+        } else if (tempAlgParams_.tailSize != 0 && myAlgRank == templateRankSize_ - 1) {
             sliceSize = tempAlgParams_.tailSize;
         }
         u64 sliceCount = sliceSize / dataTypeSize;
@@ -166,6 +175,8 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::RunAllGatherMesh(const std::vect
                         HcclResult::HCCL_E_INTERNAL);
             const ChannelInfo &linkRemote = curChannels[channelIdx];
             void *remoteCclBuffAddr = linkRemote.remoteCclMem.addr;
+            std::vector<DataSlice> txSrcSlicesAll;
+            std::vector<DataSlice> txDstSlicesAll;
             std::vector<DataSlice> rxDstSlicesAll;
             std::vector<DataSlice> rxSrcSlicesAll;
 
@@ -180,20 +191,27 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::RunAllGatherMesh(const std::vect
                     scratchBase = tempAlgParams_.buffInfo.hcclBuffBaseOff + rpt * scratchRepeatStride;
                 }
 
+                // tx: 本rank把自己output段写到远端cclBuff的my slot（sliceSize步进，mesh经典布局）
+                u64 txOutOffset = tempAlgParams_.outputSliceStride * myAlgRank + outBaseOff + elemOffset_[channelIdx];
+                u64 txScratchOffset = scratchBase + tempAlgParams_.sliceSize * myAlgRank + elemOffset_[channelIdx];
+                u64 txDstOffset = (!enableRemoteMemAccess_) ? txScratchOffset : txOutOffset;
+                void *txSrcPtr = tempAlgParams_.buffInfo.outputPtr;
+                void *txDstPtr = (!enableRemoteMemAccess_) ? remoteCclBuffAddr : linkRemote.remoteOutputGraphMode.addr;
+                // rx: 从远端cclBuff的connected slot读到本地output
                 u64 rxOutOffset = tempAlgParams_.outputSliceStride * connectedAlgRank + outBaseOff + elemOffset_[channelIdx];
-                u64 rxSrcOffset = 0;
-                void *rxSrcPtr = nullptr;
+                u64 rxScratchOffset = scratchBase + tempAlgParams_.inputSliceStride * connectedAlgRank + elemOffset_[channelIdx];
+                u64 rxSrcOffset = (!enableRemoteMemAccess_) ? rxScratchOffset : rxOutOffset;
                 void *rxDstPtr = tempAlgParams_.buffInfo.outputPtr;
-
-                if (!supportSymmetricMemory_) {
-                    u64 rxScratchOffset = scratchBase + tempAlgParams_.inputSliceStride * connectedAlgRank + elemOffset_[channelIdx];
-                    rxSrcOffset = (!enableRemoteMemAccess_) ? rxScratchOffset : rxOutOffset;
-                    rxSrcPtr = (!enableRemoteMemAccess_) ? remoteCclBuffAddr : linkRemote.remoteOutputGraphMode.addr;
-                } else {
+                void *rxSrcPtr = (!enableRemoteMemAccess_) ? remoteCclBuffAddr : linkRemote.remoteOutputGraphMode.addr;
+                if (supportSymmetricMemory_) {
+                    txDstOffset = txOutOffset;
+                    txDstPtr = remoteOut;
                     rxSrcOffset = rxOutOffset;
                     rxSrcPtr = remoteOut;
                 }
 
+                txSrcSlicesAll.emplace_back(txSrcPtr, txOutOffset, sizeOut_[channelIdx], elemCountOut_[channelIdx]);
+                txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, sizeOut_[channelIdx], elemCountOut_[channelIdx]);
                 rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, sizeOut_[channelIdx], elemCountOut_[channelIdx]);
                 rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, sizeOut_[channelIdx], elemCountOut_[channelIdx]);
 
@@ -203,13 +221,18 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::RunAllGatherMesh(const std::vect
                            sizeOut_[channelIdx], elemCountOut_[channelIdx]);
             }
 
-            std::vector<DataSlice> emptySlices;
-            TxRxSlicesList sendRecvSlicesList({emptySlices, emptySlices}, {rxSrcSlicesAll, rxDstSlicesAll});
+            TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
             TxRxChannels sendRecvChannels(linkRemote, linkRemote);
             SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-            CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[queIdx]),
-                        HCCL_ERROR("[InsTempAllGatherMesh1D1DZAxisDetour] RunAllGather Send failed"),
-                        HcclResult::HCCL_E_INTERNAL);
+            if (dmaRead) {
+                CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[queIdx]),
+                            HCCL_ERROR("[InsTempAllGatherMesh1D1DZAxisDetour] RunAllGather SendRecvRead failed"),
+                            HcclResult::HCCL_E_INTERNAL);
+            } else {
+                CHK_PRT_RET(SendRecvWrite(sendRecvInfo, threads[queIdx]),
+                            HCCL_ERROR("[InsTempAllGatherMesh1D1DZAxisDetour] RunAllGather SendRecvWrite failed"),
+                            HcclResult::HCCL_E_INTERNAL);
+            }
             queIdx++;
         }
     }
