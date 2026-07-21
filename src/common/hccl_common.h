@@ -261,7 +261,11 @@ struct HcclMem {
 inline bool shouldGoOutPlace(DevType deviceType) {
 #ifdef MACRO_DEV_TYPE_NEW
     #ifdef Ascend_950_CCU_V2
-        return deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960;
+        #if CANN_VERSION_NUM >= 90100000
+            return deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960;
+        #else
+            return deviceType == DevType::DEV_TYPE_950;
+        #endif
     #else
         return deviceType == DevType::DEV_TYPE_950;
     #endif
