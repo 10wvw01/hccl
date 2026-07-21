@@ -29,6 +29,8 @@ public:
 
     static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
 
+    static AlgNetMeta GetAlgNetMeta() { return {}; }
+
     std::string Describe() const override = 0;
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

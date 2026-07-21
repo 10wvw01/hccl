@@ -32,6 +32,7 @@ public:
                                     AlgHierarchyInfoForAllLevel& algHierarchyInfo) override;
 
     CostAlgoParams CalcCostCoeff() override;
+    AlgNetMeta GetAlgNetMeta() const override;
 
 #ifndef AICPU_COMPILE
     HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const;

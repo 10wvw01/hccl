@@ -42,6 +42,11 @@ std::vector<CostModelParam> InsTempAllReduceMesh1DOneShot::CalcCostCoeff()
     return params;
 }
 
+AlgNetMeta InsTempAllReduceMesh1DOneShot::GetAlgNetMeta()
+{
+    return {AlgNetType::MESH};
+}
+
 HcclResult InsTempAllReduceMesh1DOneShot::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                                AlgResourceRequest& resourceRequest)
 {

@@ -33,6 +33,8 @@ public:
 
     static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
 
+    static AlgNetMeta GetAlgNetMeta() { return {}; }
+
     virtual std::string Describe() const = 0;
     virtual HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                AlgResourceRequest& resourceRequest);

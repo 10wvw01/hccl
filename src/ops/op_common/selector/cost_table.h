@@ -13,6 +13,7 @@
 
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include "alg_param.h"
 #include "cost_model.h"
@@ -30,6 +31,11 @@ typedef struct {
     int count;
 } CostTable;
 
+struct UbUtilEntry {
+    u64 upperBound;
+    float utilization;
+};
+
 class CostTableManager {
 public:
     static CostTableManager *Global();
@@ -40,6 +46,7 @@ public:
     HcclResult Query(const std::string &algName, u64 dataSize, double &cost) const;
     HcclResult CostTableGen(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
                             const OpParam &opParam);
+    HcclResult QueryUbUtil(AlgNetType netType, u64 dataSize, float &utilization) const;
 
 private:
     CostTableManager() = default;
@@ -50,6 +57,8 @@ private:
                                const OpParam &opParam);
 
     CostTable      costTable_{nullptr, 0};
+    static const std::vector<UbUtilEntry> closUbUtilTable_;
+    static const std::vector<UbUtilEntry> meshUbUtilTable_;
     mutable std::mutex mu_;
 };
 
