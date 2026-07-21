@@ -326,7 +326,7 @@ inline HcclResult OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable
 
 extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint64_t opUnfoldIdx)
 {
-    FUNCTION_TRACE;
+    // FUNCTION_TRACE;
     
     // 修改当前进程的调度策略和优先级
     struct sched_param schedParam;
