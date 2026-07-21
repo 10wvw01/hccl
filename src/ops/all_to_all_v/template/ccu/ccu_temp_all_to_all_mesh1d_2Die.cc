@@ -314,7 +314,7 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     config.msInterleave = CCU_MS_INTERLEAVE;
     config.loopCount = CCU_MS_LOCAL_COPY_LOOP_COUNT;
     config.memSlice = LOCAL_COPY_MS_PER_LOOP * CCU_MS_SIZE;
-    auto goSize = CalGoSize(sliceSize, config);
+    auto goSize = CalGoSize(sliceSize, config, GetCcuVersion());
     
     // 前流同步
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
