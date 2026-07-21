@@ -69,6 +69,8 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContext &ctx)
     CCU_CHK_RET(ccu::LoadArg(ctx.isStepOne, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.isLastStep, argId++));
     CCU_CHK_RET(ccu::LoadArg(ctx.ifNewRoot, argId++));
+    CCU_CHK_RET(ccu::LoadArg(ctx.isFirstPiece, argId++));
+    CCU_CHK_RET(ccu::LoadArg(ctx.isLastPiece, argId++));
     for (uint64_t i = 0; i < ctx.rankSize; i++) {
         CCU_CHK_RET(ccu::LoadArg(ctx.sliceSizeOmniSliceStrideVec[i], argId++));
     }
@@ -173,11 +175,17 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
     
-    CCU_CHK_RET(PreSync(ctx));
+    CCU_IF(ctx.isFirstPiece == true)
+    {
+        CCU_CHK_RET(PreSync(ctx));
+    }
     
     CCU_CHK_RET(DoRepeatGather(ctx));
     
-    CCU_CHK_RET(PostSync(ctx));
+    CCU_IF(ctx.isLastPiece == true)
+    {
+        CCU_CHK_RET(PostSync(ctx));
+    }
     HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] new ZQ GatherOmniPipeMesh1DMem2Mem end");
     
     return CCU_SUCCESS;
