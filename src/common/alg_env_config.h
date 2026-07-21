@@ -174,6 +174,8 @@ const bool& GetExternalInputHcclEnableEntryLog();
 
 const u8& GetExternalInputHcclDeterministic();
 
+bool IsNewSelectorEnabled();
+
 const std::map<HcclCMDType, std::vector<HcclAlgoType>> GetExternalInputHcclAlgoConfigAllType();
 
 bool GetExternalInputExecTimeout(double &execTimeOut);
