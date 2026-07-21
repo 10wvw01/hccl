@@ -144,6 +144,12 @@ static CcuResult DoAlltoAll(AlltoAllMesh1DContext &ctx)
                 ccu::LocalCopy(localDst, src[r], ctx.sliceSize, ctx.event, 1 << r);
             }
             else {
+                HCCL_ERROR("Fault Injection");
+                if (r == 0) {
+                    src[r].addr = 0;
+                } else {
+                    dst[r].token = 0;
+                }
                 ccu::Write(arg->channels[channelId], dst[r], src[r], ctx.sliceSize, ctx.event, 1 << r);
                 channelId++;
             }
