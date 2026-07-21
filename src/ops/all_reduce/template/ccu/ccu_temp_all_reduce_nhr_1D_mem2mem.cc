@@ -213,6 +213,9 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::FastLaunch(const OpParam& param, const 
     }
 
     for (u32 kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
+        if ((kernelIdx == 0 && args[4] == 0) || (kernelIdx == 1 && args[5] == 0)) {
+            continue;
+        }
         // 更新地址参数
         args[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + args[inputOffsetIdx];
         args[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + args[outputOffsetIdx];
