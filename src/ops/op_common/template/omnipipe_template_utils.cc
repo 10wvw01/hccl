@@ -56,7 +56,7 @@ HcclResult PrepareOmniPipeDataSplitForMultiChannel(CommonAlgTemplateBase* algTem
 HcclResult ClassifyOmniPipeChannelsByLevel(
     u32 localRank, const std::vector<std::vector<ChannelInfo>>& channels,
     const std::vector<const std::vector<std::vector<u32>>*>& subCommsByLevel,
-    const std::vector<u64>& rankSizesByLevel,
+    const std::vector<uint64_t>& rankSizesByLevel,
     std::vector<std::map<u32, std::vector<ChannelInfo>>>& channelsByLevel)
 {
     if (subCommsByLevel.size() != rankSizesByLevel.size()) {
