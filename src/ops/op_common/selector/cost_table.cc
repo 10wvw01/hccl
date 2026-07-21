@@ -10,7 +10,50 @@
 
 #include "cost_table.h"
 
+#include <new>
+
 namespace ops_hccl {
+
+HcclResult CostTableManager::FilterCMByConfig(CostModel &cm, CostTable &ct,
+                                              const TopoInfoWithNetLayerDetails *topoInfo,
+                                              const OpParam &opParam)
+{
+    (void)cm;
+    (void)ct;
+    (void)topoInfo;
+    (void)opParam;
+    HCCL_DEBUG("[FilterCMByConfig] filter cost model by config.");
+    return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult CostTableManager::CostTableGen(CostModel &cm, CostTable &ct,
+                                          const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam)
+{
+    HCCL_DEBUG("[CostTableGen] generate cost table, algCount=%d.", cm.count);
+    HcclResult ret = FilterCMByConfig(cm, ct, topoInfo, opParam);
+    if (ret != HcclResult::HCCL_SUCCESS) {
+        HCCL_ERROR("[CostTableGen] FilterCMByConfig failed, ret=%d.", static_cast<int>(ret));
+        return ret;
+    }
+    if (cm.count <= 0) {
+        ct.costs = nullptr;
+        ct.count = 0;
+        return HcclResult::HCCL_SUCCESS;
+    }
+
+    ct.costs = new (std::nothrow) AlgoCost[cm.count];
+    if (ct.costs == nullptr) {
+        HCCL_ERROR("[CostTableGen] alloc AlgoCost failed, count=%d.", cm.count);
+        return HcclResult::HCCL_E_PARA;
+    }
+
+    for (int i = 0; i < cm.count; ++i) {
+        ct.costs[i].algName = cm.costAlgoParams[i].algName;
+        ct.costs[i].cost = 0.0f;
+    }
+    ct.count = cm.count;
+    return HcclResult::HCCL_SUCCESS;
+}
 
 CostTableManager *CostTableManager::Global()
 {

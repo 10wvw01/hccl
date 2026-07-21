@@ -15,6 +15,7 @@
 #include <string>
 
 #include "alg_param.h"
+#include "cost_model.h"
 #include "log.h"
 
 namespace ops_hccl {
@@ -37,9 +38,14 @@ public:
 
     HcclResult Load();
     HcclResult Query(const std::string &algName, u64 dataSize, double &cost) const;
+    HcclResult CostTableGen(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
+                            const OpParam &opParam);
 
 private:
     CostTableManager() = default;
+
+    HcclResult FilterCMByConfig(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
+                                const OpParam &opParam);
 
     CostTable      costTable_{nullptr, 0};
     mutable std::mutex mu_;
