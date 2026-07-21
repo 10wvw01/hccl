@@ -14,69 +14,65 @@
 
 using namespace ops_hccl;
 
+static inline HcclResult LaunchKernelAndSyncStream_(
+    aclrtFuncHandle funcHandle, aclrtArgsHandle argsHandle, aclrtStream stream)
+{
+    // 下发kernel
+    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒
+    aclrtLaunchKernelAttr attr{};
+    attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
+    attr.value.timeout = kernelLaunchTimeout;
+    aclrtLaunchKernelCfg cfg{};
+    cfg.numAttrs = 1;
+    cfg.attrs = &attr;
+    constexpr u32 numBlocks = 1;
+    aclError ret = aclrtLaunchKernelWithConfig(funcHandle, numBlocks, stream, &cfg, argsHandle, nullptr);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[%s][aclrtLaunchKernelWithConfig]errNo[0x%016llx] launch kernel failed",
+        __func__, ret), HCCL_E_RUNTIME);
+
+    constexpr u16 streamTimeout = 60; // 单位毫秒
+    ret = aclrtSynchronizeStreamWithTimeout(stream, streamTimeout);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[%s] sync stream failed, errNo[0x%016llx]", __func__, ret),
+        HCCL_E_RUNTIME);
+    return HCCL_SUCCESS;
+}
+
 HcclResult AicpuCacheEvitKernelLaunch(HcclComm comm)
-{    
+{
     const char kernelName[] = "HcclLaunchAicpuCacheEvitKernel";
     aclrtFuncHandle funcHandle;
     aclrtArgsHandle argsHandle;
-    
+
     // 获取function handle
     aclError ret = aclrtBinaryGetFunction(g_binKernelHandle, kernelName, &funcHandle);
-    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtBinaryGetFunction]errNo[0x%016llx] get func handle failed, "
-        "kernelName:%s", ret, kernelName), HCCL_E_RUNTIME);
-    
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtBinaryGetFunction]errNo[0x%016llx] kernelName:%s", ret, kernelName),
+        HCCL_E_RUNTIME);
+
     // 初始化和准备参数
     ret = aclrtKernelArgsInit(funcHandle, &argsHandle);
-    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsInit]errNo[0x%016llx] args init failed, "
-        "kernelName:%s", ret, kernelName), HCCL_E_RUNTIME);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsInit]errNo[0x%016llx] kernelName:%s", ret, kernelName),
+        HCCL_E_RUNTIME);
     aclrtParamHandle paraHandle;
-    size_t paramSize = sizeof(comm);
-    ret = aclrtKernelArgsAppend(argsHandle, &comm, paramSize, &paraHandle);
-    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsAppend]errNo[0x%016llx] args append failed, append "
-        "size %u, kernelName:%s", ret, paramSize, kernelName), HCCL_E_RUNTIME);
+    ret = aclrtKernelArgsAppend(argsHandle, &comm, sizeof(comm), &paraHandle);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsAppend]errNo[0x%016llx] kernelName:%s", ret, kernelName),
+        HCCL_E_RUNTIME);
     ret = aclrtKernelArgsFinalize(argsHandle);
-    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsFinalize]errNo[0x%016llx] args finalize failed, "
-        "kernelName:%s", ret, kernelName), HCCL_E_RUNTIME);
+    CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtKernelArgsFinalize]errNo[0x%016llx] kernelName:%s", ret, kernelName),
+        HCCL_E_RUNTIME);
 
     // 创建流
     aclrtStream stream;
     ret = aclrtCreateStreamWithConfig(&stream, 0, ACL_STREAM_FAST_SYNC);
-    if (ret != ACL_SUCCESS) {
-        HCCL_ERROR("[%s] create stream failed, errNo[0x%016llx]", __func__, ret);
-        return HCCL_E_RUNTIME;
-    }
+    CHK_PRT_RET(
+        ret != ACL_SUCCESS, HCCL_ERROR("[%s] create stream failed, errNo[0x%016llx]", __func__, ret), HCCL_E_RUNTIME);
 
-    // 下发kernel
-    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒
-    aclrtLaunchKernelCfg cfg;
-    aclrtLaunchKernelAttr attr;
-    attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
-    attr.value.timeout = kernelLaunchTimeout;
-    cfg.numAttrs = 1;
-    cfg.attrs = &attr;
-    constexpr u32 numBlocks = 1;
     HCCL_INFO("[%s]launch kernel[%s] comm[%p]", __func__, kernelName, comm);
-    ret = aclrtLaunchKernelWithConfig(funcHandle, numBlocks, stream, &cfg, argsHandle, nullptr);
-    if (ret != ACL_SUCCESS) {
-        HCCL_ERROR("[%s][aclrtLaunchKernelWithConfig]errNo[0x%016llx] launch kernel failed", __func__, ret);
-        aclrtDestroyStream(stream);
-        return HCCL_E_RUNTIME;
-    };
+    HcclResult result = LaunchKernelAndSyncStream_(funcHandle, argsHandle, stream);
 
-    constexpr u16 streamTimeout = 60; // 单位毫秒
-    ret = aclrtSynchronizeStreamWithTimeout(stream, streamTimeout);
-    if (ret != ACL_SUCCESS) {
-        HCCL_ERROR("[%s] sync stream failed, errNo[0x%016llx]", __func__, ret);
-        aclrtDestroyStream(stream);
-        return HCCL_E_RUNTIME;
-    }
-
-    ret = aclrtDestroyStream(stream);
-    if (ret != ACL_SUCCESS) {
-        HCCL_ERROR("[%s] destroy stream failed, errNo[0x%016llx]", __func__, ret);
-        return HCCL_E_RUNTIME;
-    }
-    return HCCL_SUCCESS;
+    // 销毁流
+    CHK_PRT_RET(aclrtDestroyStream(stream) != ACL_SUCCESS,
+        HCCL_ERROR("[%s] destroy stream failed", __func__), HCCL_E_RUNTIME);
+    return result;
 }
 
 HcclResult AicpuTaskCacheCommStateCallback(HcclComm comm, HcclCommStatePhase state, void *args) 
