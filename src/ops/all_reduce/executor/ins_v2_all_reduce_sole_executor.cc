@@ -45,6 +45,13 @@ CostAlgoParams InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcCos
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
+AlgNetMeta InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::GetAlgNetMeta() const
+{
+    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] GetAlgNetMeta delegate to template.");
+    return InsAlgTemplate::GetAlgNetMeta();
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate>
 HcclResult InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcAlgHierarchyInfo(HcclComm comm,
     TopoInfoWithNetLayerDetails* topoInfo,
     AlgHierarchyInfoForAllLevel& algHierarchyInfo)

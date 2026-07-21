@@ -117,6 +117,8 @@ HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
         }
         cap.algName = alg.algName;
 
+        AlgNetMetaRegistry::Global()->Register(alg.algName, exec->GetAlgNetMeta());
+
         costModel_.costAlgoParams[costModel_.count] = cap;
         ++costModel_.count;
     }
@@ -181,6 +183,31 @@ void CostModelManager::CalcLatencyParams(int taskNum, float &C)
 {
     HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d.", taskNum);
     C = 0.0f;
+}
+
+AlgNetMetaRegistry *AlgNetMetaRegistry::Global()
+{
+    static AlgNetMetaRegistry *globalRegistry = new AlgNetMetaRegistry;
+    return globalRegistry;
+}
+
+void AlgNetMetaRegistry::Register(const std::string &algName, AlgNetMeta meta)
+{
+    const std::lock_guard<std::mutex> lock(mu_);
+    metas_[algName] = meta;
+    HCCL_DEBUG("[AlgNetMetaRegistry] register algName=%s netType=%d.", algName.c_str(),
+               static_cast<int>(meta.netType));
+}
+
+bool AlgNetMetaRegistry::Query(const std::string &algName, AlgNetType &netType) const
+{
+    const std::lock_guard<std::mutex> lock(mu_);
+    auto it = metas_.find(algName);
+    if (it == metas_.end()) {
+        return false;
+    }
+    netType = it->second.netType;
+    return true;
 }
 
 } // namespace ops_hccl

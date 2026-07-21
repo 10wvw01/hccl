@@ -36,6 +36,8 @@ public:
 
     virtual CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
 
+    virtual AlgNetMeta GetAlgNetMeta() const { return {}; }
+
     virtual HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
                                             AlgHierarchyInfoForAllLevel& algHierarchyInfo) = 0;
 

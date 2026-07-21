@@ -11,6 +11,8 @@
 #ifndef HCCLV2_COLL_ALG_SELECTOR_COST_MODEL
 #define HCCLV2_COLL_ALG_SELECTOR_COST_MODEL
 
+#include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -86,6 +88,26 @@ private:
     float localReduceBw_{};     // 本地reduce带宽
     float crossChipBw_{};       // 跨片带宽
     float crossChipReduceBw_{}; // 跨片reduce带宽
+};
+
+enum class AlgNetType : int {
+    MESH = 0, // mesh 组网
+    CLOS = 1, // clos 组网
+};
+
+struct AlgNetMeta {
+    AlgNetType netType = AlgNetType::MESH;
+};
+
+class AlgNetMetaRegistry {
+public:
+    static AlgNetMetaRegistry *Global();
+    void Register(const std::string &algName, AlgNetMeta meta);
+    bool Query(const std::string &algName, AlgNetType &netType) const;
+
+private:
+    std::map<std::string, AlgNetMeta> metas_;
+    mutable std::mutex mu_;
 };
 
 } // namespace ops_hccl

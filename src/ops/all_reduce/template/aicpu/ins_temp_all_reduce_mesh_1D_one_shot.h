@@ -32,6 +32,7 @@ public:
     }
 
     static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetMeta GetAlgNetMeta();
 
     // 现在的RunAsync就是之前的GenExtIns
     HcclResult KernelRun(const OpParam& param,

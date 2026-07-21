@@ -11,6 +11,7 @@
 #include "cost_table.h"
 
 #include <new>
+#include <algorithm>
 
 namespace ops_hccl {
 
@@ -88,15 +89,23 @@ HcclResult CostTableManager::FilterAllReduce(CostModel &cm, CostTable &ct,
             continue;
         }
 
+        AlgNetType nt = AlgNetType::MESH;
+        AlgNetMetaRegistry::Global()->Query(name, nt);
+        float util = 1.0f;
+        if (QueryUbUtil(nt, dataSize, util) != HcclResult::HCCL_SUCCESS) {
+            util = 1.0f;
+        }
+
         float cost = 0.0f;
         const CostModelParam *params = cm.costAlgoParams[i].param;
         for (int j = 0; j < cm.costAlgoParams[i].count; ++j) {
-            cost += (params[j].A + params[j].B) * static_cast<float>(dataSize) + params[j].C;
+            cost += (params[j].A * util + params[j].B) * static_cast<float>(dataSize) + params[j].C;
         }
         ct.costs[ct.count].algName = algName;
         ct.costs[ct.count].cost = cost;
         ++ct.count;
-        HCCL_DEBUG("[FilterAllReduce] algName=%s cost=%f.", name.c_str(), cost);
+        HCCL_DEBUG("[FilterAllReduce] algName=%s netType=%d util=%f cost=%f.", name.c_str(),
+                   static_cast<int>(nt), util, cost);
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -112,13 +121,60 @@ HcclResult CostTableManager::CostTableGen(CostModel &cm, CostTable &ct,
     return ret;
 }
 
+const std::vector<UbUtilEntry> CostTableManager::closUbUtilTable_ = {
+    {0.125 * 1024 * 1024ULL, 0.02755f},
+    {0.25 * 1024 * 1024ULL, 0.05357f},
+    {0.5 * 1024 * 1024ULL, 0.10388f},
+    {1 * 1024 * 1024ULL, 0.1855f},
+    {2 * 1024 * 1024ULL, 0.3f},
+    {4 * 1024 * 1024ULL, 0.4288f},
+    {8 * 1024 * 1024ULL, 0.5302f},
+    {16 * 1024 * 1024ULL, 0.568f},
+    {32 * 1024 * 1024ULL, 0.6549f},
+    {64 * 1024 * 1024ULL, 0.7184f},
+    {128 * 1024 * 1024ULL, 0.7408f},
+    {256 * 1024 * 1024ULL, 0.7644f}
+};
+
+const std::vector<UbUtilEntry> CostTableManager::meshUbUtilTable_ = {
+    {1 * 1024 * 1024ULL, 0.7135f},
+    {2 * 1024 * 1024ULL, 0.7758f},
+    {4 * 1024 * 1024ULL, 0.8112f},
+    {8 * 1024 * 1024ULL, 0.8301f},
+    {16 * 1024 * 1024ULL, 0.84f},
+    {32 * 1024 * 1024ULL, 0.8449f},
+    {64 * 1024 * 1024ULL, 0.8475f},
+    {128 * 1024 * 1024ULL, 0.8487f},
+    {256 * 1024 * 1024ULL, 0.8494f}
+};
+
+CostTableManager::~CostTableManager() {}
+
+HcclResult CostTableManager::QueryUbUtil(AlgNetType netType, u64 dataSize, float &utilization) const
+{
+    const std::vector<UbUtilEntry> &table = (netType == AlgNetType::CLOS) ? closUbUtilTable_ : meshUbUtilTable_;
+    if (table.empty()) {
+        HCCL_WARNING("[CostTableManager] ub util table empty, netType=%d dataSize=%llu.",
+                     static_cast<int>(netType), dataSize);
+        return HcclResult::HCCL_E_PARA;
+    }
+    auto it = std::lower_bound(table.begin(), table.end(), dataSize,
+        [](const UbUtilEntry &e, u64 ds) { return e.upperBound < ds; });
+    if (it == table.end()) {
+        utilization = table.back().utilization;
+    } else {
+        utilization = it->utilization;
+    }
+    HCCL_DEBUG("[CostTableManager] QueryUbUtil netType=%d dataSize=%llu utilization=%f.",
+               static_cast<int>(netType), dataSize, utilization);
+    return HcclResult::HCCL_SUCCESS;
+}
+
 CostTableManager *CostTableManager::Global()
 {
     static CostTableManager *globalCostTableManager = new CostTableManager;
     return globalCostTableManager;
 }
-
-CostTableManager::~CostTableManager() {}
 
 HcclResult CostTableManager::Load()
 {

@@ -26,6 +26,8 @@ public:
 
     static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
 
+    static AlgNetMeta GetAlgNetMeta() { return {}; }
+
     std::string Describe() const override = 0;
 
     // 将原来的 InsQuePtr替换为ThreadHandle, 将tempLinks换位channels
