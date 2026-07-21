@@ -323,9 +323,18 @@ HcclResult GetRankFullMeshLayers(HcclComm comm, const std::vector<std::vector<u3
             HCCL_ERROR("[GetRankFullMeshLayers] Failed to get cur netlayer myRank=%u .", myRank), HcclResult::HCCL_E_INTERNAL);
     }
     return HCCL_SUCCESS;
-#endif
+#else
+    (void)comm;
+    (void)subcommInfo;
+    (void)netLayersVector;
+    (void)curNetLayer;
 
-return HCCL_SUCCESS;
+    HCCL_ERROR(
+        "[GetRankFullMeshLayers] This function is not supported in AICPU mode, "
+        "myRank[%u].",
+        myRank);
+    return HcclResult::HCCL_E_NOT_SUPPORT;
+#endif
 }
 
 HcclResult CalcChannelRequestMesh1D(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

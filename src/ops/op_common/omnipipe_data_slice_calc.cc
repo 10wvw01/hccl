@@ -9,6 +9,7 @@
  */
 #include "omnipipe_data_slice_calc.h"
 #include "comm_engine_utils.h"
+#include "utils.h"
 
 namespace ops_hccl {
 constexpr double BANDWIDTH_RATIO_BOUND = 10;
@@ -165,7 +166,7 @@ u64 CalAllgatherDataSizeRatio2D(double *xStepP2pDataSize, double *yStepP2pDataSi
         // 计算通信步数,计算固定max步
         step = maxStep;
         if (xRankSize - bandwidthRatio > 0) {
-            if (std::abs(omniPipeRatio - 1.0) < 1e-9) {
+            if (IsDoubleEqual(omniPipeRatio, 1.0)) {
                 // 等比为1时需要单独算步数
                 step = bandwidthRatio + 1;
             } else {
@@ -250,7 +251,7 @@ u64 CalAllgatherDataSize2D(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, double 
         // 计算通信步数,计算固定max步
         step = maxStep;
         if (xRankSize - bandwidthRatio > 0) {
-            if (std::abs(omniPipeRatio - 1.0) < 1e-9) {
+            if (IsDoubleEqual(omniPipeRatio, 1.0)) {
                 // 等比为1时需要单独算步数
                 step = bandwidthRatio + 1;
             } else {
@@ -342,7 +343,7 @@ u64 CalReducescatterDataSize2D(u64 *xStepP2pDataSize, u64 *yStepP2pDataSize, dou
         // 计算通信步数,计算固定5步
         step = maxStep;
         if (xRankSize - bandwidthRatio > 0) {
-            if (std::abs(omniPipeRatio - 1.0) < 1e-9) {
+            if (IsDoubleEqual(omniPipeRatio, 1.0)) {
                 // 等比为1时需要单独算步数，最后一步拆成两步，所以加2
                 step = bandwidthRatio + 2;
             } else {
