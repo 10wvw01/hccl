@@ -388,6 +388,49 @@ TEST_F(MeshReduceScatterTransferTest, UsesAlgRankContributionSlotForNonZeroRanks
     EXPECT_EQ(TxDst(txRxSlicesLists[1]).offset_, 16U);
 }
 
+TEST_F(MeshReduceScatterTransferTest, BuildParallelMultiGroupSlicesByAlgRank)
+{
+    std::vector<u32> ranks = {0, 1};
+    TemplateDataParams params = MakeParams({0, 1, 2, 3});
+    params.inputBufferPtr = reinterpret_cast<void *>(0x30000000);
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 1U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({0, 2}));
+    ASSERT_EQ(txRxSlicesLists[0].txSlicesList_.srcSlices_.size(), 2U);
+    ASSERT_EQ(txRxSlicesLists[0].rxSlicesList_.dstSlices_.size(), 2U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 0).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0], 0).offset_, 0U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0], 0).offset_, 16U);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0], 1).offset_, 48U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0], 1).offset_, 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0], 1).offset_, 48U);
+}
+
+TEST_F(MeshReduceScatterTransferTest, ReuseCclBufferUsesRankSlotsAndEmptySlots)
+{
+    std::vector<u32> ranks = {0, 1};
+    TemplateDataParams params = MakeParams({0, 1});
+    params.inputBufferType = BufferType::HCCL_BUFFER;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshReduceScatter(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 1U);
+    EXPECT_EQ(ranksForOutputData, std::vector<u32>({0}));
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).addr_, localCclMem_);
+    EXPECT_EQ(TxSrc(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(TxDst(txRxSlicesLists[0]).offset_, 32U);
+    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 48U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 48U);
+}
+
 TEST_F(MeshReduceScatterTransferTest, BuildTailPeerTxSlice)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
