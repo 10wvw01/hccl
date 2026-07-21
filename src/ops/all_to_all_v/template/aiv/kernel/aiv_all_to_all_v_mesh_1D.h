@@ -212,43 +212,35 @@ public:
         // 每张卡的loopTimes可能是不一样的
         uint64_t loopTimes = maxSendOrRecvDataCount / cclBufferCountPerRank_ +
             static_cast<uint64_t>(maxSendOrRecvDataCount % cclBufferCountPerRank_ != 0);
-        uint64_t remainSendCounts[MAX_RANK_SIZE_V];
-        uint64_t remainRecvCounts[MAX_RANK_SIZE_V];
-        for (uint64_t i = 0; i < rankSize_; i++) {
-            remainSendCounts[i] = extraArgs.sendCounts[i]; // 初始的send count值
-            remainRecvCounts[i] = extraArgs.recvCounts[i]; // 初始的recv count值
-        }
         for (uint64_t loop = 0; loop < loopTimes; loop++) {
+            ExtraArgs extraArgsPerLoop;
             uint64_t currDataCount = (loop == loopTimes - 1) ? maxSendOrRecvDataCount - processedDataCount : cclBufferCountPerRank_;
-            for (uint64_t i = 0; i < rankSize_; i++) {                
-                if (remainSendCounts[i] > 0) {
-                    extraArgs.sendCounts[i] = min(currDataCount, remainSendCounts[i]);
-                    remainSendCounts[i] -= extraArgs.sendCounts[i];
+            for (uint64_t i = 0; i < rankSize_; i++) {
+                if (extraArgs.sendCounts[i] > processedDataCount) {
+                    extraArgsPerLoop.sendCounts[i] = min(currDataCount, extraArgs.sendCounts[i] - processedDataCount);
+                    extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + processedDataCount;
                 } else {
-                    extraArgs.sendCounts[i] = 0;
+                    extraArgsPerLoop.sendCounts[i] = 0;
+                    extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + extraArgs.sendCounts[i];
                 }
 
-                if (remainRecvCounts[i] > 0) {
-                    extraArgs.recvCounts[i] = min(currDataCount, remainRecvCounts[i]);
-                    remainRecvCounts[i] -= extraArgs.recvCounts[i];
+                if (extraArgs.recvCounts[i] > processedDataCount) {
+                    extraArgsPerLoop.recvCounts[i] = min(currDataCount, extraArgs.recvCounts[i] - processedDataCount);
+                    extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + processedDataCount;
                 } else {
-                    extraArgs.recvCounts[i] = 0;
+                    extraArgsPerLoop.recvCounts[i] = 0;
+                    extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + extraArgs.recvCounts[i];
                 }
             }
 
             if (isCtrlCore) {
-                ProduceConsumeCtrlCore(loop, extraArgs);
+                ProduceConsumeCtrlCore(loop, extraArgsPerLoop);
             } else {
-                InitCoreInfo(extraArgs);
+                InitCoreInfo(extraArgsPerLoop);
                 Producer(loop); // 写数据
                 Consumer(loop); // 读数据
             }
             SyncAll<true>();
-            for (uint64_t i = 0; i < rankSize_; i++) {
-                // 准备下一轮的displacement
-                extraArgs.sendDispls[i] += extraArgs.sendCounts[i];
-                extraArgs.recvDispls[i] += extraArgs.recvCounts[i];
-            }
             processedDataCount += currDataCount;
         }
     }
