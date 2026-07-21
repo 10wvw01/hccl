@@ -2261,7 +2261,7 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
                 sliceSizeMultRankPiece.push_back(sliceSizeOnePiece);
                 sliceCountMultRankPiece.push_back(sliceSizeOnePiece / dataTypeSize);
                 inputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
-                outputOmniPipeSliceStrideMultRankPiece.push_back(ccloutputPieceIdOffset);
+                outputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
                 stepSliceInfotmp.stepInputSliceStride.push_back(omniPipeSplitSliceInfoListTotal[pieceId].offset);
                 stepSliceInfotmp.stepOutputSliceStride.push_back(omniPipeSplitSliceInfoListTotal[pieceId].offset);
                 stepSliceInfotmp.inputOmniPipeSliceStride.push_back(inputOmniPipeSliceStrideMultRankPiece);
