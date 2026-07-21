@@ -14,9 +14,9 @@
 #include "hccl_custom_op.h"
 #include <cstdint>
 
-class HcomAllReduce : public hccl::HcclCustomOpBase {
+class HcomAllReduceOp : public hccl::HcclCustomOpBase {
  public:
-  ~HcomAllReduce() override = default;
+  ~HcomAllReduceOp() override = default;
 
   static constexpr size_t INPUT_INDEX = 0;
   static constexpr size_t OUTPUT_INDEX = 0;
@@ -26,12 +26,10 @@ class HcomAllReduce : public hccl::HcclCustomOpBase {
   static constexpr size_t ATTR_FUSION_ID = 3;
 
  protected:
-  ge::graphStatus ExtractParams() override;
+  ge::graphStatus ExtractParams(hccl::HcclOpState &st) override;
+  ge::graphStatus CalcResources(hccl::HcclOpState &st) override;
   ge::graphStatus InferShape(gert::InferShapeContext *ctx) override;
   ge::graphStatus InferDataType(gert::InferDataTypeContext *ctx) override;
-
- private:
-  HcclReduceOp reduceOp_ = HCCL_REDUCE_RESERVED;
 };
 
 #endif  // HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H

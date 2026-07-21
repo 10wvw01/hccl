@@ -24,6 +24,22 @@ namespace hccl {
         }                                         \
     } while (0)
 
+struct HcclOpState {
+    gert::EagerOpExecutionContext *ctx = nullptr;
+    HcclComm comm = nullptr;
+    const char *group = nullptr;
+    void *inputPtr = nullptr;
+    void *outputPtr = nullptr;
+    uint64_t count = 0;
+    HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
+    void *stream = nullptr;
+    void *scratchMem = nullptr;
+    uint64_t scratchMemSize = 0;
+    HcclReduceOp reduceOp = HCCL_REDUCE_RESERVED;
+    uint32_t streamNum = 0;
+    bool ifAiv = false;
+};
+
 class HcclCustomOpBase : public ge::EagerExecuteOp, public ge::ShapeInferOp {
  public:
   ~HcclCustomOpBase() override = default;
@@ -31,22 +47,11 @@ class HcclCustomOpBase : public ge::EagerExecuteOp, public ge::ShapeInferOp {
   ge::graphStatus Execute(gert::EagerOpExecutionContext *ctx) final;
 
  protected:
-  gert::EagerOpExecutionContext *ctx_ = nullptr;
-  HcclComm comm_ = nullptr;
-  const char *group_ = nullptr;
-  void *inputPtr_ = nullptr;
-  void *outputPtr_ = nullptr;
-  uint64_t count_ = 0;
-  HcclDataType dataType_ = HCCL_DATA_TYPE_RESERVED;
-  void *stream_ = nullptr;
-
-  virtual ge::graphStatus ExtractParams() = 0;
-  ge::graphStatus GetCommunicator();
-  virtual ge::graphStatus GetOptions() { return ge::GRAPH_SUCCESS; }
-  virtual ge::graphStatus SelectAlgorithm() { return ge::GRAPH_SUCCESS; }
-  virtual ge::graphStatus CalcResources() { return ge::GRAPH_SUCCESS; }
-  virtual ge::graphStatus LaunchHcclOp() { return ge::GRAPH_SUCCESS; }
-  virtual ge::graphStatus HandleOutput() { return ge::GRAPH_SUCCESS; }
+  virtual ge::graphStatus ExtractParams(HcclOpState &st) = 0;
+  static ge::graphStatus GetCommunicator(HcclOpState &st);
+  virtual ge::graphStatus CalcResources(HcclOpState &st) { return ge::GRAPH_SUCCESS; }
+  virtual ge::graphStatus LaunchHcclOp(HcclOpState &st) { return ge::GRAPH_SUCCESS; }
+  virtual ge::graphStatus HandleOutput(HcclOpState &st) { return ge::GRAPH_SUCCESS; }
 };
 }  // namespace hccl
 

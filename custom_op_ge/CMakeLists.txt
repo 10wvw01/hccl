@@ -29,6 +29,7 @@ target_include_directories(custop_hccl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/common
     ${ASCEND_CANN_PACKAGE_PATH}/include
+    ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc
 )
 
 target_link_libraries(custop_hccl PRIVATE
