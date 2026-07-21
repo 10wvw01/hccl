@@ -567,6 +567,14 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
             if (i == 0) { // 第一步
                 // 第一步nhr全部卡doTask=true ///其他的只有root和root同列的doTask=true
+                if (i == root) {
+                    tempGAlgParamsX.count = currDataCount;
+                    tempGAlgParamsX.sliceSize = currDataCount * dataTypeSize_;
+                    tempGAlgParamsX.buffInfo.outputPtr = param.outputPtr;
+                    tempGAlgParamsX.buffInfo.outBuffType = BufferType::OUTPUT;
+                    tempGAlgParamsX.buffInfo.outBuffBaseOff += processedDataCount * dataTypeSize_; 
+                    tempGAlgParamsX.localCopyFlag = 1;
+                }
                 gAlgTempY.ifDoTask_ = true;
                 HCCL_INFO("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
@@ -596,6 +604,12 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             // 如果当前卡是root的同y轴节点 mesh usrOut->usrOut
             // 如果当前卡是斜对角节点 mesh usrOut->ccl 
                 if(isRoot){
+                    tempGAlgParamsX.count = currDataCount;
+                    tempGAlgParamsX.sliceSize = currDataCount * dataTypeSize_;
+                    tempGAlgParamsX.buffInfo.outputPtr = param.outputPtr;
+                    tempGAlgParamsX.buffInfo.outBuffType = BufferType::OUTPUT;
+                    tempGAlgParamsX.buffInfo.outBuffBaseOff += processedDataCount * dataTypeSize_; 
+                    tempGAlgParamsX.localCopyFlag = 1; 
                     HCCL_INFO("[%s][isRoot] myRank_[%d] 1.", __func__, myRank_); 
                 } else if (isSameYAxisAsRoot && !isRoot) { 
                 HCCL_INFO("[%s][isSameYAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
@@ -647,6 +661,9 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
                 if (currDataCountTmp == 0) {
                     rankOffset += allRankSplitData[i] * dataTypeSize_;
+                    continue;
+                }
+                if (i == param.root) {
                     continue;
                 }
                 HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
