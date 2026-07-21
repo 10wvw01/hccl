@@ -5,9 +5,22 @@
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * See LICENSE in the root directory of the software repository for the full text of the License.
  */
 
-#include "hcom_all_reduce_op.h"
+#include "hccl_custom_op.h"
 
-REG_AUTO_MAPPING_OP(HcomAllReduce);
+namespace hccl {
+ge::graphStatus HcclCustomOpBase::Execute(gert::EagerOpExecutionContext *ctx)
+{
+    ctx_ = ctx;
+    HCCL_GE_CHK_RET(ExtractParams());
+    HCCL_GE_CHK_RET(GetCommunicator());
+    HCCL_GE_CHK_RET(GetOptions());
+    HCCL_GE_CHK_RET(SelectAlgorithm());
+    HCCL_GE_CHK_RET(CalcResources());
+    HCCL_GE_CHK_RET(LaunchHcclOp());
+    HCCL_GE_CHK_RET(HandleOutput());
+    return ge::GRAPH_SUCCESS;
+}
+}  // namespace hccl

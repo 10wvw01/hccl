@@ -261,9 +261,6 @@ endif()
 add_subdirectory(common)
 add_subdirectory(ops)
 
-if(ENABLE_HCCL_CUSTOM_OP_GE)
-    add_subdirectory(custom_op_ge)
-endif()
 
 
 # 定义AIV算子聚合目标

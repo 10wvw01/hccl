@@ -5,21 +5,18 @@
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * See LICENSE in the root directory of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
-#define HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
+#ifndef HCCL_OP_UTILS_H
+#define HCCL_OP_UTILS_H
 
-#include "hccl_custom_op.h"
+#include "hccl/hccl_types.h"
+#include "graph/types.h"
 
-/**
- * HcomAllReduce 的 custom op 适配层。
- * 继承 HcclCustomOpBase，后续按需 override 各流程步骤。
- */
-class HcomAllReduce : public hccl::HcclCustomOpBase {
- public:
-  ~HcomAllReduce() override = default;
-};
+namespace hccl {
+HcclDataType GeDataTypeToHccl(ge::DataType dt);
+HcclReduceOp StringToReduceOp(const char *reduction);
+}  // namespace hccl
 
-#endif  // HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
+#endif  // HCCL_OP_UTILS_H
