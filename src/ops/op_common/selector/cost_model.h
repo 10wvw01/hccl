@@ -12,6 +12,7 @@
 #define HCCLV2_COLL_ALG_SELECTOR_COST_MODEL
 
 #include <string>
+#include <vector>
 
 #include "alg_param.h"
 #include "log.h"
@@ -73,7 +74,7 @@ public:
     static void CalcMeshParam(float n, int netType, int portNum, float &A, float &B);
     // 计算NHR算法的A、B参数
     static void CalcNHRParams(float n, int netType, int portNum, float &A, float &B);
-    static CostModelParam CalcLatencyParams(u64 dataSize, u32 rankSize);
+    static void CalcLatencyParams(int taskNum, float &C);
 
 private:
     void FreeCostModel();
