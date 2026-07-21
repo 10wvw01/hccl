@@ -39,5 +39,4 @@ HcclResult ClassifyOmniPipeChannelsByLevel(
 
  } // namespace ops_hccl 
  
- 
  #endif
