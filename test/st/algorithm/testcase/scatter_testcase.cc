@@ -55,12 +55,13 @@ uint64_t CountElements(const TopoMeta &topoMeta) {
     return total;
 }
 
-void RunScatterTest(int root, TopoMeta &topoMeta, int dataCount, HcclDataType dataType) 
+void RunScatterTest(int root, TopoMeta &topoMeta, int dataCount, HcclDataType dataType,
+                    const char *expansionMode = "AI_CPU", uint32_t repeatCount = 1)
 {
     SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
     
     // 设置展开模式为HOST_TS
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", expansionMode, 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
     
 
@@ -93,7 +94,9 @@ void RunScatterTest(int root, TopoMeta &topoMeta, int dataCount, HcclDataType da
             aclrtMalloc(&recvBuf, recvDataSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
 
             // 4.算子下发
-            CHK_RET(HcclScatter(sendBuf, recvBuf, recvCount, dataType, root, comm, stream));
+            for (uint32_t repeat = 0; repeat < repeatCount; ++repeat) {
+                CHK_RET(HcclScatter(sendBuf, recvBuf, recvCount, dataType, root, comm, stream));
+            }
 
             // 5.销毁通信域
             CHK_RET(HcclCommDestroy(comm));
@@ -228,4 +231,10 @@ TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_4server_root1_fp
 {   
     TopoMeta topoMeta {{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20, 21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
     RunScatterTest(1, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_FP16);
+}
+
+TEST_F(ST_SCATTER_TEST, test_scatter_ccu_repeated_invocation_keeps_cached_offsets)
+{
+    TopoMeta topoMeta {{{0, 1, 2, 3}}};
+    RunScatterTest(2, topoMeta, 17, HcclDataType::HCCL_DATA_TYPE_INT32, "CCU_SCHED", 2);
 }
