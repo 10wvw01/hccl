@@ -17,12 +17,44 @@ static thread_local HcclDevType g_deviceType = HcclDevType::DEV_TYPE_COUNT;
 
 HcclResult HcclGetSocVer(std::string &socName)
 {
+#ifndef AICPU_COMPILE
     const char *socNamePtr = aclrtGetSocName();
     CHK_PRT_RET((socNamePtr == nullptr), HCCL_ERROR("[Get][SocVer]errNo[0x%016llx] aclrtGet socName failed",
         HCCL_ERROR_CODE(HCCL_E_RUNTIME)), HCCL_E_RUNTIME);
 
     socName = socNamePtr;
     return HCCL_SUCCESS;
+#else
+    // device/AICPU 侧: 运行时 dlopen libascendcl.so + dlsym aclrtGetSocName
+    // 避免在 .so 里产生加载期未定义的 aclrtGetSocName 符号引用
+    using FuncPtr = const char *(*)();
+    static FuncPtr funcPtr = []() -> FuncPtr {
+        (void)dlerror();
+        void *handle = dlopen("libascendcl.so", RTLD_NOW);
+        if (handle == nullptr) {
+            const char *err = dlerror();
+            HCCL_ERROR("[Get][SocVer]dlopen libascendcl.so failed, %s", err == nullptr ? "unknown" : err);
+            return nullptr;
+        }
+        (void)dlerror();
+        auto ptr = reinterpret_cast<FuncPtr>(dlsym(handle, "aclrtGetSocName"));
+        if (ptr == nullptr) {
+            const char *err = dlerror();
+            HCCL_ERROR("[Get][SocVer]dlsym aclrtGetSocName failed, %s", err == nullptr ? "unknown" : err);
+        }
+        return ptr;
+    }();
+
+    CHK_PRT_RET((funcPtr == nullptr),
+        HCCL_ERROR("[Get][SocVer]errNo[0x%016llx] get aclrtGetSocName func failed",
+            HCCL_ERROR_CODE(HCCL_E_RUNTIME)), HCCL_E_RUNTIME);
+    const char *socNamePtr = funcPtr();
+    CHK_PRT_RET((socNamePtr == nullptr),
+        HCCL_ERROR("[Get][SocVer]errNo[0x%016llx] aclrtGet socName failed",
+            HCCL_ERROR_CODE(HCCL_E_RUNTIME)), HCCL_E_RUNTIME);
+    socName = socNamePtr;
+    return HCCL_SUCCESS;
+#endif
 }
 } // namespace
 
