@@ -353,6 +353,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     scratchParam.dataTypeSize = dataTypeSize_;
     scratchParam.opMode = param.opMode;
     scratchParam.engine = param.engine;
+    scratchParam.needSetStepNum = omniNeedSetStepNum_;
     return HCCL_SUCCESS;
 }
 
