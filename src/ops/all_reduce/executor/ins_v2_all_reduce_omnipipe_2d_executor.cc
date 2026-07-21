@@ -69,7 +69,7 @@ HcclResult InsV2AllReduceOmniPipe2dExecutor<AlgTopoMatch, CcuRsAlgTemplateX, Ccu
 
     rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
     if (rankSizeLevel0_ == 0) {
-        HCCL_ERROR("[InitCommInfo] rankSizeLevel0 is 0, should be greater than  0");
+        HCCL_ERROR("[InitCommInfo] rankSizeLevel0 is 0, should be greater than 0");
         return HcclResult::HCCL_E_PARA;
     }
 
