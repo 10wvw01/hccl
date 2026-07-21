@@ -132,6 +132,12 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
             return SelectorStatus::NOT_MATCH;
         }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            if (topoInfo->userRankSize == 0 ||
+                dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+                HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
+                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+                return SelectorStatus::NOT_MATCH;
+            }
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1) {
                 // 每框出 1 卡
                 selectAlgName = "CcuReduceNHR1DMem2Mem";
