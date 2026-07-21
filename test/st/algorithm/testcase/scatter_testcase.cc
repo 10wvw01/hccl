@@ -55,12 +55,13 @@ uint64_t CountElements(const TopoMeta &topoMeta) {
     return total;
 }
 
-void RunScatterTest(int root, TopoMeta &topoMeta, int dataCount, HcclDataType dataType) 
+void RunScatterTest(int root, TopoMeta &topoMeta, int dataCount, HcclDataType dataType,
+                    const char *expansionMode = "AI_CPU")
 {
     SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
     
     // 设置展开模式为HOST_TS
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", expansionMode, 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
     
 
@@ -228,4 +229,10 @@ TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_4server_root1_fp
 {   
     TopoMeta topoMeta {{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20, 21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
     RunScatterTest(1, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_FP16);
+}
+
+TEST_F(ST_SCATTER_TEST, test_scatter_mesh_1d_tiny_count_keeps_peer_channel_order)
+{
+    TopoMeta topoMeta {{{0, 1, 2, 3}}};
+    RunScatterTest(0, topoMeta, 1, HcclDataType::HCCL_DATA_TYPE_INT8, "CCU_SCHED");
 }
