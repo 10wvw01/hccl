@@ -184,6 +184,8 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
         // inputOmniPipeSliceStrides[peerId][rpt] 第peerId个卡要发到root的第rpt个数据片
             // 判断是不是本端自己的卡
         for (uint32_t rpt = 0; rpt < inputOmniPipeSliceStrides[0].size(); ++rpt) { // 子通信域的第peerId个卡，要发的第几个数据片
+            bool isFirstPiece = (rpt == 0);
+            bool isLastPiece = (rpt == (inputOmniPipeSliceStrides[0].size() - 1));
             std::vector<uint64_t> sliceSizeOmniSliceStrideVec = {};
             std::vector<uint64_t> inputOmniSliceStrideVec = {};
             std::vector<uint64_t> outputOmniSliceStrideVec = {};
@@ -206,7 +208,9 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
                 sliceSize,
                 isStepOne_, 
                 isLastStep_, 
-                ifNewRoot
+                ifNewRoot,
+                isFirstPiece,
+                isLastPiece
             };
             taskArgs.insert(taskArgs.end(), sliceSizeOmniSliceStrideVec.begin(), sliceSizeOmniSliceStrideVec.end());
             taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
