@@ -95,15 +95,21 @@ enum class AlgNetType : int {
     CLOS = 1, // clos 组网
 };
 
+enum class CostAggMode : int {
+    SUM = 0, // 多组 cost 求和
+    MAX = 1, // 多组 cost 取最大值
+};
+
 struct AlgNetMeta {
-    AlgNetType netType = AlgNetType::MESH;
+    std::vector<AlgNetType> netTypes; // 每个 template 一个，顺序与 costmodel 中 A/B/C 一致
+    CostAggMode aggMode = CostAggMode::SUM;
 };
 
 class AlgNetMetaRegistry {
 public:
     static AlgNetMetaRegistry *Global();
     void Register(const std::string &algName, AlgNetMeta meta);
-    bool Query(const std::string &algName, AlgNetType &netType) const;
+    bool Query(const std::string &algName, AlgNetMeta &meta) const;
 
 private:
     std::map<std::string, AlgNetMeta> metas_;

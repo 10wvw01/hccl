@@ -89,25 +89,38 @@ HcclResult CostTableManager::FilterAllReduce(CostModel &cm, CostTable &ct,
             continue;
         }
 
-        AlgNetType nt = AlgNetType::MESH;
-        AlgNetMetaRegistry::Global()->Query(name, nt);
+        float cost = CalcAlgCost(name, dataSize, cm.costAlgoParams[i]);
+        ct.costs[ct.count].algName = algName;
+        ct.costs[ct.count].cost = cost;
+        ++ct.count;
+        HCCL_DEBUG("[FilterAllReduce] algName=%s cost=%f.", name.c_str(), cost);
+    }
+    return HcclResult::HCCL_SUCCESS;
+}
+
+float CostTableManager::CalcAlgCost(const std::string &algName, u64 dataSize, const CostAlgoParams &algoParams) const
+{
+    AlgNetMeta meta;
+    AlgNetMetaRegistry::Global()->Query(algName, meta);
+
+    const CostModelParam *params = algoParams.param;
+    float cost = 0.0f;
+    for (int j = 0; j < algoParams.count; ++j) {
+        AlgNetType nt = (j < static_cast<int>(meta.netTypes.size())) ? meta.netTypes[j] : AlgNetType::MESH;
         float util = 1.0f;
         if (QueryUbUtil(nt, dataSize, util) != HcclResult::HCCL_SUCCESS) {
             util = 1.0f;
         }
-
-        float cost = 0.0f;
-        const CostModelParam *params = cm.costAlgoParams[i].param;
-        for (int j = 0; j < cm.costAlgoParams[i].count; ++j) {
-            cost += (params[j].A * util + params[j].B) * static_cast<float>(dataSize) + params[j].C;
+        float segCost = (params[j].A * util + params[j].B) * static_cast<float>(dataSize) + params[j].C;
+        if (meta.aggMode == CostAggMode::MAX) {
+            cost = std::max(cost, segCost);
+        } else {
+            cost += segCost;
         }
-        ct.costs[ct.count].algName = algName;
-        ct.costs[ct.count].cost = cost;
-        ++ct.count;
-        HCCL_DEBUG("[FilterAllReduce] algName=%s netType=%d util=%f cost=%f.", name.c_str(),
-                   static_cast<int>(nt), util, cost);
     }
-    return HcclResult::HCCL_SUCCESS;
+    HCCL_DEBUG("[CalcAlgCost] algName=%s aggMode=%d segCount=%d cost=%f.", algName.c_str(),
+               static_cast<int>(meta.aggMode), algoParams.count, cost);
+    return cost;
 }
 
 HcclResult CostTableManager::CostTableGen(CostModel &cm, CostTable &ct,

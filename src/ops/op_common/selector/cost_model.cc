@@ -76,8 +76,8 @@ void CostModelManager::InitBandwidth()
     HCCL_DEBUG("[CostModelManager] InitBandwidth.");
     localCopyBw_ = 750;
     localReduceBw_ = 483;
-    crossChipBw_ = 45;
-    crossChipReduceBw_ = 45;
+    crossChipBw_ = 56;
+    crossChipReduceBw_ = 56;
     HCCL_DEBUG("[CostModelManager] localCopyBw=%f localReduceBw=%f crossChipBw=%f crossChipReduceBw=%f.",
                localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_);
 }
@@ -199,14 +199,14 @@ void AlgNetMetaRegistry::Register(const std::string &algName, AlgNetMeta meta)
                static_cast<int>(meta.netType));
 }
 
-bool AlgNetMetaRegistry::Query(const std::string &algName, AlgNetType &netType) const
+bool AlgNetMetaRegistry::Query(const std::string &algName, AlgNetMeta &meta) const
 {
     const std::lock_guard<std::mutex> lock(mu_);
     auto it = metas_.find(algName);
     if (it == metas_.end()) {
         return false;
     }
-    netType = it->second.netType;
+    meta = it->second;
     return true;
 }
 

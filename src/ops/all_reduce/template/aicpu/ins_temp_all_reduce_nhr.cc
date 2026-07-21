@@ -36,9 +36,9 @@ std::vector<CostModelParam> InsTempAllReduceNHR::CalcCostCoeff()
     return params;
 }
 
-AlgNetMeta InsTempAllReduceNHR::GetAlgNetMeta()
+AlgNetType InsTempAllReduceNHR::GetNetType()
 {
-    return {AlgNetType::CLOS};
+    return AlgNetType::CLOS;
 }
 
 u64 InsTempAllReduceNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
