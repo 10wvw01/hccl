@@ -624,71 +624,71 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             //第一步做完后回到主流做尾同步
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
         }
-        if (myRank_ == param.root) { // loop偏移 + 外部卡偏移
-            // 4.4 G本地拷贝 (TODO:待修改)
-            HCCL_DEBUG("[%s] Gather local copy start, myRank[%d], currDataCount %llu, processedDataCount %llu dataSize_ %llu",
-                            __func__, myRank_, dataCount_, processedDataCount, dataSize_);
-            ThreadHandle mainThread = threads_[0];
-            std::vector<ThreadHandle> syncThreads{threads_[1]};
-            std::vector<u32> notifyIdxesMainToSub{0};
-            std::vector<u32> notifyIdxesSubToMain{0};
-            u64 rankOffset = 0;
-            u64 rankLoopOffset = 0;
-            CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
+        // if (myRank_ == param.root) { // loop偏移 + 外部卡偏移
+        //     // 4.4 G本地拷贝 (TODO:待修改)
+        //     HCCL_DEBUG("[%s] Gather local copy start, myRank[%d], currDataCount %llu, processedDataCount %llu dataSize_ %llu",
+        //                     __func__, myRank_, dataCount_, processedDataCount, dataSize_);
+        //     ThreadHandle mainThread = threads_[0];
+        //     std::vector<ThreadHandle> syncThreads{threads_[1]};
+        //     std::vector<u32> notifyIdxesMainToSub{0};
+        //     std::vector<u32> notifyIdxesSubToMain{0};
+        //     u64 rankOffset = 0;
+        //     u64 rankLoopOffset = 0;
+        //     CHK_RET(PreSyncInterThreads(mainThread, syncThreads, notifyIdxesMainToSub));
 
-            for (u32 i = 0; i < rankSize_; i++) {
-                if (loop != 0) {
-                     processedDataCountTmp[i] = processedDataCountTmp[i] + multiLoopAllRankSplitData[loop-1][i];
-                    HCCL_DEBUG("processedDataCountTmp[%lu]:[%lu] multiloop[%lu][%lu]:[%lu] ",i, processedDataCountTmp[i], loop, i, multiLoopAllRankSplitData[loop][i]);
-                }
-            }
+        //     for (u32 i = 0; i < rankSize_; i++) {
+        //         if (loop != 0) {
+        //              processedDataCountTmp[i] = processedDataCountTmp[i] + multiLoopAllRankSplitData[loop-1][i];
+        //             HCCL_DEBUG("processedDataCountTmp[%lu]:[%lu] multiloop[%lu][%lu]:[%lu] ",i, processedDataCountTmp[i], loop, i, multiLoopAllRankSplitData[loop][i]);
+        //         }
+        //     }
 
-            for (u32 i = 0; i < rankSize_; i++) {
-                u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
-                if (currDataCountTmp == 0) {
-                    rankOffset += allRankSplitData[i] * dataTypeSize_;
-                    continue;
-                }
-                HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
-                TemplateDataParams tempAlgParamLocalCopy = tempAlgParamsCommon;
-                tempAlgParamLocalCopy.localCopyFlag = 1;
-                tempAlgParamLocalCopy.dataType = dataType_;
-                tempAlgParamLocalCopy.buffInfo.inputSize = param.inputSize;
-                tempAlgParamLocalCopy.buffInfo.outputSize = param.outputSize;
-                tempAlgParamLocalCopy.buffInfo.hcclBuff = resCtx.cclMem;
-                tempAlgParamLocalCopy.buffInfo.hcclBuffType =
-                    BufferType::HCCL_BUFFER;
-                tempAlgParamLocalCopy.inputSliceStride = 0;
-                tempAlgParamLocalCopy.outputSliceStride = 0;
-                tempAlgParamLocalCopy.count = currDataCountTmp;
-                tempAlgParamLocalCopy.sliceSize = currDataCountTmp * dataTypeSize_;
-                tempAlgParamLocalCopy.buffInfo.outputPtr = param.outputPtr;
-                tempAlgParamLocalCopy.buffInfo.outBuffType = BufferType::OUTPUT;
-                tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_; // i * 512
-                tempAlgParamLocalCopy.stepSliceInfo.buffInfo.outBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
+        //     for (u32 i = 0; i < rankSize_; i++) {
+        //         u64 currDataCountTmp = multiLoopAllRankSplitData[loop][i];
+        //         if (currDataCountTmp == 0) {
+        //             rankOffset += allRankSplitData[i] * dataTypeSize_;
+        //             continue;
+        //         }
+        //         HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
+        //         TemplateDataParams tempAlgParamLocalCopy = tempAlgParamsCommon;
+        //         tempAlgParamLocalCopy.localCopyFlag = 1;
+        //         tempAlgParamLocalCopy.dataType = dataType_;
+        //         tempAlgParamLocalCopy.buffInfo.inputSize = param.inputSize;
+        //         tempAlgParamLocalCopy.buffInfo.outputSize = param.outputSize;
+        //         tempAlgParamLocalCopy.buffInfo.hcclBuff = resCtx.cclMem;
+        //         tempAlgParamLocalCopy.buffInfo.hcclBuffType =
+        //             BufferType::HCCL_BUFFER;
+        //         tempAlgParamLocalCopy.inputSliceStride = 0;
+        //         tempAlgParamLocalCopy.outputSliceStride = 0;
+        //         tempAlgParamLocalCopy.count = currDataCountTmp;
+        //         tempAlgParamLocalCopy.sliceSize = currDataCountTmp * dataTypeSize_;
+        //         tempAlgParamLocalCopy.buffInfo.outputPtr = param.outputPtr;
+        //         tempAlgParamLocalCopy.buffInfo.outBuffType = BufferType::OUTPUT;
+        //         tempAlgParamLocalCopy.buffInfo.outBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_; // i * 512
+        //         tempAlgParamLocalCopy.stepSliceInfo.buffInfo.outBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
 
-                if (i == param.root) {
-                    tempAlgParamLocalCopy.buffInfo.inputPtr = param.inputPtr;
-                    tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::INPUT;
-                    tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
-                    tempAlgParamLocalCopy.stepSliceInfo.buffInfo.inBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
-                } else {
-                    tempAlgParamLocalCopy.buffInfo.inputPtr = resCtx.cclMem.addr;
-                    tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
-                    tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
-                    tempAlgParamLocalCopy.stepSliceInfo.buffInfo.inBuffBaseOff = rankLoopOffset;
-                }
+        //         if (i == param.root) {
+        //             tempAlgParamLocalCopy.buffInfo.inputPtr = param.inputPtr;
+        //             tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::INPUT;
+        //             tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
+        //             tempAlgParamLocalCopy.stepSliceInfo.buffInfo.inBuffBaseOff = rankOffset + processedDataCountTmp[i] * dataTypeSize_;
+        //         } else {
+        //             tempAlgParamLocalCopy.buffInfo.inputPtr = resCtx.cclMem.addr;
+        //             tempAlgParamLocalCopy.buffInfo.inBuffType = BufferType::HCCL_BUFFER;
+        //             tempAlgParamLocalCopy.buffInfo.inBuffBaseOff = rankLoopOffset;  // i * 512
+        //             tempAlgParamLocalCopy.stepSliceInfo.buffInfo.inBuffBaseOff = rankLoopOffset;
+        //         }
 
-                HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
-                myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
-                CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
-                rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
-                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
-            }
-            CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
+        //         HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
+        //         myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
+        //         CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
+        //         rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
+        //         rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
+        //     }
+        //     CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
                 
-            HCCL_DEBUG("[%s] AG local copy end", __func__);
-        }
+        //     HCCL_DEBUG("[%s] AG local copy end", __func__);
+        // }
         processedDataCount += maxCountPerLoop;
     }
 
