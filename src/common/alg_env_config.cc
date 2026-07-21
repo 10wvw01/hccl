@@ -1130,6 +1130,12 @@ const u8 &GetExternalInputHcclDeterministic()
     return g_algEnvConfig.hcclDeterministic;
 }
 
+bool IsNewSelectorEnabled()
+{
+    static bool enabled = (GetEnv("HCCL_USE_NEW_SELECTOR") == "1");
+    return enabled;
+}
+
 bool RunIndependentOpExpansion(DevType deviceType)
 {
     std::string opExpansionModeEnv = GetEnv("HCCL_OP_EXPANSION_MODE");
