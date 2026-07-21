@@ -19,7 +19,7 @@
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_nhr_1D_multi_jetty_mem2mem.h"
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
 #include "alg_data_trans_wrapper.h"
 
@@ -109,6 +109,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
                                             interTempRequest.ccuKernelInfos.begin(),
                                             interTempRequest.ccuKernelInfos.end());
         resourceRequest.ccuKernelNum.emplace_back(interTempRequest.ccuKernelNum[0]);
+        resourceRequest.dieSplitRatio = interTempRequest.dieSplitRatio;
     }
     HCCL_DEBUG("[InsV2AllGatherParallelExecutor][CalcRes] myRank[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u], "
                "channels[%u]",
@@ -442,6 +443,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         interTempAlgRes.ccuKernels.insert(interTempAlgRes.ccuKernels.end(),
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
                                               resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
+        interTempAlgRes.dieSplitRatio = resCtx.dieSplitRatio;
     } else {
         intraTempAlgRes.channels = intraLinkMap_;
         interTempAlgRes.channels = interLinkMap_;
@@ -623,18 +625,18 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherPara
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, InsAllGatherParallelMesh1DNHRUboe,
                             InsV2AllGatherParallelExecutor, TopoMatchSqueeze2D, InsTempAllGatherNHR,
                             InsTempAllGatherNHR);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherParallelMesh1DNHR,
     InsV2AllGatherParallelExecutor, TopoMatchMultilevel, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMem2Mem);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherParallelMesh1DNHRMemMultiJetty,
     InsV2AllGatherParallelExecutor, TopoMatchUBX, CcuTempAllGatherMesh1DMem2Mem, CcuTempAllGatherNHR1DMultiJettyMem2Mem);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 
 #endif
 }
