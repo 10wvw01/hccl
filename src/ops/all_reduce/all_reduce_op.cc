@@ -177,6 +177,27 @@ HcclResult FillAllReduceOpParam(void *sendBuf, void *recvBuf, uint64_t count, Hc
     return HCCL_SUCCESS;
 }
 
+bool AllReduceSupportSymmetricMemory(OpParam &opParam)
+{
+    size_t inputOffset = 0;
+    size_t outputOffset = 0;
+
+    HcclResult ret = HcclCommSymWinGet(opParam.hcclComm, opParam.inputPtr, opParam.inputSize, &opParam.inputSymWindow, &inputOffset);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.inputSymWindow == nullptr,
+                HCCL_INFO("[AllReduceSupportSymmetricMemory] input symmetric-window lookup failed; "
+                          "disable symmetric-memory optimization, input[%p], size[%llu], ret[%d].",
+                          opParam.inputPtr, opParam.inputSize, ret), false);
+    ret = HcclCommSymWinGet(opParam.hcclComm, opParam.outputPtr, opParam.outputSize, &opParam.outputSymWindow, &outputOffset);
+    CHK_PRT_RET(ret != HCCL_SUCCESS || opParam.outputSymWindow == nullptr,
+                HCCL_INFO("[AllReduceSupportSymmetricMemory] output symmetric-window lookup failed; "
+                          "disable symmetric-memory optimization, output[%p], size[%llu], ret[%d].",
+                          opParam.outputPtr, opParam.outputSize, ret), false);
+    opParam.supportSymmetricMemory = true;
+    opParam.inputOffset = inputOffset;
+    opParam.outputOffset = outputOffset;
+    return true;
+}
+
 HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType,
                                    HcclReduceOp op, HcclComm comm, aclrtStream stream, OpMode opMode, const ResPackGraphMode &resPack, OpParam &param)
 {
@@ -218,6 +239,16 @@ HcclResult AllReduceOutPlaceCommon(void *sendBuf, void *recvBuf, uint64_t count,
         HCCL_WARNING("[%s] ranksize == 1, enter SingleRankProc", __func__);
         CHK_RET(SingleRankProc(comm, param));
         return HcclResult::HCCL_SUCCESS;
+    }
+    // 单个 MESH_1D_CLOS 网络层在 Omni executor 内展开为 Mesh+NHR 两层；
+    // 额外网络层会继续展开出 DPU 第三层，因此不能进入当前对称内存路径。
+    const bool isTwoLevelMeshNhrOmni = algName == "InsV2AllReduceOmniPipe" &&
+        topoInfo->topoLevelNums == TOPO_LEVEL_NUM_1 &&
+        topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix;
+    if (GetHcommVersion() >= CANN_VERSION(9, 1, 0) && param.opMode == OpMode::OPBASE &&
+        isTwoLevelMeshNhrOmni) {
+        // 窗口探测失败只关闭对称内存优化，算子继续使用普通内存路径执行。
+        AllReduceSupportSymmetricMemory(param);
     }
     CHK_RET(HcclExecOp(comm, param, topoInfo, algName, resPack));
     HCCL_INFO("Execute AllReduceOutPlace success.");
