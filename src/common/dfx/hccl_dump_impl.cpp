@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "adapter_acl.h"
@@ -208,6 +209,12 @@ void Trace(const char *format, ...)
     va_end(args);
     std::fprintf(stderr, "\n");
     std::fflush(stderr);
+}
+
+bool IsQueueVaDumpEnabled()
+{
+    const char *env = std::getenv("HCOMM_CHANNEL_DUMP_QUEUE_VA");
+    return env != nullptr && env[0] == '1' && env[1] == '\0';
 }
 
 template <typename T>
@@ -616,11 +623,15 @@ void DumpSqContext(uint64_t deviceAddr, uint32_t sqNum, uint32_t wqeCnt)
         HCCL_RUN_INFO("[HcommChannelInfoDump] SqContext[%u] type[%d] sqVa[0x%llx] depth[%u] entrySize[%u].",
             idx, static_cast<int32_t>(sqContext.type), static_cast<unsigned long long>(sqVa),
             GetSqDepth(sqContext), GetSqEntrySize(sqContext));
-        if (sqVa != 0) {
-            DumpBytes("sqVa", idx, sqVa);
-        }
-        if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
-            DumpUrmaSqWqeEntries(idx, sqContext, wqeCnt);
+        if (IsQueueVaDumpEnabled()) {
+            if (sqVa != 0) {
+                DumpBytes("sqVa", idx, sqVa);
+            }
+            if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
+                DumpUrmaSqWqeEntries(idx, sqContext, wqeCnt);
+            }
+        } else {
+            Trace("skip sqVa/UrmaWqe copy for SqContext[%u], set HCOMM_CHANNEL_DUMP_QUEUE_VA=1 to enable", idx);
         }
     }
     if (sqNum > dumpNum) {
@@ -652,8 +663,12 @@ void DumpCqContext(uint64_t deviceAddr, uint32_t cqNum)
         HCCL_RUN_INFO("[HcommChannelInfoDump] CqContext[%u] type[%d] cqVa[0x%llx] depth[%u] entrySize[%u].",
             idx, static_cast<int32_t>(cqContext.type), static_cast<unsigned long long>(cqVa),
             GetCqDepth(cqContext), GetCqEntrySize(cqContext));
-        if (cqVa != 0) {
-            DumpBytes("scqVa", idx, cqVa);
+        if (IsQueueVaDumpEnabled()) {
+            if (cqVa != 0) {
+                DumpBytes("scqVa", idx, cqVa);
+            }
+        } else {
+            Trace("skip scqVa copy for CqContext[%u], set HCOMM_CHANNEL_DUMP_QUEUE_VA=1 to enable", idx);
         }
     }
     if (cqNum > dumpNum) {
