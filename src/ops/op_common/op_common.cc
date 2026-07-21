@@ -1747,6 +1747,7 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     resCtxHost->notifyNumOnMainThread = resRequest.notifyNumOnMainThread;
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
+    resCtxHost->dieSplitRatio = resRequest.dieSplitRatio;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     // 资源回退
@@ -1879,7 +1880,7 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     return HCCL_SUCCESS;
 }
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence)

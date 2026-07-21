@@ -15,10 +15,10 @@
 namespace ops_hccl {
 constexpr u64 AG_2D_SMALL_DATA_SIZE = 1024 * 1024;
 constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
-constexpr u32 MAX_RANK_NUM_FOR_SEQ_ALGO = 8;
+constexpr u32 MAX_RANK_NUM_FOR_SEQ_ALGO = 16;
 constexpr u64 AG_CCU_SMALL_DATA_SIZE = 4 * 1024 * 1024;
-constexpr u32 AG_FLATTEN_MAX_DATA_SIZE = 64 * 1024;
-constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u32 AG_FLATTEN_MAX_DATA_SIZE = 128 * 1024;
+constexpr u64 AG_CCU_SEQUENCE_MAX_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 AG_AICPU_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_1D_TWO_LEVEL_DATA_SIZE_THRESHOLD = 1 * 1024 * 1024 * 1024;
 constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
@@ -194,6 +194,11 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start", __func__);
+    if (topoInfo->level2Ubg) {
+        HCCL_INFO("[AllGatherAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_INFO("[AllGatherAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
             __func__);
