@@ -75,44 +75,8 @@ HcclResult InsTempReduceScatterOrderPreservedLevel1::KernelRun(
     processSize_ = tempAlgParams.sliceSize;
     count_ = tempAlgParams.sliceSize / DATATYPE_SIZE_TABLE[dataType_];
 
-    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] Start, threadNum[%u], count[%llu], "
-        "dataType[%u], deterministicStrict[%d]", threadNum_, count_, dataType_, deterministicStrict_);
-
-    // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
-    CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
-
-    // 多线程同步：如果线程数大于1，等待子线程就绪，为all2all做准备
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxMainToSub(notifyIdxMainToSub_);
-        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
-    }
-
-    // 步骤2: 执行AllToAll操作（每个rank将自己的数据发送给其他rank，并接收其他rank的数据）
-    CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
-    // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
-    if (threadNum_ > 1) {
-        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
-        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
-        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
-    }
-    if (dataType_ == HCCL_DATA_TYPE_FP64 || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
-        // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
-        CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
-        CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
-        for (const auto &thread : templateResource.threads) {
-            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
-        }
-    }
-
-    // 步骤3: 执行本地归约操作（将收到的所有数据在本地进行归约）
-    CHK_RET(RunLocalReduce(templateResource.threads, tempAlgParams));
-
-    // 步骤4: 执行后处理拷贝（将归约结果从临时缓冲区拷贝到用户输出缓冲区）
-    CHK_RET(PostCopy(tempAlgParams, templateResource.threads));
-
-    HCCL_INFO("[InsTempReduceScatterOrderPreservedLevel1][KernelRun] End");
-    return HCCL_SUCCESS;
+    return KernelRunCommon(param, tempAlgParams, templateResource,
+        "InsTempReduceScatterOrderPreservedLevel1");
 }
 
 HcclResult InsTempReduceScatterOrderPreservedLevel1::GetRes(AlgResourceRequest &resourceRequest) const

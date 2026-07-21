@@ -48,7 +48,20 @@ public:
 
     bool IsPcieProtocol(const std::map<u32, std::vector<ChannelInfo>> &channels);
 
+    // 共享的 KernelRun 通用逻辑，消除子类间的重复代码
+    HcclResult KernelRunCommon(const OpParam& param, const TemplateDataParams& tempAlgParams,
+        TemplateResource& templateResource, const std::string& tag);
+
 protected:
+    // 子类各自实现的步骤方法（模板方法模式），默认返回不支持错误
+    virtual HcclResult PreLocalCopy(const TemplateDataParams &tempAlgParams,
+        const std::vector<ThreadHandle> &threads);
+    virtual HcclResult RunAllToAll(const std::map<u32, std::vector<ChannelInfo>> &channels,
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams);
+    virtual HcclResult RunLocalReduce(const std::vector<ThreadHandle> &threads,
+        const TemplateDataParams &tempAlgParams);
+    virtual HcclResult PostCopy(const TemplateDataParams &tempAlgParams,
+        const std::vector<ThreadHandle> &threads);
 
     OpMode                           opMode_; // 单算子还是图模式
     u32                              root_ = 0;  // 一般是scatter、broadcast需要

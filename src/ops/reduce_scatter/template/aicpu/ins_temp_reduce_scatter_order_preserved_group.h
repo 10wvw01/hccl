@@ -57,14 +57,14 @@ protected:
     bool IsLastBlockData(const u32 outputIndex);
     bool IsLastRank(const u32 rankId);
 
-    HcclResult PreLocalCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads);
+    HcclResult PreLocalCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) override;
     HcclResult SendSingleRankSlice(u32 dstRank, u32 myAlgRank, const std::map<u32, std::vector<ChannelInfo>> &channels,
         const TemplateDataParams &tempAlgParams, const ThreadHandle &thread);
     HcclResult RunAllToAll(const std::map<u32, std::vector<ChannelInfo>> &channels,
-        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams);
+        const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams) override;
     HcclResult RunLocalReduce(const std::vector<ThreadHandle> &threads,
-        const TemplateDataParams &tempAlgParams);
-    HcclResult PostCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads);
+        const TemplateDataParams &tempAlgParams) override;
+    HcclResult PostCopy(const TemplateDataParams &tempAlgParams, const std::vector<ThreadHandle> &threads) override;
 
     u64 processSize_{0};
     u64 count_{0};

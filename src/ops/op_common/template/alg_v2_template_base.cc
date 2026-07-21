@@ -9,6 +9,7 @@
  */
 
 #include "alg_v2_template_base.h"
+#include "exec_timeout_manager.h"
 
 namespace ops_hccl {
 
@@ -48,6 +49,52 @@ HcclResult InsAlgTemplateBase::KernelRun(const OpParam& param,
     return HcclResult::HCCL_E_INTERNAL;
 }
 
+HcclResult InsAlgTemplateBase::KernelRunCommon(const OpParam& param,
+    const TemplateDataParams& tempAlgParams, TemplateResource& templateResource,
+    const std::string& tag)
+{
+    HCCL_INFO("[%s][KernelRun] Start, threadNum[%u], count[%llu], "
+        "dataType[%u], deterministicStrict[%d]", tag.c_str(), threadNum_, count_, dataType_, deterministicStrict_);
+
+    // 步骤1: 执行预处理本地拷贝（将本rank对应的数据从用户输入拷贝到临时缓冲区）
+    CHK_RET(PreLocalCopy(tempAlgParams, templateResource.threads));
+
+    // 多线程同步：如果线程数大于1，等待子线程就绪，为all2all做准备
+    if (threadNum_ > 1) {
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        GetNotifyIdxMainToSub(notifyIdxMainToSub_);
+        CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub_));
+    }
+
+    // 步骤2: 执行AllToAll操作
+    CHK_RET(RunAllToAll(templateResource.channels, templateResource.threads, tempAlgParams));
+
+    // 多线程同步：如果线程数大于1，需要在操作完成后同步，等待子线程完成
+    if (threadNum_ > 1) {
+        std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
+        GetNotifyIdxSubToMain(notifyIdxSubToMain_);
+        CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
+    }
+
+    if (dataType_ == HCCL_DATA_TYPE_FP64 || reduceOp_ == HcclReduceOp::HCCL_REDUCE_PROD) {
+        // 必须确保所有通信任务完成，因为接下来的 AICPU Reduce 运行在 CPU 上，不感知任务队列同步
+        CHK_RET(static_cast<HcclResult>(HcommBatchModeEnd(param.algTag)));
+        CHK_RET(static_cast<HcclResult>(HcommBatchModeStart(param.algTag)));
+        for (const auto &thread : templateResource.threads) {
+            CHK_RET(static_cast<HcclResult>(HcommThreadJoin(thread, ExecTimeoutManager::Instance().GetExecTimeout())));
+        }
+    }
+
+    // 步骤3: 执行本地归约操作（将收到的所有数据在本地进行归约）
+    CHK_RET(RunLocalReduce(templateResource.threads, tempAlgParams));
+
+    // 步骤4: 执行后处理拷贝（将归约结果从临时缓冲区拷贝到用户输出缓冲区）
+    CHK_RET(PostCopy(tempAlgParams, templateResource.threads));
+
+    HCCL_INFO("[%s][KernelRun] End", tag.c_str());
+    return HCCL_SUCCESS;
+}
+
 HcclResult InsAlgTemplateBase::DPUKernelRun(const TemplateDataParams& tempAlgParam,
     const std::map<u32, std::vector<ChannelInfo>>& channels, const u32 myRank,
     const std::vector<std::vector<uint32_t>>& subCommRanks)
@@ -57,6 +104,43 @@ HcclResult InsAlgTemplateBase::DPUKernelRun(const TemplateDataParams& tempAlgPar
     (void)myRank;
     (void)subCommRanks;
     HCCL_ERROR("[InsAlgTemplateBase] Unsupported interface of dpu kernel run!");
+    return HcclResult::HCCL_E_INTERNAL;
+}
+
+HcclResult InsAlgTemplateBase::PreLocalCopy(const TemplateDataParams &tempAlgParams,
+    const std::vector<ThreadHandle> &threads)
+{
+    (void)tempAlgParams;
+    (void)threads;
+    HCCL_ERROR("[InsAlgTemplateBase] Unsupported interface of PreLocalCopy!");
+    return HcclResult::HCCL_E_INTERNAL;
+}
+
+HcclResult InsAlgTemplateBase::RunAllToAll(const std::map<u32, std::vector<ChannelInfo>> &channels,
+    const std::vector<ThreadHandle> &threads, const TemplateDataParams &tempAlgParams)
+{
+    (void)channels;
+    (void)threads;
+    (void)tempAlgParams;
+    HCCL_ERROR("[InsAlgTemplateBase] Unsupported interface of RunAllToAll!");
+    return HcclResult::HCCL_E_INTERNAL;
+}
+
+HcclResult InsAlgTemplateBase::RunLocalReduce(const std::vector<ThreadHandle> &threads,
+    const TemplateDataParams &tempAlgParams)
+{
+    (void)threads;
+    (void)tempAlgParams;
+    HCCL_ERROR("[InsAlgTemplateBase] Unsupported interface of RunLocalReduce!");
+    return HcclResult::HCCL_E_INTERNAL;
+}
+
+HcclResult InsAlgTemplateBase::PostCopy(const TemplateDataParams &tempAlgParams,
+    const std::vector<ThreadHandle> &threads)
+{
+    (void)tempAlgParams;
+    (void)threads;
+    HCCL_ERROR("[InsAlgTemplateBase] Unsupported interface of PostCopy!");
     return HcclResult::HCCL_E_INTERNAL;
 }
 
