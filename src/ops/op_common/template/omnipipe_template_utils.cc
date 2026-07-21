@@ -10,6 +10,7 @@
  
  
  #include "omnipipe_template_utils.h" 
+#include <algorithm>
  #include <vector>
  
  namespace ops_hccl { 
@@ -51,4 +52,48 @@ HcclResult PrepareOmniPipeDataSplitForMultiChannel(CommonAlgTemplateBase* algTem
     } 
     return HcclResult::HCCL_SUCCESS;
  } 
+
+HcclResult ClassifyOmniPipeChannelsByLevel(
+    u32 localRank, const std::vector<std::vector<ChannelInfo>>& channels,
+    const std::vector<const std::vector<std::vector<u32>>*>& subCommsByLevel,
+    const std::vector<uint64_t>& rankSizesByLevel,
+    std::vector<std::map<u32, std::vector<ChannelInfo>>>& channelsByLevel)
+{
+    if (subCommsByLevel.size() != rankSizesByLevel.size()) {
+        HCCL_ERROR("[ClassifyOmniPipeChannelsByLevel] level count mismatch, subCommLevelCount[%zu], "
+                   "rankSizeLevelCount[%zu].", subCommsByLevel.size(), rankSizesByLevel.size());
+        return HCCL_E_PARA;
+    }
+
+    channelsByLevel.assign(subCommsByLevel.size(), {});
+    for (const auto& channelGroup : channels) {
+        for (const auto& channel : channelGroup) {
+            bool classified = false;
+            for (u32 level = 0; level < subCommsByLevel.size(); ++level) {
+                if (subCommsByLevel[level] == nullptr || rankSizesByLevel[level] <= 1) {
+                    continue;
+                }
+                for (const auto& subComm : *subCommsByLevel[level]) {
+                    const bool containsLocalRank =
+                        std::find(subComm.begin(), subComm.end(), localRank) != subComm.end();
+                    const bool containsRemoteRank =
+                        std::find(subComm.begin(), subComm.end(), channel.remoteRank) != subComm.end();
+                    if (containsLocalRank && containsRemoteRank) {
+                        channelsByLevel[level][channel.remoteRank].push_back(channel);
+                        classified = true;
+                        break;
+                    }
+                }
+                if (classified) {
+                    break;
+                }
+            }
+            if (!classified) {
+                HCCL_WARNING("[ClassifyOmniPipeChannelsByLevel] discard unclassified channel, "
+                             "remoteRank[%u] is absent from every active sub-communicator.", channel.remoteRank);
+            }
+        }
+    }
+    return HCCL_SUCCESS;
+}
  } // namespace ops_hccl 
