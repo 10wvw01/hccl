@@ -79,8 +79,8 @@
              uid##_done = (_CcuIfStackPush(CCU_LABEL(uid)), 0);             \
          uid##_rc == (int)CCU_SUCCESS && uid##_done == 0;                   \
           uid##_done = 1,                                                    \
-              ((void)_CcuIfStackMarkBodyDone(),                              \
-               (void)CcuFlushPendingIfs(), (void)0))
+              ((void)CcuFlushPendingIfs(),                                   \
+               _CcuIfStackMarkBodyDone(), (void)0))
 
 #define CCU_ELSE                                                            \
     CCU_ELSE_EXPAND(CCU_CONCAT(__ccu_el_, __COUNTER__))
