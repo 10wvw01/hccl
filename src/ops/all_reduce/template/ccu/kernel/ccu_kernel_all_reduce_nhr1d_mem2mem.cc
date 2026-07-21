@@ -112,7 +112,7 @@ static CcuResult PostSync(AllReduceNHR1DContext &ctx)
 }
 
 static CcuResult DoWriteReduceSlice(AllReduceNHR1DContext &ctx, const u32 &toRank, ccu::LocalAddr &src, ccu::RemoteAddr &dst, 
-                               const u32 &sendSliceIdx, u32 signalIndex)
+                            const u32 &sendSliceIdx, u32 signalIndex)
 {
     const auto *arg = ctx.arg;
     ChannelHandle sendChannel = arg->channels[ctx.indexMap[toRank]];
@@ -137,6 +137,15 @@ static CcuResult DoWriteReduceSlice(AllReduceNHR1DContext &ctx, const u32 &toRan
         ccu::EventRecord(ctx.localEvent, 1 << signalIndex);
     }
     return CCU_SUCCESS;
+}
+
+static uint16_t GetPendingEventMask(uint64_t eventCount)
+{
+    if (eventCount == 0) {
+        return 0;
+    }
+    const uint32_t pendingEventCount = (eventCount - 1) % RANK_NUM_PER_CKE + 1;
+    return static_cast<uint16_t>((1U << pendingEventCount) - 1U);
 }
 
 static CcuResult DoReduceScatterNHRSingleStep(AllReduceNHR1DContext &ctx, const NHRStepInfo &nhrStepInfo)
@@ -181,7 +190,7 @@ static CcuResult DoReduceScatterNHRSingleStep(AllReduceNHR1DContext &ctx, const 
 
         CCU_CHK_RET(DoWriteReduceSlice(ctx, nhrStepInfo.toRank, ctx.srcMem, ctx.rmtDstMem, sendSliceIdx, i % RANK_NUM_PER_CKE));
     }
-    ccu::EventWait(ctx.localEvent, (1 << (sendSliceIdxList.size() % RANK_NUM_PER_CKE)) - 1);
+    ccu::EventWait(ctx.localEvent, GetPendingEventMask(sendSliceIdxList.size()));
 
     // 通知toRank数据写入完毕
     ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP0_POST_SYNC_ID);
@@ -257,7 +266,7 @@ static CcuResult DoAllGatherNHRSingleStep(AllReduceNHR1DContext &ctx, const NHRS
         ctx.rmtDstMem.addr += ctx.sliceOffset[sendSliceIdx];
         CCU_CHK_RET(DoSendRecvSlice(ctx, nhrStepInfo.toRank, ctx.srcMem, ctx.rmtDstMem, sendSliceIdx, i % RANK_NUM_PER_CKE));
     }
-    ccu::EventWait(ctx.localEvent, (1 << (sendSliceIdxList.size() % RANK_NUM_PER_CKE)) - 1);
+    ccu::EventWait(ctx.localEvent, GetPendingEventMask(sendSliceIdxList.size()));
 
     if (nhrStepInfo.step + 1 != ctx.stepInfoVector.size()) {   // 最后一步不需要同步
         // 通知toRank，写入完毕
@@ -359,9 +368,10 @@ static CcuResult LocalCopySlices(AllReduceNHR1DContext &ctx)
             ctx.locDstMem.addr  = ctx.output[ctx.myRankIdx];
             ctx.locDstMem.addr += ctx.sliceOffset[nonTxSliceIdx];
             ctx.locDstMem.token = ctx.token[ctx.myRankIdx];
-            CCU_CHK_RET(DoLocalCopySlice(ctx, ctx.srcMem, ctx.locDstMem, nonTxSliceIdx, i));
+            CCU_CHK_RET(DoLocalCopySlice(ctx, ctx.srcMem, ctx.locDstMem, nonTxSliceIdx,
+                                        i % RANK_NUM_PER_CKE));
         }
-        ccu::EventWait(ctx.localEvent, (1 << (nonTxSliceIdxList.size() % RANK_NUM_PER_CKE)) - 1);
+        ccu::EventWait(ctx.localEvent, GetPendingEventMask(nonTxSliceIdxList.size()));
     } 
     return CCU_SUCCESS;
 }
