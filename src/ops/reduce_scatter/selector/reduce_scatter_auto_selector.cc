@@ -86,12 +86,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             return SelectorStatus::NOT_MATCH;
         } else {
 #ifdef Ascend_950_CCU_V2
-            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
-                selectAlgName = "CcuReduceScatterMesh1D";
-            }
+            if (dataSize * topoInfo->userRankSize > SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+                selectAlgName = "CcuReduceScatterSoleMeshMSConcur";
+            } else
 #endif
-            else {
-                selectAlgName = "CcuReduceScatterMesh1D";//
+            {
+                selectAlgName = "CcuReduceScatterMesh1D";
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
@@ -110,7 +110,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             if (IsSmallData(dataSize)) { // 小数据量，用1d mesh算法
                 selectAlgName = "CcuReduceScatterMesh1D";
             } else { // 大数据量，用mesh+clos并行算法
-                selectAlgName = "CcuReduceScatterConcurrentMeshNHRMsUBX";
+                selectAlgName = "CcuReduceScatterConcurrentMeshNHRMs";
             }
         } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
             if (dataSize < OMNI_UBX_RS_MS_DATA_SIZE) {
@@ -289,7 +289,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcuSchedule(const TopoIn
                 selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
             } else {
                 // 大数据量，用mesh+clos并行算法
-                selectAlgName = "CcuReduceScatterConcurrentMeshNHRScheUBX";
+                selectAlgName = "CcuReduceScatterConcurrentMeshNHRSche";
             }
         } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
             // 矩形场景大数据量，用2d并行算法
