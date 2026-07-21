@@ -229,3 +229,9 @@ TEST_F(ST_SCATTER_TEST, test_aicpu_scatter_mesh1dnhr_asymmetric_4server_root1_fp
     TopoMeta topoMeta {{{0, 1}, {8, 9, 10, 11}, {16, 17, 18, 19, 20, 21}, {24, 25, 26, 27, 28, 29, 30, 31}}};
     RunScatterTest(1, topoMeta, 100, HcclDataType::HCCL_DATA_TYPE_FP16);
 }
+
+TEST_F(ST_SCATTER_TEST, test_scatter_mesh_1d_tiny_count_keeps_peer_channel_order)
+{
+    TopoMeta topoMeta {{{0, 1, 2, 3}}};
+    RunScatterTest(0, topoMeta, 1, HcclDataType::HCCL_DATA_TYPE_INT8);
+}

@@ -117,12 +117,12 @@ static CcuResult DoScatterOnce(ScatterMesh1DContext &ctx)
         {
             ccu::Write(ctx.arg->channels[channelId], ctx.outputMem[rankIdx],
                          ctx.inputMem[rankIdx], sliceSize, ctx.event, mask);
-            channelId++;
         }
         CCU_IF(sliceSize == 0)
         {
             ccu::EventRecord(ctx.event, mask);
         }
+        channelId++;
     }
 
     // 阻塞接口放在Write之后，Write与GroupCopy并行执行
