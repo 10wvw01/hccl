@@ -848,27 +848,19 @@ std::vector<std::vector<u64>> CalRSDataSizeStep(u64 *xRSDataSize, u64 *yRSDataSi
 std::vector<u64> OmniPipeSplitData(u64 rankSize, u64 count, u64 dataTypeSize)
 {
     std::vector<u64> omniPipeSplitSliceInfoList;
-    u64 sliceNum = rankSize;
-
-    u64 sliceCount = RoundUp(count, sliceNum);
-    u64 sliceSize = sliceCount * dataTypeSize;
+    u64 sliceCount = RoundUp(count, rankSize);
 
     u64 offsetCount = 0;
-    u64 offsetSize = 0;
-    for (u64 sliceIdx = 0; sliceIdx < sliceNum; ++sliceIdx) {
+    for (u64 sliceIdx = 0; sliceIdx < rankSize; ++sliceIdx) {
         if (count - offsetCount > sliceCount) {
             omniPipeSplitSliceInfoList.push_back(sliceCount);
             offsetCount += sliceCount;
-            offsetSize = offsetCount * dataTypeSize;
         } else {
-            u64 curSliceCount = count - offsetCount;
-            u64 curSliceSize = curSliceCount * dataTypeSize;
+            const u64 curSliceCount = count - offsetCount;
             omniPipeSplitSliceInfoList.push_back(curSliceCount);
             offsetCount = count;
-            offsetSize = offsetCount * dataTypeSize;
         }
     }
-
     return omniPipeSplitSliceInfoList;
 }
 

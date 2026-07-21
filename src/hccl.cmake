@@ -62,9 +62,11 @@ if(HCCL_CANN_COMPAT_850)
 endif()
 
 target_compile_options(hccl PRIVATE
-    # -Werror
-    # -Wno-unused-parameter
-    # -Wno-missing-field-initializers
+    -Werror
+    -Wno-unused-parameter
+    -Wno-sign-compare
+    -Wno-unused-variable
+    -Wno-unused-value
     -fno-common
     -fno-strict-aliasing
     -pipe
@@ -155,6 +157,7 @@ target_include_directories(opgraph_hccl PRIVATE
     ${OP_PROTO_INCLUDE}
 )
 target_compile_options(opgraph_hccl PRIVATE
+    -Wno-error=cpp
     -fno-common
     -fno-strict-aliasing
     -pipe

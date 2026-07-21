@@ -44,9 +44,8 @@ else()
     )
 
     target_compile_options(hccl_compat PRIVATE
-        # -Werror
-        # -Wno-unused-parameter
-        # -Wno-missing-field-initializers
+        -Werror
+        -Wno-unused-parameter
         -fno-common
         -fno-strict-aliasing
         -pipe

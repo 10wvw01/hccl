@@ -195,14 +195,10 @@ target_compile_options(scatter_aicpu_kernel PRIVATE
     $<$<CONFIG:Debug>:-g>
     $<$<CONFIG:Release>:-O3>
     -fstack-protector-all
-    # -Werror
-    # -Wno-unused-parameter
-    # -Wno-sign-compare
-    # -Wno-unused-variable
-    # -Wno-unused-but-set-variable
-    # -Wno-unused-function
-    # -Wno-float-equal
-    # -Wno-missing-field-initializers
+    -Werror
+    -Wno-unused-parameter
+    -Wno-sign-compare
+    -Wno-unused-variable
 )
 
 target_link_options(scatter_aicpu_kernel PRIVATE
