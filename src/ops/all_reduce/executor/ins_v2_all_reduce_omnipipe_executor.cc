@@ -673,11 +673,6 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS &&
         !resCtx.topoInfo.level0PcieMix) {
         if (rankSizeLevel1_ > 1) {
-            u32 runtimeChannelsPerRank =
-            remoteRankToChannelInfo_[OMNIPIPE_LEVEL1].empty()
-                ? 0
-                : CalcChannelsPerRank(
-                      remoteRankToChannelInfo_[OMNIPIPE_LEVEL1]);
         CHK_RET(
             tempMap[OMNIPIPE_RS_LEVEL1]->SetchannelsPerRank(
                 remoteRankToChannelInfo_[OMNIPIPE_LEVEL1]));
