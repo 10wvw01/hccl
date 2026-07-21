@@ -15,7 +15,7 @@
 #include "order_preserved_common.h"
 
 namespace ops_hccl {
-constexpr u64 RS_MAX_DATA_SIZE = 16 * 1024 * 1024;
+constexpr u64 RS_MAX_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_ONESHOT_1D_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 AR_M2M_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
@@ -184,9 +184,8 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
-            } else if (dataSize <= 16 * 1024 * 1024 && topoInfo->userRankSize >= ccuSize) {
-                selectAlgName = "CcuAllReduceSequenceMesh1D";
-                return SelectorStatus::MATCH;
+            } else if (dataSize <= RS_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize) {
+                selectAlgName = (dataSize <= RS_MAX_DATA_SIZE) ? "CcuAllReduceSequenceMesh1D" : "CcuAllReduceParallelMesh1DNHR" ;
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
                 return SelectorStatus::MATCH;
