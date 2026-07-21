@@ -100,17 +100,17 @@ HcclResult CcuTempScatterMesh1D::FastLaunch(const OpParam& param, const Template
         return HCCL_SUCCESS;
     }
     HCCL_DEBUG("[CcuTempScatterMesh1D::FastLaunch] start");
-    uint64_t *args = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
+    const uint64_t *cachedArgs = tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs;
     buffInfo_ = tempFastLaunchCtx.buffInfo;
     constexpr u32 inputIdx = 0;
     constexpr u32 outputIdx = 1;
-    args[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + args[inputIdx];
-    args[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + args[outputIdx];
-    void *taskArgs = reinterpret_cast<void*>(args);
-    uint64_t argSize = 15;
+    constexpr uint64_t argSize = 15;
+    std::vector<uint64_t> taskArgs(cachedArgs, cachedArgs + argSize);
+    taskArgs[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + taskArgs[inputIdx];
+    taskArgs[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + taskArgs[outputIdx];
     CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[0],
                                                tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle,
-                                               taskArgs, argSize);
+                                               taskArgs.data(), argSize);
     if (launchRet != CCU_SUCCESS) {
         HCCL_ERROR("[CcuTempScatterMesh1D::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
         return ConvertCcuToHccl(launchRet);

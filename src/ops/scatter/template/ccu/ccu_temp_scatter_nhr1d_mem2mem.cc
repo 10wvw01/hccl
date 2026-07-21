@@ -235,7 +235,7 @@ HcclResult CcuTempScatterNHR1DMem2Mem::FastLaunch(const OpParam& param, const Te
     }
     u32 kernelNum = tempFastLaunchCtx.ccuKernelSubmitInfos.size();
     buffInfo_ = tempFastLaunchCtx.buffInfo;
-    uint64_t *args = const_cast<uint64_t*>(tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs);
+    const uint64_t *cachedArgs = tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs;
     // 前流同步
     if (kernelNum > 1) {
         std::vector<ThreadHandle> subThreads(tempFastLaunchCtx.threads.begin() + 1, tempFastLaunchCtx.threads.end());
@@ -246,16 +246,16 @@ HcclResult CcuTempScatterNHR1DMem2Mem::FastLaunch(const OpParam& param, const Te
     constexpr u32 inputIdx = 0;
     constexpr u32 outputIdx = 1;
     constexpr u32 scratchIdx = 2;
-    args[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + args[inputIdx];
-    args[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + args[outputIdx];
-    args[scratchIdx] = PointerToAddr(buffInfo_.hcclBuff.addr) + args[scratchIdx];
-    void *taskArgs = reinterpret_cast<void*>(args);
-    uint64_t argSize = 17;
+    constexpr uint64_t argSize = 17;
+    std::vector<uint64_t> taskArgs(cachedArgs, cachedArgs + argSize);
+    taskArgs[inputIdx] = PointerToAddr(buffInfo_.inputPtr) + taskArgs[inputIdx];
+    taskArgs[outputIdx] = PointerToAddr(buffInfo_.outputPtr) + taskArgs[outputIdx];
+    taskArgs[scratchIdx] = PointerToAddr(buffInfo_.hcclBuff.addr) + taskArgs[scratchIdx];
 
     for (u32 kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
         CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[kernelIdx],
                                                    tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle,
-                                                   taskArgs, argSize);
+                                                   taskArgs.data(), argSize);
         if (launchRet != CCU_SUCCESS) {
             HCCL_ERROR("[CcuTempScatterNHR1DMem2Mem::FastLaunch] kernel launch failed, ccuRet -> %d", launchRet);
             return ConvertCcuToHccl(launchRet);
