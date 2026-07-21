@@ -11,6 +11,7 @@
 #include "dev_type.h"
 #include "log.h"
 #include "acl_rt.h"
+#include <dlfcn.h>
 
 namespace {
 static thread_local HcclDevType g_deviceType = HcclDevType::DEV_TYPE_COUNT;
