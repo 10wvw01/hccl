@@ -120,3 +120,8 @@ TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_005)
 {
     RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
 }
+
+TEST_F(ST_REDUCE_SCATTER_TEST, test_reducescatter_nhr_tiny_data_single_die_payload)
+{
+    RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}}}, 1, HCCL_DATA_TYPE_INT8);
+}
