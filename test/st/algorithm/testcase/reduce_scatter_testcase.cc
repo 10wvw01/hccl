@@ -42,7 +42,9 @@ protected:
 
 static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
                                   HcclDataType dataType,
-                                  HcclReduceOp reduceOp = HCCL_REDUCE_SUM)
+                                  HcclReduceOp reduceOp = HCCL_REDUCE_SUM,
+                                  const char *expansionMode = "AI_CPU",
+                                  uint32_t repeatCount = 1)
 {
     auto rankSize = 0;
     for (auto elem : topoMeta[0]) {
@@ -63,7 +65,7 @@ static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
     }
 
     SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", expansionMode, 1);
     setenv("ENABLE_HOSTDPU_FOR_LLT", "1", 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
 
@@ -81,7 +83,9 @@ static void RunReduceScatterTest(const TopoMeta &topoMeta, u64 recvCount,
             u64 recvBufSize = recvCount * dataUnitSize;
             aclrtMalloc(&sendBuf, sendBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
             aclrtMalloc(&recvBuf, recvBufSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
-            CHK_RET(HcclReduceScatter(sendBuf, recvBuf, recvCount, dataType, reduceOp, comm, stream));
+            for (uint32_t repeat = 0; repeat < repeatCount; ++repeat) {
+                CHK_RET(HcclReduceScatter(sendBuf, recvBuf, recvCount, dataType, reduceOp, comm, stream));
+            }
             CHK_RET(HcclCommDestroy(comm));
             return HCCL_SUCCESS;
         });
@@ -119,4 +123,10 @@ TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_004)
 TEST_F(ST_REDUCE_SCATTER_TEST, test_host_dpu_reducescatter_005)
 {
     RunReduceScatterTest(TopoMeta{{{0, 1}, {0, 1}, {0, 1}, {0, 1}}}, 301 * 1024 * 1024, HCCL_DATA_TYPE_FP32);
+}
+
+TEST_F(ST_REDUCE_SCATTER_TEST, test_reducescatter_nhr_tiny_data_single_die_payload)
+{
+    RunReduceScatterTest(TopoMeta{{{0}, {0}, {0}, {0}}}, 1, HCCL_DATA_TYPE_INT8,
+        HCCL_REDUCE_SUM, "CCU_SCHED", 2);
 }
