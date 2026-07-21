@@ -51,13 +51,14 @@ protected:
 };
 
 void RunAllReduceCase(const TopoMeta &topoInfo, const u64 dataCount,
-    const HcclDataType dataType, const u32 dataTypeSize, const HcclReduceOp reduceOp)
+    const HcclDataType dataType, const u32 dataTypeSize, const HcclReduceOp reduceOp,
+    const char *expansionMode = "AI_CPU")
 {
     // 仿真模型初始化
     SimWorld::Global()->Init(topoInfo, DevType::DEV_TYPE_950);
 
     // 设置展开模式为HOST_TS
-    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_OP_EXPANSION_MODE", expansionMode, 1);
     setenv("HCCL_INDEPENDENT_OP", "1", 1);
     
 
@@ -299,4 +300,12 @@ TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_hcclbuff_add_1)
     u64 dataCount = 200 * 1024 * 1024 + 1;
     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
     RunAllReduceCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
+}
+
+TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_nhr_full_event_group)
+{
+    TopoMeta topoMeta{{{0}, {0}, {0}, {0}, {0}, {0}, {0}, {0},
+                       {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}}};
+    RunAllReduceCase(topoMeta, 16, HcclDataType::HCCL_DATA_TYPE_INT32, 4,
+        HcclReduceOp::HCCL_REDUCE_SUM, "CCU_SCHED");
 }
