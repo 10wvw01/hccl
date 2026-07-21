@@ -137,7 +137,7 @@ HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm,
         const std::vector<HcclChannelDesc> &channels = pair.second;
         if (channels.size() == LINK_NUM_1) {
             dieNum = 1;
-            GetChannelDieId(comm, myRankId, channels[0], dieId);
+            CHK_RET(GetChannelDieId(comm, myRankId, channels[0], dieId));
             HCCL_INFO("[CcuAlgTemplateBase::GetDieNumFromChannelDescs] only 1 channel, dieNum = 1, dieId = %u.", dieId);
             return HcclResult::HCCL_SUCCESS;
         } 
@@ -146,8 +146,8 @@ HcclResult CcuAlgTemplateBase::GetDieInfoFromChannelDescs(HcclComm comm,
             // 检查2个channel是否在2个die上
             uint32_t dieId0 = 0;
             uint32_t dieId1 = 0;
-            GetChannelDieId(comm, myRankId, channels[0], dieId0);
-            GetChannelDieId(comm, myRankId, channels[1], dieId1);
+            CHK_RET(GetChannelDieId(comm, myRankId, channels[0], dieId0));
+            CHK_RET(GetChannelDieId(comm, myRankId, channels[1], dieId1));
             if (dieId0 == dieId1) {
                 dieNum = LINK_NUM_1;
                 dieId = dieId0;

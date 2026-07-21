@@ -45,34 +45,6 @@ u64 CcuTempBroadcastNHR1DMem2Mem::CalcScratchMultiple(BufferType inBuffType, Buf
     return 0;
 }
 
-HcclResult CcuTempBroadcastNHR1DMem2Mem::GetDieNumFromChannelDescs(HcclComm comm, u32 &dieNum)
-{
-    constexpr u32 LINK_NUM_1 = 2;
-    constexpr u32 LINK_NUM_2 = 2;
-    auto firstElement = rankIdToChannelDesc_.begin();
-    const std::vector<HcclChannelDesc>& firstVector = firstElement->second;
-    if (firstVector.size() == 1) {
-        dieNum = 1;
-        return HCCL_SUCCESS;
-    } else if (firstVector.size() == LINK_NUM_2) {
-        // 检查2个channel是否在2个die上
-        uint32_t dieId0 = 0;
-        uint32_t dieId1 = 0;
-        GetChannelDieId(comm, myRank_, firstVector[0], dieId0);
-        GetChannelDieId(comm, myRank_, firstVector[1], dieId1);
-        if (dieId0 == dieId1) {
-            dieNum = LINK_NUM_1;
-        } else {
-            dieNum = LINK_NUM_2;
-        }
-        return HCCL_SUCCESS;
-    } else {
-        HCCL_ERROR("[CcuTempBroadcastNHR1DMem2Mem::CalcRes] get channelDescs fail: there are [] link to rank []",
-                   firstVector.size(), firstElement->first);
-        return HCCL_E_INTERNAL;
-    }
-}
-
 HcclResult CcuTempBroadcastNHR1DMem2Mem::ProcessNHRStepInfo(HcclComm comm, std::vector<NHRStepInfo>& stepInfoVector,
                                                             std::map<u32, u32>& rank2ChannelIdx, u32 enableDieNum,
                                                             std::vector<std::vector<HcclChannelDesc>>& channelsPerDie)
@@ -135,7 +107,8 @@ HcclResult CcuTempBroadcastNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& p
 
     // 1.从获得的channelDesc，判断kernel发送到几个die上
     uint32_t enableDieNum = 0;
-    CHK_RET(GetDieNumFromChannelDescs(comm, enableDieNum));
+    uint32_t enableDieId = 0;
+    CHK_RET(GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc_, myRank_, enableDieNum, enableDieId));
 
     constexpr uint32_t NUMONE = 1;
     constexpr uint32_t NUMTWO = 2;

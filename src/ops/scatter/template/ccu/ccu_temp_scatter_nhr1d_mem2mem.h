@@ -76,7 +76,6 @@ private:
                                 const std::map<u32, u32> &rank2ChannelIdx,
                                 const std::vector<std::vector<HcclChannelDesc>> &channelsPerDie,
                                 AlgResourceRequest &resourceRequest);
-    HcclResult GetDieNumFromChannelDescs(HcclComm comm, u32 &dieNum);
     HcclResult GetStepInfo(u32 step, u32 nSteps, NHRStepInfo &stepInfo);
     HcclResult ProcessNHRStepInfo(HcclComm comm,
                                   std::vector<NHRStepInfo>& stepInfoVector, std::map<u32, u32>& rank2ChannelIdx,

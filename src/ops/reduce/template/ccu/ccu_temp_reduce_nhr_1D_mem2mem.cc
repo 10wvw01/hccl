@@ -36,34 +36,6 @@ CcuTempReduceNHR1DMem2Mem::~CcuTempReduceNHR1DMem2Mem()
 {
 }
 
-HcclResult CcuTempReduceNHR1DMem2Mem::GetDieNumFromChannelDescs(HcclComm comm, u32 &dieNum)
-{
-    constexpr u32 LINK_NUM_1 = 2;
-    constexpr u32 LINK_NUM_2 = 2;
-    auto firstElement = rankIdToChannelDesc_.begin();
-    const std::vector<HcclChannelDesc>& firstVector = firstElement->second;
-    if (firstVector.size() == 1) {
-        dieNum = 1;
-        return HcclResult::HCCL_SUCCESS;
-    } else if (firstVector.size() == LINK_NUM_2) {
-        // 检查2个channel是否在2个die上
-        uint32_t dieId0 = 0;
-        uint32_t dieId1 = 0;
-        GetChannelDieId(comm, myRank_, firstVector[0], dieId0);
-        GetChannelDieId(comm, myRank_, firstVector[1], dieId1);
-        if (dieId0 == dieId1) {
-            dieNum = LINK_NUM_1;
-        } else {
-            dieNum = LINK_NUM_2;
-        }
-        return HcclResult::HCCL_SUCCESS;
-    } else {
-        HCCL_ERROR("[CcuTempReduceNHR1DMem2Mem::CalcRes] get channelDescs fail: there are [] link to rank []",
-                   firstVector.size(), firstElement->first);
-        return HcclResult::HCCL_E_INTERNAL;
-    }
-}
-
 HcclResult CcuTempReduceNHR1DMem2Mem::ProcessNHRStepInfo(HcclComm comm,
                                                          std::vector<NHRStepInfo>& stepInfoVector,
                                                          std::map<u32, u32>& rank2ChannelIdx, u32 enableDieNum,
@@ -126,7 +98,8 @@ HcclResult CcuTempReduceNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& para
 
     // 1.从获得的channelDesc，判断kernel发送到几个die上
     uint32_t enableDieNum = 0;
-    CHK_RET(GetDieNumFromChannelDescs(comm, enableDieNum));
+    uint32_t enableDieId = 0;
+    CHK_RET(GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc_, myRank_, enableDieNum, enableDieId));
     
     if (enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2) { // 目前只支持1个或2个die
         HCCL_ERROR("[CcuTempReduceNHR1DMem2Mem::CalcRes] get channelDescs fail");
@@ -493,4 +466,4 @@ u64 CcuTempReduceNHR1DMem2Mem::CalcScratchMultiple(BufferType inBuffType, Buffer
     return 0;
 }
 
-} // namespace ops_hccl 
+} // namespace ops_hccl

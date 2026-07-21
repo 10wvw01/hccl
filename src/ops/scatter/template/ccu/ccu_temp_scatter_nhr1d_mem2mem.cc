@@ -56,36 +56,6 @@ u64 CcuTempScatterNHR1DMem2Mem::CalcScratchMultiple(BufferType inBuffType, Buffe
     return subCommRanks_[0].size();
 }
 
-HcclResult CcuTempScatterNHR1DMem2Mem::GetDieNumFromChannelDescs(HcclComm comm, u32 &dieNum)
-{
-    constexpr u32 LINK_NUM_1 = 2;
-    constexpr u32 LINK_NUM_2 = 2;
-    auto firstElement = rankIdToChannelDesc_.begin();
-    const std::vector<HcclChannelDesc> &firstVector = firstElement->second;
-    if (firstVector.size() == 1) {
-        dieNum = 1;
-        return HcclResult::HCCL_SUCCESS;
-    } else if (firstVector.size() == LINK_NUM_2) {
-        // 检查2个channel是否在2个die上
-        uint32_t dieId0 = 0;
-        uint32_t dieId1 = 0;
-        GetChannelDieId(comm, myRank_, firstVector[0], dieId0);
-        GetChannelDieId(comm, myRank_, firstVector[1], dieId1);
-        if (dieId0 == dieId1) {
-            dieNum = LINK_NUM_1;
-            HCCL_INFO("[CcuTempScatterNHR1DMem2Mem::GetDieNumFromChannelDescs] 2 channels on the same die, dieNum = 1.");
-        } else {
-            dieNum = LINK_NUM_2;
-            HCCL_INFO("[CcuTempScatterNHR1DMem2Mem::GetDieNumFromChannelDescs] 2 channels on 2 dies, dieNum = 2.");
-        }
-        return HcclResult::HCCL_SUCCESS;
-    } else {
-        HCCL_ERROR("[CcuTempScatterNHR1DMem2Mem::CalcRes] get channelDescs fail: there are [] link to rank []",
-                   firstVector.size(), firstElement->first);
-        return HcclResult::HCCL_E_INTERNAL;
-    }
-}
-
 HcclResult CcuTempScatterNHR1DMem2Mem::ProcessNHRStepInfo(HcclComm comm,
                                                           std::vector<NHRStepInfo> &stepInfoVector,
                                                           std::map<u32, u32> &rank2ChannelIdx, u32 enableDieNum,
@@ -179,7 +149,8 @@ HcclResult CcuTempScatterNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam &par
     CHK_RET(RestoreChannelMap(channelDescs, rankIdToChannelDesc_));
 
     uint32_t enableDieNum = 0;
-    CHK_RET(GetDieNumFromChannelDescs(comm, enableDieNum));
+    uint32_t enableDieId = 0;
+    CHK_RET(GetDieInfoFromChannelDescs(comm, rankIdToChannelDesc_, myRank_, enableDieNum, enableDieId));
     if (enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2) {
         HCCL_ERROR("[CcuTempScatterNHR1DMem2Mem::CalcRes] get channelDescs fail");
         return HcclResult::HCCL_E_INTERNAL;
