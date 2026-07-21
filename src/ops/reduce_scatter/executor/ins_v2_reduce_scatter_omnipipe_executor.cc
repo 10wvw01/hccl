@@ -272,35 +272,11 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 
     // 对称路径的建链结果扁平存入 channels[0]，普通路径仍按层保存；遍历全部集合后，
     // 根据本 rank 与对端 rank 所属的子通信域重新归层，可同时兼容两种资源布局。
-    remoteRankToChannelInfo_.assign(OMNIPIPE_LEVEL_NUM, {});
-    if (!resCtx.channels.empty()) {
-        auto contains = [](const std::vector<u32>& group, u32 r) -> bool {
-            for (u32 v : group) { if (v == r) { return true; } }
-            return false;
-        };
-        const std::vector<std::vector<std::vector<u32>>*> subComms = {&subCommRanks0, &subCommRanks1, &subCommRanks2};
-        const std::vector<uint64_t> levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_};
-        auto tryLevel = [&](u32 i, u32 remoteRank, const ChannelInfo& ch) -> bool {
-            if (levelRankSize[i] <= 1) { return false; }
-            for (const auto& group : *subComms[i]) {
-                if (contains(group, static_cast<u32>(myRank_)) && contains(group, remoteRank)) {
-                    remoteRankToChannelInfo_[i][remoteRank].push_back(ch);
-                    return true;
-                }
-            }
-            return false;
-        };
-        for (const auto& channelVec : resCtx.channels) {
-            for (const auto& channel : channelVec) {
-                u32 rr = channel.remoteRank;
-                if (tryLevel(OMNIPIPE_LEVEL0, rr, channel)) { continue; }
-                if (tryLevel(OMNIPIPE_LEVEL1, rr, channel)) { continue; }
-                if (tryLevel(OMNIPIPE_LEVEL2, rr, channel)) { continue; }
-                HCCL_WARNING("[InsV2ReduceScatterOmniPipeExecutor][Orchestrate] discard unclassified channel, "
-                             "remoteRank[%u] is absent from every active sub-communicator.", rr);
-            }
-        }
-    }
+    const std::vector<const std::vector<std::vector<u32>>*> subCommsByLevel = {
+        &subCommRanks0, &subCommRanks1, &subCommRanks2};
+    const std::vector<uint64_t> rankSizesByLevel = {rankSizeLevel0_, rankSizeLevel1_, rankSizeLevel2_};
+    CHK_RET(ClassifyOmniPipeChannelsByLevel(myRank_, resCtx.channels, subCommsByLevel, rankSizesByLevel,
+                                            remoteRankToChannelInfo_));
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
         if (rankSizeLevel1_ > 1) {
             CHK_RET(tempMap[OMNIPIPE_LEVEL1]->SetchannelsPerRank(remoteRankToChannelInfo_[1]));
