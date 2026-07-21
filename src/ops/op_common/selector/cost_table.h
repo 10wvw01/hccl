@@ -55,6 +55,7 @@ private:
                                 const OpParam &opParam);
     HcclResult FilterAllReduce(CostModel &cm, CostTable &ct, const TopoInfoWithNetLayerDetails *topoInfo,
                                const OpParam &opParam);
+    float CalcAlgCost(const std::string &algName, u64 dataSize, const CostAlgoParams &algoParams) const;
 
     CostTable      costTable_{nullptr, 0};
     static const std::vector<UbUtilEntry> closUbUtilTable_;

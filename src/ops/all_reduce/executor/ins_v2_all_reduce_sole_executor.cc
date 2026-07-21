@@ -47,8 +47,12 @@ CostAlgoParams InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcCos
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 AlgNetMeta InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::GetAlgNetMeta() const
 {
-    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] GetAlgNetMeta delegate to template.");
-    return InsAlgTemplate::GetAlgNetMeta();
+    AlgNetMeta meta;
+    meta.netTypes.push_back(InsAlgTemplate::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] GetAlgNetMeta netTypes=%zu aggMode=%d.",
+               meta.netTypes.size(), static_cast<int>(meta.aggMode));
+    return meta;
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>

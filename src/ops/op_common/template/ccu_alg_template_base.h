@@ -39,7 +39,7 @@ public:
 
     static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
 
-    static AlgNetMeta GetAlgNetMeta() { return {}; }
+    static AlgNetType GetNetType() { return AlgNetType::MESH; }
 
     std::string Describe() const override = 0;
 
