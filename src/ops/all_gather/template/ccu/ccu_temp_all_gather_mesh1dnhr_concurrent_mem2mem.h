@@ -13,6 +13,7 @@
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
+#include "ccu_all_gather_arg_layout.h"
 #include "ccu_temp_all_gather_mesh_1D_mem2mem.h"
 #include "ccu_temp_all_gather_nhr_1D_mem2mem.h"
 
@@ -47,12 +48,8 @@ public:
 private:
     // 按带宽比切分当前 chunk 的 count
     void CalcDataSplit(u64 totalCount, u64 dataTypeSize, u64 &meshCount, u64 &closCount) const;
-    // 构造 mesh 子 template 参数
-    void GenMeshParams(const TemplateDataParams &src, u64 meshCount, u64 meshSize,
-                       TemplateDataParams &dst) const;
-    // 构造 NHR 子 template 参数
-    void GenNhrParams(const TemplateDataParams &src, u64 closCount, u64 closSize, u64 meshSize,
-                      TemplateDataParams &dst) const;
+    // NHR 2-die 切分(从 CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies 搬来,纯数学)
+    void CalcNhrDieSplit(u64 sliceSize, u64 typeSize, u64 &die0Size, u64 &die1Size) const;
 
     uint32_t mySubCommRank_ = 0;
 };
