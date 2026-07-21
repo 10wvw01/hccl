@@ -30,10 +30,6 @@ public:
     }
 
     HcclResult MatchTopo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo, AlgHierarchyInfoForAllLevel& algHierarchyInfoExector) override;
-
-private:
-    u32 myRank_{0};
-    std::vector<u32> rankIds_;
 };
 } // namespace Hccl
 

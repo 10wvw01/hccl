@@ -59,9 +59,9 @@ HcclResult ReduceScatterExecutorBase::Orchestrate(const OpParam &param, AlgResou
 
     HcclResult ret = RunLoop(param);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[ReduceScatterExecutorBase][Orchestrate]errNo[0x%016llx]Scatter executor kernel run failed",
+        HCCL_ERROR("[ReduceScatterExecutorBase][Orchestrate]errNo[0x%016llx] ReduceScatter executor kernel run failed",
             HCCL_ERROR_CODE(ret)), ret);
-    HCCL_INFO("[ReduceScatterExecutorBase][Orchestrate]tag[%s] Scatter executor orchestrate success, take time [%lld]us.",
+    HCCL_INFO("[ReduceScatterExecutorBase][Orchestrate]tag[%s] ReduceScatter executor orchestrate success, take time [%lld]us.",
         param.tag, DURATION_US(TIME_NOW() - startut));
     return HCCL_SUCCESS;
 }
