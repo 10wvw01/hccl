@@ -31,7 +31,7 @@ public:
         return info;
     }
 
-    static CostAlgoParams CalcCostCoeff();
+    static std::vector<CostModelParam> CalcCostCoeff();
 
     // 现在的RunAsync就是之前的GenExtIns
     HcclResult KernelRun(const OpParam& param,

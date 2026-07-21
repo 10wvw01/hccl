@@ -39,7 +39,9 @@ template <typename AlgTopoMatch, typename InsAlgTemplate>
 CostAlgoParams InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcCostCoeff()
 {
     HCCL_DEBUG("[InsV2AllReduceSoleExecutor] CalcCostCoeff delegate to template.");
-    return InsAlgTemplate::CalcCostCoeff();
+    static std::vector<CostModelParam> params = InsAlgTemplate::CalcCostCoeff();
+    static const char *algName = "AllReduceSole";
+    return {algName, params.data(), static_cast<int>(params.size())};
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>

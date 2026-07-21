@@ -24,7 +24,7 @@ public:
 
     ~InsAlgTemplateBase() override;
 
-    static CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
+    static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
 
     std::string Describe() const override = 0;
 

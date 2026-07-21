@@ -176,10 +176,10 @@ void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A
     return;
 }
 
-CostModelParam CostModelManager::CalcLatencyParams(u64 dataSize, u32 rankSize)
+void CostModelManager::CalcLatencyParams(int taskNum, float &C)
 {
-    HCCL_DEBUG("[CostModelManager] CalcLatencyParams dataSize=%llu rankSize=%u.", dataSize, rankSize);
-    return {0.0f, 0.0f, 0.0f};
+    HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d.", taskNum);
+    C = 0.0f;
 }
 
 } // namespace ops_hccl
