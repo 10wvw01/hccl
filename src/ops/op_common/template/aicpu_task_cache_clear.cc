@@ -92,5 +92,8 @@ __attribute__((constructor)) void RegisterAicpuTaskCacheCallback()
     const char REG_NAME[] = "aicpu_task_cache_callback";
     HCCL_INFO("[%s] start register comm state callback", __func__);
     uint64_t args = 1u; // unused
-    CHK_PRT(HcclCommRegCommStateCallback(REG_NAME, AicpuTaskCacheCommStateCallback, reinterpret_cast<void *>(args)));
+    if (HcommIsSupportHcclCommRegCommStateCallback()) {
+        CHK_PRT(
+            HcclCommRegCommStateCallback(REG_NAME, AicpuTaskCacheCommStateCallback, reinterpret_cast<void *>(args)));
+    }
 }
