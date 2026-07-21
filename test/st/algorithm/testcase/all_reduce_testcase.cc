@@ -300,3 +300,10 @@ TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_hcclbuff_add_1)
     HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
     RunAllReduceCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp);
 }
+
+TEST_F(ST_ALL_REDUCE_TEST, st_all_reduce_nhr_tiny_data_single_die_payload)
+{
+    TopoMeta topoMeta{{{0}, {0}, {0}, {0}}};
+    RunAllReduceCase(topoMeta, 1, HcclDataType::HCCL_DATA_TYPE_INT8, 1,
+        HcclReduceOp::HCCL_REDUCE_SUM);
+}
