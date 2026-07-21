@@ -681,7 +681,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
                 HCCL_DEBUG("[%s] myRank[%u]  inBuffBaseOff[%lu] outBuffBaseOff[%lu] sliceSize[%lu] processedDataCount[%lu] rankOffset[%lu] rankLoopOffset[%lu]", __func__,
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
-                CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
+                CHK_RET(gAlgTempY.KernelRun(param, tempAlgParamLocalCopy, templateResourceGY));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
                 rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
             }
