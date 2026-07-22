@@ -12,10 +12,10 @@
 #define HCCL_CCU_ALG_TEMPLATE_BASE
 
 #include "common_alg_template_base.h"
+#include "cost_model.h"
 #include <array>
 #include <set>
 #include <string>
-#include "cost_model.h"
 
 
 namespace ops_hccl {
