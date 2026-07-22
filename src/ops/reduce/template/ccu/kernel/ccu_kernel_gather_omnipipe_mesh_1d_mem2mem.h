@@ -26,7 +26,6 @@ struct CcuKernelArgGatherOmniPipeMesh1DMem2Mem : CcuKernelArgBase {
     uint32_t rootId;
     OpParam opParam;
     std::vector<std::vector<uint32_t>> subCommRanks;
-    std::map<uint32_t, uint32_t> subRankIdx2RankIdx;
     uint32_t myrealrank;
 };
 
@@ -35,7 +34,6 @@ struct GatherOmniPipeMesh1DMem2MemContext {
     uint64_t rankSize{0};
     uint32_t rankId{0};
     uint32_t rootId{0};
-    std::map<uint32_t, uint32_t> subRankIdx2RankIdx;
     HcclDataType dataType{HcclDataType::HCCL_DATA_TYPE_RESERVED};
 
     std::vector<ccu::Variable> input;
