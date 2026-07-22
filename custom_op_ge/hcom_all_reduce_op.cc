@@ -199,13 +199,11 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         HCCL_WARNING("HcomAllReduceOp::LaunchHcclOp: fusion scenario (%zu inputs) not yet supported.", inputCount);
     }
 
-    uint64_t unitSize = hccl::GetHcclDataTypeSize(st.dataType);
-    if (unitSize == 0 || st.cclBuffSize == 0) {
-        HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: invalid unitSize=%lu or cclBuffSize=%lu.", unitSize, st.cclBuffSize);
-        return ge::GRAPH_FAILED;
-    }
+    // TODO: 解析 needRefresh（对应 InfoStore task.needRefresh，
+    //       由 IsFeatureBaseRefreshable + IsStaticAddrFixed + is_refresh_addr_op_ 决定）
+    st.needRefresh = false;
 
-    if (st.count * unitSize <= st.cclBuffSize) {
+    if (!st.needRefresh) {
         return LaunchDirect(st);
     }
     return LaunchLoop(st);
@@ -213,7 +211,7 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
 
 ge::graphStatus HcomAllReduceOp::LaunchDirect(hccl::HcclOpState &st)
 {
-    HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu, direct path (no CCL buffer copy).",
+    HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu (non-refresh, user buffers directly).",
               st.inputPtr, st.outputPtr, st.count);
 
     HCCL_GE_CHK_RET(CleanCracks(st.inputPtr, 0));
@@ -237,6 +235,11 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
     uint64_t maxCountPerLoop = st.cclBuffSize / unitSize;
     uint64_t curCount = 0;
 
+    // 数据量 <= CCL buffer: 单轮，二级指针无偏移拷贝
+    // 数据量 > CCL buffer: 多 loop，二级指针有偏移拷贝
+    bool secAddrCopyWithoutOffset = (st.count * unitSize <= st.cclBuffSize);
+    HCCL_INFO("HcomAllReduceOp::LaunchLoop: secAddrCopyWithoutOffset=%d.", secAddrCopyWithoutOffset);
+
     for (uint64_t countLeft = st.count, inputOffset = 0, outputOffset = 0, loopTime = 0;
          countLeft > 0; countLeft -= curCount) {
         curCount = (countLeft * unitSize > st.cclBuffSize) ? maxCountPerLoop : countLeft;
@@ -245,7 +248,7 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
         HCCL_INFO("HcomAllReduceOp::LaunchLoop: loop=%lu inputOffset=%lu countLeft=%lu curCount=%lu curSize=%lu.",
                   loopTime, inputOffset, countLeft, curCount, curSize);
 
-        HCCL_GE_CHK_RET(RefreshInputAddr(st, inputOffset, curSize));
+        HCCL_GE_CHK_RET(RefreshInputAddr(st, inputOffset, curSize, secAddrCopyWithoutOffset));
 
         void *commInputPtr = nullptr;
         u64 commInputSize = 0;
@@ -275,7 +278,7 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
             return ge::GRAPH_FAILED;
         }
 
-        HCCL_GE_CHK_RET(RefreshOutputAddr(st, outputOffset, curSize));
+        HCCL_GE_CHK_RET(RefreshOutputAddr(st, outputOffset, curSize, secAddrCopyWithoutOffset));
 
         inputOffset += curSize;
         outputOffset += curSize;
@@ -320,7 +323,8 @@ ge::graphStatus HcomAllReduceOp::CleanCracks(void *baseAddr, uint64_t inputOffse
     return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize)
+ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize,
+                                                   bool secAddrCopyWithoutOffset)
 {
     void *commInputPtr = nullptr;
     u64 commInputSize = 0;
@@ -357,7 +361,10 @@ ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_
     }
 
     // D2D 异步: 用户数据 → CCL buffer
-    void *src = static_cast<char *>(st.inputPtr) + inputOffset;
+    // secAddrCopyWithoutOffset==true: 无偏移（单轮，inputOffset 恒为 0）
+    // secAddrCopyWithoutOffset==false: 有偏移（多 loop）
+    void *src = secAddrCopyWithoutOffset ? st.inputPtr
+                                         : static_cast<char *>(st.inputPtr) + inputOffset;
     aclRet = aclrtMemcpyAsync(commInputPtr, commInputSize, src, curSize,
                               ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
     if (aclRet != ACL_SUCCESS) {
@@ -365,12 +372,14 @@ ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_
         return ge::GRAPH_FAILED;
     }
 
-    HCCL_DEBUG("HcomAllReduceOp::RefreshInputAddr: commInputPtr=%p commInputSize=%llu inputOffset=%lu curSize=%lu.",
-               commInputPtr, commInputSize, inputOffset, curSize);
+    HCCL_DEBUG("HcomAllReduceOp::RefreshInputAddr: commInputPtr=%p commInputSize=%llu inputOffset=%lu curSize=%lu "
+               "secAddrCopyWithoutOffset=%d.", commInputPtr, commInputSize, inputOffset, curSize,
+               secAddrCopyWithoutOffset);
     return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize)
+ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize,
+                                                    bool secAddrCopyWithoutOffset)
 {
     void *commOutputPtr = nullptr;
     u64 commOutputSize = 0;
@@ -407,7 +416,10 @@ ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64
     }
 
     // D2D 异步: CCL buffer → 用户输出
-    void *dst = static_cast<char *>(st.outputPtr) + outputOffset;
+    // secAddrCopyWithoutOffset==true: 无偏移（单轮，outputOffset 恒为 0）
+    // secAddrCopyWithoutOffset==false: 有偏移（多 loop）
+    void *dst = secAddrCopyWithoutOffset ? st.outputPtr
+                                         : static_cast<char *>(st.outputPtr) + outputOffset;
     aclRet = aclrtMemcpyAsync(dst, curSize, commOutputPtr, curSize,
                               ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
     if (aclRet != ACL_SUCCESS) {
@@ -416,8 +428,9 @@ ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64
         return ge::GRAPH_FAILED;
     }
 
-    HCCL_DEBUG("HcomAllReduceOp::RefreshOutputAddr: commOutputPtr=%p commOutputSize=%llu outputOffset=%lu curSize=%lu.",
-               commOutputPtr, commOutputSize, outputOffset, curSize);
+    HCCL_DEBUG("HcomAllReduceOp::RefreshOutputAddr: commOutputPtr=%p commOutputSize=%llu outputOffset=%lu curSize=%lu "
+               "secAddrCopyWithoutOffset=%d.", commOutputPtr, commOutputSize, outputOffset, curSize,
+               secAddrCopyWithoutOffset);
     return ge::GRAPH_SUCCESS;
 }
 

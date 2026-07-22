@@ -37,8 +37,10 @@ class HcomAllReduceOp : public hccl::HcclCustomOpBase {
   ge::graphStatus LaunchLoop(hccl::HcclOpState &st);
   ge::graphStatus CreateIndirectCCLbuf();
   ge::graphStatus CleanCracks(void *baseAddr, uint64_t inputOffset);
-  ge::graphStatus RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize);
-  ge::graphStatus RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize);
+  ge::graphStatus RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize,
+                                   bool secAddrCopyWithoutOffset);
+  ge::graphStatus RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize,
+                                    bool secAddrCopyWithoutOffset);
 
   void *indirectInCCLbuf_ = nullptr;
   void *indirectOutCCLbuf_ = nullptr;
