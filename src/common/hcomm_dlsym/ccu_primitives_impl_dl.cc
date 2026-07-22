@@ -248,3 +248,21 @@ void CcuPrimitivesImplDlInit(void* libHcommHandle) {
     InitControlFlowOps(libHcommHandle);
     InitFunctionAndLoopOps(libHcommHandle);
 }
+
+bool HcommIsSupportCcuV2(void) {
+    return HcommIsSupportCcuLoopGroupCreateFromVarV2() &&
+           HcommIsSupportCcuLoopGroupAddLoopFromVarV2() &&
+           HcommIsSupportCcuIfBeginVar() &&
+           HcommIsSupportCcuWhileBeginVar() &&
+           HcommIsSupportCcuDoWhileEndVar() &&
+           HcommIsSupportCcuVariableSubVarToVar() &&
+           HcommIsSupportCcuVariableMulVarToVar() &&
+           HcommIsSupportCcuVariableAddImmToVar() &&
+           HcommIsSupportCcuVariableSubImmToVar() &&
+           HcommIsSupportCcuVariableMulImmToVar() &&
+           HcommIsSupportCcuVariableAndVarToVar() &&
+           HcommIsSupportCcuVariableOrVarToVar() &&
+           HcommIsSupportCcuVariableXorVarToVar() &&
+           HcommIsSupportCcuVariableNotVar() &&
+           HcommIsSupportCcuAddressAddImmToAddr();
+}
