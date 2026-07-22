@@ -95,7 +95,7 @@ HcclResult TopoMatchUBX1d::TopoForLayer1(const HcclComm comm, uint32_t layer0Siz
  
         CommLink *links;
         uint32_t linkNum = 0;
-        HcclRankGraphGetLinks(comm, 1, myRank, rankId, &links, &linkNum);
+        CHK_RET(HcclRankGraphGetLinks(comm, 1, myRank, rankId, &links, &linkNum));
         if (linkNum == 0) {
             continue;
         }
