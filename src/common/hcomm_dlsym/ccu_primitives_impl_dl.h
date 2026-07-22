@@ -149,6 +149,25 @@ DECL_WEAK_FUNC(CcuResult, CcuDoWhileEndVar, CcuVariableHandle lhs, CcuVariableHa
 DECL_WEAK_FUNC(CcuResult, CcuLoopGroupCreateFromVarV2, CcuLoopGroup *group, uint32_t maxLoopNum, CcuVariableHandle parallelVarV2, CcuVariableHandle offsetVarV2, CcuVariableHandle varOffsetVar);
 DECL_WEAK_FUNC(CcuResult, CcuLoopGroupAddLoopFromVarV2, CcuLoopGroup group, CcuLoop loop, CcuVariableHandle iterNumVar, CcuVariableHandle addrOffsetVar, CcuVariableHandle ctxIdVar);
 
+// V2 能力探测：上层通过 HcommIsSupportCcuV2() 判断 HCOMM 是否提供完整 V2 接口集
+DECL_SUPPORT_FLAG(CcuVariableSubVarToVar);
+DECL_SUPPORT_FLAG(CcuVariableMulVarToVar);
+DECL_SUPPORT_FLAG(CcuVariableAddImmToVar);
+DECL_SUPPORT_FLAG(CcuVariableSubImmToVar);
+DECL_SUPPORT_FLAG(CcuVariableMulImmToVar);
+DECL_SUPPORT_FLAG(CcuVariableAndVarToVar);
+DECL_SUPPORT_FLAG(CcuVariableOrVarToVar);
+DECL_SUPPORT_FLAG(CcuVariableXorVarToVar);
+DECL_SUPPORT_FLAG(CcuVariableNotVar);
+DECL_SUPPORT_FLAG(CcuAddressAddImmToAddr);
+DECL_SUPPORT_FLAG(CcuIfBeginVar);
+DECL_SUPPORT_FLAG(CcuWhileBeginVar);
+DECL_SUPPORT_FLAG(CcuDoWhileEndVar);
+DECL_SUPPORT_FLAG(CcuLoopGroupCreateFromVarV2);
+DECL_SUPPORT_FLAG(CcuLoopGroupAddLoopFromVarV2);
+
+bool HcommIsSupportCcuV2(void);
+
 void CcuPrimitivesImplDlInit(void* libHcommHandle);
 
 #ifdef __cplusplus
