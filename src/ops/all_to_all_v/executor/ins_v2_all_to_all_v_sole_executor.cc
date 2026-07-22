@@ -98,6 +98,20 @@ HcclResult FillBspAlltoAllVRemoteInfo(
     params.buffInfo.outputSize = param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
     params.remoteRdispls.assign(rankSize, 0);
     params.remoteRecvCounts.assign(rankSize, 0);
+    params.globalRecvCounts.assign(rankSize * rankSize, 0);
+    std::vector<bool> globalRecvRowReady(rankSize, false);
+    if (myRank < rankSize) {
+        globalRecvRowReady[myRank] = true;
+    }
+    auto calcLoopCount = [&params](u64 count) -> u64 {
+        if (count <= params.processedDataCount) {
+            return 0;
+        }
+        return std::min(params.count, count - params.processedDataCount);
+    };
+    for (u64 srcRank = 0; srcRank < rankSize && srcRank < params.recvCounts.size(); ++srcRank) {
+        params.globalRecvCounts[myRank * rankSize + srcRank] = params.recvCounts[srcRank];
+    }
     for (const auto &item : channels) {
         if (item.second.empty()) {
             continue;
@@ -116,10 +130,32 @@ HcclResult FillBspAlltoAllVRemoteInfo(
                     HcclResult::HCCL_E_INTERNAL);
         params.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
         params.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+        if (channel.remoteAlltoAllVRecvCounts.size() >= rankSize) {
+            for (u64 srcRank = 0; srcRank < rankSize; ++srcRank) {
+                params.globalRecvCounts[remoteRank * rankSize + srcRank] =
+                    calcLoopCount(channel.remoteAlltoAllVRecvCounts[srcRank]);
+            }
+            globalRecvRowReady[remoteRank] = true;
+        } else {
+            HCCL_WARNING("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] remote full recvCounts missing. "
+                         "rank=%u remoteRank=%u recvCountsSize=%zu rankSize=%llu. "
+                         "BSP tree plane planner may fall back to v0 mapping.",
+                         myRank, remoteRank, channel.remoteAlltoAllVRecvCounts.size(), rankSize);
+        }
         HCCL_INFO("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] rank=%u peer=%u "
                   "remoteRdisplForLocal=%llu remoteRecvForLocal=%llu linkCount=%zu",
                   myRank, remoteRank, params.remoteRdispls[remoteRank],
                   params.remoteRecvCounts[remoteRank], item.second.size());
+    }
+    for (u64 rank = 0; rank < rankSize; ++rank) {
+        if (!globalRecvRowReady[rank]) {
+            HCCL_WARNING("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] incomplete global recv matrix. "
+                         "rank=%u missingRow=%llu rankSize=%llu. BSP tree plane planner will fall back "
+                         "to v0 mapping.",
+                         myRank, rank, rankSize);
+            params.globalRecvCounts.clear();
+            break;
+        }
     }
     return HCCL_SUCCESS;
 }

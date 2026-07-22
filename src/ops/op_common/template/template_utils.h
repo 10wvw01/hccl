@@ -254,6 +254,7 @@ struct TemplateDataParams {
     std::vector<u64> rdispls;
     std::vector<u64> remoteRdispls;
     std::vector<u64> remoteRecvCounts;
+    std::vector<u64> globalRecvCounts;
     StepSliceInfo stepSliceInfo;
     BatchSendRecvOpType opType{BatchSendRecvOpType::DEFAULT};
 
@@ -278,6 +279,7 @@ struct TemplateDataParams {
         binaryStream << rdispls;
         binaryStream << remoteRdispls;
         binaryStream << remoteRecvCounts;
+        binaryStream << globalRecvCounts;
         binaryStream << allRankProcessedDataCount;
         binaryStream << root;
         binaryStream << dataType;
@@ -309,6 +311,7 @@ struct TemplateDataParams {
         binaryStream >> rdispls;
         binaryStream >> remoteRdispls;
         binaryStream >> remoteRecvCounts;
+        binaryStream >> globalRecvCounts;
         binaryStream >> allRankProcessedDataCount;
         binaryStream >> root;
         binaryStream >> dataType;

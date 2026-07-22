@@ -10,12 +10,45 @@
 
 #include "aicpu/ins_temp_all_to_all_v_bsp.h"
 #include <algorithm>
+#include <limits>
 
 namespace ops_hccl {
 namespace {
 constexpr u32 BSP_SEND_THREAD_BASE = 1;
 constexpr u32 BSP_NOTIFY_NUM_PER_THREAD = 1;
+constexpr u32 BSP_TREE_BEAM_WIDTH = 2;
 constexpr u32 NET_NUM = 2;
+
+struct BspTreeCandidate {
+    std::vector<u32> offsetPlan;
+    std::vector<u64> sendLoad;
+    std::vector<u64> recvLoad;
+    u64 maxChainLoad = 0;
+};
+
+size_t OffsetPlanIndex(u32 rowNum, u32 deltaC, u32 deltaR)
+{
+    return static_cast<size_t>(deltaC) * rowNum + deltaR;
+}
+
+size_t LoadIndex(u32 rowNum, u32 rank, u32 plane)
+{
+    return static_cast<size_t>(rank) * rowNum + plane;
+}
+
+size_t RecvMatrixIndex(u32 rankNum, u32 dstRank, u32 srcRank)
+{
+    return static_cast<size_t>(dstRank) * rankNum + srcRank;
+}
+
+bool IsBetterTreeCandidate(const BspTreeCandidate &lhs, const BspTreeCandidate &rhs)
+{
+    if (lhs.maxChainLoad != rhs.maxChainLoad) {
+        return lhs.maxChainLoad < rhs.maxChainLoad;
+    }
+    return std::lexicographical_compare(lhs.offsetPlan.begin(), lhs.offsetPlan.end(),
+                                        rhs.offsetPlan.begin(), rhs.offsetPlan.end());
+}
 }
 
 InsTempAlltoAllVBsp::InsTempAlltoAllVBsp(const OpParam &param, const u32 rankId,
@@ -96,15 +129,129 @@ u32 InsTempAlltoAllVBsp::GetColNum() const
     return colNum_;
 }
 
+u32 InsTempAlltoAllVBsp::GetRankNum() const
+{
+    return rankNum_;
+}
+
 u32 InsTempAlltoAllVBsp::GetBspThreadNum() const
 {
     return GetRowNum() * 2;
 }
 
-u32 InsTempAlltoAllVBsp::SelectPlane(u32 deltaC, u32 deltaR) const
+u32 InsTempAlltoAllVBsp::SelectPlane(u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const
 {
-    (void)deltaC;
-    return deltaR;
+    if (GetRowNum() == 0) {
+        return 0;
+    }
+    u32 offset = 0;
+    const size_t offsetIdx = OffsetPlanIndex(GetRowNum(), deltaC, deltaR);
+    if (offsetIdx < offsetPlan.size()) {
+        offset = offsetPlan[offsetIdx] % GetRowNum();
+    }
+    return (deltaR + offset) % GetRowNum();
+}
+
+HcclResult InsTempAlltoAllVBsp::BuildBspOffsetPlan(
+    const TemplateDataParams &tempAlgParams, std::vector<u32> &offsetPlan) const
+{
+    CHK_RET(CheckBspShape());
+    offsetPlan.assign(static_cast<size_t>(GetColNum()) * GetRowNum(), 0);
+    if (GetColNum() <= 1) {
+        return HCCL_SUCCESS;
+    }
+
+    const size_t expectMatrixSize = static_cast<size_t>(GetRankNum()) * GetRankNum();
+    if (tempAlgParams.globalRecvCounts.size() < expectMatrixSize) {
+        HCCL_WARNING("[InsTempAlltoAllVBsp][TreePlan] global recv matrix missing. rank=%u "
+                     "matrixSize=%zu expect=%zu. fallback to v0 plane mapping.",
+                     myRank_, tempAlgParams.globalRecvCounts.size(), expectMatrixSize);
+        return HCCL_SUCCESS;
+    }
+
+    auto calcTaskBytes = [&tempAlgParams, this](u32 srcRank, u32 dstRank, u64 &bytes) -> HcclResult {
+        const u64 count = tempAlgParams.globalRecvCounts[RecvMatrixIndex(GetRankNum(), dstRank, srcRank)];
+        CHK_PRT_RET(dataTypeSize_ != 0 && count > std::numeric_limits<u64>::max() / dataTypeSize_,
+                    HCCL_ERROR("[InsTempAlltoAllVBsp][TreePlan] task size overflow. "
+                               "srcRank[%u] dstRank[%u] count[%llu] dataTypeSize[%llu].",
+                               srcRank, dstRank, count, dataTypeSize_),
+                    HCCL_E_INTERNAL);
+        bytes = count * dataTypeSize_;
+        return HCCL_SUCCESS;
+    };
+
+    auto applyBlock = [this, &calcTaskBytes](BspTreeCandidate &candidate, u32 deltaC, u32 deltaR,
+                                             u32 offset) -> HcclResult {
+        const u32 plane = (deltaR + offset) % GetRowNum();
+        for (u32 srcRank = 0; srcRank < GetRankNum(); ++srcRank) {
+            const u32 srcCol = srcRank / GetRowNum();
+            const u32 srcRow = srcRank % GetRowNum();
+            const u32 dstCol = (srcCol + deltaC) % GetColNum();
+            const u32 dstRow = (srcRow + deltaR) % GetRowNum();
+            const u32 dstRank = dstCol * GetRowNum() + dstRow;
+            u64 bytes = 0;
+            CHK_RET(calcTaskBytes(srcRank, dstRank, bytes));
+            if (bytes == 0) {
+                continue;
+            }
+            const size_t sendIdx = LoadIndex(GetRowNum(), srcRank, plane);
+            const size_t recvIdx = LoadIndex(GetRowNum(), dstRank, plane);
+            CHK_PRT_RET(candidate.sendLoad[sendIdx] > std::numeric_limits<u64>::max() - bytes ||
+                            candidate.recvLoad[recvIdx] > std::numeric_limits<u64>::max() - bytes,
+                        HCCL_ERROR("[InsTempAlltoAllVBsp][TreePlan] chain load overflow. "
+                                   "srcRank[%u] dstRank[%u] plane[%u] bytes[%llu].",
+                                   srcRank, dstRank, plane, bytes),
+                        HCCL_E_INTERNAL);
+            candidate.sendLoad[sendIdx] += bytes;
+            candidate.recvLoad[recvIdx] += bytes;
+            candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.sendLoad[sendIdx]);
+            candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.recvLoad[recvIdx]);
+        }
+        return HCCL_SUCCESS;
+    };
+
+    BspTreeCandidate initial;
+    initial.offsetPlan = offsetPlan;
+    initial.sendLoad.assign(static_cast<size_t>(GetRankNum()) * GetRowNum(), 0);
+    initial.recvLoad.assign(static_cast<size_t>(GetRankNum()) * GetRowNum(), 0);
+    for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
+        CHK_RET(applyBlock(initial, 1, deltaR, 0));
+    }
+
+    std::vector<BspTreeCandidate> candidates;
+    candidates.push_back(initial);
+    for (u32 deltaC = 2; deltaC < GetColNum(); ++deltaC) {
+        for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
+            std::vector<BspTreeCandidate> nextCandidates;
+            for (const auto &candidate : candidates) {
+                for (u32 offset = 0; offset < GetRowNum(); ++offset) {
+                    BspTreeCandidate next = candidate;
+                    next.offsetPlan[OffsetPlanIndex(GetRowNum(), deltaC, deltaR)] = offset;
+                    CHK_RET(applyBlock(next, deltaC, deltaR, offset));
+                    nextCandidates.push_back(next);
+                }
+            }
+            std::sort(nextCandidates.begin(), nextCandidates.end(), IsBetterTreeCandidate);
+            if (nextCandidates.size() > BSP_TREE_BEAM_WIDTH) {
+                nextCandidates.resize(BSP_TREE_BEAM_WIDTH);
+            }
+            candidates = nextCandidates;
+        }
+    }
+
+    CHK_PRT_RET(candidates.empty(),
+                HCCL_ERROR("[InsTempAlltoAllVBsp][TreePlan] empty tree search result. rank=%u", myRank_),
+                HCCL_E_INTERNAL);
+    offsetPlan = candidates.front().offsetPlan;
+    for (u32 deltaC = 1; deltaC < GetColNum(); ++deltaC) {
+        for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
+            HCCL_INFO("[InsTempAlltoAllVBsp][TreePlan] rank=%u deltaC=%u deltaR=%u offset=%u plane=%u "
+                      "maxChainLoad=%llu.",
+                      myRank_, deltaC, deltaR, offsetPlan[OffsetPlanIndex(GetRowNum(), deltaC, deltaR)],
+                      SelectPlane(deltaC, deltaR, offsetPlan), candidates.front().maxChainLoad);
+        }
+    }
+    return HCCL_SUCCESS;
 }
 
 HcclResult InsTempAlltoAllVBsp::CalcRes(HcclComm comm, const OpParam &param,
@@ -190,9 +337,11 @@ HcclResult InsTempAlltoAllVBsp::KernelRun(const OpParam &param,
 
     CHK_RET(LocalCopyForMyRank(tempAlgParams, templateResource.threads[0]));
 
+    std::vector<u32> offsetPlan;
+    CHK_RET(BuildBspOffsetPlan(tempAlgParams, offsetPlan));
     for (u32 deltaC = 1; deltaC < GetColNum(); deltaC++) {
         std::vector<BspSlot> slotPlans;
-        CHK_RET(CalcBspRoundPlan(deltaC, slotPlans));
+        CHK_RET(CalcBspRoundPlan(deltaC, offsetPlan, slotPlans));
         for (const auto &slot : slotPlans) {
             const ThreadHandle &sendThread = templateResource.threads[BSP_SEND_THREAD_BASE + slot.plane];
             const ThreadHandle &recvThread = templateResource.threads[BSP_SEND_THREAD_BASE + GetRowNum() + slot.plane];
@@ -230,7 +379,8 @@ HcclResult InsTempAlltoAllVBsp::LocalCopyForMyRank(
     return static_cast<HcclResult>(LocalCopy(thread, srcSlice, dstSlice));
 }
 
-HcclResult InsTempAlltoAllVBsp::CalcBspRoundPlan(u32 deltaC, std::vector<BspSlot> &slotPlans) const
+HcclResult InsTempAlltoAllVBsp::CalcBspRoundPlan(u32 deltaC, const std::vector<u32> &offsetPlan,
+    std::vector<BspSlot> &slotPlans) const
 {
     CHK_RET(CheckBspShape());
     CHK_PRT_RET(deltaC == 0 || deltaC >= GetColNum(),
@@ -249,7 +399,7 @@ HcclResult InsTempAlltoAllVBsp::CalcBspRoundPlan(u32 deltaC, std::vector<BspSlot
         slot.rxRank = rxCol * GetRowNum() + rxRow;
         slot.deltaC = deltaC;
         slot.deltaR = deltaR;
-        slot.plane = SelectPlane(deltaC, deltaR);
+        slot.plane = SelectPlane(deltaC, deltaR, offsetPlan);
         slotPlans.push_back(slot);
     }
     return HCCL_SUCCESS;

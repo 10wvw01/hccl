@@ -47,7 +47,9 @@ private:
 
     HcclResult NormalizeSubCommRanks(const TopoInfoWithNetLayerDetails *topoInfo);
     HcclResult LocalCopyForMyRank(const TemplateDataParams &tempAlgParams, const ThreadHandle &thread) const;
-    HcclResult CalcBspRoundPlan(u32 deltaC, std::vector<BspSlot> &slotPlans) const;
+    HcclResult BuildBspOffsetPlan(const TemplateDataParams &tempAlgParams, std::vector<u32> &offsetPlan) const;
+    HcclResult CalcBspRoundPlan(u32 deltaC, const std::vector<u32> &offsetPlan,
+                                std::vector<BspSlot> &slotPlans) const;
     HcclResult SelectBspChannel(const std::map<u32, std::vector<ChannelInfo>> &channels, u32 remoteRank,
                                 u32 plane, ChannelInfo &channel) const;
     HcclResult RunBspSlot(const TemplateDataParams &tempAlgParams,
@@ -60,8 +62,9 @@ private:
 
     u32 GetRowNum() const;
     u32 GetColNum() const;
+    u32 GetRankNum() const;
     u32 GetBspThreadNum() const;
-    u32 SelectPlane(u32 deltaC, u32 deltaR) const;
+    u32 SelectPlane(u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const;
 
     u32 rowNum_{0};
     u32 colNum_{0};
