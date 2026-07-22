@@ -79,7 +79,7 @@ HcclResult ReduceNHR::KernelRun(
     CHK_RET(getMyAlgRank());
     processSize_ = tempAlgParams.sliceSize;
     count_ = tempAlgParams.count;
-    HCCL_INFO("[KernelRun] sliceSize: %u, count_: %u, typeSize: %u",
+    HCCL_INFO("[KernelRun] sliceSize: %u, count_: %u, typeSize: %llu",
         tempAlgParams.sliceSize,
         count_,
         dataTypeSize);
@@ -117,7 +117,7 @@ HcclResult ReduceNHR::KernelRun(
  */
 HcclResult ReduceNHR::CalcSlice(u64 dataSize)
 {
-    HCCL_INFO("[ReduceNHR] rank[%d] CalcSlice start", dataSize);
+    HCCL_INFO("[ReduceNHR] rank[%llu] CalcSlice start", dataSize);
     // 按 rank 切分数据（与 AllReduceNHR 保持一致）
     sliceInfoVec_ = RankSliceInfo(templateRankSize_);
 
@@ -129,7 +129,7 @@ HcclResult ReduceNHR::CalcSlice(u64 dataSize)
         u64 currChunkSize = std::min<u64>(dataSize - accumOff, chunkSize);
         sliceInfoVec_[rankIdx].emplace_back(SliceInfo{accumOff, currChunkSize});
         HCCL_DEBUG(
-            "[ReduceNHR] rankIdx [%d] CalcSlice accumOff[%u], currChunkSize[%u]", rankIdx, accumOff, currChunkSize);
+            "[ReduceNHR] rankIdx [%u] CalcSlice accumOff[%llu], currChunkSize[%llu]", rankIdx, accumOff, currChunkSize);
         accumOff += currChunkSize;
     }
 
@@ -390,7 +390,7 @@ std::pair<std::vector<DataSlice>, std::vector<DataSlice>> ReduceNHR::getTxRxSlic
             (txRank == myRank_) ? buffInfo_.hcclBuff.addr : channels.at(txRank).at(0).remoteCclMem.addr;
         void *const rxAddr =
             (rxRank == myRank_) ? buffInfo_.hcclBuff.addr : channels.at(rxRank).at(0).remoteCclMem.addr;
-        HCCL_DEBUG("[getTxRxSlices] myRank:%u, i:%u, txRank:%u, txOffset:%u, txSize:%u, rxRank:%u,rxOffset:%u, "
+        HCCL_DEBUG("[getTxRxSlices] myRank:%u, i:%u, txRank:%u, txOffset:%llu, txSize:%llu, rxRank:%u,rxOffset:%llu, "
                    "rxSize:%u, txAddr:[%#llx], rxAddr:[%#llx]",
             myRank_,
             i,

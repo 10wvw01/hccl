@@ -152,13 +152,13 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, AlgTemplate>::OrchestrateLoop(
         tempAlgParams.inputSliceStride = 0;           // 如果是输入，偏移是算子的output datasize
         tempAlgParams.outputSliceStride = dataSize_;  // 如果是scratch buffer，偏移是单次循环处理的最大数据量
 
-        HCCL_INFO("[ReduceSoleExecutor] loop [%u] tempAlgParams.inputSliceStride [%u],"
+        HCCL_INFO("[ReduceSoleExecutor] loop [%llu] tempAlgParams.inputSliceStride [%u],"
                   "tempAlgParams.outputSliceStride [%u] tempAlgParams.sliceSize [%u]",
             loop,
             tempAlgParams.inputSliceStride,
             tempAlgParams.outputSliceStride,
             tempAlgParams.sliceSize);
-        HCCL_INFO("[ReduceSoleExecutor] loop [%u] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[ReduceSoleExecutor] loop [%llu] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
                   "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
             loop,
             tempAlgParams.buffInfo.inBuffBaseOff,
@@ -194,7 +194,7 @@ HcclResult ReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchSaveCtx(
         HCCL_INFO("[ReduceSoleExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[ReduceSoleExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[ReduceSoleExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
     // 申请ctx

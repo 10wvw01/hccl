@@ -117,7 +117,7 @@ HcclResult ReduceAicpuReduceNHR::KernelRun(
  */
 HcclResult ReduceAicpuReduceNHR::CalcSlice(u64 chunkSize)
 {
-    HCCL_INFO("[ReduceAicpuReduceNHR] rank[%d] CalcSlice start", chunkSize);
+    HCCL_INFO("[ReduceAicpuReduceNHR] rank[%llu] CalcSlice start", chunkSize);
     // 按 rank 切分数据（与 AllReduceAicpuReduceNHR 保持一致）
     sliceInfoVec_ = RankSliceInfo(templateRankSize_);
 
@@ -128,7 +128,7 @@ HcclResult ReduceAicpuReduceNHR::CalcSlice(u64 chunkSize)
     for (u32 rankIdx = 0; rankIdx < templateRankSize_; rankIdx++) {
         u64 currChunkSize = std::min<u64>(dataSize - accumOff, chunkSize);
         sliceInfoVec_[rankIdx].emplace_back(SliceInfo{accumOff, currChunkSize});
-        HCCL_DEBUG("[ReduceAicpuReduceNHR] rankIdx [%d] CalcSlice accumOff[%u], currChunkSize[%u]",
+        HCCL_DEBUG("[ReduceAicpuReduceNHR] rankIdx [%u] CalcSlice accumOff[%llu], currChunkSize[%llu]",
             rankIdx,
             accumOff,
             currChunkSize);

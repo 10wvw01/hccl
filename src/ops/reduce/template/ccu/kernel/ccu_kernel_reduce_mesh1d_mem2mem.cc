@@ -265,7 +265,7 @@ static CcuResult DoRepeatReduce(ReduceMesh1DMem2MemContext &ctx, const std::vect
             // 获取链接Id，跳过本端
             uint16_t channelId = rmtId < arg->rootId ? rmtId : rmtId - 1;
             HCCL_DEBUG(
-                "[ReadReduceRmtToLoc] debug rankId[%llu], root[%llu] chkId[%llu], rmtId[%llu] channelId[%llu]",
+                "[ReadReduceRmtToLoc] debug rankId[%llu], root[%llu] chkId[%u], rmtId[%u] channelId[%u]",
                 arg->rankId, arg->rootId, chkId, rmtId, channelId);
 
             // 计算一下offset 0~(chikd-1)

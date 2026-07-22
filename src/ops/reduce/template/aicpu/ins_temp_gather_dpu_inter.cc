@@ -246,7 +246,7 @@ HcclResult InsTempGatherDpuInter::RunNHR(const TemplateDataParams& tempAlgParams
                             HCCL_ERROR("[InsTempGatherDpuInter] SendRecvWrite failed (step=%u, rpt=%u)", step, rpt),
                             HcclResult::HCCL_E_INTERNAL);
                         HCCL_INFO(
-                            "[InsTempGatherDpuInter][RunNHR]SendRecvWrite on rank %u src offset %u, dst offset %u, "
+                            "[InsTempGatherDpuInter][RunNHR]SendRecvWrite on rank %u src offset %llu, dst offset %llu, "
                             "size %u",
                             myRank_,
                             sendOffset,
@@ -344,7 +344,7 @@ HcclResult InsTempGatherDpuInter::PostLocalCopy(const TemplateDataParams& tempAl
                                sliceCount);
             CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
             HCCL_INFO(
-                "[InsTempGatherDpuInter][PostLocalCopy]LocalCopy on position %u src offset %u, dst offset %u, size %u",
+                "[InsTempGatherDpuInter][PostLocalCopy]LocalCopy on position %u src offset %llu, dst offset %llu, size %llu",
                 algRank, scratchOffset, outOffset, sliceSize);
             HCCL_INFO("[InsTempGatherDpuInter][PostLocalCopy]LocalCopy src addr %p, dst addr %p",
                 tempAlgParams.buffInfo.hcclBuff.addr,

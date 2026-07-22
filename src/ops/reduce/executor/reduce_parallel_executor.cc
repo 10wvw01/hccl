@@ -628,7 +628,7 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
         HCCL_INFO("[ReduceParallelExecutor][FastLaunchSaveCtx] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[ReduceParallelExecutor][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[ReduceParallelExecutor][FastLaunchSaveCtx] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
     // 申请ctx
