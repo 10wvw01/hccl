@@ -345,7 +345,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
             u64 dataOffsetforTemp0 = loopIndex * maxCountPerLoopforTemp0 * dataTypeSize_;
             GenTemplateAlgParams(param, resCtx, dataOffsetforTemp0, currCountforTemp0, scratchOffsetforTemp0,
                                  AlgParamsforTemp0);
-            HCCL_INFO("[InsV2AllGatherConcurrentExecutor][OrchestrateLoop] loopIndex[%u], currCountforTemp0[%u], dataOffsetforTemp0[%u]", loopIndex, currCountforTemp0, dataOffsetforTemp0);
+            HCCL_INFO("[InsV2AllGatherConcurrentExecutor][OrchestrateLoop] loopIndex[%u], currCountforTemp0[%llu], dataOffsetforTemp0[%llu]", loopIndex, currCountforTemp0, dataOffsetforTemp0);
             CHK_RET(algTemplate0.KernelRun(param, AlgParamsforTemp0, templateAlgResforTemp0));
         }
 
@@ -355,7 +355,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
             u64 dataOffsetforTemp1 = initOffsetforTemp1 + loopIndex * maxCountPerLoopforTemp1 * dataTypeSize_;
             GenTemplateAlgParams(param, resCtx, dataOffsetforTemp1, currCountforTemp1, scratchOffsetforTemp1,
                                  AlgParamsforTemp1);
-            HCCL_INFO("[InsV2AllGatherConcurrentExecutor][OrchestrateLoop] loopIndex[%u], currCountforTemp1[%u], dataOffsetforTemp1[%u]", loopIndex, currCountforTemp1, dataOffsetforTemp1);
+            HCCL_INFO("[InsV2AllGatherConcurrentExecutor][OrchestrateLoop] loopIndex[%u], currCountforTemp1[%llu], dataOffsetforTemp1[%llu]", loopIndex, currCountforTemp1, dataOffsetforTemp1);
             CHK_RET(algTemplate1.KernelRun(param, AlgParamsforTemp1, templateAlgResforTemp1));
         }
     }
@@ -384,7 +384,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         HCCL_INFO("[InsV2AllGatherConcurrentExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2AllGatherConcurrentExecutor][FastLaunchSaveCtx] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()), 
                                          static_cast<u32>(templateAlgRes1.submitInfos.size())};

@@ -353,7 +353,7 @@ HcclResult InsV2AllGatherSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
         HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunchSaveCtx] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2AllGatherSequenceExecutorAicpu][FastLaunchSaveCtx] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     // sequence执行: 先inter再intra, ccuKernelNumList = {inter, intra}
     std::vector<u32> ccuKernelNumList = {ccuKernelLaunchNumInter_, ccuKernelLaunchNumIntra_};

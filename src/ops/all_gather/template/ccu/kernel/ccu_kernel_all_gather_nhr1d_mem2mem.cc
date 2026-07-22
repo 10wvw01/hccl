@@ -180,7 +180,7 @@ static CcuResult DoRepeatAllGatherNHRSingleStep(AllGatherNHR1DMem2MemContext &ct
         ctx.dstMem.addr += ctx.outputSliceOffset[sendSliceIdx];
         bool islastSlice = false;
         islastSlice = (sendSliceIdx + 1 == arg->dimSize);
-        HCCL_INFO("mySubCommRankId[%zu], rankId[%zu], subCommToRankId[%zu], sendSliceIdx[%zu]",
+        HCCL_INFO("mySubCommRankId[%zu], rankId[%zu], subCommToRankId[%zu], sendSliceIdx[%u]",
             arg->mySubCommRankId, ctx.myRankIdx, nhrStepInfo.toRank, sendSliceIdx);
         CCU_CHK_RET(DoRepeatSendRecvSlices(ctx, nhrStepInfo.toRank, ctx.srcMem, ctx.dstMem, i % BIT_NUM_PER_CKE, islastSlice));
     }

@@ -167,11 +167,11 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         tempAlgParams.inputSliceStride = 0;
         tempAlgParams.outputSliceStride = dataSize_;
 
-        HCCL_DEBUG("[InsV2AllGatherSoleExecutor] myRank[%u], loop [%u] tempAlgParams.inputSliceStride [%u],"
+        HCCL_DEBUG("[InsV2AllGatherSoleExecutor] myRank[%u], loop [%llu] tempAlgParams.inputSliceStride [%u],"
                   "tempAlgParams.outputSliceStride [%u] tempAlgParams.sliceSize [%u]",
                   myRank_, loop, tempAlgParams.inputSliceStride, tempAlgParams.outputSliceStride,
                   tempAlgParams.sliceSize);
-        HCCL_DEBUG("[InsV2AllGatherSoleExecutor] myRank[%u], loop [%u] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
+        HCCL_DEBUG("[InsV2AllGatherSoleExecutor] myRank[%u], loop [%llu] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
                   "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
                   myRank_, loop, tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff);
 
@@ -201,7 +201,7 @@ HcclResult InsV2AllGatherSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLaunchS
         HCCL_INFO("[InsV2AllGatherSoleExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllGatherSoleExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2AllGatherSoleExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
     // 申请ctx
