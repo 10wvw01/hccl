@@ -30,9 +30,6 @@ public:
     // 清除特定通信域的缓存
     void EvitTaskCache(HcclComm comm);
 
-    // 清除所有缓存
-    void EvitAllTaskCache();
-
 private:
     AicpuTaskCacheCommManager() = default;
     ~AicpuTaskCacheCommManager() = default;

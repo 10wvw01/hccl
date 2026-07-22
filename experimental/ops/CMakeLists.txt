@@ -38,5 +38,8 @@ if(TARGET scatter_aicpu_kernel)
         ${CMAKE_CURRENT_SOURCE_DIR}/reduce_scatter/birs/template/reduce_scatter_birs_inter.cc
     )
 endif()
-target_include_directories(hccl PRIVATE ${EXPERIMENTAL_INCLUDE_LIST})
-target_compile_definitions(hccl PRIVATE ENABLE_EXPERIMENTAL)
+# host 构建存在 hccl 目标; device 构建无 hccl 目标(仅 scatter_aicpu_kernel),此处需守护以兼容 device 复用本目录
+if(TARGET hccl)
+    target_include_directories(hccl PRIVATE ${EXPERIMENTAL_INCLUDE_LIST})
+    target_compile_definitions(hccl PRIVATE ENABLE_EXPERIMENTAL)
+endif()

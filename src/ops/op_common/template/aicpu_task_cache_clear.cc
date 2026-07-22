@@ -9,6 +9,7 @@
  */
 
 #include "hccl_comm.h"
+#include "hccl_host_comm_dl.h"
 #include "load_kernel.h"
 #include "log.h"
 
@@ -79,14 +80,9 @@ HcclResult AicpuTaskCacheCommStateCallback(HcclComm comm, HcclCommStatePhase sta
 {
     (void)args;
     HCCL_INFO("[%s] comm[%p] state[%d]", __func__, comm, state);
-    if (state == HCCL_COMM_STATE_PHASE_DESTROY_POST) {
-        // 通信域销毁，调用device接口，清理通信域相关缓存
+    if (state == HCCL_COMM_STATE_PHASE_DESTROY_POST || state == HCCL_COMM_STATE_PHASE_RESUME_POST) {
+        // 通信域销毁或者N秒快恢时，调用device接口，清理通信域相关的task缓存
         CHK_PRT(AicpuCacheEvitKernelLaunch(comm));
-    } else if (state == HCCL_COMM_STATE_PHASE_RESUME_POST) {
-        // 快恢场景，清除所有缓存
-        CHK_PRT(AicpuCacheEvitKernelLaunch(nullptr));
-    } else {
-        // ignore
     }
 
     return HCCL_SUCCESS;
@@ -97,5 +93,8 @@ __attribute__((constructor)) void RegisterAicpuTaskCacheCallback()
     const char REG_NAME[] = "aicpu_task_cache_callback";
     HCCL_INFO("[%s] start register comm state callback", __func__);
     uint64_t args = 1u; // unused
-    CHK_PRT(HcclCommRegCommStateCallback(REG_NAME, AicpuTaskCacheCommStateCallback, reinterpret_cast<void *>(args)));
+    if (HcommIsSupportHcclCommRegCommStateCallback()) {
+        CHK_PRT(
+            HcclCommRegCommStateCallback(REG_NAME, AicpuTaskCacheCommStateCallback, reinterpret_cast<void *>(args)));
+    }
 }

@@ -36,7 +36,8 @@ namespace ops_hccl
         resourceRequest.notifyNumPerThread = {};
         resourceRequest.notifyNumOnMainThread = 0;
         std::vector<HcclChannelDesc> level0Channels;
-        CHK_RET(CalcChannelRequestMesh1D(comm, param, topoInfo, subCommRanks_, level0Channels));
+        static_cast<void>(topoInfo);
+        CHK_RET(CreateChannelRequestByRankId(comm, param, myRank_, param.sendRecvRemoteRank, level0Channels));
         resourceRequest.channels.push_back(level0Channels);
         HCCL_INFO("[InsTempSendDpu][CalcRes] Successfully calres!");
         return HCCL_SUCCESS;
@@ -94,7 +95,7 @@ namespace ops_hccl
             dpuRunInfo.tempAlgParams = tempAlgParams;
             dpuRunInfo.channels = templateResource.channels;
             dpuRunInfo.myRank = myRank_;
-            dpuRunInfo.subCommRanks = subCommRanks_;
+            dpuRunInfo.subCommRanks = {{myRank_, recvRank_}};
             u32 sendMsgId = 0;
             auto dpuRunInfoSeqData = dpuRunInfo.Serialize();
 
@@ -172,14 +173,14 @@ namespace ops_hccl
             if (rankId != myRank)
             {
                 recvRank = rankId;
-                HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank is [%u].", myRank, recvRank);
+                HCCL_INFO("[InsTempSendDpu] [DPUKernelRun] my rank is [%d], receive rank is [%u].", myRank, recvRank);
             }
         }
         auto channelIter = channels.find(recvRank);
         if (channelIter == channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempSendDpu] [DPUKernelRun] my rank is [%d],  receive rank [%u] channel not found!", myRank, recvRank);
+                "[InsTempSendDpu] [DPUKernelRun] my rank is [%d], receive rank [%u] channel not found!", myRank, recvRank);
             return HCCL_E_INTERNAL;
         }
         ChannelInfo linkSend = channelIter->second[0];
