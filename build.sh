@@ -18,10 +18,12 @@ OUTPUT_PATH=${CURRENT_DIR}/output
 USER_ID=$(id -u)
 CPU_NUM=$(($(cat /proc/cpuinfo | grep "^processor" | wc -l)*2))
 JOB_NUM="-j${CPU_NUM}"
+RULE_LAUNCH_ARG=""
 ASAN="false"
 COV="false"
-REFACTOR_OPS="OFF"
+REFACTOR_OPS="ON"
 REFACTOR_UT_ONLY="OFF"
+REFACTOR_ONLY="ON"
 CUSTOM_OPTION="-DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR}"
 STATIC_MODE="false"  # 新增变量，用于控制是否静态编译
 ENABLE_BUILD_DEVICE="OFF"
@@ -178,18 +180,23 @@ function build_device(){
         -DCMAKE_INSTALL_PREFIX=${BUILD_DEVICE_DIR}/_install \
         -DCMAKE_TOOLCHAIN_FILE=${CURRENT_DIR}/cmake/aarch64-hcc-toolchain.cmake \
         -DASCEND_INSTALL_PATH=${ASCEND_CANN_PACKAGE_PATH} \
+        -DASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH} \
         -DBUILD_OPEN_PROJECT=ON \
         -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
         -DENABLE_SIGN=${ENABLE_SIGN} \
         -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
-        -DVERSION_INFO=${VERSION_INFO}
+        -DVERSION_INFO=${VERSION_INFO} \
+        -DREFACTOR_OPS=${REFACTOR_OPS}
     if [ $? -ne 0 ]; then
         log "Error: cmake config failed for device build"
         exit 1
     fi
 
-    log "Info: build_device" 
-    TARGET_LIST="scatter_aicpu_kernel" 
+    log "Info: build_device"
+    TARGET_LIST="scatter_aicpu_kernel"
+    # if [ "${REFACTOR_OPS}" = "ON" ]; then
+    #     TARGET_LIST="${TARGET_LIST} refactor_aicpu_kernel"
+    # fi
     echo "TARGET_LIST=${TARGET_LIST}" 
     PKG_TARGET_LIST="generate_device_aicpu_package" 
     echo "PKG_TARGET_LIST=${PKG_TARGET_LIST}" 
@@ -227,8 +234,11 @@ function build_static() {
      # 步骤2: 构建主机端静态库 
      log "Info: Building host-side static library" 
      cd "${CURRENT_DIR}" && cd "${BUILD_DIR}" 
-     CUSTOM_OPTION="${CURRENT_CUSTOM_OPTION} -DDEVICE_MODE=OFF -DSTATIC_MODE=ON" 
-     cmake_config 
+    CUSTOM_OPTION="${CURRENT_CUSTOM_OPTION} -DDEVICE_MODE=OFF -DSTATIC_MODE=ON"
+    if [ "${REFACTOR_OPS}" = "ON" ]; then
+        CUSTOM_OPTION="${CUSTOM_OPTION} -DREFACTOR_OPS=ON -DREFACTOR_ONLY=ON"
+    fi
+    cmake_config
  
  
      # 构建hccl静态库目标 
@@ -531,6 +541,14 @@ function build_hccl() {
     # 设置 hcc 编译器工具链
     export TOOLCHAIN_DIR="${ASCEND_CANN_PACKAGE_PATH}/toolkit/toolchain/hcc"
 
+    # 构建 device 侧 AICPU kernel（scatter_aicpu_kernel + refactor_aicpu_kernel）
+    local save_opt="${CUSTOM_OPTION}"
+    if [ "${REFACTOR_OPS}" = "ON" ]; then
+        CUSTOM_OPTION="${CUSTOM_OPTION} -DREFACTOR_OPS=ON"
+    fi
+    build_device
+    CUSTOM_OPTION="${save_opt}"
+
     # refactor 全量编译：一键开启所有子模块
     local refactor_options="-DREFACTOR_OPS=${REFACTOR_OPS}"
     if [ "${REFACTOR_OPS}" = "ON" ]; then
@@ -653,6 +671,7 @@ while [[ $# -gt 0 ]]; do
         ;;
     --no-refactor)
         REFACTOR_OPS="OFF"
+        REFACTOR_ONLY="OFF"
         shift
         ;;
     --cann_3rd_lib_path=*)
@@ -741,6 +760,32 @@ while [[ $# -gt 0 ]]; do
         ENABLE_EXPERIMENTAL="true"
         shift
         ;;
+    --rule_launch=*|--rule-launch=*|--rule_launch|--rule-launch)
+    if [[ "$1" == *=* ]]; then
+        # 等号形式：
+        # --rule_launch=hitestwrapper
+        # --rule-launch=hitestwrapper
+        RULE_LAUNCH_ARG="${1#*=}"
+
+        if [[ -z "${RULE_LAUNCH_ARG}" ]]; then
+            log "Error: $1 requires a non-empty value."
+            exit 1
+        fi
+
+        shift
+    else
+        # 空格形式：
+        # --rule_launch hitestwrapper
+        # --rule-launch hitestwrapper
+        if [[ $# -lt 2 || -z "${2:-}" || "$2" == -* ]]; then
+            log "Error: $1 requires a non-empty value."
+            exit 1
+        fi
+
+        RULE_LAUNCH_ARG="$2"
+        shift 2
+    fi
+    ;;
     --custom_ops_path=*)
         OPTARG=$1
         CUSTOM_OPS_PATH="$(realpath ${OPTARG#*=})"
@@ -787,6 +832,10 @@ fi
 
 if [ "${COV}" == "true" ];then
     CUSTOM_OPTION="${CUSTOM_OPTION} -DENABLE_GCOV=true"
+fi
+
+if [[ -n "${RULE_LAUNCH_ARG}" ]]; then
+    CUSTOM_OPTION="${CUSTOM_OPTION} -DRULE_LAUNCH=${RULE_LAUNCH_ARG}"
 fi
 
 if [ -n "${ascend_package_path}" ];then
