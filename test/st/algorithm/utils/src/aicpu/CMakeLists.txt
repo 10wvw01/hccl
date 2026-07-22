@@ -201,10 +201,8 @@ add_library(scatter_aicpu_kernel SHARED
     ${HCCL_DEV_BASE}/src/ops/scatter/algo/template/scatter_ring.cc
     ${HCCL_DEV_BASE}/src/ops/scatter/executor/ins_v2_scatter_sole_executor.cc
     ${HCCL_DEV_BASE}/src/ops/scatter/executor/ins_v2_scatter_parallel_executor.cc
-    ${HCCL_DEV_BASE}/src/ops/scatter/executor/scatter_sequence_aicpu_executor_3level.cc
     ${HCCL_DEV_BASE}/src/ops/scatter/template/aicpu/ins_temp_scatter_mesh_1D.cc
     ${HCCL_DEV_BASE}/src/ops/scatter/template/aicpu/ins_temp_scatter_nhr.cc
-    ${HCCL_DEV_BASE}/src/ops/scatter/template/aicpu/aicpu_temp_scatter_mesh_1D_Z_axis_detour.cc
 
     ${HCCL_DEV_BASE}/src/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sole_executor.cc
     ${HCCL_DEV_BASE}/src/ops/reduce_scatter/executor/ins_reduce_scatter_parallel_executor.cc
@@ -298,5 +296,4 @@ target_compile_definitions(scatter_aicpu_kernel PRIVATE
 
 target_link_libraries(scatter_aicpu_kernel PRIVATE
     -Wl,--no-as-needed
-    $<BUILD_INTERFACE:intf_pub>
 )
