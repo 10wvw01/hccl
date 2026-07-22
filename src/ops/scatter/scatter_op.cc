@@ -142,10 +142,14 @@ HcclResult CheckScatterInputPara(const HcclComm comm, const void *recvBuf)
 
 bool IsStreamCapture(aclrtStream stream)
 {
-    bool isCapture;
+    bool isCapture = false;
     aclmdlRICaptureStatus captureStatus = aclmdlRICaptureStatus::ACL_MODEL_RI_CAPTURE_STATUS_NONE;
     u64 modelId = 0xFFFFFFFF;
-    CHK_PRT(haclrtGetCaptureInfo(stream, captureStatus, modelId, isCapture));
+    HcclResult ret = haclrtGetCaptureInfo(stream, captureStatus, modelId, isCapture);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[IsStreamCapture] haclrtGetCaptureInfo failed, ret:%d", ret);
+        return true;
+    }
     return isCapture;
 }
 
