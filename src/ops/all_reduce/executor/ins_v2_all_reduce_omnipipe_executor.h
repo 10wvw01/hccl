@@ -36,9 +36,6 @@ public:
     explicit InsV2AllReduceOmniPipeExecutor();
     ~InsV2AllReduceOmniPipeExecutor() override = default;
 
-    CostAlgoParams CalcCostCoeff() override;
-    AlgNetMeta GetAlgNetMeta() const override;
-
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
 
     /* *************** 资源计算 *************** */
