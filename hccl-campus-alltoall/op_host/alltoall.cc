@@ -77,8 +77,19 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     uint64_t recvCount, HcclDataType recvType, HcclComm comm, aclrtStream stream)
 {
     CHK_PTR_NULL(sendBuf);
+    CHK_PTR_NULL(recvBuf);
     CHK_PTR_NULL(comm);
     CHK_PTR_NULL(stream);
+    CHK_PRT_RET(sendCount != recvCount,
+        HCCL_ERROR("HcclAlltoAll: sendCount[%llu] is not equal to recvCount[%llu]",
+            static_cast<unsigned long long>(sendCount), static_cast<unsigned long long>(recvCount)),
+        HCCL_E_PARA);
+    CHK_PRT_RET(sendType != recvType,
+        HCCL_ERROR("HcclAlltoAll: sendType[%d] is not equal to recvType[%d]", static_cast<int32_t>(sendType),
+            static_cast<int32_t>(recvType)),
+        HCCL_E_PARA);
+    CHK_PRT_RET(SIZE_TABLE.find(sendType) == SIZE_TABLE.end(),
+        HCCL_ERROR("HcclAlltoAll: sendType[%d] is invalid", static_cast<int32_t>(sendType)), HCCL_E_PARA);
 
     // 构造算子参数
     OpParam param;
