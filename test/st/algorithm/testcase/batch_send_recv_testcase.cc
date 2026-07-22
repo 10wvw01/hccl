@@ -417,3 +417,10 @@ TEST_F(ST_BATCH_SEND_RECV_TEST, st_batch_send_recv_a5_aicpu_test_run_twice)
     EXPECT_TRUE(res == HCCL_SUCCESS);
     SimWorld::Global()->Deinit();
 }
+
+TEST_F(ST_BATCH_SEND_RECV_TEST, st_batch_send_recv_dpu_host_single_channel)
+{
+    setenv("ENABLE_HOSTDPU_FOR_LLT", "1", 1);
+    TopoMeta topoMeta {{{0}, {1}}};
+    RunBatchSendRecvTest(topoMeta, 2, 16, HcclDataType::HCCL_DATA_TYPE_INT32, sizeof(int32_t));
+}

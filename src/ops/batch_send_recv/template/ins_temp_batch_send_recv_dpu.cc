@@ -64,7 +64,6 @@ namespace ops_hccl
             return HCCL_E_INTERNAL;
         }
         sendRecvChannel_ = channelIter->second[0];
-        subSendRecvChannel_ = channelIter->second[1];
         processSize_ = tempAlgParams.sliceSize;
         count_ = tempAlgParams.count;
         dataCount_ = param.DataDes.count;
@@ -143,6 +142,12 @@ namespace ops_hccl
             HCCL_INFO("[InsTempBatchSendRecvDpu] Run End");
         }
         else if (sendRecvChannel_.locationType == EndpointLocType::ENDPOINT_LOC_TYPE_DEVICE) {
+            if (channelIter->second.size() < 2) {
+                HCCL_ERROR("[InsTempBatchSendRecvDpu][KernelRun] rank [%d], receive rank [%u] requires two device "
+                    "channels, but only [%zu] found!", myRank_, recvRank_, channelIter->second.size());
+                return HCCL_E_INTERNAL;
+            }
+            subSendRecvChannel_ = channelIter->second[1];
             if (tempAlgParams.opType == BatchSendRecvOpType::SEND) {
                 // 直接发送到对端的cclbuffer上
                 DataSlice inputBuffer(
