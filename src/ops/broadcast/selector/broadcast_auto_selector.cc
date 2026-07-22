@@ -43,7 +43,7 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuMs(const TopoInfoWithNetL
             HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(IsTwoLevelNetLayer(topoInfo))) {
                 selectAlgName = "CcuBroadcastMesh1D";
             } else {
                 selectAlgName = "CcuBroadcastMesh1D"; // to do 
@@ -146,7 +146,7 @@ SelectorStatus BroadcastAutoSelector::SelectMeshAlgoCcuSchedule(const TopoInfoWi
             HCCL_WARNING("[BroadcastAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
         } else {
-            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+            if (dataSize * topoInfo->userRankSize <= SMALL_COUNT_16M || !(IsTwoLevelNetLayer(topoInfo))) {
                     selectAlgName = "CcuBroadcastMesh1DMem2Mem";
             } else {
                 selectAlgName = "CcuBroadcastMesh1DMem2Mem"; // to do

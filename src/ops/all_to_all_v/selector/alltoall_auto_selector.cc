@@ -74,7 +74,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                 HCCL_DEBUG("[AlltoAllAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
                 return SelectorStatus::NOT_MATCH;
             } else {
-                if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
+                if (dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
                     selectAlgName = "CcuAllToAllSoleMeshScheConcur";
                 } else {
                     selectAlgName = "CcuAlltoAllMesh1D";
@@ -97,7 +97,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                     HCCL_DEBUG("[AlltoAllAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);
                 if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= CONCURRENT_RANK_LIMIT)
                     && (dataSize > BIG_DATA_SIZE_LIMIT)) { // 同一组4P且大数据量，走并发算法
-                    selectAlgName = "CcuAllToAllMesh1DConcurrentUBX";
+                    selectAlgName = "CcuAllToAllMesh1DConcurrent";
                 } else {
                     selectAlgName = "CcuAlltoAllMesh1DMultiJetty";
                 }

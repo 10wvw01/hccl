@@ -14,6 +14,7 @@
 #include <vector>
 #include <queue>
 #include "alg_param.h"
+#include "ccu_primitives_impl_dl.h"
 
 
 namespace ops_hccl {
@@ -24,7 +25,14 @@ inline CcuVersion GetCcuVersion()
 {
     DevType deviceType;
     hrtGetDeviceType(deviceType);
-    return (deviceType == DevType::DEV_TYPE_950) ? CcuVersion::CCU_V1 : CcuVersion::CCU_V2;
+    CcuVersion ccuVersion = (deviceType == DevType::DEV_TYPE_950) ? CcuVersion::CCU_V1 : CcuVersion::CCU_V2;
+    if (ccuVersion == CcuVersion::CCU_V2 && !HcommIsSupportCcuV2()) {
+        HCCL_WARNING("GetCcuVersion: HCOMM does not support CCU V2 interfaces, degrade to V1");
+        ccuVersion = CcuVersion::CCU_V1;
+    }
+    HCCL_INFO("GetCcuVersion: deviceType[%u], ccuVersion[%u]",
+              static_cast<uint32_t>(deviceType), static_cast<uint32_t>(ccuVersion));
+    return ccuVersion;
 }
 
 constexpr uint16_t LOC_CPY_LOOP_NUM = 8;

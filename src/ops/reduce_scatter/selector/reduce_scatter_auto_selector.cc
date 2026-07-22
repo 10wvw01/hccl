@@ -89,11 +89,9 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
         } else {
-#ifdef Ascend_950_CCU_V2
-            if (dataSize * topoInfo->userRankSize > SMALL_COUNT_16M || !(topoInfo->level1ClosExist)) {
+            if (IsDevType960() && (dataSize * topoInfo->userRankSize > SMALL_COUNT_16M || !IsTwoLevelNetLayer(topoInfo))) {
                 selectAlgName = "CcuReduceScatterSoleMeshMSConcur";
             } else
-#endif
             {
                 selectAlgName = "CcuReduceScatterMesh1D";
             }

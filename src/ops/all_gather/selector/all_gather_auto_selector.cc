@@ -61,13 +61,11 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
         } 
-#ifdef Ascend_950_CCU_V2
-        else if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
+        else if (IsDevType960() && dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
             selectAlgName = "CcuAllGatherMesh1D"; //to do
             return SelectorStatus::MATCH;
-        } else
-#endif
-        {
+        }
+        else {
             selectAlgName = "CcuAllGatherMesh1D";
             return SelectorStatus::MATCH;
         }
@@ -112,7 +110,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
         HCCL_DEBUG("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
     if (dataSize > SMALL_COUNT_512KB) {
         if (isMeshNumEqualToClosNum && (topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO)) {
-            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMemUBX";
+            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
         } else if (isClosNumMultipleOfMeshNum) {
             if (dataSize < OMNI_UBX_AG_DATA_SIZE) {
                 selectAlgName = "CcuAllGatherParallelMesh1DNHRMemMultiJetty";
@@ -132,18 +130,15 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
     const TopoInfoWithNetLayerDetails *topoInfo, std::string &selectAlgName, const u64 dataSize) const
 {
-    (void) dataSize;
     if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
         selectAlgName = "CcuAllGatherMesh2DieMem2Mem";
     } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
         HCCL_DEBUG("[AllGatherAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
         return SelectorStatus::NOT_MATCH;
     } else {
-#ifdef Ascend_950_CCU_V2
-        if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
+        if (IsDevType960() && dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
             selectAlgName = "CcuAllGatherSoleMeshScheConcur";
         } else
-#endif
         {
             selectAlgName = "CcuAllGatherMesh1DMem2Mem";
         }
@@ -338,7 +333,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
             HCCL_ERROR("[AllGatherAutoSelector] CheckClosNumMultipleOfMeshNum failed."), SelectorStatus::NOT_MATCH);
             if (isMeshNumEqualToClosNum && topoInfo->userRankSize <= MAX_RANK_NUM_FOR_CONCURRENT_ALGO) {
                 if (dataSize > SMALL_COUNT_512KB) {
-                    selectAlgName = "InsAllGatherConcurrentMesh1DNHRUBX";
+                    selectAlgName = "InsAllGatherConcurrentMesh1DNHR";
                 } else {
                     selectAlgName = "InsAllGatherMesh1D";
                 }
