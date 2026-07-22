@@ -228,7 +228,7 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
     }
 
     s32 deviceLogicId = 0;
-    CHK_PRT_RET(aclrtGetDevice(&deviceLogicId) != ACL_SUCCESS,
+    CHK_PRT_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId) != HCCL_SUCCESS,
         HCCL_WARNING("[HcclSelectAlgGraphMode] device is not set."), HCCL_SUCCESS);
     
     HcclComm hcclComm = nullptr;

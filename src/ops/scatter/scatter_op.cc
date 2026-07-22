@@ -100,7 +100,7 @@ HcclResult HcclScatter(void *sendBuf, void *recvBuf, uint64_t recvCount,
     /* 接口交互信息日志 */
     if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];

@@ -15,6 +15,47 @@
 #include "dtype_common.h"
 
 namespace ops_hccl {
+HcclResult AclrtGetCurrentLogicDeviceId(s32 &deviceLogicId)
+{
+#ifndef AICPU_COMPILE
+    s32 userDevId = 0;
+    aclError ret = aclrtGetDevice(&userDevId);
+    CHK_PRT_RET(ret != ACL_SUCCESS,
+        HCCL_ERROR("[AclrtGetCurrentLogicDeviceId] aclrtGetDevice failed, ret[%d]", ret), HCCL_E_RUNTIME);
+
+    ret = aclrtGetLogicDevIdByUserDevId(userDevId, &deviceLogicId);
+    CHK_PRT_RET(ret != ACL_SUCCESS,
+        HCCL_ERROR("[AclrtGetCurrentLogicDeviceId] convert userDevId[%d] failed, ret[%d]", userDevId, ret),
+        HCCL_E_RUNTIME);
+    return HCCL_SUCCESS;
+#else
+    static_cast<void>(deviceLogicId);
+    HCCL_ERROR("[AclrtGetCurrentLogicDeviceId] is not supported in AICPU mode");
+    return HCCL_E_NOT_SUPPORT;
+#endif
+}
+
+HcclResult AclrtSetDeviceByLogicDeviceId(s32 deviceLogicId)
+{
+#ifndef AICPU_COMPILE
+    s32 userDevId = 0;
+    aclError ret = aclrtGetUserDevIdByLogicDevId(deviceLogicId, &userDevId);
+    CHK_PRT_RET(ret != ACL_SUCCESS,
+        HCCL_ERROR("[AclrtSetDeviceByLogicDeviceId] convert logicDevId[%d] failed, ret[%d]", deviceLogicId, ret),
+        HCCL_E_RUNTIME);
+
+    ret = aclrtSetDevice(userDevId);
+    CHK_PRT_RET(ret != ACL_SUCCESS,
+        HCCL_ERROR("[AclrtSetDeviceByLogicDeviceId] set userDevId[%d] for logicDevId[%d] failed, ret[%d]",
+            userDevId, deviceLogicId, ret),
+        HCCL_E_RUNTIME);
+    return HCCL_SUCCESS;
+#else
+    HCCL_ERROR("[AclrtSetDeviceByLogicDeviceId] logicDevId[%d] is not supported in AICPU mode", deviceLogicId);
+    return HCCL_E_NOT_SUPPORT;
+#endif
+}
+
 HcclResult haclrtGetDeviceIndexByPhyId(u32 devicePhyId, u32 &deviceLogicId)
 {
 #ifndef AICPU_COMPILE

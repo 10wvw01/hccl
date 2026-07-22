@@ -144,7 +144,7 @@ struct AivKernelEntry {
 };
 
 struct AivKernelLookupResult {
-    s32 deviceId = 0;
+    s32 deviceLogicId = 0;
     AivKernelEntry entry;
 };
 
@@ -154,7 +154,7 @@ struct AivDeviceRegistry {
     std::unordered_map<s8*, AivKernelEntry> kernels;
 };
 
-static std::unordered_map<s32, AivDeviceRegistry> g_aivRegistryByDevice;
+static std::unordered_map<s32, AivDeviceRegistry> g_aivRegistryByLogicDevice;
 struct TaskParamAiv {
     u64 taskId = 0;
     u64 streamId = 0;
@@ -511,12 +511,6 @@ s8* GetFuncKey(HcclCMDType cmdType, HcclDataType dataType, KernelArgsType argsTy
         static_cast<u64>(argsType));
 }
 
-static HcclResult GetCurrentDeviceId(s32 &deviceId)
-{
-    ACLCHECK(aclrtGetDevice(&deviceId));
-    return HCCL_SUCCESS;
-}
-
 static HcclResult RegisterBinaryKernel(AivDeviceRegistry &registry, const char* funcName,
     const aclrtBinHandle binHandle, const s8* funcKey)
 {
@@ -540,11 +534,11 @@ static HcclResult GetKernelEntry(AivKernelLookupResult &lookupResult, const s8* 
         return HCCL_E_PARA;
     }
 
-    s32 deviceId = 0;
-    CHK_RET(GetCurrentDeviceId(deviceId));
+    s32 deviceLogicId = 0;
+    CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
     lock_guard<mutex> guard(g_mut);
-    auto registryIt = g_aivRegistryByDevice.find(deviceId);
-    if (registryIt == g_aivRegistryByDevice.end() || !registryIt->second.initialized) {
+    auto registryIt = g_aivRegistryByLogicDevice.find(deviceLogicId);
+    if (registryIt == g_aivRegistryByLogicDevice.end() || !registryIt->second.initialized) {
         return HCCL_E_PARA;
     }
 
@@ -552,20 +546,20 @@ static HcclResult GetKernelEntry(AivKernelLookupResult &lookupResult, const s8* 
     if (kernelIt == registryIt->second.kernels.end()) {
         return HCCL_E_PARA;
     }
-    lookupResult.deviceId = deviceId;
+    lookupResult.deviceLogicId = deviceLogicId;
     lookupResult.entry = kernelIt->second;
     return HCCL_SUCCESS;
 }
 
-static HcclResult UpdateKernelFunc(s32 deviceId, const s8* funcKey, const aclrtFuncHandle funcHandle)
+static HcclResult UpdateKernelFunc(s32 deviceLogicId, const s8* funcKey, const aclrtFuncHandle funcHandle)
 {
     if (funcKey == nullptr) {
         return HCCL_E_PARA;
     }
 
     lock_guard<mutex> guard(g_mut);
-    auto registryIt = g_aivRegistryByDevice.find(deviceId);
-    if (registryIt == g_aivRegistryByDevice.end()) {
+    auto registryIt = g_aivRegistryByLogicDevice.find(deviceLogicId);
+    if (registryIt == g_aivRegistryByLogicDevice.end()) {
         return HCCL_E_PARA;
     }
 
@@ -600,15 +594,15 @@ static HcclResult ClearDeviceRegistry(AivDeviceRegistry &registry)
 // Kernel注册入口，每个device只需要初始化一次
 HcclResult RegisterKernel()
 {
-    s32 deviceId = 0;
-    CHK_RET(GetCurrentDeviceId(deviceId));
+    s32 deviceLogicId = 0;
+    CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
 
     lock_guard<mutex> guard(g_mut);
     if (g_unregistering) {
         HCCL_ERROR("[AIV][RegisterKernel] aiv kernel is unregistering.");
         return HCCL_E_RUNTIME;
     }
-    AivDeviceRegistry &registry = g_aivRegistryByDevice[deviceId];
+    AivDeviceRegistry &registry = g_aivRegistryByLogicDevice[deviceLogicId];
     if (registry.initialized) {
         return HCCL_SUCCESS;
     }
@@ -675,12 +669,13 @@ HcclResult UnRegisterAivKernel()
     g_unregistering = true;
     g_launchCv.wait(lock, []() { return g_activeLaunchCount == 0; });
     HcclResult result = HCCL_SUCCESS;
-    s32 currentDeviceId = 0;
-    bool needRestoreDevice = (aclrtGetDevice(&currentDeviceId) == ACL_SUCCESS);
-    for (auto registryIt = g_aivRegistryByDevice.begin(); registryIt != g_aivRegistryByDevice.end();) {
-        aclError aclRet = aclrtSetDevice(registryIt->first);
-        if (aclRet != ACL_SUCCESS) {
-            HCCL_ERROR("[UnRegisterAivKernel] set device[%d] failed, ret[%d].", registryIt->first, aclRet);
+    s32 currentDeviceLogicId = 0;
+    bool needRestoreDevice = (AclrtGetCurrentLogicDeviceId(currentDeviceLogicId) == HCCL_SUCCESS);
+    for (auto registryIt = g_aivRegistryByLogicDevice.begin();
+         registryIt != g_aivRegistryByLogicDevice.end();) {
+        HcclResult setRet = AclrtSetDeviceByLogicDeviceId(registryIt->first);
+        if (setRet != HCCL_SUCCESS) {
+            HCCL_ERROR("[UnRegisterAivKernel] set logic device[%d] failed, ret[%d].", registryIt->first, setRet);
             result = HCCL_E_RUNTIME;
             ++registryIt;
             continue;
@@ -691,15 +686,16 @@ HcclResult UnRegisterAivKernel()
             result = clearRet;
         }
         if (clearRet == HCCL_SUCCESS) {
-            registryIt = g_aivRegistryByDevice.erase(registryIt);
+            registryIt = g_aivRegistryByLogicDevice.erase(registryIt);
         } else {
             ++registryIt;
         }
     }
     if (needRestoreDevice) {
-        aclError aclRet = aclrtSetDevice(currentDeviceId);
-        if (aclRet != ACL_SUCCESS) {
-            HCCL_ERROR("[UnRegisterAivKernel] restore device[%d] failed, ret[%d].", currentDeviceId, aclRet);
+        HcclResult restoreRet = AclrtSetDeviceByLogicDeviceId(currentDeviceLogicId);
+        if (restoreRet != HCCL_SUCCESS) {
+            HCCL_ERROR("[UnRegisterAivKernel] restore logic device[%d] failed, ret[%d].", currentDeviceLogicId,
+                restoreRet);
             result = HCCL_E_RUNTIME;
         }
     }
@@ -935,7 +931,7 @@ HcclResult ExecuteKernelLaunchInner(const AivOpArgs &opArgs, void* args, u32 arg
         HCCL_WARNING("[ExecuteKernelLaunchInner] handle invalid, retry to get function");
         aclRet = aclrtBinaryGetFunction(kernelLookupResult.entry.binHandle, kernelLookupResult.entry.kernelName.c_str(), &funcHandle);
         CHK_PRT_RET(aclRet != ACL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner] retry get function failed, error[%d]", aclRet), HCCL_E_RUNTIME);
-        ret = UpdateKernelFunc(kernelLookupResult.deviceId, funcKey, funcHandle);
+        ret = UpdateKernelFunc(kernelLookupResult.deviceLogicId, funcKey, funcHandle);
         CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[ExecuteKernelLaunchInner] update function handle failed, ret[%d]", ret), HCCL_E_RUNTIME);
         aclRet = aclrtLaunchKernelWithHostArgs(funcHandle, opArgs.numBlocks, opArgs.stream, &cfg, args, argsSize, nullptr, 0);
     }

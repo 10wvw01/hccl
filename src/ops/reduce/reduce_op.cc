@@ -271,7 +271,7 @@ HcclResult ReduceEntryLog(void *sendBuf, void *recvBuf, uint64_t count, HcclData
 {
     if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];

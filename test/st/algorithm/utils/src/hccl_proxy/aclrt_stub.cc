@@ -24,6 +24,7 @@
 
 using namespace hccl;
 using namespace ops_hccl;
+constexpr int32_t LOGIC_DEVICE_ID_OFFSET = 1024;
 thread_local uint32_t curr_dev_id = UINT32_MAX;
 
 extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param);
@@ -130,6 +131,24 @@ HcclResult hrtGetDeviceType(DevType &devType)
 aclError aclrtGetDevice(int32_t* device )
 {
     *device = curr_dev_id;
+    return ACL_SUCCESS;
+}
+
+aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevId, int32_t *const logicDevId)
+{
+    if (logicDevId == nullptr) {
+        return ACL_ERROR_INVALID_PARAM;
+    }
+    *logicDevId = userDevId + LOGIC_DEVICE_ID_OFFSET;
+    return ACL_SUCCESS;
+}
+
+aclError aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevId)
+{
+    if (userDevId == nullptr) {
+        return ACL_ERROR_INVALID_PARAM;
+    }
+    *userDevId = logicDevId - LOGIC_DEVICE_ID_OFFSET;
     return ACL_SUCCESS;
 }
 

@@ -168,7 +168,7 @@ HcclResult BarrierEntryLog(aclrtStream stream, const std::string &tag, const std
 {
     if (GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];

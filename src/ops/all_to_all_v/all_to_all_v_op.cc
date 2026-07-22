@@ -717,7 +717,7 @@ HcclResult AlltoAllEntryLog(const void *sendBuf, const void *recvBuf, uint64_t s
 {
     if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];
@@ -739,7 +739,7 @@ HcclResult AlltoAllVEntryLog(const void *sendBuf, const void *recvBuf, const voi
 {
     if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         HCCL_RUN_INFO("Entry-%s: tag[%s], sendBuf[%p], recvBuf[%p], sendType[%s], recvType[%s], streamId[%d], deviceLogicId[%d]",
@@ -759,7 +759,7 @@ HcclResult AlltoAllVCEntryLog(const void *sendBuf, const void *recvBuf, const vo
 {
     if (forceLog || GetExternalInputHcclEnableEntryLog()) {
         s32 deviceLogicId = 0;
-        ACLCHECK(aclrtGetDevice(&deviceLogicId));
+        CHK_RET(AclrtGetCurrentLogicDeviceId(deviceLogicId));
         s32 streamId = 0;
         ACLCHECK(aclrtStreamGetId(stream, &streamId));
         char stackLogBuffer[LOG_TMPBUF_SIZE];

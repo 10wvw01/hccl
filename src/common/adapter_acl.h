@@ -32,6 +32,10 @@ namespace ops_hccl {
         }                                                                                                       \
     } while (0)
 
+HcclResult AclrtGetCurrentLogicDeviceId(s32 &deviceLogicId);
+
+HcclResult AclrtSetDeviceByLogicDeviceId(s32 deviceLogicId);
+
 HcclResult haclrtGetPairDeviceLinkType(s32 phyDevId, s32 otherPhyDevId, LinkTypeInServer &linkType);
 
 HcclResult haclrtGetCaptureInfo(aclrtStream stream, aclmdlRICaptureStatus &captureStatus, u64 &modelId, bool &isCapture);
