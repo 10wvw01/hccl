@@ -177,7 +177,7 @@ HcclResult InsTempReduceScatterMesh1DIntra::RunReduceScatter(
             continue;
         }
 
-        HCCL_DEBUG("[InsTempReduceScatterMesh1DIntra][RunReduceScatter] myRank[%d], toRank[%d], fromRank[%d]",
+        HCCL_DEBUG("[InsTempReduceScatterMesh1DIntra][RunReduceScatter] myRank[%d], toRank[%u], fromRank[%u]",
             myRank_,
             remoteRank,
             remoteRank);

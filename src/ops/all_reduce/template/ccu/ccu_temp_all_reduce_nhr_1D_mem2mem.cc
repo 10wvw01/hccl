@@ -174,7 +174,7 @@ HcclResult CcuTempAllReduceNHRMem2Mem1D::CalcSlice(const u64 dataSize, RankSlice
             currSlice.size   = unitPerSlice * dataSizePerVolume;
         }
         CHK_PRT_RET(currSlice.size % dataSizePerVolume != 0,
-                    HCCL_ERROR("[Calc][SliceInfo]rank[%u] slice size[%llu] is invalid, dataSizePerVolume[%llu]",
+                    HCCL_ERROR("[Calc][SliceInfo]rank[%u] slice size[%llu] is invalid, dataSizePerVolume[%u]",
                                rankIdx, currSlice.size, dataSizePerVolume),
                     HcclResult::HCCL_E_INTERNAL);
         sliceInfoVec[rankIdx].push_back(currSlice);

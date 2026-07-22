@@ -184,7 +184,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         HCCL_INFO("[InsAllReduceParallelExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsAllReduceParallelExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsAllReduceParallelExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
     // 申请ctx
@@ -781,7 +781,7 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         u64 scratchCount = maxTmpMemSize_ / dataTypeSize_;  // 按照count来切分
         sliceCount = std::min(static_cast<u64>(std::floor(double(scratchCount) / multiple)), sliceCountUB0);
     }
-    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] dataCount_[%lu], myRank_[%d], sliceCountUB[%d], sliceCountUB0[%d], sliceCount[%d]",
+    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] dataCount_[%lu], myRank_[%d], sliceCountUB[%llu], sliceCountUB0[%llu], sliceCount[%llu]",
               dataCount_, myRank_, sliceCountUB, sliceCountUB0, sliceCount);
 
     u64 alignSize = AICPU_ALIGN_SIZE;
@@ -801,9 +801,9 @@ HcclResult InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     u64 scratchOffsetCountInterStage0 = sliceCountPart0 * multipleIntra;
     u64 scratchOffsetCountInterStage1 = 0;
     u64 scratchOffsetCountIntraStage1 = sliceCountPart0 * multipleInter;
-    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] dataCount_[%lu], myRank_[%d], sliceCountPart0[%d], multipleIntra[%d]",
+    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] dataCount_[%lu], myRank_[%d], sliceCountPart0[%llu], multipleIntra[%u]",
               dataCount_, myRank_, sliceCountPart0, multipleIntra);
-    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] myRank_[%d],scratchOffsetCountInterStage0[%d], scratchOffsetCountIntraStage1[%d]",
+    HCCL_DEBUG("[InsAllReduceParallelExecutor][GenInsQues] myRank_[%d],scratchOffsetCountInterStage0[%llu], scratchOffsetCountIntraStage1[%llu]",
                myRank_, scratchOffsetCountInterStage0, scratchOffsetCountIntraStage1);
     TemplateDataParams tempAlgParamsIntra0;
     TemplateDataParams tempAlgParamsInter0;

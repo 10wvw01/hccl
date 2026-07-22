@@ -263,7 +263,7 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepOne.inputSliceStride = tempAlgParamsStepOne.sliceSize;
     tempAlgParamsStepOne.outputSliceStride = 0; // 归约时固定归约到offset0位置
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepOne.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepOne.inputSliceStride [%u], "
         "tempAlgParamsStepOne.outputSliceStride [%u], tempAlgParamsStepOne.sliceSize [%u], tempAlgParamsStepOne.tailSize [%u], "
         "tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepOne.buffInfo.outBuffBaseOff [%u]",
         loop, tempAlgParamsStepOne.inputSliceStride, tempAlgParamsStepOne.outputSliceStride, tempAlgParamsStepOne.sliceSize,
@@ -305,7 +305,7 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepTwo.outputSliceStride = tempAlgParamsStepTwo.sliceSize;
 
     HCCL_INFO(
-        "[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepTwo.inputSliceStride [%u], "
+        "[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepTwo.inputSliceStride [%u], "
         "tempAlgParamsStepTwo.outputSliceStride [%u], tempAlgParamsStepTwo.sliceSize [%u], tempAlgParamsStepTwo.tailSize [%u], "
         "tempAlgParamsStepTwo.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepTwo.buffInfo.outBuffBaseOff [%u]",
         loop, tempAlgParamsStepTwo.inputSliceStride, tempAlgParamsStepTwo.outputSliceStride,
@@ -335,7 +335,7 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepThree.inputSliceStride = tempAlgParamsStepThree.sliceSize;
     tempAlgParamsStepThree.outputSliceStride = tempAlgParamsStepThree.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepThree.inputSliceStride [%u],"
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepThree.inputSliceStride [%u],"
         "tempAlgParamsStepThree.outputSliceStride [%u] tempAlgParamsStepThree.sliceSize [%u], tempAlgParamsStepThree.tailSize [%u], "
         "tempAlgParamsStepThree.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepThree.buffInfo.outBuffBaseOff [%u]",
         loop, tempAlgParamsStepThree.inputSliceStride, tempAlgParamsStepThree.outputSliceStride,
@@ -365,7 +365,7 @@ void InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTe
     tempAlgParamsStepFour.inputSliceStride = 0;
     tempAlgParamsStepFour.outputSliceStride = tempAlgParamsStepFour.sliceSize;
     
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%u] tempAlgParamsStepFour.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] loop [%llu] tempAlgParamsStepFour.inputSliceStride [%u], "
         "tempAlgParamsStepFour.outputSliceStride [%u], tempAlgParamsStepFour.sliceSize [%u], tempAlgParamsStepFour.tailSize [%u], "
         "tempAlgParamsStepFour.buffInfo.inBuffBaseOff [%u], tempAlgParamsStepFour.buffInfo.outBuffBaseOff [%u]",
         loop, tempAlgParamsStepFour.inputSliceStride, tempAlgParamsStepFour.outputSliceStride, tempAlgParamsStepFour.sliceSize,
@@ -520,7 +520,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
         HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgResStepOne.submitInfos.size()),
                                          static_cast<u32>(templateAlgResStepTwo.submitInfos.size()),

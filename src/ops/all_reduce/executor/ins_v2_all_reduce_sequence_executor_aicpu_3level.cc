@@ -262,7 +262,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL0.inputSliceStride = tempAlgParamsRSL0.sliceSize;
     tempAlgParamsRSL0.outputSliceStride = 0;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] RSL0.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] RSL0.inputSliceStride [%u], "
         "RSL0.outputSliceStride [%u], RSL0.sliceSize [%u], RSL0.tailSize [%u], "
         "RSL0.inBuffBaseOff [%u], RSL0.outBuffBaseOff [%u]",
         loop, tempAlgParamsRSL0.inputSliceStride, tempAlgParamsRSL0.outputSliceStride,
@@ -299,7 +299,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL1.inputSliceStride = tempAlgParamsRSL1.sliceSize;
     tempAlgParamsRSL1.outputSliceStride = tempAlgParamsRSL1.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] RSL1.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] RSL1.inputSliceStride [%u], "
         "RSL1.outputSliceStride [%u], RSL1.sliceSize [%u], RSL1.tailSize [%u], "
         "RSL1.inBuffBaseOff [%u], RSL1.outBuffBaseOff [%u]",
         loop, tempAlgParamsRSL1.inputSliceStride, tempAlgParamsRSL1.outputSliceStride,
@@ -338,7 +338,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsRSL2.inputSliceStride = tempAlgParamsRSL2.sliceSize;
     tempAlgParamsRSL2.outputSliceStride = tempAlgParamsRSL2.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] RSL2.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] RSL2.inputSliceStride [%u], "
         "RSL2.outputSliceStride [%u], RSL2.sliceSize [%u], RSL2.tailSize [%u], "
         "RSL2.inBuffBaseOff [%u], RSL2.outBuffBaseOff [%u]",
         loop, tempAlgParamsRSL2.inputSliceStride, tempAlgParamsRSL2.outputSliceStride,
@@ -369,7 +369,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL2.inputSliceStride = tempAlgParamsAGL2.sliceSize;
     tempAlgParamsAGL2.outputSliceStride = sliceSizeRSL1;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] AGL2.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] AGL2.inputSliceStride [%u], "
         "AGL2.outputSliceStride [%u], AGL2.sliceSize [%u], AGL2.tailSize [%u], "
         "AGL2.inBuffBaseOff [%u], AGL2.outBuffBaseOff [%u]",
         loop, tempAlgParamsAGL2.inputSliceStride, tempAlgParamsAGL2.outputSliceStride,
@@ -400,7 +400,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL1.inputSliceStride = tempAlgParamsAGL1.sliceSize;
     tempAlgParamsAGL1.outputSliceStride = 0;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] AGL1.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] AGL1.inputSliceStride [%u], "
         "AGL1.outputSliceStride [%u], AGL1.sliceSize [%u], AGL1.tailSize [%u], "
         "AGL1.inBuffBaseOff [%u], AGL1.outBuffBaseOff [%u]",
         loop, tempAlgParamsAGL1.inputSliceStride, tempAlgParamsAGL1.outputSliceStride,
@@ -431,7 +431,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL0.inputSliceStride = 0;
     tempAlgParamsAGL0.outputSliceStride = tempAlgParamsAGL0.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] AGL0.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%llu] AGL0.inputSliceStride [%u], "
         "AGL0.outputSliceStride [%u], AGL0.sliceSize [%u], AGL0.tailSize [%u], "
         "AGL0.inBuffBaseOff [%u], AGL0.outBuffBaseOff [%u]",
         loop, tempAlgParamsAGL0.inputSliceStride, tempAlgParamsAGL0.outputSliceStride,
