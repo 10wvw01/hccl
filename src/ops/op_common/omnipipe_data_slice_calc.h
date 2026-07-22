@@ -38,8 +38,9 @@ constexpr double BW_OMNI_UBX_CCU_MS_RS_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_MS_RS_CLOS = 170;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_CLOS = 180;
+constexpr double BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS = 210;
 constexpr double BW_OMNI_UBX_CCU_SCHED_G_MESH = 47;
-constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 180;
+constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 162;
 
 enum OmniPipeLevel{
     OMNIPIPE_LEVEL0 = 0,
