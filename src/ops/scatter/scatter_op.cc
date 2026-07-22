@@ -156,7 +156,11 @@ bool IsAiCpuMode(DevType deviceType, u32 rankSize)
 HcclResult ScatterExecOp(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, uint32_t root,
     HcclComm comm, aclrtStream stream, u32 userRankSize, uint64_t beginTime)
 {
-    if (shouldGoOutPlace(param.deviceType)&&(GetHcommVersion() >= CANN_VERSION(9, 0, 0))) {
+    if (shouldGoOutPlace(param.deviceType)
+#ifdef MACRO_DEV_TYPE_NEW
+        && (GetHcommVersion() >= CANN_VERSION(9, 0, 0))
+#endif
+    ) {
         CHK_RET(HcclGetOpExpansionMode(comm, param));
 
         // 9.0.0 ccu模式走老流程

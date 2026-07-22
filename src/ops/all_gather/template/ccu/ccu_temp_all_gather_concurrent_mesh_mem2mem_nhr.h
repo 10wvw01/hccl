@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_TEMP_ALL_GATHER_MESH1DNHR_CONCURRENT_MEM2MEM_H
-#define HCCL_CCU_TEMP_ALL_GATHER_MESH1DNHR_CONCURRENT_MEM2MEM_H
+#ifndef HCCL_CCU_TEMP_ALL_GATHER_CONCURRENT_MESH_MEM2MEM_NHR_H
+#define HCCL_CCU_TEMP_ALL_GATHER_CONCURRENT_MESH_MEM2MEM_NHR_H
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
@@ -71,12 +71,12 @@ struct CcuAllGatherNHR1DMem2MemArgLayout {
 // subCommRanks_[0] 给 mesh 子 template, subCommRanks_[1] 给 NHR 子 template。
 // 线程分配: threads[0] -> mesh 主流, threads[1] -> NHR 主流, threads[2] -> NHR 从流。
 // kernel 分配: ccuKernels[0] -> mesh, ccuKernels[1] -> NHR。
-class CcuTempAllGatherMesh1DNHRConcurrentMem2Mem : public CcuAlgTemplateBase {
+class CcuTempAllGatherConcurrentMeshMem2MemNHR : public CcuAlgTemplateBase {
 public:
-    CcuTempAllGatherMesh1DNHRConcurrentMem2Mem() = default;
-    explicit CcuTempAllGatherMesh1DNHRConcurrentMem2Mem(const OpParam &param, const u32 rankId,
+    CcuTempAllGatherConcurrentMeshMem2MemNHR() = default;
+    explicit CcuTempAllGatherConcurrentMeshMem2MemNHR(const OpParam &param, const u32 rankId,
                                                         const std::vector<std::vector<u32>> &subCommRanks);
-    ~CcuTempAllGatherMesh1DNHRConcurrentMem2Mem() override = default;
+    ~CcuTempAllGatherConcurrentMeshMem2MemNHR() override = default;
 
     std::string Describe() const override
     {
@@ -104,4 +104,4 @@ private:
 
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_TEMP_ALL_GATHER_MESH1DNHR_CONCURRENT_MEM2MEM_H
+#endif // HCCL_CCU_TEMP_ALL_GATHER_CONCURRENT_MESH_MEM2MEM_NHR_H

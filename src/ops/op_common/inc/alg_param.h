@@ -69,7 +69,6 @@ constexpr u32 ALG_MAX_LENGTH = 128;
 constexpr u64 ALL_TO_ALL_V_VECTOR_NUM = 4;
 constexpr u64 REDUCE_SCATTER_V_VECTOR_NUM = 2;
 constexpr u64 ALL_GATHER_V_VECTOR_NUM = 2;
-constexpr u64 ALL_TO_ALL_V_VECTOR_NUM_V2 = 3;
 
 constexpr uint64_t GE_PARALLEL = 36;
 
