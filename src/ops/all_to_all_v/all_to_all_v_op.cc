@@ -616,7 +616,7 @@ HcclResult AlltoAllVConstructOpParam(const void *sendBuf, const void *sendCounts
     param.all2AllVDataDes.rdispls = data + RECV_DISPL_IDX * rankSize;
 
     for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize; i++) {
-        HCCL_INFO("[AlltoAllVConstructOpParam] varData[%u] is [%u]", i, data[i]);
+        HCCL_INFO("[AlltoAllVConstructOpParam] varData[%llu] is [%u]", i, data[i]);
     }
     HCCL_INFO("[AlltoAllVConstructOpParam] SIZE_TABLE[dataType] is [%u]", SIZE_TABLE[dataType]);
     return HCCL_SUCCESS;

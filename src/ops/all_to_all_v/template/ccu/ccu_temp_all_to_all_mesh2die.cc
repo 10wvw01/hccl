@@ -57,7 +57,7 @@ HcclResult CcuTempAllToAllMesh2Die::CalcRes(HcclComm comm, const OpParam &param,
         kernelInfo.setKernelArg(kernelArg);
         kernelInfo.channels = channels_[dieId];
         resourceRequest.ccuKernelInfos.emplace_back(kernelInfo);
-        HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
+        HCCL_DEBUG("[CcuTempAlltoAllMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%u, ccuKernelInfos=%llu",
             dieId, channels_[dieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
     }
 
@@ -117,7 +117,7 @@ HcclResult CcuTempAllToAllMesh2Die::KernelRun(const OpParam &param, const Templa
     HCCL_INFO("[CcuTempAlltoAllMesh2Die][KernelRun] begin. Rank[%d], input[%#llx/%#llx], output[%#llx/%#llx], "
         "sendType[%d], recvType[%d]", myRank_, inputAddr, param.inputPtr, outputAddr, param.outputPtr,
         param.all2AllDataDes.sendType, param.all2AllDataDes.recvType);
-    HCCL_INFO("[CcuTempAlltoAllMesh2Die][KernelRun] myRank_[%d], rankSize[%lu], inputAddr[%llu],"
+    HCCL_INFO("[CcuTempAlltoAllMesh2Die][KernelRun] myRank_[%d], rankSize[%u], inputAddr[%llu],"
               "outputAddr[%llu], sliceSize[%llu], inputSliceStride[%llu], outputSliceStride[%llu]",
                myRank_, rankSize, inputAddr, outputAddr, sliceSize, inputSliceStride, outputSliceStride);
 

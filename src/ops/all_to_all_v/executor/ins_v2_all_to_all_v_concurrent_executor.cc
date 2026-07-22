@@ -382,7 +382,7 @@ HcclResult InsV2AllToAllVConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         HCCL_INFO("[InsV2AllToAllVConcurrentExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]",
+    HCCL_INFO("[InsV2AllToAllVConcurrentExecutor][FastLaunchSaveCtx] threadNum[%u], ccuKernelNum[%u]",
         threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()),

@@ -229,7 +229,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
     // 从varData把值取出来
     const u64* data = reinterpret_cast<const u64*>(param.varData);
     for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize_; i++) {
-        HCCL_INFO("OrchestrateLoop, param.varData[%u] is [%u]", i, data[i]);
+        HCCL_INFO("OrchestrateLoop, param.varData[%llu] is [%u]", i, data[i]);
     }
     for (u64 i = 0; i < ALL_TO_ALL_V_VECTOR_NUM * rankSize_; i++) {
         u64 val = i / rankSize_;
@@ -313,7 +313,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         max = std::max(max, splitData.recvCounts[i]);
     }
 
-    HCCL_INFO("[InsV2AllToAllConcurrentExecutor] maxSendRecvDataCount = %u", max);
+    HCCL_INFO("[InsV2AllToAllConcurrentExecutor] maxSendRecvDataCount = %llu", max);
     maxSendRecvDataCount = max;
     return HcclResult::HCCL_SUCCESS;
 }
@@ -483,7 +483,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
             tempAlgParams.recvCounts[i] = 0;
             tempAlgParams.rdispls[i] = splitData.rdispls[i] + splitData.recvCounts[i];
         }
-        HCCL_DEBUG("[%s]loop = %u, rank = %u, tempAlgParams.sendCounts = %u, tempAlgParams.sdispls = %u, "
+        HCCL_DEBUG("[%s]loop = %u, rank = %llu, tempAlgParams.sendCounts = %u, tempAlgParams.sdispls = %u, "
                    "tempAlgParams.recvCounts = %u, tempAlgParams.rdispls = %u",
                    __FUNCTION__, loop, i, tempAlgParams.sendCounts[i], tempAlgParams.sdispls[i],
                    tempAlgParams.recvCounts[i], tempAlgParams.rdispls[i]);
@@ -514,7 +514,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
         HCCL_INFO("[InsV2AllToAllConcurrentExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2AllToAllConcurrentExecutor][FastLaunchSaveCtx] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2AllToAllConcurrentExecutor][FastLaunchSaveCtx] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()),
                                          static_cast<u32>(templateAlgRes1.submitInfos.size())};

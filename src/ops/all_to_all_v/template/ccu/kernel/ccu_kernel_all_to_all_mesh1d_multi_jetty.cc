@@ -37,7 +37,7 @@ static CcuResult InitResource(AllToAllMesh1DMultiJettyContext &ctx)
         if (peerId == arg->rankId) {
             continue;
         }
-        HCCL_DEBUG("[CcuKernelAllToAllMesh1DMultiJetty] MyRank[%u], PeerId[%u], ChannelId[%u]",
+        HCCL_DEBUG("[CcuKernelAllToAllMesh1DMultiJetty] MyRank[%u], PeerId[%llu], ChannelId[%u]",
                     arg->rankId, peerId, channelIdx);
         ctx.peerOutput[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], OUTPUT_XN_ID);
         ctx.peerToken[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], TOKEN_XN_ID);
