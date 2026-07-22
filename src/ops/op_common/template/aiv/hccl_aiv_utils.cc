@@ -383,7 +383,7 @@ static u32 GetAivTimeout()
     u32 finalTimeout = (timeoutUs < minNpuSchedTimeout) ? minNpuSchedTimeout
             : (timeoutUs > maxNpuSchedTimeout) ? maxNpuSchedTimeout
             : timeoutUs;
-    HCCL_INFO("[GetAivTimeout]timeout[%u]us, execTimeOut[%.2f]s, minNpuSchedTimeout[%u]us, maxNpuSchedTimeout[%u]us.",
+    HCCL_INFO("[GetAivTimeout]timeout[%u]us, execTimeOut[%.2f]s, minNpuSchedTimeout[%llu]us, maxNpuSchedTimeout[%llu]us.",
         finalTimeout, execTimeOut, minNpuSchedTimeout, maxNpuSchedTimeout);
 
     return finalTimeout;

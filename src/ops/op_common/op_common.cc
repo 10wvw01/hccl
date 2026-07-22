@@ -279,7 +279,7 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
     uint64_t size = 0;
     void *fastLaunchCtxPtr = nullptr;
     if (HcclEngineCtxGet(comm, param.fastLaunchTag, CommEngine::COMM_ENGINE_CCU, &fastLaunchCtxPtr, &size) == HCCL_SUCCESS) {
-        HCCL_INFO("[ShouldGoCcuFastLaunch] get fastLaunchCtx success, size is %u", size);
+        HCCL_INFO("[ShouldGoCcuFastLaunch] get fastLaunchCtx success, size is %llu", size);
         *ccuFastLaunchCtx = reinterpret_cast<CcuFastLaunchCtx*>(fastLaunchCtxPtr);
         return true;
     }
@@ -899,9 +899,9 @@ HcclResult HcclAivKernelEntranceLaunch(HcclComm comm, OpParam &param, const std:
         ACLCHECK(aclrtGetResInCurrentThread(ACL_RT_DEV_RES_VECTOR_CORE, &numBlocksLimit));
     }
     CHK_PRT_RET(numBlocksLimit < 1,
-        HCCL_ERROR("[%s] block num less than 1, block num[%d]", __func__, numBlocksLimit), HCCL_E_PARA);
+        HCCL_ERROR("[%s] block num less than 1, block num[%u]", __func__, numBlocksLimit), HCCL_E_PARA);
     param.numBlocksLimit = numBlocksLimit;
-    HCCL_INFO("[%s] Aiv core limit is [%d].", __func__, numBlocksLimit);
+    HCCL_INFO("[%s] Aiv core limit is [%u].", __func__, numBlocksLimit);
     return HCCL_SUCCESS;
 }
 
@@ -1471,7 +1471,7 @@ HcclResult GeGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &
         u32 slaveStreams = resPack.streams.size();
         u32 threadNum = resRequest.slaveThreadNum;
         if (threadNum > slaveStreams) {
-            HCCL_ERROR("Thread Num Should less than slave streams. slaveStreams[%llu], threadNums[%llu]", slaveStreams, threadNum);
+            HCCL_ERROR("Thread Num Should less than slave streams. slaveStreams[%u], threadNums[%u]", slaveStreams, threadNum);
             return HCCL_E_UNAVAIL;
         }
 
@@ -1499,7 +1499,7 @@ HcclResult SaveMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle 
     curPtr += sizeof(ThreadHandle);
     u32 *notifyNumPtr = reinterpret_cast<u32 *>(curPtr);
     *notifyNumPtr = notifyNum;
-    HCCL_INFO("[SaveMainThreadInfo]threadPtr[%p], thread[%lu], notifyNumPtr[%p], notifyNum[%lu]",
+    HCCL_INFO("[SaveMainThreadInfo]threadPtr[%p], thread[%lu], notifyNumPtr[%p], notifyNum[%u]",
         threadPtr, thread, notifyNumPtr, notifyNum);
     return HCCL_SUCCESS;
 }
@@ -1554,7 +1554,7 @@ HcclResult GetMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle &
     curPtr += sizeof(ThreadHandle);
     u32 *notifyNumPtr = reinterpret_cast<u32 *>(curPtr);
     notifyNum = *notifyNumPtr;
-    HCCL_INFO("[GetMainThreadInfo]threadPtr[%p], thread[%lu], notifyNumPtr[%p], notifyNum[%lu]",
+    HCCL_INFO("[GetMainThreadInfo]threadPtr[%p], thread[%lu], notifyNumPtr[%p], notifyNum[%u]",
         threadPtr, thread, notifyNumPtr, notifyNum);
     return HCCL_SUCCESS;
 }
@@ -1805,7 +1805,7 @@ HcclResult HcclGetChannelForCcu(HcclComm comm, const OpParam &param, AlgResource
             kernelArgBase->channels[i] = kernelChannels[i];
         }
         kernelArgBase->channelCount = channelNum;
-        HCCL_INFO("[HcclGetChannelForCcu] Get [%lu] channels", channelNum);
+        HCCL_INFO("[HcclGetChannelForCcu] Get [%u] channels", channelNum);
     }
     return HCCL_SUCCESS;
 }

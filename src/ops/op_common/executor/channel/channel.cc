@@ -69,21 +69,21 @@ HcclResult ProcessMeshInfo(const HcclComm comm,const std::vector<std::vector<u32
     constexpr u32 DIE_0 = 0;
     constexpr u32 DIE_1 = 1;
     for(u32 rank: subcommInfo[COMM_LEVEL0]){
-        HCCL_INFO("rank = %lld",rank);
+        HCCL_INFO("rank = %u",rank);
         if (rank == myRank) {
             continue;
         }
         if (enableDieNum == DIE_NUM_1) {
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, enableDieId,
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
-            HCCL_INFO("enableDieNum = %lld",enableDieNum);
+            HCCL_INFO("enableDieNum = %u",enableDieNum);
         } else if (enableDieNum == DIE_NUM_2) {
             // 加入fromRank 2个die的链路
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_0,
                 rank2ChannelIdx, channelsPerDie[DIE_0]));
             CHK_RET(CcuAlgTemplateBase::SelectChannelToVec(comm, myRank, rank, rankIdToChannelDesc, DIE_1,
                 rank2ChannelIdx, channelsPerDie[DIE_1]));
-            HCCL_INFO("enableDieNum = %lld",enableDieNum);
+            HCCL_INFO("enableDieNum = %u",enableDieNum);
         }
     }
     return HcclResult::HCCL_SUCCESS;
@@ -256,7 +256,7 @@ HcclResult CreateChannelFromLink(HcclComm comm, u32 myRank, u32 rank, uint32_t n
     HCCL_DEBUG("[CreateChannelFromLink]%s local device phyId: %u, remote device phyId: %u.",
                 funcName.c_str(), channelDesc.localEndpoint.loc.device.devPhyId,
                 channelDesc.remoteEndpoint.loc.device.devPhyId);
-    HCCL_INFO("[CreateChannelFromLink]%s Add channel request between %zu and %zu, netLayerIdx %u, "
+    HCCL_INFO("[CreateChannelFromLink]%s Add channel request between %u and %zu, netLayerIdx %u, "
               "linkListIdx %u, protocol %zu",
               funcName.c_str(), myRank, channelDesc.remoteRank, netLayer, idx, channelDesc.remoteEndpoint.protocol);
     channelDesc.channelProtocol = link.linkAttr.linkProtocol;
@@ -301,7 +301,7 @@ HcclResult GetRankFullMeshLayers(HcclComm comm, const std::vector<std::vector<u3
 #ifndef AICPU_COMPILE
     for (auto netLayer : netLayersVector) {
         bool isStainPath =  true;
-        HCCL_INFO("netlayer=%d",netLayer);
+        HCCL_INFO("netlayer=%u",netLayer);
         CommLink *linkList = nullptr;
         u32 listSize = 0;
         for(u32 rank: subcommInfo[COMM_LEVEL0]){
@@ -309,7 +309,7 @@ HcclResult GetRankFullMeshLayers(HcclComm comm, const std::vector<std::vector<u3
                 continue;
             }
             CHK_RET(HcclRankGraphGetLinks(comm, netLayer, myRank, rank, &linkList, &listSize));
-            HCCL_INFO("dstrank = %d,listsize = %d",rank,listSize);
+            HCCL_INFO("dstrank = %u,listsize = %u",rank,listSize);
             if (listSize == 0){
                 isStainPath = false;
                 break;
@@ -564,13 +564,13 @@ HcclResult CalcChannelRequestMesh2D(HcclComm comm, const OpParam& param, const T
                 channelDesc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
                 channelDesc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
                 protocolExists = true;
-                HCCL_INFO("[%s]Add channel request between %zu and %zu with protocol %zu type %u", __func__,
+                HCCL_INFO("[%s]Add channel request between %u and %zu with protocol %zu type %u", __func__,
                     myRank, channelDesc.remoteRank, link.dstEndpointDesc.protocol, link.srcEndpointDesc.commAddr.type);
                 break;
             }
         }
         CHK_PRT_RET(!protocolExists,
-            HCCL_ERROR("[%s] protocol[%u] not exists between %zu and %zu", __func__, protocol, myRank, channelDesc.remoteRank),
+            HCCL_ERROR("[%s] protocol[%u] not exists between %u and %zu", __func__, protocol, myRank, channelDesc.remoteRank),
                 HCCL_E_NOT_FOUND);
         channelDesc.channelProtocol = protocol;
         channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
@@ -598,7 +598,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, const OpParam& param, const Topo
     u32 myRank = topoInfo->userRank;
     auto it = std::find(subcommInfo[0].begin(), subcommInfo[0].end(), myRank);
     CHK_PRT_RET((it == subcommInfo[0].end()),
-                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%d] is not in commInfo.", myRank),
+                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%u] is not in commInfo.", myRank),
                 HcclResult::HCCL_E_PARA);
 
     u32 localRank = std::distance(subcommInfo[0].begin(), it);
@@ -906,7 +906,7 @@ HcclResult CalcChannelRequestNhrMultiJetty(HcclComm comm, const OpParam& param, 
     u32 myRank = topoInfo->userRank;
     auto it = std::find(subcommInfo[0].begin(), subcommInfo[0].end(), myRank);
     CHK_PRT_RET((it == subcommInfo[0].end()),
-                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%d] is not in commInfo.", myRank),
+                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%u] is not in commInfo.", myRank),
                 HcclResult::HCCL_E_PARA);
 
     u32 localRank = std::distance(subcommInfo[0].begin(), it);

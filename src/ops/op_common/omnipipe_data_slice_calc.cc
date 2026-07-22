@@ -526,24 +526,24 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
     if (zB > xyB) {
         outerStepNum = CalReducescatterDataSize2D(xyRSDataSize, zRSDataSize, xyB, zB, xRankSize * yRankSize, zRankSize,
                                                   dataSize, maxStepNum, engine);
-        HCCL_INFO("[CalcOmniPipeScratchInfo] zB>xyB,outerStepNum=[%u]", outerStepNum);
+        HCCL_INFO("[CalcOmniPipeScratchInfo] zB>xyB,outerStepNum=[%d]", outerStepNum);
     } else {
         outerStepNum = CalReducescatterDataSize2D(zRSDataSize, xyRSDataSize, zB, xyB, zRankSize, xRankSize * yRankSize,
                                                   dataSize, maxStepNum, engine);
-        HCCL_INFO("[CalcOmniPipeScratchInfo] zB<=xyB,outerStepNum=[%u]", outerStepNum);
+        HCCL_INFO("[CalcOmniPipeScratchInfo] zB<=xyB,outerStepNum=[%d]", outerStepNum);
     }
     int innerStepNum = 0;
     if (yB >= xB) {
         for (u64 i = 0; i < outerStepNum; i++) {
             innerStepNum = CalReducescatterDataSize2D(xRSDataSize[i], yRSDataSize[i], xB, yB, xRankSize, yRankSize,
                                                     xyRSDataSize[i], maxStepNum, engine);
-            HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%u]", innerStepNum);
+            HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%d]", innerStepNum);
         }
     } else {
         for (u64 i = 0; i < outerStepNum; i++) {
             innerStepNum = CalReducescatterDataSize2D(yRSDataSize[i], xRSDataSize[i], yB, xB, yRankSize, xRankSize,
                                                     xyRSDataSize[i], maxStepNum, engine);
-            HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%u]", innerStepNum);
+            HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%d]", innerStepNum);
         }
     }
     // 根据数据量和算法类型计算scratch大小
@@ -582,7 +582,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
             return scratchInfo;
         }
     }
-    HCCL_INFO("[CalcOmniPipeScratchInfo] allCclBufferSize=[%u],bufferRatio=[%f],",
+    HCCL_INFO("[CalcOmniPipeScratchInfo] allCclBufferSize=[%llu],bufferRatio=[%f],",
               allCclBufferSize, bufferRatio);
 
     // 按比例计算loop
@@ -599,7 +599,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
         if (zB > xyB) {
             outerStepNum = CalReducescatterDataSize2D(xyRSDataSize, zRSDataSize, xyB, zB, xRankSize * yRankSize,
                                                       zRankSize, maxDataSizePerLoop, maxStepNum, engine);
-            HCCL_INFO("[CalcOmniPipeScratchInfo] zB>xyB,outerStepNum=[%llu]", outerStepNum);
+            HCCL_INFO("[CalcOmniPipeScratchInfo] zB>xyB,outerStepNum=[%d]", outerStepNum);
         } else {
             outerStepNum = CalReducescatterDataSize2D(zRSDataSize, xyRSDataSize, zB, xyB, zRankSize,
                                                       xRankSize * yRankSize, maxDataSizePerLoop, maxStepNum, engine);
@@ -609,7 +609,7 @@ std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam &omniPipeScratchPa
             for (u64 i = 0; i < outerStepNum; i++) {
                 innerStepNum = CalReducescatterDataSize2D(xRSDataSize[i], yRSDataSize[i], xB, yB, xRankSize, yRankSize,
                                                         xyRSDataSize[i], maxStepNum, engine);
-                HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%llu]", innerStepNum);
+                HCCL_INFO("[CalcOmniPipeScratchInfo] innerStepNum=[%d]", innerStepNum);
             }
         } else {
             for (u64 i = 0; i < outerStepNum; i++) {
@@ -740,7 +740,7 @@ std::vector<std::vector<u64>> CalRSDataSizeStep(u64 *xRSDataSize, u64 *yRSDataSi
             xInCornerStep = innerStepNum - finStepMark;  // 步数为1的时候只走一步，否则走innerStepNum-2步
         }
     }
-    HCCL_INFO("[CalRSDataSizeStep] xInCornerStep=[%u],yInCornerStep=[%u],cornerStep=[%llu],",
+    HCCL_INFO("[CalRSDataSizeStep] xInCornerStep=[%d],yInCornerStep=[%d],cornerStep=[%llu],",
               xInCornerStep, yInCornerStep, cornerStep);
 
     // 斜对角需要计算多片

@@ -31,10 +31,10 @@ HcclResult TopoMatchPcieMix::MatchTopo(const HcclComm comm, TopoInfoWithNetLayer
 
 #ifdef MACRO_DEV_TYPE_NEW
     CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_950,
-        HCCL_ERROR("[TopoMatchPcieMix] Rank [%d], deviceType not supported yet.", myRank), HcclResult::HCCL_E_PARA);
+        HCCL_ERROR("[TopoMatchPcieMix] Rank [%u], deviceType not supported yet.", myRank), HcclResult::HCCL_E_PARA);
 #else
     CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_910_95,
-        HCCL_ERROR("[TopoMatchPcieMix] Rank [%d], deviceType not supported yet.", myRank), HcclResult::HCCL_E_PARA);
+        HCCL_ERROR("[TopoMatchPcieMix] Rank [%u], deviceType not supported yet.", myRank), HcclResult::HCCL_E_PARA);
 #endif
 
     // 获取通信网络层数
@@ -42,14 +42,14 @@ HcclResult TopoMatchPcieMix::MatchTopo(const HcclComm comm, TopoInfoWithNetLayer
     uint32_t layerNum = 0;
     CHK_RET(HcclRankGraphGetLayers(comm, &netLayers, &layerNum));
 
-    HCCL_DEBUG("[TopoMatchPcieMix] Rank [%d], netLayers[%u][%s]",
+    HCCL_DEBUG("[TopoMatchPcieMix] Rank [%u], netLayers[%u][%s]",
                 myRank, layerNum, PrintCArray<uint32_t>(netLayers, layerNum).c_str());
 
     // 获取layer0的topo
     uint32_t *instSizeList;
     uint32_t listSize = 0;
     CHK_RET(HcclRankGraphGetInstSizeListByLayer(comm, 0, &instSizeList, &listSize));
-    HCCL_INFO("[TopoMatchPcieMix] Rank:[%d], inst num:[%u], rank on each inst:[%s]",
+    HCCL_INFO("[TopoMatchPcieMix] Rank:[%u], inst num:[%u], rank on each inst:[%s]",
         myRank, listSize, PrintCArray<uint32_t>(instSizeList, listSize).c_str());
     CHK_RET(CheckVecElementAllSame(instSizeList, listSize));
     
@@ -101,15 +101,15 @@ HcclResult TopoMatchPcieMix::TopoForLayer0(const HcclComm comm, const uint32_t m
         } else if (topoType == CommTopo::COMM_TOPO_CLOS) {
             CHK_RET(LoadTopoInstRanks(comm, netLayer, topoInstId, ranksInClosTopo));
         } else {
-            HCCL_ERROR("[TopoMatchPcieMix] Rank[%d], topoInstId[%u], Invalid topo type[%u]",
+            HCCL_ERROR("[TopoMatchPcieMix] Rank[%u], topoInstId[%u], Invalid topo type[%u]",
                 myRank, topoInstId, topoType);
             return HCCL_E_PARA;
         }
     }
     CHK_RET(DeduplicateLevelRanks(myRank, ranksInMeshTopo, ranksInClosTopo));
-    HCCL_DEBUG("[TopoMatchPcieMix] Rank[%d], netLayer[%u], rank num in 1DMESH topo is [%u]",
+    HCCL_DEBUG("[TopoMatchPcieMix] Rank[%u], netLayer[%u], rank num in 1DMESH topo is [%u]",
         myRank, netLayer, ranksInMeshTopo.size());
-    HCCL_DEBUG("[TopoMatchPcieMix] Rank[%d], netLayer[%u], rank num in CLOS topo is [%u]",
+    HCCL_DEBUG("[TopoMatchPcieMix] Rank[%u], netLayer[%u], rank num in CLOS topo is [%u]",
         myRank, netLayer, ranksInClosTopo.size());
 
     algHierarchyInfo.infos[0].push_back({ranksInMeshTopo});

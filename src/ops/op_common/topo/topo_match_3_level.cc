@@ -34,11 +34,11 @@ HcclResult TopoMatch3Level::TopoForLayer0(
 
     if (topoInstNum == NET_INST_NUM_1) {
         // mesh1d
-        HCCL_INFO("[CollAlgFactory] [TopoMatch3Level] layer0 topoInstNum [%d], Mesh 1D (Symmetric).", topoInstNum);
+        HCCL_INFO("[CollAlgFactory] [TopoMatch3Level] layer0 topoInstNum [%u], Mesh 1D (Symmetric).", topoInstNum);
         uint32_t* ranks;
         uint32_t rankNum = 0;
         CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 0, topoInsts[0], &ranks, &rankNum));
-        HCCL_DEBUG("[CollAlgFactory] [TopoMatch3Level] Rank [%d], all [%u] ranks in this server: [%s]",
+        HCCL_DEBUG("[CollAlgFactory] [TopoMatch3Level] Rank [%u], all [%u] ranks in this server: [%s]",
             myRank, rankNum, PrintCArray<uint32_t>(ranks, rankNum).c_str());
         // 仅支持对称逻辑
         std::vector<uint32_t> rankVecLayer0(ranks, ranks + rankNum);
@@ -57,7 +57,7 @@ HcclResult TopoMatch3Level::TopoForLayerGeneric(
     const HcclComm comm, uint32_t netLayer, uint32_t baseModSize, const uint32_t myRank,
     AlgHierarchyInfoForAllLevel& algHierarchyInfo, uint32_t targetLayerIdx) const
 {
-    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] netLayer[%d], baseModSize[%d], targetLayerIdx[%d]",
+    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] netLayer[%u], baseModSize[%u], targetLayerIdx[%u]",
                netLayer, baseModSize, targetLayerIdx);
 #ifndef AICPU_COMPILE
     // 获取当前网络层的所有Rank
@@ -66,14 +66,14 @@ HcclResult TopoMatch3Level::TopoForLayerGeneric(
     CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, netLayer, &topoInsts, &topoInstNum));
     CHK_PRT_RET(
         (topoInstNum != NET_INST_NUM_1),
-        HCCL_ERROR("[TopoMatch3Level::TopoForLayerGeneric] layer[%d] topoInstNum [%d], Invalid topo (expect 1D).",
+        HCCL_ERROR("[TopoMatch3Level::TopoForLayerGeneric] layer[%u] topoInstNum [%u], Invalid topo (expect 1D).",
                    targetLayerIdx, topoInstNum),
         HcclResult::HCCL_E_PARA);
 
     uint32_t* ranks;
     uint32_t rankNum;
     CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, netLayer, topoInsts[0], &ranks, &rankNum));
-    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] Rank [%d], all [%u] ranks in layer[%d]",
+    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] Rank [%u], all [%u] ranks in layer[%u]",
                myRank, rankNum, targetLayerIdx);
 
     std::vector<uint32_t> rankVecLayerWithSameIdx;
@@ -95,7 +95,7 @@ HcclResult TopoMatch3Level::TopoForLayerGeneric(
         rankVecLayerWithSameIdx.push_back(rankId);
     }
     algHierarchyInfo.infos[targetLayerIdx].push_back({rankVecLayerWithSameIdx});
-    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] Rank [%d], layer[%d] group: [%s]",
+    HCCL_DEBUG("[TopoMatch3Level::TopoForLayerGeneric] Rank [%u], layer[%u] group: [%s]",
                myRank, targetLayerIdx, PrintCArray<uint32_t>(rankVecLayerWithSameIdx.data(),
                static_cast<u32>(rankVecLayerWithSameIdx.size())).c_str());
 #endif
@@ -135,7 +135,7 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     #else
     CHK_PRT_RET(topoInfo->deviceType != DevType::DEV_TYPE_910_95,
     #endif
-        HCCL_ERROR("[CollAlgFactory] [TopoMatch3Level] Rank [%d], deviceType not supported yet.",
+        HCCL_ERROR("[CollAlgFactory] [TopoMatch3Level] Rank [%u], deviceType not supported yet.",
             myRank),
         HcclResult::HCCL_E_PARA);
 
@@ -143,14 +143,14 @@ HcclResult TopoMatch3Level::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerD
     uint32_t *netLayers;
     uint32_t layerNum = 0;
     CHK_RET(HcclRankGraphGetLayers(comm, &netLayers, &layerNum));
-    HCCL_DEBUG("[CollAlgFactory] [TopoMatch3Level] Rank [%d], netLayers[%u][%s]",
+    HCCL_DEBUG("[CollAlgFactory] [TopoMatch3Level] Rank [%u], netLayers[%u][%s]",
                 myRank, layerNum, PrintCArray<uint32_t>(netLayers, layerNum).c_str());
 
     // 校验是否对称
     uint32_t *instSizeList;
     uint32_t listSize = 0;
     CHK_RET(HcclRankGraphGetInstSizeListByLayer(comm, 0, &instSizeList, &listSize));
-    HCCL_INFO("[CollAlgFactory] [TopoMatch3Level] Rank [%d], [%u] servers ,ranksize on each server :[%s]",
+    HCCL_INFO("[CollAlgFactory] [TopoMatch3Level] Rank [%u], [%u] servers ,ranksize on each server :[%s]",
         myRank, listSize, PrintCArray<uint32_t>(instSizeList, listSize).c_str());
     
     bool isSymmetric = CheckVecElementAllSame(instSizeList, listSize);

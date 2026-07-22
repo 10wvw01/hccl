@@ -753,7 +753,7 @@ HcclResult ops_hccl::RestoreVarDataAlltoAllV(OpParam &param, const AlgResourceCt
 HcclResult ops_hccl::RestoreVarDataReduceScatterV(OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
     u64 rankSize = resCtx.topoInfo.userRankSize;
-    HCCL_INFO("rankSize:%u", rankSize);
+    HCCL_INFO("rankSize:%llu", rankSize);
     CHK_PRT_RET(param.varMemSize != REDUCE_SCATTER_V_VECTOR_NUM * rankSize * sizeof(u64),
         HCCL_ERROR("[RestoreVarDataReduceScatterV] param.varMemSize [%llu] is invalid,"
                    "REDUCE_SCATTER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
@@ -772,7 +772,7 @@ HcclResult ops_hccl::RestoreVarDataReduceScatterV(OpParam &param, const AlgResou
 HcclResult ops_hccl::RestoreVarDataAllGatherV(OpParam &param, const AlgResourceCtxSerializable &resCtx)
 {
     u64 rankSize = resCtx.topoInfo.userRankSize;
-    HCCL_INFO("rankSize:%u", rankSize);
+    HCCL_INFO("rankSize:%llu", rankSize);
     CHK_PRT_RET(param.varMemSize != ALL_GATHER_V_VECTOR_NUM * rankSize * sizeof(u64),
         HCCL_ERROR("[RestoreVarDataAllGatherV] param.varMemSize [%llu] is invalid,"
                    "ALL_GATHER_V_VECTOR_NUM is [%u], rankSize is [%u], sizeof(u64) is [%u],",
@@ -785,11 +785,11 @@ HcclResult ops_hccl::RestoreVarDataAllGatherV(OpParam &param, const AlgResourceC
     u64 *data = reinterpret_cast<u64 *>(param.varData);
     param.vDataDes.counts = data;
     for (u64 i = 0; i < rankSize; i++) {
-        HCCL_INFO("param.vDataDes.counts[%u]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.counts)[i]);
+        HCCL_INFO("param.vDataDes.counts[%llu]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.counts)[i]);
     }
     param.vDataDes.displs = data + rankSize;
     for (u64 i = 0; i < rankSize; i++) {
-        HCCL_INFO("param.vDataDes.displs[%u]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.displs)[i]);
+        HCCL_INFO("param.vDataDes.displs[%llu]:%u", i, reinterpret_cast<u64 *>(param.vDataDes.displs)[i]);
     }
     return HCCL_SUCCESS;
 }

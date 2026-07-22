@@ -107,7 +107,7 @@ HcclResult CcuAlgTemplateBase::GetChannelDieId(HcclComm comm, uint32_t rankId, c
     CHK_RET(HcclRankGraphGetEndpointInfo(comm, rankId, &(channelDesc.localEndpoint), ENDPOINT_ATTR_DIE_ID, infoLen,
                                          &tmpDieId));
     dieId = tmpDieId;
-    HCCL_INFO("[CcuAlgTemplateBase::GetChannelDieId] rank[%d]: get channel die id [%d]", rankId, dieId);
+    HCCL_INFO("[CcuAlgTemplateBase::GetChannelDieId] rank[%u]: get channel die id [%d]", rankId, dieId);
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -119,7 +119,7 @@ HcclResult CcuAlgTemplateBase::GetChannelBwCoeff(HcclComm comm, uint32_t rankId,
     CHK_RET(HcclRankGraphGetEndpointInfo(comm, rankId, &(channelDesc.localEndpoint), ENDPOINT_ATTR_BW_COEFF, infoLen,
                                          &tmpBwCoeff));
     bwCoeff = tmpBwCoeff;
-    HCCL_INFO("[CcuAlgTemplateBase::GetChannelBwCoeff] rank[%d]: get channel bwCoeff [%d]", rankId, bwCoeff);
+    HCCL_INFO("[CcuAlgTemplateBase::GetChannelBwCoeff] rank[%u]: get channel bwCoeff [%d]", rankId, bwCoeff);
     return HcclResult::HCCL_SUCCESS;
 }
 
@@ -226,7 +226,7 @@ HcclResult CcuAlgTemplateBase::ReverseChannelPerDieIfNeed(const HcclComm comm, c
         // 2个die出框端口数不同，将端口数多的channel放在前面
         std::swap(channelsPerDie[0], channelsPerDie[1]);
     }
-    HCCL_INFO("portNum0 = %lld,portNum1 = %lld",portNum0,portNum1);
+    HCCL_INFO("portNum0 = %u,portNum1 = %u",portNum0,portNum1);
     return HCCL_SUCCESS;
 }
 
@@ -340,7 +340,7 @@ HcclResult CcuAlgTemplateBase::PartitionChannelsFor2Die(
         fillKernel(KERNEL_CLOS_MAJOR, it1->second);
     }
 
-    HCCL_INFO("[%s][PartitionChannels] Rank[%d], is2Plus6[%d], kernelCount[%u], "
+    HCCL_INFO("[%s][PartitionChannels] Rank[%u], is2Plus6[%d], kernelCount[%u], "
         "fullmeshRankGroup[%zu], closMajorRankGroup[%zu], closMinorRankGroup[%zu].",
         tag.c_str(), myRank, is2Plus6, kernelCount, kernelRankGroup[KERNEL_FULLMESH].size(),
         kernelRankGroup[KERNEL_CLOS_MAJOR].size(), kernelRankGroup[KERNEL_CLOS_MINOR].size());
