@@ -32,6 +32,9 @@ public:
     explicit InsV2AllReduceSequenceExecutor();
     ~InsV2AllReduceSequenceExecutor() override = default;
 
+    CostAlgoParams CalcCostCoeff() override;
+    AlgNetMeta GetAlgNetMeta() const override;
+
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
     /* *************** 资源计算 *************** */

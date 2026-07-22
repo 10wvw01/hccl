@@ -30,6 +30,10 @@ public:
         info += std::to_string(tempRankSize_);
         return info;
     }
+
+    static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetType GetNetType();
+
     HcclResult KernelRun(const OpParam& param,
                          const TemplateDataParams& tempAlgParams,
                          const TemplateResource& templateResource) override;

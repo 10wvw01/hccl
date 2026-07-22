@@ -22,6 +22,41 @@ constexpr u32 OMNIPIPE_LEVEL2_IDX = 2;
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
+CostAlgoParams InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
+    InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::CalcCostCoeff()
+{
+    static std::vector<CostModelParam> params = [] {
+        std::vector<CostModelParam> v;
+        auto p0 = InsAlgTemplate0::CalcCostCoeff(); v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsAlgTemplate1::CalcCostCoeff(); v.insert(v.end(), p1.begin(), p1.end());
+        auto p2 = InsAlgTemplate2::CalcCostCoeff(); v.insert(v.end(), p2.begin(), p2.end());
+        auto p3 = InsAlgTemplate3::CalcCostCoeff(); v.insert(v.end(), p3.begin(), p3.end());
+        auto p4 = InsAlgTemplate4::CalcCostCoeff(); v.insert(v.end(), p4.begin(), p4.end());
+        auto p5 = InsAlgTemplate5::CalcCostCoeff(); v.insert(v.end(), p5.begin(), p5.end());
+        return v;
+    }();
+    static const char *algName = "AllReduceSequenceAicpu3Level";
+    return {algName, params.data(), static_cast<int>(params.size())};
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
+    typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
+AlgNetMeta InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
+    InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::GetAlgNetMeta() const
+{
+    AlgNetMeta meta;
+    meta.netTypes.push_back(InsAlgTemplate0::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate1::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate2::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate3::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate4::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate5::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    return meta;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
+    typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
 InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
     InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::InsV2AllReduceSequenceExecutorAicpu3Level()
 {}

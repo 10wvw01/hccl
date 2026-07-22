@@ -25,6 +25,41 @@ constexpr uint64_t RANK_SIZE_LEVEL1_2 = 2;
 constexpr uint64_t RANK_SIZE_LEVEL1_4 = 4;
 template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTemplateY, typename InsRsAlgTemplateZ,
           typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
+CostAlgoParams InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX,
+                               InsAgAlgTemplateY, InsAgAlgTemplateZ>::CalcCostCoeff()
+{
+    static std::vector<CostModelParam> params = [] {
+        std::vector<CostModelParam> v;
+        auto p0 = InsRsAlgTemplateX::CalcCostCoeff(); v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsRsAlgTemplateY::CalcCostCoeff(); v.insert(v.end(), p1.begin(), p1.end());
+        auto p2 = InsRsAlgTemplateZ::CalcCostCoeff(); v.insert(v.end(), p2.begin(), p2.end());
+        auto p3 = InsAgAlgTemplateX::CalcCostCoeff(); v.insert(v.end(), p3.begin(), p3.end());
+        auto p4 = InsAgAlgTemplateY::CalcCostCoeff(); v.insert(v.end(), p4.begin(), p4.end());
+        auto p5 = InsAgAlgTemplateZ::CalcCostCoeff(); v.insert(v.end(), p5.begin(), p5.end());
+        return v;
+    }();
+    static const char *algName = "AllReduceOmniPipe";
+    return {algName, params.data(), static_cast<int>(params.size())};
+}
+
+template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTemplateY, typename InsRsAlgTemplateZ,
+          typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
+AlgNetMeta InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX,
+                               InsAgAlgTemplateY, InsAgAlgTemplateZ>::GetAlgNetMeta() const
+{
+    AlgNetMeta meta;
+    meta.netTypes.push_back(InsRsAlgTemplateX::GetNetType());
+    meta.netTypes.push_back(InsRsAlgTemplateY::GetNetType());
+    meta.netTypes.push_back(InsRsAlgTemplateZ::GetNetType());
+    meta.netTypes.push_back(InsAgAlgTemplateX::GetNetType());
+    meta.netTypes.push_back(InsAgAlgTemplateY::GetNetType());
+    meta.netTypes.push_back(InsAgAlgTemplateZ::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    return meta;
+}
+
+template <typename AlgTopoMatch, typename InsRsAlgTemplateX, typename InsRsAlgTemplateY, typename InsRsAlgTemplateZ,
+          typename InsAgAlgTemplateX, typename InsAgAlgTemplateY, typename InsAgAlgTemplateZ>
 InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRsAlgTemplateY, InsRsAlgTemplateZ, InsAgAlgTemplateX,
                                InsAgAlgTemplateY, InsAgAlgTemplateZ>::InsV2AllReduceOmniPipeExecutor()
 {

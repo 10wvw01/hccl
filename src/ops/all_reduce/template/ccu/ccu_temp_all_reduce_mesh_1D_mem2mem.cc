@@ -15,6 +15,31 @@
 
 namespace ops_hccl {
 
+std::vector<CostModelParam> CcuTempAllReduceMeshMem2Mem1D::CalcCostCoeff()
+{
+    HCCL_DEBUG("[CcuTempAllReduceMeshMem2Mem1D] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType CcuTempAllReduceMeshMem2Mem1D::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 CcuTempAllReduceMeshMem2Mem1D::CcuTempAllReduceMeshMem2Mem1D(const OpParam& param, 
                                                 const u32 rankId, // 传通信域的rankId，userRank
                                                 const std::vector<std::vector<u32>> &subCommRanks)

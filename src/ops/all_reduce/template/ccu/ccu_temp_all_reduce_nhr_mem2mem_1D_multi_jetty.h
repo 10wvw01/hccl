@@ -31,6 +31,9 @@ public:
                             templateRankSize_);
     }
 
+    static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetType GetNetType();
+
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
     HcclResult GetRes(AlgResourceRequest& resourceRequest) const override;

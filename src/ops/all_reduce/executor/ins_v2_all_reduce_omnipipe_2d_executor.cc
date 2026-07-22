@@ -27,6 +27,33 @@ constexpr u32 CCU_OMNIPIPE_LEVEL1 = 1;
 constexpr u32 CCU_OMNIPIPE_LEVEL_NUM = 2;
 
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuAgAlgTemplateX, typename CcuAgAlgTemplateY>
+CostAlgoParams InsV2AllReduceOmniPipe2dExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuAgAlgTemplateX, CcuAgAlgTemplateY>::CalcCostCoeff()
+{
+    static std::vector<CostModelParam> params = [] {
+        std::vector<CostModelParam> v;
+        auto p0 = CcuRsAlgTemplateX::CalcCostCoeff(); v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = CcuRsAlgTemplateY::CalcCostCoeff(); v.insert(v.end(), p1.begin(), p1.end());
+        auto p2 = CcuAgAlgTemplateX::CalcCostCoeff(); v.insert(v.end(), p2.begin(), p2.end());
+        auto p3 = CcuAgAlgTemplateY::CalcCostCoeff(); v.insert(v.end(), p3.begin(), p3.end());
+        return v;
+    }();
+    static const char *algName = "AllReduceOmniPipe2d";
+    return {algName, params.data(), static_cast<int>(params.size())};
+}
+
+template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuAgAlgTemplateX, typename CcuAgAlgTemplateY>
+AlgNetMeta InsV2AllReduceOmniPipe2dExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuAgAlgTemplateX, CcuAgAlgTemplateY>::GetAlgNetMeta() const
+{
+    AlgNetMeta meta;
+    meta.netTypes.push_back(CcuRsAlgTemplateX::GetNetType());
+    meta.netTypes.push_back(CcuRsAlgTemplateY::GetNetType());
+    meta.netTypes.push_back(CcuAgAlgTemplateX::GetNetType());
+    meta.netTypes.push_back(CcuAgAlgTemplateY::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    return meta;
+}
+
+template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuAgAlgTemplateX, typename CcuAgAlgTemplateY>
 InsV2AllReduceOmniPipe2dExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuAgAlgTemplateX, CcuAgAlgTemplateY>::InsV2AllReduceOmniPipe2dExecutor()
 {
 }

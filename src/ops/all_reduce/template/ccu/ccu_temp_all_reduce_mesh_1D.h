@@ -30,6 +30,9 @@ public:
         return StringFormat("Template of All Reduce ccu mesh 1D with tempRankSize [%u].", subCommRanks_[0].size());
     }
 
+    static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetType GetNetType();
+
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                        AlgResourceRequest& resourceRequest) override;
 

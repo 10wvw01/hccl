@@ -23,6 +23,31 @@ AivTempAllReduceMesh1DTwoShot::~AivTempAllReduceMesh1DTwoShot()
 {
 }
 
+std::vector<CostModelParam> AivTempAllReduceMesh1DTwoShot::CalcCostCoeff()
+{
+    HCCL_DEBUG("[AivTempAllReduceMesh1DTwoShot] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType AivTempAllReduceMesh1DTwoShot::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 u64 AivTempAllReduceMesh1DTwoShot::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void) inBuffType;

@@ -23,6 +23,9 @@ public:
     explicit InsV2AllReduceTwoShotSoleExecutor();
     ~InsV2AllReduceTwoShotSoleExecutor() override = default;
 
+    CostAlgoParams CalcCostCoeff() override;
+    AlgNetMeta GetAlgNetMeta() const override;
+
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,

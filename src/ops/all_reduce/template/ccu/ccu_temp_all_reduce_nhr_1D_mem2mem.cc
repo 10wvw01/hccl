@@ -15,6 +15,31 @@
 #include "ccu_launch_dl.h"
 namespace ops_hccl {
 
+std::vector<CostModelParam> CcuTempAllReduceNHRMem2Mem1D::CalcCostCoeff()
+{
+    HCCL_DEBUG("[CcuTempAllReduceNHRMem2Mem1D] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcNHRParams(n, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType CcuTempAllReduceNHRMem2Mem1D::GetNetType()
+{
+    return AlgNetType::CLOS;
+}
+
 CcuTempAllReduceNHRMem2Mem1D::CcuTempAllReduceNHRMem2Mem1D(const OpParam& param, 
                                                 const u32 rankId, // 传通信域的rankId，userRank
                                                 const std::vector<std::vector<u32>> &subCommRanks)

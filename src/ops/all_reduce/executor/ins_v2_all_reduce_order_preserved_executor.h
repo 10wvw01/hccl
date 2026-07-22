@@ -40,6 +40,9 @@ public:
     explicit InsV2AllReduceOrderPreservedExecutor();
     ~InsV2AllReduceOrderPreservedExecutor() override = default;
 
+    CostAlgoParams CalcCostCoeff() override;
+    AlgNetMeta GetAlgNetMeta() const override;
+
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

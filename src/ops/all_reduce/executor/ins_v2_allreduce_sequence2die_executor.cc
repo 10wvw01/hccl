@@ -22,6 +22,31 @@
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
+CostAlgoParams InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::CalcCostCoeff()
+{
+    static std::vector<CostModelParam> params = [] {
+        std::vector<CostModelParam> v;
+        auto p0 = InsAlgTemplate0::CalcCostCoeff();
+        v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsAlgTemplate1::CalcCostCoeff();
+        v.insert(v.end(), p1.begin(), p1.end());
+        return v;
+    }();
+    static const char *algName = "AllReduceSequence2Die";
+    return {algName, params.data(), static_cast<int>(params.size())};
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
+AlgNetMeta InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::GetAlgNetMeta() const
+{
+    AlgNetMeta meta;
+    meta.netTypes.push_back(InsAlgTemplate0::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplate1::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    return meta;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 InsV2AllReduceSequence2DieExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::InsV2AllReduceSequence2DieExecutor()
 {
 }

@@ -17,6 +17,31 @@
 namespace ops_hccl {
 constexpr u32 PORT_NUM = 1;
 
+std::vector<CostModelParam> CcuTempAllReduceNhrMem2Mem1DMultiJetty::CalcCostCoeff()
+{
+    HCCL_DEBUG("[CcuTempAllReduceNhrMem2Mem1DMultiJetty] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcNHRParams(n, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType CcuTempAllReduceNhrMem2Mem1DMultiJetty::GetNetType()
+{
+    return AlgNetType::CLOS;
+}
+
 CcuTempAllReduceNhrMem2Mem1DMultiJetty::CcuTempAllReduceNhrMem2Mem1DMultiJetty(const OpParam& param,
         const u32 rankId, const std::vector<std::vector<u32>> &subCommRanks) : 
         CcuAlgTemplateBase(param, rankId, subCommRanks),

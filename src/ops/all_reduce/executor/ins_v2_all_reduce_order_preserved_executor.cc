@@ -22,6 +22,31 @@
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
+CostAlgoParams InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::CalcCostCoeff()
+{
+    static std::vector<CostModelParam> params = [] {
+        std::vector<CostModelParam> v;
+        auto p0 = InsAlgTemplateRS::CalcCostCoeff();
+        v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsAlgTemplateAG::CalcCostCoeff();
+        v.insert(v.end(), p1.begin(), p1.end());
+        return v;
+    }();
+    static const char *algName = "AllReduceOrderPreserved";
+    return {algName, params.data(), static_cast<int>(params.size())};
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
+AlgNetMeta InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::GetAlgNetMeta() const
+{
+    AlgNetMeta meta;
+    meta.netTypes.push_back(InsAlgTemplateRS::GetNetType());
+    meta.netTypes.push_back(InsAlgTemplateAG::GetNetType());
+    meta.aggMode = CostAggMode::SUM;
+    return meta;
+}
+
+template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
 InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::InsV2AllReduceOrderPreservedExecutor()
 {
     deterministicStrict_ = true;

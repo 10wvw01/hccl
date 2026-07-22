@@ -18,6 +18,31 @@ namespace ops_hccl {
 constexpr u32 ALL_REDUCE_DIE_NUM = 2;
 constexpr u32 DIE_WORK = 2;
 
+std::vector<CostModelParam> CcuTempAllreduceMesh1D2DieOneShot::CalcCostCoeff()
+{
+    HCCL_DEBUG("[CcuTempAllreduceMesh1D2DieOneShot] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType CcuTempAllreduceMesh1D2DieOneShot::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 CcuTempAllreduceMesh1D2DieOneShot::CcuTempAllreduceMesh1D2DieOneShot(const OpParam& param, const u32 rankId,
                                    const std::vector<std::vector<u32>> &subCommRanks)
 : CcuAlgTemplateBase(param, rankId, subCommRanks)
