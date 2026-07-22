@@ -63,11 +63,11 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         } 
 #ifdef Ascend_950_CCU_V2
         else if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-            selectAlgName = "CcuAllGatherConcurrentMesh1DNHR";
+            selectAlgName = "CcuAllGatherMesh1D"; //to do
             return SelectorStatus::MATCH;
-        }
+        } else
 #endif
-        else {
+        {
             selectAlgName = "CcuAllGatherMesh1D";
             return SelectorStatus::MATCH;
         }
@@ -141,7 +141,7 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
     } else {
 #ifdef Ascend_950_CCU_V2
         if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-            selectAlgName = "CcuAllGatherConcurrentMesh1DNHRMem";
+            selectAlgName = "CcuAllGatherSoleMeshScheConcur";
         } else
 #endif
         {

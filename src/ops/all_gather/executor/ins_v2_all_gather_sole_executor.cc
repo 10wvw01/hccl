@@ -306,7 +306,7 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2MemMultiJ
 #endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 
 #if !defined(HCCL_CANN_COMPAT_850)
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh1DMultiPlaneNHRMem, InsV2AllGatherSoleExecutor,
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherSoleMeshScheConcur, InsV2AllGatherSoleExecutor,
     TopoMatchConcurrent, CcuTempAllGatherMesh1DNHRConcurrentMem2Mem);
 #endif // !HCCL_CANN_COMPAT_850
 

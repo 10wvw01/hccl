@@ -77,7 +77,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                 if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
                     selectAlgName = "CcuAllToAllSoleMeshScheConcur";
                 } else {
-                    selectAlgName = "CcuAlltoAllConcurrentMesh1D";
+                    selectAlgName = "CcuAlltoAllMesh1D";
                 }
             }
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
