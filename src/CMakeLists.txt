@@ -259,7 +259,9 @@ else()
 endif()
 
 add_subdirectory(common)
-add_subdirectory(ops)
+if(PRODUCT_SIDE STREQUAL "host")
+    add_subdirectory(ops)
+endif()
 
 
 # 定义AIV算子聚合目标
