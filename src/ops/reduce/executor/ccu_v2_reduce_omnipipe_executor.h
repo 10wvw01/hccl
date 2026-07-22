@@ -109,8 +109,8 @@ protected:
 /// 对角算法专用
 private:
     std::vector<std::vector<ThreadHandle>> levelThreads_;
-    bool isSameXAxisAsRoot = false;  //和root同x轴
-    bool isSameYAxisAsRoot = false;  //和root同y轴
+    bool isSameXAxisAsRoot = false;
+    bool isSameYAxisAsRoot = false;
 };
 }
 

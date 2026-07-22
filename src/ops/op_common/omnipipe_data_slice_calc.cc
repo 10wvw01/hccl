@@ -2048,7 +2048,6 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
     // 公共拓扑参数
     HCCL_INFO("[CalcGatherOmniPipeSliceInfo] Run start");
     int maxStepNum = MAX_STEP_NUM;
-    u64 processedDataEachRank = 0;  // 预留偏移参数，现在填0
     std::vector<u64> levelRankSize = omniPipeSliceParam.levelRankSize;
     std::vector<u64> dataSize = omniPipeSliceParam.dataWholeSize;
     std::vector<u64> dataSizePerLoop = omniPipeSliceParam.dataSizePerLoop;
@@ -2061,7 +2060,13 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
     double xB = endpointAttrBw[OmniPipeLevel::OMNIPIPE_LEVEL0] * 1.0;
     double yB = endpointAttrBw[OmniPipeLevel::OMNIPIPE_LEVEL1] * 1.0;
     double zB = endpointAttrBw[OmniPipeLevel::OMNIPIPE_LEVEL2] * 1.0;
-    double xyB = CalcBandwidth2D(xB, yB, xRankSize, yRankSize, maxStepNum);  // 2d等效带宽计算
+    double xyB = xB;  // 2d等效带宽计算
+    if(yB >= xB){
+        xyB=CalcBandwidth2D(xB, yB, xRankSize, yRankSize, maxStepNum);
+    }
+    else{
+        xyB=CalcBandwidth2D(yB, xB, yRankSize, xRankSize, maxStepNum);
+    }
     HCCL_INFO("[CalcGatherOmniPipeSliceInfo] xRankSize=[%llu],yRankSize=[%llu],zRankSize=[%llu],",
                 xRankSize, yRankSize, zRankSize);
     HCCL_INFO("[CalcGatherOmniPipeSliceInfo] xB=[%f],yB=[%f],zB=[%f],xyB=[%f]", xB, yB, zB,
@@ -2116,11 +2121,27 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
             outerStepNum = CalAllgatherDataSize2D(zGatherDataSize[rs], xyGatherDataSize[rs], zB, xyB, zRankSize,
                                                     xRankSize * yRankSize, omniPipeSplitSliceInfoListPerLoop[rs].size,
                                                     maxStepNum, omniPipeSliceParam.engine);
-            // 这里认为y一定大
-            for (u64 i = 0; i < outerStepNum; i++) {
-                innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
-                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+            if (yB >= xB) {
+                // 这里认为y一定大
+                for (u64 i = 0; i < outerStepNum; i++) {
+                    innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
+                                                            yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+                }
+                // 这里判断下，步数为1的时候只进上面的循环，否则这里走一步
+                if (innerStepNum > 1) {
+                    xInCornerStep = innerStepNum - 1;
+                }
+            } else {
+                for (u64 i = 0; i < outerStepNum; i++) {
+                    innerStepNum = CalAllgatherDataSize2D(yGatherDataSize[rs][i], xGatherDataSize[rs][i], yB, xB, yRankSize,
+                                                            xRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+                }
+                // 这里判断下，步数为1的时候只进上面的循环，否则这里走一步
+                if (innerStepNum > 1) {
+                    yInCornerStep = innerStepNum - 1;
+                }
             }
+
             // 计算2d数据片的偏移，下面变成3d时用
             CalAllgather2DOffset(zGatherOffset[rs], xyGatherOffset[rs], outerStepNum, zRankSize, xRankSize * yRankSize,
                                     zGatherDataSize[rs], xyGatherDataSize[rs]);
@@ -2128,10 +2149,7 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
         if (outerStepNum > 1) {
             zConnerStep = outerStepNum - 1;
         }
-        // 这里判断下，步数为1的时候只进上面的循环，否则这里走一步
-        if (innerStepNum > 1) {
-            xInCornerStep = innerStepNum - 1;  // 步数为1的时候只走一步，否则走innerStepNum-1步
-        }
+
         HCCL_INFO("[CalcGatherOmniPipeSliceInfo] "
                     "xInCornerStep=[%u],yRanyInCornerStepkSize=[%u],zConnerStep=[%u],",
                     xInCornerStep, yInCornerStep, zConnerStep);
@@ -2141,10 +2159,23 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
             // 先计算通信步数和每步每一小片数据量
             outerStepNum = CalAllgatherDataSize2D(xyGatherDataSize[rs], zGatherDataSize[rs], xyB, zB, xRankSize * yRankSize,
                                                     zRankSize, omniPipeSplitSliceInfoListPerLoop[rs].size, maxStepNum, omniPipeSliceParam.engine);
-            // 这里认为y一定大
-            for (u64 i = 0; i < outerStepNum; i++) {
-                innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
-                                                        yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+            if (yB >= xB) {
+                // 这里认为y一定大
+                for (u64 i = 0; i < outerStepNum; i++) {
+                    innerStepNum = CalAllgatherDataSize2D(xGatherDataSize[rs][i], yGatherDataSize[rs][i], xB, yB, xRankSize,
+                                                            yRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+                }
+                if (innerStepNum > 1) {
+                    xInCornerStep = innerStepNum - 1;  // 步数为1的时候只走一步，否则走innerStepNum-1步
+                }
+            } else {
+                for (u64 i = 0; i < outerStepNum; i++) {
+                    innerStepNum = CalAllgatherDataSize2D(yGatherDataSize[rs][i], xGatherDataSize[rs][i], yB, xB, yRankSize,
+                                                            xRankSize, xyGatherDataSize[rs][i], maxStepNum, omniPipeSliceParam.engine);
+                }
+                if (innerStepNum > 1) {
+                    yInCornerStep = innerStepNum - 1;  // 步数为1的时候只走一步，否则走innerStepNum-1步
+                }
             }
             // 计算2d数据片的偏移，下面变成3d时用
             CalAllgather2DOffset(xyGatherOffset[rs], zGatherOffset[rs], outerStepNum, xRankSize * yRankSize, zRankSize,
@@ -2152,9 +2183,6 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
         }
         if (outerStepNum > 1) {
             xyConnerStep = outerStepNum - 1;
-        }
-        if (innerStepNum > 1) {
-            xInCornerStep = innerStepNum - 1;  // 步数为1的时候只走一步，否则走innerStepNum-1步
         }
         HCCL_INFO("[CalcGatherOmniPipeSliceInfo] "
                     "xInCornerStep=[%u],yRanyInCornerStepkSize=[%u],zConnerStep=[%u],",
@@ -2229,11 +2257,21 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
         }
         dataSliceLevelz.insert(dataSliceLevelz.end(), stepSliceInfotmp);
     }
-    // x轴y轴2d偏移，就正常2d
-    for (int rs = 0; rs < rankSize; rs++) {
-        for (u64 osn = 0; osn < outerStepNum; osn++) {
-            CalAllgather2DOffset(xGatherOffset[rs][osn], yGatherOffset[rs][osn], innerStepNum, xRankSize, yRankSize,
-                                    xGatherDataSize[rs][osn], yGatherDataSize[rs][osn]);
+    if (yB >= xB) {
+        // x轴y轴2d偏移，就正常2d
+        for (int rs = 0; rs < rankSize; rs++) {
+            for (u64 osn = 0; osn < outerStepNum; osn++) {
+                CalAllgather2DOffset(xGatherOffset[rs][osn], yGatherOffset[rs][osn], innerStepNum, xRankSize, yRankSize,
+                                        xGatherDataSize[rs][osn], yGatherDataSize[rs][osn]);
+            }
+        }
+    } else {
+        // x轴y轴2d偏移，就正常2d
+        for (int rs = 0; rs < rankSize; rs++) {
+            for (u64 osn = 0; osn < outerStepNum; osn++) {
+                CalAllgather2DOffset(yGatherOffset[rs][osn], xGatherOffset[rs][osn], innerStepNum, yRankSize, xRankSize,
+                                        yGatherDataSize[rs][osn], xGatherDataSize[rs][osn]);
+            }
         }
     }
     // 算x轴偏移 TODO:ZQ

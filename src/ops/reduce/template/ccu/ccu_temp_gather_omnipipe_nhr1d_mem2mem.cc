@@ -21,18 +21,18 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpPar
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
     std::vector<u32> ranks = subCommRanks[0];
-    templateRankSize_ = ranks.size();
+    auto itRoot = std::find(ranks.begin(), ranks.end(), param.root);
+    if (itRoot != ranks.end()) {
+        subCommRootId_ = std::distance(ranks.begin(), itRoot);
+    }
+    
     // 获取本卡在子通信域(如果有)中的rankid
     auto it = std::find(ranks.begin(), ranks.end(), rankId);
     if (it != ranks.end()) {
         mySubCommRank_ = std::distance(ranks.begin(), it);
     }
-
+    templateRankSize_ = ranks.size();
     // 子通信域的root卡号
-    auto itRoot = std::find(ranks.begin(), ranks.end(), param.root);
-    if (itRoot != ranks.end()) {
-        subCommRootId_ = std::distance(ranks.begin(), itRoot);
-    }
     ifRealRoot_ = (rankId == param.root);
 }
 
@@ -43,13 +43,14 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::~CcuTempGatherOmniPipeNHR1DMem2Mem()
 void CcuTempGatherOmniPipeNHR1DMem2Mem::SetRoot(u32 root)
 {
     HCCL_INFO("[CcuTempGatherOmniPipeNHR1DMem2Mem][SetRoot] myRank_ [%u], set root [%u] ", myRank_, root);
-    std::string ranksStr = "";
     std::vector<u32> ranks = subCommRanks_[0];
+    std::string ranksStr = "";
+    for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
+
     auto itRoot = std::find(ranks.begin(), ranks.end(), root);
     if (itRoot != ranks.end()) {
         subCommRootId_  = std::distance(ranks.begin(), itRoot);
     }
-    for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
     HCCL_DEBUG(
         "[%s] myRank[%u] mySubCommRank[%u] subCommRanks[%s] subCommRootId_[%d]",
         __func__, myRank_, mySubCommRank_,  ranksStr.c_str(), subCommRootId_);
@@ -210,8 +211,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
     }
     else if (localCopyFlag == 1) {
         HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
-        DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
         DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+        DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
         HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inputAddrBase[%llu] inputAddrOffset[%llu] outputAddrBase[%llu]"
                    "outputAddrOffset[%llu] sliceSize[%llu]",
             __func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff, outputAddrBase, buffInfo_.outBuffBaseOff,
