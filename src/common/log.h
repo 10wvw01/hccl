@@ -371,7 +371,7 @@ class HcclTimer {
     {
         struct timespec timestamp;
         (void)clock_gettime(1, &timestamp);
-        return static_cast<u64>((timestamp.tv_sec * 1000000000U)  (timestamp.tv_nsec));
+        return static_cast<u64>((timestamp.tv_sec * 1000000000U) + (timestamp.tv_nsec));
     }
 
     explicit HcclTimer(const std::string &name)
