@@ -12,8 +12,8 @@
 #define HCCL_CCU_TEMP_REDUCE_SCATTER_CONCURRENT_MESH_NHR_H
 
 #include "ccu_alg_template_base.h"
-#include "ccu_kernel_reduce_scatter_mesh1d.h"
-#include "ccu_kernel_reduce_scatter_nhr1d_mem2mem.h"
+#include "ccu_temp_reduce_scatter_mesh_1D.h"
+#include "ccu_temp_reduce_scatter_nhr_1D_mem2mem.h"
 
 namespace ops_hccl {
 
@@ -42,22 +42,14 @@ private:
     HcclResult CalcDataSplit(const OpParam& param, const TemplateDataParams& templateDataParams,
                              TemplateDataParams& meshParams, TemplateDataParams& nhrParams,
                              u64& meshCount, u64& nhrCount) const;
-    HcclResult CalcMeshRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                           CcuKernelInfo& meshKernelInfo);
-    HcclResult CalcNhrRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-                          CcuKernelInfo& nhrKernelInfo);
-    HcclResult GetNHRStepInfo(u32 step, NHRStepInfo& stepInfo);
-    HcclResult ProcessNHRStepInfo(HcclComm comm, u32 enableDieNum, u32 enableDieId,
-                                  std::vector<NHRStepInfo>& stepInfoVector, std::map<u32, u32>& rank2ChannelIdx,
-                                  std::vector<std::vector<HcclChannelDesc>>& channelsPerDie);
 
-    u32 myMeshRank_{0};
-    u32 myNhrRank_{0};
+private:
+    std::shared_ptr<CcuTempReduceScatterMesh1D> meshAlg_;
+    std::shared_ptr<CcuTempReduceScatterNHR1DMem2Mem> nhrAlg_;
     std::vector<u32> meshGroup_;
     std::vector<u32> nhrGroup_;
     u32 rankSize_{0};
     u64 dataTypeSize_{0};
-    std::map<u32, std::vector<HcclChannelDesc>> nhrRankIdToChannelDesc_;
     AlgResourceRequest mergedReq_;
 };
 

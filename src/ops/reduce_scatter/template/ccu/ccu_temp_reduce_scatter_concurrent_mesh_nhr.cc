@@ -8,16 +8,12 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "channel.h"
-#include "alg_data_trans_wrapper.h"
-#include "ccu_launch_dl.h"
 #include "ccu_temp_reduce_scatter_concurrent_mesh_nhr.h"
+#include "alg_data_trans_wrapper.h"
 
 namespace ops_hccl {
 
 constexpr u32 CLOS_PORT_NUM_SERVER_V2_CC = 8;
-constexpr u32 MESH_THREAD_NUM = 1;
-constexpr u32 NHR_THREAD_NUM = 2;
 
 CcuTempReduceScatterConcurrentMeshNHR::CcuTempReduceScatterConcurrentMeshNHR(
     const OpParam& param, const u32 rankId, const std::vector<std::vector<u32>>& subCommRanks)
@@ -31,99 +27,43 @@ CcuTempReduceScatterConcurrentMeshNHR::CcuTempReduceScatterConcurrentMeshNHR(
     }
     rankSize_ = meshGroup_.size();
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
-
-    auto itMesh = std::find(meshGroup_.begin(), meshGroup_.end(), rankId);
-    if (itMesh != meshGroup_.end()) {
-        myMeshRank_ = std::distance(meshGroup_.begin(), itMesh);
-    }
-    auto itNhr = std::find(nhrGroup_.begin(), nhrGroup_.end(), rankId);
-    if (itNhr != nhrGroup_.end()) {
-        myNhrRank_ = std::distance(nhrGroup_.begin(), itNhr);
-    }
+    meshAlg_ = std::make_shared<CcuTempReduceScatterMesh1D>(param, rankId, std::vector<std::vector<u32>>{meshGroup_});
+    nhrAlg_ = std::make_shared<CcuTempReduceScatterNHR1DMem2Mem>(param, rankId, std::vector<std::vector<u32>>{nhrGroup_});
 }
 
 CcuTempReduceScatterConcurrentMeshNHR::~CcuTempReduceScatterConcurrentMeshNHR() {}
 
-u64 CcuTempReduceScatterConcurrentMeshNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
+HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcRes(HcclComm comm, const OpParam& param,
+    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
-    (void)inBuffType;
-    (void)outBuffType;
-    return 0;
-}
+    CHK_PRT_RET(topoInfo == nullptr,
+        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][CalcRes] topoInfo is nullptr"), HCCL_E_PARA);
 
-u64 CcuTempReduceScatterConcurrentMeshNHR::GetThreadNum() const
-{
-    return MESH_THREAD_NUM + NHR_THREAD_NUM;
-}
+    AlgResourceRequest meshReq;
+    AlgResourceRequest nhrReq;
+    CHK_RET(meshAlg_->CalcRes(comm, param, topoInfo, meshReq));
+    CHK_RET(nhrAlg_->CalcRes(comm, param, topoInfo, nhrReq));
 
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::FastLaunch(const OpParam& param,
-    const TemplateFastLaunchCtx& tempFastLaunchCtx)
-{
-    const auto& submitInfos = tempFastLaunchCtx.ccuKernelSubmitInfos;
-    if (submitInfos.size() < 2) {
-        HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] submitInfos[%zu] < 2, skip", submitInfos.size());
-        return HCCL_SUCCESS;
-    }
-    HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] start, threads[%zu], kernels[%zu]",
-        tempFastLaunchCtx.threads.size(), submitInfos.size());
+    resourceRequest.slaveThreadNum = meshReq.slaveThreadNum + nhrReq.slaveThreadNum + 1;
+    resourceRequest.notifyNumOnMainThread = meshReq.notifyNumOnMainThread + 1;
+    resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
+                                               meshReq.notifyNumPerThread.begin(), meshReq.notifyNumPerThread.end());
+    resourceRequest.notifyNumPerThread.emplace_back(nhrReq.notifyNumOnMainThread + 1);
+    resourceRequest.notifyNumPerThread.insert(resourceRequest.notifyNumPerThread.end(),
+                                               nhrReq.notifyNumPerThread.begin(), nhrReq.notifyNumPerThread.end());
 
-    // 切分线程：前 MESH_THREAD_NUM 给 mesh，其余给 nhr
-    ThreadHandle meshMain = tempFastLaunchCtx.threads[0];
-    ThreadHandle nhrMain = tempFastLaunchCtx.threads[MESH_THREAD_NUM];
-    std::vector<ThreadHandle> subThreads = {nhrMain};
+    resourceRequest.ccuKernelNum.insert(resourceRequest.ccuKernelNum.end(),
+                                        meshReq.ccuKernelNum.begin(), meshReq.ccuKernelNum.end());
+    resourceRequest.ccuKernelNum.insert(resourceRequest.ccuKernelNum.end(),
+                                        nhrReq.ccuKernelNum.begin(), nhrReq.ccuKernelNum.end());
+    resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
+                                          meshReq.ccuKernelInfos.begin(), meshReq.ccuKernelInfos.end());
+    resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
+                                          nhrReq.ccuKernelInfos.begin(), nhrReq.ccuKernelInfos.end());
 
-    // 前同步：mesh 主通知 nhr 主（notifyIdx=1，与 KernelRun 一致）
-    std::vector<u32> notifyIdxMainToSub = {1};
-    CHK_RET(PreSyncInterThreads(meshMain, subThreads, notifyIdxMainToSub));
-
-    // 重放 mesh kernel（submitInfos[0]）：补丁 inputAddr/outputAddr 后下发到 threads[0]
-    {
-        uint64_t *args = const_cast<uint64_t*>(submitInfos[0].cachedArgs);
-        constexpr u32 inputIdx = 0;
-        constexpr u32 outputIdx = 1;
-        constexpr u32 inputOffsetIdx = 8;
-        constexpr u32 outputOffsetIdx = 9;
-        constexpr u64 argSize = 8;
-        args[inputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
-        args[outputIdx] = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
-        CcuResult launchRet = HcommCcuKernelLaunch(meshMain, submitInfos[0].kernelHandle,
-            reinterpret_cast<void*>(args), argSize);
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] mesh launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-    }
-
-    // 重放 nhr kernel（submitInfos[1]）：补丁地址 + isInputOutputEqual 后下发到 threads[1]
-    {
-        uint64_t *args = const_cast<uint64_t*>(submitInfos[1].cachedArgs);
-        constexpr u32 inputIdx = 0;
-        constexpr u32 outputIdx = 1;
-        constexpr u32 currentRankSliceOutputOffsetIdx = 8;
-        constexpr u32 isInputOutputEqualIdx = 12;
-        constexpr u32 inputOffsetIdx = 13;
-        constexpr u32 outputOffsetIdx = 14;
-        constexpr u32 currentRankSliceInputOffsetIdx = 15;
-        constexpr u64 argSize = 13;
-        uint64_t inputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.inputPtr) + args[inputOffsetIdx];
-        uint64_t outputAddr = PointerToAddr(tempFastLaunchCtx.buffInfo.outputPtr) + args[outputOffsetIdx];
-        uint64_t currentRankSliceInputOffset = args[currentRankSliceInputOffsetIdx];
-        uint64_t currentRankSliceOutputOffset = args[currentRankSliceOutputOffsetIdx];
-        bool inputOutputEqual = (inputAddr + currentRankSliceInputOffset == outputAddr + currentRankSliceOutputOffset);
-        args[inputIdx] = inputAddr;
-        args[outputIdx] = outputAddr;
-        args[isInputOutputEqualIdx] = static_cast<uint64_t>(inputOutputEqual);
-        CcuResult launchRet = HcommCcuKernelLaunch(nhrMain, submitInfos[1].kernelHandle,
-            reinterpret_cast<void*>(args), argSize);
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] nhr launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-    }
-
-    // 后同步
-    std::vector<u32> notifyIdxSubToMain = {0};
-    CHK_RET(PostSyncInterThreads(meshMain, subThreads, notifyIdxSubToMain));
-
-    HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] end");
+    mergedReq_ = resourceRequest;
+    HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][CalcRes] success, meshKernel[%zu], nhrKernel[%zu]",
+        meshReq.ccuKernelInfos.size(), nhrReq.ccuKernelInfos.size());
     return HCCL_SUCCESS;
 }
 
@@ -133,171 +73,34 @@ HcclResult CcuTempReduceScatterConcurrentMeshNHR::GetRes(AlgResourceRequest& res
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcMeshRes(HcclComm comm, const OpParam& param,
-    const TopoInfoWithNetLayerDetails* topoInfo, CcuKernelInfo& meshKernelInfo)
+u64 CcuTempReduceScatterConcurrentMeshNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
-    std::vector<HcclChannelDesc> myChannelDescs;
-    CHK_RET(CalcChannelRequestMesh1DWithPriorityTopo(comm, param, topoInfo,
-        std::vector<std::vector<u32>>{meshGroup_}, myChannelDescs, CommTopo::COMM_TOPO_1DMESH));
-    std::vector<HcclChannelDesc> channelDescs;
-    for (const auto& ch : myChannelDescs) {
-        if (ch.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-            channelDescs.push_back(ch);
-        }
-    }
-    CHK_PRT_RET(channelDescs.empty(),
-        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][CalcMeshRes] mesh channelDescs is empty"), HCCL_E_INTERNAL);
-
-    strcpy_s(meshKernelInfo.kernelFuncName, sizeof(meshKernelInfo.kernelFuncName), "CcuKernelReduceScatterMesh1D");
-    meshKernelInfo.kernelFunc = reinterpret_cast<void*>(CcuReduceScatterMesh1DKernel);
-    auto kernelArg = std::make_shared<CcuKernelArgReduceScatterMesh1D>();
-    kernelArg->rankSize = meshGroup_.size();
-    kernelArg->rankId = myMeshRank_;
-    kernelArg->opParam = param;
-    kernelArg->subCommRanks = std::vector<std::vector<u32>>{meshGroup_};
-    meshKernelInfo.setKernelArg(kernelArg);
-    meshKernelInfo.channels = channelDescs;
-    return HCCL_SUCCESS;
+    u64 meshScratch = meshAlg_ != nullptr ? meshAlg_->CalcScratchMultiple(inBuffType, outBuffType) : 0;
+    u64 nhrScratch = nhrAlg_ != nullptr ? nhrAlg_->CalcScratchMultiple(inBuffType, outBuffType) : 0;
+    return std::max(meshScratch, nhrScratch);
 }
 
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::GetNHRStepInfo(u32 step, NHRStepInfo& stepInfo)
+u64 CcuTempReduceScatterConcurrentMeshNHR::GetThreadNum() const
 {
-    const std::vector<u32>& ranks = nhrGroup_;
-    const u32 rankSize = nhrGroup_.size();
-    stepInfo.txSliceIdxs.clear();
-    stepInfo.rxSliceIdxs.clear();
-    stepInfo.step = step;
-    stepInfo.myRank = myNhrRank_;
-
-    u32 deltaRank = 1u << step;
-    u32 sendTo = (myNhrRank_ + rankSize - deltaRank) % rankSize;
-    u32 recvFrom = (myNhrRank_ + deltaRank) % rankSize;
-    u32 nSlices = (rankSize - 1 + (1u << step)) / (1u << (step + 1));
-    u32 deltaSliceIndex = 1u << (step + 1);
-    u32 txSliceIdx = sendTo;
-    u32 rxSliceIdx = myNhrRank_;
-
-    stepInfo.nSlices = nSlices;
-    stepInfo.toRank = ranks[sendTo];
-    stepInfo.fromRank = ranks[recvFrom];
-
-    for (u32 i = 0; i < nSlices; i++) {
-        stepInfo.txSliceIdxs.push_back(txSliceIdx);
-        stepInfo.rxSliceIdxs.push_back(rxSliceIdx);
-        txSliceIdx = (txSliceIdx + rankSize - deltaSliceIndex) % rankSize;
-        rxSliceIdx = (rxSliceIdx + rankSize - deltaSliceIndex) % rankSize;
-    }
-    return HCCL_SUCCESS;
+    u64 meshNum = meshAlg_ != nullptr ? meshAlg_->GetThreadNum() : 0;
+    u64 nhrNum = nhrAlg_ != nullptr ? nhrAlg_->GetThreadNum() : 0;
+    return meshNum + nhrNum;
 }
 
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::ProcessNHRStepInfo(HcclComm comm, u32 enableDieNum, u32 enableDieId,
-    std::vector<NHRStepInfo>& stepInfoVector, std::map<u32, u32>& rank2ChannelIdx,
-    std::vector<std::vector<HcclChannelDesc>>& channelsPerDie)
+HcclResult CcuTempReduceScatterConcurrentMeshNHR::FastLaunch(const OpParam& param,
+    const TemplateFastLaunchCtx& tempFastLaunchCtx)
 {
-    constexpr u32 DIE_NUM_1 = 1;
-    constexpr u32 DIE_NUM_2 = 2;
-    u32 nSteps = GetNHRStepNum(nhrGroup_.size());
-    for (u32 step = 0; step < nSteps; step++) {
-        NHRStepInfo stepInfo;
-        CHK_RET(GetNHRStepInfo(step, stepInfo));
-        stepInfoVector.push_back(stepInfo);
-        if (enableDieNum == DIE_NUM_1) {
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, enableDieId,
-                rank2ChannelIdx, channelsPerDie[0]));
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.toRank, nhrRankIdToChannelDesc_, enableDieId,
-                rank2ChannelIdx, channelsPerDie[0]));
-        } else if (enableDieNum == DIE_NUM_2) {
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, 0,
-                rank2ChannelIdx, channelsPerDie[0]));
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, 1,
-                rank2ChannelIdx, channelsPerDie[1]));
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.toRank, nhrRankIdToChannelDesc_, 0,
-                rank2ChannelIdx, channelsPerDie[0]));
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.toRank, nhrRankIdToChannelDesc_, 1,
-                rank2ChannelIdx, channelsPerDie[1]));
-        }
-    }
-    return HCCL_SUCCESS;
-}
-
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcNhrRes(HcclComm comm, const OpParam& param,
-    const TopoInfoWithNetLayerDetails* topoInfo, CcuKernelInfo& nhrKernelInfo)
-{
-    std::vector<HcclChannelDesc> myChannelDescs;
-    CHK_RET(CalcChannelRequestNhr(comm, param, topoInfo, std::vector<std::vector<u32>>{nhrGroup_}, myChannelDescs));
-    std::vector<HcclChannelDesc> channelDescs;
-    for (const auto& ch : myChannelDescs) {
-        if (ch.channelProtocol == COMM_PROTOCOL_UBC_CTP) {
-            channelDescs.push_back(ch);
-        }
-    }
-    CHK_RET(RestoreChannelMap(channelDescs, nhrRankIdToChannelDesc_));
-
-    u32 enableDieNum = 0;
-    u32 enableDieId = 0;
-    CHK_RET(GetDieInfoFromChannelDescs(comm, nhrRankIdToChannelDesc_, myRank_, enableDieNum, enableDieId));
-    CHK_PRT_RET(enableDieNum < 1 || enableDieNum > CCU_DIE_NUM_MAX_2,
-        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][CalcNhrRes] enableDieNum[%u] invalid", enableDieNum),
-        HCCL_E_INTERNAL);
-
-    std::vector<std::vector<HcclChannelDesc>> channelsPerDie(enableDieNum);
-    std::map<u32, u32> rank2ChannelIdx;
-    std::vector<NHRStepInfo> stepInfoVector;
-    CHK_RET(ProcessNHRStepInfo(comm, enableDieNum, enableDieId, stepInfoVector, rank2ChannelIdx, channelsPerDie));
-    if (enableDieNum > 1) {
-        CHK_RET(ReverseChannelPerDieIfNeed(comm, myRank_, channelsPerDie));
-    }
-
-    strcpy_s(nhrKernelInfo.kernelFuncName, sizeof(nhrKernelInfo.kernelFuncName), "CcuReduceScatterNHR1DMem2MemKernel");
-    nhrKernelInfo.kernelFunc = reinterpret_cast<void*>(CcuReduceScatterNHR1DMem2MemKernel);
-    auto kernelArg = std::make_shared<CcuKernelArgReduceScatterNHR1D>();
-    kernelArg->dimSize = nhrGroup_.size();
-    kernelArg->rankId = myNhrRank_;
-    kernelArg->mySubCommRankId = myNhrRank_;
-    kernelArg->axisId = 0;
-    kernelArg->axisSize = enableDieNum;
-    kernelArg->stepInfoVector = stepInfoVector;
-    kernelArg->rank2ChannelIdx = rank2ChannelIdx;
-    kernelArg->opParam = param;
-    kernelArg->subCommRanks = std::vector<std::vector<u32>>{nhrGroup_};
-    nhrKernelInfo.setKernelArg(kernelArg);
-    nhrKernelInfo.channels = channelsPerDie[0];
-    return HCCL_SUCCESS;
-}
-
-HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcRes(HcclComm comm, const OpParam& param,
-    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
-{
-    CHK_PRT_RET(topoInfo == nullptr,
-        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][CalcRes] topoInfo is nullptr"), HCCL_E_PARA);
-
-    // mesh 路：0 从流、主线程 0 notify；nhr 路：1 从流、主线程 1 notify。
-    // 合并后：主线程(mesh main) 1 notify(给 PostSync)，从流 nhr main 2 notify(自身+mesh→nhr)，nhr sub 1 notify
-    resourceRequest.notifyNumOnMainThread = 1;
-    resourceRequest.slaveThreadNum = MESH_THREAD_NUM - 1 + NHR_THREAD_NUM - 1 + 1; // =2
-    resourceRequest.notifyNumPerThread = {2, 1}; // nhr main 2 个，nhr sub 1 个
-    resourceRequest.ccuKernelNum.push_back(MESH_THREAD_NUM); // mesh 1 个 kernel
-    resourceRequest.ccuKernelNum.push_back(NHR_THREAD_NUM - 1); // nhr 1 个 kernel
-
-    CcuKernelInfo meshKernelInfo;
-    CHK_RET(CalcMeshRes(comm, param, topoInfo, meshKernelInfo));
-    CcuKernelInfo nhrKernelInfo;
-    CHK_RET(CalcNhrRes(comm, param, topoInfo, nhrKernelInfo));
-    resourceRequest.ccuKernelInfos.push_back(meshKernelInfo);
-    resourceRequest.ccuKernelInfos.push_back(nhrKernelInfo);
-
-    mergedReq_ = resourceRequest;
-    HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][CalcRes] success, meshRank[%u], nhrRank[%u]",
-        myMeshRank_, myNhrRank_);
-    return HCCL_SUCCESS;
+    (void)param;
+    (void)tempFastLaunchCtx;
+    HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][FastLaunch] not supported, fallback to KernelRun");
+    return HCCL_E_NOT_SUPPORT;
 }
 
 HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcDataSplit(const OpParam& param,
     const TemplateDataParams& templateDataParams, TemplateDataParams& meshParams,
     TemplateDataParams& nhrParams, u64& meshCount, u64& nhrCount) const
 {
-    (void)param;
-    u64 portNum0 = rankSize_ - 1;
+    u64 portNum0 = (rankSize_ > 0) ? (rankSize_ - 1) : 0;
     u64 portNum = CLOS_PORT_NUM_SERVER_V2_CC;
 
     const u64 sliceAlignCount = (dataTypeSize_ > 0) ? (HCCL_MIN_SLICE_ALIGN / dataTypeSize_) : 1;
@@ -331,89 +134,56 @@ HcclResult CcuTempReduceScatterConcurrentMeshNHR::CalcDataSplit(const OpParam& p
 HcclResult CcuTempReduceScatterConcurrentMeshNHR::KernelRun(const OpParam& param,
     const TemplateDataParams& templateDataParams, TemplateResource& templateResource)
 {
-    // 1.数据切分：按带宽比切成 mesh 半 + nhr 半
+    // 1.切分线程：前 meshThreadNum 个给 mesh 路，其余给 nhr 路
+    u64 meshThreadNum = meshAlg_->GetThreadNum();
+    CHK_PRT_RET(meshThreadNum > templateResource.threads.size(),
+        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] meshThreadNum[%llu] > threads[%zu]",
+            meshThreadNum, templateResource.threads.size()), HCCL_E_PARA);
+    std::vector<ThreadHandle> meshThreads(templateResource.threads.begin(),
+                                          templateResource.threads.begin() + meshThreadNum);
+    std::vector<ThreadHandle> nhrThreads(templateResource.threads.begin() + meshThreadNum,
+                                         templateResource.threads.end());
+    CHK_PRT_RET(meshThreads.empty() || nhrThreads.empty(),
+        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] meshThreads or nhrThreads is empty"), HCCL_E_INTERNAL);
+    ThreadHandle meshMain = meshThreads.at(0);
+    ThreadHandle nhrMain = nhrThreads.at(0);
+
+    // 2.校验 ccuKernel 数量充足（mesh 用第0个、nhr 用第1个）
+    CHK_PRT_RET(templateResource.ccuKernels.size() < 2,
+        HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] ccuKernels size[%zu] < 2",
+            templateResource.ccuKernels.size()), HCCL_E_INTERNAL);
+
+    // 3.为两路子模板分别组装资源：线程 + 对应的 ccuKernel
+    TemplateResource meshRes;
+    meshRes.threads = meshThreads;
+    meshRes.ccuKernels.push_back(templateResource.ccuKernels[0]);
+    TemplateResource nhrRes;
+    nhrRes.threads = nhrThreads;
+    nhrRes.ccuKernels.push_back(templateResource.ccuKernels[1]);
+
+    // 4.数据切分：按带宽比把当前数据块切成 mesh 半 + nhr 半，填好两路参数
     TemplateDataParams meshParams;
     TemplateDataParams nhrParams;
     u64 meshCount = 0;
     u64 nhrCount = 0;
     CHK_RET(CalcDataSplit(param, templateDataParams, meshParams, nhrParams, meshCount, nhrCount));
 
-    // 2.公共地址与 goSize 计算
-    const u64 baseInputAddr = PointerToAddr(templateDataParams.buffInfo.inputPtr);
-    const u64 baseOutputAddr = PointerToAddr(templateDataParams.buffInfo.outputPtr);
-    uint64_t token;
-    CHK_RET(GetToken(templateDataParams.buffInfo, token));
-    LoopGroupConfig config{};
-    config.msInterleave = CCU_MS_INTERLEAVE;
-    config.loopCount = CCU_MS_DEFAULT_LOOP_COUNT;
-    config.memSlice = CCU_MS_SIZE;
+    // 5.前同步：mesh 主流通知 nhr 主流，保证两路同时开始
+    std::vector<ThreadHandle> subThreads = {nhrMain};
+    std::vector<u32> notifyIdxMainToSub = {static_cast<u32>(nhrThreads.size() - 1)};
+    CHK_RET(PreSyncInterThreads(meshMain, subThreads, notifyIdxMainToSub));
 
-    // 3.前同步：mesh 主线程(threads[0]) 通知 nhr 主线程(threads[1])
-    std::vector<ThreadHandle> nhrSubThreads(templateResource.threads.begin() + MESH_THREAD_NUM + 1,
-                                            templateResource.threads.end());
-    std::vector<ThreadHandle> subThreads = {templateResource.threads[MESH_THREAD_NUM]};
-    std::vector<u32> notifyIdxMainToSub = {static_cast<u32>(nhrSubThreads.size())};
-    CHK_RET(PreSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxMainToSub));
-
-    // 4.下发 mesh kernel（threads[0]，ccuKernels[0]）
+    // 6.并行执行两路：各自下发到自己的线程组，异步并行执行
     if (meshCount > 0 && meshParams.sliceSize > 0) {
-        u64 inputAddr = baseInputAddr + meshParams.buffInfo.inBuffBaseOff;
-        u64 outputAddr = baseOutputAddr + meshParams.buffInfo.outBuffBaseOff;
-        u64 offset = meshParams.inputSliceStride * myMeshRank_;
-        auto goSize = CalGoSize(meshParams.sliceSize, config, GetCcuVersion());
-        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, offset,
-                                          goSize[0], goSize[1], goSize[2], goSize[3]};
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0],
-            taskArgs.data(), taskArgs.size());
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] mesh launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-        // 缓存 submitInfo 供 FastLaunch 重放（cachedArgs[0..7]=taskArgs, [8]=inOff, [9]=outOff）
-        CcuKernelSubmitInfo meshSubmit;
-        meshSubmit.kernelHandle = templateResource.ccuKernels[0];
-        CHK_RET(FillCachedArgs(meshSubmit, inputAddr, outputAddr, token, offset,
-            goSize[0], goSize[1], goSize[2], goSize[3],
-            meshParams.buffInfo.inBuffBaseOff, meshParams.buffInfo.outBuffBaseOff));
-        templateResource.submitInfos.push_back(meshSubmit);
+        CHK_RET(meshAlg_->KernelRun(param, meshParams, meshRes));
     }
-
-    // 5.下发 nhr kernel（threads[1]，ccuKernels[1]），单 die
     if (nhrCount > 0 && nhrParams.sliceSize > 0) {
-        u64 inputAddr = baseInputAddr + nhrParams.buffInfo.inBuffBaseOff;
-        u64 outputAddr = baseOutputAddr + nhrParams.buffInfo.outBuffBaseOff;
-        u64 die0Size = nhrParams.sliceSize;
-        u64 die1Size = 0;
-        u64 die0LastSliceSize = nhrParams.sliceSize;
-        u64 die1LastSliceSize = 0;
-        u64 inputSliceStride = nhrParams.inputSliceStride;
-        u64 currentRankSliceOutputOffset = 0; // outputSliceStride=0
-        u64 inputRepeatStride = 0;
-        u64 outputRepeatStride = 0;
-        u64 repeatNumVar = UINT64_MAX - nhrParams.repeatNum;
-        u64 isInputOutputEqual = (inputAddr == outputAddr) ? 1 : 0;
-        u64 currentRankSliceInputOffset = inputSliceStride * myNhrRank_;
-        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, die0Size, die1Size,
-                                          die0LastSliceSize, die1LastSliceSize, inputSliceStride,
-                                          currentRankSliceOutputOffset, inputRepeatStride, outputRepeatStride,
-                                          repeatNumVar, isInputOutputEqual};
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[MESH_THREAD_NUM],
-            templateResource.ccuKernels[1], taskArgs.data(), taskArgs.size());
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] nhr launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-        // 缓存 submitInfo 供 FastLaunch 重放（cachedArgs[0..12]=taskArgs, [13]=inOff, [14]=outOff, [15]=currentRankSliceInputOffset）
-        CcuKernelSubmitInfo nhrSubmit;
-        nhrSubmit.kernelHandle = templateResource.ccuKernels[1];
-        CHK_RET(FillCachedArgs(nhrSubmit, inputAddr, outputAddr, token, die0Size, die1Size,
-            die0LastSliceSize, die1LastSliceSize, inputSliceStride, currentRankSliceOutputOffset,
-            inputRepeatStride, outputRepeatStride, repeatNumVar, isInputOutputEqual,
-            nhrParams.buffInfo.inBuffBaseOff, nhrParams.buffInfo.outBuffBaseOff, currentRankSliceInputOffset));
-        templateResource.submitInfos.push_back(nhrSubmit);
+        CHK_RET(nhrAlg_->KernelRun(param, nhrParams, nhrRes));
     }
 
-    // 6.后同步：等两路都完成
-    std::vector<u32> notifyIdxSubToMain = {0};
-    CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain));
+    // 7.后同步：等两路都完成，再返回
+    std::vector<u32> notifyIdxSubToMain = {static_cast<u32>(meshThreads.size() - 1)};
+    CHK_RET(PostSyncInterThreads(meshMain, subThreads, notifyIdxSubToMain));
 
     HCCL_INFO("[CcuTempReduceScatterConcurrentMeshNHR][KernelRun] done, meshCount[%llu], nhrCount[%llu]",
         meshCount, nhrCount);
