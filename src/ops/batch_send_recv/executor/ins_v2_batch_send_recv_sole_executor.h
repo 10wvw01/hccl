@@ -44,9 +44,11 @@ protected:
     struct SendRecvSlice {
         void* addr_;
         u64 size_;
+        u64 count_;
+        HcclDataType dataType_;
         u32 remoteRank_;
-        SendRecvSlice(void* addr, u64 size, u32 remoteRank) :
-                addr_(addr), size_(size), remoteRank_(remoteRank) {}
+        SendRecvSlice(void* addr, u64 size, u64 count, HcclDataType dataType, u32 remoteRank) :
+                addr_(addr), size_(size), count_(count), dataType_(dataType), remoteRank_(remoteRank) {}
     }; // 切片任务信息
 
     std::deque<SendRecvSlice> sendDataSilces_;

@@ -17,6 +17,7 @@
 #include "check_utils.h"
 #include <thread>
 #include "alg_env_config.h"
+#include <atomic>
 #include <random>
 
 using namespace HcclSim;
@@ -175,6 +176,53 @@ HcclResult MultiThreadExecOpMultiTimes(u32 rankSize, u64 sendBufSize, u64 recvCo
         thread.join();
     }
     return HCCL_SUCCESS;
+}
+
+HcclResult MultiThreadExecMixedDataTypes()
+{
+    constexpr u32 rankSize = 2;
+    constexpr u32 pairNum = 10;
+    constexpr u64 slotSize = sizeof(uint64_t);
+    std::atomic<int> execResult{HCCL_SUCCESS};
+    std::vector<std::thread> threads;
+    for (u32 rankId = 0; rankId < rankSize; ++rankId) {
+        threads.emplace_back([=, &execResult]() {
+            aclrtSetDevice(rankId);
+            aclrtStream stream = nullptr;
+            aclrtCreateStream(&stream);
+            HcclComm comm = nullptr;
+            HcclResult ret = HcclCommInitClusterInfo("./ranktable.json", rankId, &comm);
+            if (ret != HCCL_SUCCESS) {
+                execResult.store(ret);
+                return;
+            }
+
+            void *sendBuf = nullptr;
+            void *recvBuf = nullptr;
+            aclrtMalloc(&sendBuf, pairNum * slotSize, static_cast<aclrtMemMallocPolicy>(BUFFER_INPUT_MARK));
+            aclrtMalloc(&recvBuf, pairNum * slotSize, static_cast<aclrtMemMallocPolicy>(BUFFER_OUTPUT_MARK));
+
+            std::vector<HcclSendRecvItem> sendRecvInfo;
+            sendRecvInfo.reserve(pairNum * 2);
+            const u32 remoteRank = 1 - rankId;
+            for (u32 i = 0; i < pairNum; ++i) {
+                const HcclDataType dataType = (i % 2 == 0) ? HCCL_DATA_TYPE_INT8 : HCCL_DATA_TYPE_FP64;
+                void *sendAddr = static_cast<u8 *>(sendBuf) + i * slotSize;
+                void *recvAddr = static_cast<u8 *>(recvBuf) + i * slotSize;
+                sendRecvInfo.push_back({HcclSendRecvType::HCCL_SEND, sendAddr, 1, dataType, remoteRank});
+                sendRecvInfo.push_back({HcclSendRecvType::HCCL_RECV, recvAddr, 1, dataType, remoteRank});
+            }
+            ret = HcclBatchSendRecv(sendRecvInfo.data(), sendRecvInfo.size(), comm, stream);
+            if (ret != HCCL_SUCCESS) {
+                execResult.store(ret);
+            }
+            HcclCommDestroy(comm);
+        });
+    }
+    for (auto &thread : threads) {
+        thread.join();
+    }
+    return static_cast<HcclResult>(execResult.load());
 }
 
 TEST_F(ST_BATCH_SEND_RECV_TEST, st_batch_send_recv_a5_aicpu_test_000)
@@ -415,5 +463,17 @@ TEST_F(ST_BATCH_SEND_RECV_TEST, st_batch_send_recv_a5_aicpu_test_run_twice)
 
     HcclResult res = MultiThreadExecOpMultiTimes(rankSize, sendBufSize, recvCount, dataType);
     EXPECT_TRUE(res == HCCL_SUCCESS);
+    SimWorld::Global()->Deinit();
+}
+
+TEST_F(ST_BATCH_SEND_RECV_TEST, st_batch_send_recv_dpu_preserves_item_data_types)
+{
+    setenv("ENABLE_HOSTDPU_FOR_LLT", "1", 1);
+    TopoMeta topoMeta {{{0}, {1}}};
+    SimWorld::Global()->Init(topoMeta, DevType::DEV_TYPE_950);
+    setenv("HCCL_OP_EXPANSION_MODE", "AI_CPU", 1);
+    setenv("HCCL_INDEPENDENT_OP", "1", 1);
+
+    EXPECT_EQ(MultiThreadExecMixedDataTypes(), HCCL_SUCCESS);
     SimWorld::Global()->Deinit();
 }

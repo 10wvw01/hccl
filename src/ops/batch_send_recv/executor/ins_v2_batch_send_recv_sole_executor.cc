@@ -250,8 +250,8 @@ template <typename AlgTopoMatch, typename InsAlgTemplate> HcclResult InsV2BatchS
                   "dataType[%u], sendRecvType[%d].",
             sendItem->remoteRank, sendItem->buf, sendItem->count, sendItem->dataType, sendItem->sendRecvType);
         // 计算每轮搬运的最大数据量
-        dataTypeSize_ = DATATYPE_SIZE_TABLE[sendItem->dataType];
-        u64 maxCountPerLoop = maxTmpMemSize_ / dataTypeSize_;
+        const u64 dataTypeSize = DATATYPE_SIZE_TABLE[sendItem->dataType];
+        u64 maxCountPerLoop = maxTmpMemSize_ / dataTypeSize;
         u8 *curInputPtr = static_cast<u8 *>(sendItem->buf);
         CHK_PTR_NULL(curInputPtr);
 
@@ -260,9 +260,10 @@ template <typename AlgTopoMatch, typename InsAlgTemplate> HcclResult InsV2BatchS
         while (resDataCount > 0) {
             // 判断本轮需搬运的数据量
             u64 transferCount = resDataCount > maxCountPerLoop ? maxCountPerLoop : resDataCount;
-            u64 transferSize = transferCount * dataTypeSize_;
+            u64 transferSize = transferCount * dataTypeSize;
             curInputPtr = static_cast<u8 *>(sendItem->buf) + curOffset;
-            sendDataSilces_.emplace_back(static_cast<void *>(curInputPtr), transferSize, sendItem->remoteRank);
+            sendDataSilces_.emplace_back(static_cast<void *>(curInputPtr), transferSize, transferCount,
+                sendItem->dataType, sendItem->remoteRank);
             HCCL_DEBUG("[InsV2BatchSendRecvSoleExecutor][CalcSendSlices] slice curOffset[%llu], slice size[%llu] "
                        "curInputPtr [%p].",
                 curOffset, transferSize, curInputPtr);
@@ -282,8 +283,8 @@ template <typename AlgTopoMatch, typename InsAlgTemplate> HcclResult InsV2BatchS
                   "dataType[%u], sendRecvType[%d].",
             recvItem->remoteRank, recvItem->buf, recvItem->count, recvItem->dataType, recvItem->sendRecvType);
         // 计算每轮搬运的最大数据量
-        dataTypeSize_ = DATATYPE_SIZE_TABLE[recvItem->dataType];
-        u64 maxCountPerLoop = maxTmpMemSize_ / dataTypeSize_;
+        const u64 dataTypeSize = DATATYPE_SIZE_TABLE[recvItem->dataType];
+        u64 maxCountPerLoop = maxTmpMemSize_ / dataTypeSize;
         u8 *curOutputPtr = static_cast<u8 *>(recvItem->buf);
         CHK_PTR_NULL(curOutputPtr);
 
@@ -292,9 +293,10 @@ template <typename AlgTopoMatch, typename InsAlgTemplate> HcclResult InsV2BatchS
         while (resDataCount > 0) {
             // 判断本轮需搬运的数据量
             u64 transferCount = resDataCount > maxCountPerLoop ? maxCountPerLoop : resDataCount;
-            u64 transferSize = transferCount * dataTypeSize_;
+            u64 transferSize = transferCount * dataTypeSize;
             curOutputPtr = static_cast<u8 *>(recvItem->buf) + curOffset;
-            recvDataSilces_.emplace_back(static_cast<void *>(curOutputPtr), transferSize, recvItem->remoteRank);
+            recvDataSilces_.emplace_back(static_cast<void *>(curOutputPtr), transferSize, transferCount,
+                recvItem->dataType, recvItem->remoteRank);
             HCCL_DEBUG("[InsV2BatchSendRecvSoleExecutor][CalcRecvSlices] slice curOffset[%llu], slice size[%llu] "
                        "curOutputPtr [%p].",
                 curOffset, transferSize, curOutputPtr);
@@ -374,6 +376,10 @@ HcclResult InsV2BatchSendRecvSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Process
     // 构造param
     OpParam sendRecvParam = param;
     sendRecvParam.sendRecvRemoteRank = sendSlice.remoteRank_;
+    sendRecvParam.DataDes.count = sendSlice.count_;
+    sendRecvParam.DataDes.dataType = sendSlice.dataType_;
+    sendRecvParam.DataDes.outputType = HCCL_DATA_TYPE_RESERVED;
+    sendRecvParam.DataDes.strideCount = 0;
     // 构造template
     std::shared_ptr<InsAlgTemplate> algTemplate
         = std::make_shared<InsAlgTemplate>(sendRecvParam, myRank_, algHierarchyInfo_.infos[0]);
@@ -382,7 +388,7 @@ HcclResult InsV2BatchSendRecvSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Process
     tempAlgParams.buffInfo.outputPtr = sendChannel.remoteCclMem.addr;; // 无论跨框还是框内 都要发送到对方的ccl上
     tempAlgParams.buffInfo.hcclBuff = cclMem_;       // 本端的ccl
     tempAlgParams.sliceSize = sendSlice.size_;
-    tempAlgParams.count = sendSlice.size_ / dataTypeSize_;
+    tempAlgParams.count = sendSlice.count_;
     tempAlgParams.opType = opType; // 传入实际操作
     // 这里用来放每张卡可以用的cclBuffer的大小
     tempAlgParams.inputSliceStride = maxTmpMemSize_;
@@ -409,6 +415,10 @@ HcclResult InsV2BatchSendRecvSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Process
     // 构造param
     OpParam sendRecvParam = param;
     sendRecvParam.sendRecvRemoteRank = recvSlice.remoteRank_;
+    sendRecvParam.DataDes.count = recvSlice.count_;
+    sendRecvParam.DataDes.dataType = recvSlice.dataType_;
+    sendRecvParam.DataDes.outputType = HCCL_DATA_TYPE_RESERVED;
+    sendRecvParam.DataDes.strideCount = 0;
     // 构造template
     if (algHierarchyInfo_.infos.empty())
     {
@@ -429,7 +439,7 @@ HcclResult InsV2BatchSendRecvSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Process
     tempAlgParams.buffInfo.outputPtr = recvSlice.addr_; // 最后读到本端ccl上
     tempAlgParams.buffInfo.hcclBuff = cclMem_;          // 本端的ccl
     tempAlgParams.sliceSize = recvSlice.size_;
-    tempAlgParams.count = recvSlice.size_ / dataTypeSize_;
+    tempAlgParams.count = recvSlice.count_;
     tempAlgParams.opType = opType; // 传入实际操作
     // 这里用来放每张卡可以用的cclBuffer的大小
     tempAlgParams.inputSliceStride = maxTmpMemSize_;
