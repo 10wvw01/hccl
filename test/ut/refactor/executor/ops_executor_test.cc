@@ -231,8 +231,8 @@ TEST_F(OmniPipeTest, Orchestrate)
     resCtx.cclMem.size = 1024 * 1024 * 128 * 4;
     resCtx.threads = threads;
     resCtx.algHierarchyInfo = info;
-    //resCtx.topoInfo.userRank = 0;
-    //resCtx.topoInfo.userRankSize = 8 * 8 * 2;
+    resCtx.topoInfo.userRank = 0;
+    resCtx.topoInfo.userRankSize = 8 * 8 * 2;
     resCtx.channels.resize(info.infos.size());
     HcclResult ret = exe->Orchestrate(resCtx);
     //EXPECT_EQ(ret, HCCL_SUCCESS);
