@@ -10,6 +10,7 @@
 
 #include "hcom_all_reduce_op.h"
 
+#include "acl/acl_rt.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "exe_graph/runtime/infer_shape_context.h"
 #include "exe_graph/runtime/infer_datatype_context.h"
@@ -34,6 +35,22 @@ HcclResult HcclSelectAlgGraphMode(const char *group, uint64_t count, HcclDataTyp
                                   HcclCMDType opType, uint32_t aivCoreLimit, bool *ifAiv, char *algName);
 HcclResult HcclCalcOpResOfflineGraphMode(void *opParam, uint64_t *opMemSize, uint32_t *streamNum,
                                          uint32_t *taskNum, uint32_t *aivCoreNum);
+HcclResult HcclAllReduceGraphMode(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType,
+                                  HcclReduceOp op, const char *group, aclrtStream stream, const char *tag,
+                                  void **streams, size_t streamCount, void *scratchMemAddr,
+                                  uint64_t scratchMemSize);
+}
+
+HcomAllReduceOp::~HcomAllReduceOp()
+{
+    if (indirectInCCLbuf_ != nullptr) {
+        aclrtFree(indirectInCCLbuf_);
+        indirectInCCLbuf_ = nullptr;
+    }
+    if (indirectOutCCLbuf_ != nullptr) {
+        aclrtFree(indirectOutCCLbuf_);
+        indirectOutCCLbuf_ = nullptr;
+    }
 }
 
 ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
@@ -150,9 +167,230 @@ ge::graphStatus HcomAllReduceOp::CalcResources(hccl::HcclOpState &st)
     HcclDestroyOpParamGraphMode(opParam);
 
     st.scratchMemSize = opMemSize;
+    st.cclBuffSize = cclBuffSize;
 
-    HCCL_INFO("HcomAllReduceOp::CalcResources: rankSize=%u scratchMemSize=%lu streamNum=%u taskNum=%u ifAiv=%d.",
-              rankSize, st.scratchMemSize, st.streamNum, taskNum, st.ifAiv);
+    HCCL_INFO("HcomAllReduceOp::CalcResources: rankSize=%u scratchMemSize=%lu streamNum=%u taskNum=%u ifAiv=%d "
+              "cclBuffSize=%lu.",
+              rankSize, st.scratchMemSize, st.streamNum, taskNum, st.ifAiv, st.cclBuffSize);
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
+{
+    if (st.scratchMemSize > 0) {
+        st.scratchMem = st.ctx->MallocWorkSpace(st.scratchMemSize);
+        if (st.scratchMem == nullptr) {
+            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: MallocWorkSpace failed, size=%lu.", st.scratchMemSize);
+            return ge::GRAPH_FAILED;
+        }
+    }
+
+    // TODO: attached 子流 — GE 根据 ATTR_NAME_ATTACHED_STREAM_INFO_LIST 创建后通过 task.rt_attached_streams 传回，
+    //       调 HcomSetAttachedStream 设置到通信域
+    // TODO: used_stream_num 子流 — GE 根据属性创建后通过 hcclInfo.hcclStreamList 传回，
+    //       传给 HcclAllReduceGraphMode 的 streams[] 参数
+
+    // 检测融合场景（多输入）
+    size_t inputCount = 0;
+    for (size_t i = 0; st.ctx->GetInputTensor(i) != nullptr; i++) {
+        inputCount++;
+    }
+    if (inputCount > 1) {
+        HCCL_WARNING("HcomAllReduceOp::LaunchHcclOp: fusion scenario (%zu inputs) not yet supported.", inputCount);
+    }
+
+    HCCL_GE_CHK_RET(CreateIndirectCCLbuf());
+
+    uint64_t unitSize = hccl::GetHcclDataTypeSize(st.dataType);
+    if (unitSize == 0 || st.cclBuffSize == 0) {
+        HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: invalid unitSize=%lu or cclBuffSize=%lu.", unitSize, st.cclBuffSize);
+        return ge::GRAPH_FAILED;
+    }
+    uint64_t maxCountPerLoop = st.cclBuffSize / unitSize;
+    uint64_t curCount = 0;
+
+    for (uint64_t countLeft = st.count, inputOffset = 0, outputOffset = 0, loopTime = 0;
+         countLeft > 0; countLeft -= curCount) {
+        curCount = (countLeft * unitSize > st.cclBuffSize) ? maxCountPerLoop : countLeft;
+        uint64_t curSize = curCount * unitSize;
+
+        HCCL_INFO("HcomAllReduceOp::LaunchHcclOp: loop=%lu inputOffset=%lu countLeft=%lu curCount=%lu curSize=%lu.",
+                  loopTime, inputOffset, countLeft, curCount, curSize);
+
+        HCCL_GE_CHK_RET(RefreshInputAddr(st, inputOffset, curSize));
+
+        void *commInputPtr = nullptr;
+        u64 commInputSize = 0;
+        HcclResult ret = HcomGetInCCLbuffer(st.group, &commInputPtr, &commInputSize);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcomGetInCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+        void *commOutputPtr = nullptr;
+        u64 commOutputSize = 0;
+        ret = HcomGetOutCCLbuffer(st.group, &commOutputPtr, &commOutputSize);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcomGetOutCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+
+        if (curCount == countLeft) {
+            HCCL_GE_CHK_RET(CleanCracks(commInputPtr, inputOffset));
+        }
+
+        ret = HcclAllReduceGraphMode(
+            commInputPtr, commOutputPtr, curCount, st.dataType, st.reduceOp, st.group,
+            static_cast<aclrtStream>(st.stream), HCCL_KERNEL_OP_TYPE_ALLREDUCE.c_str(),
+            nullptr, 0,
+            st.scratchMem, st.scratchMemSize);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcclAllReduceGraphMode failed, ret=%d.", static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+
+        HCCL_GE_CHK_RET(RefreshOutputAddr(st, outputOffset, curSize));
+
+        inputOffset += curSize;
+        outputOffset += curSize;
+        loopTime++;
+    }
+
+    HCCL_INFO("HcomAllReduceOp::LaunchHcclOp: success, input=%p output=%p count=%lu scratchMem=%p scratchMemSize=%lu.",
+              st.inputPtr, st.outputPtr, st.count, st.scratchMem, st.scratchMemSize);
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::CreateIndirectCCLbuf()
+{
+    if (indirectBufInited_) {
+        return ge::GRAPH_SUCCESS;
+    }
+    aclError aclRet = aclrtMalloc(&indirectInCCLbuf_, sizeof(uintptr_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::CreateIndirectCCLbuf: aclrtMalloc indirectIn failed, ret=%d.",
+                   static_cast<int>(aclRet));
+        return ge::GRAPH_FAILED;
+    }
+    aclRet = aclrtMalloc(&indirectOutCCLbuf_, sizeof(uintptr_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::CreateIndirectCCLbuf: aclrtMalloc indirectOut failed, ret=%d.",
+                   static_cast<int>(aclRet));
+        aclrtFree(indirectInCCLbuf_);
+        indirectInCCLbuf_ = nullptr;
+        return ge::GRAPH_FAILED;
+    }
+    indirectBufInited_ = true;
+    HCCL_INFO("HcomAllReduceOp::CreateIndirectCCLbuf: indirectIn=%p indirectOut=%p.",
+              indirectInCCLbuf_, indirectOutCCLbuf_);
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::CleanCracks(void *baseAddr, uint64_t inputOffset)
+{
+    // TODO: 按照 InfoStore CleanIntervalMemoryOpKernel 逻辑实现清缝
+    // 当前打桩：检测到多输入融合场景时打印警告
+    HCCL_DEBUG("HcomAllReduceOp::CleanCracks: stub, baseAddr=%p inputOffset=%lu.", baseAddr, inputOffset);
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize)
+{
+    void *commInputPtr = nullptr;
+    u64 commInputSize = 0;
+    HcclResult ret = HcomGetInCCLbuffer(st.group, &commInputPtr, &commInputSize);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: HcomGetInCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+        return ge::GRAPH_FAILED;
+    }
+    if (commInputPtr == nullptr || commInputSize == 0) {
+        ret = HcomCreateCommCCLbuffer(st.group);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: HcomCreateCommCCLbuffer failed, ret=%d.",
+                       static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+        ret = HcomGetInCCLbuffer(st.group, &commInputPtr, &commInputSize);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: HcomGetInCCLbuffer retry failed, ret=%d.",
+                       static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+    }
+    if (curSize > commInputSize) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: curSize=%lu > commInputSize=%llu.", curSize, commInputSize);
+        return ge::GRAPH_FAILED;
+    }
+
+    // H2D 同步: 把 CCL buffer 地址写入 indirect buffer
+    aclError aclRet = aclrtMemcpy(indirectInCCLbuf_, sizeof(void *), &commInputPtr, sizeof(void *),
+                                  ACL_MEMCPY_HOST_TO_DEVICE);
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: aclrtMemcpy H2D failed, ret=%d.", static_cast<int>(aclRet));
+        return ge::GRAPH_FAILED;
+    }
+
+    // D2D 异步: 用户数据 → CCL buffer
+    void *src = static_cast<char *>(st.inputPtr) + inputOffset;
+    aclRet = aclrtMemcpyAsync(commInputPtr, commInputSize, src, curSize,
+                              ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshInputAddr: aclrtMemcpyAsync D2D failed, ret=%d.", static_cast<int>(aclRet));
+        return ge::GRAPH_FAILED;
+    }
+
+    HCCL_DEBUG("HcomAllReduceOp::RefreshInputAddr: commInputPtr=%p commInputSize=%llu inputOffset=%lu curSize=%lu.",
+               commInputPtr, commInputSize, inputOffset, curSize);
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize)
+{
+    void *commOutputPtr = nullptr;
+    u64 commOutputSize = 0;
+    HcclResult ret = HcomGetOutCCLbuffer(st.group, &commOutputPtr, &commOutputSize);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: HcomGetOutCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+        return ge::GRAPH_FAILED;
+    }
+    if (commOutputPtr == nullptr || commOutputSize == 0) {
+        ret = HcomCreateCommCCLbuffer(st.group);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: HcomCreateCommCCLbuffer failed, ret=%d.",
+                       static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+        ret = HcomGetOutCCLbuffer(st.group, &commOutputPtr, &commOutputSize);
+        if (ret != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: HcomGetOutCCLbuffer retry failed, ret=%d.",
+                       static_cast<int>(ret));
+            return ge::GRAPH_FAILED;
+        }
+    }
+    if (curSize > commOutputSize) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: curSize=%lu > commOutputSize=%llu.", curSize, commOutputSize);
+        return ge::GRAPH_FAILED;
+    }
+
+    // H2D 同步: 把 CCL output buffer 地址写入 indirect output buffer
+    aclError aclRet = aclrtMemcpy(indirectOutCCLbuf_, sizeof(void *), &commOutputPtr, sizeof(void *),
+                                  ACL_MEMCPY_HOST_TO_DEVICE);
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: aclrtMemcpy H2D failed, ret=%d.", static_cast<int>(aclRet));
+        return ge::GRAPH_FAILED;
+    }
+
+    // D2D 异步: CCL buffer → 用户输出
+    void *dst = static_cast<char *>(st.outputPtr) + outputOffset;
+    aclRet = aclrtMemcpyAsync(dst, curSize, commOutputPtr, curSize,
+                              ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
+    if (aclRet != ACL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::RefreshOutputAddr: aclrtMemcpyAsync D2D failed, ret=%d.",
+                   static_cast<int>(aclRet));
+        return ge::GRAPH_FAILED;
+    }
+
+    HCCL_DEBUG("HcomAllReduceOp::RefreshOutputAddr: commOutputPtr=%p commOutputSize=%llu outputOffset=%lu curSize=%lu.",
+               commOutputPtr, commOutputSize, outputOffset, curSize);
     return ge::GRAPH_SUCCESS;
 }
 

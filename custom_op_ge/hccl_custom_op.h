@@ -38,6 +38,7 @@ struct HcclOpState {
     HcclReduceOp reduceOp = HCCL_REDUCE_RESERVED;
     uint32_t streamNum = 0;
     bool ifAiv = false;
+    uint64_t cclBuffSize = 0;
 };
 
 class HcclCustomOpBase : public ge::EagerExecuteOp, public ge::ShapeInferOp {

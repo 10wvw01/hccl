@@ -17,6 +17,7 @@
 namespace hccl {
 HcclDataType GeDataTypeToHccl(ge::DataType dt);
 HcclReduceOp StringToReduceOp(const char *reduction);
+uint64_t GetHcclDataTypeSize(HcclDataType dt);
 }  // namespace hccl
 
 #endif  // HCCL_OP_UTILS_H

@@ -16,7 +16,7 @@
 
 class HcomAllReduceOp : public hccl::HcclCustomOpBase {
  public:
-  ~HcomAllReduceOp() override = default;
+  ~HcomAllReduceOp() override;
 
   static constexpr size_t INPUT_INDEX = 0;
   static constexpr size_t OUTPUT_INDEX = 0;
@@ -28,8 +28,19 @@ class HcomAllReduceOp : public hccl::HcclCustomOpBase {
  protected:
   ge::graphStatus ExtractParams(hccl::HcclOpState &st) override;
   ge::graphStatus CalcResources(hccl::HcclOpState &st) override;
+  ge::graphStatus LaunchHcclOp(hccl::HcclOpState &st) override;
   ge::graphStatus InferShape(gert::InferShapeContext *ctx) override;
   ge::graphStatus InferDataType(gert::InferDataTypeContext *ctx) override;
+
+ private:
+  ge::graphStatus CreateIndirectCCLbuf();
+  ge::graphStatus CleanCracks(void *baseAddr, uint64_t inputOffset);
+  ge::graphStatus RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize);
+  ge::graphStatus RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize);
+
+  void *indirectInCCLbuf_ = nullptr;
+  void *indirectOutCCLbuf_ = nullptr;
+  bool indirectBufInited_ = false;
 };
 
 #endif  // HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H

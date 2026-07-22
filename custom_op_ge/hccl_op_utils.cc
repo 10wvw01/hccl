@@ -64,4 +64,28 @@ HcclReduceOp StringToReduceOp(const char *reduction)
     }
     return HCCL_REDUCE_RESERVED;
 }
+
+uint64_t GetHcclDataTypeSize(HcclDataType dt)
+{
+    switch (dt) {
+        case HCCL_DATA_TYPE_INT8:
+        case HCCL_DATA_TYPE_UINT8:
+            return 1;
+        case HCCL_DATA_TYPE_INT16:
+        case HCCL_DATA_TYPE_UINT16:
+        case HCCL_DATA_TYPE_FP16:
+        case HCCL_DATA_TYPE_BFP16:
+            return 2;
+        case HCCL_DATA_TYPE_INT32:
+        case HCCL_DATA_TYPE_UINT32:
+        case HCCL_DATA_TYPE_FP32:
+            return 4;
+        case HCCL_DATA_TYPE_INT64:
+        case HCCL_DATA_TYPE_UINT64:
+        case HCCL_DATA_TYPE_FP64:
+            return 8;
+        default:
+            return 0;
+    }
+}
 }  // namespace hccl
