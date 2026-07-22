@@ -43,7 +43,7 @@ HcclResult InsTempBroadcastMesh1DTwoShot::GetRes(AlgResourceRequest &resourceReq
     }
     resourceRequest.notifyNumOnMainThread = threadNum - 1;
 
-    HCCL_INFO("[InsTempBroadcastMesh1DTwoShot] GetRes. myRank[%d] notifyNumOnMainThread[%d] rankSize[%d] threadNum[%d]",
+    HCCL_INFO("[InsTempBroadcastMesh1DTwoShot] GetRes. myRank[%d] notifyNumOnMainThread[%d] rankSize[%d] threadNum[%u]",
                myRank_, resourceRequest.notifyNumOnMainThread, templateRankSize_, threadNum);
 
     return HCCL_SUCCESS;
@@ -74,13 +74,13 @@ HcclResult InsTempBroadcastMesh1DTwoShot::CalcDataSliceInfo(const u64 dataSize, 
     sliceInfoVec.resize(templateRankSize_);
     u64 chunkSize = RoundUp(dataSize, (templateRankSize_ * dataTypeSize_)) * dataTypeSize_;
 
-    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] CalcDataSliceInfo. myRank[%d] dataSize[%d] rankSize[%d] dataTypeSize[%d] chunkSize[%d]",
+    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] CalcDataSliceInfo. myRank[%d] dataSize[%llu] rankSize[%d] dataTypeSize[%d] chunkSize[%llu]",
                myRank_, dataSize, templateRankSize_, dataTypeSize_, chunkSize);
     u64 accumOff = 0;
     for (u32 rankIdx = 0; rankIdx < templateRankSize_; rankIdx++) {
         u64       currChunkSize  = ((dataSize - accumOff) > chunkSize) ? chunkSize : (dataSize - accumOff);
         SliceInfo slice          = {accumOff, currChunkSize};
-        HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] CalcDataSliceInfo. myRank[%d] offset[%d] dataSize[%d]",
+        HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] CalcDataSliceInfo. myRank[%d] offset[%llu] dataSize[%llu]",
                     myRank_, accumOff, currChunkSize);
         sliceInfoVec[rankIdx].push_back(slice);
         accumOff += currChunkSize;
@@ -177,9 +177,9 @@ HcclResult InsTempBroadcastMesh1DTwoShot::RootSendData(const u64 memOffset,
     DataSlice sendSrcSlice1 = DataSlice(tempAlgParams.buffInfo.inputPtr, sendSrcOffset1, sliceInfoVec[myRankIdx][0].size);
     DataSlice sendDstSlice1 = DataSlice(DstPtr, sendDstOffset1, sliceInfoVec[myRankIdx][0].size);
 
-    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RootSendData: sendSrcSlice1.myRank[%d] addr[%p] offset[%d] Size[%d]",
+    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RootSendData: sendSrcSlice1.myRank[%d] addr[%p] offset[%llu] Size[%d]",
               myRank_, tempAlgParams.buffInfo.inputPtr, sendSrcOffset1, sliceInfoVec[myRankIdx][0].size);
-    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RootSendData: sendSrcSlice1.myRank[%d] addr[%p] offset[%d] Size[%d]",
+    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RootSendData: sendSrcSlice1.myRank[%d] addr[%p] offset[%llu] Size[%d]",
               myRank_, DstPtr, sendDstOffset1, sliceInfoVec[myRankIdx][0].size);
 
     std::vector<DataSlice> sendSrcSliceVec1 = {sendSrcSlice1};
@@ -243,9 +243,9 @@ HcclResult InsTempBroadcastMesh1DTwoShot::RankRecvData(const u64 memOffset,
     DataSlice recvSrcSlice1 = DataSlice(tempAlgParams.buffInfo.inputPtr, sendSrcOffset1, sliceInfoVec[rootIdx][0].size);
     DataSlice recvDstSlice1 = DataSlice(DstPtr, sendDstOffset1, sliceInfoVec[rootIdx][0].size);
 
-    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RankRecvData: recvSrcSlice1.myRank[%d] addr[%p] offset[%d] Size[%d]",
+    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RankRecvData: recvSrcSlice1.myRank[%d] addr[%p] offset[%llu] Size[%d]",
               myRank_, tempAlgParams.buffInfo.inputPtr, sendSrcOffset1, sliceInfoVec[rootIdx][0].size);
-    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RankRecvData: recvDstSlice1.myRank[%d] addr[%p] offset[%d] Size[%d]",
+    HCCL_DEBUG("[InsTempBroadcastMesh1DTwoShot] RankRecvData: recvDstSlice1.myRank[%d] addr[%p] offset[%llu] Size[%d]",
               myRank_, DstPtr, sendDstOffset1, sliceInfoVec[rootIdx][0].size);
 
     std::vector<DataSlice> recvSrcSliceVec1= {recvSrcSlice1};

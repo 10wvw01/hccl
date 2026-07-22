@@ -94,7 +94,7 @@ HcclResult InsTempAllGatherMesh1DIntra::RunAllGatherMesh(const std::vector<Threa
 {
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
-    HCCL_DEBUG("[InsTempAllGatherMesh1DIntra] RunAllGatherMesh RankIDs[%d], myAlgRank[%d].", myRank_, myAlgRank);
+    HCCL_DEBUG("[InsTempAllGatherMesh1DIntra] RunAllGatherMesh RankIDs[%d], myAlgRank[%u].", myRank_, myAlgRank);
 
     u64 localSize = tempAlgParams_.allRankSliceSize.at(myAlgRank);
     u64 localCount = tempAlgParams_.allRankProcessedDataCount.at(myAlgRank);
@@ -110,7 +110,7 @@ HcclResult InsTempAllGatherMesh1DIntra::RunAllGatherMesh(const std::vector<Threa
 
             u32 connectedAlgRank = 0;
             CHK_RET(GetAlgRank(connectedRank, subCommRanks_[0], connectedAlgRank));
-            HCCL_DEBUG("[InsTempAllGatherMesh1DIntra] RunAllGatherMesh RankIDs[%d], connectedRank[%d], connectedAlgRank[%d].", 
+            HCCL_DEBUG("[InsTempAllGatherMesh1DIntra] RunAllGatherMesh RankIDs[%d], connectedRank[%u], connectedAlgRank[%u].", 
                 myRank_, connectedRank, connectedAlgRank);
  
             // 异常检查
@@ -212,11 +212,11 @@ HcclResult InsTempAllGatherMesh1DIntra::LocalDataCopy(const std::vector<ThreadHa
         DataSlice srcSlice(tempAlgParams_.buffInfo.inputPtr, inOff, sliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOff, sliceSize, sliceCount);
  
-        HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] RankID [%d] AlgRank [%d] srcSlice: inBaseOff[%d] inOff[%d]"
+        HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] RankID [%d] AlgRank [%u] srcSlice: inBaseOff[%llu] inOff[%llu]"
                    "sliceSize[%d] count[%d] inBuffType[%d] inputPtr[%u].",
                    myRank_, myAlgRank, inBaseOff, inOff, sliceSize, sliceCount, tempAlgParams_.buffInfo.inBuffType,
                    tempAlgParams_.buffInfo.inputPtr);
-        HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] RankID [%d] AlgRank [%d] dstSlice: outBaseoff[%d] "
+        HCCL_DEBUG("[InsTempAllGatherMesh1DIntra][LocalCopy] RankID [%d] AlgRank [%u] dstSlice: outBaseoff[%llu] "
                    "outOff[%d] sliceSize[%d] count[%d] outBuffType[%d] outputPtr[%u].",
                    myRank_, myAlgRank, outBaseOff, outOff, sliceSize, sliceCount, tempAlgParams_.buffInfo.outBuffType,
                    tempAlgParams_.buffInfo.outputPtr);

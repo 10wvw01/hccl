@@ -190,7 +190,7 @@ HcclResult InsTempAllGatherNHRDPUInter::LocalDataCopy(const TemplateDataParams& 
  
         DataSlice srcSlices(tempAlgParams.buffInfo.inputPtr, inOff, sliceSize, sliceCount);
         DataSlice dstSlice(tempAlgParams.buffInfo.hcclBuff.addr, scOff, sliceSize, sliceCount);
-        HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataAlgRank[%d] "
+        HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataAlgRank[%u] "
             "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].", myRank_, algRankIdx, inOff, scOff, sliceOffset,
             sliceSize);
         LocalCopy(templateResource.threads[0], srcSlices, dstSlice);
@@ -243,7 +243,7 @@ HcclResult InsTempAllGatherNHRDPUInter::PostLocalCopy(const TemplateDataParams& 
             u64 outOffset = outBaseOff + sliceOffset;
             DataSlice srcSlice(tempAlgParams.buffInfo.hcclBuff.addr, scratchOffset, sliceSize, sliceCount);
             DataSlice dstSlice(tempAlgParams.buffInfo.outputPtr, outOffset, sliceSize, sliceCount);
-            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataRank [%d] dataAlgRank[%d] "
+            HCCL_DEBUG("[InsTempAllGatherNHRDPUInter][LocalCopy] LocalDataCopy RankID [%d] dataRank [%d] dataAlgRank[%u] "
                        "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].",
                        myRank_, rank, algRank, scratchOffset, outOffset, sliceOffset, sliceSize);
             LocalCopy(templateResource.threads[0], srcSlice, dstSlice);

@@ -281,13 +281,13 @@ HcclResult InsV2BroadcastSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         tempAlgParamsScatterInter.inputSliceStride = 0;
         tempAlgParamsScatterInter.outputSliceStride = 0;
 
-        HCCL_DEBUG("[InsV2BroadcastSequenceExecutor] loop [%u] tempAlgParamsScatterInter.inputSliceStride [%u],"
+        HCCL_DEBUG("[InsV2BroadcastSequenceExecutor] loop [%llu] tempAlgParamsScatterInter.inputSliceStride [%u],"
                   "tempAlgParamsScatterInter.outputSliceStride [%u] tempAlgParamsScatterInter.sliceSize [%u]",
             loop,
             tempAlgParamsScatterInter.inputSliceStride,
             tempAlgParamsScatterInter.outputSliceStride,
             tempAlgParamsScatterInter.sliceSize);
-        HCCL_DEBUG("[InsV2BroadcastSequenceExecutor] loop [%u] tempAlgParamsScatterInter.buffInfo.inBuffBaseOff [%u],"
+        HCCL_DEBUG("[InsV2BroadcastSequenceExecutor] loop [%llu] tempAlgParamsScatterInter.buffInfo.inBuffBaseOff [%u],"
                   "tempAlgParamsScatterInter.buffInfo.outBuffBaseOff [%u]",
             loop,
             tempAlgParamsScatterInter.buffInfo.inBuffBaseOff,

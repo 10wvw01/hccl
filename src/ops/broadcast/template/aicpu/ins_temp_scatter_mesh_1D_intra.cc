@@ -94,7 +94,7 @@ HcclResult InsTempScatterMesh1DIntra::LocalCopyforMyRank(const std::vector<u32> 
     DataSlice dstSlice = DataSlice(tempAlgParams.buffInfo.outputPtr, tempAlgParams.buffInfo.outBuffBaseOff + sliceOffset,
                                    sliceSize, sliceCount);
     if (sliceCount != 0) {
-        HCCL_DEBUG("[InsTempScatterMesh1DIntra][LocalCopyforMyRank] RankID [%d] dataAlgRank[%d] "
+        HCCL_DEBUG("[InsTempScatterMesh1DIntra][LocalCopyforMyRank] RankID [%d] dataAlgRank[%u] "
             "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].", myRank_, myAlgRank,
             tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff, sliceOffset, sliceSize);
 
@@ -135,7 +135,7 @@ HcclResult InsTempScatterMesh1DIntra::PostCopy(
         tempAlgParams.buffInfo.outBuffBaseOff + sliceOffset,
         sliceSize * tempAlgParams.repeatNum,
         sliceCount * tempAlgParams.repeatNum);
-    HCCL_DEBUG("[InsTempScatterMesh1DIntra][LocalCopy] LocalDataCopy RankID [%d] dataAlgRank[%d] "
+    HCCL_DEBUG("[InsTempScatterMesh1DIntra][LocalCopy] LocalDataCopy RankID [%d] dataAlgRank[%u] "
         "srcOff[%d] dstOff[%d] sliceOffset[%d] sliceSize[%d].", myRank_, myAlgRank,
         tempAlgParams.buffInfo.hcclBuffBaseOff + sliceOffset, tempAlgParams.buffInfo.outBuffBaseOff + sliceOffset,
         sliceOffset, sliceSize);
@@ -171,7 +171,7 @@ HcclResult InsTempScatterMesh1DIntra::RunScatter(const std::map<u32, std::vector
                     continue;
                 }
                 u32 remoteRank = subCommRanks_[0].at(algRank);
-                HCCL_DEBUG("[InsTempScatterMesh1DIntra][RunScatter] myRank[%d], toRank[%d]", myRank_, remoteRank);
+                HCCL_DEBUG("[InsTempScatterMesh1DIntra][RunScatter] myRank[%d], toRank[%u]", myRank_, remoteRank);
                 const ChannelInfo &linkSend = channels.at(remoteRank)[0];
                 void* remoteCclBuffAddr = linkSend.remoteCclMem.addr;
 

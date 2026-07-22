@@ -368,7 +368,7 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     // 2. 计算loop次数: 受UB单次传输上限和scratch显存上限双约束
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
     u64 scratchBoundDataSize = maxTmpMemSize / rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
-    HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_,
+    HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%llu] scratchBoundDataSize[%llu]", __func__, myRank_,
         transportBoundDataSize, scratchBoundDataSize);
     loopSplitData.maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
     CHK_PRT_RET(loopSplitData.maxCountPerLoop == 0, HCCL_ERROR("[%s] maxCountPerLoop is 0", __func__), HCCL_E_INTERNAL);
