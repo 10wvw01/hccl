@@ -198,13 +198,13 @@ namespace ops_hccl
         for (auto rankId : subCommRanks[0]) {
             if (rankId != myRank) {
                 sendRank = rankId;
-                HCCL_INFO("[InsTempBatchSendRecvDpu] [DPUKernelRun] my rank is [%d], send rank is [%u].", myRank, sendRank);
+                HCCL_INFO("[InsTempBatchSendRecvDpu] [DPUKernelRun] my rank is [%u], send rank is [%u].", myRank, sendRank);
             }
         }
         auto channelIter = channels.find(sendRank);
         if (channelIter == channels.end() || channelIter->second.empty()) {
             HCCL_ERROR(
-                "[InsTempBatchSendRecvDpu] [DPUKernelRun] my rank is [%d], send rank [%u] channel not found!", myRank, sendRank);
+                "[InsTempBatchSendRecvDpu] [DPUKernelRun] my rank is [%u], send rank [%u] channel not found!", myRank, sendRank);
             return HCCL_E_INTERNAL;
         }
 
