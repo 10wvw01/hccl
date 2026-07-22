@@ -273,7 +273,11 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         return false;
     }
-    CHK_RET(SetOpParamFastLaunchTag(param));
+    HcclResult ret = SetOpParamFastLaunchTag(param);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[ShouldGoCcuFastLaunch] SetOpParamFastLaunchTag failed, ret:%d", ret);
+        return false;
+    }
 
     // 2. 查到engineCtx
     uint64_t size = 0;
