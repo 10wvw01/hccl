@@ -50,16 +50,16 @@ if(ENABLE_EXPERIMENTAL)
     add_subdirectory(${HCCL_DIR}/experimental/ops experimental/ops)
 endif()
 
-pack_targets_and_files(
+cann_pack_targets_and_files(
     OUTPUT_TARGET "generate_device_aicpu_package"
     OUTPUT "aicpu_hccl.tar.gz"
     TARGETS scatter_aicpu_kernel hccl_kernel_compat
     MANIFEST "bin_hash.cfg"
     TAR_ROOT_DIR "aicpu_kernels_device"
 )
-sign_file(
+add_cann_sign_file(
     INPUT "aicpu_hccl.tar.gz"
-    CONFIG "${HCCL_DIR}/scripts/sign/hccl_check_cfg.xml"
+    CONFIG "${HCCL_DIR}/scripts/sign.xml"
     RESULT_VAR "aicpu_hccl_sign_file"
     DEPENDS generate_device_aicpu_package
 )

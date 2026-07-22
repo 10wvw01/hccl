@@ -40,9 +40,3 @@ target_link_options(hccl_kernel_compat PRIVATE
     -Wl,-z,noexecstack
     $<$<CONFIG:Release>:-s>
 )
-
-install(TARGETS hccl_kernel_compat
-    LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
-    ${INSTALL_OPTIONAL}
-    COMPONENT hccl
-)

@@ -152,39 +152,7 @@ elseif(BUILD_OPEN_PROJECT)
 
     # Device 侧编译构建
     if(ENABLE_DEVICE)
-        include(ExternalProject)
-        ExternalProject_Add(hccl_device
-            SOURCE_DIR ${HCCL_DIR}/cmake/device
-            BINARY_DIR ${HCCL_DEVICE_BUILD_PATH}
-            CMAKE_ARGS
-                -DTOOLCHAIN_DIR=${HCC_TOOLCHAIN_DIR}
-                -DCMAKE_TOOLCHAIN_FILE=${HCCL_DIR}/cmake/aarch64-hcc-toolchain.cmake
-                -DCMAKE_C_COMPILER=${HCC_C_COMPILER}
-                -DCMAKE_CXX_COMPILER=${HCC_CXX_COMPILER}
-                -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
-                -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
-                -DCMAKE_C_AR=${HCC_C_AR}
-                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                -DCMAKE_INSTALL_PREFIX=${HCCL_DEVICE_BUILD_PATH}/_install
-                -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
-                -DASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}
-                -DBUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}
-                -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
-                -DENABLE_SIGN=${ENABLE_SIGN}
-                -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
-                -DVERSION_INFO=${VERSION_INFO}
-                -DENABLE_EXPERIMENTAL=${ENABLE_EXPERIMENTAL}
-                -DRULE_LAUNCH=${RULE_LAUNCH}
-            INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
-            BUILD_ALWAYS TRUE
-        )
-
-        # 安装 device 侧编译产物
-        install(FILES
-            ${HCCL_DEVICE_BUILD_PATH}/signatures/aicpu_hccl.tar.gz
-            DESTINATION ${INSTALL_AICPU_KERNEL_JSON_DIR}/kernel
-            COMPONENT hccl
-        )
+        add_cann_device_project(hccl)
     endif()
 
     set(HCCL_HEAD
