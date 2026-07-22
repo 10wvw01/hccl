@@ -11,6 +11,7 @@
 set(src_list
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter_acl.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/alg_env_config.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/alg_parse.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/param_check.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/inconsistent_check.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/utils.cc

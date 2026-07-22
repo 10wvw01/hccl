@@ -2306,6 +2306,26 @@ HcclResult HcclGetOpExpansionMode(HcclComm comm, OpParam &param)
     return HCCL_SUCCESS;
 }
 
+HcclResult HcclGetHcclAlgo(HcclComm comm, std::string &hcclAlgo)
+{
+    auto &hcommFunction = ops_hccl::DlHcommFunction::GetInstance();
+    if (!hcommFunction.dlHcclConfigGetInfo) {
+        HCCL_INFO("[HcclGetHcclAlgo] HcclConfigGetInfo not supported, skip.");
+        return HcclResult::HCCL_SUCCESS;
+    }
+    std::vector<char> buf(HCCL_COMM_ALGO_MAX_LENGTH, '\0');
+    uint32_t infoLen = static_cast<uint32_t>(buf.size());
+    HcclResult ret = hcommFunction.dlHcclConfigGetInfo(
+        comm, HcclConfigType::HCCL_CONFIG_TYPE_HCCL_ALGO, infoLen, buf.data());
+    if (ret != HcclResult::HCCL_SUCCESS) {
+        HCCL_ERROR("[HcclGetHcclAlgo] HcclConfigGetInfo failed, ret: %d", ret);
+        return ret;
+    }
+    hcclAlgo.assign(buf.data(), strnlen(buf.data(), buf.size()));
+    HCCL_DEBUG("[HcclGetHcclAlgo] hcclAlgo from comm: [%s]", hcclAlgo.c_str());
+    return HcclResult::HCCL_SUCCESS;
+}
+
 HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMode)
 {
     HcclOpExpansionMode configOpExpansionMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_INVALID;

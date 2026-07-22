@@ -29,8 +29,11 @@ typedef enum {
 
 typedef enum {
     HCCL_CONFIG_TYPE_INVALID = -1,
-    HCCL_CONFIG_TYPE_OP_EXPANSION_MODE = 0
+    HCCL_CONFIG_TYPE_OP_EXPANSION_MODE = 0,
+    HCCL_CONFIG_TYPE_HCCL_ALGO = 1
 } HcclConfigType;
+
+constexpr uint32_t HCCL_COMM_ALGO_MAX_LENGTH = 1600; // hccl algo max length
 
 typedef HcclOpExpansionMode HcclConfigTypeOpExpansionMode;
 
