@@ -179,14 +179,14 @@ namespace ops_hccl
             if (rankId != myRank)
             {
                 sendRank = rankId;
-                HCCL_INFO("[InsTempRecvDpu] [DPUKernelRun] my rank is [%d], send rank is [%u].", myRank, sendRank);
+                HCCL_INFO("[InsTempRecvDpu] [DPUKernelRun] my rank is [%u], send rank is [%u].", myRank, sendRank);
             }
         }
         auto channelIter = channels.find(sendRank);
         if (channelIter == channels.end() || channelIter->second.empty())
         {
             HCCL_ERROR(
-                "[InsTempRecvDpu] [DPUKernelRun] my rank is [%d], send rank [%u] channel not found!", myRank, sendRank);
+                "[InsTempRecvDpu] [DPUKernelRun] my rank is [%u], send rank [%u] channel not found!", myRank, sendRank);
             return HCCL_E_INTERNAL;
         }
         ChannelInfo linkRecv = channelIter->second[0];
