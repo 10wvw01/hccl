@@ -237,18 +237,3 @@ else()
     )
 endif()
 add_dependencies(scatter_aicpu_kernel hccl_kernel_compat)
-
-
-if(STATIC_MODE)
-    install(TARGETS scatter_aicpu_kernel
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
-        ${INSTALL_OPTIONAL}
-        COMPONENT hccl
-    )
-else()
-    install(TARGETS scatter_aicpu_kernel
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
-        ${INSTALL_OPTIONAL}
-        COMPONENT hccl
-    )
-endif()
