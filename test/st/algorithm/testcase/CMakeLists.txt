@@ -20,6 +20,9 @@ function(add_st_test OP_NAME OP_SRC)
 
     if (BUILD_OPEN_PROJECT)
         target_include_directories(${target} PUBLIC
+            # 第三方头文件
+            ${THIRD_PARTH_PATH}/gtest_shared/include
+
             # HCCL仓头文件
             ${HCCL_DEV_BASE}/src/ops/op_common/inc
 
@@ -51,7 +54,7 @@ function(add_st_test OP_NAME OP_SRC)
         )
 
         target_link_libraries(${target} PRIVATE
-            GTest::gtest
+            gtest
             pthread
             hccl-model-proxy
             hccl-verifier
@@ -81,12 +84,6 @@ endfunction()
 # 按算子拆分创建独立的测试可执行文件，支持ST_TASKS过滤
 if("all" IN_LIST ST_TASKS OR "scatter" IN_LIST ST_TASKS)
     add_st_test(scatter scatter_testcase.cc)
-endif()
-if("all" IN_LIST ST_TASKS OR "scatter_dpu" IN_LIST ST_TASKS)
-    add_st_test(scatter_dpu scatter_dpu_testcase.cc)
-endif()
-if("all" IN_LIST ST_TASKS OR "scatter_3level" IN_LIST ST_TASKS)
-    add_st_test(scatter_3level scatter_3level_testcase.cc)
 endif()
 if("all" IN_LIST ST_TASKS OR "all_reduce" IN_LIST ST_TASKS)
     add_st_test(all_reduce all_reduce_testcase.cc)
@@ -135,6 +132,8 @@ if("all" IN_LIST ST_TASKS OR "broadcast_dpu" IN_LIST ST_TASKS)
 endif()
 if("all" IN_LIST ST_TASKS OR "broadcast" IN_LIST ST_TASKS)
     add_st_test(broadcast broadcast_testcase.cc)
+    add_st_test(broadcast_3level broadcast_3level_testcase.cc)
+    add_st_test(broadcast_2level broadcast_2level_testcase.cc)
 endif()
 if("all" IN_LIST ST_TASKS OR "alltoall" IN_LIST ST_TASKS)
     add_st_test(alltoall alltoall_testcase.cc)
