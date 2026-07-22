@@ -198,7 +198,7 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     // 获取每个temp的线程数
     u64 level0ThreadsNum = algTempLevel0.GetThreadNum();
     u64 level1ThreadsNum = algTempLevel1.GetThreadNum();
-    HCCL_DEBUG("[%s] level0ThreasNum[%u] level1ThreadsNum[%u]", __func__, level0ThreadsNum, level1ThreadsNum);
+    HCCL_DEBUG("[%s] level0ThreasNum[%llu] level1ThreadsNum[%llu]", __func__, level0ThreadsNum, level1ThreadsNum);
 
     level0Threads_.assign(threads_.begin() + 1, threads_.begin() + 1 + level0ThreadsNum);
     level1Threads_.assign(threads_.begin() + 1 + level0ThreadsNum, threads_.end());

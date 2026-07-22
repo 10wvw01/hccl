@@ -180,11 +180,11 @@ HcclResult CcuTempAllGatherOmniPipeNHR1DMem2Mem::KernelRun(
             inputOmniSliceStrideVec.push_back(
                 stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt] + stepSliceInfo.stepInputSliceStride[ridx]);
             inputOmniSliceSizeVec.push_back(stepSliceInfo.stepSliceSize[ridx][rpt]);
-            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.inputOmniPipeSliceStride[%d][%d]:%d", __func__,
+            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.inputOmniPipeSliceStride[%u][%u]:%d", __func__,
                         myRank_, ridx, rpt, stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
-            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepInputSliceStride[%d]:%d", __func__,
+            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepInputSliceStride[%u]:%d", __func__,
                         myRank_, ridx, stepSliceInfo.stepInputSliceStride[ridx]);
-            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepSliceSize[%d][%d]:%d", __func__,
+            HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepSliceSize[%u][%u]:%d", __func__,
                         myRank_, ridx, rpt, stepSliceInfo.stepSliceSize[ridx][rpt]);
         }
         uint64_t inputSliceStride = templateDataParams.inputSliceStride;

@@ -411,7 +411,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
         tempResMap[temp.first].threads = levelThreads_[temp.first];
         tempAlgParamMap[temp.first].buffInfo.hcclBuff = resCtx.cclMem;
     }
-    HCCL_DEBUG("loopTimes[%d]", loopTimes);
+    HCCL_DEBUG("loopTimes[%llu]", loopTimes);
     for (u64 loop = 0; loop < loopTimes; loop++) {
         u64 currDataCount = (loop == loopTimes - 1) ? dataCount_ - processedDataCount : maxCountPerLoop;
         DataSlice src(param.inputPtr, processedDataCount * dataTypeSize_, currDataCount * dataTypeSize_, currDataCount);
@@ -527,7 +527,7 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
     const OmniPipeSliceInfo& omniPipeSliceInfo, const OmniPipeSliceInfo& omniPipeSliceLocalcopyInfo,
     std::map<u32, TemplateDataParams>& tempAlgParamMap, const u64 processedDataCount, int step) const
 {
-    HCCL_DEBUG("do localcopy, parallel with step %u", step);
+    HCCL_DEBUG("do localcopy, parallel with step %d", step);
     // 做j-1这一步的localcopy 外面是每个rank遍历，里面是每个rank的多片
     for (int k = 0; k < rankSizeLevel_[OMNIPIPE_LEVEL0]; k++) {
         for (int rpt = 0;

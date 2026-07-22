@@ -107,15 +107,15 @@ std::vector<ChannelInfo> InsTempAllGatherMesh1D1DZAxisDetour::PrepareMergedChann
 u64 InsTempAllGatherMesh1D1DZAxisDetour::CalcSliceSizeForChannel(u32 myAlgRank, u32 connectedAlgRank, bool dmaRead) const
 {
     u64 sliceSize = tempAlgParams_.sliceSize;
-    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%u]\n", sliceSize);
+    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%llu]\n", sliceSize);
     if (dmaRead) {
         if (tempAlgParams_.tailSize != 0 && connectedAlgRank == templateRankSize_ - 1) {
             sliceSize = tempAlgParams_.tailSize;
-            HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%u]\n", sliceSize);
+            HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%llu]\n", sliceSize);
         }
     } else if (tempAlgParams_.tailSize != 0 && myAlgRank == templateRankSize_ - 1) {
         sliceSize = tempAlgParams_.tailSize;
-        HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%u]\n", sliceSize);
+        HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] sliceSize[%llu]\n", sliceSize);
     }
     return sliceSize;
 }
@@ -147,13 +147,13 @@ void InsTempAllGatherMesh1D1DZAxisDetour::BuildDataSlicesForChannel(
         txDstSlicesAll.emplace_back(txDstPtr, txDstOffset, sizeOut_[idx], elemCountOut_[idx]);
         rxDstSlicesAll.emplace_back(rxDstPtr, rxOutOffset, sizeOut_[idx], elemCountOut_[idx]);
         rxSrcSlicesAll.emplace_back(rxSrcPtr, rxSrcOffset, sizeOut_[idx], elemCountOut_[idx]);
-        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txSrcSlices: "
+        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%u] rpt [%u] txSrcSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, txOutOffset, sizeOut_[idx], elemCountOut_[idx]);
-        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] txDstSlices: "
+        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%u] rpt [%u] txDstSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, txDstOffset, sizeOut_[idx], elemCountOut_[idx]);
-        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxSrcSlices: "
+        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%u] rpt [%u] rxSrcSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, rxOutOffset, sizeOut_[idx], elemCountOut_[idx]);
-        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%d] rpt [%d] rxDrcSlices: "
+        HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][RunAllGatherMesh] rankId [%d] connectedRank [%u] rpt [%u] rxDrcSlices: "
                    "offset[%llu] sliceSize[%llu] count[%llu].", myRank_, connectedRank, rpt, rxSrcOffset, sizeOut_[idx], elemCountOut_[idx]);
     }
 }
@@ -190,11 +190,11 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::ProcessSingleChannel(
     u32 idx = (channelsPerRank_ == 0) ? 0 : (threadIdx % channelsPerRank_);
     u32 connectedAlgRank = 0;
     CHK_RET(GetAlgRank(connectedRank, subCommRanks_[0], connectedAlgRank));
-    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] RunAllGatherMesh RankIDs[%d], connectedRank[%d], connectedAlgRank[%d].",
+    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] RunAllGatherMesh RankIDs[%d], connectedRank[%u], connectedAlgRank[%u].",
               myRank_, connectedRank, connectedAlgRank);
     u64 sliceSize = CalcSliceSizeForChannel(myAlgRank, connectedAlgRank, dmaRead);
     u64 sliceCount = sliceSize / dataTypeSize;
-    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] silceCount[%u]\n", sliceCount);
+    HCCL_INFO("[InsTempAllGatherMesh1D1DZAxisDetour] silceCount[%llu]\n", sliceCount);
     elemCountOut_.clear();
     sizeOut_.clear();
     elemOffset_.clear();
@@ -235,10 +235,10 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::LocalDataCopy(const std::vector<
         bool skipOutCopy = (tempAlgParams_.buffInfo.inputPtr == tempAlgParams_.buffInfo.outputPtr && inOff == outOff);
         if (!skipOutCopy) {
             DataSlice dstSlice(tempAlgParams_.buffInfo.outputPtr, outOff, sliceSize, sliceCount);
-            HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][LocalDataCopy] RankID [%d] AlgRank [%d] srcSlice: inBaseOff[%llu] inOff[%llu] "
+            HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][LocalDataCopy] RankID [%d] AlgRank [%u] srcSlice: inBaseOff[%llu] inOff[%llu] "
                        "sliceSize[%llu] count[%llu].",
                        myRank_, myAlgRank, inBaseOff, inOff, sliceSize, sliceCount);
-            HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][LocalDataCopy] RankID [%d] AlgRank [%d] dstSlice: outBaseoff[%llu] "
+            HCCL_DEBUG("[InsTempAllGatherMesh1D1DZAxisDetour][LocalDataCopy] RankID [%d] AlgRank [%u] dstSlice: outBaseoff[%llu] "
                        "outOff[%llu] sliceSize[%llu] count[%llu].",
                        myRank_, myAlgRank, outBaseOff, outOff, sliceSize, sliceCount);
             LocalCopy(threads[0], srcSlice, dstSlice);
