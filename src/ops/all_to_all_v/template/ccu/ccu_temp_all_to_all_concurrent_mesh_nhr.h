@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_CCU_TEMP_ALL_TO_ALL_MESH1D_MULTI_PLANE_MEM2MEM_H
-#define HCCL_CCU_TEMP_ALL_TO_ALL_MESH1D_MULTI_PLANE_MEM2MEM_H
+#ifndef HCCL_CCU_TEMP_ALL_TO_ALL_CONCURRENT_MESH_NHR_H
+#define HCCL_CCU_TEMP_ALL_TO_ALL_CONCURRENT_MESH_NHR_H
 
 #include "utils.h"
 #include "ccu_alg_template_base.h"
@@ -38,12 +38,12 @@ struct CcuAlltoAllMesh1DArgLayout {
 // Concurrent: mesh(die1) + clos(die0), both use CcuAlltoAllMesh1DKernel, data split by bw ratio (rankSize-1):8.
 // threads[0] -> mesh main, threads[1] -> clos main (executor slave).
 // ccuKernels[0] -> mesh, ccuKernels[1] -> clos.
-class CcuTempAllToAllSoleMeshScheConcur : public CcuAlgTemplateBase {
+class CcuTempAllToAllConcurrentMeshNHR : public CcuAlgTemplateBase {
 public:
-    CcuTempAllToAllSoleMeshScheConcur() = default;
-    explicit CcuTempAllToAllSoleMeshScheConcur(const OpParam &param, const u32 rankId,
+    CcuTempAllToAllConcurrentMeshNHR() = default;
+    explicit CcuTempAllToAllConcurrentMeshNHR(const OpParam &param, const u32 rankId,
                                                  const std::vector<std::vector<u32>> &subCommRanks);
-    ~CcuTempAllToAllSoleMeshScheConcur() override = default;
+    ~CcuTempAllToAllConcurrentMeshNHR() override = default;
 
     std::string Describe() const override
     {
@@ -68,4 +68,4 @@ private:
 
 } // namespace ops_hccl
 
-#endif // HCCL_CCU_TEMP_ALL_TO_ALL_MESH1D_MULTI_PLANE_MEM2MEM_H
+#endif // HCCL_CCU_TEMP_ALL_TO_ALL_CONCURRENT_MESH_NHR_H
