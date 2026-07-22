@@ -23,6 +23,8 @@ namespace {
 constexpr uint32_t HCOMM_CHANNEL_MAGIC_WORD = 0x0fcf0f0fU;
 constexpr uint32_t MAX_DUMP_ARRAY_NUM = 8U;
 constexpr uint32_t MAX_DUMP_BYTES = 64U;
+constexpr uint32_t SQ_WQE_WINDOW = 2U;
+constexpr uint32_t CQE_WINDOW = 4U;
 constexpr uint32_t URMA_OPCODE_SEND = 0U;
 constexpr uint32_t URMA_OPCODE_SEND_WITH_IMM = 1U;
 constexpr uint32_t URMA_OPCODE_SEND_WITH_INV = 2U;
@@ -281,6 +283,28 @@ uint64_t GetSqVa(const SqContext &sqContext)
     return 0;
 }
 
+uint64_t GetSqHeadAddr(const SqContext &sqContext)
+{
+    if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
+        return sqContext.contextInfo.ubJfs.headAddr;
+    }
+    if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_ROCE) {
+        return sqContext.contextInfo.roceSq.headAddr;
+    }
+    return 0;
+}
+
+uint64_t GetSqTailAddr(const SqContext &sqContext)
+{
+    if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
+        return sqContext.contextInfo.ubJfs.tailAddr;
+    }
+    if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_ROCE) {
+        return sqContext.contextInfo.roceSq.tailAddr;
+    }
+    return 0;
+}
+
 uint32_t GetSqDepth(const SqContext &sqContext)
 {
     if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
@@ -310,6 +334,28 @@ uint64_t GetCqVa(const CqContext &cqContext)
     }
     if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_ROCE) {
         return cqContext.contextInfo.roceCq.cqVa;
+    }
+    return 0;
+}
+
+uint64_t GetCqHeadAddr(const CqContext &cqContext)
+{
+    if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_UB_JFC) {
+        return cqContext.contextInfo.ubJfc.headAddr;
+    }
+    if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_ROCE) {
+        return cqContext.contextInfo.roceCq.headAddr;
+    }
+    return 0;
+}
+
+uint64_t GetCqTailAddr(const CqContext &cqContext)
+{
+    if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_UB_JFC) {
+        return cqContext.contextInfo.ubJfc.tailAddr;
+    }
+    if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_ROCE) {
+        return cqContext.contextInfo.roceCq.tailAddr;
     }
     return 0;
 }
@@ -534,9 +580,19 @@ void DumpUrmaSgeCtx(uint64_t deviceAddr, uint32_t wqeIdx, uint32_t sgeNum)
     Trace("dump UrmaSgeCtx[%u] end dumped=%u", wqeIdx, dumpNum);
 }
 
-void DumpUrmaSqWqeEntries(uint32_t sqIdx, const SqContext &sqContext, uint32_t wqeCnt)
+bool ReadQueueCursor(uint64_t cursorAddr, uint32_t &cursor, const char *name)
 {
-    Trace("dump UrmaWqe sqIdx=%u begin wqeCnt=%u", sqIdx, wqeCnt);
+    cursor = 0;
+    if (cursorAddr == 0) {
+        Trace("skip %s cursor read, addr is 0", name);
+        return false;
+    }
+    return CopyFromDevice(cursorAddr, cursor, name);
+}
+
+void DumpUrmaSqWqeEntries(uint32_t sqIdx, const SqContext &sqContext, uint32_t startBb, uint32_t wqeCnt)
+{
+    Trace("dump UrmaWqe sqIdx=%u begin startBb=%u wqeCnt=%u", sqIdx, startBb, wqeCnt);
     uint64_t sqVa = GetSqVa(sqContext);
     uint32_t sqDepth = GetSqDepth(sqContext);
     uint32_t bbSize = GetSqEntrySize(sqContext);
@@ -547,7 +603,7 @@ void DumpUrmaSqWqeEntries(uint32_t sqIdx, const SqContext &sqContext, uint32_t w
     }
 
     uint32_t dumpNum = std::min(wqeCnt, MAX_DUMP_ARRAY_NUM);
-    uint32_t bbOffset = 0;
+    uint32_t bbOffset = startBb;
     for (uint32_t wqeIdx = 0; wqeIdx < dumpNum; ++wqeIdx) {
         uint32_t bbIdx = bbOffset % sqDepth;
         uint64_t wqeAddr = sqVa + static_cast<uint64_t>(bbIdx) * bbSize;
@@ -599,6 +655,31 @@ void DumpUrmaSqWqeEntries(uint32_t sqIdx, const SqContext &sqContext, uint32_t w
     Trace("dump UrmaWqe sqIdx=%u end dumped=%u", sqIdx, dumpNum);
 }
 
+void DumpCqTailEntries(uint32_t cqIdx, const CqContext &cqContext, uint32_t startTail, uint32_t entryCnt)
+{
+    Trace("dump CqTailEntries cqIdx=%u begin startTail=%u entryCnt=%u", cqIdx, startTail, entryCnt);
+    uint64_t cqVa = GetCqVa(cqContext);
+    uint32_t cqDepth = GetCqDepth(cqContext);
+    uint32_t entrySize = GetCqEntrySize(cqContext);
+    if (cqVa == 0 || cqDepth == 0 || entrySize == 0 || entryCnt == 0) {
+        Trace("dump CqTailEntries cqIdx=%u end invalid base cqVa=0x%llx depth=%u entrySize=%u entryCnt=%u", cqIdx,
+            static_cast<unsigned long long>(cqVa), cqDepth, entrySize, entryCnt);
+        return;
+    }
+
+    uint32_t dumpNum = std::min(entryCnt, MAX_DUMP_ARRAY_NUM);
+    for (uint32_t i = 0; i < dumpNum; ++i) {
+        uint32_t tail = startTail + i;
+        uint32_t index = tail % cqDepth;
+        uint64_t entryAddr = cqVa + static_cast<uint64_t>(index) * entrySize;
+        DumpBytes("scqVa", cqIdx, entryAddr);
+    }
+    if (entryCnt > dumpNum) {
+        HCCL_RUN_INFO("[HcommChannelInfoDump] CqTailEntries total[%u], dumped[%u].", entryCnt, dumpNum);
+    }
+    Trace("dump CqTailEntries cqIdx=%u end dumped=%u", cqIdx, dumpNum);
+}
+
 void DumpSqContext(uint64_t deviceAddr, uint32_t sqNum, uint32_t wqeCnt)
 {
     Trace("dump SqContext begin addr=0x%llx sqNum=%u wqeCnt=%u", static_cast<unsigned long long>(deviceAddr),
@@ -620,18 +701,23 @@ void DumpSqContext(uint64_t deviceAddr, uint32_t sqNum, uint32_t wqeCnt)
             continue;
         }
         uint64_t sqVa = GetSqVa(sqContext);
-        HCCL_RUN_INFO("[HcommChannelInfoDump] SqContext[%u] type[%d] sqVa[0x%llx] depth[%u] entrySize[%u].",
+        uint32_t sqHead = 0;
+        uint32_t sqTail = 0;
+        bool headReady = ReadQueueCursor(GetSqHeadAddr(sqContext), sqHead, "SqHead");
+        bool tailReady = ReadQueueCursor(GetSqTailAddr(sqContext), sqTail, "SqTail");
+        HCCL_RUN_INFO("[HcommChannelInfoDump] SqContext[%u] type[%d] sqVa[0x%llx] depth[%u] entrySize[%u] head[%u]%s tail[%u]%s.",
             idx, static_cast<int32_t>(sqContext.type), static_cast<unsigned long long>(sqVa),
-            GetSqDepth(sqContext), GetSqEntrySize(sqContext));
-        if (IsQueueVaDumpEnabled()) {
-            if (sqVa != 0) {
-                DumpBytes("sqVa", idx, sqVa);
-            }
-            if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
-                DumpUrmaSqWqeEntries(idx, sqContext, wqeCnt);
-            }
-        } else {
-            Trace("skip sqVa/UrmaWqe copy for SqContext[%u], set HCOMM_CHANNEL_DUMP_QUEUE_VA=1 to enable", idx);
+            GetSqDepth(sqContext), GetSqEntrySize(sqContext), sqHead, headReady ? "" : "(invalid)", sqTail,
+            tailReady ? "" : "(invalid)");
+        if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS && headReady) {
+            uint32_t dumpNum = sqHead == 0 ? 1U : std::min(sqHead, SQ_WQE_WINDOW);
+            uint32_t startBb = sqHead >= dumpNum ? sqHead - dumpNum : 0U;
+            DumpUrmaSqWqeEntries(idx, sqContext, startBb, dumpNum);
+        } else if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
+            Trace("skip UrmaWqe window for SqContext[%u], head cursor unavailable", idx);
+        }
+        if (IsQueueVaDumpEnabled() && sqVa != 0) {
+            DumpBytes("sqVa", idx, sqVa);
         }
     }
     if (sqNum > dumpNum) {
@@ -660,15 +746,23 @@ void DumpCqContext(uint64_t deviceAddr, uint32_t cqNum)
             continue;
         }
         uint64_t cqVa = GetCqVa(cqContext);
-        HCCL_RUN_INFO("[HcommChannelInfoDump] CqContext[%u] type[%d] cqVa[0x%llx] depth[%u] entrySize[%u].",
+        uint32_t cqHead = 0;
+        uint32_t cqTail = 0;
+        bool headReady = ReadQueueCursor(GetCqHeadAddr(cqContext), cqHead, "CqHead");
+        bool tailReady = ReadQueueCursor(GetCqTailAddr(cqContext), cqTail, "CqTail");
+        HCCL_RUN_INFO("[HcommChannelInfoDump] CqContext[%u] type[%d] cqVa[0x%llx] depth[%u] entrySize[%u] head[%u]%s tail[%u]%s.",
             idx, static_cast<int32_t>(cqContext.type), static_cast<unsigned long long>(cqVa),
-            GetCqDepth(cqContext), GetCqEntrySize(cqContext));
-        if (IsQueueVaDumpEnabled()) {
-            if (cqVa != 0) {
-                DumpBytes("scqVa", idx, cqVa);
-            }
-        } else {
-            Trace("skip scqVa copy for CqContext[%u], set HCOMM_CHANNEL_DUMP_QUEUE_VA=1 to enable", idx);
+            GetCqDepth(cqContext), GetCqEntrySize(cqContext), cqHead, headReady ? "" : "(invalid)", cqTail,
+            tailReady ? "" : "(invalid)");
+        if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_UB_JFC && tailReady) {
+            uint32_t dumpNum = (cqTail < (CQE_WINDOW - 1U)) ? (cqTail + 1U) : CQE_WINDOW;
+            uint32_t startTail = cqTail >= dumpNum ? cqTail - dumpNum + 1U : 0U;
+            DumpCqTailEntries(idx, cqContext, startTail, dumpNum);
+        } else if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_UB_JFC) {
+            Trace("skip CqTail window for CqContext[%u], tail cursor unavailable", idx);
+        }
+        if (IsQueueVaDumpEnabled() && cqVa != 0) {
+            DumpBytes("scqVa", idx, cqVa);
         }
     }
     if (cqNum > dumpNum) {
