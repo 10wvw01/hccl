@@ -592,7 +592,7 @@ HcclResult InsV2AllToAllConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlg
 // 第1个模板走mesh拓扑
 // 第2个模板走clos拓扑
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
-                                InsAllToAllMesh1DConcurrentUBX,
+                                InsAllToAllMesh1DConcurrent,
                                 InsV2AllToAllConcurrentExecutor,
                                 TopoMatchUBX,
                                 InsTempAlltoAllVMesh1D,
@@ -606,7 +606,7 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALLV,
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_ALLTOALL,
-                                CcuAllToAllMesh1DConcurrentUBX,
+                                CcuAllToAllMesh1DConcurrent,
                                 InsV2AllToAllConcurrentExecutor,
                                 TopoMatchUBX,
                                 CcuTempAllToAllMesh1dMultiJetty,

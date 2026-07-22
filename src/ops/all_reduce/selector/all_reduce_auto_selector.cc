@@ -86,7 +86,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshUBXAlgo(const TopoInfoWithNetLay
             selectAlgName = "CcuAllReduceMesh1DOneShot";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "CcuAllReduceConcurrentMsUBX";
+            selectAlgName = "CcuAllReduceConcurrentMs";
         }
     } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
         if (dataSize < OMNI_UBX_AR_MS_DATA_SIZE) {
@@ -258,7 +258,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0UBXAlgo(const TopoI
             selectAlgName = "CcuAllReduceMesh1DMem2Mem";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "CcuAllReduceConcurrentScheUBX";
+            selectAlgName = "CcuAllReduceConcurrentSche";
         }
     } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
         // 矩形场景大数据量，用Parallel并行算法
