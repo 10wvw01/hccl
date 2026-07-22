@@ -12,9 +12,13 @@
 
 #include <algorithm>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <string>
+#include <unordered_map>
 
 #include "adapter_acl.h"
 #include "log.h"
@@ -25,6 +29,12 @@ constexpr uint32_t MAX_DUMP_ARRAY_NUM = 8U;
 constexpr uint32_t MAX_DUMP_BYTES = 64U;
 constexpr uint32_t SQ_WQE_WINDOW = 2U;
 constexpr uint32_t CQE_WINDOW = 4U;
+constexpr uint32_t DFX_QUEUE_READ_MAX_BYTES = 256U;
+constexpr uint32_t DFX_QUEUE_READ_SUCCESS = 0U;
+constexpr uint32_t AIV_ATTRNUM_THREE = 3U;
+constexpr uint32_t AIV_DFX_KERNEL_TIMEOUT_US = 2000000U;
+constexpr const char *DFX_QUEUE_READ_BINARY_NAME = "hccl_dfx_queue_read_kernel_910_95.o";
+constexpr const char *DFX_QUEUE_READ_KERNEL_NAME = "hccl_dfx_queue_read_kernel";
 constexpr uint32_t URMA_OPCODE_SEND = 0U;
 constexpr uint32_t URMA_OPCODE_SEND_WITH_IMM = 1U;
 constexpr uint32_t URMA_OPCODE_SEND_WITH_INV = 2U;
@@ -202,6 +212,27 @@ struct UrmaSgeCtx {
     uint64_t va;
 };
 
+struct DfxQueueReadArgs {
+    uint64_t srcAddr;
+    uint64_t resultAddr;
+    uint32_t size;
+    uint32_t reserved;
+};
+
+struct DfxQueueReadResult {
+    uint32_t ret;
+    uint32_t size;
+    uint8_t data[DFX_QUEUE_READ_MAX_BYTES];
+};
+
+struct DfxQueueReadKernelEntry {
+    aclrtBinHandle binHandle = nullptr;
+    aclrtFuncHandle funcHandle = nullptr;
+};
+
+std::mutex g_dfxQueueReadMutex;
+std::unordered_map<int32_t, DfxQueueReadKernelEntry> g_dfxQueueReadKernelByDevice;
+
 void Trace(const char *format, ...)
 {
     std::fprintf(stderr, "[HcommChannelInfoDump][TRACE] ");
@@ -217,6 +248,145 @@ bool IsQueueVaDumpEnabled()
 {
     const char *env = std::getenv("HCOMM_CHANNEL_DUMP_QUEUE_VA");
     return env != nullptr && env[0] == '1' && env[1] == '\0';
+}
+
+std::string GetDfxQueueReadBinaryPath()
+{
+    const char *kernelPath = std::getenv("HCOMM_DFX_QUEUE_READ_KERNEL_PATH");
+    if (kernelPath != nullptr && kernelPath[0] != '\0') {
+        return kernelPath;
+    }
+    const char *homePath = std::getenv("ASCEND_HOME_PATH");
+    std::string basePath = homePath == nullptr ? "/usr/local/Ascend/cann" : homePath;
+    return basePath + "/lib64/" + DFX_QUEUE_READ_BINARY_NAME;
+}
+
+bool GetDfxQueueReadKernel(DfxQueueReadKernelEntry &entry)
+{
+    int32_t deviceId = 0;
+    aclError aclRet = aclrtGetDevice(&deviceId);
+    if (aclRet != ACL_SUCCESS) {
+        Trace("aclrtGetDevice failed ret=%d", aclRet);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] aclrtGetDevice failed, ret[%d].", aclRet);
+        return false;
+    }
+
+    std::lock_guard<std::mutex> guard(g_dfxQueueReadMutex);
+    auto it = g_dfxQueueReadKernelByDevice.find(deviceId);
+    if (it != g_dfxQueueReadKernelByDevice.end()) {
+        entry = it->second;
+        return entry.funcHandle != nullptr;
+    }
+
+    DfxQueueReadKernelEntry newEntry;
+    const std::string binaryPath = GetDfxQueueReadBinaryPath();
+    HcclResult ret = ops_hccl::LoadBinaryFromFile(binaryPath.c_str(), ACL_RT_BINARY_LOAD_OPT_LAZY_LOAD, 1,
+        newEntry.binHandle);
+    if (ret != HCCL_SUCCESS) {
+        Trace("load dfx queue read binary failed path=%s ret=%d", binaryPath.c_str(), ret);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] load dfx queue read binary[%s] failed, ret[%d].",
+            binaryPath.c_str(), ret);
+        return false;
+    }
+
+    aclRet = aclrtBinaryGetFunction(newEntry.binHandle, DFX_QUEUE_READ_KERNEL_NAME, &newEntry.funcHandle);
+    if (aclRet != ACL_SUCCESS) {
+        Trace("aclrtBinaryGetFunction failed kernel=%s ret=%d", DFX_QUEUE_READ_KERNEL_NAME, aclRet);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] get dfx queue read kernel[%s] failed, ret[%d].",
+            DFX_QUEUE_READ_KERNEL_NAME, aclRet);
+        (void)aclrtBinaryUnLoad(newEntry.binHandle);
+        return false;
+    }
+
+    g_dfxQueueReadKernelByDevice[deviceId] = newEntry;
+    entry = newEntry;
+    Trace("loaded dfx queue read kernel path=%s device=%d", binaryPath.c_str(), deviceId);
+    return true;
+}
+
+bool ReadBytesByDfxKernel(uint64_t deviceAddr, uint8_t *buffer, size_t size, const char *name)
+{
+    if (deviceAddr == 0 || buffer == nullptr || size == 0 || size > DFX_QUEUE_READ_MAX_BYTES) {
+        Trace("skip %s dfx kernel read, invalid param addr=0x%llx size=%llu", name,
+            static_cast<unsigned long long>(deviceAddr), static_cast<unsigned long long>(size));
+        return false;
+    }
+
+    DfxQueueReadKernelEntry entry;
+    if (!GetDfxQueueReadKernel(entry)) {
+        return false;
+    }
+
+    void *deviceResult = nullptr;
+    aclError aclRet = aclrtMalloc(&deviceResult, sizeof(DfxQueueReadResult), ACL_MEM_MALLOC_HUGE_FIRST);
+    if (aclRet != ACL_SUCCESS) {
+        Trace("aclrtMalloc dfx queue read result failed ret=%d", aclRet);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] alloc dfx queue read result failed, ret[%d].", aclRet);
+        return false;
+    }
+
+    aclrtStream stream = nullptr;
+    aclRet = aclrtCreateStream(&stream);
+    if (aclRet != ACL_SUCCESS) {
+        Trace("aclrtCreateStream for dfx queue read failed ret=%d", aclRet);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] create dfx queue read stream failed, ret[%d].", aclRet);
+        (void)aclrtFree(deviceResult);
+        return false;
+    }
+
+    aclrtLaunchKernelCfg cfg;
+    aclrtLaunchKernelAttr attr[AIV_ATTRNUM_THREE];
+    attr[0].id = ACL_RT_LAUNCH_KERNEL_ATTR_SCHEM_MODE;
+    attr[0].value.schemMode = 1;
+    attr[1].id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT_US;
+    attr[1].value.timeoutUs.timeoutLow = AIV_DFX_KERNEL_TIMEOUT_US;
+    attr[1].value.timeoutUs.timeoutHigh = 0;
+    attr[2].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENGINE_TYPE;
+    attr[2].value.engineType = ACL_RT_ENGINE_TYPE_AIV;
+    cfg.numAttrs = AIV_ATTRNUM_THREE;
+    cfg.attrs = attr;
+
+    DfxQueueReadArgs args = {deviceAddr, reinterpret_cast<uint64_t>(deviceResult), static_cast<uint32_t>(size), 0};
+    Trace("read %s by dfx kernel begin addr=0x%llx size=%llu", name,
+        static_cast<unsigned long long>(deviceAddr), static_cast<unsigned long long>(size));
+    bool readOk = true;
+    aclError launchRet = aclrtLaunchKernelWithHostArgs(entry.funcHandle, 1, stream, &cfg, &args, sizeof(args),
+        nullptr, 0);
+    if (launchRet == ACL_SUCCESS) {
+        launchRet = aclrtSynchronizeStream(stream);
+    }
+
+    DfxQueueReadResult result;
+    std::memset(&result, 0, sizeof(result));
+    if (launchRet == ACL_SUCCESS) {
+        HcclResult copyRet = ops_hccl::haclrtMemcpy(&result, sizeof(result), deviceResult, sizeof(result),
+            ACL_MEMCPY_DEVICE_TO_HOST);
+        if (copyRet != HCCL_SUCCESS) {
+            Trace("copy dfx queue read result failed ret=%d", copyRet);
+            readOk = false;
+        }
+    } else {
+        readOk = false;
+    }
+
+    (void)aclrtDestroyStream(stream);
+    (void)aclrtFree(deviceResult);
+    if (!readOk) {
+        Trace("read %s by dfx kernel failed ret=%d", name, launchRet);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] read %s by dfx kernel failed, ret[%d].", name, launchRet);
+        return false;
+    }
+    if (result.ret != DFX_QUEUE_READ_SUCCESS || result.size != size) {
+        Trace("read %s by dfx kernel invalid result ret=%u size=%u expect=%llu", name, result.ret, result.size,
+            static_cast<unsigned long long>(size));
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] read %s by dfx kernel invalid result, ret[%u], size[%u].",
+            name, result.ret, result.size);
+        return false;
+    }
+
+    std::memcpy(buffer, result.data, size);
+    Trace("read %s by dfx kernel end ret=0", name);
+    return true;
 }
 
 template <typename T>
@@ -242,6 +412,24 @@ bool CopyFromDevice(uint64_t deviceAddr, T &hostValue, const char *name)
     return true;
 }
 
+template <typename T>
+bool CopyQueueFromDevice(uint64_t deviceAddr, T &hostValue, const char *name)
+{
+    if (deviceAddr == 0) {
+        Trace("%s addr is 0, skip queue copy", name);
+        HCCL_RUN_WARNING("[HcommChannelInfoDump] %s addr is 0.", name);
+        return false;
+    }
+    std::memset(&hostValue, 0, sizeof(T));
+    if (sizeof(T) <= DFX_QUEUE_READ_MAX_BYTES &&
+        ReadBytesByDfxKernel(deviceAddr, reinterpret_cast<uint8_t *>(&hostValue), sizeof(T), name)) {
+        return true;
+    }
+    HCCL_RUN_WARNING("[HcommChannelInfoDump] read queue %s failed, addr[0x%llx], size[%llu].",
+        name, static_cast<unsigned long long>(deviceAddr), static_cast<unsigned long long>(sizeof(T)));
+    return false;
+}
+
 bool CopyBytesFromDevice(uint64_t deviceAddr, uint8_t *buffer, size_t size, const char *name)
 {
     if (deviceAddr == 0) {
@@ -249,17 +437,12 @@ bool CopyBytesFromDevice(uint64_t deviceAddr, uint8_t *buffer, size_t size, cons
         HCCL_RUN_WARNING("[HcommChannelInfoDump] %s addr is 0.", name);
         return false;
     }
-    Trace("copy %s bytes begin addr=0x%llx size=%llu", name, static_cast<unsigned long long>(deviceAddr),
-        static_cast<unsigned long long>(size));
-    HcclResult ret = ops_hccl::haclrtMemcpy(buffer, size, reinterpret_cast<const void *>(deviceAddr), size,
-        ACL_MEMCPY_DEVICE_TO_HOST);
-    Trace("copy %s bytes end ret=%d", name, ret);
-    if (ret != HCCL_SUCCESS) {
-        HCCL_ERROR("[HcommChannelInfoDump] copy %s failed, addr[0x%llx], size[%llu], ret[%d].",
-            name, static_cast<unsigned long long>(deviceAddr), static_cast<unsigned long long>(size), ret);
-        return false;
+    if (ReadBytesByDfxKernel(deviceAddr, buffer, size, name)) {
+        return true;
     }
-    return true;
+    HCCL_RUN_WARNING("[HcommChannelInfoDump] read queue %s bytes failed, addr[0x%llx], size[%llu].",
+        name, static_cast<unsigned long long>(deviceAddr), static_cast<unsigned long long>(size));
+    return false;
 }
 
 uint64_t GetBufferAddr(const RegedBufferEntity &buffer)
@@ -549,7 +732,7 @@ void DumpUrmaNotifyCtx(uint64_t deviceAddr, uint32_t wqeIdx)
 {
     Trace("dump UrmaNotifyCtx[%u] begin addr=0x%llx", wqeIdx, static_cast<unsigned long long>(deviceAddr));
     UrmaNotifyCtx notifyCtx;
-    if (!CopyFromDevice(deviceAddr, notifyCtx, "UrmaNotifyCtx")) {
+    if (!CopyQueueFromDevice(deviceAddr, notifyCtx, "UrmaNotifyCtx")) {
         Trace("dump UrmaNotifyCtx[%u] failed", wqeIdx);
         return;
     }
@@ -568,7 +751,7 @@ void DumpUrmaSgeCtx(uint64_t deviceAddr, uint32_t wqeIdx, uint32_t sgeNum)
     for (uint32_t idx = 0; idx < dumpNum; ++idx) {
         UrmaSgeCtx sgeCtx;
         uint64_t addr = deviceAddr + static_cast<uint64_t>(idx) * sizeof(UrmaSgeCtx);
-        if (!CopyFromDevice(addr, sgeCtx, "UrmaSgeCtx")) {
+        if (!CopyQueueFromDevice(addr, sgeCtx, "UrmaSgeCtx")) {
             continue;
         }
         HCCL_RUN_INFO("[HcommChannelInfoDump] UrmaSgeCtx[%u:%u] va[0x%llx] len[%u] tokenId[%u].",
@@ -608,7 +791,7 @@ void DumpUrmaSqWqeEntries(uint32_t sqIdx, const SqContext &sqContext, uint32_t s
         uint32_t bbIdx = bbOffset % sqDepth;
         uint64_t wqeAddr = sqVa + static_cast<uint64_t>(bbIdx) * bbSize;
         UrmaSqeHeader sqe;
-        if (!CopyFromDevice(wqeAddr, sqe, "UrmaSqeHeader")) {
+        if (!CopyQueueFromDevice(wqeAddr, sqe, "UrmaSqeHeader")) {
             break;
         }
 
