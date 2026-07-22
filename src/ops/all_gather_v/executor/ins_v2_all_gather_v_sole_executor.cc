@@ -166,13 +166,13 @@ HcclResult InsV2AllGatherVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrat
         tempAlgParams.outputSliceStride =
             maxCountPerLoop * dataTypeSize_;  // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
 
-        HCCL_INFO("[InsV2AllGatherVSoleExecutor] loop [%u] tempAlgParams.inputSliceStride [%u],"
+        HCCL_INFO("[InsV2AllGatherVSoleExecutor] loop [%llu] tempAlgParams.inputSliceStride [%u],"
                   "tempAlgParams.outputSliceStride [%u] tempAlgParams.sliceSize [%u]",
             loop,
             tempAlgParams.inputSliceStride,
             tempAlgParams.outputSliceStride,
             tempAlgParams.sliceSize);
-        HCCL_INFO("[InsV2AllGatherVSoleExecutor] loop [%u] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2AllGatherVSoleExecutor] loop [%llu] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
                   "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
             loop,
             tempAlgParams.buffInfo.inBuffBaseOff,
