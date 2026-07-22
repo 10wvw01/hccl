@@ -33,6 +33,8 @@ class HcomAllReduceOp : public hccl::HcclCustomOpBase {
   ge::graphStatus InferDataType(gert::InferDataTypeContext *ctx) override;
 
  private:
+  ge::graphStatus LaunchDirect(hccl::HcclOpState &st);
+  ge::graphStatus LaunchLoop(hccl::HcclOpState &st);
   ge::graphStatus CreateIndirectCCLbuf();
   ge::graphStatus CleanCracks(void *baseAddr, uint64_t inputOffset);
   ge::graphStatus RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize);

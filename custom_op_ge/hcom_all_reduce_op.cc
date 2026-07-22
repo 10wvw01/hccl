@@ -199,13 +199,41 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         HCCL_WARNING("HcomAllReduceOp::LaunchHcclOp: fusion scenario (%zu inputs) not yet supported.", inputCount);
     }
 
-    HCCL_GE_CHK_RET(CreateIndirectCCLbuf());
-
     uint64_t unitSize = hccl::GetHcclDataTypeSize(st.dataType);
     if (unitSize == 0 || st.cclBuffSize == 0) {
         HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: invalid unitSize=%lu or cclBuffSize=%lu.", unitSize, st.cclBuffSize);
         return ge::GRAPH_FAILED;
     }
+
+    if (st.count * unitSize <= st.cclBuffSize) {
+        return LaunchDirect(st);
+    }
+    return LaunchLoop(st);
+}
+
+ge::graphStatus HcomAllReduceOp::LaunchDirect(hccl::HcclOpState &st)
+{
+    HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu, direct path (no CCL buffer copy).",
+              st.inputPtr, st.outputPtr, st.count);
+
+    HCCL_GE_CHK_RET(CleanCracks(st.inputPtr, 0));
+
+    HcclResult ret = HcclAllReduceGraphMode(
+        st.inputPtr, st.outputPtr, st.count, st.dataType, st.reduceOp, st.group,
+        static_cast<aclrtStream>(st.stream), HCCL_KERNEL_OP_TYPE_ALLREDUCE.c_str(),
+        nullptr, 0, st.scratchMem, st.scratchMemSize);
+    if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("HcomAllReduceOp::LaunchDirect: HcclAllReduceGraphMode failed, ret=%d.", static_cast<int>(ret));
+        return ge::GRAPH_FAILED;
+    }
+    return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
+{
+    HCCL_GE_CHK_RET(CreateIndirectCCLbuf());
+
+    uint64_t unitSize = hccl::GetHcclDataTypeSize(st.dataType);
     uint64_t maxCountPerLoop = st.cclBuffSize / unitSize;
     uint64_t curCount = 0;
 
@@ -214,7 +242,7 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         curCount = (countLeft * unitSize > st.cclBuffSize) ? maxCountPerLoop : countLeft;
         uint64_t curSize = curCount * unitSize;
 
-        HCCL_INFO("HcomAllReduceOp::LaunchHcclOp: loop=%lu inputOffset=%lu countLeft=%lu curCount=%lu curSize=%lu.",
+        HCCL_INFO("HcomAllReduceOp::LaunchLoop: loop=%lu inputOffset=%lu countLeft=%lu curCount=%lu curSize=%lu.",
                   loopTime, inputOffset, countLeft, curCount, curSize);
 
         HCCL_GE_CHK_RET(RefreshInputAddr(st, inputOffset, curSize));
@@ -223,14 +251,14 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         u64 commInputSize = 0;
         HcclResult ret = HcomGetInCCLbuffer(st.group, &commInputPtr, &commInputSize);
         if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcomGetInCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+            HCCL_ERROR("HcomAllReduceOp::LaunchLoop: HcomGetInCCLbuffer failed, ret=%d.", static_cast<int>(ret));
             return ge::GRAPH_FAILED;
         }
         void *commOutputPtr = nullptr;
         u64 commOutputSize = 0;
         ret = HcomGetOutCCLbuffer(st.group, &commOutputPtr, &commOutputSize);
         if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcomGetOutCCLbuffer failed, ret=%d.", static_cast<int>(ret));
+            HCCL_ERROR("HcomAllReduceOp::LaunchLoop: HcomGetOutCCLbuffer failed, ret=%d.", static_cast<int>(ret));
             return ge::GRAPH_FAILED;
         }
 
@@ -241,10 +269,9 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         ret = HcclAllReduceGraphMode(
             commInputPtr, commOutputPtr, curCount, st.dataType, st.reduceOp, st.group,
             static_cast<aclrtStream>(st.stream), HCCL_KERNEL_OP_TYPE_ALLREDUCE.c_str(),
-            nullptr, 0,
-            st.scratchMem, st.scratchMemSize);
+            nullptr, 0, st.scratchMem, st.scratchMemSize);
         if (ret != HCCL_SUCCESS) {
-            HCCL_ERROR("HcomAllReduceOp::LaunchHcclOp: HcclAllReduceGraphMode failed, ret=%d.", static_cast<int>(ret));
+            HCCL_ERROR("HcomAllReduceOp::LaunchLoop: HcclAllReduceGraphMode failed, ret=%d.", static_cast<int>(ret));
             return ge::GRAPH_FAILED;
         }
 
@@ -255,7 +282,7 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
         loopTime++;
     }
 
-    HCCL_INFO("HcomAllReduceOp::LaunchHcclOp: success, input=%p output=%p count=%lu scratchMem=%p scratchMemSize=%lu.",
+    HCCL_INFO("HcomAllReduceOp::LaunchLoop: success, input=%p output=%p count=%lu scratchMem=%p scratchMemSize=%lu.",
               st.inputPtr, st.outputPtr, st.count, st.scratchMem, st.scratchMemSize);
     return ge::GRAPH_SUCCESS;
 }
