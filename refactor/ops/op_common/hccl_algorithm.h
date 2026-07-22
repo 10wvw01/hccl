@@ -62,6 +62,7 @@ enum class HcclAlgEngineType {
 enum class HcclAlgExecPolicy {
     SEQUENCE,
     PARALLEL,
+    OMNIPIPE,
 };
 
 enum class HcclAlgShotMode {
