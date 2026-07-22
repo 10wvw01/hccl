@@ -113,7 +113,7 @@ HcclResult CcuTempScatterOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPa
         u32 subRankIdx = RemoteRankId2RankId(remoteRank);
         rank2ChannelIdx[subRankIdx] = i;
         subRankIdx2RankIdx[subRankIdx] = remoteRank;
-        HCCL_DEBUG("[%s] channel myrank[%u], mySubCommRank_[%u],  rank2ChannelIdx[%u]=%u, subRankIdx2RankIdx[%u]=%u ",
+        HCCL_DEBUG("[%s] channel myrank[%u], mySubCommRank_[%u], rank2ChannelIdx[%u]=%u, subRankIdx2RankIdx[%u]=%u ",
             __func__, myRank_, mySubCommRank_, subRankIdx, i, subRankIdx, remoteRank);
     }
     CHK_RET(CalcNHRInfo(stepInfoVector));
@@ -294,7 +294,7 @@ void CcuTempScatterOmniPipeNHR1DMem2Mem::BuildSliceInfoVec(const StepSliceInfo &
                 = stepSliceInfo.outputOmniPipeSliceStride[myRank_ % xRankSize_][sliceStrideiIndex];
             outputOmniSliceStrideVec.push_back(outputOmniSliceStrideTmp);
             HCCL_DEBUG("[checkSliceInfo] myrank:%d, mySubCommRank_:%d, ridx:%d, sliceStrideiIndex:%d"
-                       "inputOmniSliceSizeTmp:%llu,  inputOmniSliceStrideTmp:%llu, outputOmniSliceStrideTmp:%llu",
+                       "inputOmniSliceSizeTmp:%llu, inputOmniSliceStrideTmp:%llu, outputOmniSliceStrideTmp:%llu",
                 myRank_, mySubCommRank_, ridx, sliceStrideiIndex, inputOmniSliceSizeTmp, inputOmniSliceStrideTmp,
                 outputOmniSliceStrideTmp);
         }
