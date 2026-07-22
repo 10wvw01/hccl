@@ -2761,8 +2761,9 @@ bool IsHostDpu(HcclComm comm)
     // 获取 topoLevelNums
     uint32_t *netLayers = nullptr;
     uint32_t netLayerNum = 0;
-    CHK_RET(HcclRankGraphGetLayers(comm, &netLayers, &netLayerNum));
+    ret = HcclRankGraphGetLayers(comm, &netLayers, &netLayerNum);
     if (ret != HCCL_SUCCESS) {
+        HCCL_ERROR("[IsHostDpu] HcclRankGraphGetLayers failed, ret:%d", ret);
         return false;
     }
 
