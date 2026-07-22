@@ -15,6 +15,7 @@ namespace ops_hccl {
 constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
+constexpr int TOPO_LEVEL_2 = 2;
 constexpr int TOPO_LEVEL_3 = 3;
 
 SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
@@ -236,8 +237,9 @@ SelectorStatus ReduceAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerDet
             } else {
                 selectAlgName = "ReduceParallelNHRNHRUboe";
             }
-        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_3 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
-            selectAlgName = "InsV2ReduceSequenceMesh1DNHRNHR";
+        } else if ((topoInfo->topoLevelNums == TOPO_LEVEL_2 || topoInfo->topoLevelNums == TOPO_LEVEL_3) &&
+            topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            selectAlgName = "InsReduceSequenceMesh1DNhr";
         } else if (topoInfo->Level1Nhr) {
             selectAlgName = "ReduceNHR";
         } else if (topoInfo->deviceNumPerModule > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
