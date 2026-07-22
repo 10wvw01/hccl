@@ -150,7 +150,7 @@ HcclResult InsTempReduceScatterVMesh1D::RunReduceScatterV(
     for (u32 queIdx = 0; queIdx < threadNum_; queIdx++) {
         u32 nextRank = (myAlgRank + 1 + queIdx) % templateRankSize_; // 这里取的虚拟rankId
         u32 remoteRank = subCommRanks_[0][nextRank];
-        HCCL_DEBUG("[InsTempReduceScatterVMesh1D][RunReduceScatterV] myRank[%d], toRank[%d], fromRank[%d]",
+        HCCL_DEBUG("[InsTempReduceScatterVMesh1D][RunReduceScatterV] myRank[%d], toRank[%u], fromRank[%u]",
                    myRank_, remoteRank, remoteRank);
         const ChannelInfo &linkSend = channels.at(remoteRank)[0];
         const ChannelInfo &linkRecv = channels.at(remoteRank)[0];

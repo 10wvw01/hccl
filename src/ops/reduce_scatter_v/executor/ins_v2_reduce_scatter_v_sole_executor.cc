@@ -156,7 +156,7 @@ HcclResult InsV2ReduceScatterVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orches
         tempAlgParams.tailSize = tempAlgParams.sliceSize;
         tempAlgParams.outputSliceStride = maxDataCountPerLoop * dataTypeSize_; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
 
-        HCCL_INFO("[InsV2ReduceScatterVSoleExecutor] loop [%u] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2ReduceScatterVSoleExecutor] loop [%llu] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
             "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
             loop, tempAlgParams.buffInfo.inBuffBaseOff, tempAlgParams.buffInfo.outBuffBaseOff);
 
