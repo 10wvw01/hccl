@@ -45,12 +45,12 @@ HcclResult haclrtGetPairDeviceLinkType(s32 phyDevId, s32 otherPhyDevId, LinkType
     u32 logicIdDest = 0;
     CHK_RET(haclrtGetDeviceIndexByPhyId(phyDevId, logicIdLocal));
     CHK_RET(haclrtGetDeviceIndexByPhyId(otherPhyDevId, logicIdDest));
-    HCCL_INFO("[haclrtGetPairDeviceLinkType]phyDevId[%u] otherPhyDevId[%u] logicIdLocal[%u] logicIdDest[%u]",
+    HCCL_INFO("[haclrtGetPairDeviceLinkType]phyDevId[%d] otherPhyDevId[%d] logicIdLocal[%u] logicIdDest[%u]",
         phyDevId, otherPhyDevId, logicIdLocal, logicIdDest);
 
     u64 linkTypeRaw = 0;
     ACLCHECK(aclrtGetDevicesTopo(logicIdLocal, logicIdDest, reinterpret_cast<uint64_t*>(&linkTypeRaw)));
-    HCCL_INFO("[haclrtGetPairDeviceLinkType]linkType[%u]", linkTypeRaw);
+    HCCL_INFO("[haclrtGetPairDeviceLinkType]linkType[%llu]", linkTypeRaw);
 
     // 若当前为标卡/虚拟机device间通过HCCS直接互联：HCCS_TYPE，device间通过HCCS交换芯片互联：TOPOLOGY_HCCS_SW
     // Ascend910_93 die间为SIO_TYPE，其他情况为PXI_TYPE
