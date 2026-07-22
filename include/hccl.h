@@ -25,8 +25,7 @@ extern "C" {
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param count An integer(u64) identifying the number of the output data.
- * @param dataType The data type of the operator, must be one of the following types: int8, int16, uint64, int32, int64, 
- * float16, float32, float64, bfp16.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
  * @param op The reduction type of the operator, must be one of the following types: sum, min, max, prod.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
@@ -56,8 +55,7 @@ extern HcclResult HcclBroadcast(void *buf, uint64_t count, HcclDataType dataType
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount An integer(u64) identifying the number of the output data.
- * @param dataType The data type of the operator, must be one of the following types: int8, int16, uint64, int32, int64, 
- * float16, float32, float64, bfp16.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
  * @param op The reduction type of the operator, must be one of the following types: sum, min, max, prod.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
@@ -75,9 +73,8 @@ extern HcclResult HcclReduceScatter(void *sendBuf, void *recvBuf, uint64_t recvC
  * from which to send data to rank i.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount An integer(u64) identifying the number of the output data.
- * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64,
- * float16, float32, bfp16.
- * @param op The reduction type of the operator, must be one of the following types: sum, max, min.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
+ * @param op The reduction type of the operator, must be one of the following types: sum, min, max, prod.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -91,8 +88,7 @@ extern HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, cons
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param recvCount An integer(u64) identifying the number of the data.
- * @param dataType The data type of the operator, must be one of the following types: int8, uint8, int16,
- * uint16, int32, uint32, int64, uint64, float16, float32, float64, bfp16.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
  * @param root An integer(u32) identifying the root rank in the operator.
  * @param comm A pointer identifying the communication resource based on
  * @param stream A pointer identifying the stream information.
@@ -125,8 +121,7 @@ extern HcclResult HcclAllGather(void *sendBuf, void *recvBuf, uint64_t sendCount
  * @param recvCounts Integer(uint64) array, where entry i specifies the number of elements to receive from rank i.
  * @param recvDispls Integer(uint64) array, where entry i specifies the displacement (offset from recvbuf, in units of recvtype)
  * from which to recv data from rank i.
- * @param dataType The data type of the operator, must be one of the following types: int8, uint8, int16, uint16,
- * int32, uint32, int64, uint64, float16, float32, float64, bfp16.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
  * @return HcclResult
@@ -228,8 +223,7 @@ extern HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclData
  * @param sendBuf A pointer identifying the input data address of the operator.
  * @param recvBuf A pointer identifying the output data address of the operator.
  * @param count An integer(u64) identifying the number of the output data.
- * @param dataType The data type of the operator, must be one of the following types: int8, int16, uint64, int32, int64, 
- * float16, float32, float64, bfp16.
+ * @param dataType The data type of the operator, must be one of the following types: int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32, float64, bfp16.
  * @param op The reduction type of the operator, must be one of the following types: sum, min, max, prod.
  * @param root An integer(u32) identifying the root rank in the operator.
  * @param comm A pointer identifying the communication resource based on.
