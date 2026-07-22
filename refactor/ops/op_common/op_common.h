@@ -20,7 +20,14 @@
 
 namespace ops_hccl {
 
-class HcclAlgorithm;
+/**
+ * 根据算法的引擎类型构造对应的 Engine。
+ * 输入参数：
+ *   - engineType：引擎类型（AICPU/CCU_MS/CCU_SCHED）
+ * 返回值：
+ *   - unique_ptr<BaseEngine>，所有权移交调用方
+ */
+std::unique_ptr<BaseEngine> GetEngine(HcclAlgEngineType engineType);
 
 /**
  * 算子执行入口。

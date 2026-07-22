@@ -11,9 +11,11 @@
 # template/aicpu：AICPU 算法模板（AicpuBaseTemplate / AllGatherMesh / AllGatherNhr）
 
 target_include_directories(hccl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../..
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/../primitives
     ${CMAKE_CURRENT_LIST_DIR}/../../utils
+    ${CMAKE_CURRENT_LIST_DIR}/../../op_common/channel
 )
 
 target_sources(hccl PRIVATE

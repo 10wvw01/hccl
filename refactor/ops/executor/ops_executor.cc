@@ -149,7 +149,6 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
             subThreads_.at(subCommIndex).assign(subThreadBegin, subThreadEnd);
         }
     }
-    engine_ = algo_.GetEngine().release();
     // TODO：考虑不同Executor
     // 需要restore原因，resCtx中储存用双层嵌套vector<vector<ChannelInfo>>，remoteRank信息在ChannelInfo中，查询不方便
     channelTable_ = RestoreChannelMap(resCtx);
@@ -549,7 +548,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     }
     algoExecDataDesc.ranksForOutputDataGroup.resize(1);
     CHK_RET(baseTemplate->KernelRun(
-        *engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
+        templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
 }
 

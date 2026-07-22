@@ -115,7 +115,7 @@ public:
      *   - HCCL_SUCCESS: 编排成功
      *   - 其他: 编排失败错误码
      */
-    virtual HcclResult KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
+    virtual HcclResult KernelRun(const TemplateDataParams &tempAlgParams,
                                 TemplateResource &templateResource, std::vector<u32> &ranksForOutputData) {
         ranksForOutputData.clear();
         return HCCL_SUCCESS;

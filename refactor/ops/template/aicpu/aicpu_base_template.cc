@@ -10,12 +10,13 @@
 
 #include "aicpu_base_template.h"
 #include "base_engine.h"
+#include "data_transfer.h"
 
 #include "log.h"
 
 namespace ops_hccl {
 
-HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataParams &tempAlgParams,
+HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
     TemplateResource &templateResource, std::vector<u32> &ranksForOutputData)
 {
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
@@ -61,9 +62,9 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
     std::vector<TxRxSlicesList> txRxSlicesLists;
     CHK_RET(RunAlgorithm(templateResource, txRxSlicesLists, ranksForOutputData));
 
-    // 4. SendAll：统一逐个执行 SendRecv（子类可在通信后做本地归约）。
+    // 4. SendAll：统一逐个执行 SendRecv。
     if (!txRxSlicesLists.empty()) {
-        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource, templateResource.threads));
+        CHK_RET(SendAll(txRxSlicesLists, templateResource));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -85,10 +86,8 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
 HcclResult AicpuBaseTemplate::SendAll(
-    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
-    TemplateResource &templateResource, const std::vector<ThreadHandle> &threads)
+    const std::vector<TxRxSlicesList> &txRxSlicesLists, TemplateResource &templateResource)
 {
-    (void)threads;
     for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
         ctx.enableRemoteMemAccess = tempAlgParams_.enableRemoteMemAccess;
@@ -97,7 +96,7 @@ HcclResult AicpuBaseTemplate::SendAll(
         ctx.templateRes = templateResource;
         ctx.dataType = tempAlgParams_.dataType;
         ctx.reduceOp = tempAlgParams_.reduceOp;
-        CHK_RET(engine.Send(ctx));
+        CHK_RET(DataTransferSend(ctx));
     }
     return HCCL_SUCCESS;
 }

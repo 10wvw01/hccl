@@ -23,12 +23,29 @@ constexpr u64 AG_CCU_CLOS_SMALL_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 AG_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u32 OMNI_PCIE_AG_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u32 TOPO_LEVEL_NUM_3 = 3;
-constexpr u32 TOPO_LEVEL_NUM_4 = 4;
-
 constexpr u32 DEVICE_NUM_PER_MODULE_8 = 8;
 
 // 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以 HcclAicpuAllGatherAlgoType 枚举值为数组下标。
 // extern 声明位于 hccl_algorithm.h。
+
+// 将 HcclAicpuAllGatherAlgoType 枚举转换为对应的算法名称字符串，供 SetOpParamAlgTag 使用
+static const char* GetAicpuAllGatherAlgoName(HcclAicpuAllGatherAlgoType type)
+{
+    switch (type) {
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_UBOE:            return "InsV2AllGatherOmniPipeUboe";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_NHR:                       return "InsAllGatherNHR";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_UBOE:   return "InsAllGatherParallelMesh1DNHRUboe";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D:        return "InsAllGatherSequenceNHRMesh1D";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR:        return "InsAllGatherParallelMesh1DNHR";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR:      return "InsAllGatherMesh1D1DZAxisDetour";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D:                     return "InsAllGatherMesh1D";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_PCIE:   return "InsAllGatherParallelMesh1DNHRPcie";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_PCIE:             return "InsV2AllGatherOmniPipePcie";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR:      return "InsAllGatherConcurrentMesh1DNHR";
+        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY: return "InsAllGatherParallelMesh1DNHRMultiJetty";
+        default:                                                                     return "InsAllGatherNHR";
+    }
+}
 
 SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -42,9 +59,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     HcclAicpuAllGatherAlgoType selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_ALGO_TYPE_COUNT;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_4) {
-            selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_SEQUENCE_MESH1D_NHR_NHR_Mesh1DOcs;
-        } else if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
+        if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
             if (topoInfo->deviceNumPerModule == DEVICE_NUM_PER_MODULE_8) {
                 selectAlgEnum = HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_UBOE;
             } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer[1] == 1) {
@@ -92,6 +107,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
                 }
                 HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%d]", __func__, static_cast<int>(selectAlgEnum));
                 alg = g_aicpuAllGatherAlgoMap[static_cast<size_t>(selectAlgEnum)];
+                alg.algName = GetAicpuAllGatherAlgoName(selectAlgEnum);
                 return SelectorStatus::MATCH;
             }
             // UBX机型
@@ -122,6 +138,7 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%d]", __func__, static_cast<int>(selectAlgEnum));
     alg = g_aicpuAllGatherAlgoMap[static_cast<size_t>(selectAlgEnum)];
+    alg.algName = GetAicpuAllGatherAlgoName(selectAlgEnum);
     return SelectorStatus::MATCH;
 }
 

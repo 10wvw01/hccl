@@ -70,34 +70,18 @@ public:
      */
     HcclResult LaunchKernel(const OpParam &param) override;
 
-    /**
-     * AICPU引擎数据传输接口。
-     */
-    HcclResult Send(const TransferContext &ctx) override;
-
 private:
+    static const u32 CPU_TS_NOTIFY_NUM = 3;
+
     // 已创建的资源上下文，CreateRes 回填、LaunchKernel 使用
     AlgResourceCtxSerializable resCtx_;
-    // 序列化后的 resCtx_ 字节流，生命周期需覆盖 kernel launch
-    std::vector<char> resCtxSequence_;
-
-    // ───────────── AICPU 数据传输 wrapper (私有成员函数) ─────────────
-    // 基于 Hcomm*OnThread 系列 AICPU 专用原语, 复制自 alg_data_trans_wrapper.cc
-
-
-    // Write 系列 (非PCIe: 本端主动推送)
-    HcclResult SendWrite(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
-    HcclResult RecvWrite(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
-    HcclResult SendRecvWrite(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
-    // Read 系列 (PCIe: 本端主动拉取)
-    HcclResult SendRead(const DataInfo &sendInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
-    HcclResult RecvRead(const DataInfo &recvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
-    HcclResult SendRecvRead(const SendRecvInfo &sendRecvInfo, const ThreadHandle &thread, HcclReduceOp reduceOp);
 
     // CreateRes 内部辅助函数（对应原始 op_common.cc 中的 HcclGetThread / HcclGetChannelImpl 等）
     HcclResult HcclGetThread(HcclComm comm, const OpParam &param, AlgResourceRequest &resReq);
     HcclResult SaveMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle thread, u32 notifyNum);
+    HcclResult GetMainThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle &thread, u32 &notifyNum);
     HcclResult SaveUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle unfoldThread);
+    HcclResult GetUnfoldThreadInfo(HcclComm comm, const OpParam &param, ThreadHandle& unfoldThread);
     HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceRequest &resReq);
     HcclResult HcclGetChannelImpl(u32 level, HcclComm comm, const OpParam &param,
         std::vector<HcclChannelDesc>& channelRequest, CommEngine commEngine);

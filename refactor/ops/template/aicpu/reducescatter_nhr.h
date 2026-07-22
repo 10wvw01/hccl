@@ -25,7 +25,8 @@ namespace ops_hccl {
  *   - 每步收到的分片与本地对应分片进行归约。
  * 执行流程（由 AicpuBaseTemplate::KernelRun 编排）：
  *   1. PreCopy: input -> ccl buffer 本地数据预处理（基类默认实现）
- *   2. RunAlgorithm: 调 RunNhrReduceScatter 构造 txRxSlicesLists，由基类统一执行 SendRecv
+ *   2. RunAlgorithm: 调 RunNhrReduceScatter 构造 SendRecvInfo 列表，
+ *      从中提取 sendRecvSlices_ 填充 txRxSlicesLists，由基类统一执行 SendRecv
  *   3. PostCopy: ccl buffer -> output 后处理（基类默认实现，若需要）
  */
 class ReduceScatterNhrTemplate : public AicpuBaseTemplate {
@@ -35,7 +36,8 @@ public:
     ~ReduceScatterNhrTemplate() = default;
 
 protected:
-    /** 通信编排：调用 RunNhrReduceScatter 构造 txRxSlicesLists，由基类统一执行 SendRecv。 */
+    /** 通信编排：调用 RunNhrReduceScatter 构造 SendRecvInfo 列表，提取 sendRecvSlices_ 填充 txRxSlicesLists，
+     *  由基类统一执行 SendRecv。 */
     HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<TxRxSlicesList> &txRxSlicesLists,
                             std::vector<u32> &ranksForOutputData) override;
 };

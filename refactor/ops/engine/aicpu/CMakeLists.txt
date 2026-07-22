@@ -16,6 +16,7 @@ target_include_directories(hccl PRIVATE
 
 target_sources(hccl PRIVATE
     aicpu_engine.cc
+    data_transfer.cc
     kernel_launch.cc
     load_kernel.cc
     dpu/kernel_launch.cc

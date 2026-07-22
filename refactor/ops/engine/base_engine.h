@@ -82,19 +82,6 @@ public:
      */
     virtual HcclResult LaunchKernel(const OpParam &param) = 0;
 
-    /**
-     * 数据传输统一接口。
-     * 工作流程：
-     *   1. 解析 ctx 中的channel信息和数据信息；
-     *   2. 根据入参选择发送方式（write\read）\reduce；
-     *   3. 将数据发送到目的地址。
-     * 输入参数：
-     *   - ctx: 发送数据上下文
-     * 返回值：
-     *   - HCCL_SUCCESS: 数据发送成功
-     *   - HCCL_E_INTERNAL: 数据发送失败
-     */
-    virtual HcclResult Send(const TransferContext &ctx) = 0;
 };
 
 }  // namespace ops_hccl

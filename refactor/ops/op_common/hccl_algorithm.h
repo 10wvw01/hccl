@@ -87,7 +87,6 @@ enum class HcclAicpuAllGatherAlgoType {
     AICPU_ALLGATHER_OMNIPIPE_PCIE,                  // InsV2AllGatherOmniPipePcie
     AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherConcurrentMesh1DNHR
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY, // InsAllGatherParallelMesh1DNHRMultiJetty
-    AICPU_ALLGATHER_SEQUENCE_MESH1D_NHR_NHR_Mesh1DOcs, // InsAllGatherSequenceMesh1DNHRNHRMesh1DOcs
     AICPU_ALLGATHER_ALGO_TYPE_COUNT,                // 算法类型总数，用于数组下标上限
 };
 
@@ -109,8 +108,7 @@ struct TemplateDesc {
 enum SubCommIndexType : int {
     SUB_COMM_INDEX_INTRA = 0,
     SUB_COMM_INDEX_INTER = 1,
-    SUB_COMM_INDEX_POD   = 2,
-    SUB_COMM_INDEX_GROUP = 3,
+    SUB_COMM_INDEX_POD = 2,
 };
 
 struct TemplateExecDesc {
@@ -171,19 +169,6 @@ public:
     ~HcclAlgorithm() = default;
 
     /**
-     * 根据算法的引擎类型构造对应的 Engine。
-     * 输入参数：
-     *   - comm: 通信域句柄，CCU Engine 的 CreateRes 需要 comm 调用 HcclGetHcclBuffer/
-     *     HcclChannelAcquire/HcclCommQueryCcuIns；AiCpuEngine 不使用（保持默认构造）
-     * 返回值：
-     *   - AICPU: AiCpuEngine
-     *   - CCU_MS: CcuMsEngine（传入 comm）
-     *   - CCU_SCHED: CcuScheEngine（传入 comm）
-     * 返回 unique_ptr<BaseEngine>，所有权移交调用方。
-     */
-    std::unique_ptr<BaseEngine> GetEngine(void);
-
-    /**
      * 根据算子类型与执行策略构造对应的 Executor。
      * 输入参数：
      *   - param: 算子参数，决定具体子类执行器（AllGather/ReduceScatter/... + Parallel/Sole）
@@ -213,6 +198,7 @@ public:
     HcclAlgEngineType engineType;
     std::shared_ptr<TopoMatchBase> topoMatch;
     AlgoExecDesc algoExecDesc;
+    std::string algName; // 算法名称，如 "InsAllGatherMesh1D"，供 SetOpParamAlgTag 使用
 };
 
 // 全局 AICPU AllGather 算法表（定义在 algorithm/all_gather/algorithm_all_gather_aicpu.cc），以

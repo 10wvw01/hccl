@@ -26,8 +26,6 @@
 
 namespace ops_hccl {
 
-class BaseEngine;
-
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -100,8 +98,6 @@ private:
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
 
-    // 引擎指针，由外部通过 SetEngine 注入
-    BaseEngine *engine_ = nullptr;
     // algo
     HcclAlgorithm algo_;
 

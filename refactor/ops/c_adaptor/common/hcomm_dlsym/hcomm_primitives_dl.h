@@ -82,38 +82,10 @@ typedef struct {
 extern "C" {
 #endif
 
-DECL_WEAK_FUNC(int32_t, HcommWriteWithNotifyOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
-    uint64_t len, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommWriteReduceWithNotifyOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
-    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommWriteNbiOnThread, ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
-DECL_WEAK_FUNC(int32_t, HcommWriteNbi, ChannelHandle channel, void* dst, const void* src, uint64_t len);
-DECL_WEAK_FUNC(int32_t, HcommWriteWithNotifyNbiOnThread, ThreadHandle thread, ChannelHandle channel,
-    void* dst, const void* src, uint64_t len, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommWriteWithNotifyNbi, ChannelHandle channel, void* dst, const void* src, uint64_t len, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommReadNbiOnThread, ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
-DECL_WEAK_FUNC(int32_t, HcommReadNbi, ChannelHandle channel, void* dst, const void* src, uint64_t len);
-DECL_WEAK_FUNC(int32_t, HcommReadReduceOnThread, ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
-    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
-DECL_WEAK_FUNC(int32_t, HcommChannelNotifyRecord, ChannelHandle channel, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWait, ChannelHandle channel, uint32_t localNotifyIdx, uint32_t timeout);
-DECL_WEAK_FUNC(HcclResult, HcommSymWinGetPeerPointer, HcclCommSymWindow winHandle, size_t offset, uint32_t peerRank, void** ptr);
 DECL_WEAK_FUNC(int32_t, HcommThreadSynchronize, ThreadHandle thread);
 DECL_WEAK_FUNC(int32_t, HcommSendRequest, uint64_t handle, const char* msgTag, const void* src, size_t sizeByte, uint32_t* msgId);
 DECL_WEAK_FUNC(int32_t, HcommWaitResponse, uint64_t handle, void* dst, size_t sizeByte, uint32_t* msgId);
-DECL_WEAK_FUNC(int32_t, HcommFlush);
-DECL_WEAK_FUNC(int32_t, HcommChannelFence, ChannelHandle channel);
-DECL_WEAK_FUNC(int32_t, HcommFenceOnThread, ThreadHandle thread);
-DECL_WEAK_FUNC(int32_t, HcommChannelFenceOnThread, ThreadHandle thread, ChannelHandle channel);
 DECL_WEAK_FUNC(HcclResult, HcommThreadJoin, ThreadHandle thread, uint32_t timeout);
-DECL_WEAK_FUNC(int32_t, HcommThreadNotifyRecordOnThread, ThreadHandle thread, ThreadHandle dstThread, uint32_t dstNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThread, ThreadHandle thread, uint32_t notifyIdx, uint32_t timeOut);
-DECL_WEAK_FUNC(int32_t, HcommChannelNotifyRecordOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t remoteNotifyIdx);
-DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThread, ThreadHandle thread, ChannelHandle channel, uint32_t localNotifyIdx, uint32_t timeOut);
-DECL_WEAK_FUNC(int32_t, HcommWriteOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
-DECL_WEAK_FUNC(int32_t, HcommWriteReduceOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
-    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
-DECL_WEAK_FUNC(int32_t, HcommReadOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
 DECL_WEAK_FUNC(HcclResult, HcclSymWinGetPeerPointer, HcclCommSymWindow winHandle,
     size_t offset, uint32_t peerRank, void** ptr);
 DECL_WEAK_FUNC(HcclResult, HcclCommSymWinGet, HcclComm comm, void *ptr, size_t size,
@@ -129,6 +101,9 @@ DECL_WEAK_FUNC(int32_t, HcommThreadNotifyWaitOnThreadWithDefaultTimeout, ThreadH
 DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWaitOnThreadWithDefaultTimeout, ThreadHandle thread,
     ChannelHandle channel, uint32_t localNotifyIdx);
 DECL_WEAK_FUNC(int32_t, HcommChannelNotifyWaitWithDefaultTimeout, ChannelHandle channel, uint32_t localNotifyIdx);
+DECL_WEAK_FUNC(int32_t, HcommWriteWithNotifyNbiOnThread, ThreadHandle thread, ChannelHandle channel,
+    void* dst, const void* src, uint64_t len, uint32_t remoteNotifyIdx);
+DECL_WEAK_FUNC(int32_t, HcommChannelFenceOnThread, ThreadHandle thread, ChannelHandle channel);
 DECL_SUPPORT_FLAG(HcommBatchTransferOnThread);
 DECL_SUPPORT_FLAG(HcommThreadResAcquireTimeOut);
 DECL_SUPPORT_FLAG(HcommSetNotifyWaitTimeOut);

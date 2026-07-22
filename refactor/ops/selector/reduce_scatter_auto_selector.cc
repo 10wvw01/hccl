@@ -16,6 +16,15 @@ namespace ops_hccl {
 // 全局 AICPU ReduceScatter 算法表（定义在 algorithm/reduce_scatter/algorithm_reduce_scatter_aicpu.cc），
 // 以 HcclAicpuReduceScatterAlgoType 枚举值为数组下标。extern 声明位于 hccl_algorithm.h。
 
+static const char* GetAicpuReduceScatterAlgoName(HcclAicpuReduceScatterAlgoType type)
+{
+    switch (type) {
+        case HcclAicpuReduceScatterAlgoType::AICPU_REDUCESCATTER_NHR:   return "InsReduceScatterNHR";
+        case HcclAicpuReduceScatterAlgoType::AICPU_REDUCESCATTER_MESH1D: return "InsReduceScatterMesh1D";
+        default:                                                         return "InsReduceScatterNHR";
+    }
+}
+
 SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, HcclAlgorithm &alg) const
@@ -59,6 +68,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(
     }
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] Algo match[%d]", __func__, static_cast<int>(selectAlgEnum));
     alg = g_aicpuReduceScatterAlgoMap[static_cast<size_t>(selectAlgEnum)];
+    alg.algName = GetAicpuReduceScatterAlgoName(selectAlgEnum);
     return SelectorStatus::MATCH;
 }
 

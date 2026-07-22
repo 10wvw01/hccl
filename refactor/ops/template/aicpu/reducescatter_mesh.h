@@ -24,12 +24,10 @@ namespace ops_hccl {
  *   - Mesh 拓扑下，每个 rank 与其他所有 rank 各通信一次，共 rankSize-1 步；
  *   - 每步将本 rank 对应分片发送给对端，同时接收对端的对应分片并归约。
  * 执行流程（由 AicpuBaseTemplate::KernelRun 编排）：
- *   1. PreCopy: 只 LocalCopy 本卡 myRank 数据到 ccl buffer[myRank 槽]
- *   2. RunAlgorithm: 调 RunMeshReduceScatter 生成纯搬运 tx/rx，tx 源=input，
- *      把本卡 input 中对端 rank 的分片 Write 到对端 ccl buffer[myRank 槽]；
- *      rx 写入本卡 ccl buffer[connectedRank 槽]；reduceOp=RESERVED（不 inline reduce）
- *   3. SendAll: 通信完成后，LocalReduce 本卡 ccl buffer 各 rank 槽位到 ccl[myRank 槽]
- *   4. PostCopy（基类）：LocalCopy ccl buffer[myRank 槽]到 output
+ *   1. PreCopy: input -> output / ccl buffer 本地数据预处理（基类默认实现）
+ *   2. RunAlgorithm: 调 RunMeshReduceScatter 构造每对 rank 的 SendRecvInfo，
+ *      按 PCIe/非 PCIe 选择 Read/Write 模式逐个执行 SendRecv
+ *   3. PostCopy: ccl buffer -> output 后处理（基类默认实现，若需要）
  */
 class ReduceScatterMeshTemplate : public AicpuBaseTemplate {
 public:
@@ -41,13 +39,6 @@ protected:
     /** 通信编排：调 RunMeshReduceScatter 生成 SendRecvInfo 列表，由基类统一执行 SendRecv。 */
     HcclResult RunAlgorithm(TemplateResource &templateResource, std::vector<TxRxSlicesList> &txRxSlicesLists,
                             std::vector<u32> &ranksForOutputData) override;
-
-    /** PreCopy: 只 LocalCopy 本卡 myRank 数据到 ccl buffer[myRank 槽]。 */
-    HcclResult PreCopy(const std::vector<ThreadHandle> &threads) override;
-
-    /** SendAll: 通信纯搬运（reduceOp=RESERVED），完成后 LocalReduce 各 rank 槽到 ccl[myRank 槽]。 */
-    HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
-                       TemplateResource &templateResource, const std::vector<ThreadHandle> &threads) override;
 };
 
 }  // namespace ops_hccl

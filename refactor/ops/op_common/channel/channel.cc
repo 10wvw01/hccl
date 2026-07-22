@@ -13,10 +13,7 @@
 #include <set>
 #include <hccl/hccl_types.h>
 #include "hccl/base.h"
-#include "alg_type.h"
 #include "channel_request.h"
-#include "topo.h"
-#include "topo_host.h"
 
 namespace ops_hccl {
 
@@ -99,6 +96,7 @@ HcclResult ProcessLinkForProtocolNhr(HcclComm comm, const std::vector<CommProtoc
 HcclResult CalcChannelRequestMesh1D(HcclComm comm, HcclAlgEngineType engineType, const u32 myRank,
     const std::vector<std::vector<u32>> &subcommInfo, std::vector<HcclChannelDesc> &channels)
 {
+#ifndef AICPU_COMPILE
     channels.clear();
     auto it = std::find(subcommInfo[COMM_LEVEL0].begin(), subcommInfo[COMM_LEVEL0].end(), myRank);
     CHK_PRT_RET((it == subcommInfo[COMM_LEVEL0].end()),
@@ -135,12 +133,14 @@ HcclResult CalcChannelRequestMesh1D(HcclComm comm, HcclAlgEngineType engineType,
                 myRank, rank),
             HcclResult::HCCL_E_INTERNAL);
     }
+#endif
     return HCCL_SUCCESS;
 }
 
 HcclResult CalcChannelRequestNhr(HcclComm comm, HcclAlgEngineType engineType, const u32 myRank,
     const std::vector<std::vector<u32>> &subcommInfo, std::vector<HcclChannelDesc> &channels)
 {
+#ifndef AICPU_COMPILE
     channels.clear();
     std::set<u32> connectRanks;
     auto it = std::find(subcommInfo[0].begin(), subcommInfo[0].end(), myRank);
@@ -190,6 +190,7 @@ HcclResult CalcChannelRequestNhr(HcclComm comm, HcclAlgEngineType engineType, co
                 myRank, subcommInfo[0][rankIdx]),
             HcclResult::HCCL_E_INTERNAL);
     }
+#endif
     return HCCL_SUCCESS;
 }
 

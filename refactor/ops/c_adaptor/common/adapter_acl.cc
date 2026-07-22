@@ -8,10 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <limits.h>
 #include "adapter_acl.h"
 #include "acl_rt.h"
 #include "workflow.h"
-#include "mmpa_api.h"
 #include "dtype_common.h"
 
 namespace ops_hccl {
@@ -209,7 +209,7 @@ HcclResult haclrtMemset(void *dst, size_t destMax, int32_t value, size_t count)
         ret, dst, destMax, value, count);
     if (ret != ACL_SUCCESS) {
         HCCL_ERROR("[SyncSet][Mem]errNo[0x%016llx] aclrtMemset failed, "
-            "return[%d], para: dstAddr[%p], destMax[%llu], value[%p], count[%llu].",
+            "return[%d], para: dstAddr[%p], destMax[%llu], value[%d], count[%llu].",
             HCCL_ERROR_CODE(HCCL_E_RUNTIME), ret, dst, destMax, value, count);
         ret = aclmdlRICaptureThreadExchangeMode(&mode);
         CHK_PRT_RET(ret != ACL_SUCCESS && ret != ACL_ERROR_RT_FEATURE_NOT_SUPPORT,

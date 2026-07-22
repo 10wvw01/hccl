@@ -30,9 +30,6 @@ inline HcclResult CheckInputDataRanks(const TemplateDataParams &tempAlgParams, c
 
 HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice);
 
-HcclResult LocalReduce(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice,
-                       HcclDataType dataType, HcclReduceOp reduceOp);
-
 /** 前同步：主线程通知从线程可以开始通信。 */
 HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
                                const std::vector<u32> &notifyIdxMainToSub);

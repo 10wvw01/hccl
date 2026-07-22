@@ -18,6 +18,7 @@ target_include_directories(hccl BEFORE PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/ops/op_common
     ${CMAKE_CURRENT_LIST_DIR}/ops/op_common/inc
     ${CMAKE_CURRENT_LIST_DIR}/ops/op_common/topo
+    ${CMAKE_CURRENT_LIST_DIR}/ops/op_common/channel
 )
 
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/ops/CMakeLists.txt)

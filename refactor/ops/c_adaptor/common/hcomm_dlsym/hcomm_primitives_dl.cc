@@ -79,11 +79,6 @@ extern "C" int32_t HcclHcommBatchTransferOnThread(ThreadHandle thread, ChannelHa
     return g_HcommBatchTransferOnThread(thread, channel, transferDescs, transferDescNum);
 }
 
-DEFINE_WEAK_FUNC(int32_t, HcommWriteOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
-DEFINE_WEAK_FUNC(int32_t, HcommWriteReduceOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src,
-    uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp);
-DEFINE_WEAK_FUNC(int32_t, HcommReadOnThread, ThreadHandle thread, ChannelHandle channel, void* dst, const void* src, uint64_t len);
-
 // ---------- 初始化函数 ----------
 void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteWithNotifyOnThread);
@@ -117,9 +112,6 @@ void HcommPrimitivesDlInit(void* libHcommHandle) {
     INIT_SUPPORT_FLAG(libHcommHandle, HcommThreadNotifyWaitOnThreadWithDefaultTimeout);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitOnThreadWithDefaultTimeout);
     INIT_SUPPORT_FLAG(libHcommHandle, HcommChannelNotifyWaitWithDefaultTimeout);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommWriteReduceOnThread);
-    INIT_SUPPORT_FLAG(libHcommHandle, HcommReadOnThread);
     g_HcommBatchTransferOnThread = reinterpret_cast<HcclHcommBatchTransferOnThreadFunc>(
         dlsym(libHcommHandle, "HcommBatchTransferOnThread"));
     if (g_HcommBatchTransferOnThread == nullptr) {

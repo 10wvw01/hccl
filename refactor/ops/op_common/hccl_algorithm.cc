@@ -11,28 +11,9 @@
 #include "hccl_algorithm.h"
 
 #include "log.h"
-#include "base_engine.h"
-#include "engine/aicpu/aicpu_engine.h"
 #include "executor/ops_executor.h"
 
 namespace ops_hccl {
-
-/**
- * 根据算法的引擎类型（engineType）构造对应的 Engine。
- *   - AICPU: 返回 AiCpuEngine（传入 comm 供 CreateRes 使用）
- *   - CCU_MS: 返回 CcuMsEngine（传入 comm 供 CreateRes 使用）
- *   - CCU_SCHED: 返回 CcuScheEngine（传入 comm 供 CreateRes 使用）
- */
-std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(void)
-{
-    switch (engineType) {
-        case HcclAlgEngineType::AICPU:
-            return std::make_unique<AiCpuEngine>();
-        default:
-            HCCL_ERROR("[HcclAlgorithm][GetEngine] invalid engineType[%d]", static_cast<int>(engineType));
-            return nullptr;
-    }
-}
 
 /**
  * 构造统一Executor。

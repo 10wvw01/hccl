@@ -20,6 +20,7 @@
 #include "ops_executor.h"
 #include "hccl_algorithm.h"
 #include "base_engine.h"
+#include "engine/aicpu/aicpu_engine.h"
 #include "log.h"
 #include "adapter_error_manager_pub.h"
 #include "topo/topo_host.h"
@@ -34,12 +35,26 @@ constexpr u32 HOST_WAIT_AICPU_NOTIFYIDX = 0;// host主流wait aicpu流的notify 
 constexpr u32 HOST_NOTIFY_TIMEOUT_OFFSET = 27;  // host等待Device通知的超时时间偏移量
 constexpr u32 KERNEL_TIMEOUT_OFFSET = 25;       // kernel启动超时时间偏移量
 /**
+ * 根据算法的引擎类型（engineType）构造对应的 Engine。
+ */
+std::unique_ptr<BaseEngine> GetEngine(HcclAlgEngineType engineType)
+{
+    switch (engineType) {
+        case HcclAlgEngineType::AICPU:
+            return std::make_unique<AiCpuEngine>();
+        default:
+            HCCL_ERROR("[GetEngine] invalid engineType[%d]", static_cast<int>(engineType));
+            return nullptr;
+    }
+}
+
+/**
  * 算子执行入口。
  */
 HcclResult HcclExecOp(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     HcclAlgorithm &alg, const ResPackGraphMode &resPack)
 {
-    auto engine = alg.GetEngine();
+    auto engine = GetEngine(alg.engineType);
     auto executor = alg.GetExecutor(param);
     AlgHierarchyInfoForAllLevel algHierarchyInfo;
     CHK_RET(executor->CalcAlgHierarchyInfo(comm, topoInfo.get(), algHierarchyInfo));

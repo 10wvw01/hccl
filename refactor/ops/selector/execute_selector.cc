@@ -210,8 +210,8 @@ HcclResult Selector(
         HCCL_DEBUG("[Selector] is aiv mode");
         CHK_RET(RegisterKernel()); // 该函数内部有防止重复加载的逻辑
     }
-    // SetOpParamAlgTag 依赖 algName 字符串，待后续 algName 字符串来源明确后补充
-    // CHK_RET(SetOpParamAlgTag(param, algName));
+    // 算法名称由 SelectAicpuAlgo/SelectCcuAlgo 等填入 alg.algName，据此设置 algTag
+    CHK_RET(SetOpParamAlgTag(param, alg.algName));
     // 设定执行超时时间
     CHK_RET(SetExecTimeout(param));
     // 获取多维度切分比例

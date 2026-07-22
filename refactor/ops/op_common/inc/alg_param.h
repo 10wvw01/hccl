@@ -408,6 +408,7 @@ struct AlgResourceCtxSerializable {
     ThreadHandle exportedCpuTsThread = 0; // 导出给 AICPU_TS 的 cpuTsThread
     std::vector<std::vector<ChannelInfo>> channels;
     bool isHcommBatchTransferOnThreadSupported = false;
+    bool isHcclThreadAcquireWithConfigSupported = false;
     void *commInfoPtr = nullptr;
     // hostdpu
     void *npu2DpuShmemPtr = nullptr;
@@ -439,6 +440,7 @@ struct AlgResourceCtxSerializable {
         binaryStream << exportedCpuTsThread;
         binaryStream << channels;
         binaryStream << isHcommBatchTransferOnThreadSupported;
+        binaryStream << isHcclThreadAcquireWithConfigSupported;
 
         binaryStream << npu2DpuShmemPtr;
         binaryStream << dpu2NpuShmemPtr;
@@ -475,6 +477,7 @@ struct AlgResourceCtxSerializable {
         binaryStream >> exportedCpuTsThread;
         binaryStream >> channels;
         binaryStream >> isHcommBatchTransferOnThreadSupported;
+        binaryStream >> isHcclThreadAcquireWithConfigSupported;
 
         binaryStream >> npu2DpuShmemPtr;
         binaryStream >> dpu2NpuShmemPtr;
@@ -483,11 +486,22 @@ struct AlgResourceCtxSerializable {
         binaryStream >> ccuKernels;
         binaryStream >> topoInfoSeqSize;
         binaryStream >> algoSerialData;
+        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] data.size=%zu, topoInfoSeqSize=%u",
+            data.size(), topoInfoSeqSize);
+        if (topoInfoSeqSize > data.size()) {
+            HCCL_ERROR("[AlgResourceCtxSerializable][DeSerialize] topoInfoSeqSize[%u] > data.size[%zu], abort",
+                topoInfoSeqSize, data.size());
+            return;
+        }
         size_t startPos = data.size() - topoInfoSeqSize;
+        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] startPos=%zu, extracting tailData", startPos);
         std::vector<char> tailData(data.begin() + startPos, data.end());
+        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] tailData.size=%zu, start TopoInfo DeSerialize",
+            tailData.size());
         TopoInfoWithNetLayerDetails topoTemp;
         topoTemp.DeSerialize(tailData);
         topoInfo = std::move(topoTemp);
+        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] TopoInfo DeSerialize done");
     }
 };
 
