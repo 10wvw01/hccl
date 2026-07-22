@@ -224,7 +224,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     u32 templateScratchMultiplier0 = tempAlg0->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u32 templateScratchMultiplier1 = tempAlg1->CalcScratchMultiple(BufferType::INPUT, BufferType::OUTPUT);
     u64 portNum0 = rankSize_ - 1;
-    u64 portNum =  4;
+    u64 portNum = 4;
     if (param.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
         portNum0 = MESH_BW_SCHED;
         portNum = CLOS_BW_SCHED;
@@ -496,5 +496,5 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceSc
 REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER, CcuReduceScatterConcurrentMeshNHRMs, InsReduceScatterConcurrentExecutor, TopoMatchUBX,
     CcuTempReduceScatterMesh1D, CcuTempReduceScatterNhrMultiJettyMem2Mem1D);
 #endif
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif
 }
