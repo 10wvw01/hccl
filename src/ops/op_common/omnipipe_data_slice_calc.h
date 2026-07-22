@@ -244,12 +244,23 @@ u64 CalReducescatterDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, dou
                                u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam& omniPipeScratchParam);
 OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
-OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std::vector<u64>& allRankSplitData,
                              const std::vector<u64>& curLoopAllRankSplitData, std::vector<DataSlice>& srcDataSlice,
                              std::vector<DataSlice>& dstDataSlice, u64 dataTypeSize);
 bool isSameLoop(const std::vector<u64>& splitData1, const std::vector<u64>& splitData2);
 std::vector<u64> CalcCountToDataSize(const std::vector<u64>& vecCount, u64 dataType);
 int SetMaxStepNumOmni(OmniNeedSetStepNum needSetStepNum);
+OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
+void InitGatherContext(const OmniPipeSliceParam& param, GatherContext& ctx);
+void CalcGatherStepsAndSizes(GatherContext& ctx, const OmniPipeSliceParam& param);
+std::vector<StepSliceInfo> CalcZSliceInfo(const GatherContext& ctx, u64 zCclBufferBaseOff);
+void CalcAxisSliceSameAxis(const GatherContext& ctx, bool isXAxis, u64 cclBufferBaseOff,
+                           u64 osn, u64 isn, std::vector<StepSliceInfo>& dataSliceLevel);
+void CalcAxisSliceInnerCorner(const GatherContext& ctx, bool isXAxis, u64 cclBufferBaseOff,
+                              u64 osn, u64 isn, std::vector<StepSliceInfo>& dataSliceLevel);
+                              void CalcAxisSliceOuterCorner(const GatherContext& ctx, bool isXAxis, u64 cclBufferBaseOff,
+                              u64 osn, u64 isn, std::vector<StepSliceInfo>& dataSliceLevel);
+void CalcAxisSliceDoubleCorner(const GatherContext& ctx, bool isXAxis, u64 cclBufferBaseOff,
+                               u64 osn, u64 isn, std::vector<StepSliceInfo>& dataSliceLevel);
 }  // namespace ops_hccl
 #endif
