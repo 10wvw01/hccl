@@ -29,7 +29,9 @@ namespace ops_hccl {
 class BaseEngine;
 
 // ominipie只能是快轴和慢轴
-constexpr uint32_t ominpipeTemplateNum = 2;
+constexpr uint32_t OMNI_TEMPLATE_NUM = 2;
+constexpr uint32_t OMIN_MAX_STEP_NUM = 5;
+
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -82,7 +84,7 @@ private:
     HcclResult CalcTemplateChannelRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
     HcclResult GetTemplateRes(const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
-    HcclResult OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);    
+    HcclResult OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
     inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
@@ -102,6 +104,8 @@ private:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
+    HcclResult CalcEqBW(const AlgoExecDesc &algoExecDesc, double &eqBwX, double &eqBwY, double &eqBwXY);
+    u32 CalcOmnipipiSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc);
 
     // 引擎指针，由外部通过 SetEngine 注入
     BaseEngine *engine_ = nullptr;
