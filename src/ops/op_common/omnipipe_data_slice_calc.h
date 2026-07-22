@@ -40,6 +40,8 @@ constexpr double BW_OMNI_UBX_CCU_MS_RS_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_MS_RS_CLOS = 170;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_CLOS = 180;
+constexpr double BW_OMNI_UBX_CCU_SCHED_G_MESH = 47;
+constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 180;
 
 enum OmniPipeLevel{
     OMNIPIPE_LEVEL0 = 0,
@@ -245,6 +247,7 @@ u64 CalReducescatterDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, dou
                                u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam& omniPipeScratchParam);
 OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
+OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std::vector<u64>& allRankSplitData,
                              const std::vector<u64>& curLoopAllRankSplitData, std::vector<DataSlice>& srcDataSlice,
                              std::vector<DataSlice>& dstDataSlice, u64 dataTypeSize);
