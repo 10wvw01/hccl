@@ -65,12 +65,6 @@ void CostModelManager::FreeCostModel()
     costModel_.count = 0;
 }
 
-HcclResult CostModelManager::Load()
-{
-    HCCL_DEBUG("[CostModelManager] load cost model, count=%d.", costModel_.count);
-    return HcclResult::HCCL_SUCCESS;
-}
-
 void CostModelManager::InitBandwidth()
 {
     HCCL_DEBUG("[CostModelManager] InitBandwidth.");
@@ -133,56 +127,57 @@ HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
     return HcclResult::HCCL_SUCCESS;
 }
 
-double CostModelManager::Estimate(const std::string &algName, u64 dataSize) const
+void CostModelManager::CalcMeshParam(float n, int netType, int portNum, float &A)
 {
-    HCCL_DEBUG("[CostModelManager] estimate algName=%s dataSize=%llu.", algName.c_str(), dataSize);
-    return 0.0;
-}
-
-void CostModelManager::CalcMeshParam(float n, int netType, int portNum, float &A, float &B)
-{
-    HCCL_DEBUG("[CostModelManager] CalcMeshParams n=%f netType=%d portNum=%d.", n, netType, portNum);
     A = 0.0f;
-    B = 0.0f;
     if (netType == 0) {
-        // cost = D/B(write) + D/B(localcopy)
+        // cost = D/B(write)
         A = 1 / crossChipBw_;
-        B = 1 / localCopyBw_;
-    } else if (netType == 1) { 
-        // cost = nD/B(write) + nD/B(localcopy)
+    } else if (netType == 1) {
+        // cost = nD/B(write)
         A = n / (portNum * crossChipBw_);
-        B = n / localCopyBw_;
     } else {
         HCCL_ERROR("[CostModelManager] CalcMeshParams unsupported netType=%d.", netType);
     }
-
-    HCCL_DEBUG("[CostModelManager] CalcMeshParams A=%f B=%f.", A, B);
+    HCCL_DEBUG("[CostModelManager] CalcMeshParams n=%f netType=%d portNum=%d A=%f.", n, netType, portNum, A);
     return;
 }
 
-void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A, float &B)
+void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A)
 {
-    HCCL_DEBUG("[CostModelManager] CalcNHRParams n=%f netType=%d portNum=%d.", n, netType, portNum);
     A = 0.0f;
-    B = 0.0f;
     if (netType == 0) {
         // 
-        
-    } else if (netType == 1) { 
+        A = 1 / crossChipBw_;
+    } else if (netType == 1) {
         // 
-
+        A = n / (portNum * crossChipBw_);
     } else {
         HCCL_ERROR("[CostModelManager] CalcNHRParams unsupported netType=%d.", netType);
     }
+    HCCL_DEBUG("[CostModelManager] CalcNHRParams n=%f netType=%d portNum=%d A=%f.", n, netType, portNum, A);
+    return;
+}
 
-    HCCL_DEBUG("[CostModelManager] CalcNHRParams A=%f B=%f.", A, B);
+void CostModelManager::CalcLocalCopyParams(float n, float &B)
+{
+    B = n / localCopyBw_;
+    HCCL_DEBUG("[CostModelManager] CalcLocalCopyParams n=%f B=%f.", n, B);
+    return;
+}
+
+void CostModelManager::CalcLocalReduceParams(float n, float &B)
+{
+    B = n / localReduceBw_;
+    HCCL_DEBUG("[CostModelManager] CalcLocalReduceParams n=%f B=%f.", n, B);
     return;
 }
 
 void CostModelManager::CalcLatencyParams(int taskNum, float &C)
 {
-    HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d.", taskNum);
     C = 0.0f;
+    HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d, C=%f.", taskNum, C);
+    return;
 }
 
 AlgNetMetaRegistry *AlgNetMetaRegistry::Global()
@@ -195,8 +190,8 @@ void AlgNetMetaRegistry::Register(const std::string &algName, AlgNetMeta meta)
 {
     const std::lock_guard<std::mutex> lock(mu_);
     metas_[algName] = meta;
-    HCCL_DEBUG("[AlgNetMetaRegistry] register algName=%s netType=%d.", algName.c_str(),
-               static_cast<int>(meta.netType));
+    HCCL_DEBUG("[AlgNetMetaRegistry] register algName=%s netTypes=%zu aggMode=%d.", algName.c_str(),
+               meta.netTypes.size(), static_cast<int>(meta.aggMode));
 }
 
 bool AlgNetMetaRegistry::Query(const std::string &algName, AlgNetMeta &meta) const

@@ -28,7 +28,7 @@ std::vector<CostModelParam> InsTempAllReduceNHR::CalcCostCoeff()
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcNHRParams(n, netType, portNum, A, B);
+    CostModelManager::CalcNHRParams(n, netType, portNum, A);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

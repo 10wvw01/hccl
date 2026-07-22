@@ -20,6 +20,31 @@ InsTempAllGatherMesh1dIntra::InsTempAllGatherMesh1dIntra(const OpParam &param, c
 }
 InsTempAllGatherMesh1dIntra::~InsTempAllGatherMesh1dIntra() {}
 
+std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsTempAllGatherMesh1dIntra] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType InsTempAllGatherMesh1dIntra::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 HcclResult InsTempAllGatherMesh1dIntra::CalcRes(HcclComm comm, const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
     AlgResourceRequest &resourceRequest)
 {

@@ -33,6 +33,9 @@ public:
         return info;
     }
 
+    static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetType GetNetType();
+
     // 现在的Kernel就是之前的GenExtIns
     HcclResult KernelRun(const OpParam &param, const TemplateDataParams &tempAlgParams,
         TemplateResource &templateResource) override;

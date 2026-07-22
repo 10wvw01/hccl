@@ -17,6 +17,31 @@ InsTempAllReduceMesh1DTwoShotMeshChunk::InsTempAllReduceMesh1DTwoShotMeshChunk(c
 
 InsTempAllReduceMesh1DTwoShotMeshChunk::~InsTempAllReduceMesh1DTwoShotMeshChunk(){}
 
+std::vector<CostModelParam> InsTempAllReduceMesh1DTwoShotMeshChunk::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsTempAllReduceMesh1DTwoShotMeshChunk] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType InsTempAllReduceMesh1DTwoShotMeshChunk::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 u64 InsTempAllReduceMesh1DTwoShotMeshChunk::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void) inBuffType;

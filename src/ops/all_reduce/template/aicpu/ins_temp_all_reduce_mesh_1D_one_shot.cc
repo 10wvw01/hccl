@@ -34,7 +34,8 @@ std::vector<CostModelParam> InsTempAllReduceMesh1DOneShot::CalcCostCoeff()
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcMeshParam(n, netType, portNum, A, B);
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

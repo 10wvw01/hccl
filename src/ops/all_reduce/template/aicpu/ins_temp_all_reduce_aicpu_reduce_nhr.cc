@@ -19,6 +19,31 @@ InsTempAllReduceAicpuReduceNHR::InsTempAllReduceAicpuReduceNHR(const OpParam &pa
     : InsAlgTemplateBase(param, rankId, subCommRanks)
 {}
 
+std::vector<CostModelParam> InsTempAllReduceAicpuReduceNHR::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsTempAllReduceAicpuReduceNHR] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcNHRParams(n, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType InsTempAllReduceAicpuReduceNHR::GetNetType()
+{
+    return AlgNetType::CLOS;
+}
+
 u64 InsTempAllReduceAicpuReduceNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void)inBuffType;

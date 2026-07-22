@@ -32,6 +32,9 @@ public:
         return info;
     }
 
+    static std::vector<CostModelParam> CalcCostCoeff();
+    static AlgNetType GetNetType();
+
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                     AlgResourceRequest& resourceRequest) override;

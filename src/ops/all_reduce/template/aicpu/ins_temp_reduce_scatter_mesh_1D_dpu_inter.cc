@@ -27,6 +27,31 @@ InsTempReduceScatterMesh1dDpuInter::~InsTempReduceScatterMesh1dDpuInter()
 {
 }
 
+std::vector<CostModelParam> InsTempReduceScatterMesh1dDpuInter::CalcCostCoeff()
+{
+    HCCL_DEBUG("[InsTempReduceScatterMesh1dDpuInter] CalcCostCoeff.");
+    float n = 1.0f;
+    int netType = 0;
+    int portNum = 0;
+    int taskNum = 1;
+    float A = 0.0f;
+    float B = 0.0f;
+    float C = 0.0f;
+
+    CostModelManager::CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLatencyParams(taskNum, C);
+
+    std::vector<CostModelParam> params;
+    params.push_back({A, B, C});
+    return params;
+}
+
+AlgNetType InsTempReduceScatterMesh1dDpuInter::GetNetType()
+{
+    return AlgNetType::MESH;
+}
+
 HcclResult InsTempReduceScatterMesh1dDpuInter::CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                                                AlgResourceRequest& resourceRequest)
 {
