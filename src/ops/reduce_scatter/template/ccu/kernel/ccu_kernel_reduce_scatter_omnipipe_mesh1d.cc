@@ -60,7 +60,7 @@ static CcuResult InitResource(ReduceScatterOmniPipeMesh1DContext &ctx)
             // 本地资源，默认构造
             continue;
         } else {
-            HCCL_DEBUG("[CcuKernelReduceScatterOmniPipeMesh1D] rankId[%u], peerId[%u], channelId[%u]",
+            HCCL_DEBUG("[CcuKernelReduceScatterOmniPipeMesh1D] rankId[%u], peerId[%llu], channelId[%u]",
                        arg->rankId, peerId, channelIdx);
             ctx.input[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], INPUT_XN_ID);
             ctx.token[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], TOKEN_XN_ID);
@@ -144,7 +144,7 @@ static CcuResult DoRepeatReduceScatter(ReduceScatterOmniPipeMesh1DContext &ctx)
         if (i == arg->rankId) {
             continue;
         }
-        HCCL_DEBUG("[DoRepeatReduceScatter] myRank[%u] mySubCommRank[%u] current i[%d]", ctx.userRank, ctx.rankId, i);
+        HCCL_DEBUG("[DoRepeatReduceScatter] myRank[%u] mySubCommRank[%u] current i[%u]", ctx.userRank, ctx.rankId, i);
         src[idx].addr = ctx.input[i];
         src[idx].addr += ctx.inputSliceStride;
         src[idx].addr += ctx.inputOmniPipeSliceStride;

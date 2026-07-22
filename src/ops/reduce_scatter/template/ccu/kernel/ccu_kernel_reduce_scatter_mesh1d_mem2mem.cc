@@ -63,7 +63,7 @@ static CcuResult InitResource(ReduceScatterMesh1DMem2MemContext &ctx)
         if (peerId == arg->rankId) {
             // 本地资源，后续创建
         } else {
-            HCCL_DEBUG("[CcuKernelReduceScatterMesh1DMem2Mem] MyRank[%u], PeerId[%u], ChannelId[%u]",
+            HCCL_DEBUG("[CcuKernelReduceScatterMesh1DMem2Mem] MyRank[%u], PeerId[%llu], ChannelId[%u]",
                        arg->rankId, peerId, channelIdx);
             ctx.input[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], INPUT_XN_ID);
             ctx.scratch[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], SCRATCH_XN_ID);

@@ -188,9 +188,9 @@ HcclResult CcuTempReduceScatterOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& pa
             for (uint32_t ridx = 0; ridx < stepSliceInfo.inputOmniPipeSliceStride.size(); ridx++) {
                 inputOmniSliceStrideVec.push_back(stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
                 inputOmniSliceSizeVec.push_back(stepSliceInfo.stepSliceSize[ridx][rpt]);
-                HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.inputOmniPipeSliceStride[%d][%d]:%d",
+                HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.inputOmniPipeSliceStride[%u][%u]:%d",
                             __func__, myRank_, ridx, rpt, stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
-                HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepSliceSize[%d][%d]:%d", __func__,
+                HCCL_DEBUG("[%s] myRank[%u] stepSliceInfo.stepSliceSize[%u][%u]:%d", __func__,
                             myRank_, ridx, rpt, stepSliceInfo.stepSliceSize[ridx][rpt]);
             }
             uint64_t inputSliceStride = templateDataParams.inputSliceStride;

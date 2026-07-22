@@ -274,7 +274,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     u32 loopTimesforTemp0 = (dataCountforTemp0 + maxCountPerLoopforTemp0 - 1) / maxCountPerLoopforTemp0;
     u32 loopTimesforTemp1 = (dataCountforTemp1 + maxCountPerLoopforTemp1 - 1) / maxCountPerLoopforTemp1;
 
-    HCCL_INFO("[%s]portNum0[%u], portNum1[%u], dataCount[%llu], maxCountPerLoopforTemp0[%llu], "
+    HCCL_INFO("[%s]portNum0[%llu], portNum1[%llu], dataCount[%llu], maxCountPerLoopforTemp0[%llu], "
         "maxCountPerLoopforTemp1[%llu], dataCountforTemp0[%llu], dataCountforTemp1[%llu]",
         __func__, portNum0, portNum, dataCount_, maxCountPerLoopforTemp0,
         maxCountPerLoopforTemp1, dataCountforTemp0, dataCountforTemp1);
@@ -348,7 +348,7 @@ HcclResult InsReduceScatterConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         HCCL_INFO("[InsReduceScatterConcurrentExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsReduceScatterConcurrentExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsReduceScatterConcurrentExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {static_cast<u32>(templateAlgRes0.submitInfos.size()), 
                                          static_cast<u32>(templateAlgRes1.submitInfos.size())};

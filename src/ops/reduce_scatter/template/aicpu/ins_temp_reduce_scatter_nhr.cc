@@ -279,7 +279,7 @@ HcclResult InsTempReduceScatterNHR::RunNHR(const std::vector<ThreadHandle> &thre
 
         CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
                     channelIdx >= channels_[recvFromRank].size() || channelIdx >= channels_[sendToRank].size(),
-                    HCCL_ERROR("[RS-NHR][RunNHR] link missing: recvFrom=%d sendTo=%d channelIdx=%u", recvFromRank, sendToRank, channelIdx),
+                    HCCL_ERROR("[RS-NHR][RunNHR] link missing: recvFrom=%u sendTo=%u channelIdx=%u", recvFromRank, sendToRank, channelIdx),
                     HcclResult::HCCL_E_INTERNAL);
         ChannelInfo linkRecv = channels_[recvFromRank].at(channelIdx);
         ChannelInfo linkSend = channels_[sendToRank].at(channelIdx);

@@ -208,10 +208,10 @@ HcclResult InsV2ReduceScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         tempAlgParamsInter.inputSliceStride = dataSize_; // ccl-in按照rank偏移量，每次偏移是单次循环最大数据量
         tempAlgParamsInter.outputSliceStride = 0; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
         
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%u] tempAlgParamsInter.inputSliceStride [%u],"
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%llu] tempAlgParamsInter.inputSliceStride [%u],"
             "tempAlgParamsInter.outputSliceStride [%u] tempAlgParamsInter.sliceSize [%u]",
             loop, tempAlgParamsInter.inputSliceStride, tempAlgParamsInter.outputSliceStride, tempAlgParamsInter.sliceSize);
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%u] tempAlgParamsInter.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%llu] tempAlgParamsInter.buffInfo.inBuffBaseOff [%u],"
             "tempAlgParamsInter.buffInfo.outBuffBaseOff [%u]",
             loop, tempAlgParamsInter.buffInfo.inBuffBaseOff, tempAlgParamsInter.buffInfo.outBuffBaseOff);
         // m*n组网框内需要做n次重复
@@ -219,7 +219,7 @@ HcclResult InsV2ReduceScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         HCCL_INFO("templateScratchMultiplierInter is %u", templateScratchMultiplierInter);
         tempAlgParamsInter.inputRepeatStride = templateScratchMultiplierInter * dataCount_ * dataTypeSize_;
         tempAlgParamsInter.outputRepeatStride = templateScratchMultiplierInter * currDataCount * dataTypeSize_;
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%u] tempAlgParamsInter.repeatNum [%u],"
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%llu] tempAlgParamsInter.repeatNum [%u],"
             "tempAlgParamsInter.inputRepeatStride [%u], tempAlgParamsInter.outputRepeatStride [%u]",
             loop, tempAlgParamsInter.repeatNum, tempAlgParamsInter.inputRepeatStride, tempAlgParamsInter.outputRepeatStride);
         // 因为只考虑执行0级算法，所以传进template里面的channels就是channels_的第一个vector
@@ -239,10 +239,10 @@ HcclResult InsV2ReduceScatterSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
         tempAlgParamsIntra.inputSliceStride = templateScratchMultiplierInter * currDataCount * dataTypeSize_; // 框间从ccl-in拿数据，
         tempAlgParamsIntra.outputSliceStride = currDataCount * dataTypeSize_; // 如果是scratchbuffer，偏移是单次循环处理的最大数据量
         
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%u] tempAlgParamsIntra.inputSliceStride [%u],"
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%llu] tempAlgParamsIntra.inputSliceStride [%u],"
             "tempAlgParamsIntra.outputSliceStride [%u] tempAlgParamsIntra.sliceSize [%u]",
             loop, tempAlgParamsIntra.inputSliceStride, tempAlgParamsIntra.outputSliceStride, tempAlgParamsIntra.sliceSize);
-        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%u] tempAlgParamsIntra.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2ReduceScatterSequenceExecutor] loop [%llu] tempAlgParamsIntra.buffInfo.inBuffBaseOff [%u],"
             "tempAlgParamsIntra.buffInfo.outBuffBaseOff [%u]",
             loop, tempAlgParamsIntra.buffInfo.inBuffBaseOff, tempAlgParamsIntra.buffInfo.outBuffBaseOff);
         // 不需要重复

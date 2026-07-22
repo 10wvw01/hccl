@@ -173,7 +173,7 @@ HcclResult InsTempReduceScatterOmniPipeNHR::RunNHR(const std::vector<ThreadHandl
 
         CHK_PRT_RET(channels_.count(recvFromRank) == 0 || channels_.count(sendToRank) == 0 ||
                     channels_[recvFromRank].size() == 0 || channels_[sendToRank].size() == 0,
-                    HCCL_ERROR("[RS-NHR][RunNHR] link missing: recvFrom=%d sendTo=%d", recvFromRank, sendToRank),
+                    HCCL_ERROR("[RS-NHR][RunNHR] link missing: recvFrom=%u sendTo=%u", recvFromRank, sendToRank),
             HcclResult::HCCL_E_INTERNAL);
 
         ChannelInfo linkRecv = channels_[recvFromRank].at(channelIdx);

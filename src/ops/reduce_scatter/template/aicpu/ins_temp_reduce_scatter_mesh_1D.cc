@@ -176,7 +176,7 @@ HcclResult InsTempReduceScatterMesh1D::RunReduceScatter(
             outputSliceStride = tempAlgParam.tailSize;
         }
         u32 remoteRank = subCommRanks_[0][nextRank];
-        HCCL_DEBUG("[InsTempReduceScatterMesh1D][RunReduceScatter] myRank[%d], toRank[%d], fromRank[%d]",
+        HCCL_DEBUG("[InsTempReduceScatterMesh1D][RunReduceScatter] myRank[%d], toRank[%u], fromRank[%u]",
                    myRank_, remoteRank, remoteRank);
         const std::vector<ChannelInfo> &curChannels = channels.at(remoteRank);
         CHK_RET(CalcDataSplitByPortGroup(sliceCount, DATATYPE_SIZE_TABLE[dataType_], curChannels, elemCountOut_, sizeOut_, elemOffset_));

@@ -115,7 +115,7 @@ HcclResult InsTempReduceScatterAicpuReduceNHR::LocalDataCopy(const std::vector<T
         DataSlice src = DataSlice(tempAlgParams_.buffInfo.inputPtr, inOff, tempAlgParams_.sliceSize, tempAlgParams_.count);
         DataSlice dst = DataSlice(tempAlgParams_.buffInfo.hcclBuff.addr, scOff, tempAlgParams_.sliceSize, tempAlgParams_.count);
 
-        HCCL_INFO("[InsTempReduceScatterAicpuReduceNHR][LocalDataCopy] rpt[%u] inOff[%llu] scOff[%llu] sliceSize[%llu]",
+        HCCL_INFO("[InsTempReduceScatterAicpuReduceNHR][LocalDataCopy] rpt[%llu] inOff[%llu] scOff[%llu] sliceSize[%llu]",
             rpt, inOff, scOff, tempAlgParams_.sliceSize);
 
         // 如果源地址和目标地址相同，则不需要做拷贝
@@ -142,7 +142,7 @@ HcclResult InsTempReduceScatterAicpuReduceNHR::LocalCopyToOutput(const std::vect
                                 rpt * tempAlgParams_.outputRepeatStride;
         DataSlice src = DataSlice(tempAlgParams_.buffInfo.inputPtr, inOff, tempAlgParams_.sliceSize, tempAlgParams_.count);
         DataSlice dst = DataSlice(tempAlgParams_.buffInfo.outputPtr, outBaseOff, tempAlgParams_.sliceSize, tempAlgParams_.count);
-        HCCL_INFO("[InsTempReduceScatterAicpuReduceNHR][LocalCopyToOutput] rpt[%u] inOff[%llu] outBaseOff[%llu] sliceSize[%llu]",
+        HCCL_INFO("[InsTempReduceScatterAicpuReduceNHR][LocalCopyToOutput] rpt[%llu] inOff[%llu] outBaseOff[%llu] sliceSize[%llu]",
             rpt, inOff, outBaseOff, tempAlgParams_.sliceSize);
         if (tempAlgParams_.buffInfo.inBuffType != tempAlgParams_.buffInfo.outBuffType || inOff != outBaseOff) { 
             CHK_RET(LocalCopy(q, src, dst));

@@ -69,7 +69,7 @@ HcclResult CcuTempReduceScatterMesh2Die::CalcRes(HcclComm comm, const OpParam &p
         kernelInfo.setKernelArg(kernelArg);
         kernelInfo.channels = channels_[dieId];
         resourceRequest.ccuKernelInfos.emplace_back(kernelInfo);
-        HCCL_DEBUG("[CcuTempReduceScatterMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%llu, ccuKernelInfos=%llu",
+        HCCL_DEBUG("[CcuTempReduceScatterMesh2Die][CalcRes] dieId=%u, channels=%llu, rankSize=%u, ccuKernelInfos=%llu",
             dieId, channels_[dieId].size(), rankSize, resourceRequest.ccuKernelInfos.size());
     }
 

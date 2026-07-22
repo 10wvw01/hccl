@@ -226,7 +226,7 @@ HcclResult InsTempReduceScatterOmniPipeMesh1D::RunReduceScatter(const std::map<u
             (myAlgRank + 1 + queIdx) % templateRankSize_;  // 这里取的虚拟rankId , z轴的时候templateRankSize_=2
         u32 remoteRank = subCommRanks_[0][nextRank];
 
-        HCCL_DEBUG("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatter] myRank[%d], remoteRank[%d]", myRank_,
+        HCCL_DEBUG("[InsTempReduceScatterOmniPipeMesh1D][RunReduceScatter] myRank[%d], remoteRank[%u]", myRank_,
                    remoteRank);
         const ChannelInfo& linkRemote = channels.at(remoteRank)[0];
         std::vector<DataSlice> txSrcSlices;

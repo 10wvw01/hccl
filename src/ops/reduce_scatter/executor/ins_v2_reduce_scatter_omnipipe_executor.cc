@@ -421,7 +421,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 
     u64 processedDataCount = 0;
     OmniPipeSliceInfo omnipipeSliceInfo;
-    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop]loopTimes = [%u]", loopTimes);
+    HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop]loopTimes = [%llu]", loopTimes);
     std::map<u32, TemplateResource> tempResMap;
     std::map<u32, TemplateDataParams> tempAlgParamMap;
     for (auto& temp : tempMap) {
@@ -478,7 +478,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
         u32 axisReduceId = 0;  // 轴间reduce从计算slice的结果中获取
         std::vector<TemplateDataParams> axisReduceTempParams;
         for (int i = 0; i < level2StepCount; i++) {
-            HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop]Step [%u] in level2", i);
+            HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop]Step [%d] in level2", i);
             if (rankSizeLevel2_ > 1) {
                 HCCL_DEBUG("rankSizeLevel2_ > 1");
                 GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2], omnipipeSliceInfo.dataSliceLevel2[i]);

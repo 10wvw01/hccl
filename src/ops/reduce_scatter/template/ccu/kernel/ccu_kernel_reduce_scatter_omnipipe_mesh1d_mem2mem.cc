@@ -58,7 +58,7 @@ static CcuResult InitResource(ReduceScatterOmniPipeMesh1DMem2MemContext &ctx)
             // 本地资源，默认构造
             continue;
         } else {
-            HCCL_DEBUG("[CcuKernelReduceScatterOmniPipeMesh1DMem2Mem] rankId[%u], peerId[%u], channelId[%u]",
+            HCCL_DEBUG("[CcuKernelReduceScatterOmniPipeMesh1DMem2Mem] rankId[%u], peerId[%llu], channelId[%u]",
                        arg->rankId, peerId, channelIdx);
             ctx.input[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], INPUT_XN_ID);
             ctx.token[peerId] = ccu::GetResByChannel<ccu::Variable>(arg->channels[channelIdx], TOKEN_XN_ID);
