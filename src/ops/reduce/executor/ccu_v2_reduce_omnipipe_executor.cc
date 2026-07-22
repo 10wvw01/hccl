@@ -272,7 +272,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     tempAlgParams.inputSliceStride = 0;
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
-    // tempAlgParams.root = param.root;
 
     tempAlgParams.localCopyFlag = 0;
     tempAlgParams.repeatNum = stepSliceInfo.stepCount.size();
@@ -317,7 +316,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
     double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
-    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_RS_CLOS;
+    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS;
     eqBwLevel1RS = rankSizeLevel1_ > 1 ? eqBwLevel1RS / (rankSizeLevel1_ - 1) : eqBwLevel1RS;
     endpointAttrBwAvgRS = {eqBwLevel0RS, eqBwLevel1RS, 1.0};
 
@@ -327,8 +326,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     eqBwLevel1G = rankSizeLevel1_ > 1 ? eqBwLevel1G / (rankSizeLevel1_ - 1) : eqBwLevel1G;
     endpointAttrBwAvgG = {eqBwLevel0G, eqBwLevel1G, 1.0};
 
-    HCCL_DEBUG("[%s] eqBwLevel0RS:%f, eqBwLevel1RS:%f, eqBwLevel0G:%f, eqBwLevel1G:%f", __func__, eqBwLevel0RS,
-        eqBwLevel1RS, eqBwLevel0G, eqBwLevel1G);
+    HCCL_DEBUG("[%s] eqBwLevel0RS:%f, eqBwLevel1RS:%f, eqBwLevel0G:%f, eqBwLevel1G:%f", __func__, eqBwLevel0RS, eqBwLevel1RS, eqBwLevel0G, eqBwLevel1G);
     return HCCL_SUCCESS;
 }
 
@@ -394,10 +392,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<double> endpointAttrBwAvgG;
     CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG));
 
-    // std::vector<std::vector<double>> endpointAttrBw;
-    // std::vector<double> endpointAttrBwAvg;
-    // endpointAttrBwAvg = {3,4,1};
-
     // 2.1 获取每个rank切分的数据量count
     auto allRankSplitData = OmniPipeSplitData(rankSize_, dataCount_, dataTypeSize_);
     for (int i=0;i< allRankSplitData.size(); i++){
@@ -410,7 +404,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     u64 scratchBoundDataSize = maxTmpMemSize_/ rankSize_ / HCCL_MIN_SLICE_ALIGN * HCCL_MIN_SLICE_ALIGN;
     HCCL_DEBUG("[%s] myRank[%u] transportBoundDataSize[%u] scratchBoundDataSize[%u]", __func__, myRank_, transportBoundDataSize, scratchBoundDataSize);
     u64 maxCountPerLoop = std::min(transportBoundDataSize, scratchBoundDataSize) / dataTypeSize_;
-    CHK_PRT_RET(maxCountPerLoop == 0, "maxCountPerLoop is 0", HCCL_E_INTERNAL);
+    CHK_PRT_RET(maxCountPerLoop == 0, HCCL_ERROR("[%s] maxCountPerLoop is 0", __func__), HCCL_E_INTERNAL);
     HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
     u32 loopTimes = allRankSplitData[0] / maxCountPerLoop + ((allRankSplitData[0] % maxCountPerLoop == 0) ? 0 : 1);
     HCCL_DEBUG("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
@@ -437,7 +431,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[0], dataTypeSize_);
     sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-    // sliceParam.endpointAttrBw = {3.0, 4.0, 1.0};
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
     std::vector<u64> levelAlgType{1, 0, 1};
