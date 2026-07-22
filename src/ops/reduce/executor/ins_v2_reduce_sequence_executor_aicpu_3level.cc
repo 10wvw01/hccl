@@ -450,7 +450,7 @@ void InsV2ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAl
     (void)processedDataCount;
     tempAlgParamsAGL0.count = currDataCount;
     tempAlgParamsAGL0.buffInfo.inBuffBaseOff = 0;
-    tempAlgParamsAGL0.buffInfo.outBuffBaseOff = 0;
+    tempAlgParamsAGL0.buffInfo.outBuffBaseOff = meshCommBuffOffset_;
     tempAlgParamsAGL0.buffInfo.hcclBuffBaseOff = 0;
 
     tempAlgParamsAGL0.sliceSize = sliceSize;
@@ -651,7 +651,7 @@ HcclResult InsV2ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0,
         CHK_RET(algTemplateAGL0->KernelRun(param, tempAlgParamsAGL0, templateResourceAGL0));
 
         if (myRank_ == param.root) {
-            const DataSlice srcSlice(resCtx.cclMem.addr, 0, currDataCount * dataTypeSize_);
+            const DataSlice srcSlice(resCtx.cclMem.addr, meshCommBuffOffset_, currDataCount * dataTypeSize_);
             const DataSlice dstSlice(
                 param.outputPtr, processedDataCount * dataTypeSize_, currDataCount * dataTypeSize_);
             CHK_RET(LocalCopy(threads_.at(0), srcSlice, dstSlice));

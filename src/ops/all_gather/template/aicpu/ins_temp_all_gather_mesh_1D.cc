@@ -171,6 +171,9 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
 
                 if (!supportSymmetricMemory_) {
                     u64 rxScratchOffset = scratchBase + tempAlgParams_.sliceSize * connectedAlgRank + elemOffset_[channelIdx];
+                    if (tempAlgParams_.buffInfo.inBuffType == BufferType::HCCL_BUFFER) {
+                        rxScratchOffset = scratchBase + tempAlgParams_.inputSliceStride * connectedAlgRank + elemOffset_[channelIdx];
+                    }
                     rxSrcOffset = (!enableRemoteMemAccess_) ? rxScratchOffset : rxOutOffset;
                     rxSrcPtr = (!enableRemoteMemAccess_) ? remoteCclBuffAddr : linkRemote.remoteOutputGraphMode.addr;
                 } else {
@@ -242,7 +245,7 @@ HcclResult InsTempAllGatherMesh1D::LocalDataCopy(const std::vector<ThreadHandle>
             u64 cclOff = cclBaseOff + tempAlgParams_.sliceSize * myAlgRank;
             DataSlice cclDstSlice(tempAlgParams_.buffInfo.hcclBuff.addr, cclOff, sliceSize, sliceCount);
             bool skipCclCopy = (tempAlgParams_.buffInfo.inputPtr == tempAlgParams_.buffInfo.hcclBuff.addr &&
-                                inOff == cclOff);
+                                tempAlgParams_.buffInfo.inBuffBaseOff == tempAlgParams_.buffInfo.hcclBuffBaseOff);
             if (!skipCclCopy) {
                 HCCL_DEBUG("[InsTempAllGatherMesh1D][LocalDataCopy] RankID [%d] AlgRank [%d] copy to ccl: "
                         "cclBaseOff[%llu] cclOff[%llu] sliceSize[%llu] count[%llu].",
