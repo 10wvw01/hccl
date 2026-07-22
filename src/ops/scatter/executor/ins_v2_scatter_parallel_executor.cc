@@ -358,7 +358,7 @@ HcclResult InsV2ScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
             HcclResult::HCCL_E_INTERNAL);
         u64 dataOffset0 = processedCount * dataTypeSize_;
         u64 dataOffset1 = dataOffset0 + dataCountPerLoopAxis0 * dataTypeSize_;
-        HCCL_DEBUG("[InsV2ScatterParallelExecutor][Orchestrate] loopIndex[%u] in loopTimes[%u], currCount[%u], "
+        HCCL_DEBUG("[InsV2ScatterParallelExecutor][Orchestrate] loopIndex[%u] in loopTimes[%u], currCount[%llu], "
                   "dataCountPerLoopAxis0[%u], dataCountPerLoopAxis1[%u], dataOffset0[%u], dataOffset1[%u]",
             loopIndex,
             loopTimes,
@@ -442,7 +442,7 @@ HcclResult InsV2ScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
         HCCL_INFO("[InsV2ScatterParallelExecutor] ccu kernel num is 0, no need to save.");
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[InsV2ScatterParallelExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+    HCCL_INFO("[InsV2ScatterParallelExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
     std::vector<u32> ccuKernelNumList = {ccuKernelLaunchNumIntra0_, ccuKernelLaunchNumInter1_, ccuKernelLaunchNumInter0_, ccuKernelLaunchNumIntra1_};
     std::vector<std::vector<CcuKernelSubmitInfo>> submitInfosList = {templateAlgResIntra.submitInfos, templateAlgResInter.submitInfos};

@@ -214,7 +214,7 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
     u32 curCount = 0;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
     GetAlgRank(myRank_, subCommRanks_[0], myAlgRank);
-    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] myRank[%d], myAlgRank[%d], channels size[%d]", myRank_, myAlgRank, channels.size());
+    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] myRank[%d], myAlgRank[%u], channels size[%d]", myRank_, myAlgRank, channels.size());
     if (root_ == u32(myRank_)) {
         u32 count = 0; // 用于标记当前使用的线程
         for (u32 algRank = 0; algRank < subCommRanks_[0].size(); algRank++) {
@@ -223,11 +223,11 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
             if (myAlgRank == algRank) {
                 continue;
             }
-            HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] algRank[%d]", algRank);
+            HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] algRank[%u]", algRank);
             u32 remoteRank = subCommRanks_[0][algRank];
-            HCCL_INFO("[InsTempScatterMesh1D][RunMesh] myRank[%d], toRank[%d]", myRank_, remoteRank);
+            HCCL_INFO("[InsTempScatterMesh1D][RunMesh] myRank[%d], toRank[%u]", myRank_, remoteRank);
             CHK_PRT_RET(channels.find(remoteRank) == channels.end() || channels.at(remoteRank).empty(), 
-                        HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] remoteRank[%d] not found in channels", remoteRank), 
+                        HCCL_ERROR("[InsTempScatterMesh1D][RunMesh] remoteRank[%u] not found in channels", remoteRank), 
                         HCCL_E_INTERNAL);
             const std::vector<ChannelInfo> &linkSends = channels.at(remoteRank);
             // 需要根据channel切分数据
@@ -250,8 +250,8 @@ HcclResult InsTempScatterMesh1D::RunMesh(const std::map<u32, std::vector<Channel
                         tempAlgParams.buffInfo.outBuffBaseOff + algRank * tempAlgParams.outputSliceStride + r * tempAlgParams.outputRepeatStride + elemOffset_[channelIdx];
                     void* txDstPtr = (!enableRemoteMemAccess_) ? linkSend.remoteCclMem.addr : linkSend.remoteOutputGraphMode.addr;
                     HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] txDstPtr[%d]", txDstPtr);
-                    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] srcOffset[%d], tempAlgParams.buffInfo.inputPtr[%d]", srcOffset, tempAlgParams.buffInfo.inputPtr);
-                    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] dstOffset[%d], txDstPtr[%d]", dstOffset, txDstPtr);
+                    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] srcOffset[%llu], tempAlgParams.buffInfo.inputPtr[%d]", srcOffset, tempAlgParams.buffInfo.inputPtr);
+                    HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] dstOffset[%llu], txDstPtr[%d]", dstOffset, txDstPtr);
                     DataSlice srcSlice = DataSlice(tempAlgParams.buffInfo.inputPtr, srcOffset, curSliceSize, curCount);
                     HCCL_DEBUG("[InsTempScatterMesh1D][RunMesh] got srcSlice");
                     DataSlice dstSlice = DataSlice(txDstPtr, dstOffset, curSliceSize, curCount);

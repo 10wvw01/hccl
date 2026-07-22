@@ -113,7 +113,7 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
     }
 
     if (deltaRoot < nRanks) {  // ScatterNHR 需要发
-        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] Need to Send: deltaRoot[%u], nRanks[%d]", deltaRoot, nRanks);
+        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] Need to Send: deltaRoot[%u], nRanks[%u]", deltaRoot, nRanks);
         u32 sendTo = (myAlgRank + rankSize - deltaRankPair) % rankSize;
         u32 txSliceIdx = sendTo;
         for (u32 i = 0; i < nSlices; i++) {
@@ -121,11 +121,11 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
             stepInfo.txSliceIdxs.push_back(targetTxSliceIdx);
             txSliceIdx = (txSliceIdx + rankSize - deltaSliceIndex) % rankSize;
         }
-        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] rankSize[%u], myAlgRank[%d], sendTo Idx[%u]", subCommRanks_[0].size(), myAlgRank, sendTo);
+        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] rankSize[%u], myAlgRank[%u], sendTo Idx[%u]", subCommRanks_[0].size(), myAlgRank, sendTo);
         stepInfo.toRank = subCommRanks_[0].at(sendTo);
         stepInfo.nSlices = nSlices;
     } else if (deltaRoot >= deltaRankPair && deltaRoot < nRanks + deltaRankPair) {  // 需要收
-        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] Need to Recv: deltaRoot[%u], nRanks[%d], deltaRankPair[%d]", deltaRoot, nRanks, deltaRankPair);
+        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] Need to Recv: deltaRoot[%u], nRanks[%u], deltaRankPair[%u]", deltaRoot, nRanks, deltaRankPair);
         u32 recvFrom = (myAlgRank + deltaRankPair) % rankSize;
         u32 rxSliceIdx = myAlgRank;
         for (u32 i = 0; i < nSlices; i++) {
@@ -133,7 +133,7 @@ HcclResult InsTempScatterNHR::GetStepInfo(u32 step, u32 nSteps, AicpuNHRStepInfo
             stepInfo.rxSliceIdxs.push_back(targetRxSliceIdx);
             rxSliceIdx = (rxSliceIdx + rankSize - deltaSliceIndex) % rankSize;
         }
-        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] rankSize[%u], myAlgRank[%d], recvFrom Idx[%u]", subCommRanks_[0].size(), myAlgRank, recvFrom);
+        HCCL_DEBUG("[InsTempScatterNHR][GetStepInfo] rankSize[%u], myAlgRank[%u], recvFrom Idx[%u]", subCommRanks_[0].size(), myAlgRank, recvFrom);
         stepInfo.fromRank = subCommRanks_[0].at(recvFrom);
         stepInfo.nSlices = nSlices;
     }

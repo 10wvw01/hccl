@@ -135,13 +135,13 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
         tempAlgParams.inputSliceStride = dataSize_;  // 如果是输入，偏移是算子的output datasize
         tempAlgParams.outputSliceStride = 0;
 
-        HCCL_INFO("[InsV2ScatterSoleExecutor] loop [%u] tempAlgParams.inputSliceStride [%u],"
+        HCCL_INFO("[InsV2ScatterSoleExecutor] loop [%llu] tempAlgParams.inputSliceStride [%u],"
                   "tempAlgParams.outputSliceStride [%u] tempAlgParams.sliceSize [%u]",
             loop,
             tempAlgParams.inputSliceStride,
             tempAlgParams.outputSliceStride,
             tempAlgParams.sliceSize);
-        HCCL_INFO("[InsV2ScatterSoleExecutor] loop [%u] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2ScatterSoleExecutor] loop [%llu] tempAlgParams.buffInfo.inBuffBaseOff [%u],"
                   "tempAlgParams.buffInfo.outBuffBaseOff [%u]",
             loop,
             tempAlgParams.buffInfo.inBuffBaseOff,
@@ -177,7 +177,7 @@ HcclResult InsV2ScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
             HCCL_INFO("[InsV2ScatterSoleExecutor] ccu kernel num is 0, no need to save.");
             return HCCL_SUCCESS;
         }
-        HCCL_INFO("[InsV2ScatterSoleExecutor][HcclEngineCtxCreate] threadNum[%llu], ccuKernelNum[%llu]", threadNum, ccuKernelNum);
+        HCCL_INFO("[InsV2ScatterSoleExecutor][HcclEngineCtxCreate] threadNum[%u], ccuKernelNum[%u]", threadNum, ccuKernelNum);
 
         u64 size = CcuFastLaunchCtx::GetCtxSize(threadNum, ccuKernelNum);
         // 申请ctx

@@ -280,7 +280,7 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
         notifyIdxControlToTemplates_.push_back(level1TempRequest.notifyNumOnMainThread);
         notifyIdxTemplatesToControl_.push_back(1);
     }
-    HCCL_DEBUG("[%s]level0ThreadsNum[%u] level1ThreadsNum[%u]", __func__, level0ThreadsNum, level1ThreadsNum);
+    HCCL_DEBUG("[%s]level0ThreadsNum[%llu] level1ThreadsNum[%llu]", __func__, level0ThreadsNum, level1ThreadsNum);
     HCCL_DEBUG(
         "[%s]level0Threads size[%u] level1Threads size[%u]", __func__, level0Threads_.size(), level1Threads_.size());
     HCCL_DEBUG("[%s]templateMainThreads size[%u]", __func__, templateMainThreads_.size());
@@ -386,17 +386,17 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
     u64 maxTmpMemSize = resCtx.cclMem.size;
     u64 transportBoundDataSize = UB_MAX_DATA_SIZE;
     u64 scatterDataSize = maxTmpMemSize / rankSize_;
-    HCCL_DEBUG("[%s] myRank[%u] maxTmpMemSize[%u] transportBoundDataSize[%u]", __func__, myRank_, maxTmpMemSize,
+    HCCL_DEBUG("[%s] myRank[%u] maxTmpMemSize[%llu] transportBoundDataSize[%llu]", __func__, myRank_, maxTmpMemSize,
         transportBoundDataSize);
     u64 maxCountPerLoop = std::min(scatterDataSize, transportBoundDataSize) / HCCL_MIN_SLICE_ALIGN
                           * HCCL_MIN_SLICE_ALIGN / dataTypeSize_;
     CHK_PRT_RET(maxCountPerLoop == 0, HCCL_ERROR("[%s] maxCountPerLoop is 0", __func__), HCCL_E_INTERNAL);
-    HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%u]", __func__, myRank_, maxCountPerLoop);
+    HCCL_DEBUG("[%s] myRank[%u] maxCountPerLoop[%llu]", __func__, myRank_, maxCountPerLoop);
     u32 loopTimes = dataCount_ / maxCountPerLoop + ((dataCount_ % maxCountPerLoop == 0) ? 0 : 1);
     HCCL_DEBUG("[%s] myRank[%u] loopTimes[%u]", __func__, myRank_, loopTimes);
     u64 perLoopSize = maxCountPerLoop * dataTypeSize_;
     perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    HCCL_DEBUG("[%s] perLoopSize[%u]", __func__, perLoopSize);
+    HCCL_DEBUG("[%s] perLoopSize[%llu]", __func__, perLoopSize);
 
     // 3.计算对齐数据的切片信息
     OmniPipeSliceInfo alignSliceInfo;
@@ -425,7 +425,7 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
     if (dataCount_ > maxCountPerLoop && dataCount_ % maxCountPerLoop != 0) {
         u64 tailCount = dataCount_ % maxCountPerLoop;
         tailLoopSize = tailCount * dataTypeSize_;
-        HCCL_DEBUG("[%s] myRank[%u] tailLoopSize[%u]", __func__, myRank_, tailLoopSize);
+        HCCL_DEBUG("[%s] myRank[%u] tailLoopSize[%llu]", __func__, myRank_, tailLoopSize);
         std::vector<u64> tailPerLoop(rankSize_, tailLoopSize);
         sliceParam.dataSizePerLoop = tailPerLoop;
         tailSliceInfo = CalcScatterOmniPipeSliceInfo(sliceParam, param.root);

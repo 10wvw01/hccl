@@ -144,18 +144,18 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::LaunchOneRepeat(const StepSliceI
         inputOmniSliceStrideVec, outputOmniSliceStrideVec);
 
     for (uint32_t i = 0; i < inputOmniSliceSizeVec.size(); i++) {
-        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceSizeVec[%d] = %llu "
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceSizeVec[%u] = %llu "
                    "isStepone[%d] isLastStep[%d]",
             myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceSizeVec[i], isStepOne_, isLastStep_);
     }
     for (uint32_t i = 0; i < inputOmniSliceStrideVec.size(); i++) {
-        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceStrideVec[%d] = %llu "
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] inputOmniSliceStrideVec[%u] = %llu "
                    "isStepone[%d] isLastStep[%d] isFirstPiece[%d] isLastPiece[%d]",
             myRank_, subCommRootId_, rpt, sliceSize, i, inputOmniSliceStrideVec[i], isStepOne_, isLastStep_,
             isFirstPiece, isLastPiece);
     }
     for (uint32_t i = 0; i < outputOmniSliceStrideVec.size(); i++) {
-        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] outputOmniSliceStrideVec[%d] = %llu "
+        HCCL_DEBUG("myRank_[%u] subCommRootId_[%u] rpt[%u] sliceSize[%llu] outputOmniSliceStrideVec[%u] = %llu "
                    "isStepone[%d] isLastStep[%d] isFirstPiece[%d] isLastPiece[%d]",
             myRank_, subCommRootId_, rpt, sliceSize, i, outputOmniSliceStrideVec[i], isStepOne_, isLastStep_,
             isFirstPiece, isLastPiece);
@@ -233,7 +233,7 @@ HcclResult CcuTempScatterOmniPipeMesh1DMem2Mem::KernelRun(
     }
     uint64_t localCopyFlag = templateDataParams.localCopyFlag;
     buffInfo_ = templateDataParams.buffInfo;
-    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] isStepone[%d] isLastStep[%d] localCopyFlag[%d] start", __func__,
+    HCCL_DEBUG("[%s] myRank[%u] mySubCommRank_[%u] isStepone[%d] isLastStep[%d] localCopyFlag[%llu] start", __func__,
         myRank_, mySubCommRank_, isStepOne_, isLastStep_, localCopyFlag);
     auto stepSliceInfo = templateDataParams.stepSliceInfo;
 
