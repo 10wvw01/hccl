@@ -34,7 +34,6 @@
 #include "hccl_inner.h"
 #include "hccl.h"
 #include "config_log.h"
-#include "workflow.h"
 #include "load_kernel.h"
 #include "alg_param.h"
 #include "alg_type.h"

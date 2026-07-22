@@ -16,7 +16,6 @@
 #include "hccl_common.h"
 #include "acl_base.h"
 #include "acl_rt.h"
-#include "workflow.h"
 
 namespace ops_hccl {
 

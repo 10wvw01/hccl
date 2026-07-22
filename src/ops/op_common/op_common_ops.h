@@ -21,7 +21,6 @@
 #include "op_common.h"
 #include "param_check.h"
 #include "sal.h"
-#include "workflow.h"
 #include <hccl/hccl_types.h>
 #include "hcomm_dlsym.h"
 #include "hcom.h"

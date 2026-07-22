@@ -11,7 +11,6 @@
 #include <limits.h>
 #include "adapter_acl.h"
 #include "acl_rt.h"
-#include "workflow.h"
 #include "dev_type.h"
 
 namespace ops_hccl {
