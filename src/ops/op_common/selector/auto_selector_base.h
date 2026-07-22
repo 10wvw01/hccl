@@ -104,6 +104,7 @@ public:
     HcclResult CheckMeshNumEqualToClosNum(const TopoInfoWithNetLayerDetails *topoInfo, bool &isEqual) const;
     HcclResult CheckClosNumMultipleOfMeshNum(const TopoInfoWithNetLayerDetails *topoInfo, bool &isMultiple) const;
     bool IsTwoLevelNetLayer(const TopoInfoWithNetLayerDetails *topoInfo) const;
+    bool IsDevType960() const;
     bool IsInputOutputOverlap(const OpParam &opParam) const;
     bool IsSmallDataCCU(const u64 dataSize, const u64 rankSize) const;
 

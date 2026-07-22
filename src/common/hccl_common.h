@@ -23,7 +23,6 @@
 #include "hccl_types.h"
 #include "hccl_res.h"
 
-#define Ascend_950_CCU_V2
 
 #ifndef T_DESC
 #define T_DESC(_msg, _y) ((_y) ? true : false)
@@ -260,11 +259,7 @@ struct HcclMem {
 
 inline bool shouldGoOutPlace(DevType deviceType) {
 #ifdef MACRO_DEV_TYPE_NEW
-    #ifdef Ascend_950_CCU_V2
-        return deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960;
-    #else
-        return deviceType == DevType::DEV_TYPE_950;
-    #endif
+    return deviceType == DevType::DEV_TYPE_950 || deviceType == DevType::DEV_TYPE_960;
 #else
     return deviceType == DevType::DEV_TYPE_910_95;
 #endif
