@@ -775,26 +775,14 @@ HcclResult ProcessLinksForChannel(HcclComm comm, u32 myRank, u32 rank, std::vect
             }
         }
 
-        HcclChannelDesc channelDesc;
-        HcclChannelDescInit(&channelDesc, 1);
-        channelDesc.remoteRank = rank;
-        CommLink link = linkList[priorityLink];
-        channelDesc.localEndpoint.protocol = link.srcEndpointDesc.protocol;
-        channelDesc.localEndpoint.commAddr = link.srcEndpointDesc.commAddr;
-        channelDesc.localEndpoint.loc = link.srcEndpointDesc.loc;
-        channelDesc.remoteEndpoint.protocol = link.dstEndpointDesc.protocol;
-        channelDesc.remoteEndpoint.commAddr = link.dstEndpointDesc.commAddr;
-        channelDesc.remoteEndpoint.loc = link.dstEndpointDesc.loc;
-
-        channelDesc.channelProtocol = link.linkAttr.linkProtocol;
-        channelDesc.notifyNum = NORMAL_NOTIFY_NUM;
-        channels.push_back(channelDesc);
+        CHK_RET(CreateChannelFromLink(comm, myRank, rank, netLayer, priorityLink,
+            linkList[priorityLink], "CalcChannelRequestWithPriorTopo", channels));
 
         if (netLayer == 0) {
             CHK_RET(GetTopoTypeByLink(comm, netLayer, linkList[priorityLink], topoType));
         HCCL_INFO("[CalcChannelRequestWithPriorTopo]Add channel request between %u and %u with protocol %u "
                   "and topoType %u. And Priority topoType is %u.",
-                  myRank, channelDesc.remoteRank, channelDesc.remoteEndpoint.protocol, topoType, priorityTopo);
+                  myRank, rank, linkList[priorityLink].dstEndpointDesc.protocol, topoType, priorityTopo);
         }
         
         if (listSize > 0) {
@@ -867,13 +855,13 @@ HcclResult CalcChannelRequestMesh1DWithPriorityTopo(HcclComm comm, const OpParam
 #ifndef AICPU_COMPILE
     (void) param;
     channels.clear();
-    auto it = std::find(subcommInfo[COMM_LEVEL0].begin(), subcommInfo[COMM_LEVEL0].end(), topoInfo->userRank);
+    u32 myRank = topoInfo->userRank;
+    auto it = std::find(subcommInfo[COMM_LEVEL0].begin(), subcommInfo[COMM_LEVEL0].end(), myRank);
     CHK_PRT_RET((it == subcommInfo[COMM_LEVEL0].end()),
-                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%d] is not in commInfo.", topoInfo->userRank),
+                HCCL_ERROR("[CollAlgFactory] [channel] Rank [%d] is not in commInfo.", myRank),
                 HcclResult::HCCL_E_PARA);
 
     u32 topoLevelNums = static_cast<const TopoInfoWithNetLayerDetails*>(topoInfo)->topoLevelNums;
-    u32 myRank = topoInfo->userRank;
     for (u32 rank : subcommInfo[COMM_LEVEL0]) {
         if (rank != myRank) {
             CHK_RET(ProcessLinksForChannel(comm, myRank, rank, channels, priorityTopo, topoLevelNums));
