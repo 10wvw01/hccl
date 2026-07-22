@@ -251,4 +251,4 @@ extern HcclResult HcclBatchSendRecv(HcclSendRecvItem* sendRecvInfo, uint32_t ite
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-#endif // HCCL_OPS_H
+#endif // HCCL_H_
