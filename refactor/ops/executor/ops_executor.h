@@ -28,6 +28,8 @@ namespace ops_hccl {
 
 class BaseEngine;
 
+// ominipie只能是快轴和慢轴
+constexpr uint32_t ominpipeTemplateNum = 2;
 struct BufferInfo {
     void *ptr = nullptr;
     u64 size = 0;
@@ -80,6 +82,7 @@ private:
     HcclResult CalcTemplateChannelRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
     HcclResult GetTemplateRes(const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);    
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
     inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);

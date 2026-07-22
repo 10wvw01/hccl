@@ -80,7 +80,16 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
                              ? offsetCount * dataTypeSize_
                              : (offsetCount / rankSize_) * dataTypeSize_;
         InitAlgoExecDataDesc(algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
-        OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
+        if (algo_.algoExecDesc.execPolicy == HcclAlgExecPolicy::OMNIPIPE) {
+            size_t childrenSize = algo_.algoExecDesc.children.size();
+            if (childrenSize != ominpipeTemplateNum ) {
+                return HCCL_E_INTERNAL;
+            }
+            CHK_RET(OrchestrateOmniPipeLoop(algo_.algoExecDesc, algoExecDataDesc));
+        } else {
+            CHK_RET(OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc));
+        }
+
         // 偏移增加
         offsetCount += processCount;
     }
@@ -124,7 +133,7 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
-    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重新获取rankSize和myRank 
+    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重新获取rankSize和myRank
     myRank_ = resCtx.topoInfo.userRank;
     rankSize_ = resCtx.topoInfo.userRankSize;
     AlgResourceRequest resourceRequest;
@@ -444,7 +453,8 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     childrenAlgoExecDataDesc.at(childrenId).ranksForInputDataGroup.clear();
     size_t ranksForInputDataGroupSize = algoExecDataDesc.ranksForInputDataGroup.size();
     if (ranksForInputDataGroupSize != 1 && ranksForInputDataGroupSize != childrenSize) {
-        HCCL_ERROR("[UpdateDataSplitParallel] ranksForInputDataGroupSize (%zu) matches neither 1 nor childrenSize (%zu)!",
+        HCCL_ERROR(
+            "[UpdateDataSplitParallel] ranksForInputDataGroupSize (%zu) matches neither 1 nor childrenSize (%zu)!",
             ranksForInputDataGroupSize, childrenSize);
         return;
     }
@@ -584,6 +594,14 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
     }
     return HCCL_SUCCESS;
 }
+
+HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
+{
+    //假设第一个孩子节点是慢轴，第二个孩子节点是快轴，先计算需要几轮循环
+
+    return HCCL_SUCCESS;
+}
+
 HcclResult OpsExecutor::PreSyncSingleSubDomain(u32 subCommIndex)
 {
     ThreadHandle subMain = subThreads_.at(subCommIndex).at(0);
