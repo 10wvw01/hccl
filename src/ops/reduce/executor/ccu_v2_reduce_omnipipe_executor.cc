@@ -272,7 +272,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     tempAlgParams.inputSliceStride = 0;
     tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
-    // tempAlgParams.root = param.root;
 
     tempAlgParams.localCopyFlag = 0;
     tempAlgParams.repeatNum = stepSliceInfo.stepCount.size();
@@ -394,10 +393,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<double> endpointAttrBwAvgG;
     CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG));
 
-    // std::vector<std::vector<double>> endpointAttrBw;
-    // std::vector<double> endpointAttrBwAvg;
-    // endpointAttrBwAvg = {3,4,1};
-
     // 2.1 获取每个rank切分的数据量count
     auto allRankSplitData = OmniPipeSplitData(rankSize_, dataCount_, dataTypeSize_);
     for (int i=0;i< allRankSplitData.size(); i++){
@@ -437,7 +432,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     OmniPipeSliceParam sliceParam;
     sliceParam.dataSizePerLoop = CalcCountToDataSize(multiLoopAllRankSplitData[0], dataTypeSize_);
     sliceParam.dataWholeSize = CalcCountToDataSize(allRankSplitData, dataTypeSize_);
-    // sliceParam.endpointAttrBw = {3.0, 4.0, 1.0};
     sliceParam.levelRankId = {rankIdxLevel0_, rankIdxLevel1_, 0};
     sliceParam.levelRankSize = {rankSizeLevel0_, rankSizeLevel1_, 1};
     std::vector<u64> levelAlgType{1, 0, 1};
