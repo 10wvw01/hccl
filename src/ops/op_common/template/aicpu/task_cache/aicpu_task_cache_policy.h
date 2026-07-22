@@ -23,8 +23,6 @@ public:
 private:
     static bool IsTopoSupported(const AlgResourceCtxSerializable &resCtx);
     static HcclResult IsInplaceForCache(const OpParam &param, const uint32_t rankSize, bool &isInplace);
-    static HcclResult ParseOpParamForCache(const OpParam &param, HcclDataType &sendType, HcclDataType &recvType,
-        uint64_t &inputSize, uint64_t &outputSize, const TopoInfoWithNetLayerDetails &topoInfo);
     static bool IsOpTypeSupported(HcclCMDType opType);
 };
 

@@ -88,7 +88,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     // 注意: 如果inputSize和outputSize只有一个为0, 则一定是outplace场景
     if (inputSize == 0 || outputSize == 0) {
         isInplace = false;
-        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%u] is not overlapping with outputSize[%u] -> isInplace[%d]",
+        HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] inputSize[%llu] is not overlapping with outputSize[%llu] -> isInplace[%d]",
             inputSize, outputSize, isInplace);
         return HCCL_SUCCESS;
     }
@@ -101,7 +101,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     // 对于broadcast算子, UserInput与UserOutput完全重叠, 需要按照outplace场景特殊处理, 正常使能cache
     if (param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
         CHK_PRT_RET(!(inputStart == outputStart && inputSize == outputSize),
-            HCCL_INFO("[AicpuTaskCachePolicy][IsInplace] broadcast shoud input==output[0x%016llx, 0x%016llx] "
+            HCCL_ERROR("[AicpuTaskCachePolicy][IsInplace] broadcast shoud input==output[0x%016llx, 0x%016llx] "
                       "inputSize==outputSize[%u,%u]",
                 inputStart, outputStart, inputSize, outputSize),
             HCCL_E_PARA);

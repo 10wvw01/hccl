@@ -19,7 +19,7 @@ static inline HcclResult LaunchKernelAndSyncStream_(
     aclrtFuncHandle funcHandle, aclrtArgsHandle argsHandle, aclrtStream stream)
 {
     // 下发kernel
-    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒
+    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒, 参考NOTIFY_DEFAULT_WAIT_TIME默认配置
     aclrtLaunchKernelAttr attr{};
     attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
     attr.value.timeout = kernelLaunchTimeout;
