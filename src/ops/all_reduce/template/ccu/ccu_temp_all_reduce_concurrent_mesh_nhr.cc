@@ -360,8 +360,11 @@ HcclResult CcuTempAllReduceConcurrentMeshNHR::KernelRun(const OpParam& param,
     if (meshCount > 0 && meshParams.sliceSize > 0) {
         u64 inputAddr = baseInputAddr + meshParams.buffInfo.inBuffBaseOff;
         u64 outputAddr = baseOutputAddr + meshParams.buffInfo.outBuffBaseOff;
-        u64 offset = meshParams.inputSliceStride * myMeshRank_;
-        auto goSize = CalGoSize(meshParams.sliceSize, config, GetCcuVersion());
+        RankSliceInfo meshSliceInfoVec;
+        CHK_RET(CalcSlice(meshParams.sliceSize, meshSliceInfoVec));
+        u64 offset = meshSliceInfoVec[myMeshRank_][0].offset;
+        u64 meshPerRankSize = meshSliceInfoVec[myMeshRank_][0].size;
+        auto goSize = CalGoSize(meshPerRankSize, config, GetCcuVersion());
         std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, offset,
                                           goSize[0], goSize[1], goSize[2], goSize[3]};
         CcuResult launchRet = HcommCcuKernelLaunch(meshMain, templateResource.ccuKernels[0],
