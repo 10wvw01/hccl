@@ -17,6 +17,15 @@
 
 namespace ops_hccl {
 
+<<<<<<< HEAD
+=======
+static const std::vector<std::string> ENGINE_TYPES = {"aicpu", "aiv", "ccu"};
+static const std::vector<std::string> OP_TYPES = {"allReduce", "allGather", "reduceScatter", "broadCast",
+                                                   "alltoall", "alltoallv", "scatter", "reduce"};
+static const std::vector<std::string> EXECUTOR_TYPES = {"sole", "parallel", "sequence", "concurrent", "sequence3"};
+static const std::vector<std::string> ALGO_TYPES = {"mesh", "nhr", "ring", "hd"};
+
+>>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
 // ---------------------------------------------------------------------------
 // 算法（template）条目
 // algoType: 算法名称（驼峰命名），如 "mesh", "nhr", "ring", "meshMultiLink"
@@ -47,7 +56,11 @@ struct HcclAlgoExecutor {
 // executorList: 按配置顺序存储，越靠后优先级越高
 // Parser():     解析入口，结果存入 executorList
 // ---------------------------------------------------------------------------
+<<<<<<< HEAD
 struct HcclAlgoExecutorParser {
+=======
+struct HcclAlgoParser {
+>>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
     std::vector<HcclAlgoExecutor> executorList;
     HcclResult Parser(const std::string &algoConfig);
 
@@ -56,6 +69,52 @@ struct HcclAlgoExecutorParser {
 };
 
 // ---------------------------------------------------------------------------
+<<<<<<< HEAD
+=======
+// CostModel 外部结构体（由其他模块传递，此处仅声明以便编译）
+// ---------------------------------------------------------------------------
+typedef struct {
+    float A;
+    float B;
+    float C;
+} CostModelParams;
+
+typedef struct {
+    const char *key;          // 算法名（驼峰命名）
+    CostModelParams *param_sets;
+    int param_count;          // -1 表示被排除
+} AlgoParams;
+
+typedef struct {
+    AlgoParams *algorithms;
+    int algorithm_count;
+} costModel;
+
+// ---------------------------------------------------------------------------
+// 上层业务接口：根据算法配置过滤 CostModel
+// 1. 获取可用引擎类型列表
+// 2. 获取 hcclAlgo 配置（通信域优先，其次环境变量 HCCL_ALGO）
+// 3. 解析算法配置 → 刷新 CostModel
+// ---------------------------------------------------------------------------
+HcclResult FilterCmByHcclAlgo(HcclComm comm, costModel &cm);
+
+// ---------------------------------------------------------------------------
+// 根据 HcclAlgoParser 解析结果刷新 CostModel
+// 参数：
+//   algoParser - 解析后的算法配置
+//   model      - CostModel 结构体（输入输出）
+//   engineTypes - 引擎类型列表（如 {"aicpu", "aiv", "ccu"}）
+// 规则：
+//   1. 反向遍历 executorList（后面的优先级高）
+//   2. 按 OpType 维度匹配，已匹配的 OpType 不再参与后续匹配
+//   3. 所有 OpType 都匹配成功后提前退出
+//   4. enable=false 为排除算法，设置 param_count=-1 
+// ---------------------------------------------------------------------------
+HcclResult UpdateCostModelWithAlgo(const HcclAlgoParser &algoParser, costModel &model,
+                                    const std::vector<std::string> &engineTypes);
+
+// ---------------------------------------------------------------------------
+>>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
 // 工具函数：下划线标识符转驼峰命名
 // "mesh_multi_link" → "meshMultiLink"
 // "nhr_chuck"       → "nhrChuck"
