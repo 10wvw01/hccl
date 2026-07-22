@@ -81,10 +81,6 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
                              : (offsetCount / rankSize_) * dataTypeSize_;
         InitAlgoExecDataDesc(algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
         if (algo_.algoExecDesc.execPolicy == HcclAlgExecPolicy::OMNIPIPE) {
-            size_t childrenSize = algo_.algoExecDesc.children.size();
-            if (childrenSize != OMNI_TEMPLATE_NUM) {
-                return HCCL_E_INTERNAL;
-            }
             CHK_RET(OrchestrateOmniPipeLoop(algo_.algoExecDesc, algoExecDataDesc));
         } else {
             CHK_RET(OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc));
@@ -603,22 +599,20 @@ HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, Algo
     double eqBwY = 0;
     double eqBwXY = 0;
     CHK_RET(CalcEqBW(algoExecDesc, eqBwX, eqBwY, eqBwXY));
-    uint32_t steps = CalcOmnipipiSteps(eqBwX, eqBwY, algoExecDesc);
+    uint32_t steps = CalcOmnipipeSteps(eqBwX, eqBwY, algoExecDesc);
     size_t childrenSize = algoExecDesc.children.size();
     std::vector<std::vector<AlgoExecDataDesc>> childrenAlgoExecDataDesc;
+    CHK_RET(CalcOmnipipeData(algoExecDesc, steps, childrenAlgoExecDataDesc));
     for (size_t i = 0; i < steps; i++) {
         CHK_RET(PreSyncBySubCommMask(algoExecDesc));
         for (size_t j = 0; j < childrenSize; ++j) {
             VariantType &v = algoExecDesc.children[j];
             // 处理 TemplateExecDesc
             if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-                CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(i).at(j)));
-                if (algoExecDesc.execPolicy == HcclAlgExecPolicy::SEQUENCE && childrenSize > 1) {
-                    CHK_RET(PostSyncSingleSubDomain(templateExeDes->subCommIndex));
-                }
+                CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(j).at(i)));
             } // 处理 AlgoExecDesc（递归）
             else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-                CHK_RET(OrchestrateOmniPipeLoop(**algoDescPtr, childrenAlgoExecDataDesc.at(i).at(j)));
+                CHK_RET(OrchestrateOmniPipeLoop(**algoDescPtr, childrenAlgoExecDataDesc.at(j).at(i)));
             } else {
                 return HCCL_E_INTERNAL;
             }
@@ -632,11 +626,21 @@ HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, Algo
 
 HcclResult OpsExecutor::CalcEqBW(const AlgoExecDesc &algoExecDesc, double &eqBwX, double &eqBwY, double &eqBwXY)
 {
+    // TODO: 从 algoExecDesc 解析每层 rankSize 和原始带宽，调用 omnipipe_utils.h:CalcBandwidth2D 求 eqBwXY
+    eqBwX = 0.0;
+    eqBwY = 0.0;
+    eqBwXY = 0.0;
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
+    std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc)
+{
     // eqBwXY是把快轴和慢轴合并为一个轴看等效带宽是多少
     return HCCL_SUCCESS;
 }
 
-u32 CalcOmnipipiSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc)
+u32 OpsExecutor::CalcOmnipipeSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc)
 {
     uint32_t steps = OMIN_MAX_STEP_NUM;
     return steps;

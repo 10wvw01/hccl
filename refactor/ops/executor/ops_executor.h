@@ -29,8 +29,11 @@ namespace ops_hccl {
 class BaseEngine;
 
 // ominipie只能是快轴和慢轴
-constexpr uint32_t OMNI_TEMPLATE_NUM = 2;
 constexpr uint32_t OMIN_MAX_STEP_NUM = 5;
+
+//Mesh单链路带宽56G， CLOS单链路带宽待定
+constexpr double OMIN_MESH_BW = 56;
+constexpr double OMIN_CLOS_BW = 56 * 2;
 
 struct BufferInfo {
     void *ptr = nullptr;
@@ -105,8 +108,9 @@ private:
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
     HcclResult CalcEqBW(const AlgoExecDesc &algoExecDesc, double &eqBwX, double &eqBwY, double &eqBwXY);
-    u32 CalcOmnipipiSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc);
-
+    u32 CalcOmnipipeSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc);
+    HcclResult CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
+        std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc);
     // 引擎指针，由外部通过 SetEngine 注入
     BaseEngine *engine_ = nullptr;
     // algo

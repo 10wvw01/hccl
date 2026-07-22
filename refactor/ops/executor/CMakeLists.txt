@@ -13,11 +13,6 @@
 # 由 refactor/CMakeLists.txt 通过 add_subdirectory(ops/executor) 拉进来
 #
 # 当前状态（全部注释掉，补完后逐个打开）：
-#   ⚠️ base_executor.cc                - 主体代码（145+110 行），但 ctor 引用了未声明的 baseOpParam
-#   ⚠️ sole/sole_executor.cc           - h 是 7 行空类，cc 引用了未声明的 algTemplate/SaveCtx/dataTypeSize_
-#   ❌ parallel/parallel_executor.cc    - 含 if(){} 语法错误，无法编译
-#   ❌ concurrent/base_concurrent_executor.cc  - 空文件
-#   ❌ omnipipe/base_omnipipe_executor.cc      - 空文件
 
 target_include_directories(hccl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/..
@@ -26,4 +21,5 @@ target_include_directories(hccl PRIVATE
 
 target_sources(hccl PRIVATE
     ops_executor.cc
+    omnipipe_utils.cc
 )
