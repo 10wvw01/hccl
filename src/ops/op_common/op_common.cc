@@ -1091,7 +1091,7 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
     s32 sRet = strncpy_s(exchangeInfo.tag, TAG_LENGTH, param.tag, TAG_LENGTH);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s],  return[%d].",
+    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s], return[%d].",
         __func__, param.tag, sRet), HCCL_E_MEMORY);
 
     HCCL_INFO("[%s] success. exchangeInfo dump: cclBufferSize[%llu], root[%u], opType[%u], opExecuteConfig[%u], "
@@ -1747,6 +1747,7 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     resCtxHost->notifyNumOnMainThread = resRequest.notifyNumOnMainThread;
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
+    resCtxHost->dieSplitRatio = resRequest.dieSplitRatio;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     // 资源回退
@@ -1879,7 +1880,7 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     return HCCL_SUCCESS;
 }
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence)
@@ -2185,7 +2186,7 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
         CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
         s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
-        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
+        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s, return %d.",
             __func__, param.algTag, sRet), HCCL_E_MEMORY);
 
         CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));

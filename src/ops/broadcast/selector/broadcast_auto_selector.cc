@@ -72,6 +72,12 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     (void)configAlgMap;
     HCCL_DEBUG("[BroadcastAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
 
+    if (topoInfo->level2Ubg) {
+        HCCL_INFO("[BroadcastAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_INFO("[BroadcastAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
             __func__);
@@ -227,8 +233,8 @@ SelectorStatus BroadcastAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
     (void)configAlgMap;
     std::vector<HcclAlgoType> algos = std::vector<HcclAlgoType>(HCCL_ALGO_LEVEL_NUM, HcclAlgoType::HCCL_ALGO_TYPE_DEFAULT);
 
-    if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[BroadcastAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
+    if (topoInfo->userRankSize > MAX_RANK_SIZE) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[BroadcastAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
         return SelectorStatus::NOT_MATCH;
     }
 

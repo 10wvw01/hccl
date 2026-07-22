@@ -207,6 +207,7 @@ HcclResult GetProtocolByEngine(const OpParam& param, std::vector<CommProtocol> &
             protocols.push_back(CommProtocol::COMM_PROTOCOL_UBC_TP);
             protocols.push_back(CommProtocol::COMM_PROTOCOL_PCIE);
             protocols.push_back(CommProtocol::COMM_PROTOCOL_UBOE);
+            protocols.push_back(CommProtocol::COMM_PROTOCOL_UBG);
             break;
         case CommEngine::COMM_ENGINE_CCU:
             protocols.push_back(CommProtocol::COMM_PROTOCOL_UBC_CTP);
@@ -680,7 +681,7 @@ static bool IsPortEqual(EndpointDesc &endPoint0, EndpointDesc &endPoint1, bool i
                 && (endPoint0.commAddr.eid[PORT_IDX] == PORTVAL));
     }
 }
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 
 HcclResult GetTopoTypeByLink(HcclComm comm, uint32_t netLayer, CommLink &link, CommTopo &topoType)
 {

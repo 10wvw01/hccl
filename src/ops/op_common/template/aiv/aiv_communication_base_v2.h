@@ -22,7 +22,7 @@ static const struct FunLevelKType kernel_name##_kernel_type_section __attribute_
 = {{F_TYPE_KTYPE, sizeof(unsigned int), K_TYPE_AIV}}
 
 constexpr uint32_t MAX_RANK_SIZE = 512; // server内最大卡数
-constexpr uint32_t MAX_RANK_SIZE_V = 56;
+constexpr uint32_t MAX_RANK_SIZE_V = 256;
 constexpr uint64_t BUFFER_OUT_ADDR_OFFSET = 16 * 1024;
 constexpr uint64_t FLAG_ADDR_OFFSET = 40 * 1024;
 constexpr uint64_t TOPO_LEN_Y_OFFSET = 8;
@@ -797,4 +797,4 @@ __aicore__ inline void AivCommBase::Reduce64(__gm__ T *outputGM, __gm__ T *input
     func(fp8_e8m0_t); \
     func(hifloat8_t)
 
-#endif  /* AIV_COMMUNICATION_BASE_V2_H */
+#endif // AIV_COMMUNICATION_BASE_V2_H
