@@ -244,12 +244,6 @@ void Trace(const char *format, ...)
     std::fflush(stderr);
 }
 
-bool IsQueueVaDumpEnabled()
-{
-    const char *env = std::getenv("HCOMM_CHANNEL_DUMP_QUEUE_VA");
-    return env != nullptr && env[0] == '1' && env[1] == '\0';
-}
-
 std::string GetDfxQueueReadBinaryPath()
 {
     const char *kernelPath = std::getenv("HCOMM_DFX_QUEUE_READ_KERNEL_PATH");
@@ -899,9 +893,6 @@ void DumpSqContext(uint64_t deviceAddr, uint32_t sqNum, uint32_t wqeCnt)
         } else if (sqContext.type == SqContextType::SQ_CONTEXT_TYPE_UB_JFS) {
             Trace("skip UrmaWqe window for SqContext[%u], head cursor unavailable", idx);
         }
-        if (IsQueueVaDumpEnabled() && sqVa != 0) {
-            DumpBytes("sqVa", idx, sqVa);
-        }
     }
     if (sqNum > dumpNum) {
         HCCL_RUN_INFO("[HcommChannelInfoDump] SqContext total[%u], dumped[%u].", sqNum, dumpNum);
@@ -943,9 +934,6 @@ void DumpCqContext(uint64_t deviceAddr, uint32_t cqNum)
             DumpCqTailEntries(idx, cqContext, startTail, dumpNum);
         } else if (cqContext.type == CqContextType::CQ_CONTEXT_TYPE_UB_JFC) {
             Trace("skip CqTail window for CqContext[%u], tail cursor unavailable", idx);
-        }
-        if (IsQueueVaDumpEnabled() && cqVa != 0) {
-            DumpBytes("scqVa", idx, cqVa);
         }
     }
     if (cqNum > dumpNum) {
