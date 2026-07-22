@@ -23,6 +23,12 @@
 
 namespace ops_hccl {
 
+static const std::vector<std::string> ENGINE_TYPES = {"aicpu", "aiv", "ccu"};
+static const std::vector<std::string> OP_TYPES = {"allReduce", "allGather", "reduceScatter", "broadCast",
+                                                   "alltoall", "alltoallv", "scatter", "reduce"};
+static const std::vector<std::string> EXECUTOR_TYPES = {"sole", "parallel", "sequence", "concurrent", "sequence3"};
+static const std::vector<std::string> ALGO_TYPES = {"mesh", "nhr", "ring", "hd"};
+
 // ===========================================================================
 // 工具函数
 // ===========================================================================
@@ -48,7 +54,6 @@ std::string UnderscoreToCamelCase(const std::string &name)
 // ===========================================================================
 // 用户算法配置解析器（内部实现类）
 // ===========================================================================
-
 class AlgoParserImpl {
 public:
     explicit AlgoParserImpl(const std::string &input) : input_(input), pos_(0) {}

@@ -17,15 +17,6 @@
 
 namespace ops_hccl {
 
-<<<<<<< HEAD
-=======
-static const std::vector<std::string> ENGINE_TYPES = {"aicpu", "aiv", "ccu"};
-static const std::vector<std::string> OP_TYPES = {"allReduce", "allGather", "reduceScatter", "broadCast",
-                                                   "alltoall", "alltoallv", "scatter", "reduce"};
-static const std::vector<std::string> EXECUTOR_TYPES = {"sole", "parallel", "sequence", "concurrent", "sequence3"};
-static const std::vector<std::string> ALGO_TYPES = {"mesh", "nhr", "ring", "hd"};
-
->>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
 // ---------------------------------------------------------------------------
 // 算法（template）条目
 // algoType: 算法名称（驼峰命名），如 "mesh", "nhr", "ring", "meshMultiLink"
@@ -56,21 +47,13 @@ struct HcclAlgoExecutor {
 // executorList: 按配置顺序存储，越靠后优先级越高
 // Parser():     解析入口，结果存入 executorList
 // ---------------------------------------------------------------------------
-<<<<<<< HEAD
-struct HcclAlgoExecutorParser {
-=======
 struct HcclAlgoParser {
->>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
     std::vector<HcclAlgoExecutor> executorList;
     HcclResult Parser(const std::string &algoConfig);
-
     // 调试用
     std::string ToString() const;
 };
 
-// ---------------------------------------------------------------------------
-<<<<<<< HEAD
-=======
 // CostModel 外部结构体（由其他模块传递，此处仅声明以便编译）
 // ---------------------------------------------------------------------------
 typedef struct {
@@ -112,9 +95,8 @@ HcclResult FilterCmByHcclAlgo(HcclComm comm, costModel &cm);
 // ---------------------------------------------------------------------------
 HcclResult UpdateCostModelWithAlgo(const HcclAlgoParser &algoParser, costModel &model,
                                     const std::vector<std::string> &engineTypes);
-
+                                    
 // ---------------------------------------------------------------------------
->>>>>>> 2e5876d6... 算法选择重构,hcclAlgo及HCCL_ALGO解析，CostModel刷新
 // 工具函数：下划线标识符转驼峰命名
 // "mesh_multi_link" → "meshMultiLink"
 // "nhr_chuck"       → "nhrChuck"
