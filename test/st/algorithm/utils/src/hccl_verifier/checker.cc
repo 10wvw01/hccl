@@ -160,15 +160,15 @@ void Checker::PrintTask(const AllRankTaskQueues &allRankTaskQueues)
             auto& phyMap = serIter.second;
             for (auto& phyIter : phyMap) {
                 printf("=======================================================\n");
-                printf("rankId is : %d \n", rankIdx);
+                printf("rankId is : %u \n", rankIdx);
                 u32 threadIdx = 0;
                 const SingleTaskQueue& taskQueue = phyIter.second;
                 for (auto& thread : taskQueue) {
-                    printf("threadIdx : %d, taskNum : %ld \n", threadIdx, thread.size());
+                    printf("threadIdx : %u, taskNum : %ld \n", threadIdx, thread.size());
                     printf("-------------------------------------------------------\n");
                     for (auto& task : thread) {
                         std::string tempStr = task->Describe();
-                        printf("rankIdx:%d, threadIdx:%d, %s\n", rankIdx, threadIdx, tempStr.c_str());
+                        printf("rankIdx:%u, threadIdx:%u, %s\n", rankIdx, threadIdx, tempStr.c_str());
                     }
                     threadIdx++;
                 }

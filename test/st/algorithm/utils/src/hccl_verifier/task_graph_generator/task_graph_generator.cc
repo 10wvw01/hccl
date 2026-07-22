@@ -22,7 +22,7 @@ HcclResult TaskGraphGenerator::GenGraph(const AllRankTaskQueues &allRankTaskQueu
             for (auto& phyIter : phyMap) {
                 const SingleTaskQueue *taskQueue = &phyIter.second;
                 CHK_RET(GenGraph4Rank(taskQueue, rankId, dummyStart));
-                HCCL_DEBUG("[TaskGraphGenerator] Rank [%d], local dependency graph generation done.", rankId);
+                HCCL_DEBUG("[TaskGraphGenerator] Rank [%u], local dependency graph generation done.", rankId);
                 rankId++;
             }
         }

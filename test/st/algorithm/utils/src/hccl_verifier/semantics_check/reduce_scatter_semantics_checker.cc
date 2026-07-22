@@ -24,7 +24,7 @@ HcclResult TaskCheckReduceScatterSemantics(std::map<RankId, RankMemorySemantics>
     for (u32 rankId = 0; rankId < rankSize; rankId++) {
         // 对应的rank不存在需要报错
         if (allRankMemSemantics.count(rankId) == 0) {
-            HCCL_ERROR("Missing rank %d mem semantics", rankId);
+            HCCL_ERROR("Missing rank %u mem semantics", rankId);
             return HcclResult::HCCL_E_PARA;
         }
 
