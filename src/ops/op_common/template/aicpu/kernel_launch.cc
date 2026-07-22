@@ -306,8 +306,10 @@ inline HcclResult OpOrchestrate(OpParam *param, const AlgResourceCtxSerializable
     return HCCL_SUCCESS;
 }
 
-extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+extern "C" unsigned int HcclLaunchAicpuKernelInternal(OpParam *param, const uint64_t opUnfoldIdx)
 {
+    FUNCTION_TRACE;
+
     // 修改当前进程的调度策略和优先级
     struct sched_param schedParam;
     schedParam.sched_priority = 0; // 设置优先级为0
@@ -458,7 +460,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
         static uint64_t opUnfoldIdx = 0;
         HCCL_INFO("[HcclLaunchAicpuKernel] opUnfoldIdx[%llu] commName[%s] opType[%u] inputPtr[0x%016llx] inputSize[%llu] "
             "outputPtr[0x%016llx] outputSize[%llu] opMode[%u] algName[%s] isZeroCopy[%d] opExpanMode[%u] enableCache[%d]",
-            opUnfoldIdx++, param->commName, static_cast<uint32_t>(param->opType),
+            opUnfoldIdx, param->commName, static_cast<uint32_t>(param->opType),
             param->inputPtr, param->inputSize, param->outputPtr, param->outputSize,
             static_cast<uint32_t>(param->opMode), param->algName, param->isZeroCopy,
             static_cast<uint32_t>(param->commOpExpansionMode), enableCache);
@@ -668,6 +670,27 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
     return 0;
+}
+
+extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+{
+    static uint64_t opUnfoldIdx = 0;
+    opUnfoldIdx++;
+    constexpr uint64_t warmupOpCnt = 10;
+    if (opUnfoldIdx == warmupOpCnt  1) { // Start from op11
+        HcclTimer::startTrack = true;
+    }
+
+    int result = HcclLaunchAicpuKernelInternal(param, opUnfoldIdx);
+
+    constexpr uint64_t dumpOpCnt = 30;
+    if (opUnfoldIdx == dumpOpCnt) { // End at op30
+        HcclTimer::timerEntries.DumpTimerEntries();
+
+        HcclTimer::startTrack = false;
+    }
+
+    return result;
 }
 
 extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)
