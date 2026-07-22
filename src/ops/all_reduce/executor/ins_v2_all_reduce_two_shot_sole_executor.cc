@@ -154,7 +154,7 @@ void InsV2AllReduceTwoShotSoleExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     tempAlgParamsReduceScatter.inputSliceStride = tempAlgParamsReduceScatter.sliceSize;
     tempAlgParamsReduceScatter.outputSliceStride = 0;
 
-    HCCL_INFO("[InsV2AllReduceTwoShotSoleExecutor] loop [%u] tempAlgParamsReduceScatter.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceTwoShotSoleExecutor] loop [%llu] tempAlgParamsReduceScatter.inputSliceStride [%u], "
         "tempAlgParamsReduceScatter.outputSliceStride [%u], tempAlgParamsReduceScatter.sliceSize [%u], "
         "tempAlgParamsReduceScatter.tailSize [%u], tempAlgParamsReduceScatter.buffInfo.inBuffBaseOff [%u], "
         "tempAlgParamsReduceScatter.buffInfo.outBuffBaseOff [%u]",
@@ -184,7 +184,7 @@ void InsV2AllReduceTwoShotSoleExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemp
     tempAlgParamsAllGather.inputSliceStride = 0;
     tempAlgParamsAllGather.outputSliceStride = tempAlgParamsAllGather.sliceSize;
 
-    HCCL_INFO("[InsV2AllReduceTwoShotSoleExecutor] loop [%u] tempAlgParamsAllGather.inputSliceStride [%u], "
+    HCCL_INFO("[InsV2AllReduceTwoShotSoleExecutor] loop [%llu] tempAlgParamsAllGather.inputSliceStride [%u], "
         "tempAlgParamsAllGather.outputSliceStride [%u], tempAlgParamsAllGather.sliceSize [%u], "
         "tempAlgParamsAllGather.tailSize [%u], tempAlgParamsAllGather.buffInfo.inBuffBaseOff [%u], "
         "tempAlgParamsAllGather.buffInfo.outBuffBaseOff [%u]",

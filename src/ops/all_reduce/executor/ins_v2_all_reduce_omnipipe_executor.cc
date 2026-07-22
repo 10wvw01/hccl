@@ -715,7 +715,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<AlgTopoMatch, InsRsAlgTemplateX, InsRs
     u64 maxCountPerLoop = loopInfo[0];
     u64 loopTimes = loopInfo[1];
 
-    HCCL_DEBUG("maxCountPerLoop[%u], loopTimes[%u]", maxCountPerLoop, loopTimes);
+    HCCL_DEBUG("maxCountPerLoop[%llu], loopTimes[%llu]", maxCountPerLoop, loopTimes);
 
     // 2.4 获取每个rank，每个loop切分的数据量count
     auto multiLoopAllRankSplitData =

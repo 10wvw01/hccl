@@ -22,7 +22,7 @@ u64 InsTempAllReduceMesh1DTwoShotMeshChunk::CalcScratchMultiple(BufferType inBuf
     (void) inBuffType;
     (void) outBuffType;
     u64 multiple = 2;  // multiple=1且数据非均衡切分时，hcclBuffer会不足，因此用2
-    HCCL_INFO("[InsTempAllReduceMesh1DTwoShotMeshChunk] Ccl Buffer multiple is [%u].", multiple);
+    HCCL_INFO("[InsTempAllReduceMesh1DTwoShotMeshChunk] Ccl Buffer multiple is [%llu].", multiple);
     return multiple;
 }
 

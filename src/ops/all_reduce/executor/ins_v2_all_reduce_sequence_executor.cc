@@ -245,10 +245,10 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         tempAlgParamsStepOne.inputSliceStride = 0; // 没用到
         tempAlgParamsStepOne.outputSliceStride = 0; // 没用到
 
-        HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepOne.inputSliceStride [%u],"
+        HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%llu] tempAlgParamsStepOne.inputSliceStride [%u],"
             "tempAlgParamsStepOne.outputSliceStride [%u] tempAlgParamsStepOne.sliceSize [%u]",
             loop, tempAlgParamsStepOne.inputSliceStride, tempAlgParamsStepOne.outputSliceStride, tempAlgParamsStepOne.sliceSize);
-        HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%u],"
+        HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%llu] tempAlgParamsStepOne.buffInfo.inBuffBaseOff [%u],"
             "tempAlgParamsStepOne.buffInfo.outBuffBaseOff [%u]",
             loop, tempAlgParamsStepOne.buffInfo.inBuffBaseOff, tempAlgParamsStepOne.buffInfo.outBuffBaseOff);
         // 不需要重复
@@ -281,14 +281,14 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
             tempAlgParamsStepTwo.outputSliceStride = 0;  // 没用到
             //
             HCCL_INFO(
-                "[InsV2AllReduceSequenceExecutor] loop [%u] tempAlgParamsStepTwo.inputSliceStride [%u],"
+                "[InsV2AllReduceSequenceExecutor] loop [%llu] tempAlgParamsStepTwo.inputSliceStride [%u],"
                 "tempAlgParamsStepTwo.outputSliceStride [%u] "
                 "tempAlgParamsStepTwo.sliceSize [%u]",
                 loop,
                 tempAlgParamsStepTwo.inputSliceStride,
                 tempAlgParamsStepTwo.outputSliceStride,
                 tempAlgParamsStepTwo.sliceSize);
-            HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%u] "
+            HCCL_INFO("[InsV2AllReduceSequenceExecutor] loop [%llu] "
                       "tempAlgParamsStepTwo.buffInfo.inBuffBaseOff [%u],"
                       "tempAlgParamsStepTwo.buffInfo.outBuffBaseOff [%u]",
                 loop,

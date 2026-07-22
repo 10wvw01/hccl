@@ -61,7 +61,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::CalcRes(HcclComm comm, const OpPar
         CHK_RET(GetChannelDieId(comm, myRank_, channel, dieId));
         channelDescsDie[dieId].push_back(channel);
         groupRanksforDie[dieId].push_back(channel.remoteRank);
-        HCCL_INFO("[CcuTempAllreduceMesh1D2DieOneShot::calRes] dieId[%d],channelIdx[%d]", dieId, channelIdx);
+        HCCL_INFO("[CcuTempAllreduceMesh1D2DieOneShot::calRes] dieId[%u],channelIdx[%u]", dieId, channelIdx);
         channelIdx++;
     }
 
@@ -151,7 +151,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::KernelRun(const OpParam& param,
         CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[dieId], templateResource.ccuKernels[dieId],
             taskArgs.data(), argSize);
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] die[%d] kernel launch failed, ccuRet -> %d", dieId, launchRet);
+            HCCL_ERROR("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] die[%u] kernel launch failed, ccuRet -> %d", dieId, launchRet);
             return ConvertCcuToHccl(launchRet);
         }
         HCCL_INFO("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] die[%d] end", dieId);
