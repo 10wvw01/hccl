@@ -26,9 +26,9 @@ struct BspTreeCandidate {
     u64 maxChainLoad = 0;
 };
 
-size_t OffsetPlanIndex(u32 rowNum, u32 deltaC, u32 deltaR)
+size_t OffsetPlanIndex(u32 colNum, u32 srcCol, u32 deltaC)
 {
-    return static_cast<size_t>(deltaC) * rowNum + deltaR;
+    return static_cast<size_t>(srcCol) * colNum + deltaC;
 }
 
 size_t LoadIndex(u32 rowNum, u32 rank, u32 plane)
@@ -139,13 +139,14 @@ u32 InsTempAlltoAllVBsp::GetBspThreadNum() const
     return GetRowNum() * 2;
 }
 
-u32 InsTempAlltoAllVBsp::SelectPlane(u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const
+u32 InsTempAlltoAllVBsp::SelectPlane(
+    u32 srcCol, u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const
 {
-    if (GetRowNum() == 0) {
+    if (GetRowNum() == 0 || GetColNum() == 0) {
         return 0;
     }
     u32 offset = 0;
-    const size_t offsetIdx = OffsetPlanIndex(GetRowNum(), deltaC, deltaR);
+    const size_t offsetIdx = OffsetPlanIndex(GetColNum(), srcCol, deltaC);
     if (offsetIdx < offsetPlan.size()) {
         offset = offsetPlan[offsetIdx] % GetRowNum();
     }
@@ -156,7 +157,7 @@ HcclResult InsTempAlltoAllVBsp::BuildBspOffsetPlan(
     const TemplateDataParams &tempAlgParams, std::vector<u32> &offsetPlan) const
 {
     CHK_RET(CheckBspShape());
-    offsetPlan.assign(static_cast<size_t>(GetColNum()) * GetRowNum(), 0);
+    offsetPlan.assign(static_cast<size_t>(GetColNum()) * GetColNum(), 0);
     if (GetColNum() <= 1) {
         return HCCL_SUCCESS;
     }
@@ -180,32 +181,33 @@ HcclResult InsTempAlltoAllVBsp::BuildBspOffsetPlan(
         return HCCL_SUCCESS;
     };
 
-    auto applyBlock = [this, &calcTaskBytes](BspTreeCandidate &candidate, u32 deltaC, u32 deltaR,
+    auto applyBlock = [this, &calcTaskBytes](BspTreeCandidate &candidate, u32 srcCol, u32 deltaC,
                                              u32 offset) -> HcclResult {
-        const u32 plane = (deltaR + offset) % GetRowNum();
-        for (u32 srcRank = 0; srcRank < GetRankNum(); ++srcRank) {
-            const u32 srcCol = srcRank / GetRowNum();
-            const u32 srcRow = srcRank % GetRowNum();
-            const u32 dstCol = (srcCol + deltaC) % GetColNum();
-            const u32 dstRow = (srcRow + deltaR) % GetRowNum();
-            const u32 dstRank = dstCol * GetRowNum() + dstRow;
-            u64 bytes = 0;
-            CHK_RET(calcTaskBytes(srcRank, dstRank, bytes));
-            if (bytes == 0) {
-                continue;
+        const u32 dstCol = (srcCol + deltaC) % GetColNum();
+        for (u32 srcRow = 0; srcRow < GetRowNum(); ++srcRow) {
+            const u32 srcRank = srcCol * GetRowNum() + srcRow;
+            for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
+                const u32 plane = (deltaR + offset) % GetRowNum();
+                const u32 dstRow = (srcRow + deltaR) % GetRowNum();
+                const u32 dstRank = dstCol * GetRowNum() + dstRow;
+                u64 bytes = 0;
+                CHK_RET(calcTaskBytes(srcRank, dstRank, bytes));
+                if (bytes == 0) {
+                    continue;
+                }
+                const size_t sendIdx = LoadIndex(GetRowNum(), srcRank, plane);
+                const size_t recvIdx = LoadIndex(GetRowNum(), dstRank, plane);
+                CHK_PRT_RET(candidate.sendLoad[sendIdx] > std::numeric_limits<u64>::max() - bytes ||
+                                candidate.recvLoad[recvIdx] > std::numeric_limits<u64>::max() - bytes,
+                            HCCL_ERROR("[InsTempAlltoAllVBsp][TreePlan] chain load overflow. "
+                                       "srcRank[%u] dstRank[%u] plane[%u] bytes[%llu].",
+                                       srcRank, dstRank, plane, bytes),
+                            HCCL_E_INTERNAL);
+                candidate.sendLoad[sendIdx] += bytes;
+                candidate.recvLoad[recvIdx] += bytes;
+                candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.sendLoad[sendIdx]);
+                candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.recvLoad[recvIdx]);
             }
-            const size_t sendIdx = LoadIndex(GetRowNum(), srcRank, plane);
-            const size_t recvIdx = LoadIndex(GetRowNum(), dstRank, plane);
-            CHK_PRT_RET(candidate.sendLoad[sendIdx] > std::numeric_limits<u64>::max() - bytes ||
-                            candidate.recvLoad[recvIdx] > std::numeric_limits<u64>::max() - bytes,
-                        HCCL_ERROR("[InsTempAlltoAllVBsp][TreePlan] chain load overflow. "
-                                   "srcRank[%u] dstRank[%u] plane[%u] bytes[%llu].",
-                                   srcRank, dstRank, plane, bytes),
-                        HCCL_E_INTERNAL);
-            candidate.sendLoad[sendIdx] += bytes;
-            candidate.recvLoad[recvIdx] += bytes;
-            candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.sendLoad[sendIdx]);
-            candidate.maxChainLoad = std::max(candidate.maxChainLoad, candidate.recvLoad[recvIdx]);
         }
         return HCCL_SUCCESS;
     };
@@ -214,20 +216,20 @@ HcclResult InsTempAlltoAllVBsp::BuildBspOffsetPlan(
     initial.offsetPlan = offsetPlan;
     initial.sendLoad.assign(static_cast<size_t>(GetRankNum()) * GetRowNum(), 0);
     initial.recvLoad.assign(static_cast<size_t>(GetRankNum()) * GetRowNum(), 0);
-    for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
-        CHK_RET(applyBlock(initial, 1, deltaR, 0));
+    for (u32 srcCol = 0; srcCol < GetColNum(); ++srcCol) {
+        CHK_RET(applyBlock(initial, srcCol, 1, 0));
     }
 
     std::vector<BspTreeCandidate> candidates;
     candidates.push_back(initial);
     for (u32 deltaC = 2; deltaC < GetColNum(); ++deltaC) {
-        for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
+        for (u32 srcCol = 0; srcCol < GetColNum(); ++srcCol) {
             std::vector<BspTreeCandidate> nextCandidates;
             for (const auto &candidate : candidates) {
                 for (u32 offset = 0; offset < GetRowNum(); ++offset) {
                     BspTreeCandidate next = candidate;
-                    next.offsetPlan[OffsetPlanIndex(GetRowNum(), deltaC, deltaR)] = offset;
-                    CHK_RET(applyBlock(next, deltaC, deltaR, offset));
+                    next.offsetPlan[OffsetPlanIndex(GetColNum(), srcCol, deltaC)] = offset;
+                    CHK_RET(applyBlock(next, srcCol, deltaC, offset));
                     nextCandidates.push_back(next);
                 }
             }
@@ -244,11 +246,12 @@ HcclResult InsTempAlltoAllVBsp::BuildBspOffsetPlan(
                 HCCL_E_INTERNAL);
     offsetPlan = candidates.front().offsetPlan;
     for (u32 deltaC = 1; deltaC < GetColNum(); ++deltaC) {
-        for (u32 deltaR = 0; deltaR < GetRowNum(); ++deltaR) {
-            HCCL_INFO("[InsTempAlltoAllVBsp][TreePlan] rank=%u deltaC=%u deltaR=%u offset=%u plane=%u "
+        for (u32 srcCol = 0; srcCol < GetColNum(); ++srcCol) {
+            const u32 dstCol = (srcCol + deltaC) % GetColNum();
+            HCCL_INFO("[InsTempAlltoAllVBsp][TreePlan] rank=%u srcCol=%u dstCol=%u deltaC=%u offset=%u "
                       "maxChainLoad=%llu.",
-                      myRank_, deltaC, deltaR, offsetPlan[OffsetPlanIndex(GetRowNum(), deltaC, deltaR)],
-                      SelectPlane(deltaC, deltaR, offsetPlan), candidates.front().maxChainLoad);
+                      myRank_, srcCol, dstCol, deltaC,
+                      offsetPlan[OffsetPlanIndex(GetColNum(), srcCol, deltaC)], candidates.front().maxChainLoad);
         }
     }
     return HCCL_SUCCESS;
@@ -343,8 +346,8 @@ HcclResult InsTempAlltoAllVBsp::KernelRun(const OpParam &param,
         std::vector<BspSlot> slotPlans;
         CHK_RET(CalcBspRoundPlan(deltaC, offsetPlan, slotPlans));
         for (const auto &slot : slotPlans) {
-            const ThreadHandle &sendThread = templateResource.threads[BSP_SEND_THREAD_BASE + slot.plane];
-            const ThreadHandle &recvThread = templateResource.threads[BSP_SEND_THREAD_BASE + GetRowNum() + slot.plane];
+            const ThreadHandle &sendThread = templateResource.threads[BSP_SEND_THREAD_BASE + slot.txPlane];
+            const ThreadHandle &recvThread = templateResource.threads[BSP_SEND_THREAD_BASE + GetRowNum() + slot.rxPlane];
             CHK_RET(RunBspSlot(tempAlgParams, templateResource.channels, slot, sendThread, recvThread));
         }
     }
@@ -399,7 +402,8 @@ HcclResult InsTempAlltoAllVBsp::CalcBspRoundPlan(u32 deltaC, const std::vector<u
         slot.rxRank = rxCol * GetRowNum() + rxRow;
         slot.deltaC = deltaC;
         slot.deltaR = deltaR;
-        slot.plane = SelectPlane(deltaC, deltaR, offsetPlan);
+        slot.txPlane = SelectPlane(myCol, deltaC, deltaR, offsetPlan);
+        slot.rxPlane = SelectPlane(rxCol, deltaC, deltaR, offsetPlan);
         slotPlans.push_back(slot);
     }
     return HCCL_SUCCESS;
@@ -427,16 +431,16 @@ HcclResult InsTempAlltoAllVBsp::RunBspSlot(const TemplateDataParams &tempAlgPara
 {
     ChannelInfo txChannel;
     ChannelInfo rxChannel;
-    CHK_RET(SelectBspChannel(channels, slot.txRank, slot.plane, txChannel));
-    CHK_RET(SelectBspChannel(channels, slot.rxRank, slot.plane, rxChannel));
+    CHK_RET(SelectBspChannel(channels, slot.txRank, slot.txPlane, txChannel));
+    CHK_RET(SelectBspChannel(channels, slot.rxRank, slot.rxPlane, rxChannel));
 
     u64 txSize = tempAlgParams.sendCounts[slot.txRank] * dataTypeSize_;
     u64 txCount = tempAlgParams.sendCounts[slot.txRank];
     u64 txSrcOffset = tempAlgParams.sdispls[slot.txRank] * dataTypeSize_;
     CHK_PRT_RET(!tempAlgParams.enableRemoteMemAccess || txChannel.remoteOutputGraphMode.addr == nullptr,
                 HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] remote output access is unavailable. "
-                           "myRank[%u] txRank[%u] plane[%u] enableRemoteMemAccess[%d].",
-                           myRank_, slot.txRank, slot.plane, tempAlgParams.enableRemoteMemAccess),
+                           "myRank[%u] txRank[%u] txPlane[%u] enableRemoteMemAccess[%d].",
+                           myRank_, slot.txRank, slot.txPlane, tempAlgParams.enableRemoteMemAccess),
                 HCCL_E_INTERNAL);
     CHK_PRT_RET(slot.txRank >= tempAlgParams.remoteRdispls.size() ||
                     slot.txRank >= tempAlgParams.remoteRecvCounts.size(),
@@ -462,14 +466,14 @@ HcclResult InsTempAlltoAllVBsp::RunBspSlot(const TemplateDataParams &tempAlgPara
                            "inputSize[%llu].", slot.txRank, txSrcOffset, txSize, tempAlgParams.buffInfo.inputSize),
                 HCCL_E_INTERNAL);
     CHK_PRT_RET(txDstOffset + txSize > txChannel.remoteOutputGraphMode.size,
-                HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] tx remote output out of range. txRank[%u] plane[%u] "
+                HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] tx remote output out of range. txRank[%u] txPlane[%u] "
                            "off[%llu] size[%llu] remoteSize[%llu].",
-                           slot.txRank, slot.plane, txDstOffset, txSize, txChannel.remoteOutputGraphMode.size),
+                           slot.txRank, slot.txPlane, txDstOffset, txSize, txChannel.remoteOutputGraphMode.size),
                 HCCL_E_INTERNAL);
     CHK_PRT_RET(rxDstOffset + rxSize > tempAlgParams.buffInfo.outputSize,
-                HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] rx output out of range. rxRank[%u] plane[%u] "
+                HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] rx output out of range. rxRank[%u] rxPlane[%u] "
                            "dstOff[%llu] size[%llu] outputSize[%llu].",
-                           slot.rxRank, slot.plane, rxDstOffset, rxSize, tempAlgParams.buffInfo.outputSize),
+                           slot.rxRank, slot.rxPlane, rxDstOffset, rxSize, tempAlgParams.buffInfo.outputSize),
                 HCCL_E_INTERNAL);
 
     std::vector<DataSlice> txSrcSlices;
@@ -485,7 +489,7 @@ HcclResult InsTempAlltoAllVBsp::RunBspSlot(const TemplateDataParams &tempAlgPara
         rxDstSlices.emplace_back(tempAlgParams.buffInfo.outputPtr, rxDstOffset, rxSize, rxCount);
     }
 
-    const bool samePeerChannel = slot.txRank == slot.rxRank;
+    const bool samePeerChannel = slot.txRank == slot.rxRank && slot.txPlane == slot.rxPlane;
     if (samePeerChannel && txSize > 0 && rxSize > 0) {
         SendRecvInfo sendRecvInfo{{txChannel, rxChannel},
             {{txSrcSlices, txDstSlices}, {rxSrcSlices, rxDstSlices}}, dataType_};
@@ -493,7 +497,7 @@ HcclResult InsTempAlltoAllVBsp::RunBspSlot(const TemplateDataParams &tempAlgPara
         CHK_PRT_RET(ret != HCCL_SUCCESS,
                     HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] same peer sendrecv failed. myRank[%u] peer[%u] "
                                "deltaC[%u] deltaR[%u] plane[%u] ret[0x%x].",
-                               myRank_, slot.txRank, slot.deltaC, slot.deltaR, slot.plane, ret),
+                               myRank_, slot.txRank, slot.deltaC, slot.deltaR, slot.txPlane, ret),
                     ret);
         return HCCL_SUCCESS;
     }
@@ -512,8 +516,9 @@ HcclResult InsTempAlltoAllVBsp::RunBspSlot(const TemplateDataParams &tempAlgPara
     HcclResult ret = (recvResult != HCCL_SUCCESS) ? recvResult : sendResult;
     CHK_PRT_RET(ret != HCCL_SUCCESS,
                 HCCL_ERROR("[InsTempAlltoAllVBsp][RunSlot] split send/recv failed. myRank[%u] txRank[%u] "
-                           "rxRank[%u] deltaC[%u] deltaR[%u] plane[%u] recvRet[0x%x] sendRet[0x%x].",
-                           myRank_, slot.txRank, slot.rxRank, slot.deltaC, slot.deltaR, slot.plane,
+                           "rxRank[%u] deltaC[%u] deltaR[%u] txPlane[%u] rxPlane[%u] "
+                           "recvRet[0x%x] sendRet[0x%x].",
+                           myRank_, slot.txRank, slot.rxRank, slot.deltaC, slot.deltaR, slot.txPlane, slot.rxPlane,
                            recvResult, sendResult),
                 ret);
     return HCCL_SUCCESS;

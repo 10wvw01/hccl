@@ -40,7 +40,8 @@ private:
     struct BspSlot {
         u32 txRank = 0;
         u32 rxRank = 0;
-        u32 plane = 0;
+        u32 txPlane = 0;
+        u32 rxPlane = 0;
         u32 deltaC = 0;
         u32 deltaR = 0;
     };
@@ -64,7 +65,7 @@ private:
     u32 GetColNum() const;
     u32 GetRankNum() const;
     u32 GetBspThreadNum() const;
-    u32 SelectPlane(u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const;
+    u32 SelectPlane(u32 srcCol, u32 deltaC, u32 deltaR, const std::vector<u32> &offsetPlan) const;
 
     u32 rowNum_{0};
     u32 colNum_{0};
