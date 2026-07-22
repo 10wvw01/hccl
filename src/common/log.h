@@ -397,7 +397,7 @@ class HcclTimer {
     size_t timerIdx = 0;
 };
  
-#define CURRENT_FUNCTION_LOCATION std::string(__FILE__)  ":"  std::string(__func__)
+#define CURRENT_FUNCTION_LOCATION std::string(__FILE__) + ":" + std::string(__func__)
 #define MY_TIMER2(name, counter) HcclTimer myTimer##counter(name)
 #define MY_TIMER1(name, counter) MY_TIMER2(name, counter)
 #define MY_TIMER(name)  MY_TIMER1(name, __COUNTER__)

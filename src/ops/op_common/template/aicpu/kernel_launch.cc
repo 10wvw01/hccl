@@ -677,7 +677,7 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     static uint64_t opUnfoldIdx = 0;
     opUnfoldIdx++;
     constexpr uint64_t warmupOpCnt = 10;
-    if (opUnfoldIdx == warmupOpCnt  1) { // Start from op11
+    if (opUnfoldIdx == warmupOpCnt + 1) { // Start from op11
         HcclTimer::startTrack = true;
     }
 
