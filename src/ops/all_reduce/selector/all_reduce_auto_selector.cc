@@ -128,12 +128,10 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         } else if (IsSmallData(dataSize)) {
             selectAlgName = "CcuAllReduceMesh1DOneShot";
         } else {
-#ifdef Ascend_950_CCU_V2
             if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
                 selectAlgName = "CcuAllReduceSoleMeshMsConcur";
             }
             else 
-#endif
             {
                 selectAlgName = "CcuAllReduceMesh1D";
             }
@@ -305,11 +303,9 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(const To
         HCCL_DEBUG("[AllReduceAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
         return SelectorStatus::NOT_MATCH;
     } else {
-#ifdef Ascend_950_CCU_V2
         if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
             selectAlgName = "CcuAllReduceMesh1DMem2Mem";// to do
         } else 
-#endif
         {
             selectAlgName = "CcuAllReduceMesh1DMem2Mem";
         }
