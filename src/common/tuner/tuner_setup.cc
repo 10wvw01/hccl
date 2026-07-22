@@ -11,6 +11,8 @@
 #include "tuner_setup.h"
 
 #include <dlfcn.h>
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
@@ -36,6 +38,10 @@ hcclTunerFuncs_t g_funcs = {};
 
 constexpr uint32_t TUNER_COMM_NAME_MAX_LENGTH = 128;
 constexpr const char *TUNER_CTX_PREFIX = "__tuner_";
+constexpr uint64_t TUNER_SLOW_CALL_THRESHOLD_MS = 100;  /* getCollInfo 慢调用阈值（C5） */
+constexpr uint32_t TUNER_SLOW_CALL_LIMIT = 3;            /* 连续慢调用上限，超过则禁用插件 */
+constexpr uint64_t TUNER_SLOW_INIT_THRESHOLD_MS = 5000;  /* init 慢调用阈值（一次性，不禁用） */
+std::atomic<uint32_t> g_slowCallCount{0};                /* 连续慢调用计数（原子，无锁） */
 
 /* 将 HCCL 内部 HcclCMDType 映射为插件接口的 hcclOpType_t。
  * SEND/RECV/BARRIER/BATCH_SEND_RECV 等不在 hcclOpType_t 中，返回 HCCL_OP_INVALID。 */
@@ -112,6 +118,8 @@ bool LoadPluginLocked()
         return false;
     }
 
+    /* 信任边界：插件 .so 在本进程内执行，拥有与 HCCL 同等权限（对标 NCCL tuner）。
+     * 管理员须确保 HCCL_TUNER_PLUGIN 指向可信 .so。无路径校验（by-design）。 */
     void *handle = dlopen(pluginPath.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (handle == nullptr) {
         HCCL_WARNING("[Tuner] dlopen failed, path[%s], err[%s].", pluginPath.c_str(), dlerror());
@@ -138,6 +146,7 @@ bool LoadPluginLocked()
     }
 
     hcclTunerFuncs_t funcs = {};
+    funcs.structSize = sizeof(hcclTunerFuncs_t); /* C7：告知 plugin 缓冲区大小，防止越界写入 */
     if (getFuncs(&funcs) != HCCL_SUCCESS || funcs.init == nullptr || funcs.getCollInfo == nullptr) {
         HCCL_WARNING("[Tuner] hcclTunerGetFuncs failed or returned null function pointers.");
         dlclose(handle);
@@ -242,7 +251,13 @@ HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo
     HCCL_INFO("[TunerSetup] comm[%p] nRanks[%u] nServers[%u] nNpusPerServer[%u] commName[%s] bufferSize[%llu].", comm,
               commInfo.nRanks, commInfo.nServers, commInfo.nNpusPerServer,
               (commInfo.commName != nullptr) ? commInfo.commName : "?", commInfo.bufferSize);
+    auto initStart = std::chrono::steady_clock::now();
     ret = funcs.init(comm, &commInfo, &hostFuncs);
+    auto initMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - initStart).count();
+    if (static_cast<uint64_t>(initMs) > TUNER_SLOW_INIT_THRESHOLD_MS) {
+        HCCL_WARNING("[Tuner] plugin init took %lldms (threshold %llums).", initMs, TUNER_SLOW_INIT_THRESHOLD_MS);
+    }
     if (ret != HCCL_SUCCESS) {
         HCCL_WARNING("[TunerSetup] plugin init failed, ret[%d], fall back to CostModel.", ret);
         return HCCL_SUCCESS;
@@ -284,7 +299,23 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
     collInfo.structSize = sizeof(hcclTunerCollInfo_t);
 
     /* 使用锁内拷贝的 funcs 副本，避免并发 TunerCleanup 重置 g_funcs */
+    auto callStart = std::chrono::steady_clock::now();
     HcclResult ret = funcs.getCollInfo(comm, &collInfo, collCostTable);
+    auto callMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - callStart).count();
+    /* C5：慢调用检测——连续超过阈值则禁用 tuner，后续 op 回退 CostModel */
+    if (static_cast<uint64_t>(callMs) > TUNER_SLOW_CALL_THRESHOLD_MS) {
+        uint32_t count = ++g_slowCallCount;
+        HCCL_WARNING("[Tuner] getCollInfo took %lldms (threshold %llums), slowCallCount=%u/%u.",
+                     callMs, TUNER_SLOW_CALL_THRESHOLD_MS, count, TUNER_SLOW_CALL_LIMIT);
+        if (count >= TUNER_SLOW_CALL_LIMIT) {
+            std::lock_guard<std::mutex> lock(g_tunerMutex);
+            g_loadStatus = LOAD_FAILED;
+            HCCL_ERROR("[Tuner] plugin disabled after %u consecutive slow calls, fall back to CostModel.", count);
+        }
+    } else {
+        g_slowCallCount.store(0, std::memory_order_relaxed);
+    }
     if (ret != HCCL_SUCCESS) {
         HCCL_WARNING("[Tuner] getCollInfo failed, ret[%d], ignore plugin modification.", ret);
         return HCCL_SUCCESS;
@@ -302,14 +333,7 @@ HcclResult TunerCleanup(HcclComm comm)
     if (g_refCount > 0) {
         g_refCount--;
     }
-    if (g_refCount == 0) {
-        if (g_libHandle != nullptr) {
-            HCCL_INFO("[TunerCleanup] refCount reached 0, dlclose plugin.");
-            dlclose(g_libHandle);
-            g_libHandle = nullptr;
-        }
-        g_funcs = {};
-        g_loadStatus = LOAD_READY; /* 允许后续新 comm 重新加载 */
-    }
+    /* .so 故意不 dlclose：避免与在途 getCollInfo 竞争（C3），且 §5.3-5.5 已论证零代价。
+     * .so 随进程退出由 OS 回收。refCount 仅记录存活 comm 数，不影响功能。 */
     return HCCL_SUCCESS;
 }

@@ -105,32 +105,30 @@ typedef struct {
 static hcclTunerHostFunctions_t g_hostFuncs;
 static int g_hostFuncsReady = 0;
 
-/* ===== Schema 校验状态（每次 LoadConfig 前重置）===== */
-static int g_schemaErrors = 0;
-static int g_schemaWarnings = 0;
-static int g_foundVersion = 0;
-static int g_foundOpTypes = 0;
+/* Schema 校验状态（per-init 局部变量，避免并发 comm init 竞争） */
+typedef struct {
+    int errors;
+    int warnings;
+    int foundVersion;
+    int foundOpTypes;
+} SchemaState;
 
-static void SchemaReset(void)
-{
-    g_schemaErrors = 0;
-    g_schemaWarnings = 0;
-    g_foundVersion = 0;
-    g_foundOpTypes = 0;
-}
+#ifdef HCCL_TUNER_TESTING
+static SchemaState g_lastSchema = {0}; /* 供测试验证 schema 校验结果 */
+#endif
 
-static void SchemaWarn(const char *scope, const char *field)
+static void SchemaWarn(SchemaState *s, const char *scope, const char *field)
 {
-    g_schemaWarnings++;
+    s->warnings++;
     if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
         g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__,
                                 "Schema: unknown field '%s' in %s, skipping", field, scope);
     }
 }
 
-static void SchemaError(const char *fmt, ...)
+static void SchemaError(SchemaState *s, const char *fmt, ...)
 {
-    g_schemaErrors++;
+    s->errors++;
     if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
         va_list args;
         va_start(args, fmt);
@@ -192,7 +190,7 @@ typedef struct {
 } JsonParser;
 
 /* 前向声明：ParseConfig 调用 ParseDefaults，后者定义在后面 */
-static void ParseDefaults(JsonParser *p, DefaultValues *d);
+static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s);
 
 static void JsonSkipWs(JsonParser *p)
 {
@@ -310,7 +308,7 @@ static void JsonSkipValue(JsonParser *p)
     }
 }
 
-static void ParseMatchField(JsonParser *p, const char *key, Rule *r)
+static void ParseMatchField(JsonParser *p, const char *key, Rule *r, SchemaState *s)
 {
     double v = 0;
     char buf[MAX_STR_LEN] = {0};
@@ -391,12 +389,12 @@ static void ParseMatchField(JsonParser *p, const char *key, Rule *r)
             r->match.bufferSize = (uint64_t)v;
         }
     } else {
-        SchemaWarn("match", key);
+        SchemaWarn(s, "match", key);
         JsonSkipValue(p);
     }
 }
 
-static void ParseRule(JsonParser *p, Rule *r)
+static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
 {
     memset(r, 0, sizeof(*r));
     r->engine = -1;
@@ -429,7 +427,7 @@ static void ParseRule(JsonParser *p, Rule *r)
                         break;
                     }
                     JsonMatch(p, ':');
-                    ParseMatchField(p, mkey, r);
+                    ParseMatchField(p, mkey, r, s);
                 }
             }
         } else if (strcmp(key, "engine") == 0) {
@@ -437,7 +435,7 @@ static void ParseRule(JsonParser *p, Rule *r)
             if (JsonReadNumber(p, &v) == 0) {
                 r->engine = (int)v;
                 if (r->engine < 0 || r->engine >= HCCL_NUM_ENGINES) {
-                    SchemaError("engine %d out of range [0, %d)", r->engine, HCCL_NUM_ENGINES);
+                    SchemaError(s, "engine %d out of range [0, %d)", r->engine, HCCL_NUM_ENGINES);
                 }
             }
         } else if (strcmp(key, "executor") == 0) {
@@ -445,7 +443,7 @@ static void ParseRule(JsonParser *p, Rule *r)
             if (JsonReadNumber(p, &v) == 0) {
                 r->executor = (int)v;
                 if (r->executor < 0 || r->executor >= HCCL_NUM_EXECUTORS) {
-                    SchemaError("executor %d out of range [0, %d)", r->executor, HCCL_NUM_EXECUTORS);
+                    SchemaError(s, "executor %d out of range [0, %d)", r->executor, HCCL_NUM_EXECUTORS);
                 }
             }
         } else if (strcmp(key, "template") == 0) {
@@ -453,7 +451,7 @@ static void ParseRule(JsonParser *p, Rule *r)
             if (JsonReadNumber(p, &v) == 0) {
                 r->template = (int)v;
                 if (r->template < 0 || r->template >= HCCL_NUM_TEMPLATES) {
-                    SchemaError("template %d out of range [0, %d)", r->template, HCCL_NUM_TEMPLATES);
+                    SchemaError(s, "template %d out of range [0, %d)", r->template, HCCL_NUM_TEMPLATES);
                 }
             }
         } else if (strcmp(key, "cost") == 0) {
@@ -465,24 +463,24 @@ static void ParseRule(JsonParser *p, Rule *r)
         } else if (strcmp(key, "args") == 0) {
             JsonSkipValue(p); /* optional，允许自定义字段 */
         } else {
-            SchemaWarn("rule", key);
+            SchemaWarn(s, "rule", key);
             JsonSkipValue(p);
         }
     }
     /* 必填字段校验 */
     if (!foundMatch) {
-        SchemaError("rule missing required field 'match'");
+        SchemaError(s, "rule missing required field 'match'");
     }
     if (!r->hasCost) {
-        SchemaError("rule missing required field 'cost'");
+        SchemaError(s, "rule missing required field 'cost'");
     }
 }
 
-static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName)
+static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName, SchemaState *s)
 {
     hcclOpType_t opType = LookupOpType(opName);
     if (opType == HCCL_OP_INVALID) {
-        SchemaError("unknown op_type '%s'", opName);
+        SchemaError(s, "unknown op_type '%s'", opName);
         JsonSkipValue(p);
         return;
     }
@@ -514,7 +512,7 @@ static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName)
                     }
                     JsonMatch(p, ',');
                     if (set->ruleCount < MAX_RULES) {
-                        ParseRule(p, &set->rules[set->ruleCount]);
+                        ParseRule(p, &set->rules[set->ruleCount], s);
                         set->ruleCount++;
                     } else {
                         JsonSkipValue(p);
@@ -522,17 +520,17 @@ static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName)
                 }
             }
         } else {
-            SchemaWarn("op_type", key);
+            SchemaWarn(s, "op_type", key);
             JsonSkipValue(p);
         }
     }
     if (set->ruleCount == 0) {
-        SchemaError("op_type '%s' has no rules (minItems=1)", opName);
+        SchemaError(s, "op_type '%s' has no rules (minItems=1)", opName);
     }
     ctx->opSetCount++;
 }
 
-static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaults)
+static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaults, SchemaState *s)
 {
     if (!JsonMatch(p, '{')) {
         return;
@@ -548,13 +546,13 @@ static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaul
         }
         JsonMatch(p, ':');
         if (strcmp(key, "version") == 0) {
-            g_foundVersion = 1;
+            s->foundVersion = 1;
             double v = 0;
             if (JsonReadNumber(p, &v) == 0 && (int)v != 1) {
-                SchemaError("version must be 1, got %d", (int)v);
+                SchemaError(s, "version must be 1, got %d", (int)v);
             }
         } else if (strcmp(key, "op_types") == 0) {
-            g_foundOpTypes = 1;
+            s->foundOpTypes = 1;
             if (JsonMatch(p, '{')) {
                 while (p->pos < p->len) {
                     if (JsonMatch(p, '}')) {
@@ -566,29 +564,29 @@ static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaul
                         break;
                     }
                     JsonMatch(p, ':');
-                    ParseOpRules(p, ctx, opName);
+                    ParseOpRules(p, ctx, opName, s);
                 }
             }
         } else if (strcmp(key, "meta") == 0) {
             JsonSkipValue(p); /* optional，跳过 */
         } else if (strcmp(key, "defaults") == 0) {
-            ParseDefaults(p, defaults);
+            ParseDefaults(p, defaults, s);
         } else {
-            SchemaWarn("config root", key);
+            SchemaWarn(s, "config root", key);
             JsonSkipValue(p);
         }
     }
-    if (!g_foundVersion) {
-        SchemaError("missing required field 'version'");
+    if (!s->foundVersion) {
+        SchemaError(s, "missing required field 'version'");
     }
-    if (!g_foundOpTypes) {
-        SchemaError("missing required field 'op_types'");
+    if (!s->foundOpTypes) {
+        SchemaError(s, "missing required field 'op_types'");
     }
 }
 
 /* ===== defaults 块解析与合并 ===== */
 
-static void ParseDefaults(JsonParser *p, DefaultValues *d)
+static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
 {
     memset(d, 0, sizeof(*d));
     d->engine = -1;
@@ -613,7 +611,7 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d)
                 d->engine = (int)v;
                 d->hasEngine = 1;
                 if (d->engine < 0 || d->engine >= HCCL_NUM_ENGINES) {
-                    SchemaError("defaults engine %d out of range [0, %d)", d->engine, HCCL_NUM_ENGINES);
+                    SchemaError(s, "defaults engine %d out of range [0, %d)", d->engine, HCCL_NUM_ENGINES);
                 }
             }
         } else if (strcmp(key, "executor") == 0) {
@@ -621,7 +619,7 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d)
                 d->executor = (int)v;
                 d->hasExecutor = 1;
                 if (d->executor < 0 || d->executor >= HCCL_NUM_EXECUTORS) {
-                    SchemaError("defaults executor %d out of range [0, %d)", d->executor, HCCL_NUM_EXECUTORS);
+                    SchemaError(s, "defaults executor %d out of range [0, %d)", d->executor, HCCL_NUM_EXECUTORS);
                 }
             }
         } else if (strcmp(key, "template") == 0) {
@@ -629,13 +627,13 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d)
                 d->template = (int)v;
                 d->hasTemplate = 1;
                 if (d->template < 0 || d->template >= HCCL_NUM_TEMPLATES) {
-                    SchemaError("defaults template %d out of range [0, %d)", d->template, HCCL_NUM_TEMPLATES);
+                    SchemaError(s, "defaults template %d out of range [0, %d)", d->template, HCCL_NUM_TEMPLATES);
                 }
             }
         } else if (strcmp(key, "args") == 0) {
             JsonSkipValue(p); /* optional，允许自定义字段 */
         } else {
-            SchemaWarn("defaults", key);
+            SchemaWarn(s, "defaults", key);
             JsonSkipValue(p);
         }
     }
@@ -696,29 +694,39 @@ static int LoadConfig(StoredContext *ctx)
         size_t len = 0;
         char *content = ReadFile(paths[i], &len);
         if (content != NULL) {
-            SchemaReset();
+            SchemaState schema = {0};
             DefaultValues defaults = {};
             JsonParser p = {content, 0, len};
-            ParseConfig(&p, ctx, &defaults);
+            ParseConfig(&p, ctx, &defaults, &schema);
+#ifdef HCCL_TUNER_TESTING
+            g_lastSchema = schema;
+#endif
             MergeDefaults(ctx, &defaults);
             free(content);
             if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
                 g_hostFuncs.logFunction(HCCL_TUNER_LOG_INFO, __FILE__, __LINE__,
                                         "tuner config loaded from %s, opSetCount=%d, schemaErrors=%d, schemaWarnings=%d",
-                                        paths[i], ctx->opSetCount, g_schemaErrors, g_schemaWarnings);
+                                        paths[i], ctx->opSetCount, schema.errors, schema.warnings);
             }
             /* Schema 校验：有 error 则标记无效，getCollInfo 不干预 */
-            if (g_schemaErrors > 0) {
+            if (schema.errors > 0) {
                 if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
                     g_hostFuncs.logFunction(HCCL_TUNER_LOG_ERROR, __FILE__, __LINE__,
                                             "Schema validation failed (%d errors), plugin will not intervene",
-                                            g_schemaErrors);
+                                            schema.errors);
                 }
                 ctx->configValid = 0;
             } else {
                 ctx->configValid = 1;
             }
             return 1;
+        }
+        /* C6：文件未找到——env 指定的路径打 WARNING，默认路径打 DEBUG */
+        if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+            int level = (i == 0) ? HCCL_TUNER_LOG_WARN : HCCL_TUNER_LOG_DEBUG;
+            g_hostFuncs.logFunction(level, __FILE__, __LINE__,
+                                    "tuner config '%s' not found%s",
+                                    paths[i], (i == 0) ? ", falling back to default paths" : "");
         }
     }
     return 0;
@@ -851,6 +859,15 @@ static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collIn
     void *ctxPtr = NULL;
     uint64_t ctxSize = 0;
     if (g_hostFuncs.ctxGet(comm, "main", &ctxPtr, &ctxSize) != HCCL_SUCCESS || ctxPtr == NULL) {
+        return HCCL_SUCCESS;
+    }
+    /* C17：校验 ctxGet 返回的 size，防止 engine bug 或版本不一致导致越界读 */
+    if (ctxSize < sizeof(StoredContext)) {
+        if (g_hostFuncs.logFunction != NULL) {
+            g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__,
+                                    "ctxGet size %llu < expected %zu, skip intervention",
+                                    (unsigned long long)ctxSize, sizeof(StoredContext));
+        }
         return HCCL_SUCCESS;
     }
     StoredContext *ctx = (StoredContext *)ctxPtr;

@@ -157,6 +157,7 @@ typedef HcclResult (*hcclTunerGetCollInfo_t)(
 typedef struct {
     hcclTunerInit_t        init;
     hcclTunerGetCollInfo_t getCollInfo;
+    uint32_t               structSize; /* HCCL 设值，plugin 据此判断缓冲区大小（C7 ABI 兼容） */
 } hcclTunerFuncs_t;
 
 /* ===== 插件描述符 ===== */

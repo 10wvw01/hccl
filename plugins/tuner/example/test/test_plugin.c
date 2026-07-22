@@ -84,6 +84,7 @@ static void ResetPluginState(void)
     MockCtxDestroy(NULL, NULL);
     g_hostFuncsReady = 0;
     memset(&g_hostFuncs, 0, sizeof(g_hostFuncs));
+    memset(&g_lastSchema, 0, sizeof(g_lastSchema));
 }
 
 static const char *TEST_CONFIG =
@@ -419,7 +420,7 @@ static void TestSchemaTypoDetection(void)
     hcclTunerGetFuncs(&funcs);
     HcclResult ret = funcs.init((HcclComm)0x1, &commInfo, &hf);
     ASSERT(ret == HCCL_SUCCESS, "init success despite typo");
-    ASSERT(g_schemaWarnings > 0, "typo 'mtach' detected as warning");
+    ASSERT(g_lastSchema.warnings > 0, "typo 'mtach' detected as warning");
 
     /* 拼写错误导致缺 match → schema error → configValid=0 */
     StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
