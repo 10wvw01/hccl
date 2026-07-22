@@ -17,10 +17,37 @@
 #include "check_utils.h"
 #include <thread>
 #include "alg_env_config.h"
+#include "all_to_all_v/selector/alltoall_auto_selector.h"
 
 using namespace HcclSim;
 using namespace ops_hccl;
 namespace checker {
+
+TEST(AlltoAllSelectorTest, CalcDataSizeReadsCountArray)
+{
+    u64 sendCounts[] = {4, 4};
+    OpParam param;
+    param.all2AllVDataDes.sendType = HCCL_DATA_TYPE_FP32;
+    param.all2AllVDataDes.sendCounts = sendCounts;
+    u64 dataSize = 0;
+
+    EXPECT_EQ(CalcAlltoAllDataSize(param, dataSize), HCCL_SUCCESS);
+    EXPECT_EQ(dataSize, 4 * sizeof(float));
+}
+
+TEST(AlltoAllSelectorTest, CalcDataSizeRejectsInvalidInput)
+{
+    OpParam param;
+    param.all2AllVDataDes.sendType = HCCL_DATA_TYPE_FP32;
+    param.all2AllVDataDes.sendCounts = nullptr;
+    u64 dataSize = 0;
+    EXPECT_EQ(CalcAlltoAllDataSize(param, dataSize), HCCL_E_PTR);
+
+    u64 sendCounts[] = {UINT64_MAX};
+    param.all2AllVDataDes.sendCounts = sendCounts;
+    EXPECT_EQ(CalcAlltoAllDataSize(param, dataSize), HCCL_E_PARA);
+}
+
 class ST_ALLTOALL_TEST : public ::testing::Test {
 protected:
     void SetUp() override

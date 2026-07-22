@@ -21,6 +21,20 @@ constexpr uint32_t CONCURRENT_RANK_LIMIT = 4;
 constexpr uint64_t BIG_DATA_SIZE_LIMIT = 512;
 constexpr uint64_t ALLTOALL_ENABLE_MULTI_CHANNEL_DATA_SIZE_LIMIT = 150 * 1024 * 1024;
 
+HcclResult CalcAlltoAllDataSize(const OpParam &opParam, u64 &dataSize)
+{
+    const auto *sendCounts = static_cast<const u64 *>(opParam.all2AllVDataDes.sendCounts);
+    CHK_PTR_NULL(sendCounts);
+    const HcclDataType sendType = opParam.all2AllVDataDes.sendType;
+    CHK_PRT_RET(sendType < 0 || sendType >= HCCL_DATA_TYPE_RESERVED,
+        HCCL_ERROR("[CalcAlltoAllDataSize] invalid sendType[%d].", sendType), HCCL_E_PARA);
+    const u64 dataTypeSize = DATATYPE_SIZE_TABLE[sendType];
+    CHK_PRT_RET(sendCounts[0] > UINT64_MAX / dataTypeSize,
+        HCCL_ERROR("[CalcAlltoAllDataSize] send data size overflows UINT64_MAX."), HCCL_E_PARA);
+    dataSize = sendCounts[0] * dataTypeSize;
+    return HCCL_SUCCESS;
+}
+
 constexpr u64 A2A_CCU_64P_MAX_DATA_SIZE = 256 * 1024 * 1024;
 SelectorStatus AlltoAllAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
@@ -55,10 +69,6 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
         HCCL_WARNING("[Algo][AlltoAllAutoSelector] ccu schedule does not support inplace alltoall."),
         SelectorStatus::NOT_MATCH);
     uint32_t ccuSize = 64;
-    uint32_t dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllDataDes.sendType];
-    uint64_t* sendCountPtr = (uint64_t*)opParam.all2AllVDataDes.sendCounts;
-    uint64_t sendCount = *sendCountPtr;
-    uint64_t dataSize = sendCount * dataTypeSize * topoInfo->userRankSize;
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D && topoInfo->userRankSize <= ccuSize) {
             selectAlgName = "CcuAllToAllMesh1D2Die";
@@ -86,8 +96,10 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                     return SelectorStatus::NOT_MATCH;
                 }
             } else {
-                uint32_t dataTypeSize = DATATYPE_SIZE_TABLE[opParam.all2AllDataDes.sendType];
-                uint64_t dataSize = opParam.all2AllDataDes.sendCount * dataTypeSize;
+                u64 dataSize = 0;
+                CHK_PRT_RET(CalcAlltoAllDataSize(opParam, dataSize) != HCCL_SUCCESS,
+                    HCCL_ERROR("[AlltoAllAutoSelector] failed to calculate send data size."),
+                    SelectorStatus::NOT_MATCH);
                 bool isMeshNumEqualToClosNum = false;
                 CHK_PRT_RET(CheckMeshNumEqualToClosNum(topoInfo, isMeshNumEqualToClosNum) != HCCL_SUCCESS,
                     HCCL_DEBUG("[AlltoAllAutoSelector] CheckMeshNumEqualToClosNum failed."), SelectorStatus::NOT_MATCH);

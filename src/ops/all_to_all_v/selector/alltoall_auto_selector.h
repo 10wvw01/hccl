@@ -15,6 +15,7 @@
 
 namespace ops_hccl {
 
+HcclResult CalcAlltoAllDataSize(const OpParam &opParam, u64 &dataSize);
 
 class AlltoAllAutoSelector : public AutoSelectorBase {
 private:
