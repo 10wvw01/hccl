@@ -763,7 +763,7 @@ HcclResult HcclAicpuKernelEntranceLaunch(HcclComm comm, OpParam &param, ThreadHa
         opInfo.p2p.count = param.DataDes.count;
         opInfo.p2p.remoteRank = param.sendRecvRemoteRank;
         aclrtStream resolvedStream;
-        (void)GetUnfoldStream(comm, param, unfoldThread, resolvedStream);
+        CHK_RET(GetUnfoldStream(comm, param, unfoldThread, resolvedStream));
         HCCL_INFO("unfoldThread[%llu]", unfoldThread);
 
         opInfo.p2p.unfoldStream = resolvedStream;
