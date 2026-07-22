@@ -16,7 +16,8 @@ constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 constexpr int TOPO_LEVEL_3 = 3;
-
+constexpr u64 OMNI_UBX_MS_DATA_SIZE = 32 * 1024 * 1024;
+constexpr u64 OMNI2D_UBX_REDUCE_DATA_SIZE = 16 * 1024 * 1024;
 SelectorStatus ReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam,
     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap, std::string &selectAlgName) const
 {
@@ -85,9 +86,14 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcums(
                 selectAlgName = "CcuReduceMesh1D";
             }
         } else { // MS 不支持
-            HCCL_WARNING("[ReduceAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
-                topoInfo->level0Topo);
-            return SelectorStatus::NOT_MATCH;
+            if (dataSize < OMNI_UBX_MS_DATA_SIZE) {
+                HCCL_WARNING("[ReduceAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
+                    topoInfo->level0Topo);
+                return SelectorStatus::NOT_MATCH;
+            } else {
+                selectAlgName = "CcuV2ReduceOmniPipe2DMs";
+                HCCL_INFO("[ReduceAutoSelector] selectAlgName is CcuV2ReduceOmniPipe2DMs");
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         HCCL_WARNING("[ReduceAutoSelector] level0Topo[%d] is not supported yet for ccu_ms mode.",
@@ -203,7 +209,11 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
             CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
             HCCL_DEBUG("[ReduceAutoSelector] dataType[%d] is not supported yet "
             "for ccu schedule mode with ms reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
-            selectAlgName = "CcuReduceParallelMesh1DNHRUBX";
+            if (dataSize < OMNI2D_UBX_REDUCE_DATA_SIZE) {
+                selectAlgName = "CcuReduceParallelMesh1DNHRUBX";
+            } else {
+                selectAlgName = "CcuV2ReduceOmniPipe2D";
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
         HCCL_WARNING("[ReduceAutoSelector] level0Topo[%d] is not supported yet for ccu schedule mode.",
