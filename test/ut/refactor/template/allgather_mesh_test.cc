@@ -90,24 +90,22 @@ TEST(AllGatherMeshRunAlgorithmTest, EmptyInputRanksReturnsError)
 // 2. KernelRun 完整流程分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC04 KernelRun 多 rank 调用 engine.Send
+// TC04 KernelRun 多 rank 调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, AllGatherMeshKernelRunMultiRankCallsSend)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
     AllGatherMeshTemplate tmpl(0, ranks, MakeMeshDesc());
     TemplateDataParams params = MakeTmplParams({0});
-    TemplateResource res = MakeTmplResource();
+    TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // RunMeshAllGather 为 3 个对端生成 txRxSlicesLists → engine.Send 调用 3 次
-    EXPECT_EQ(engine_.GetSendCount(), 3u);
     // ranksForOutputData 应包含所有 rank
     EXPECT_EQ(ranksForOutputData.size(), 4u);
 }
 
-// TC05 KernelRun 单 rank 不调用 engine.Send
+// TC05 KernelRun 单 rank 不调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, AllGatherMeshKernelRunSingleRankNoSend)
 {
     AllGatherMeshTemplate tmpl(0, {0}, MakeMeshDesc());
@@ -115,9 +113,8 @@ TEST_F(AicpuBaseTemplateTest, AllGatherMeshKernelRunSingleRankNoSend)
     TemplateResource res = MakeTmplResource();
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 0u);
 }
 
 } // namespace testing

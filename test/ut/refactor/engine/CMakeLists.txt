@@ -28,6 +28,7 @@ set(UT_AICPU_SRC
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/aicpu_engine.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/kernel_launch.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/data_transfer.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/dpu/kernel_launch.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/dfx/task_exception_fun.cc
 )
@@ -65,6 +66,7 @@ target_include_directories(hccl_ut_refactor_engine_aicpu PRIVATE
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
     ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
+    ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
     ${ASCEND_CANN_PACKAGE_PATH}/include/base
     ${ASCEND_CANN_PACKAGE_PATH}/include/external
     ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc
@@ -76,7 +78,7 @@ target_include_directories(hccl_ut_refactor_engine_aicpu PRIVATE
 )
 
 target_compile_definitions(hccl_ut_refactor_engine_aicpu PRIVATE
-    CANN_VERSION_NUM=90099801
+    CANN_VERSION_NUM=91000000
     CFG_BUILD_DEBUG
     _GLIBCXX_USE_CXX11_ABI=0
 )

@@ -102,8 +102,6 @@ private:
     HcclResult CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw);
     HcclResult CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
         std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc);
-    // 引擎指针，由外部通过 SetEngine 注入
-    BaseEngine *engine_ = nullptr;
     // algo
     HcclAlgorithm algo_;
 

@@ -216,7 +216,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_8M
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 2 * 1024 * 1024;                  // 单卡数据量
+    auto sendCount = 2 * 1024 * 1024;                  // 单卡数据量 
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }

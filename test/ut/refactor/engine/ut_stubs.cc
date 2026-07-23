@@ -9,6 +9,8 @@
 #include <cstdarg>
 #include <iostream>
 #include <vector>
+#include <map>
+#include <string>
 
 #include "test_helpers.h"
 #include "exec_timeout_manager.h"
@@ -200,12 +202,47 @@ HcclResult HcclThreadAcquireWithStream(HcclComm, CommEngine, void *, uint32_t, T
     return HCCL_SUCCESS;
 }
 
-// CreateRes 调用 (C 链接符号), 创建引擎上下文, 仅满足链接
-HcclResult HcclEngineCtxCreate(HcclComm, const char *, CommEngine, uint64_t size, void **ctx)
+// 引擎上下文共享存储：使 HcclEngineCtxCreate 分配的内存可被后续 HcclEngineCtxGet 取回，
+// 避免空指针解引用导致的段错误。
+static std::map<std::string, std::pair<void*, uint64_t>> g_engineCtxStore;
+
+static std::string MakeEngineCtxKey(HcclComm comm, const char *ctxTag, CommEngine engine)
 {
-    if (ctx) { *ctx = (size > 0) ? calloc(1, size) : nullptr; }
+    char buf[128];
+    (void)snprintf(buf, sizeof(buf), "%p:%s:%d", comm, ctxTag ? ctxTag : "", static_cast<int>(engine));
+    return std::string(buf);
+}
+
+// CreateRes 调用 (C 链接符号), 创建引擎上下文并存储
+HcclResult HcclEngineCtxCreate(HcclComm comm, const char *ctxTag, CommEngine engine, uint64_t size, void **ctx)
+{
+    if (ctx) {
+        *ctx = (size > 0) ? calloc(1, size) : nullptr;
+        g_engineCtxStore[MakeEngineCtxKey(comm, ctxTag, engine)] = {*ctx, size};
+    }
     return HCCL_SUCCESS;
 }
+
+// HcclEngineCtxGet / HcclEngineCtxCopy (hccl_res.h, UT 不链接 SDK 库)
+HcclResult HcclEngineCtxGet(HcclComm comm, const char *ctxTag, CommEngine engine, void **ctx, uint64_t *size)
+{
+    auto it = g_engineCtxStore.find(MakeEngineCtxKey(comm, ctxTag, engine));
+    if (it != g_engineCtxStore.end()) {
+        if (ctx) { *ctx = it->second.first; }
+        if (size) { *size = it->second.second; }
+        return HCCL_SUCCESS;
+    }
+    if (ctx) { *ctx = nullptr; }
+    // 未找到时不修改 *size，保留调用方原始值供后续 HcclEngineCtxCreate 使用
+    return HCCL_E_INTERNAL;
+}
+HcclResult HcclEngineCtxCopy(HcclComm, CommEngine, const char *, const void *, uint64_t, uint64_t)
+{
+    return HCCL_SUCCESS;
+}
+
+// HcommIsSupportHcclThreadAcquireWithConfig (DECL_SUPPORT_FLAG, hccl_res_dl.h)
+bool HcommIsSupportHcclThreadAcquireWithConfig(void) { return false; }
 
 // CreateRes 调用 (C 链接符号), 获取远端 CCL buffer, 仅满足链接
 HcclResult HcclChannelGetHcclBuffer(HcclComm, ChannelHandle, void **buffer, uint64_t *size)
@@ -282,7 +319,7 @@ int32_t HcommThreadNotifyWaitOnThreadWithDefaultTimeout(ThreadHandle, uint32_t)
 }
 
 // HcommSetNotifyWaitTimeOut (dlsym weak)
-int32_t HcommSetNotifyWaitTimeOut(uint32_t)
+int32_t HcommSetNotifyWaitTimeOut(float)
 {
     return 0;
 }
@@ -368,7 +405,7 @@ bool HcommIsSupportHcclCommGetStatus(void) { return false; }
 HcclResult HcclThreadResAcquireTimeOut(uint32_t) { return HCCL_SUCCESS; }
 
 // HcommThreadResAcquireTimeOut / HcommIsSupportHcommThreadResAcquireTimeOut (hcomm_primitives_dl.h via DEFINE_WEAK_FUNC)
-int32_t HcommThreadResAcquireTimeOut(uint32_t) { return 0; }
+int32_t HcommThreadResAcquireTimeOut(float) { return 0; }
 bool HcommIsSupportHcommThreadResAcquireTimeOut(void) { return false; }
 
 // HcommProfilingReportKernelStartTask / HcommProfilingReportKernelEndTask (hcomm_device_profiling_dl.h)

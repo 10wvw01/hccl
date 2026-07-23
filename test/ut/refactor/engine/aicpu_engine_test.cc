@@ -6,6 +6,7 @@
  */
 
 #include "test_helpers.h"
+#include "data_transfer.h"
 #include "hccl_algorithm.h"
 
 namespace ops_hccl {
@@ -19,7 +20,7 @@ namespace testing {
 TEST_F(AiCpuEngineSendTest, BidirWriteRoutesToSendRecvWrite)
 {
     auto ctx = MakeCtx(true, true, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Write"), 1u);
     EXPECT_EQ(CountCalls("Read"), 0u);
     EXPECT_EQ(CountCalls("ReadReduce"), 0u);
@@ -29,7 +30,7 @@ TEST_F(AiCpuEngineSendTest, BidirWriteRoutesToSendRecvWrite)
 TEST_F(AiCpuEngineSendTest, BidirReadRoutesToSendRecvRead)
 {
     auto ctx = MakeCtx(true, true, true);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Read"), 1u);
     EXPECT_EQ(CountCalls("Write"), 0u);
 }
@@ -38,7 +39,7 @@ TEST_F(AiCpuEngineSendTest, BidirReadRoutesToSendRecvRead)
 TEST_F(AiCpuEngineSendTest, TxOnlyWriteRoutesToSendWrite)
 {
     auto ctx = MakeCtx(true, false, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Write"), 1u);
 }
 
@@ -46,7 +47,7 @@ TEST_F(AiCpuEngineSendTest, TxOnlyWriteRoutesToSendWrite)
 TEST_F(AiCpuEngineSendTest, TxOnlyReadRoutesToSendRead)
 {
     auto ctx = MakeCtx(true, false, true);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountTransferCalls(), 0u);
     EXPECT_GE(CountCalls("NotifyRecord"), 1u);
     EXPECT_GE(CountCalls("NotifyWait"), 1u);
@@ -56,7 +57,7 @@ TEST_F(AiCpuEngineSendTest, TxOnlyReadRoutesToSendRead)
 TEST_F(AiCpuEngineSendTest, RxOnlyWriteRoutesToRecvWrite)
 {
     auto ctx = MakeCtx(false, true, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountTransferCalls(), 0u);
     EXPECT_GE(CountCalls("NotifyRecord"), 1u);
     EXPECT_GE(CountCalls("NotifyWait"), 1u);
@@ -66,7 +67,7 @@ TEST_F(AiCpuEngineSendTest, RxOnlyWriteRoutesToRecvWrite)
 TEST_F(AiCpuEngineSendTest, RxOnlyReadRoutesToRecvRead)
 {
     auto ctx = MakeCtx(false, true, true);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Read"), 1u);
 }
 
@@ -78,7 +79,7 @@ TEST_F(AiCpuEngineSendTest, RxOnlyReadRoutesToRecvRead)
 TEST_F(AiCpuEngineSendTest, WriteNoReduceCallsHcommWriteOnThread)
 {
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_RESERVED, 1, 16, 4);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("Write");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].len, 16u);
@@ -89,7 +90,7 @@ TEST_F(AiCpuEngineSendTest, WriteNoReduceCallsHcommWriteOnThread)
 TEST_F(AiCpuEngineSendTest, WriteReduceCallsHcommWriteReduceOnThread)
 {
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_SUM, 1, 16, 4);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("WriteReduce");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].len, 4u);
@@ -101,7 +102,7 @@ TEST_F(AiCpuEngineSendTest, WriteReduceCallsHcommWriteReduceOnThread)
 TEST_F(AiCpuEngineSendTest, ReadNoReduceCallsHcommReadOnThread)
 {
     auto ctx = MakeCtx(false, true, true, HCCL_REDUCE_RESERVED, 1, 32, 8);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("Read");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].len, 32u);
@@ -111,7 +112,7 @@ TEST_F(AiCpuEngineSendTest, ReadNoReduceCallsHcommReadOnThread)
 TEST_F(AiCpuEngineSendTest, ReadReduceCallsHcommReadReduceOnThread)
 {
     auto ctx = MakeCtx(false, true, true, HCCL_REDUCE_MAX, 1, 32, 8);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("ReadReduce");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].len, 8u);
@@ -122,7 +123,7 @@ TEST_F(AiCpuEngineSendTest, ReadReduceCallsHcommReadReduceOnThread)
 TEST_F(AiCpuEngineSendTest, RecvWriteIgnoresReduceOp)
 {
     auto ctx = MakeCtx(false, true, false, HCCL_REDUCE_SUM);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountTransferCalls(), 0u);
 }
 
@@ -130,7 +131,7 @@ TEST_F(AiCpuEngineSendTest, RecvWriteIgnoresReduceOp)
 TEST_F(AiCpuEngineSendTest, SendReadIgnoresReduceOp)
 {
     auto ctx = MakeCtx(true, false, true, HCCL_REDUCE_SUM);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountTransferCalls(), 0u);
 }
 
@@ -142,7 +143,7 @@ TEST_F(AiCpuEngineSendTest, SendReadIgnoresReduceOp)
 TEST_F(AiCpuEngineSendTest, MultiSliceLoopCountEqualsSliceNum)
 {
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_RESERVED, 4, 16, 4);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("Write"), 4u);
 }
 
@@ -169,7 +170,7 @@ TEST_F(AiCpuEngineSendTest, ZeroSizeSliceSkipped)
     ctx.txRxSlicesList.srcRankId_ = 2;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("Write");
     ASSERT_EQ(calls.size(), 2u);
     EXPECT_EQ(calls[0].len, 16u);
@@ -184,7 +185,7 @@ TEST_F(AiCpuEngineSendTest, ZeroSizeSliceSkipped)
 TEST_F(AiCpuEngineSendTest, EmptyTxRxReturnsSuccessWithoutCalls)
 {
     auto ctx = MakeCtx(false, false, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records.size(), 0u);
 }
 
@@ -193,7 +194,7 @@ TEST_F(AiCpuEngineSendTest, EmptyThreadsReturnsError)
 {
     auto ctx = MakeCtx(true, false, false);
     ctx.templateRes.threads.clear();
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records.size(), 0u);
 }
 
@@ -202,7 +203,7 @@ TEST_F(AiCpuEngineSendTest, MissingDstChannelReturnsError)
 {
     auto ctx = MakeCtx(true, false, false);
     ctx.templateRes.channels.erase(1);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountTransferCalls(), 0u);
 }
 
@@ -211,7 +212,7 @@ TEST_F(AiCpuEngineSendTest, MissingSrcChannelReturnsError)
 {
     auto ctx = MakeCtx(false, true, false);
     ctx.templateRes.channels.erase(2);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -224,7 +225,7 @@ TEST_F(AiCpuEngineSendTest, NotifyRecordFailureStopsEarly)
     g_failName = "NotifyRecord";
     g_failRet = -1;
     auto ctx = MakeCtx(false, true, false);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("NotifyRecord"), 1u);
     EXPECT_EQ(CountCalls("NotifyWait"), 0u);
 }
@@ -235,7 +236,7 @@ TEST_F(AiCpuEngineSendTest, NotifyWaitFailureStopsEarly)
     g_failName = "NotifyWait";
     g_failRet = -1;
     auto ctx = MakeCtx(true, false, false);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("Write"), 0u);
 }
 
@@ -245,7 +246,7 @@ TEST_F(AiCpuEngineSendTest, WriteFailureStopsEarly)
     g_failName = "Write";
     g_failRet = -1;
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_RESERVED, 3, 16, 4);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("Write"), 1u);
     EXPECT_EQ(CountCalls("NotifyRecord"), 0u);
 }
@@ -256,7 +257,7 @@ TEST_F(AiCpuEngineSendTest, ReadFailureStopsEarly)
     g_failName = "Read";
     g_failRet = -1;
     auto ctx = MakeCtx(false, true, true, HCCL_REDUCE_RESERVED, 2, 16, 4);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("Read"), 1u);
 }
 
@@ -266,7 +267,7 @@ TEST_F(AiCpuEngineSendTest, WriteReduceFailureStopsEarly)
     g_failName = "WriteReduce";
     g_failRet = -1;
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_SUM, 2, 16, 4);
-    EXPECT_NE(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_NE(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("WriteReduce"), 1u);
 }
 
@@ -278,7 +279,7 @@ TEST_F(AiCpuEngineSendTest, WriteReduceFailureStopsEarly)
 TEST_F(AiCpuEngineSendTest, SendWriteNotifySequence)
 {
     auto ctx = MakeCtx(true, false, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records.front().name, "NotifyWait");
     EXPECT_EQ(g_records.front().idx, NOTIFY_IDX_ACK);
     EXPECT_EQ(g_records.back().name, "NotifyRecord");
@@ -289,7 +290,7 @@ TEST_F(AiCpuEngineSendTest, SendWriteNotifySequence)
 TEST_F(AiCpuEngineSendTest, RecvWriteNotifySequence)
 {
     auto ctx = MakeCtx(false, true, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records.front().name, "NotifyRecord");
     EXPECT_EQ(g_records.front().idx, NOTIFY_IDX_ACK);
     EXPECT_EQ(g_records.back().name, "NotifyWait");
@@ -300,7 +301,7 @@ TEST_F(AiCpuEngineSendTest, RecvWriteNotifySequence)
 TEST_F(AiCpuEngineSendTest, SendRecvWriteBidirNotifySequence)
 {
     auto ctx = MakeCtx(true, true, false);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records[0].name, "NotifyRecord");
     EXPECT_EQ(g_records[0].idx, NOTIFY_IDX_ACK);
     EXPECT_EQ(g_records[1].name, "NotifyWait");
@@ -314,7 +315,7 @@ TEST_F(AiCpuEngineSendTest, SendRecvWriteBidirNotifySequence)
 TEST_F(AiCpuEngineSendTest, SendRecvReadBidirNotifySequence)
 {
     auto ctx = MakeCtx(true, true, true);
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(g_records[0].name, "NotifyRecord");
     EXPECT_EQ(g_records[0].idx, NOTIFY_IDX_ACK);
     EXPECT_EQ(g_records.back().name, "NotifyWait");
@@ -339,7 +340,7 @@ TEST_F(AiCpuEngineSendTest, SliceAddressIsAddrPlusOffset)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("Write");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].src, reinterpret_cast<uint8_t *>(srcBase_) + 8);
@@ -350,12 +351,12 @@ TEST_F(AiCpuEngineSendTest, SliceAddressIsAddrPlusOffset)
 TEST_F(AiCpuEngineSendTest, ReducePassesCountNonReducePassesSize)
 {
     auto ctxNoReduce = MakeCtx(true, false, false, HCCL_REDUCE_RESERVED, 1, 16, 4);
-    EXPECT_EQ(engine_.Send(ctxNoReduce), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctxNoReduce), HCCL_SUCCESS);
     EXPECT_EQ(FindCalls("Write")[0].len, 16u);
 
     ClearMock();
     auto ctxReduce = MakeCtx(true, false, false, HCCL_REDUCE_SUM, 1, 16, 4);
-    EXPECT_EQ(engine_.Send(ctxReduce), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctxReduce), HCCL_SUCCESS);
     EXPECT_EQ(FindCalls("WriteReduce")[0].len, 4u);
 }
 
@@ -378,7 +379,7 @@ TEST_F(AiCpuEngineSendTest, SmallSliceWriteDataAccurate)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), 1u);
     EXPECT_EQ(g_captured[0].size(), sz);
     ExpectBytesEq(g_captured[0], want);
@@ -399,7 +400,7 @@ TEST_F(AiCpuEngineSendTest, MidSliceWriteDataAccurate)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), 1u);
     ExpectBytesEq(g_captured[0], want);
 }
@@ -425,7 +426,7 @@ TEST_F(AiCpuEngineSendTest, LargeSliceMultiWriteDataAccurate)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), n);
     for (uint64_t i = 0; i < n; ++i) {
         ExpectBytesEq(g_captured[i], wants[i]);
@@ -449,7 +450,7 @@ TEST_F(AiCpuEngineSendTest, SmallSliceReadDataAccurate)
     ctx.txRxSlicesList.srcRankId_ = 2;
     ctx.txRxSlicesList.rxSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), 1u);
     ExpectBytesEq(g_captured[0], want);
 }
@@ -471,7 +472,7 @@ TEST_F(AiCpuEngineSendTest, LargeWriteReduceByCountAccurate)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("WriteReduce");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].len, count);
@@ -507,7 +508,7 @@ TEST_F(AiCpuEngineSendTest, MixedSizeSlicesAccurate)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), 3u);
     ExpectBytesEq(g_captured[0], w1);
     ExpectBytesEq(g_captured[1], w2);
@@ -539,7 +540,7 @@ TEST_F(AiCpuEngineSendTest, AdjacentSlicesNoCrosstalk)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), 2u);
     ExpectBytesEq(g_captured[0], w0);
     ExpectBytesEq(g_captured[1], w1);
@@ -577,7 +578,7 @@ TEST_F(AiCpuEngineSendTest, ComprehensiveBidirWriteReduce)
     ctx.txRxSlicesList.rxSlicesList_ = SlicesList({DataSlice(srcBase_, 0, sz, count)},
                                                   {DataSlice(dstBase_, 0, sz, count)});
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_EQ(CountCalls("Read"), 0u);
     EXPECT_EQ(CountCalls("ReadReduce"), 0u);
     EXPECT_GE(CountCalls("WriteReduce"), 3u);
@@ -600,7 +601,7 @@ TEST_F(AiCpuEngineSendTest, ReducePassesDataTypeAndReduceOp)
 {
     auto ctx = MakeCtx(true, false, false, HCCL_REDUCE_SUM, 1, 8, 2);
     ctx.dataType = HCCL_DATA_TYPE_FP16;
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("WriteReduce");
     ASSERT_EQ(calls.size(), 1u);
     EXPECT_EQ(calls[0].dt, static_cast<int>(HCCL_DATA_TYPE_FP16));
@@ -613,7 +614,7 @@ TEST_F(AiCpuEngineSendTest, LookupChannelPicksFirstChannel)
     auto ctx = MakeCtx(true, false, false);
     // channels[1] 追加第二条 channel (不同 handle), 应使用第一条 0xC1
     ctx.templateRes.channels[1].push_back(MakeChannel(1, 0xBAD));
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     auto calls = FindCalls("Write");
     ASSERT_GE(calls.size(), 1u);
     EXPECT_EQ(calls[0].channel, 0xC1u);
@@ -624,7 +625,7 @@ TEST_F(AiCpuEngineSendTest, IsPcieProtocolDoesNotAffectRouting)
 {
     auto ctx = MakeCtx(true, false, false); // WRITE
     ctx.templateRes.channels[1][0].protocol = CommProtocol::COMM_PROTOCOL_PCIE;
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Write"), 1u); // 仍走 SendWrite, 不变 Read
     EXPECT_EQ(CountCalls("Read"), 0u);
 }
@@ -651,7 +652,7 @@ TEST_F(AiCpuEngineSendTest, LargeSliceMultiReadDataAccurate)
     ctx.txRxSlicesList.srcRankId_ = 2;
     ctx.txRxSlicesList.rxSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     ASSERT_EQ(g_captured.size(), n);
     for (uint64_t i = 0; i < n; ++i) {
         ExpectBytesEq(g_captured[i], wants[i]);
@@ -685,7 +686,7 @@ TEST_F(AiCpuEngineSendTest, LargeBidirWriteDataAccurate)
     ctx.txRxSlicesList.rxSlicesList_ = SlicesList({DataSlice(srcBase_, 0, sz, sz / 4)},
                                                   {DataSlice(dstBase_, 0, sz, sz / 4)});
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Write"), 2u);
     ASSERT_GE(g_captured.size(), 2u);
     ExpectBytesEq(g_captured[0], wA);
@@ -722,7 +723,7 @@ TEST_F(AiCpuEngineSendTest, LargeBidirReadDataAccurate)
                                                   {DataSlice(dstBase_, 0, sz, sz / 4)});
     ctx.txRxSlicesList.rxSlicesList_ = SlicesList(rxSrc, rxDst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_GE(CountCalls("Read"), 2u);
     ASSERT_GE(g_captured.size(), 2u);
     ExpectBytesEq(g_captured[0], wC);
@@ -744,7 +745,7 @@ TEST_F(AiCpuEngineSendTest, StubCapturesTransferContentObservable)
     ctx.txRxSlicesList.dstRankId_ = 1;
     ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-    EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+    EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
     EXPECT_FALSE(g_captured.empty());      // 可观测: 捕获非空
     EXPECT_EQ(g_captured[0].size(), sz);   // 长度可读回
     ExpectBytesEq(g_captured[0], want);    // 内容可读回且准确
@@ -773,7 +774,7 @@ TEST_F(AiCpuEngineSendTest, ReduceOpWithDataTypeCombination)
         ctx.txRxSlicesList.dstRankId_ = 1;
         ctx.txRxSlicesList.txSlicesList_ = SlicesList(src, dst);
 
-        EXPECT_EQ(engine_.Send(ctx), HCCL_SUCCESS);
+        EXPECT_EQ(DataTransferSend(ctx), HCCL_SUCCESS);
         auto calls = FindCalls("WriteReduce");
         ASSERT_EQ(calls.size(), 1u);
         EXPECT_EQ(calls[0].len, c.count);                // count_

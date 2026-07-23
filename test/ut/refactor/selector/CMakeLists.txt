@@ -46,6 +46,7 @@ target_include_directories(hccl_ut_refactor_selector PRIVATE
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
     ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
+    ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
     ${ASCEND_CANN_PACKAGE_PATH}/include/base
     ${ASCEND_CANN_PACKAGE_PATH}/include/external
     ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc
@@ -57,7 +58,7 @@ target_include_directories(hccl_ut_refactor_selector PRIVATE
 )
 
 target_compile_definitions(hccl_ut_refactor_selector PRIVATE
-    CANN_VERSION_NUM=90099801
+    CANN_VERSION_NUM=91000000
     CFG_BUILD_DEBUG
     _GLIBCXX_USE_CXX11_ABI=0
 )

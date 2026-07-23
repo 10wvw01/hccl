@@ -28,7 +28,9 @@
 #include "hccl_host_comm_dl.h"
 #include "binary_stream.h"
 #include "hccl_ccu_res_dl.h"
+#if CANN_VERSION_NUM < CANN_VERSION(9, 1, 0)
 #include "ccu_types_dl.h"
+#endif
 
 namespace ops_hccl {
 

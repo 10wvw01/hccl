@@ -46,7 +46,7 @@ protected:
     HcclResult PreCopy(const std::vector<ThreadHandle> &threads) override;
 
     /** SendAll: 通信纯搬运（reduceOp=RESERVED），完成后 LocalReduce 各 rank 槽到 ccl[myRank 槽]。 */
-    HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+    HcclResult SendAll(const std::vector<TxRxSlicesList> &txRxSlicesLists,
                        TemplateResource &templateResource, const std::vector<ThreadHandle> &threads) override;
 };
 

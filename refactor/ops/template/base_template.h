@@ -19,9 +19,6 @@
 
 namespace ops_hccl {
 
-class BaseEngine;
-
-
 /**
  * 通信模板基类
  * 职责：定义集合通信算法模板的通用接口，包括资源规划、资源计算、算法编排与kernel执行。

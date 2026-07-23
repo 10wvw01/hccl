@@ -39,12 +39,10 @@ static const char* GetAicpuAllGatherAlgoName(HcclAicpuAllGatherAlgoType type)
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_UBOE:   return "InsAllGatherParallelMesh1DNHRUboe";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D:        return "InsAllGatherSequenceNHRMesh1D";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR:        return "InsAllGatherParallelMesh1DNHR";
-        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR:      return "InsAllGatherMesh1D1DZAxisDetour";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_MESH1D:                     return "InsAllGatherMesh1D";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_PCIE:   return "InsAllGatherParallelMesh1DNHRPcie";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_OMNIPIPE_PCIE:             return "InsV2AllGatherOmniPipePcie";
         case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR:      return "InsAllGatherConcurrentMesh1DNHR";
-        case HcclAicpuAllGatherAlgoType::AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY: return "InsAllGatherParallelMesh1DNHRMultiJetty";
         default:                                                                     return "InsAllGatherNHR";
     }
 }

@@ -9,7 +9,6 @@
  */
 
 #include "aicpu_base_template.h"
-#include "base_engine.h"
 #include "data_transfer.h"
 
 #include "log.h"
@@ -67,7 +66,7 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 
     // 4. SendAll：统一逐个执行 SendRecv（子类可在通信后做本地归约）。
     if (!txRxSlicesLists.empty()) {
-        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource, templateResource.threads));
+        CHK_RET(SendAll(txRxSlicesLists, templateResource, templateResource.threads));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -91,7 +90,7 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
 HcclResult AicpuBaseTemplate::SendAll(
-    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+    const std::vector<TxRxSlicesList> &txRxSlicesLists,
     TemplateResource &templateResource, const std::vector<ThreadHandle> &threads)
 {
     (void)threads;

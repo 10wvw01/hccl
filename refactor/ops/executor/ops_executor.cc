@@ -9,7 +9,6 @@
  */
 
 #include "ops_executor.h"
-#include "base_engine.h"
 
 namespace ops_hccl {
 OpsExecutor::OpsExecutor(HcclAlgorithm &algo, OpParam &param) : algo_(algo), rankSize_(0), root_(param.root)
@@ -545,7 +544,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     }
     algoExecDataDesc.ranksForOutputDataGroup.resize(1);
     CHK_RET(baseTemplate->KernelRun(
-        *engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
+        templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
 }
 

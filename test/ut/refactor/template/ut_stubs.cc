@@ -156,4 +156,55 @@ int32_t HcommThreadNotifyWaitOnThread(ThreadHandle mainThread, uint32_t idx, uin
     return tmplRetCode("NotifyWait");
 }
 
+int32_t HcommChannelNotifyRecordOnThread(ThreadHandle thread, ChannelHandle channel, uint32_t idx)
+{
+    g_tmplRecords.push_back({"NotifyRecord", (unsigned long)thread, (unsigned long)channel, idx,
+                             nullptr, nullptr, 0});
+    return tmplRetCode("NotifyRecord");
+}
+
+int32_t HcommChannelNotifyWaitOnThread(ThreadHandle thread, ChannelHandle channel, uint32_t idx,
+                                       uint32_t /*timeout*/)
+{
+    g_tmplRecords.push_back({"NotifyWait", (unsigned long)thread, (unsigned long)channel, idx,
+                             nullptr, nullptr, 0});
+    return tmplRetCode("NotifyWait");
+}
+
+int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                           uint64_t len)
+{
+    g_tmplRecords.push_back({"Write", (unsigned long)thread, (unsigned long)channel, 0xFFFFFFFF,
+                             dst, src, len});
+    captureTmplBytes(src, len);
+    return tmplRetCode("Write");
+}
+
+int32_t HcommWriteReduceOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                 uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp)
+{
+    (void)dataType; (void)reduceOp;
+    g_tmplRecords.push_back({"WriteReduce", (unsigned long)thread, (unsigned long)channel, 0xFFFFFFFF,
+                             dst, src, count});
+    return tmplRetCode("WriteReduce");
+}
+
+int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                          uint64_t len)
+{
+    g_tmplRecords.push_back({"Read", (unsigned long)thread, (unsigned long)channel, 0xFFFFFFFF,
+                             dst, src, len});
+    captureTmplBytes(src, len);
+    return tmplRetCode("Read");
+}
+
+int32_t HcommReadReduceOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                uint64_t count, HcommDataType dataType, HcommReduceOp reduceOp)
+{
+    (void)dataType; (void)reduceOp;
+    g_tmplRecords.push_back({"ReadReduce", (unsigned long)thread, (unsigned long)channel, 0xFFFFFFFF,
+                             dst, src, count});
+    return tmplRetCode("ReadReduce");
+}
+
 } // extern "C"

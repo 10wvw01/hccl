@@ -256,4 +256,10 @@ const bool &GetExternalInputHcclCcuSchedMode()
     return v;
 }
 
+// SetOpParamAlgTag 桩：execute_selector.cc 调用，op_common.cc 未编入 UT
+HcclResult SetOpParamAlgTag(OpParam &, const std::string &)
+{
+    return HCCL_SUCCESS;
+}
+
 } // namespace ops_hccl

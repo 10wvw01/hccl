@@ -14,6 +14,7 @@
 #include "base_engine.h"
 #include "ops_executor.h"
 #include "utils.h"
+#include "exec_timeout_manager.h"
 
 extern "C" errno_t memset_s(void *dest, size_t destMax, int c, size_t count)
 {
@@ -114,14 +115,9 @@ public:
         return HCCL_SUCCESS;
     }
     HcclResult LaunchKernel(const OpParam &) override { return HCCL_SUCCESS; }
-    HcclResult Send(const TransferContext &) override { return HCCL_SUCCESS; }
 };
 } // namespace
 
-std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(void)
-{
-    return std::make_unique<MockEngine>();
-}
 std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
 {
     return std::make_unique<OpsExecutor>(*this, param);
@@ -157,4 +153,27 @@ TemplateDesc g_allGatherTemplateDescMap[] = {
 // channel.cc 外部符号桩（精简后无额外依赖）
 // ============================================================
 
+// ExecTimeoutManager 桩 (data_transfer.cc 依赖)
+ExecTimeoutManager &ExecTimeoutManager::Instance()
+{
+    static ExecTimeoutManager inst;
+    return inst;
+}
+ExecTimeoutManager::ExecTimeoutManager() : execTimeout_(1000), timeoutSet_(false) {}
+ExecTimeoutManager::~ExecTimeoutManager() = default;
+void ExecTimeoutManager::SetExecTimeout(u32 t) { execTimeout_ = t; timeoutSet_ = true; }
+u32 ExecTimeoutManager::GetExecTimeout() { return execTimeout_.load(); }
+
 } // namespace ops_hccl
+
+// HCOMM primitive 桩 (data_transfer.cc 依赖, UT 不验证数据传输)
+extern "C" {
+int32_t HcommChannelNotifyRecordOnThread(ThreadHandle, ChannelHandle, uint32_t) { return 0; }
+int32_t HcommChannelNotifyWaitOnThread(ThreadHandle, ChannelHandle, uint32_t, uint32_t) { return 0; }
+int32_t HcommWriteOnThread(ThreadHandle, ChannelHandle, void *, const void *, uint64_t) { return 0; }
+int32_t HcommWriteReduceOnThread(ThreadHandle, ChannelHandle, void *, const void *, uint64_t,
+    HcommDataType, HcommReduceOp) { return 0; }
+int32_t HcommReadOnThread(ThreadHandle, ChannelHandle, void *, const void *, uint64_t) { return 0; }
+int32_t HcommReadReduceOnThread(ThreadHandle, ChannelHandle, void *, const void *, uint64_t,
+    HcommDataType, HcommReduceOp) { return 0; }
+} // extern "C"

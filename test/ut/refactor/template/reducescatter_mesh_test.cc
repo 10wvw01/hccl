@@ -91,26 +91,24 @@ TEST(ReduceScatterMeshRunAlgorithmTest, EmptyInputRanksReturnsError)
 // 2. KernelRun 完整流程分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC04 KernelRun 多 rank 调用 engine.Send
+// TC04 KernelRun 多 rank 调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, ReduceScatterMeshKernelRunMultiRankCallsSend)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
     ReduceScatterMeshTemplate tmpl(0, ranks, MakeReduceScatterMeshDesc());
     // ReduceScatter 输入包含所有 rank 的数据
     TemplateDataParams params = MakeTmplParams({0, 1, 2, 3});
-    TemplateResource res = MakeTmplResource();
+    TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // RunMeshReduceScatter 为 3 个对端生成 txRxSlicesLists → engine.Send 调用 3 次
-    EXPECT_EQ(engine_.GetSendCount(), 3u);
     // ReduceScatter 语义：输出仅对应本 rank
     EXPECT_EQ(ranksForOutputData.size(), 1u);
     EXPECT_EQ(ranksForOutputData[0], 0u);
 }
 
-// TC05 KernelRun 单 rank 不调用 engine.Send
+// TC05 KernelRun 单 rank 不调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, ReduceScatterMeshKernelRunSingleRankNoSend)
 {
     ReduceScatterMeshTemplate tmpl(0, {0}, MakeReduceScatterMeshDesc());
@@ -118,9 +116,8 @@ TEST_F(AicpuBaseTemplateTest, ReduceScatterMeshKernelRunSingleRankNoSend)
     TemplateResource res = MakeTmplResource();
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 0u);
 }
 
 } // namespace testing

@@ -29,6 +29,7 @@ set(UT_EXECUTOR_SRC
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/mesh_primitives.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/nhr_primitives.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/data_transfer.cc
 )
 
 add_executable(hccl_ut_refactor_executor ${UT_EXECUTOR_SRC})
@@ -45,6 +46,7 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine
+    ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu
     ${CMAKE_SOURCE_DIR}/refactor/ops/utils
     ${CMAKE_SOURCE_DIR}/refactor/ops/selector
     ${CMAKE_SOURCE_DIR}/refactor/ops/c_adaptor/common
@@ -59,6 +61,7 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
     ${ASCEND_CANN_PACKAGE_PATH}/include
     ${ASCEND_CANN_PACKAGE_PATH}/include/hccl
     ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm
+    ${ASCEND_CANN_PACKAGE_PATH}/include/hcomm/ccu
     ${ASCEND_CANN_PACKAGE_PATH}/include/base
     ${ASCEND_CANN_PACKAGE_PATH}/include/external
     ${ASCEND_CANN_PACKAGE_PATH}/pkg_inc
@@ -70,7 +73,7 @@ target_include_directories(hccl_ut_refactor_executor PRIVATE
 )
 
 target_compile_definitions(hccl_ut_refactor_executor PRIVATE
-    CANN_VERSION_NUM=90099801
+    CANN_VERSION_NUM=91000000
     CFG_BUILD_DEBUG
     _GLIBCXX_USE_CXX11_ABI=0
 )

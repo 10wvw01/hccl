@@ -10,7 +10,7 @@
 
 #include "reducescatter_mesh.h"
 
-#include "base_engine.h"
+#include "data_transfer.h"
 #include "primitives/mesh_primitives.h"
 
 namespace ops_hccl {
@@ -72,7 +72,7 @@ HcclResult ReduceScatterMeshTemplate::PreCopy(const std::vector<ThreadHandle> &t
     return HCCL_SUCCESS;
 }
 
-HcclResult ReduceScatterMeshTemplate::SendAll(BaseEngine &engine,
+HcclResult ReduceScatterMeshTemplate::SendAll(
     const std::vector<TxRxSlicesList> &txRxSlicesLists, TemplateResource &templateResource,
     const std::vector<ThreadHandle> &threads)
 {
@@ -84,7 +84,7 @@ HcclResult ReduceScatterMeshTemplate::SendAll(BaseEngine &engine,
         ctx.templateRes = templateResource;
         ctx.dataType = tempAlgParams_.dataType;
         ctx.reduceOp = HCCL_REDUCE_RESERVED;
-        CHK_RET(engine.Send(ctx));
+        CHK_RET(DataTransferSend(ctx));
     }
 
     if (threads.empty()) {

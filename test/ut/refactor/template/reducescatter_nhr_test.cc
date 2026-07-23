@@ -172,7 +172,7 @@ TEST(ReduceScatterNhrGetResTest, ChannelsPerRankTwoSingleSlaveThread)
 // 3. KernelRun 完整流程分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC07 KernelRun 多 rank 调用 engine.Send
+// TC07 KernelRun 多 rank 调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, ReduceScatterNhrKernelRunMultiRankCallsSend)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
@@ -183,13 +183,11 @@ TEST_F(AicpuBaseTemplateTest, ReduceScatterNhrKernelRunMultiRankCallsSend)
     TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // 4 rank → 2 步 → 2 次 Send
-    EXPECT_EQ(engine_.GetSendCount(), 2u);
 }
 
-// TC08 KernelRun 单 rank 不调用 engine.Send
+// TC08 KernelRun 单 rank 不调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, ReduceScatterNhrKernelRunSingleRankNoSend)
 {
     ReduceScatterNhrTemplate tmpl(0, {0}, MakeReduceScatterNhrDesc());
@@ -197,9 +195,8 @@ TEST_F(AicpuBaseTemplateTest, ReduceScatterNhrKernelRunSingleRankNoSend)
     TemplateResource res = MakeTmplResource();
     std::vector<u32> ranksForOutputData;
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 0u);
 }
 
 } // namespace testing

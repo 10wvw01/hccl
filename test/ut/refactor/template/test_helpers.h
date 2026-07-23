@@ -20,7 +20,6 @@
 #include "template/aicpu/reducescatter_nhr.h"
 #include "template/primitives/mesh_primitives.h"
 #include "template/primitives/nhr_primitives.h"
-#include "base_engine.h"
 
 namespace ops_hccl {
 namespace testing {
@@ -68,28 +67,6 @@ inline std::vector<TemplateHcall> FindTmplCalls(const std::string &name)
     }
     return out;
 }
-
-// ───────────── MockBaseEngine: 记录 Send 调用 ─────────────
-class MockBaseEngine : public BaseEngine {
-public:
-    HcclResult CreateRes(HcclComm, const OpParam &, HcclAlgorithm &,
-                         AlgHierarchyInfoForAllLevel &, AlgResourceRequest &,
-                         TopoInfoWithNetLayerDetails &) override { return HCCL_SUCCESS; }
-    HcclResult LaunchKernel(const OpParam &) override { return HCCL_SUCCESS; }
-    HcclResult Send(const TransferContext &ctx) override
-    {
-        sendCount_++;
-        lastCtx_ = ctx;
-        return sendRet_;
-    }
-    u32 GetSendCount() const { return sendCount_; }
-    const TransferContext &GetLastCtx() const { return lastCtx_; }
-    void SetSendRet(HcclResult ret) { sendRet_ = ret; }
-private:
-    u32 sendCount_ = 0;
-    HcclResult sendRet_ = HCCL_SUCCESS;
-    TransferContext lastCtx_{};
-};
 
 // ───────────── Mesh primitives test fixture ─────────────
 class MeshAllGatherTest : public ::testing::Test {
@@ -244,7 +221,6 @@ protected:
     void *cclMem_ = nullptr;
     void *outMem_ = nullptr;
     void *inputMem_ = nullptr;
-    MockBaseEngine engine_;
 };
 
 } // namespace testing
