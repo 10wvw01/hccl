@@ -23,6 +23,7 @@ static CcuResult ParseKernelArg(GatherOmniPipeMesh1DMem2MemContext &ctx, CcuKern
     ctx.arg = kernelArg;
     ctx.rankSize = kernelArg->rankSize;
     ctx.rankId = kernelArg->rankId;
+    ctx.dataType = kernelArg->opParam.DataDes.dataType;
     return CCU_SUCCESS;
 }
 

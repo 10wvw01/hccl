@@ -31,6 +31,7 @@ static CcuResult ParseKernelArg(GatherOmniPipeNHR1DMem2MemContext &ctx,
     ctx.rank2ChannelIdx = kernelArg->rank2ChannelIdx;
     ctx.localSize = static_cast<uint32_t>(ctx.rank2ChannelIdx.size());
     ctx.myRankIdx = ctx.localSize;
+    ctx.dataType = kernelArg->opParam.DataDes.dataType;
     HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] ParseKernelArg");
     return CCU_SUCCESS;
 }
