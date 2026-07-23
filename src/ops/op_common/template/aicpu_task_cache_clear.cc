@@ -45,7 +45,7 @@ HcclResult AicpuCacheEvitKernelLaunch(HcclComm comm)
     aclrtArgsHandle argsHandle;
 
     // 共用libscatter_aicpu_kernel.so, 如果没有加载过，当前没有aicpu算子，直接返回即可。
-    if (g_binKernelHandle == null) {
+    if (g_binKernelHandle == nullptr) {
         HCCL_INFO("[%s] aicpu file not loaded, ignore", __func__);
         return HCCL_SUCCESS;
     }
