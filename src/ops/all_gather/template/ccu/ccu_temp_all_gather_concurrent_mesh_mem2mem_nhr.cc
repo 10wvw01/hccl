@@ -280,11 +280,8 @@ HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::LaunchConcurrentKernels(
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::SaveSubmitInfos(
-    TemplateResource &templateResource, const std::vector<uint64_t> &meshTaskArgs,
-    const std::vector<uint64_t> &nhrTaskArgs, u64 meshSize, u32 meshKernelNum,
-    u32 nhrKernelNum, bool hasMesh, bool hasNhr,
-    const TemplateDataParams &templateDataParams)
+HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::SaveSubmitInfos(TemplateResource &templateResource, const std::vector<uint64_t> &meshTaskArgs,
+    const std::vector<uint64_t> &nhrTaskArgs, u64 meshSize, u32 meshKernelNum, u32 nhrKernelNum, bool hasMesh, bool hasNhr, const TemplateDataParams &templateDataParams)
 {
     if (hasMesh) {
         CcuKernelSubmitInfo meshSubmit;
