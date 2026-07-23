@@ -317,7 +317,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
     const char* rsBwRatioXEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_RS_MESH");
-    const char* rsBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_RS_CLOS");
+    const char* rsBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS");
     const char* gatherBwRatioXEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_MESH");
     const char* gatherBwRatioYEnv = std::getenv("BW_OMNI_UBX_CCU_SCHED_G_CLOS");
     double rXRS = (rsBwRatioXEnv != nullptr) ? std::stod(std::string(rsBwRatioXEnv)) : BW_OMNI_UBX_CCU_SCHED_RS_MESH;
