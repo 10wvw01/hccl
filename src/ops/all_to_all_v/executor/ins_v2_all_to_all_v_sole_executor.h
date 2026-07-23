@@ -16,6 +16,8 @@
 #include "topo_match_base.h"
 #include "topo_match_ubx.h"
 #include "topo_match_ubx_1d.h"
+#include "topo_match_ubx_v2.h"
+#include "topo_match_alltoall_pod_direct.h"
 
 namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate> class InsV2AlltoAllVSoleExecutor : public InsCollAlgBase {

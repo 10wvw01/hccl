@@ -10,8 +10,11 @@
 
 #include "ins_v2_all_to_all_v_sole_executor.h"
 #include "ins_temp_all_to_all_v_mesh_1D.h"
+#include "ins_temp_all_to_all_v_bsp.h"
 #include "ins_temp_dpu_alltoall_mesh.h"
 #include "ins_temp_ubx_all_to_all_v_mesh_1D.h"
+#include <algorithm>
+#include <cstring>
 #ifndef AICPU_COMPILE
 #include "aiv_temp_all_to_all_mesh_1D.h"
 #include "aiv_temp_all_to_all_v_mesh_1D.h"
@@ -28,6 +31,132 @@
 #define INST_NUM_NET 2
 
 namespace ops_hccl {
+namespace {
+bool IsBspAlltoAllVNoMemcpyAlg(const OpParam &param)
+{
+    return param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV &&
+           (std::strcmp(param.algName, "InsAlltoAllVBsp") == 0 ||
+            std::strcmp(param.algName, "InsAlltoAllVBspPodDirect") == 0);
+}
+
+HcclResult BuildBspHierarchyInfo(const TopoInfoWithNetLayerDetails *topoInfo,
+    const AlgHierarchyInfoForAllLevel &algHierarchyInfo, std::vector<std::vector<u32>> &tempAlgHierachyInfo)
+{
+    CHK_PTR_NULL(topoInfo);
+    CHK_PRT_RET(algHierarchyInfo.infos.empty() || algHierarchyInfo.infos[0].empty(),
+                HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][BspHierarchy] invalid algHierarchyInfo."),
+                HCCL_E_PARA);
+
+    std::vector<u32> localPodRanks;
+    u32 bestLocalSize = topoInfo->userRankSize + 1;
+    for (const auto &level0Ranks : algHierarchyInfo.infos[0]) {
+        if (level0Ranks.empty()) {
+            continue;
+        }
+        auto iter = std::find(level0Ranks.begin(), level0Ranks.end(), topoInfo->userRank);
+        const u32 level0Size = static_cast<u32>(level0Ranks.size());
+        if (iter != level0Ranks.end() && level0Size < bestLocalSize) {
+            localPodRanks = level0Ranks;
+            bestLocalSize = level0Size;
+        }
+    }
+    CHK_PRT_RET(localPodRanks.empty(),
+                HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][BspHierarchy] cannot find local pod for rank[%u].",
+                           topoInfo->userRank),
+                HCCL_E_PARA);
+    const u32 localPodSize = static_cast<u32>(localPodRanks.size());
+    CHK_PRT_RET(topoInfo->userRankSize == 0 || localPodSize == 0 || topoInfo->userRankSize % localPodSize != 0,
+                HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][BspHierarchy] userRankSize[%u] is not divisible by "
+                           "localPodSize[%zu].",
+                           topoInfo->userRankSize, localPodRanks.size()),
+                HCCL_E_NOT_SUPPORT);
+
+    std::vector<u32> fullRanks;
+    fullRanks.reserve(topoInfo->userRankSize);
+    for (u32 rank = 0; rank < topoInfo->userRankSize; ++rank) {
+        fullRanks.push_back(rank);
+    }
+
+    tempAlgHierachyInfo.clear();
+    tempAlgHierachyInfo.push_back(localPodRanks);
+    tempAlgHierachyInfo.push_back(fullRanks);
+    HCCL_INFO("[InsV2AlltoAllVSoleExecutor][BspHierarchy] rowNum[%zu] colNum[%u] rankNum[%u].",
+              localPodRanks.size(),
+              topoInfo->userRankSize / localPodSize,
+              topoInfo->userRankSize);
+    return HCCL_SUCCESS;
+}
+
+HcclResult FillBspAlltoAllVRemoteInfo(
+    const OpParam &param, u32 myRank, u64 rankSize,
+    const std::map<u32, std::vector<ChannelInfo>> &channels, TemplateDataParams &params)
+{
+    if (!IsBspAlltoAllVNoMemcpyAlg(param)) {
+        return HCCL_SUCCESS;
+    }
+    params.enableRemoteMemAccess = true;
+    params.buffInfo.inputSize = param.inputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType];
+    params.buffInfo.outputSize = param.outputSize * DATATYPE_SIZE_TABLE[param.all2AllVDataDes.recvType];
+    params.remoteRdispls.assign(rankSize, 0);
+    params.remoteRecvCounts.assign(rankSize, 0);
+    params.globalRecvCounts.assign(rankSize * rankSize, 0);
+    std::vector<bool> globalRecvRowReady(rankSize, false);
+    if (myRank < rankSize) {
+        globalRecvRowReady[myRank] = true;
+    }
+    auto calcLoopCount = [&params](u64 count) -> u64 {
+        if (count <= params.processedDataCount) {
+            return 0;
+        }
+        return std::min(params.count, count - params.processedDataCount);
+    };
+    for (u64 srcRank = 0; srcRank < rankSize && srcRank < params.recvCounts.size(); ++srcRank) {
+        params.globalRecvCounts[myRank * rankSize + srcRank] = params.recvCounts[srcRank];
+    }
+    for (const auto &item : channels) {
+        if (item.second.empty()) {
+            continue;
+        }
+        const u32 remoteRank = item.first;
+        const ChannelInfo &channel = item.second[0];
+        CHK_PRT_RET(remoteRank >= rankSize,
+                    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] invalid remote rank. "
+                               "rank=%u remoteRank=%u rankSize=%llu",
+                               myRank, remoteRank, rankSize),
+                    HcclResult::HCCL_E_INTERNAL);
+        CHK_PRT_RET(!channel.hasRemoteAlltoAllVInfo,
+                    HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] missing remote A2AV info. "
+                               "rank=%u remoteRank=%u",
+                               myRank, remoteRank),
+                    HcclResult::HCCL_E_INTERNAL);
+        params.remoteRdispls[remoteRank] = channel.remoteAlltoAllVRdisplForLocalRank;
+        params.remoteRecvCounts[remoteRank] = channel.remoteAlltoAllVRecvCountForLocalRank;
+        if (channel.remoteAlltoAllVRecvCounts.size() >= rankSize) {
+            for (u64 srcRank = 0; srcRank < rankSize; ++srcRank) {
+                params.globalRecvCounts[remoteRank * rankSize + srcRank] =
+                    calcLoopCount(channel.remoteAlltoAllVRecvCounts[srcRank]);
+            }
+            globalRecvRowReady[remoteRank] = true;
+        } else {
+            HCCL_WARNING("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] remote full recvCounts missing. "
+                         "rank=%u remoteRank=%u recvCountsSize=%zu rankSize=%llu. "
+                         "BSP tree plane planner may fall back to v0 mapping.",
+                         myRank, remoteRank, channel.remoteAlltoAllVRecvCounts.size(), rankSize);
+        }
+    }
+    for (u64 rank = 0; rank < rankSize; ++rank) {
+        if (!globalRecvRowReady[rank]) {
+            HCCL_WARNING("[InsV2AlltoAllVSoleExecutor][BspNoMemcpy] incomplete global recv matrix. "
+                         "rank=%u missingRow=%llu rankSize=%llu. BSP tree plane planner will fall back "
+                         "to v0 mapping.",
+                         myRank, rank, rankSize);
+            params.globalRecvCounts.clear();
+            break;
+        }
+    }
+    return HCCL_SUCCESS;
+}
+}
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
 InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::InsV2AlltoAllVSoleExecutor()
@@ -57,7 +186,10 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
         return HCCL_E_PARA;
     }
 
-    if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix && param.engine != CommEngine::COMM_ENGINE_AIV) {
+    if (IsBspAlltoAllVNoMemcpyAlg(param)) {
+        CHK_RET(BuildBspHierarchyInfo(topoInfo, algHierarchyInfo, tempAlgHierachyInfo));
+    } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix &&
+        param.engine != CommEngine::COMM_ENGINE_AIV) {
         CHK_PRT_RET(algHierarchyInfo.infos[0].size() != INST_NUM_NET,
                     HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][CalcRes] algHierarchyInfo.infos[0].size[%zu] "
                         "with Level0Topo[%u] is not %u",
@@ -250,7 +382,10 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
     }
 
     std::vector<std::vector<u32>> tempAlgHierachyInfo;
-    if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix && param.engine != CommEngine::COMM_ENGINE_AIV) {
+    if (IsBspAlltoAllVNoMemcpyAlg(param)) {
+        CHK_RET(BuildBspHierarchyInfo(&resCtx.topoInfo, resCtx.algHierarchyInfo, tempAlgHierachyInfo));
+    } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix &&
+        param.engine != CommEngine::COMM_ENGINE_AIV) {
         if (resCtx.topoInfo.topoLevelNums == 1 ) {
             tempAlgHierachyInfo = {resCtx.algHierarchyInfo.infos[0][1]};
         } else {
@@ -333,6 +468,10 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         tempAlgParams.recvCounts.resize(rankSize_, 0);
         tempAlgParams.sdispls.resize(rankSize_, 0);
         tempAlgParams.rdispls.resize(rankSize_, 0);
+        if (IsBspAlltoAllVNoMemcpyAlg(param)) {
+            tempAlgParams.remoteRdispls.resize(rankSize_, 0);
+            tempAlgParams.remoteRecvCounts.resize(rankSize_, 0);
+        }
 
         for (u64 i = 0; i < rankSize_; i++) {
             if (sendCounts[i] > processedDataCount) {
@@ -349,6 +488,14 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
             } else {
                 tempAlgParams.recvCounts[i] = 0;
                 tempAlgParams.rdispls[i] = rdispls[i] + recvCounts[i];
+            }
+        }
+        CHK_RET(FillBspAlltoAllVRemoteInfo(param, resCtx.topoInfo.userRank, rankSize_,
+                                           templateAlgRes.channels, tempAlgParams));
+        if (IsBspAlltoAllVNoMemcpyAlg(param)) {
+            for (u64 i = 0; i < rankSize_; ++i) {
+                tempAlgParams.remoteRdispls[i] += processedDataCount;
+                tempAlgParams.remoteRecvCounts[i] = tempAlgParams.sendCounts[i];
             }
         }
 
@@ -443,6 +590,10 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DSingleChannel,
     InsTempAlltoAllVMesh1D);
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVMesh1D, InsV2AlltoAllVSoleExecutor, TopoMatch1D,
     InsTempAlltoAllVMesh1D);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVBsp, InsV2AlltoAllVSoleExecutor, TopoMatchUBX_V2,
+    InsTempAlltoAllVBsp);
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALLV, InsAlltoAllVBspPodDirect, InsV2AlltoAllVSoleExecutor,
+    TopoMatchAlltoAllPodDirect, InsTempAlltoAllVBsp);
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLTOALL, InsAlltoAllMesh1DUBX, InsV2AlltoAllVSoleExecutor, TopoMatchUBX1d,
     InsTempUBXAllToAllVMesh1D);

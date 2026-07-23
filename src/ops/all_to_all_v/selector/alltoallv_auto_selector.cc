@@ -11,6 +11,33 @@
 #include "alltoallv_auto_selector.h"
 #include "selector_registry.h"
 #include "hccl_aiv_utils.h"
+#include <cstdlib>
+#include <cstring>
+
+namespace {
+bool IsAlltoAllVBspEnabled()
+{
+    const char *env = std::getenv("HCCL_ENABLE_A2AV_BSP");
+    return env != nullptr && std::strcmp(env, "1") == 0;
+}
+
+const char *GetAlltoAllVOptTopoMode()
+{
+    return std::getenv("HCCL_A2A_OPT_TOPO");
+}
+
+bool IsAlltoAllVBspTopoSupported(const ops_hccl::TopoInfoWithNetLayerDetails *topoInfo)
+{
+    const char *topoMode = GetAlltoAllVOptTopoMode();
+    if (topoMode != nullptr && (std::strcmp(topoMode, "pod_ubx_v2") == 0 ||
+        std::strcmp(topoMode, "pod_direct") == 0)) {
+        return topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D ||
+               topoInfo->level0Topo == ops_hccl::Level0Shape::CLOS ||
+               (topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix);
+    }
+    return topoInfo->level0Topo == ops_hccl::Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix;
+}
+}
 
 namespace ops_hccl {
 constexpr uint32_t INDEX_0 = 0;
@@ -99,6 +126,23 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
     HCCL_DEBUG("[AlltoAllVAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     (void)opParam;
     (void)configAlgMap;
+    if (IsAlltoAllVBspEnabled()) {
+        const char *topoMode = GetAlltoAllVOptTopoMode();
+        if (IsAlltoAllVBspTopoSupported(topoInfo)) {
+            if (topoMode != nullptr && std::strcmp(topoMode, "pod_direct") == 0) {
+                selectAlgName = "InsAlltoAllVBspPodDirect";
+            } else {
+                selectAlgName = "InsAlltoAllVBsp";
+            }
+            HCCL_WARNING("[AlltoAllVAutoSelector][%s] HCCL_ENABLE_A2AV_BSP=1, Algo match[%s] topoMode[%s]",
+                         __func__, selectAlgName.c_str(), topoMode == nullptr ? "(unset)" : topoMode);
+            return SelectorStatus::MATCH;
+        }
+        HCCL_WARNING("[AlltoAllVAutoSelector][%s] HCCL_ENABLE_A2AV_BSP=1 but topo is unsupported. "
+                     "level0Topo[%d] pcieMix[%d] topoMode[%s], fallback to default.",
+                     __func__, static_cast<int>(topoInfo->level0Topo), static_cast<int>(topoInfo->level0PcieMix),
+                     topoMode == nullptr ? "(unset)" : topoMode);
+    }
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D || topoInfo->level0Topo == Level0Shape::CLOS ||
             topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {

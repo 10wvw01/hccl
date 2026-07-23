@@ -16,7 +16,9 @@ set(src_list
 if(NOT HCCL_CANN_COMPAT_850)
     list(APPEND src_list
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_multilevel.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_alltoall_pod_direct.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_ubx.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_ubx_v2.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_ubx_1d.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_pcie_mix.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/topo_match_3_level.cc
