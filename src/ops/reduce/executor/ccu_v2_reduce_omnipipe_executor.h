@@ -14,6 +14,7 @@
 #include "executor_common_ops.h"
 #include "ccu_alg_template_base.h"
 #include "omnipipe_data_slice_calc.h"
+#include "omnipipe_gather_data_slice_calc.h"
 #include "topo_match_base.h"
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"

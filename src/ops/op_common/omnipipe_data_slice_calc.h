@@ -212,41 +212,6 @@ struct OmniPipeScratchParam {
     }
 };
 
-// Gather slice 计算的共享上下文，封装步数/偏移/数据大小等中间状态，减少子函数参数列表
-struct GatherSliceContext {
-    u64 xRankSize{0};
-    u64 yRankSize{0};
-    u64 zRankSize{0};
-    u64 rankSize{0};
-    u64 xAxis{0};
-    u64 yAxis{0};
-    u64 zAxis{0};
-    double xB{0};
-    double yB{0};
-    double zB{0};
-    double xyB{0};
-    bool yGeX{false};
-    int maxStepNum{MAX_STEP_NUM};
-    CommEngine engine{CommEngine::COMM_ENGINE_AICPU_TS};
-    u64 dataTypeSize{0};
-    u64 maxDataPieceId{0};
-    std::vector<u64> dataSize;
-    std::vector<u64> dataSizePerLoop;
-    std::vector<OmniPipeSplitSliceInfo> perLoop;
-    std::vector<OmniPipeSplitSliceInfo> total;
-    std::vector<std::vector<u64>> zGDS, xyGDS, zGOff, xyGOff;
-    std::vector<std::vector<std::vector<u64>>> xGDS, yGDS, xGOff, yGOff;
-    u64 outerStepNum{0};
-    u64 innerStepNum{0};
-    int zCornerStep{1};
-    int xyCornerStep{1};
-    int xInCornerStep{1};
-    int yInCornerStep{1};
-    u64 xCclBufOff{0};
-    u64 yCclBufOff{0};
-    u64 zCclBufOff{0};
-};
-
 std::string ThreeDVecToStrOmni(std::vector<std::vector<std::vector<u32>>> infos);
 void BuffInfoAssign(BuffInfo& bi, u64 inBuffBaseOff, u64 outBuffBaseOff, u64 hcclBuffBaseOff = 0);
 std::vector<OmniPipeSplitSliceInfo> OmniPipeSplitSliceInfoListAssign(const std::vector<u64> dataWholeSize, u64 rankSize,
@@ -280,23 +245,11 @@ u64 CalReducescatterDataSize2D(u64* xStepP2pDataSize, u64* yStepP2pDataSize, dou
                                u64 yRankSize, u64 dataSizeEachRank, u64 maxStep, CommEngine engine = CommEngine::COMM_ENGINE_AICPU_TS);
 std::vector<u64> CalcOmniPipeScratchInfo(OmniPipeScratchParam& omniPipeScratchParam);
 OmniPipeSliceInfo CalcRSOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
-OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
 HcclResult CalLocalCopySlice(const TemplateDataParams& tempAlgParams, const std::vector<u64>& allRankSplitData,
                              const std::vector<u64>& curLoopAllRankSplitData, std::vector<DataSlice>& srcDataSlice,
                              std::vector<DataSlice>& dstDataSlice, u64 dataTypeSize);
 bool isSameLoop(const std::vector<u64>& splitData1, const std::vector<u64>& splitData2);
 std::vector<u64> CalcCountToDataSize(const std::vector<u64>& vecCount, u64 dataType);
 int SetMaxStepNumOmni(OmniNeedSetStepNum needSetStepNum);
-StepSliceInfo MakeGatherStep(u64 cclBufOff);
-void PushGatherRankEntry(StepSliceInfo &s, u64 dataTypeSize, u64 inStride, u64 outStride,
-    std::vector<u64> sz, std::vector<u64> inOff, std::vector<u64> outOff);
-void InitGatherDataArrays(GatherSliceContext &ctx);
-void CalcGatherStepDataAndOffset(GatherSliceContext &ctx);
-void CalcGatherXY2DOffset(GatherSliceContext &ctx);
-std::vector<StepSliceInfo> BuildGatherZSteps(GatherSliceContext &ctx);
-void BuildGatherXInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
-void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
-void BuildGatherYInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
-void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
 }  // namespace ops_hccl
 #endif
