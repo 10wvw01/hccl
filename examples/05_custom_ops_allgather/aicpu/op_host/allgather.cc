@@ -90,7 +90,7 @@ HcclResult HcclAllGatherCustom(
     }
     CHK_RET(GetDeviceType(&param.devType));
     if (param.devType != DEVICE_TYPE_A5) {
-        HCCL_ERROR("[HcclAllGatherCustom] Not Support Device Type [%u]", param.devType);
+        HCCL_ERROR("[HcclAllGatherCustom] Not Support Device Type [%d]", param.devType);
         return HCCL_E_INTERNAL;
     }
 
