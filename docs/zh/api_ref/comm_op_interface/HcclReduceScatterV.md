@@ -95,3 +95,41 @@ HcclResult HcclReduceScatterV(void *sendBuf, const void *sendCounts, const void 
   - int16、float16、bfp16按照2Byte地址对齐。
   - int32、float32按照4Byte地址对齐。
   - int64按照8Byte地址对齐。
+## 调用示例
+
+```c
+uint32_t rankSize = 4;
+// 各rank接收的数据量依次为1、2、3、4，数据在sendBuf中连续存放
+uint64_t sendCounts[] = {1, 2, 3, 4};
+uint64_t sendDispls[] = {0, 1, 3, 6};
+uint64_t totalSendCount = 10;
+uint64_t recvCount = sendCounts[deviceId];
+
+// 申请集合通信操作的Device内存
+void *sendBuf = nullptr;
+void *recvBuf = nullptr;
+size_t sendSize = totalSendCount * sizeof(float);
+size_t recvSize = recvCount * sizeof(float);
+aclrtMalloc(&sendBuf, sendSize, ACL_MEM_MALLOC_HUGE_ONLY);
+aclrtMalloc(&recvBuf, recvSize, ACL_MEM_MALLOC_HUGE_ONLY);
+
+// 初始化通信域
+HcclComm hcclComm;
+HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
+
+// 创建任务流
+aclrtStream stream;
+aclrtCreateStream(&stream);
+
+// 执行ReduceScatterV，将归约结果按各rank的数据量和偏移量分散到对应的recvBuf
+HcclReduceScatterV(sendBuf, sendCounts, sendDispls, recvBuf, recvCount,
+                   HCCL_DATA_TYPE_FP32, HCCL_REDUCE_SUM, hcclComm, stream);
+// 阻塞等待任务流中的集合通信任务执行完成
+aclrtSynchronizeStream(stream);
+
+// 释放资源
+aclrtFree(sendBuf);          // 释放Device侧内存
+aclrtFree(recvBuf);          // 释放Device侧内存
+aclrtDestroyStream(stream);  // 销毁任务流
+HcclCommDestroy(hcclComm);   // 销毁通信域
+```
