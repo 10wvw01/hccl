@@ -109,6 +109,9 @@ aclrtMalloc(&recvBuf, recvSize, ACL_MEM_MALLOC_HUGE_ONLY);
 HcclComm hcclComm;
 HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
 
+aclrtStream stream;
+aclrtCreateStream(&stream);
+
 // 执行ReduceScatter，将所有rank的sendBuf相加后，再把结果按照rank_id顺序均匀分散到各个rank的recvBuf
 HcclReduceScatter(sendBuf, recvBuf, recvCount, HCCL_DATA_TYPE_FP32, HCCL_REDUCE_SUM, hcclComm, stream);
 // 阻塞等待任务流中的集合通信任务执行完成
