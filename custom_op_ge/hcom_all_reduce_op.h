@@ -11,6 +11,7 @@
 #ifndef HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
 #define HCCL_CUSTOM_OP_GE_HCOM_ALL_REDUCE_OP_H
 
+#include "acl/acl_rt.h"
 #include "hccl_custom_op.h"
 #include <cstdint>
 
@@ -36,7 +37,8 @@ class HcomAllReduceOp : public hccl::HcclCustomOpBase {
   ge::graphStatus LaunchDirect(hccl::HcclOpState &st);
   ge::graphStatus LaunchLoop(hccl::HcclOpState &st);
   ge::graphStatus CreateIndirectCCLbuf();
-  ge::graphStatus CleanCracks(void *baseAddr, uint64_t inputOffset);
+  ge::graphStatus CleanCracks(const std::vector<void *> &crackAddrs, const std::vector<uint64_t> &crackSizes,
+                              aclrtStream stream);
   ge::graphStatus RefreshInputAddr(hccl::HcclOpState &st, uint64_t inputOffset, uint64_t curSize,
                                    bool secAddrCopyWithoutOffset);
   ge::graphStatus RefreshOutputAddr(hccl::HcclOpState &st, uint64_t outputOffset, uint64_t curSize,

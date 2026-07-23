@@ -112,6 +112,30 @@ ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
 
         st.inputPtrs.push_back(const_cast<void *>(inTensor->GetAddr()));
         st.outputPtrs.push_back(outTensor->GetAddr());
+
+        // 临时调试：打印每个 input 的完整属性
+        const auto &storageShape = inTensor->GetStorageShape();
+        const auto &originShape = inTensor->GetOriginShape();
+        std::string storageShapeStr = "[";
+        for (size_t d = 0; d < storageShape.GetDimNum(); d++) {
+            storageShapeStr += std::to_string(storageShape.GetDim(d));
+            if (d + 1 < storageShape.GetDimNum()) storageShapeStr += ",";
+        }
+        storageShapeStr += "]";
+        std::string originShapeStr = "[";
+        for (size_t d = 0; d < originShape.GetDimNum(); d++) {
+            originShapeStr += std::to_string(originShape.GetDim(d));
+            if (d + 1 < originShape.GetDimNum()) originShapeStr += ",";
+        }
+        originShapeStr += "]";
+
+        HCCL_INFO("HcomAllReduceOp::ExtractParams: input[%zu] addr=%p output[%zu] addr=%p dataType=%d "
+                  "storageFormat=%d originFormat=%d storageShape=%s originShape=%s shapeSize=%ld "
+                  "tensorSize=%lu(B) alignedSize=%lu(B) unitSize=%u.",
+                  i, inTensor->GetAddr(), i, outTensor->GetAddr(), static_cast<int>(inTensor->GetDataType()),
+                  static_cast<int>(inTensor->GetStorageFormat()), static_cast<int>(inTensor->GetOriginFormat()),
+                  storageShapeStr.c_str(), originShapeStr.c_str(), inTensor->GetShapeSize(),
+                  tensorSize, alignedSize, unitSize);
     }
 
     if (inputCount == 0) {
@@ -235,7 +259,10 @@ ge::graphStatus HcomAllReduceOp::LaunchDirect(hccl::HcclOpState &st)
     HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu (non-refresh, user buffers directly).",
               st.inputPtrs[0], st.outputPtrs[0], st.count);
 
-    HCCL_GE_CHK_RET(CleanCracks(st.inputPtrs[0], 0));
+    // TODO: 融合场景计算 crackAddrs/crackSizes（多 input 间缝隙），当前非融合传空
+    std::vector<void *> crackAddrs;
+    std::vector<uint64_t> crackSizes;
+    HCCL_GE_CHK_RET(CleanCracks(crackAddrs, crackSizes, static_cast<aclrtStream>(st.stream)));
 
     HcclResult ret = HcclAllReduceGraphMode(
         st.inputPtrs[0], st.outputPtrs[0], st.count, st.dataType, st.reduceOp, st.group,
@@ -287,7 +314,7 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
         }
 
         if (curCount == countLeft) {
-            HCCL_GE_CHK_RET(CleanCracks(commInputPtr, inputOffset));
+            HCCL_GE_CHK_RET(CleanCracks({}, {}, static_cast<aclrtStream>(st.stream)));
         }
 
         ret = HcclAllReduceGraphMode(
@@ -336,11 +363,71 @@ ge::graphStatus HcomAllReduceOp::CreateIndirectCCLbuf()
     return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus HcomAllReduceOp::CleanCracks(void *baseAddr, uint64_t inputOffset)
+ge::graphStatus HcomAllReduceOp::CleanCracks(const std::vector<void *> &crackAddrs,
+                                             const std::vector<uint64_t> &crackSizes, aclrtStream stream)
 {
-    // TODO: 按照 InfoStore CleanIntervalMemoryOpKernel 逻辑实现清缝
-    // 当前打桩：检测到多输入融合场景时打印警告
-    HCCL_DEBUG("HcomAllReduceOp::CleanCracks: stub, baseAddr=%p inputOffset=%lu.", baseAddr, inputOffset);
+    if (crackAddrs.empty() || crackSizes.empty()) {
+        return ge::GRAPH_SUCCESS;
+    }
+
+    constexpr uint64_t CRACK_MEMORY_SIZE = 32;
+    std::vector<int64_t> addrs(crackAddrs.size());
+    std::vector<int64_t> sizes(crackSizes.size());
+    for (size_t i = 0; i < crackAddrs.size(); i++) {
+        addrs[i] = reinterpret_cast<int64_t>(crackAddrs[i]);
+        sizes[i] = static_cast<int64_t>(crackSizes[i]);
+    }
+
+    // 单 crack: TBE 无法准确清理，用 memset 清零
+    if (addrs.size() == 1) {
+        if (sizes[0] != 0) {
+            aclError aclRet = aclrtMemsetAsync(crackAddrs[0], crackSizes[0], 0, crackSizes[0], stream);
+            if (aclRet != ACL_SUCCESS) {
+                HCCL_ERROR("HcomAllReduceOp::CleanCracks: aclrtMemsetAsync failed for single crack addr=%p size=%lu, "
+                           "ret=%d.", crackAddrs[0], crackSizes[0], static_cast<int>(aclRet));
+                return ge::GRAPH_FAILED;
+            }
+        }
+        return ge::GRAPH_SUCCESS;
+    }
+
+    // 非 32B 对齐的 crack: 用 memset 清零并从 vector 剔除
+    for (int i = 0; i < static_cast<int>(addrs.size()); i++) {
+        if (sizes[i] >= 0 && sizes[i] % static_cast<int64_t>(CRACK_MEMORY_SIZE) != 0) {
+            if (sizes[i] != 0) {
+                aclError aclRet = aclrtMemsetAsync(reinterpret_cast<void *>(addrs[i]),
+                                                    static_cast<size_t>(sizes[i]), 0,
+                                                    static_cast<size_t>(sizes[i]), stream);
+                if (aclRet != ACL_SUCCESS) {
+                    HCCL_ERROR("HcomAllReduceOp::CleanCracks: aclrtMemsetAsync failed for crack[%d] addr=%p size=%ld, "
+                               "ret=%d.", i, reinterpret_cast<void *>(addrs[i]), sizes[i],
+                               static_cast<int>(aclRet));
+                    return ge::GRAPH_FAILED;
+                }
+            }
+            addrs.erase(addrs.begin() + i);
+            sizes.erase(sizes.begin() + i);
+            i--;
+        }
+    }
+
+    // 剩余 32B 对齐的 crack: 下发 TBE 清零
+    if (!addrs.empty() && !sizes.empty()) {
+        int32_t deviceLogicId = 0;
+        aclError aclRet = aclrtGetDevice(&deviceLogicId);
+        if (aclRet != ACL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::CleanCracks: aclrtGetDevice failed, ret=%d.", static_cast<int>(aclRet));
+            return ge::GRAPH_FAILED;
+        }
+        HcclResult hcclRet = HcomTbeMemClean(addrs.data(), sizes.data(), static_cast<uint32_t>(addrs.size()),
+                                             static_cast<rtStream_t>(stream), deviceLogicId);
+        if (hcclRet != HCCL_SUCCESS) {
+            HCCL_ERROR("HcomAllReduceOp::CleanCracks: HcomTbeMemClean failed, ret=%d.", static_cast<int>(hcclRet));
+            return ge::GRAPH_FAILED;
+        }
+    }
+
+    HCCL_DEBUG("HcomAllReduceOp::CleanCracks: cleared %zu cracks.", crackAddrs.size());
     return ge::GRAPH_SUCCESS;
 }
 
