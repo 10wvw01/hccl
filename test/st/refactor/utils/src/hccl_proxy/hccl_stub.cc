@@ -17,6 +17,7 @@
 #include "hccl_rank_graph.h"
 #include "acl/acl.h"
 #include <memory>
+#include <algorithm>
 #include <iostream>
 #include "sim_communicator.h"
 #include "sim_task.h"
@@ -349,13 +350,14 @@ HcclResult HcclEngineCtxCopy(HcclComm comm, CommEngine engine, const char *ctxTa
 {
     // HOST场景下srcCtx就是创建的EngineCtx内存地址，无需拷贝
     if (engine == CommEngine::COMM_ENGINE_AICPU_TS || engine == CommEngine::COMM_ENGINE_AICPU) {
-        uint64_t size = 0;
+        uint64_t ctxCapacity = 0;
         void *ctx = nullptr;
         auto simComm = static_cast<HcclSim::SimCommunicator*>(comm);
         CHK_PTR_NULL(simComm);
-        simComm->contextManager_->GetCommEngineCtx(std::string(ctxTag), engine, &ctx, &size);
-        if (ctx != nullptr && size > 0) {
-            memcpy(ctx, srcCtx, size);
+        simComm->contextManager_->GetCommEngineCtx(std::string(ctxTag), engine, &ctx, &ctxCapacity);
+        if (ctx != nullptr && ctxCapacity > 0 && size > 0) {
+            uint64_t copySize = std::min(size, ctxCapacity);
+            memcpy(ctx, srcCtx, copySize);
         }
     }
     return HCCL_SUCCESS;
@@ -401,13 +403,21 @@ int32_t HcommThreadNotifyWaitOnThreadWithDefaultTimeout(ThreadHandle thread, uin
     return HcommThreadNotifyWaitOnThread(thread, notifyIdx, 0);
 }
 
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+int32_t HcommSetNotifyWaitTimeOut(float timeOut)
+#else
 int32_t HcommSetNotifyWaitTimeOut(uint32_t timeOut)
+#endif
 {
     static_cast<void>(timeOut);
     return HCCL_SUCCESS;
 }
 
+#ifdef HCOMM_TIMEOUT_FLOAT_TYPE
+int32_t HcommThreadResAcquireTimeOut(float timeOut)
+#else
 int32_t HcommThreadResAcquireTimeOut(uint32_t timeOut)
+#endif
 {
     static_cast<void>(timeOut);
     return HCCL_SUCCESS;
@@ -1026,3 +1036,11 @@ bool HcommIsSupportHcommChannelNotifyWaitWithDefaultTimeout()
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
+
+// ST 桩：跳过 AICPU kernel JSON 文件加载，仿真模式不需要真实 kernel 二进制
+namespace ops_hccl {
+HcclResult LoadAICPUKernel()
+{
+    return HCCL_SUCCESS;
+}
+} // namespace ops_hccl

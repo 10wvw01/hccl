@@ -37,6 +37,7 @@ set(INCLUDE_LIST
     ${ASCEND_HOME_PATH}/include/acl
     ${ASCEND_HOME_PATH}/include/hccl
     ${ASCEND_HOME_PATH}/include/hcomm
+    ${ASCEND_HOME_PATH}/include/hcomm/ccu
     ${ASCEND_HOME_PATH}/include/base
     ${ASCEND_HOME_PATH}/include/driver
     ${ASCEND_HOME_PATH}/include/external

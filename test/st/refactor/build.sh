@@ -12,10 +12,16 @@ REPO_ROOT=$(cd ${SHELL_DIR}/../../.. && pwd)
 # 步骤1：构建 refactor 版 libhccl.so
 echo "==> Building libhccl.so (refactor)..."
 cd ${REPO_ROOT}
-bash build.sh --refactor -p /usr/local/Ascend/ascend-toolkit/latest
+bash build.sh --refactor
 
 # 步骤2：编译 ST 用例工程
 echo "==> Building ST testcases..."
+
+# 设置 ASCEND_HOME_PATH 供 ST CMakeLists.txt 解析 SDK 头文件路径
+if [ -z "${ASCEND_HOME_PATH}" ]; then
+    export ASCEND_HOME_PATH="${HOME}/Ascend/ascend-toolkit/latest"
+fi
+
 cd ${SHELL_DIR}
 mkdir -p ./build && cd ./build/ && rm -rf ../build/*
 cmake .. -DBUILD_OPEN_PROJECT=ON && make -j8
