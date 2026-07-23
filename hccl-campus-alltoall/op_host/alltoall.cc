@@ -12,12 +12,69 @@
 #include <hccl/hccl_rank_graph.h>
 #include <hccl/hccl_diag.h>
 
+#include <cstdio>
+#include <limits>
+
 #include "log.h"
 #include "common.h"
 #include "hccl.h"
 #include "launch_aicpu_kernel.h"
 
 constexpr uint32_t CHANNEL_NOTIFY_NUM = 3;
+
+namespace {
+constexpr uint32_t HOST_WAIT_AICPU_NOTIFY_IDX = 0;
+
+HcclResult GetAlltoAllBufferSize(uint64_t count, HcclDataType dataType, uint32_t rankSize, uint64_t &bufferSize)
+{
+    const auto dataTypeSizeIter = SIZE_TABLE.find(dataType);
+    CHK_PRT_RET(dataTypeSizeIter == SIZE_TABLE.end(),
+        HCCL_ERROR("GetAlltoAllBufferSize: unsupported data type[%d]", dataType), HCCL_E_PARA);
+    CHK_PRT_RET(rankSize == 0, HCCL_ERROR("GetAlltoAllBufferSize: rank size must be greater than zero"), HCCL_E_PARA);
+
+    constexpr uint64_t maxValue = std::numeric_limits<uint64_t>::max();
+    CHK_PRT_RET(count > maxValue / rankSize,
+        HCCL_ERROR("GetAlltoAllBufferSize: data count overflow, count[%llu] rankSize[%u]",
+            static_cast<unsigned long long>(count), rankSize),
+        HCCL_E_PARA);
+    const uint64_t totalCount = count * rankSize;
+    const uint64_t dataTypeSize = dataTypeSizeIter->second;
+    CHK_PRT_RET(totalCount > maxValue / dataTypeSize,
+        HCCL_ERROR("GetAlltoAllBufferSize: buffer size overflow, totalCount[%llu] dataTypeSize[%llu]",
+            static_cast<unsigned long long>(totalCount), static_cast<unsigned long long>(dataTypeSize)),
+        HCCL_E_PARA);
+
+    bufferSize = totalCount * dataTypeSize;
+    return HCCL_SUCCESS;
+}
+
+HcclResult ConstructAlltoAllDfxInfo(
+    const OpParam &param, uint64_t recvCount, HcclDataType recvType, HcclDfxOpInfo &dfxInfo)
+{
+    uint64_t inputBufferSize = 0;
+    uint64_t outputBufferSize = 0;
+    CHK_RET(GetAlltoAllBufferSize(param.count, param.dataType, param.rankSize, inputBufferSize));
+    CHK_RET(GetAlltoAllBufferSize(recvCount, recvType, param.rankSize, outputBufferSize));
+
+    dfxInfo.opType = static_cast<uint32_t>(param.opType);
+    dfxInfo.reduceOp = static_cast<uint32_t>(param.reduceType);
+    dfxInfo.dataType = static_cast<uint32_t>(param.dataType);
+    dfxInfo.dataCount = param.count;
+    dfxInfo.root = INVALID_VALUE_RANKID;
+    dfxInfo.engine = CommEngine::COMM_ENGINE_AICPU_TS;
+    dfxInfo.cpuTsThread = param.cpuThread;
+    dfxInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFY_IDX;
+    dfxInfo.inputMemAddr = reinterpret_cast<uint64_t>(param.inputPtr);
+    dfxInfo.inputMemSize = inputBufferSize;
+    dfxInfo.outputMemAddr = reinterpret_cast<uint64_t>(param.outputPtr);
+    dfxInfo.outputMemSize = outputBufferSize;
+
+    const int ret = std::snprintf(dfxInfo.algTag, sizeof(dfxInfo.algTag), "%s", param.tag);
+    CHK_PRT_RET(ret < 0 || static_cast<size_t>(ret) >= sizeof(dfxInfo.algTag),
+        HCCL_ERROR("ConstructAlltoAllDfxInfo: failed to copy algorithm tag"), HCCL_E_PARA);
+    return HCCL_SUCCESS;
+}
+} // namespace
 
 // 获取本 rank 到 dstRank 的 layer-0 直连链路并构造 channel 描述符。
 // 仅使用 netLayer=0（框内），不回退 layer-1；无链路则视为拓扑异常。
@@ -89,11 +146,6 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     param.dataType = sendType;
     param.opType = HcclCMDType::HCCL_CMD_ALLTOALL;
 
-    HcclDfxOpInfo dfxInfo;
-    char commName[COMM_INDENTIFIER_MAX_LENGTH];
-    CHK_RET(HcclGetCommName(comm, commName));
-    CHK_RET(HcclDfxRegOpInfoByCommId(commName, reinterpret_cast<void *>(&dfxInfo)));
-
     // ==============================================
     // STEP 1: 解析拓扑信息
     // ==============================================
@@ -112,6 +164,12 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
     // 将用户传入的 stream 转换为 thread，并申请 Notify；同时导出为 AICPU 上可用的 thread
     CHK_RET(HcclThreadAcquireWithStream(comm, cpuTsEngine, stream, 1, &param.cpuThread));
     CHK_RET(HcclThreadExportToCommEngine(comm, 1, &param.cpuThread, aicpuTsEngine, &param.cpuThreadOnAicpu));
+
+    HcclDfxOpInfo dfxInfo{};
+    CHK_RET(ConstructAlltoAllDfxInfo(param, recvCount, recvType, dfxInfo));
+    char commName[COMM_INDENTIFIER_MAX_LENGTH] = {};
+    CHK_RET(HcclGetCommName(comm, commName));
+    CHK_RET(HcclDfxRegOpInfoByCommId(commName, reinterpret_cast<void *>(&dfxInfo)));
 
     void *ctx = nullptr;
     uint64_t size = 0;
