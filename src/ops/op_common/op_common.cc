@@ -2010,6 +2010,34 @@ static HcclResult CalcMaxResReqWithDefault(uint32_t dieId, HcommCcuResDescHandle
     return HCCL_SUCCESS;
 }
 
+// 诊断函数：打印 CcuIns 实例当前所有 die 的 cap。
+// 用于验证 hcomm 的 HcommCcuKernelRegisterEnd 是否会重置资源占用计数。
+// 期待行为：RegisterEnd 后 cap 应恢复到实例创建时的初始容量，使下一个算子能重新用满。
+// 如果 RegisterEnd 后 cap 仍为注册消耗后的值，则 hcomm 未重置资源，属于 hcomm 侧 bug。
+static void LogCcuInsCap(const char *tag, CcuInsHandle insHandle)
+{
+    for (uint32_t dieId = 0; dieId < CCU_DEFAULT_DIE_NUM; dieId++) {
+        HcommCcuResDescHandle capDesc = 0;
+        if (HcommCcuInsResDescCreate(dieId, &capDesc) != CCU_SUCCESS) {
+            HCCL_WARNING("[%s] HcommCcuInsResDescCreate dieId[%u] failed.", tag, dieId);
+            continue;
+        }
+        if (HcommCcuInsQueryResDesc(insHandle, capDesc) != CCU_SUCCESS) {
+            HCCL_WARNING("[%s] HcommCcuInsQueryResDesc dieId[%u] failed.", tag, dieId);
+            HcommCcuInsResDescDestroy(capDesc);
+            continue;
+        }
+        for (HcommCcuResType resType : GetCcuInsCreateResTypes()) {
+            uint32_t capNum = 0;
+            if (HcommCcuInsResDescQueryNum(capDesc, resType, &capNum) == CCU_SUCCESS) {
+                HCCL_INFO("[%s] dieId[%u] resType[%s] cap[%u].",
+                          tag, dieId, GetCcuResTypeName(resType), capNum);
+            }
+        }
+        HcommCcuInsResDescDestroy(capDesc);
+    }
+}
+
 static HcclResult RegisterCcuKernels(CcuInsHandle insHandle, AlgResourceRequest &resRequest,
                                      std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
 {
@@ -2020,6 +2048,8 @@ static HcclResult RegisterCcuKernels(CcuInsHandle insHandle, AlgResourceRequest 
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
                 HCCL_ERROR("[RegisterCcuKernels]ccuKernel num not match!"), HCCL_E_INTERNAL);
     HCCL_INFO("[RegisterCcuKernels] start, totalKernelNum[%u], insHandle[%p].", totalKernelNum, insHandle);
+    // 诊断点1：进入注册前的 cap 基线，预期等于实例创建时申请的容量
+    LogCcuInsCap("RegisterCcuKernels baseline", insHandle);
 
     u32 currentResGroup = 0;
     u32 maxResGroup = 0;
@@ -2069,9 +2099,24 @@ static HcclResult RegisterCcuKernels(CcuInsHandle insHandle, AlgResourceRequest 
             return ConvertCcuToHccl(regEndRet);
         }
         HCCL_INFO("[RegisterCcuKernels] register resGroup[%u] finish.", currentResGroup);
+        // 诊断点2：每次 RegisterEnd 之后的 cap，预期等于 baseline（如果 hcomm 重置了资源）
+        // 如果 cap 小于 baseline，说明 hcomm 未重置，下一个算子复用时会 cap 不足
+        LogCcuInsCap("RegisterCcuKernels after RegisterEnd", insHandle);
         currentResGroup++;
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
+    // 诊断点3：所有 resGroup 注册完成后的最终 cap，下一个算子复用时查到的就是这个值
+    // 验证 hcomm 的资源重置语义：RegisterStart 才会重置资源占用计数，
+    // 这里冗余调一次 RegisterStart 触发重置，再查 cap 看是否恢复到 baseline。
+    // 必须配对调用 RegisterEnd，避免破坏 hcomm 内部 Start/End 状态。
+    if (HcommCcuKernelRegisterStart(insHandle) == CCU_SUCCESS) {
+        LogCcuInsCap("RegisterCcuKernels final after redundant Start", insHandle);
+        // 冗余 End，仅为了配对，不注册任何 kernel
+        HcommCcuKernelRegisterEnd(insHandle);
+    } else {
+        HCCL_WARNING("[RegisterCcuKernels] redundant RegisterStart failed, skip final cap diagnostic.");
+    }
+    LogCcuInsCap("RegisterCcuKernels final", insHandle);
     HCCL_INFO("[RegisterCcuKernels] finish, totalKernelNum[%u] registered.", totalKernelNum);
     return HCCL_SUCCESS;
 }
