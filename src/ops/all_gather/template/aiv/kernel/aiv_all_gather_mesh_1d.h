@@ -155,6 +155,7 @@ public:
         uint64_t curCountCore = blockIdx_ == curNumBlocks - 1 ? count - countPerCore * (curNumBlocks - 1) : countPerCore;
         auto gmIn = reinterpret_cast<__gm__ T *>(reinterpret_cast<uint64_t>(GM_IN[rank_]) + blockIdx_ * countPerCore * dataTypeSize);
         CpGM2GM(gmIn, input + blockIdx_ * countPerCore, curCountCore);
+        PipeBarrier<PIPE_ALL>();
         SyncAll<true>();
 
         // 每个核分配多个rank搬运数据从gm到对端output
