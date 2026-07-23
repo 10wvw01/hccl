@@ -130,6 +130,10 @@ DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheExecute, const char *tag, void **ad
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheExecute);
 DECL_WEAK_FUNC(int32_t, HcommAicpuTsTaskCacheClear, const char *tag);
 DECL_SUPPORT_FLAG(HcommAicpuTsTaskCacheClear);
+DECL_WEAK_FUNC(int32_t, HcommTimerStartTrack, bool startTrack);
+DECL_SUPPORT_FLAG(HcommTimerStartTrack);
+DECL_WEAK_FUNC(int32_t, HcommTimerDump, bool dump);
+DECL_SUPPORT_FLAG(HcommTimerDump);
 
 void HcommPrimitivesDlInit(void* libHcommHandle);  // 本模块独立初始化
 
