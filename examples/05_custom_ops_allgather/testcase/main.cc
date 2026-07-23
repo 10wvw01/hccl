@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         
         // 使用 Lambda 包装执行逻辑，避免宏(HCCLCHECK)直接 return 导致绕过 Cleanup
         auto run_allgather = [&]() -> int {
-            HCCLCHECK(HcclAllGatherCustom(sendBuf, recvBuf, sendBytes, HCCL_DATA_TYPE_FP32, hcclComm, stream));
+            HCCLCHECK(HcclAllGatherCustom(sendBuf, recvBuf, count, HCCL_DATA_TYPE_FP32, hcclComm, stream));
             ACLCHECK(aclrtSynchronizeStream(stream));
             return 0;
         };
