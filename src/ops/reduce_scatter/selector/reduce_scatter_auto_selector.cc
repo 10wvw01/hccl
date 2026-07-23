@@ -89,7 +89,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuReduceScatterMesh1D";
+            if (IsDevType960() && (dataSize * topoInfo->userRankSize > SMALL_COUNT_16M || !IsTwoLevelNetLayer(topoInfo))) {
+                selectAlgName = "CcuReduceScatterSoleMeshMSConcur";
+            } else
+            {
+                selectAlgName = "CcuReduceScatterMesh1D";
+            }
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) { // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
         if (topoInfo->level0PcieMix && !IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
@@ -451,12 +456,6 @@ SelectorStatus ReduceScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLay
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     
-    if (topoInfo->level2Ubg) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
-            __func__);
-        return SelectorStatus::NOT_MATCH;
-    }
-
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
             __func__);
@@ -515,11 +514,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLay
     HCCL_INFO("topoInfo->topoLevelNums is %u, topoInfo->level0Topo is %u", topoInfo->topoLevelNums, topoInfo->level0Topo);
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
-        if ((topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
-            selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
-            HCCL_DEBUG("[ReduceScatterAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
-            return SelectorStatus::MATCH;
-        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             if (!topoInfo->level0PcieMix) {
                 selectAlgName = "InsV2ReduceScatterOmniPipe";
                 HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");
