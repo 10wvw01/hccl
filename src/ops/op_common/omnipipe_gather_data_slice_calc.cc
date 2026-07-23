@@ -379,4 +379,3 @@ OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceP
 }
 
 }  // namespace ops_hccl
-
