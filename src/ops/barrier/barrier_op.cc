@@ -49,13 +49,9 @@ HcclResult HcclBarrier(HcclComm comm, aclrtStream stream)
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
-    DevType deviceType = DevType::DEV_TYPE_COUNT;
-    CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95) {
-    #endif
+    bool isOutPlace = false;
+    CHK_RET(IsOutPlaceDevice(isOutPlace));
+    if (!isOutPlace) {
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
@@ -141,9 +137,21 @@ HcclResult BarrierOutPlace(HcclComm comm, aclrtStream stream, const std::string 
         return HCCL_SUCCESS;
     }
 
+    // 仅支持 HostDPU 和 AICPU 引擎，其余回退旧 HcclBarrier
+    bool isHostDpu = IsBarrierHostDpu(comm);
+    bool isAicpu = (param.opExecuteConfig == OpExecuteConfig::AICPU_TS);
+    if (!isHostDpu && !isAicpu) {
+        HCCL_INFO("[BarrierOutPlace] engine not supported, fallback to legacy HcclBarrier");
+        return BarrierFallbackToOldFlow(comm, stream);
+    }
+
     std::string algName;
     std::unique_ptr<TopoInfoWithNetLayerDetails> topoInfo = std::make_unique<TopoInfoWithNetLayerDetails>();
-    CHK_RET(Selector(comm, param, topoInfo, algName));
+    HcclResult selRet = Selector(comm, param, topoInfo, algName);
+    if (selRet != HCCL_SUCCESS || algName.empty()) {
+        HCCL_INFO("[BarrierOutPlace] selector not matched, fallback to legacy HcclBarrier");
+        return BarrierFallbackToOldFlow(comm, stream);
+    }
     if (ShouldUseInnerOp(param.opExecuteConfig) && param.opMode == OpMode::OPBASE) {
         return BarrierFallbackToOldFlow(comm, stream);
     }
