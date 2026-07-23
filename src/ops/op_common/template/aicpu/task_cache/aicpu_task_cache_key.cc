@@ -70,7 +70,7 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     // 注意: 把input size放在前面, 如果需要解析, 可以减少解析开销
     // 注意: commId放在最后, 如果需要解析, 无需考虑commId中含有delimiter的情况
     // 注意: enum class不能转为uint8_t, 否则会作为char输出; 需显式转为uint32_t后再用to_chars, 否则编译失败
-    const char* commId = param.commName;
+    const char* commId = param.commName; // 最大长度COMM_INDENTIFIER_MAX_LENGTH (128)
     constexpr size_t RESERVED_SIZE = 256; // commId+6个整数, 最多128+70+6个字符, 预留256足够
     char buf[RESERVED_SIZE];
     char *ptr = buf;
@@ -113,8 +113,8 @@ HcclResult AicpuTaskCacheKey::GetAicpuTaskCacheTag(const OpParam &param, uint64_
     cacheTag.assign(buf, static_cast<size_t>(ptr - buf));
 
     HCCL_INFO("[AicpuTaskCacheKey][GetAicpuTaskCacheTag] cacheTag[%s] from commId[%s] opType[%d] dataType[%d] "
-        "reduceType[%d] isZeroCopy[%d] inputSize[%llu] opMode[%d]",
-        cacheTag.c_str(), commId, opType, dataType, reduceType, isZeroCopy, inputSize, opMode);
+        "reduceType[%d] isZeroCopy[%d] inputSize[%llu] opMode[%d] rootRank[%d]",
+        cacheTag.c_str(), commId, opType, dataType, reduceType, isZeroCopy, inputSize, opMode, rootRank);
 
     return HCCL_SUCCESS;
 }
