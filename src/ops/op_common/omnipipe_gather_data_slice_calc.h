@@ -20,8 +20,9 @@
 #include "omnipipe_data_slice_calc.h"
 
 namespace ops_hccl {
+constexpr double BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS = 210;
 constexpr double BW_OMNI_UBX_CCU_SCHED_G_MESH = 47;
-constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 180;
+constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 162;
 // Gather slice 计算的共享上下文，封装步数/偏移/数据大小等中间状态，减少子函数参数列表
 struct GatherSliceContext {
     u64 xRankSize{0};
@@ -70,6 +71,10 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
 void BuildGatherYInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
 void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
 OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
-
+void CollectGatherInnerCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid, bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
+void CollectGatherOuterSameAxisPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
+void CollectGatherOuterCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
 }  // namespace ops_hccl
 #endif
