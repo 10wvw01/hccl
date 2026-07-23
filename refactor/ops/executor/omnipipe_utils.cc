@@ -22,21 +22,28 @@ xdataRatio[最后一步斜对角数据] =（(ranksize_x - 1)*(ranksize_y -1) - �
           xyB = xB(1+bandwithRatio)/(1+bandwithRatio +(ranksize_y -1)(ranksize_x - sumY))
 */
 
-double CalcBandwidth2D(double xB, double yB, u64 xRankSize, u64 yRankSize, int maxStepNum)
+double CalcBandwidth2D(double xB, double yB, u32 xRankSize, u32 yRankSize, u32 maxStepNum, u32 &steps,
+    double *xDataSize, double *yDataSize)
 {
     HCCL_INFO("[CalcBandwidth2D] start");
     if (yRankSize == 1) {
         HCCL_INFO("[CalcBandwidth2D] xB=[%f]", xB);
+        steps = 1;
+        xDataSize[0] = 1;
+        yDataSize[0] = 1;
         return xB;
     } else if (xRankSize == 1) {
         HCCL_INFO("[CalcBandwidth2D] yB=[%f]", yB);
+        steps = 1;
+        xDataSize[0] = 1;
+        yDataSize[0] = 1;
         return yB;
     } else {
-        double xDataSize[maxStepNum];
-        double yDataSize[maxStepNum];
         // 根据数据量为1计算每步数据比例
         double bandwidthRatio = yB / xB; // 带宽比例
-        int steps = CalcOmniPipeData(xDataSize, yDataSize, bandwidthRatio, xRankSize, yRankSize, maxStepNum);
+        double scale = 1.0;
+        steps = CalcOmniPipeSteps(bandwidthRatio, xRankSize, maxStepNum, scale);
+        CalcOmniPipeData(bandwidthRatio, xRankSize, yRankSize, steps, scale, xDataSize, yDataSize);
         double xds = 0;
         // 根据慢轴总时间计算等效带宽
         for (int i = 0; i < steps; i++) {
@@ -63,10 +70,10 @@ xdata[i] = (slicecount * growth^i)/bandwithRatio
 xdata[steps -2] = slicecout -sum(xdata[i])
 xdata[steps - 1] = slicecount /(bandwithRatio + 1)
 */
-u64 CalcOmniPipeSteps(double bandwidthRatio, u64 xRankSize, u64 maxStep, double &scale)
+u32 CalcOmniPipeSteps(double bandwidthRatio, u32 xRankSize, u32 maxStep, double &scale)
 {
     HCCL_INFO("[CalcOmniPipeSteps] start");
-    u64 steps = 1;
+    u32 steps = 1;
     double growth = (xRankSize - 1) / bandwidthRatio;
     // 默认 scale：当 steps 被 maxStep 截断或 xRankSize <= bandwidthRatio 时启用，
     // 防止 sumYDataSzie 失控超过 xRankSize，导致斜对角步算出负值
@@ -91,17 +98,15 @@ u64 CalcOmniPipeSteps(double bandwidthRatio, u64 xRankSize, u64 maxStep, double 
         // X <= R: growth < 1，走满 maxStep，保持 scale
         steps = maxStep;
     }
-    HCCL_INFO("[CalcOmniPipeSteps] bandwidthRatio=[%f],growth=[%f],step=[%llu],scale=[%f]",
-              bandwidthRatio, growth, steps, scale);
+    HCCL_INFO("[CalcOmniPipeSteps] bandwidthRatio=[%f],growth=[%f],step=[%llu],scale=[%f]", bandwidthRatio, growth,
+        steps, scale);
     return steps;
 }
 
-u64 CalcOmniPipeData(double *xStepP2pDataSize, double *yStepP2pDataSize, double bandwidthRatio, u64 xRankSize,
-    u64 yRankSize, u64 maxStep)
+void CalcOmniPipeData(double bandwidthRatio, u32 xRankSize, u32 yRankSize, u32 steps, double scale,
+    double *xStepP2pDataSize, double *yStepP2pDataSize)
 {
     HCCL_INFO("[CalcOmniPipeData] start");
-    double scale = 1.0;
-    u64 steps = CalcOmniPipeSteps(bandwidthRatio, xRankSize, maxStep, scale);
     // 1. 计算第一步的通信数据
     yStepP2pDataSize[0] = 1.0;
     xStepP2pDataSize[0] = scale / bandwidthRatio;
@@ -126,5 +131,5 @@ u64 CalcOmniPipeData(double *xStepP2pDataSize, double *yStepP2pDataSize, double 
     xStepP2pDataSize[steps - 1] = (yRankSize - 1) * (xRankSize - sumYDataSzie) / (1 + bandwidthRatio);
     yStepP2pDataSize[steps - 1] = (yRankSize - 1) * (xRankSize - sumYDataSzie) * bandwidthRatio / (1 + bandwidthRatio);
     HCCL_INFO("[CalcOmniPipeData] end");
-    return steps;
+    return;
 }
