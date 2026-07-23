@@ -71,6 +71,10 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
 void BuildGatherYInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
 void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out);
 OmniPipeSliceInfo CalcGatherOmniPipeSliceInfo(OmniPipeSliceParam& omniPipeSliceParam);
-
+void CollectGatherInnerCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid, bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
+void CollectGatherOuterSameAxisPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
+void CollectGatherOuterCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff);
 }  // namespace ops_hccl
 #endif
