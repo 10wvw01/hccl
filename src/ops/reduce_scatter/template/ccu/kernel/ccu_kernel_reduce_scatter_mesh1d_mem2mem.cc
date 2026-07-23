@@ -348,11 +348,11 @@ static CcuResult CreateReduceLoopV1(ReduceScatterMesh1DMem2MemContext &ctx)
     ctx.CreateLoopEntity("reduceScatterLocalReduce");
     auto &loops = ctx.loopMap["reduceScatterLocalReduce"];
 
+    constexpr uint32_t LOOP_NUM_2 = 2;
     const auto *arg = ctx.arg;
     uint32_t size = arg->rankSize;
     uint32_t expansionNum = GetReduceExpansionNum(arg->reduceOp, ctx.dataType, ctx.outputDataType);
     uint32_t usedBufNum   = size > expansionNum ? size : expansionNum;
-    constexpr uint32_t LOOP_NUM_2 = 2;
     for (int32_t index = 0; index < LOOP_NUM_2; index++) {
         ctx.loopScratch[index].resize(size);
         
