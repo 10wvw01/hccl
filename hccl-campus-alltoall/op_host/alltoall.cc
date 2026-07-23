@@ -154,7 +154,7 @@ HcclResult HcclAlltoAll(const void *sendBuf, uint64_t sendCount, HcclDataType se
 
         // TODO: 根据通信算法申请 Channel 资源
         // 调用 HcclRankGraphGetLinks()、HcclChannelDescInit()、HcclChannelAcquire() 等接口按需申请 Channel 资源
-        AcquireChannel(comm, param, resCtxHost);
+        CHK_RET(AcquireChannel(comm, param, resCtxHost));
 
         // ==============================================
         // STEP 2.3: 申请通信引擎上下文
