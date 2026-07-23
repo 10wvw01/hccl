@@ -15,8 +15,9 @@
 #include "ccu_launch_dl.h"
 namespace ops_hccl {
 
-std::vector<CostModelParam> CcuTempAllReduceNHRMem2Mem1D::CalcCostCoeff()
+std::vector<CostModelParam> CcuTempAllReduceNHRMem2Mem1D::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[CcuTempAllReduceNHRMem2Mem1D] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

@@ -23,16 +23,16 @@ constexpr u32 OMNIPIPE_LEVEL2_IDX = 2;
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
 CostAlgoParams InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
-    InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::CalcCostCoeff()
+    InsAlgTemplate3, InsAlgTemplate4, InsAlgTemplate5>::CalcCostCoeff(u32 rankSize)
 {
     static std::vector<CostModelParam> params = [] {
         std::vector<CostModelParam> v;
-        auto p0 = InsAlgTemplate0::CalcCostCoeff(); v.insert(v.end(), p0.begin(), p0.end());
-        auto p1 = InsAlgTemplate1::CalcCostCoeff(); v.insert(v.end(), p1.begin(), p1.end());
-        auto p2 = InsAlgTemplate2::CalcCostCoeff(); v.insert(v.end(), p2.begin(), p2.end());
-        auto p3 = InsAlgTemplate3::CalcCostCoeff(); v.insert(v.end(), p3.begin(), p3.end());
-        auto p4 = InsAlgTemplate4::CalcCostCoeff(); v.insert(v.end(), p4.begin(), p4.end());
-        auto p5 = InsAlgTemplate5::CalcCostCoeff(); v.insert(v.end(), p5.begin(), p5.end());
+        auto p0 = InsAlgTemplate0::CalcCostCoeff(rankSize); v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsAlgTemplate1::CalcCostCoeff(rankSize); v.insert(v.end(), p1.begin(), p1.end());
+        auto p2 = InsAlgTemplate2::CalcCostCoeff(rankSize); v.insert(v.end(), p2.begin(), p2.end());
+        auto p3 = InsAlgTemplate3::CalcCostCoeff(rankSize); v.insert(v.end(), p3.begin(), p3.end());
+        auto p4 = InsAlgTemplate4::CalcCostCoeff(rankSize); v.insert(v.end(), p4.begin(), p4.end());
+        auto p5 = InsAlgTemplate5::CalcCostCoeff(rankSize); v.insert(v.end(), p5.begin(), p5.end());
         return v;
     }();
     static const char *algName = "AllReduceSequenceAicpu3Level";

@@ -20,8 +20,9 @@ InsTempReduceScatterMesh1DIntra::InsTempReduceScatterMesh1DIntra(const OpParam &
 InsTempReduceScatterMesh1DIntra::~InsTempReduceScatterMesh1DIntra()
 {}
 
-std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff()
+std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempReduceScatterMesh1DIntra] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

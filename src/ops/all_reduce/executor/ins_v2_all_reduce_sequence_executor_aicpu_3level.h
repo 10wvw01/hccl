@@ -33,7 +33,7 @@ public:
     explicit InsV2AllReduceSequenceExecutorAicpu3Level();
     ~InsV2AllReduceSequenceExecutorAicpu3Level() override = default;
 
-    CostAlgoParams CalcCostCoeff() override;
+    CostAlgoParams CalcCostCoeff(u32 rankSize) override;
     AlgNetMeta GetAlgNetMeta() const override;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable& resCtx) override;

@@ -20,8 +20,9 @@ InsTempAllGatherNhrDpuInter::InsTempAllGatherNhrDpuInter(const OpParam& param, c
     const std::vector<std::vector<uint32_t>> &subCommRanks)
     : InsAlgTemplateBase(param, rankId, subCommRanks) {}
 
-std::vector<CostModelParam> InsTempAllGatherNhrDpuInter::CalcCostCoeff()
+std::vector<CostModelParam> InsTempAllGatherNhrDpuInter::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempAllGatherNhrDpuInter] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

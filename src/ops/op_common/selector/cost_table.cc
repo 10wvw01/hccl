@@ -10,8 +10,9 @@
 
 #include "cost_table.h"
 
-#include <new>
 #include <algorithm>
+#include <new>
+#include <set>
 
 namespace ops_hccl {
 
@@ -32,12 +33,53 @@ HcclResult CostTableManager::FilterCMByConfig(CostModel &cm, CostTable &ct,
     }
 }
 
+namespace {
+const std::set<std::string> &GetCcuMsAlgos()
+{
+    static const std::set<std::string> ccuMsAlgos = {
+        "CcuAllReduceMesh1DOneShot", "CcuAllReduceMesh1D", "CcuAllReduceMesh2Die",
+        "CcuAllreduceMesh2DieBigMs", "CcuAllReduceConcurrentMs", "CcuV2AllReduceOmniPipe2DMs"
+    };
+    return ccuMsAlgos;
+}
+
+OpExecuteConfig GetAlgEngine(const std::string &algName)
+{
+    if (algName.rfind("Aiv", 0) == 0) {
+        return OpExecuteConfig::AIV;
+    }
+    if (algName.rfind("Ccu", 0) == 0) {
+        return GetCcuMsAlgos().count(algName) > 0 ? OpExecuteConfig::CCU_MS : OpExecuteConfig::CCU_SCHED;
+    }
+    return OpExecuteConfig::AICPU;
+}
+
+bool IsEngineMatched(OpExecuteConfig config, OpExecuteConfig algEngine)
+{
+    if (config == OpExecuteConfig::CCU_MS) {
+        return algEngine == OpExecuteConfig::CCU_MS || algEngine == OpExecuteConfig::CCU_SCHED ||
+               algEngine == OpExecuteConfig::AICPU;
+    }
+    if (config == OpExecuteConfig::AIV || config == OpExecuteConfig::AIV_ONLY) {
+        return algEngine == OpExecuteConfig::AIV;
+    }
+    if (config == OpExecuteConfig::CCU_SCHED) {
+        return algEngine == OpExecuteConfig::CCU_SCHED;
+    }
+    if (config == OpExecuteConfig::AICPU) {
+        return algEngine == OpExecuteConfig::AICPU;
+    }
+    return true;
+}
+} // namespace
+
 HcclResult CostTableManager::FilterAllReduce(CostModel &cm, CostTable &ct,
                                              const TopoInfoWithNetLayerDetails *topoInfo,
                                              const OpParam &opParam)
 {
-    constexpr u32 AIV_MAX_RANK_SIZE = 512;
-    HCCL_DEBUG("[FilterAllReduce] filter, algCount=%d.", cm.count);
+    (void)topoInfo;
+    HCCL_DEBUG("[FilterAllReduce] filter, algCount=%d, opExecuteConfig=%d.",
+               cm.count, static_cast<int>(opParam.opExecuteConfig));
 
     ct.costs = nullptr;
     ct.count = 0;
@@ -51,41 +93,15 @@ HcclResult CostTableManager::FilterAllReduce(CostModel &cm, CostTable &ct,
     }
 
     u64 dataSize = opParam.DataDes.count * DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
-    HcclDataType dataType = opParam.DataDes.dataType;
-    bool isInt8 = (dataType == HcclDataType::HCCL_DATA_TYPE_INT8);
-    bool is64Bit = (dataType == HcclDataType::HCCL_DATA_TYPE_INT64 ||
-                    dataType == HcclDataType::HCCL_DATA_TYPE_UINT64 ||
-                    dataType == HcclDataType::HCCL_DATA_TYPE_FP64);
-    bool isProd = (opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD);
-    bool isUboe3Level = (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe);
-    u32 rankSize = topoInfo->userRankSize;
-    const auto &layerSize = topoInfo->netLayerDetails.localNetInsSizeOfLayer;
-    bool singleCardPerBox = (!layerSize.empty() && layerSize[0] == 1);
 
     for (int i = 0; i < cm.count; ++i) {
         const char *algName = cm.costAlgoParams[i].algName;
         std::string name = (algName != nullptr) ? algName : "";
-        bool applicable = true;
 
-        if (name == "InsAllReduceMesh1DOneShot") {
-            applicable = (topoInfo->level0Topo == Level0Shape::MESH_1D);
-        } else if (name == "InsAllReduceNHR") {
-            applicable = (topoInfo->topoLevelNums > 1) ||
-                         (topoInfo->level0Topo == Level0Shape::CLOS) ||
-                         topoInfo->Level1Nhr || singleCardPerBox;
-        } else if (name == "CcuAllReduceMesh1D") {
-            applicable = !isInt8 && !is64Bit && !isProd &&
-                         (topoInfo->level0Topo == Level0Shape::MESH_1D);
-        } else if (name == "AivAllReduceMesh1DOneShot") {
-            applicable = !isInt8 && !is64Bit && !isProd && !isUboe3Level &&
-                         (rankSize <= AIV_MAX_RANK_SIZE) &&
-                         (topoInfo->level0Topo == Level0Shape::MESH_1D);
-        } else {
-            applicable = true;
-        }
-
-        if (!applicable) {
-            HCCL_DEBUG("[FilterAllReduce] algName=%s filtered out.", name.c_str());
+        OpExecuteConfig algEngine = GetAlgEngine(name);
+        if (!IsEngineMatched(opParam.opExecuteConfig, algEngine)) {
+            HCCL_DEBUG("[FilterAllReduce] algName=%s engine=%d filtered out by config=%d.", name.c_str(),
+                       static_cast<int>(algEngine), static_cast<int>(opParam.opExecuteConfig));
             continue;
         }
 
@@ -93,7 +109,8 @@ HcclResult CostTableManager::FilterAllReduce(CostModel &cm, CostTable &ct,
         ct.costs[ct.count].algName = algName;
         ct.costs[ct.count].cost = cost;
         ++ct.count;
-        HCCL_DEBUG("[FilterAllReduce] algName=%s cost=%f.", name.c_str(), cost);
+        HCCL_DEBUG("[FilterAllReduce] algName=%s engine=%d cost=%f.", name.c_str(),
+                   static_cast<int>(algEngine), cost);
     }
     return HcclResult::HCCL_SUCCESS;
 }

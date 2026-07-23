@@ -31,7 +31,7 @@ public:
     HcclResult CalcAlgHierarchyInfo(HcclComm comm, TopoInfoWithNetLayerDetails* topoInfo,
                                     AlgHierarchyInfoForAllLevel& algHierarchyInfo) override;
 
-    CostAlgoParams CalcCostCoeff() override;
+    CostAlgoParams CalcCostCoeff(u32 rankSize) override;
     AlgNetMeta GetAlgNetMeta() const override;
 
 #ifndef AICPU_COMPILE

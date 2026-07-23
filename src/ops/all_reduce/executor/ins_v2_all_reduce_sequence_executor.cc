@@ -19,14 +19,14 @@ namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
     typename InsAlgTemplate3>
 CostAlgoParams InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
-    InsAlgTemplate3>::CalcCostCoeff()
+    InsAlgTemplate3>::CalcCostCoeff(u32 rankSize)
 {
     static std::vector<CostModelParam> params = [] {
         std::vector<CostModelParam> v;
-        auto p0 = InsAlgTemplate0::CalcCostCoeff(); v.insert(v.end(), p0.begin(), p0.end());
-        auto p1 = InsAlgTemplate1::CalcCostCoeff(); v.insert(v.end(), p1.begin(), p1.end());
-        auto p2 = InsAlgTemplate2::CalcCostCoeff(); v.insert(v.end(), p2.begin(), p2.end());
-        auto p3 = InsAlgTemplate3::CalcCostCoeff(); v.insert(v.end(), p3.begin(), p3.end());
+        auto p0 = InsAlgTemplate0::CalcCostCoeff(rankSize); v.insert(v.end(), p0.begin(), p0.end());
+        auto p1 = InsAlgTemplate1::CalcCostCoeff(rankSize); v.insert(v.end(), p1.begin(), p1.end());
+        auto p2 = InsAlgTemplate2::CalcCostCoeff(rankSize); v.insert(v.end(), p2.begin(), p2.end());
+        auto p3 = InsAlgTemplate3::CalcCostCoeff(rankSize); v.insert(v.end(), p3.begin(), p3.end());
         return v;
     }();
     static const char *algName = "AllReduceSequence";

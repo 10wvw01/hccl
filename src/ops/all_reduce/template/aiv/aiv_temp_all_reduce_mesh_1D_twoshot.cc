@@ -23,8 +23,9 @@ AivTempAllReduceMesh1DTwoShot::~AivTempAllReduceMesh1DTwoShot()
 {
 }
 
-std::vector<CostModelParam> AivTempAllReduceMesh1DTwoShot::CalcCostCoeff()
+std::vector<CostModelParam> AivTempAllReduceMesh1DTwoShot::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[AivTempAllReduceMesh1DTwoShot] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

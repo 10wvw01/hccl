@@ -27,8 +27,9 @@ InsTempReduceScatterMesh1dDpuInter::~InsTempReduceScatterMesh1dDpuInter()
 {
 }
 
-std::vector<CostModelParam> InsTempReduceScatterMesh1dDpuInter::CalcCostCoeff()
+std::vector<CostModelParam> InsTempReduceScatterMesh1dDpuInter::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempReduceScatterMesh1dDpuInter] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

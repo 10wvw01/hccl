@@ -17,8 +17,9 @@
 
 namespace ops_hccl {
 
-std::vector<CostModelParam> CcuTempAllReduceMesh1D::CalcCostCoeff()
+std::vector<CostModelParam> CcuTempAllReduceMesh1D::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[CcuTempAllReduceMesh1D] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

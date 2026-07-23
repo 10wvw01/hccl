@@ -76,7 +76,7 @@ void CostModelManager::InitBandwidth()
                localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_);
 }
 
-HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
+HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos, const TopoInfoWithNetLayerDetails *topoInfo)
 {
     FreeCostModel();
 
@@ -104,7 +104,7 @@ HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos)
             continue;
         }
 
-        CostAlgoParams cap = exec->CalcCostCoeff();
+        CostAlgoParams cap = exec->CalcCostCoeff(topoInfo->userRankSize);
         if (cap.count == 0 || cap.param == nullptr) {
             HCCL_WARNING("[CostModelManager] CalcCostCoeff uncalibrated, skip algName=%s.", alg.algName);
             continue;

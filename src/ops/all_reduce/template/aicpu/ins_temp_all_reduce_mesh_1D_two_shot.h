@@ -40,7 +40,7 @@ public:
         return info;
     }
 
-    static std::vector<CostModelParam> CalcCostCoeff();
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize);
     static AlgNetType GetNetType();
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;

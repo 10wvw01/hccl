@@ -62,7 +62,7 @@ public:
     CostModelManager();
     ~CostModelManager();
 
-    HcclResult InitCostModel(const AllAlgos &allAlgos);
+    HcclResult InitCostModel(const AllAlgos &allAlgos, const TopoInfoWithNetLayerDetails *topoInfo);
     void InitBandwidth();
 
     // n: 每次发送数据量占总数据量的比例

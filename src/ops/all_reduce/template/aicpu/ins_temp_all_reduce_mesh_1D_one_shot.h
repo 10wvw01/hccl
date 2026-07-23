@@ -31,7 +31,7 @@ public:
         return info;
     }
 
-    static std::vector<CostModelParam> CalcCostCoeff();
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize);
     static AlgNetType GetNetType();
 
     // 现在的RunAsync就是之前的GenExtIns

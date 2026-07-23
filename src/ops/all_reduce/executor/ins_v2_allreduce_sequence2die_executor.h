@@ -31,7 +31,7 @@ public:
     explicit InsV2AllReduceSequence2DieExecutor();
     ~InsV2AllReduceSequence2DieExecutor() override;
  
-    CostAlgoParams CalcCostCoeff() override;
+    CostAlgoParams CalcCostCoeff(u32 rankSize) override;
     AlgNetMeta GetAlgNetMeta() const override;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;

@@ -17,8 +17,9 @@ InsTempAllReduceMesh1DTwoShot::InsTempAllReduceMesh1DTwoShot(const OpParam& para
 
 InsTempAllReduceMesh1DTwoShot::~InsTempAllReduceMesh1DTwoShot(){}
 
-std::vector<CostModelParam> InsTempAllReduceMesh1DTwoShot::CalcCostCoeff()
+std::vector<CostModelParam> InsTempAllReduceMesh1DTwoShot::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempAllReduceMesh1DTwoShot] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

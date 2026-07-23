@@ -18,8 +18,9 @@ namespace ops_hccl {
 constexpr u32 ALL_REDUCE_DIE_NUM = 2;
 constexpr u32 DIE_WORK = 2;
 
-std::vector<CostModelParam> CcuTempAllreduceMesh1D2DieOneShot::CalcCostCoeff()
+std::vector<CostModelParam> CcuTempAllreduceMesh1D2DieOneShot::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[CcuTempAllreduceMesh1D2DieOneShot] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

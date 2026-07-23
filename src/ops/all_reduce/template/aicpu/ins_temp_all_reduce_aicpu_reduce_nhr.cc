@@ -19,8 +19,9 @@ InsTempAllReduceAicpuReduceNHR::InsTempAllReduceAicpuReduceNHR(const OpParam &pa
     : InsAlgTemplateBase(param, rankId, subCommRanks)
 {}
 
-std::vector<CostModelParam> InsTempAllReduceAicpuReduceNHR::CalcCostCoeff()
+std::vector<CostModelParam> InsTempAllReduceAicpuReduceNHR::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempAllReduceAicpuReduceNHR] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

@@ -28,7 +28,7 @@ public:
                            subCommRanks_[0].size());
     }
 
-    static std::vector<CostModelParam> CalcCostCoeff();
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize);
     static AlgNetType GetNetType();
 
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

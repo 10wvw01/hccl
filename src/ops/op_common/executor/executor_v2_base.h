@@ -34,7 +34,7 @@ public:
 
     virtual std::string Describe() const;
 
-    virtual CostAlgoParams CalcCostCoeff() { return {nullptr, nullptr, 0}; }
+    virtual CostAlgoParams CalcCostCoeff(u32 rankSize) { return {nullptr, nullptr, 0}; }
 
     virtual AlgNetMeta GetAlgNetMeta() const { return {}; }
 

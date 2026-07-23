@@ -22,13 +22,13 @@
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplateRS, typename InsAlgTemplateAG>
-CostAlgoParams InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::CalcCostCoeff()
+CostAlgoParams InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, InsAlgTemplateAG>::CalcCostCoeff(u32 rankSize)
 {
     static std::vector<CostModelParam> params = [] {
         std::vector<CostModelParam> v;
-        auto p0 = InsAlgTemplateRS::CalcCostCoeff();
+        auto p0 = InsAlgTemplateRS::CalcCostCoeff(rankSize);
         v.insert(v.end(), p0.begin(), p0.end());
-        auto p1 = InsAlgTemplateAG::CalcCostCoeff();
+        auto p1 = InsAlgTemplateAG::CalcCostCoeff(rankSize);
         v.insert(v.end(), p1.begin(), p1.end());
         return v;
     }();

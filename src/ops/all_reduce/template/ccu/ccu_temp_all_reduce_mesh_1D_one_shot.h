@@ -39,7 +39,7 @@ public:
         return StringFormat("Template of CcuTempAllReduceMesh1DOneShot subCommRanks_[0].size() [%u].", subCommRanks_[0].size());
     }
 
-    static std::vector<CostModelParam> CalcCostCoeff();
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize);
     static AlgNetType GetNetType();
 
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;

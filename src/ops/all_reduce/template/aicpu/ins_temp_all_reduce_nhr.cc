@@ -17,8 +17,9 @@ InsTempAllReduceNHR::InsTempAllReduceNHR(const OpParam& param, const u32 rankId,
 
 InsTempAllReduceNHR::~InsTempAllReduceNHR(){}
 
-std::vector<CostModelParam> InsTempAllReduceNHR::CalcCostCoeff()
+std::vector<CostModelParam> InsTempAllReduceNHR::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempAllReduceNHR] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

@@ -31,7 +31,7 @@ public:
                                 const std::vector<std::vector<u32>> &subCommRanks);
     virtual ~AivAlgTemplateBase();
 
-    static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize) { return {}; }
 
     static AlgNetType GetNetType() { return AlgNetType::MESH; }
 

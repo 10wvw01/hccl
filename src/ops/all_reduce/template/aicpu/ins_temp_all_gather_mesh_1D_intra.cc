@@ -20,8 +20,9 @@ InsTempAllGatherMesh1dIntra::InsTempAllGatherMesh1dIntra(const OpParam &param, c
 }
 InsTempAllGatherMesh1dIntra::~InsTempAllGatherMesh1dIntra() {}
 
-std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff()
+std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff(u32 rankSize)
 {
+    (void)rankSize;
     HCCL_DEBUG("[InsTempAllGatherMesh1dIntra] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

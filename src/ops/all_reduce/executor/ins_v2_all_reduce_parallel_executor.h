@@ -42,7 +42,7 @@ public:
     HcclResult CalcRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo, const AlgHierarchyInfoForAllLevel& algHierarchyInfo,
                        AlgResourceRequest& resourceRequest) override;
     // AICPU 接口
-    CostAlgoParams CalcCostCoeff() override;
+    CostAlgoParams CalcCostCoeff(u32 rankSize) override;
     AlgNetMeta GetAlgNetMeta() const override;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;

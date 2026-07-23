@@ -24,7 +24,7 @@ public:
 
     ~InsAlgTemplateBase() override;
 
-    static std::vector<CostModelParam> CalcCostCoeff() { return {}; }
+    static std::vector<CostModelParam> CalcCostCoeff(u32 rankSize) { return {}; }
 
     static AlgNetType GetNetType() { return AlgNetType::MESH; }
 
