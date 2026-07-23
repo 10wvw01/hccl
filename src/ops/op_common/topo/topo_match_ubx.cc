@@ -11,6 +11,7 @@
 #include "topo_match_ubx.h"
 
 namespace ops_hccl {
+constexpr u64 NATLAYER_ROCE = 3;
 TopoMatchUBX::TopoMatchUBX()
     : TopoMatchBase()
 {
@@ -81,14 +82,14 @@ HcclResult TopoMatchUBX::TopoForLayer3(const HcclComm comm, uint32_t layer0Size,
     // 1. 查出layer 3的所有ranks
     uint32_t *topoInsts;
     uint32_t topoInstNum = 0;
-    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, 3, &topoInsts, &topoInstNum));
+    CHK_RET(HcclRankGraphGetTopoInstsByLayer(comm, NATLAYER_ROCE, &topoInsts, &topoInstNum));
     CHK_PRT_RET(
         (topoInstNum != NET_INST_NUM_1),
         HCCL_ERROR("[TopoMatchUBX::MeshNHRTopoForLayer3] layer3 topoInstNum [%d], Invalid topo.", topoInstNum),
         HcclResult::HCCL_E_PARA);
     uint32_t* ranks;
     uint32_t rankNum;
-    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, 3, topoInsts[0], &ranks, &rankNum));
+    CHK_RET(HcclRankGraphGetRanksByTopoInst(comm, NATLAYER_ROCE, topoInsts[0], &ranks, &rankNum));
     HCCL_DEBUG("[TopoMatchUBX::MeshNHRTopoForLayer3] Rank [%d], all [%u] ranks in layer3", myRank, rankNum);
     // 2. 取出同序号卡，作为layer3的ranks
     std::vector<uint32_t> rankVecLayer3WithSameIdx;
@@ -103,7 +104,7 @@ HcclResult TopoMatchUBX::TopoForLayer3(const HcclComm comm, uint32_t layer0Size,
         }
         CommLink *links;
         uint32_t linkNum = 0;
-        HcclRankGraphGetLinks(comm, 3, myRank, rankId, &links, &linkNum);
+        HcclRankGraphGetLinks(comm, NATLAYER_ROCE, myRank, rankId, &links, &linkNum);
         if (linkNum == 0) {
             continue;
         }
