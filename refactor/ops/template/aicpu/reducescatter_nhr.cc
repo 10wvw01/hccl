@@ -17,18 +17,12 @@ HcclResult ReduceScatterNhrTemplate::RunAlgorithm(TemplateResource &templateReso
                                                 std::vector<TxRxSlicesList> &txRxSlicesLists,
                                                 std::vector<u32> &ranksForOutputData)
 {
+    // channel/线程选择由执行层负责，primitive 只产出通信描述符
+    (void)templateResource;
     HCCL_INFO("[ReduceScatterNhrTemplate][RunAlgorithm] start, myRank[%u], rankSize[%u].",
               myRank_, templateRankSize_);
 
-    std::vector<SendRecvInfo> sendRecvInfos;
-    CHK_RET(RunNhrReduceScatter(tempAlgParams_, templateResource, ranks_, myRank_, ranksForOutputData,
-                                sendRecvInfos));
-
-    // RunNhrReduceScatter 返回 std::vector<SendRecvInfo>，基类 KernelRun 期望 txRxSlicesLists，
-    // 从每个 SendRecvInfo 中提取 sendRecvSlices_（TxRxSlicesList）填入 txRxSlicesLists。
-    for (auto &sendRecvInfo : sendRecvInfos) {
-        txRxSlicesLists.push_back(sendRecvInfo.sendRecvSlices_);
-    }
+    CHK_RET(RunNhrReduceScatter(tempAlgParams_, ranks_, myRank_, ranksForOutputData, txRxSlicesLists));
 
     HCCL_INFO("[ReduceScatterNhrTemplate][RunAlgorithm] end.");
     return HCCL_SUCCESS;

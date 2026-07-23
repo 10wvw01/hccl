@@ -9,6 +9,7 @@
  */
 
 #include "topo_model.h"
+#include <cstdlib>
 
 namespace HcclSim {
 
@@ -17,6 +18,17 @@ constexpr uint32_t NetLayerL0 = 0;
 constexpr uint32_t NetLayerL1 = 1;
 constexpr uint32_t NetLayerL2 = 2;
 constexpr uint32_t SERVER_CLOS_INSTID = 16;
+
+// 环境变量开关：开启后单 server 1D Mesh 输入会额外注入 SERVER_CLOS_INSTID，
+// 使得 dev2TopoInsts_ 长度为 2（1 MESH + 1 CLOS），触发 selector 中的
+// MESH_1D_CLOS 分支以覆盖 AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR 路径。
+// 仿真框架默认拓扑仅支持单 MESH 或纯 2D，缺少生产里"模块内 mesh + 模块间 CLOS"
+// 这类混合拓扑的实例拆分，本开关作为该场景的最小可执行表达。
+static bool IsSimForceMesh1DClos()
+{
+    const char *env = std::getenv("HCCL_SIM_FORCE_MESH1D_CLOS_TOPO");
+    return env != nullptr && std::string(env) == "1";
+}
 
 TopoModel::TopoModel(const TopoMeta& topoMeta)
 {
@@ -118,6 +130,16 @@ void TopoModel::InitTopoInstsMap(uint32_t serverId, uint32_t rankId, const std::
             is2D = true;
             dev2TopoInsts_[serverId][phyId].push_back(SERVER_CLOS_INSTID);
         }
+
+        // 强制 MESH_1D_CLOS 模式：单 server 1D Mesh 场景下额外注入 SERVER_CLOS，
+        // 让 dev2TopoInsts_ 长度恰好为 2（1 MESH + 1 CLOS），命中 selector 的
+        // AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR。仅在开关开启且当前 device 已有
+        // 一个 MESH inst 但没有 CLOS inst 时生效，避免与 2D 路径重复。
+        if (IsSimForceMesh1DClos() && !dev2TopoInsts_[serverId][phyId].empty() &&
+            dev2TopoInsts_[serverId][phyId].back() != SERVER_CLOS_INSTID) {
+            instId2RankIds_[serverId][SERVER_CLOS_INSTID] = phyIds;
+            dev2TopoInsts_[serverId][phyId].push_back(SERVER_CLOS_INSTID);
+        }
     }
 }
 
@@ -176,7 +198,11 @@ void TopoModel::InitEndpointMap(uint32_t rankId, uint32_t phyId, uint32_t server
 void TopoModel::InitNetLayerInfo(uint32_t serverNum, uint32_t podNum)
 {
     if (serverNum == 1) {
-        netLayerList_ = {0};
+        // 默认单 server 只有 layer 0。当 HCCL_SIM_FORCE_MESH1D_CLOS_TOPO=1 时
+        // 扩展为 {0, 1}，让 TopoMatchUBX 走 TopoForLayer1 填好 algHierarchyInfo.infos[1]，
+        // 否则 level0Topo==MESH_1D_CLOS 单层拓扑下 TopoMatchUBX 不会填 infos[1]，后续
+        // CalcAlgHierarchyInfo / CalcChannelResRecursion 访问 infos[1] 会越界。
+        netLayerList_ = IsSimForceMesh1DClos() ? std::vector<uint32_t>{0, 1} : std::vector<uint32_t>{0};
     }
 
     if (serverNum > 1) {

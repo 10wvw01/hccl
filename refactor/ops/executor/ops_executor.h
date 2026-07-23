@@ -23,6 +23,7 @@
 #include "template/base_template.h"
 #include "template/template_factory.h"
 #include "utils/utils.h"
+#include "omnipipe_utils.h"
 
 namespace ops_hccl {
 
@@ -78,6 +79,7 @@ private:
     HcclResult CalcTemplateChannelRes(HcclComm comm, const TemplateExecDesc &templateExeDes);
     HcclResult GetTemplateRes(const TemplateExecDesc &templateExeDes);
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
     inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
     inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
@@ -97,7 +99,11 @@ private:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
-
+    HcclResult CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw);
+    HcclResult CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
+        std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc);
+    // 引擎指针，由外部通过 SetEngine 注入
+    BaseEngine *engine_ = nullptr;
     // algo
     HcclAlgorithm algo_;
 

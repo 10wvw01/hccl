@@ -25,6 +25,7 @@
 #include "topo_match_ubx.h"
 #include "topo_match_pcie_mix.h"
 #include "topo_match_squeeze_2d.h"
+#include "topo_match_concurrent.h"
 #include "dlhcomm_function.h"
 
 // ============================================================
@@ -188,6 +189,13 @@ HcclResult TopoMatchPcieMix::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetai
 TopoMatchSqueeze2D::TopoMatchSqueeze2D() : TopoMatchBase() {}
 TopoMatchSqueeze2D::~TopoMatchSqueeze2D() {}
 HcclResult TopoMatchSqueeze2D::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *, AlgHierarchyInfoForAllLevel &)
+{
+    return HCCL_SUCCESS;
+}
+
+TopoMatchConcurrent::TopoMatchConcurrent() : TopoMatchBase() {}
+TopoMatchConcurrent::~TopoMatchConcurrent() {}
+HcclResult TopoMatchConcurrent::MatchTopo(const HcclComm, TopoInfoWithNetLayerDetails *, AlgHierarchyInfoForAllLevel &)
 {
     return HCCL_SUCCESS;
 }

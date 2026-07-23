@@ -43,6 +43,26 @@ HcclResult LocalCopy(const ThreadHandle &thread, const DataSlice &srcSlice, cons
     return static_cast<HcclResult>(HcommLocalCopyOnThread(thread, dst, src, srcSlice.size_));
 }
 
+HcclResult LocalReduce(const ThreadHandle &thread, const DataSlice &srcSlice, const DataSlice &dstSlice,
+                       HcclDataType dataType, HcclReduceOp reduceOp)
+{
+    if (srcSlice.size_ == 0) {
+        return HCCL_SUCCESS;
+    }
+    if (srcSlice.size_ != dstSlice.size_) {
+        HCCL_ERROR("[LocalReduce] src size[%llu] != dst size[%llu].",
+                   static_cast<unsigned long long>(srcSlice.size_),
+                   static_cast<unsigned long long>(dstSlice.size_));
+        return HCCL_E_INTERNAL;
+    }
+    void *src = GetSliceAddr(srcSlice);
+    void *dst = GetSliceAddr(dstSlice);
+    HCCL_DEBUG("[LocalReduce] src[%p] dst[%p] len[%llu].", src, dst,
+               static_cast<unsigned long long>(srcSlice.size_));
+    return static_cast<HcclResult>(HcommLocalReduceOnThread(thread, dst, src, srcSlice.count_,
+        static_cast<HcommDataType>(dataType), static_cast<HcommReduceOp>(reduceOp)));
+}
+
 HcclResult PreSyncInterThreads(const ThreadHandle &mainThread, const std::vector<ThreadHandle> &subThreads,
                                const std::vector<u32> &notifyIdxMainToSub)
 {

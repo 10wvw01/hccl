@@ -105,9 +105,22 @@ HcclResult LocalReduce(const ThreadHandle &thread, const DataSlice &srcSlice, co
 // ============================================================
 // HcclAlgorithm 桩 (替代 hccl_algorithm.cc，提供 GetEngine/GetExecutor)
 // ============================================================
+namespace {
+class MockEngine : public BaseEngine {
+public:
+    HcclResult CreateRes(HcclComm, const OpParam &, HcclAlgorithm &, AlgHierarchyInfoForAllLevel &,
+                         AlgResourceRequest &, TopoInfoWithNetLayerDetails &) override
+    {
+        return HCCL_SUCCESS;
+    }
+    HcclResult LaunchKernel(const OpParam &) override { return HCCL_SUCCESS; }
+    HcclResult Send(const TransferContext &) override { return HCCL_SUCCESS; }
+};
+} // namespace
+
 std::unique_ptr<BaseEngine> HcclAlgorithm::GetEngine(void)
 {
-    return nullptr;
+    return std::make_unique<MockEngine>();
 }
 std::unique_ptr<OpsExecutor> HcclAlgorithm::GetExecutor(OpParam &param)
 {

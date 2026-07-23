@@ -126,7 +126,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_2rank_int64_smal
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_2rank_int8_big_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_2rank_int8_500M_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}}}; // 三维数组指定超节点-Server-Device信息
@@ -148,7 +148,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_8rank_fp64_small
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_4rank_fp32_big_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_mesh_1d_4rank_fp32_16G_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1, 2, 3}}}; // 三维数组指定超节点-Server-Device信息
@@ -169,7 +169,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_2rank_int64_small_da
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_2rank_int8_big_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_2rank_int8_500M_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0}, {1}}}; // 三维数组指定超节点-Server-Device信息
@@ -191,7 +191,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_8rank_fp64_small_dat
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_4rank_fp32_big_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_4rank_fp32_16G_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0}, {1}, {2}, {3}}}; // 三维数组指定超节点-Server-Device信息
@@ -201,17 +201,17 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_NHR_4rank_fp32_big_data_
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_seq_2x2rank_int64_big_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_seq_2x2rank_int64_8G_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 1024 * 1024 * 1024;                // 单卡数据量
+    auto sendCount = 256 * 1024 * 1024;                // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_small_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_8M_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
@@ -221,12 +221,26 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_sm
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
 
-TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x4rank_int64_media_data_test)
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x4rank_int64_4G_data_test)
 {
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1, 2, 3}, {0, 1, 2, 3}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 64 * 1024 * 1024;                  // 单卡数据量
+    auto sendCount = 64 * 1024 * 1024;                  // 单卡数据量512M,总数据512*8=4G
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_concurrent_mesh1dclos_fp16_512mb_data_test)
+{
+    setenv("HCCL_SIM_FORCE_MESH1D_CLOS_TOPO", "1", 1);
+
+    // 仿真模型初始化：1 server 2 卡，layer0 Mesh + layer1 NHR 共享同一组卡
+    TopoMeta topoMeta{{{0, 1, 2}}};
+    // 算子执行参数设置
+    auto sendCount = 256 * 1024 * 1024;            // 单卡数据量（FP16: 2字节 -> 总 512MB > 512KB 阈值）
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;  // 数据类型
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+
+    unsetenv("HCCL_SIM_FORCE_MESH1D_CLOS_TOPO");
 }

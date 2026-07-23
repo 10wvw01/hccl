@@ -62,6 +62,7 @@ enum class HcclAlgEngineType {
 enum class HcclAlgExecPolicy {
     SEQUENCE,
     PARALLEL,
+    OMNIPIPE,
 };
 
 enum class HcclAlgShotMode {
@@ -81,12 +82,12 @@ enum class HcclAicpuAllGatherAlgoType {
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_UBOE,       // InsAllGatherParallelMesh1DNHRUboe
     AICPU_ALLGATHER_SEQUENCE_NHR_MESH1D,            // InsAllGatherSequenceNHRMesh1D
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR,            // InsAllGatherParallelMesh1DNHR
-    AICPU_ALLGATHER_MESH1D1D_ZAXIS_DETOUR,          // InsAllGatherMesh1D1DZAxisDetour
+    AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherMesh1D1DZAxisDetour
     AICPU_ALLGATHER_MESH1D,                         // InsAllGatherMesh1D
     AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_PCIE,       // InsAllGatherParallelMesh1DNHRPcie
     AICPU_ALLGATHER_OMNIPIPE_PCIE,                  // InsV2AllGatherOmniPipePcie
-    AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR,          // InsAllGatherConcurrentMesh1DNHR
-    AICPU_ALLGATHER_PARALLEL_MESH1D_NHR_MULTIJETTY, // InsAllGatherParallelMesh1DNHRMultiJetty
+    AICPU_ALLGATHER_CONCURRENT_MESH1D_NHR_UBX,          // InsAllGatherConcurrentMesh1DNHR
+    AICPU_ALLGATHER_SEQUENCE_MESH1D_NHR_NHR_Mesh1DOcs, // InsAllGatherSequenceMesh1DNHRNHRMesh1DOcs
     AICPU_ALLGATHER_ALGO_TYPE_COUNT,                // 算法类型总数，用于数组下标上限
 };
 
@@ -94,6 +95,12 @@ enum class HcclAicpuAllGatherAlgoType {
 enum class HcclAicpuReduceScatterAlgoType {
     AICPU_REDUCESCATTER_NHR,                        // InsReduceScatterNHR
     AICPU_REDUCESCATTER_MESH1D,                     // InsReduceScatterMesh1D
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR,        // InsReduceScatterParallelMesh1DNHR
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR_UBX,   // InsReduceScatterParallelMesh1DNHRUBX
+    AICPU_REDUCESCATTER_PARALLEL_MESH1D_NHR_PCIE,  // InsReduceScatterParallelMesh1DNHRPcie
+    AICPU_REDUCESCATTER_PARALLEL_NHR_NHR_UBOE,     // InsReduceScatterParallelNHRNHRUboe
+    AICPU_REDUCESCATTER_SEQUENCE_NHR_MESH1D,       // InsReduceScatterSequenceMesh1DNhr
+    AICPU_REDUCESCATTER_CONCURRENT_MESH1D_NHR,     // InsReduceScatterConcurrentMeshNHR
     AICPU_REDUCESCATTER_ALGO_TYPE_COUNT,            // 算法类型总数，用于数组下标上限
 };
 
@@ -104,11 +111,14 @@ struct TemplateDesc {
     HcclAlgJettyMode jettyMode;
 };
 
-// 子通信域索引：Intra=0（组内/网络层级 level 0），Inter=1（组间/网络层级 level 1）
+// 子通信域索引：0=组内/网络层级 level 0，1=组间/网络层级 level 1，以此类推到 5
 enum SubCommIndexType : int {
-    SUB_COMM_INDEX_INTRA = 0,
-    SUB_COMM_INDEX_INTER = 1,
-    SUB_COMM_INDEX_POD = 2,
+    SUB_COMM_INDEX_0 = 0,
+    SUB_COMM_INDEX_1 = 1,
+    SUB_COMM_INDEX_2 = 2,
+    SUB_COMM_INDEX_3 = 3,
+    SUB_COMM_INDEX_4 = 4,
+    SUB_COMM_INDEX_5 = 5,
 };
 
 struct TemplateExecDesc {

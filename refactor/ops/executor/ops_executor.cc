@@ -32,15 +32,10 @@ HcclResult OpsExecutor::CalcAlgHierarchyInfo(
     HcclComm comm, TopoInfoWithNetLayerDetails *topoInfo, AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
     myRank_ = topoInfo->userRank;
+    rankSize_ = topoInfo->userRankSize;
     // TODO：topoMatch暂不修改参数
     algo_.topoMatch->MatchTopo(comm, topoInfo, algHierarchyInfo);
     algHierarchyInfo_ = algHierarchyInfo;
-    // 算rankSize
-    u32 topoLevelNum = algHierarchyInfo_.infos.size();
-    rankSize_ = 1;
-    for (size_t i = 0; i < topoLevelNum; i++) {
-        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
-    }
     return HCCL_SUCCESS;
 }
 
@@ -85,7 +80,12 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
                              ? offsetCount * dataTypeSize_
                              : (offsetCount / rankSize_) * dataTypeSize_;
         InitAlgoExecDataDesc(algoExecDataDesc, dataOffset, processCount - tailCount, tailCount, dataStride);
-        OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc);
+        if (algo_.algoExecDesc.execPolicy == HcclAlgExecPolicy::OMNIPIPE) {
+            CHK_RET(OrchestrateOmniPipeLoop(algo_.algoExecDesc, algoExecDataDesc));
+        } else {
+            CHK_RET(OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc));
+        }
+
         // 偏移增加
         offsetCount += processCount;
     }
@@ -129,12 +129,9 @@ HcclResult OpsExecutor::InitRes(const AlgResourceCtxSerializable &resCtx)
     subThreads_.assign(topoLevelNum, {});
     auto subThreadBegin = threads_.begin();
     auto subThreadEnd = threads_.begin();
+    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重新获取rankSize和myRank
     myRank_ = resCtx.topoInfo.userRank;
-    // 因为CalcAlgHierarchyInfo只在Host执行，所以kernel要重算rankSize
-    rankSize_ = 1;
-    for (size_t i = 0; i < topoLevelNum; i++) {
-        rankSize_ *= algHierarchyInfo_.infos.at(i).at(0).size();
-    }
+    rankSize_ = resCtx.topoInfo.userRankSize;
     AlgResourceRequest resourceRequest;
     // kernel侧需要先调用GetRes函数初始化成员变量execDescSubCommMaskMap_和maxSlaveThreadNum_等
     GetRes(resourceRequest);
@@ -431,12 +428,12 @@ inline void OpsExecutor::UpdateDataSplitParallel(AlgoExecDesc &algoExecDesc, Alg
     size_t childrenSize = algoExecDesc.children.size();
     u32 dataSplitRatioSum = std::accumulate(algoExecDesc.dataSplitRatio.begin(), algoExecDesc.dataSplitRatio.end(), 0);
     float dataSplitRatio = static_cast<float>(algoExecDesc.dataSplitRatio.at(childrenId)) / dataSplitRatioSum;
-    // 根据algoExecDesc中的数据切分比例切分
     if (childrenId > 0) {
         childrenAlgoExecDataDesc.at(childrenId).sliceOffset
             = childrenAlgoExecDataDesc.at(childrenId - 1).sliceOffset
               + childrenAlgoExecDataDesc.at(childrenId - 1).sliceCount * dataTypeSize_;
     }
+    // 根据algoExecDesc中的数据切分比例切分
     u64 sliceCount = algoExecDataDesc.sliceCount * dataSplitRatio;
     if (childrenId == childrenSize - 1) {
         sliceCount = algoExecDataDesc.sliceCount;
@@ -548,7 +545,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     }
     algoExecDataDesc.ranksForOutputDataGroup.resize(1);
     CHK_RET(baseTemplate->KernelRun(
-        templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
+        *engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
 }
 
@@ -592,6 +589,112 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
     }
     return HCCL_SUCCESS;
 }
+
+HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
+{
+    size_t childrenSize = algoExecDesc.children.size();
+    // OmniPipe 根节点必须是 2 个孩子（x 慢轴 + y 快轴）
+    if (childrenSize != 2) {
+        HCCL_ERROR("[OrchestrateOmniPipeLoop] root children size != 2, actual=%zu.", childrenSize);
+        return HCCL_E_INTERNAL;
+    }
+    // 先计算每层等效带宽：根的两个孩子分别递归取 (rankSize, eqBw)，再按慢快排序
+    u_int32_t xChildRankSize = 0;
+    u_int32_t yChildRankSize = 0;
+    double xChildEqBw = 0;
+    double yChildEqBw = 0;
+    CHK_RET(CalcEqBW(algoExecDesc.children[0], xChildRankSize, xChildEqBw));
+    CHK_RET(CalcEqBW(algoExecDesc.children[1], yChildRankSize, yChildEqBw));
+    // 保证 eqBwX 是慢轴（<= eqBwY）
+    if (xChildEqBw > yChildEqBw) {
+        std::swap(algoExecDesc.children[0], algoExecDesc.children[1]);
+        std::swap(xChildRankSize, yChildRankSize);
+        std::swap(xChildEqBw, yChildEqBw);
+    }
+    // 假设第一个孩子节点是x慢轴，第二个孩子节点是y快轴，先计算需要几轮循环
+    double scale = 1.0;
+    double bandwidthRatio = yChildEqBw / xChildEqBw;
+    uint32_t steps = CalcOmniPipeSteps(bandwidthRatio, xChildRankSize, OMIN_MAX_STEP_NUM, scale);
+    std::vector<std::vector<AlgoExecDataDesc>> childrenAlgoExecDataDesc;
+    CHK_RET(CalcOmnipipeData(algoExecDesc, steps, childrenAlgoExecDataDesc));
+    for (size_t i = 0; i < steps; i++) {
+        CHK_RET(PreSyncBySubCommMask(algoExecDesc));
+        for (size_t j = 0; j < childrenSize; ++j) {
+            VariantType &v = algoExecDesc.children[j];
+            // 处理 TemplateExecDesc
+            if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
+                CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(j).at(i)));
+            } // 处理 AlgoExecDesc（递归）
+            else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
+                CHK_RET(OrchestrateOmniPipeLoop(**algoDescPtr, childrenAlgoExecDataDesc.at(j).at(i)));
+            } else {
+                return HCCL_E_INTERNAL;
+            }
+        }
+
+        CHK_RET(PostSyncBySubCommMask(algoExecDesc));
+    }
+
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw)
+{
+    if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&algoExecDesc)) {
+        // 叶子节点：单轴，eqBw 即本身带宽
+        uint32_t subCommIndex = templateExeDes->subCommIndex;
+        eqRankSize = algHierarchyInfo_.infos.at(subCommIndex).size();
+        eqBw = (subCommIndex == 0) ? OMIN_MESH_BW : OMIN_CLOS_BW / eqRankSize;
+        return HCCL_SUCCESS;
+    }
+
+    auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&algoExecDesc);
+    if (algoDescPtr == nullptr) {
+        HCCL_ERROR("[CalcEqBW] algoExecDesc is neither TemplateExecDesc nor shared_ptr<AlgoExecDesc>.");
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+    // OmniPipe 中间节点必须是 2 个孩子（x 慢轴 + y 快轴），否则算不了等效带宽
+    if ((*algoDescPtr)->children.size() != 2) {
+        HCCL_ERROR("[CalcEqBW] children size != 2, actual=%zu.", (*algoDescPtr)->children.size());
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+
+    VariantType &xChild = (*algoDescPtr)->children[0];
+    VariantType &yChild = (*algoDescPtr)->children[1];
+    u_int32_t xChildRankSize = 0, yChildRankSize = 0;
+    double xChildEqBw = 0, yChildEqBw = 0;
+    CHK_RET(CalcEqBW(xChild, xChildRankSize, xChildEqBw));
+    CHK_RET(CalcEqBW(yChild, yChildRankSize, yChildEqBw));
+
+    if (xChildRankSize == 0 || yChildRankSize == 0 || xChildEqBw == 0.0 || yChildEqBw == 0.0) {
+        HCCL_ERROR("[CalcEqBW] invalid input, xChildRankSize=%u, yChildRankSize=%u, xChildEqBw=%f, yChildEqBw=%f.",
+            xChildRankSize, yChildRankSize, xChildEqBw, yChildEqBw);
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+
+    eqRankSize = xChildRankSize * yChildRankSize;
+    // CalcBandwidth2D 内部要求 xB <= yB（慢轴在前），自动按大小排序传入
+    if (xChildEqBw <= yChildEqBw) {
+        eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM);
+    } else {
+        eqBw = CalcBandwidth2D(yChildEqBw, xChildEqBw, yChildRankSize, xChildRankSize, OMIN_MAX_STEP_NUM);
+    }
+    return HCCL_SUCCESS;
+}
+
+HcclResult OpsExecutor::CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
+    std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc)
+{
+    // eqBwXY是把快轴和慢轴合并为一个轴看等效带宽是多少
+    return HCCL_SUCCESS;
+}
+
 HcclResult OpsExecutor::PreSyncSingleSubDomain(u32 subCommIndex)
 {
     ThreadHandle subMain = subThreads_.at(subCommIndex).at(0);

@@ -14,13 +14,14 @@
 
 #include "log.h"
 
+#include <algorithm>
+
 namespace ops_hccl {
 
 HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
     TemplateResource &templateResource, std::vector<u32> &ranksForOutputData)
 {
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] start, myRank[%u], rankSize[%zu].", myRank_, ranks_.size());
-
     tempAlgParams_ = tempAlgParams;
     templateRankSize_ = static_cast<u32>(ranks_.size());
 
@@ -34,12 +35,14 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
         return HCCL_SUCCESS;
     }
 
-    // 1. PreCopy：本地数据预处理（input -> output / ccl buffer）。
+    // 1. PreCopy：本地数据预处理（input -> ccl buffer），仅第一步（input 为 userBuffer）执行。
     if (templateResource.threads.empty()) {
         HCCL_ERROR("[AicpuBaseTemplate][KernelRun] threads is empty.");
         return HCCL_E_INTERNAL;
     }
-    CHK_RET(PreCopy(templateResource.threads));
+    if (tempAlgParams.inputBufferType == BufferType::INPUT) {
+        CHK_RET(PreCopy(templateResource.threads));
+    }
 
     // 单 rank 时无需通信。
     if (templateRankSize_ <= 1) {
@@ -62,9 +65,9 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
     std::vector<TxRxSlicesList> txRxSlicesLists;
     CHK_RET(RunAlgorithm(templateResource, txRxSlicesLists, ranksForOutputData));
 
-    // 4. SendAll：统一逐个执行 SendRecv。
+    // 4. SendAll：统一逐个执行 SendRecv（子类可在通信后做本地归约）。
     if (!txRxSlicesLists.empty()) {
-        CHK_RET(SendAll(txRxSlicesLists, templateResource));
+        CHK_RET(SendAll(engine, txRxSlicesLists, templateResource, templateResource.threads));
     }
 
     // 5. 多线程场景下，通信后同步（从线程通知主线程完成）。
@@ -76,8 +79,10 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 
     ranksForOutputData_ = ranksForOutputData;
 
-    // 6. PostCopy：后处理（ccl buffer -> output），若需要。
-    CHK_RET(PostCopy(templateResource.threads));
+    // 6. PostCopy：后处理（ccl buffer -> output），仅最后一步（output 为 userBuffer）执行。
+    if (tempAlgParams_.outputBufferType == BufferType::OUTPUT) {
+        CHK_RET(PostCopy(templateResource.threads));
+    }
 
     HCCL_INFO("[AicpuBaseTemplate][KernelRun] end.");
     return HCCL_SUCCESS;
@@ -86,8 +91,10 @@ HcclResult AicpuBaseTemplate::KernelRun(const TemplateDataParams &tempAlgParams,
 // ───────────── SendAll：逐个执行 SendRecv 的公共逻辑 ─────────────
 
 HcclResult AicpuBaseTemplate::SendAll(
-    const std::vector<TxRxSlicesList> &txRxSlicesLists, TemplateResource &templateResource)
+    BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+    TemplateResource &templateResource, const std::vector<ThreadHandle> &threads)
 {
+    (void)threads;
     for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
         ctx.enableRemoteMemAccess = tempAlgParams_.enableRemoteMemAccess;
@@ -159,7 +166,7 @@ HcclResult AicpuBaseTemplate::PostCopy(const std::vector<ThreadHandle> &threads)
     if (tempAlgParams_.outputBufferType == BufferType::HCCL_BUFFER) {
         return HCCL_SUCCESS;
     }
-    
+
     // remote mem 访问模式下数据已直接写到 output，无需后处理。
     if (tempAlgParams_.enableRemoteMemAccess) {
         return HCCL_SUCCESS;

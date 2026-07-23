@@ -11,6 +11,7 @@
 #ifndef MESH_PRIMITIVES_H
 #define MESH_PRIMITIVES_H
 
+#include <cstddef>
 #include <vector>
 #include "hccl_algorithm.h"
 #include "alg_param.h"
@@ -34,7 +35,27 @@ struct MeshSlicePair {
     std::vector<DataSlice> &secondSlices;
 };
 
-// 构造 Mesh AllGather 的通信描述符，实际 SendRecv 由 template 执行。
+struct MeshRsLayoutInfo {
+    bool reuseCclBuffer{false};
+    u32 rankSize{0};
+    u32 myAlgRank{0};
+    std::vector<u32> emptySlots;
+};
+
+void CollectEmptySlots(const std::vector<u32> &ranks, const std::vector<u32> &ranksForInputData,
+                       u32 rankSize, std::vector<u32> &emptySlots);
+
+HcclResult InitMeshRsLayoutInfo(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
+                                u32 myRank, MeshRsLayoutInfo &layoutInfo);
+
+u64 GetMeshRsInputOffset(const TemplateDataParams &tempAlgParams, size_t idx);
+
+u64 GetMeshRsFinalCclOffset(const TemplateDataParams &tempAlgParams, const MeshRsLayoutInfo &layoutInfo,
+                            size_t idx, u32 rank);
+
+u64 GetMeshRsTempCclOffset(const TemplateDataParams &tempAlgParams, const MeshRsLayoutInfo &layoutInfo,
+                           size_t idx, u32 algRank);
+
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
                             u32 myRank, std::vector<u32> &ranksForOutputData,
                             std::vector<TxRxSlicesList> &txRxSlicesLists);

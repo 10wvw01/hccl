@@ -62,6 +62,82 @@ inline void AddRankDataSlices(const MeshSliceInfo &sliceInfo, const std::vector<
 // 只拼四组 DataSlice 与对端 rank，channel/线程选择留给执行层。
 } // namespace
 
+// 收集 reuseCclBuffer 场景下的空位 slot：ccl buffer 按 rank 值寻址，空位 = 不在
+// ranksForInputData 中的 rank。ranks 是 subComm 域 ranks，ranksForInputData 是本 template
+// 要归约的 rank 列表。空位来源：
+//   1. ranks 中不在 ranksForInputData 的 rank（subComm 域内空位）；
+//   2. 不足时（ranksForInputData 包含 subComm 全部 rank）遍历 [0, ranks.back()+rankSize+1)
+//      找不在 ranksForInputData 的 rank（其他 subComm 域的 slot）。
+// 不越界：ReduceScatter 的 ccl buffer 覆盖全局 rankSize 个 slot
+// （scratchMultiple_=1, scratchStride=sliceCount*dataTypeSize, cclBufferSize≥globalRankSize*scratchStride），
+// 空位一定在 [0, globalRankSize) 内。
+void CollectEmptySlots(const std::vector<u32> &ranks, const std::vector<u32> &ranksForInputData,
+                       u32 rankSize, std::vector<u32> &emptySlots)
+{
+    emptySlots.clear();
+    for (u32 r : ranks) {
+        if (std::find(ranksForInputData.begin(), ranksForInputData.end(), r) == ranksForInputData.end()) {
+            emptySlots.emplace_back(r);
+        }
+    }
+    if (emptySlots.size() < rankSize) {
+        u32 scanEnd = ranks.back() + rankSize + 1;
+        for (u32 r = 0; r < scanEnd && emptySlots.size() < rankSize; ++r) {
+            if (std::find(ranksForInputData.begin(), ranksForInputData.end(), r) == ranksForInputData.end() &&
+                std::find(emptySlots.begin(), emptySlots.end(), r) == emptySlots.end()) {
+                emptySlots.emplace_back(r);
+            }
+        }
+    }
+}
+
+HcclResult InitMeshRsLayoutInfo(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks,
+                                u32 myRank, MeshRsLayoutInfo &layoutInfo)
+{
+    layoutInfo = MeshRsLayoutInfo{};
+    layoutInfo.rankSize = static_cast<u32>(ranks.size());
+    layoutInfo.reuseCclBuffer = (tempAlgParams.inputBufferType == BufferType::HCCL_BUFFER);
+    CHK_RET(GetAlgRank(myRank, ranks, layoutInfo.myAlgRank));
+
+    if (layoutInfo.reuseCclBuffer) {
+        CollectEmptySlots(ranks, tempAlgParams.ranksForInputData, layoutInfo.rankSize, layoutInfo.emptySlots);
+        CHK_PRT_RET(layoutInfo.emptySlots.size() < layoutInfo.rankSize,
+            HCCL_ERROR("[InitMeshRsLayoutInfo] emptySlots size[%zu] is less than rankSize[%u].",
+                layoutInfo.emptySlots.size(), layoutInfo.rankSize),
+            HCCL_E_PARA);
+    }
+    return HCCL_SUCCESS;
+}
+
+u64 GetMeshRsInputOffset(const TemplateDataParams &tempAlgParams, size_t idx)
+{
+    return tempAlgParams.dataOffset + tempAlgParams.sliceOffset +
+           static_cast<u64>(idx) * tempAlgParams.dataStride;
+}
+
+u64 GetMeshRsFinalCclOffset(const TemplateDataParams &tempAlgParams, const MeshRsLayoutInfo &layoutInfo,
+                            size_t idx, u32 rank)
+{
+    if (layoutInfo.reuseCclBuffer) {
+        return tempAlgParams.sliceOffset + static_cast<u64>(rank) * tempAlgParams.scratchStride;
+    }
+    const u64 groupIdx = static_cast<u64>(idx) / layoutInfo.rankSize;
+    const u64 slot = groupIdx * layoutInfo.rankSize + layoutInfo.myAlgRank;
+    return tempAlgParams.sliceOffset + slot * tempAlgParams.scratchStride;
+}
+
+u64 GetMeshRsTempCclOffset(const TemplateDataParams &tempAlgParams, const MeshRsLayoutInfo &layoutInfo,
+                           size_t idx, u32 algRank)
+{
+    if (layoutInfo.reuseCclBuffer) {
+        return tempAlgParams.sliceOffset + static_cast<u64>(layoutInfo.emptySlots[algRank]) *
+            tempAlgParams.scratchStride;
+    }
+    const u64 groupIdx = static_cast<u64>(idx) / layoutInfo.rankSize;
+    const u64 slot = groupIdx * layoutInfo.rankSize + algRank;
+    return tempAlgParams.sliceOffset + slot * tempAlgParams.scratchStride;
+}
+
 HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::vector<u32> &ranks, u32 myRank,
                             std::vector<u32> &ranksForOutputData, std::vector<TxRxSlicesList> &txRxSlicesLists)
 {
@@ -82,7 +158,8 @@ HcclResult RunMeshAllGather(const TemplateDataParams &tempAlgParams, const std::
     std::vector<u32> ranksForInputData = tempAlgParams.ranksForInputData;
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    // 尾块语义与 PreCopy/PostCopy 对齐：tailCount 是均分后的零头，尾块 = 整块 + 零头
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     HCCL_INFO("[RunMeshAllGather] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
               myAlgRank, rankSize, dataTypeSize, sliceSize);
@@ -147,7 +224,7 @@ HcclResult RunMeshScatter(const TemplateDataParams &tempAlgParams, const std::ve
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) : (sliceSize + tempAlgParams.tailCount * dataTypeSize);
     const u32 tailRankId = ranks[rankSize - 1];
     const MeshSliceInfo sliceInfo{tempAlgParams, sliceSize, tailSize, tempAlgParams.scratchStride, tailRankId};
     HCCL_INFO("[RunMeshScatter] myAlgRank=%u, rootAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
@@ -189,51 +266,99 @@ HcclResult RunMeshReduceScatter(const TemplateDataParams &tempAlgParams, const s
     CHK_RET(CheckInputDataRanks(tempAlgParams, "RunMeshReduceScatter"));
 
     const u32 rankSize = static_cast<u32>(ranks.size());
-    ranksForOutputData = {myRank};
+    ranksForOutputData.clear();
     if (rankSize <= 1) {
+        ranksForOutputData = tempAlgParams.ranksForInputData;
         HCCL_INFO("[RunMeshReduceScatter] no send/recv needed, ranksForOutputDataNum=%zu",
                   ranksForOutputData.size());
         return HCCL_SUCCESS;
     }
 
-    u32 myAlgRank = 0;
-    CHK_RET(GetAlgRank(myRank, ranks, myAlgRank));
+    MeshRsLayoutInfo layoutInfo;
+    CHK_RET(InitMeshRsLayoutInfo(tempAlgParams, ranks, myRank, layoutInfo));
+    const u32 myAlgRank = layoutInfo.myAlgRank;
 
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[tempAlgParams.dataType];
     const u64 sliceSize = tempAlgParams.sliceCount * dataTypeSize;
-    const u64 tailSize = tempAlgParams.tailCount * dataTypeSize;
-    HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu",
-              myAlgRank, rankSize, dataTypeSize, sliceSize);
+    const u64 tailSize = (tempAlgParams.tailCount == 0) ? (sliceSize) :
+                         (sliceSize + tempAlgParams.tailCount * dataTypeSize);
+    const u32 tailRankId = ranks[rankSize - 1];
+    const size_t inputSize = tempAlgParams.ranksForInputData.size();
+    HCCL_INFO("[RunMeshReduceScatter] myAlgRank=%u, rankSize=%u, dataTypeSize=%u, sliceSize=%lu, tailSize=%lu",
+              myAlgRank, rankSize, dataTypeSize, sliceSize, tailSize);
+
+    // 1. 计算 ranksForOutputData：所有 idx % rankSize == myAlgRank 的 ranksForInputData[idx]。
+    for (size_t idx = 0; idx < inputSize; ++idx) {
+        if (static_cast<u32>(idx) % rankSize == myAlgRank) {
+            ranksForOutputData.emplace_back(tempAlgParams.ranksForInputData[idx]);
+        }
+    }
+
+    // 2. 为每个对端 algRank c 构造一个 TxRxSlicesList。
+    //    - reuseCclBuffer 场景（inputBufferType==HCCL_BUFFER）：ccl buffer 覆盖更大域，
+    //      有效 slot = ccl[rank]（按 rank 值，NHR 写入），有空位可用。
+    //      tx/rx 目标用空位 emptySlots[algRank]，避免覆盖有效数据；
+    //      LocalReduce 从空位 reduce 到归约目标 slot ccl[rank]。
+    //    - INPUT 场景（inputBufferType==INPUT）：ccl buffer 仅覆盖本 subComm 域，无空位。
+    //      tx/rx 目标按 algRank 维度 (g*rankSize + algRank) 寻址，与 PreCopy 的 slot 布局一致。
+
+    // reuseCclBuffer 场景：收集空位 slot（不在 ranksForInputData 中的 rank）。
+
+    // 计算 rx 目标 slot 的 ccl 偏移：
+    //   reuseCclBuffer：按 rank 值寻址 ccl[rank]；
+    //   INPUT：按 algRank 维度寻址 ccl[g*rankSize + srcAlgRank]。
+    // 计算对端空位 slot 的 ccl 偏移（仅 tx 目标和 rx 源需要，二者 offset 一致）：
+    //   reuseCclBuffer：空位 emptySlots[myAlgRank]（tx）或 emptySlots[connectedAlgRank]（rx）；
+    //   INPUT：algRank 维度 (g*rankSize + srcAlgRank)。
 
     for (u32 connectedAlgRank = 0; connectedAlgRank < rankSize; ++connectedAlgRank) {
-        const u32 connectedRank = ranks[connectedAlgRank];
-        if (connectedRank == myRank) {
+        if (connectedAlgRank == myAlgRank) {
             continue;
         }
-        const u64 txSliceSize = (tailSize > 0 && connectedAlgRank == rankSize - 1) ? tailSize : sliceSize;
-        const u64 rxSliceSize = (tailSize > 0 && myAlgRank == rankSize - 1) ? tailSize : sliceSize;
-        const u64 txSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
-        const u64 txDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(connectedRank) * tempAlgParams.scratchStride;
-        const u64 rxSrcOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
-        const u64 rxDstOffset = tempAlgParams.sliceOffset + static_cast<u64>(myRank) * tempAlgParams.scratchStride;
-        std::vector<DataSlice> txSrcSlices;
-        std::vector<DataSlice> txDstSlices;
-        std::vector<DataSlice> rxSrcSlices;
-        std::vector<DataSlice> rxDstSlices;
-
-        txSrcSlices.emplace_back(tempAlgParams.cclBufferPtr, txSrcOffset, txSliceSize,
-                                 txSliceSize / dataTypeSize);
-        txDstSlices.emplace_back(nullptr, txDstOffset, txSliceSize, txSliceSize / dataTypeSize);
-        rxSrcSlices.emplace_back(nullptr, rxSrcOffset, rxSliceSize, rxSliceSize / dataTypeSize);
-        rxDstSlices.emplace_back(tempAlgParams.cclBufferPtr, rxDstOffset, rxSliceSize,
-                                 rxSliceSize / dataTypeSize);
-
+        const u32 connectedRank = ranks[connectedAlgRank];
+        std::vector<DataSlice> txSrcSlices, txDstSlices, rxSrcSlices, rxDstSlices;
+        for (size_t idx = 0; idx < inputSize; ++idx) {
+            const u32 algRankOfIdx = static_cast<u32>(idx) % rankSize;
+            // isTx：本卡发对端归约集合切片（idx % rankSize == connectedAlgRank）给对端；
+            // isRx：本卡收本卡归约集合切片（idx % rankSize == myAlgRank）。
+            const bool isTx = (algRankOfIdx == connectedAlgRank);
+            const bool isRx = (algRankOfIdx == myAlgRank);
+            if (!isTx && !isRx) {
+                continue;
+            }
+            const u32 rank = tempAlgParams.ranksForInputData[idx];
+            const u64 curSliceSize = (rank == tailRankId) ? tailSize : sliceSize;
+            if (curSliceSize == 0) {
+                continue;
+            }
+            const u64 sliceCount = curSliceSize / dataTypeSize;
+            // tx 目标 = 对端空位 emptySlots[myAlgRank]；rx 目标 = 本卡空位 emptySlots[connectedAlgRank]。
+            // rx 数据源 offset 与目标 offset 一致（对端 tx 目标 slot 即本卡 rx 源 slot），
+            // bufferPtr=nullptr 表示远端内存。
+            // INPUT 场景：tx 数据源来自 user input（按 idx 寻址）。
+            if (isTx) {
+                void *srcBufPtr = layoutInfo.reuseCclBuffer ? tempAlgParams.cclBufferPtr : tempAlgParams.inputBufferPtr;
+                const u64 srcOff = layoutInfo.reuseCclBuffer ?
+                    GetMeshRsFinalCclOffset(tempAlgParams, layoutInfo, idx, rank) :
+                    GetMeshRsInputOffset(tempAlgParams, idx);
+                txSrcSlices.emplace_back(srcBufPtr, srcOff, curSliceSize, sliceCount);
+                txDstSlices.emplace_back(nullptr,
+                    GetMeshRsTempCclOffset(tempAlgParams, layoutInfo, idx, myAlgRank), curSliceSize, sliceCount);
+            } else {
+                const u64 off = GetMeshRsTempCclOffset(tempAlgParams, layoutInfo, idx, connectedAlgRank);
+                rxSrcSlices.emplace_back(nullptr, off, curSliceSize, sliceCount);
+                rxDstSlices.emplace_back(tempAlgParams.cclBufferPtr, off, curSliceSize, sliceCount);
+            }
+        }
+        if (txSrcSlices.empty() && rxDstSlices.empty()) {
+            continue;
+        }
         txRxSlicesLists.emplace_back(SlicesList(txSrcSlices, txDstSlices),
                                      SlicesList(rxSrcSlices, rxDstSlices), connectedRank, connectedRank);
         HCCL_INFO("[RunMeshReduceScatter] Build TxRxSlicesList: connectedRank=%u, connectedAlgRank=%u, "
-                  "txSrcOffset=%lu, txDstOffset=%lu, rxSrcOffset=%lu, rxDstOffset=%lu, txRxSlicesListNum=%zu",
-                  connectedRank, connectedAlgRank, txSrcSlices[0].offset_, txDstSlices[0].offset_,
-                  rxSrcSlices[0].offset_, rxDstSlices[0].offset_, txRxSlicesLists.size());
+                  "txSliceNum=%zu, rxSliceNum=%zu, txRxSlicesListNum=%zu, reuseCcl=%d",
+                  connectedRank, connectedAlgRank, txSrcSlices.size(), rxDstSlices.size(),
+                  txRxSlicesLists.size(), static_cast<int>(layoutInfo.reuseCclBuffer));
     }
     return HCCL_SUCCESS;
 }
