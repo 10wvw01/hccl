@@ -219,8 +219,8 @@ HcclResult CcuAlgTemplateBase::ReverseChannelPerDieIfNeed(const HcclComm comm, c
     }
     uint32_t portNum0 = 0;
     uint32_t portNum1 = 0;
-    GetChannelBwCoeff(comm, myRankId, channelsPerDie[0][0], portNum0);
-    GetChannelBwCoeff(comm, myRankId, channelsPerDie[1][0], portNum1);
+    CHK_RET(GetChannelBwCoeff(comm, myRankId, channelsPerDie[0][0], portNum0));
+    CHK_RET(GetChannelBwCoeff(comm, myRankId, channelsPerDie[1][0], portNum1));
 
     if (portNum0 < portNum1) {
         // 2个die出框端口数不同，将端口数多的channel放在前面
