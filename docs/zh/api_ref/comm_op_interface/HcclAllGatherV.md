@@ -79,3 +79,41 @@ HcclResult HcclAllGatherV(void *sendBuf, uint64_t sendCount, void *recvBuf, cons
 <!-- npu="310p" id10 -->
 - 针对Atlas 300I Duo 推理卡，仅支持单Server场景，单Server中最大支持部署2张Atlas 300I Duo 推理卡（即4个NPU）。
 <!-- end id10 -->
+## 调用示例
+
+```c
+uint32_t rankSize = 4;
+// 各rank发送的数据量依次为1、2、3、4，数据在recvBuf中连续存放
+uint64_t recvCounts[] = {1, 2, 3, 4};
+uint64_t recvDispls[] = {0, 1, 3, 6};
+uint64_t totalRecvCount = 10;
+uint64_t sendCount = recvCounts[deviceId];
+
+// 申请集合通信操作的Device内存
+void *sendBuf = nullptr;
+void *recvBuf = nullptr;
+size_t sendSize = sendCount * sizeof(float);
+size_t recvSize = totalRecvCount * sizeof(float);
+aclrtMalloc(&sendBuf, sendSize, ACL_MEM_MALLOC_HUGE_ONLY);
+aclrtMalloc(&recvBuf, recvSize, ACL_MEM_MALLOC_HUGE_ONLY);
+
+// 初始化通信域
+HcclComm hcclComm;
+HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
+
+// 创建任务流
+aclrtStream stream;
+aclrtCreateStream(&stream);
+
+// 执行AllGatherV，将各rank不同数据量的数据按偏移量收集到所有rank的recvBuf
+HcclAllGatherV(sendBuf, sendCount, recvBuf, recvCounts, recvDispls,
+               HCCL_DATA_TYPE_FP32, hcclComm, stream);
+// 阻塞等待任务流中的集合通信任务执行完成
+aclrtSynchronizeStream(stream);
+
+// 释放资源
+aclrtFree(sendBuf);          // 释放Device侧内存
+aclrtFree(recvBuf);          // 释放Device侧内存
+aclrtDestroyStream(stream);  // 销毁任务流
+HcclCommDestroy(hcclComm);   // 销毁通信域
+```
