@@ -152,6 +152,76 @@ std::vector<StepSliceInfo> BuildGatherZSteps(GatherSliceContext &ctx)
     return dataSliceLevelz;
 }
 
+// 为单个 oneDid 收集机内斜对角 pieces（X 遍历 yRankSize 过滤 yAxis；Y 遍历 xRankSize 过滤 xAxis）
+void CollectGatherInnerCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff)
+{
+    const auto &gds = isX ? ctx.xGDS : ctx.yGDS;
+    const auto &goff = isX ? ctx.xGOff : ctx.yGOff;
+    u64 range = isX ? ctx.yRankSize : ctx.xRankSize;
+    u64 selfCoord = isX ? ctx.yAxis : ctx.xAxis;
+    u64 crossStride = isX ? ctx.xRankSize : 1;
+    u64 oneDidStride = isX ? 1 : ctx.xRankSize;
+    u64 base = ctx.zAxis * ctx.xRankSize * ctx.yRankSize;
+    for (u64 cds = 0; cds < range; cds++) {
+        if (cds != selfCoord) {
+            u64 pieceId = base + cds * crossStride + oneDid * oneDidStride;
+            u64 sliceSize = gds[pieceId][osn][isn];
+            u64 off = goff[pieceId][osn][isn] + ctx.perLoop[pieceId].offset;
+            sz.push_back(sliceSize);
+            inOff.push_back(off);
+            outOff.push_back(off);
+        }
+    }
+}
+
+// 为单个 oneDid 收集机间同轴 pieces（遍历 zRankSize 过滤 zAxis）
+void CollectGatherOuterSameAxisPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff)
+{
+    const auto &gds = isX ? ctx.xGDS : ctx.yGDS;
+    const auto &goff = isX ? ctx.xGOff : ctx.yGOff;
+    u64 xy = ctx.xRankSize * ctx.yRankSize;
+    u64 fixedPart = isX ? (ctx.yAxis * ctx.xRankSize + oneDid) : (oneDid * ctx.xRankSize + ctx.xAxis);
+    for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
+        if (osn2 != ctx.zAxis) {
+            u64 pieceId = osn2 * xy + fixedPart;
+            u64 sliceSize = gds[pieceId][osn][isn];
+            u64 off = ctx.xyGOff[pieceId][osn] + goff[pieceId][osn][isn] + ctx.total[pieceId].offset;
+            sz.push_back(sliceSize);
+            inOff.push_back(off);
+            outOff.push_back(off);
+        }
+    }
+}
+
+// 为单个 oneDid 收集机间机内双重斜对角 pieces
+void CollectGatherOuterCornerPieces(const GatherSliceContext &ctx, u64 osn, u64 isn, u64 oneDid,
+    bool isX, std::vector<u64> &sz, std::vector<u64> &inOff, std::vector<u64> &outOff)
+{
+    const auto &gds = isX ? ctx.xGDS : ctx.yGDS;
+    const auto &goff = isX ? ctx.xGOff : ctx.yGOff;
+    u64 xy = ctx.xRankSize * ctx.yRankSize;
+    u64 innerRange = isX ? ctx.yRankSize : ctx.xRankSize;
+    u64 innerSelf = isX ? ctx.yAxis : ctx.xAxis;
+    u64 innerStride = isX ? ctx.xRankSize : 1;
+    u64 oneDidStride = isX ? 1 : ctx.xRankSize;
+    for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
+        if (osn2 != ctx.zAxis) {
+            for (u64 cds = 0; cds < innerRange; cds++) {
+                if (cds != innerSelf && innerRange > 1) {
+                    u64 pieceId = osn2 * xy + cds * innerStride + oneDid * oneDidStride;
+                    u64 sliceSize = gds[pieceId][osn][isn];
+                    u64 off = ctx.xyGOff[pieceId][osn] + goff[pieceId][osn][isn] + ctx.total[pieceId].offset;
+                    sz.push_back(sliceSize);
+                    inOff.push_back(off);
+                    outOff.push_back(off);
+                }
+            }
+        }
+    }
+}
+
 // x 轴机内 step（osn < xyCornerStep）：前 xInCornerStep 步同轴，其后机内斜对角
 void BuildGatherXInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> &out)
 {
@@ -172,17 +242,7 @@ void BuildGatherXInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 cds = 0; cds < ctx.yRankSize; cds++) {
-                    u64 curId = ctx.zAxis * ctx.xRankSize * ctx.yRankSize + cds * ctx.xRankSize + oneDid;
-                    if (cds != ctx.yAxis) {
-                        u64 pieceId = curId;
-                        u64 sliceSize = ctx.xGDS[pieceId][osn][isn];
-                        u64 off = ctx.xGOff[pieceId][osn][isn] + ctx.perLoop[pieceId].offset;
-                        sz.push_back(sliceSize);
-                        inOff.push_back(off);
-                        outOff.push_back(off);
-                    }
-                }
+                CollectGatherInnerCornerPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
@@ -198,17 +258,7 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
-                    u64 curId = osn2 * ctx.xRankSize * ctx.yRankSize + ctx.yAxis * ctx.xRankSize + oneDid;
-                    if (osn2 != ctx.zAxis) {
-                        u64 pieceId = curId;
-                        u64 sliceSize = ctx.xGDS[pieceId][osn][isn];
-                        u64 off = ctx.xyGOff[pieceId][osn] + ctx.xGOff[pieceId][osn][isn] + ctx.total[pieceId].offset;
-                        sz.push_back(sliceSize);
-                        inOff.push_back(off);
-                        outOff.push_back(off);
-                    }
-                }
+                CollectGatherOuterSameAxisPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
@@ -217,22 +267,7 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
-                    if (osn2 != ctx.zAxis) {
-                        for (u64 cds = 0; cds < ctx.yRankSize; cds++) {
-                            u64 curId = osn2 * ctx.xRankSize * ctx.yRankSize + cds * ctx.xRankSize + oneDid;
-                            if (cds != ctx.yAxis && ctx.yRankSize > 1) {
-                                u64 pieceId = curId;
-                                u64 sliceSize = ctx.xGDS[pieceId][osn][isn];
-                                u64 off = ctx.xyGOff[pieceId][osn] + ctx.xGOff[pieceId][osn][isn] +
-                                          ctx.total[pieceId].offset;
-                                sz.push_back(sliceSize);
-                                inOff.push_back(off);
-                                outOff.push_back(off);
-                            }
-                        }
-                    }
-                }
+                CollectGatherOuterCornerPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
@@ -260,17 +295,7 @@ void BuildGatherYInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 cds = 0; cds < ctx.xRankSize; cds++) {
-                    u64 curId = ctx.zAxis * ctx.xRankSize * ctx.yRankSize + oneDid * ctx.xRankSize + cds;
-                    if (cds != ctx.xAxis) {
-                        u64 pieceId = curId;
-                        u64 sliceSize = ctx.yGDS[pieceId][osn][isn];
-                        u64 off = ctx.yGOff[pieceId][osn][isn] + ctx.perLoop[pieceId].offset;
-                        sz.push_back(sliceSize);
-                        inOff.push_back(off);
-                        outOff.push_back(off);
-                    }
-                }
+                CollectGatherInnerCornerPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
@@ -286,17 +311,7 @@ void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
-                    u64 curId = osn2 * ctx.xRankSize * ctx.yRankSize + oneDid * ctx.xRankSize + ctx.xAxis;
-                    if (osn2 != ctx.zAxis) {
-                        u64 pieceId = curId;
-                        u64 sliceSize = ctx.yGDS[pieceId][osn][isn];
-                        u64 off = ctx.xyGOff[pieceId][osn] + ctx.yGOff[pieceId][osn][isn] + ctx.total[pieceId].offset;
-                        sz.push_back(sliceSize);
-                        inOff.push_back(off);
-                        outOff.push_back(off);
-                    }
-                }
+                CollectGatherOuterSameAxisPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
@@ -305,22 +320,7 @@ void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
                 std::vector<u64> sz, inOff, outOff;
-                for (u64 osn2 = 0; osn2 < ctx.zRankSize; osn2++) {
-                    if (osn2 != ctx.zAxis) {
-                        for (u64 cds = 0; cds < ctx.xRankSize; cds++) {
-                            u64 curId = osn2 * ctx.xRankSize * ctx.yRankSize + oneDid * ctx.xRankSize + cds;
-                            if (cds != ctx.xAxis && ctx.xRankSize > 1) {
-                                u64 pieceId = curId;
-                                u64 sliceSize = ctx.yGDS[pieceId][osn][isn];
-                                u64 off = ctx.xyGOff[pieceId][osn] + ctx.yGOff[pieceId][osn][isn] +
-                                          ctx.total[pieceId].offset;
-                                sz.push_back(sliceSize);
-                                inOff.push_back(off);
-                                outOff.push_back(off);
-                            }
-                        }
-                    }
-                }
+                CollectGatherOuterCornerPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
             out.push_back(std::move(s));
