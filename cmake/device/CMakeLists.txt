@@ -15,6 +15,10 @@ set(HCCL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../" CACHE PATH "Project top direct
 include(${HCCL_DIR}/cmake/fetch_cann_cmake.cmake)
 project(hccl_device)
 
+# experimental 默认不编入 device; 由 build.sh build_device() 经 -DENABLE_EXPERIMENTAL 转发,
+# 与根 CMakeLists.txt 的同名 option 保持一致, 避免 ENABLE_EXPERIMENTAL 被静默当作未定义
+option(ENABLE_EXPERIMENTAL "Enable experimental features" ON)
+
 # 初始化 CANN 项目配置
 init_cann_project(PREPEND_MODULE_PATH)
 

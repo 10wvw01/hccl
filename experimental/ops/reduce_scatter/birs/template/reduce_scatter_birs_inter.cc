@@ -69,7 +69,7 @@ HcclResult ReduceScatterBIRSInter::HCCSIntraStep(u32 round, const u32 rank, cons
         void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
         void* dst = static_cast<void *>(static_cast<u8 *>(hccs_links[round - 1].remoteOutput.addr) + remoteOffsetByte);
         
-        HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, localStrideSize * serverNum_);
+        CHK_RET(static_cast<HcclResult>(HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, localStrideSize * serverNum_)));
 
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL)));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
@@ -89,7 +89,7 @@ HcclResult ReduceScatterBIRSInter::SIOIntraStep(u32 round, const u32 rank, const
     void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
     void* dst = static_cast<void *>(static_cast<u8 *>(sio_link.remoteOutput.addr) + remoteOffsetByte);
 
-    HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, localStrideSize * serverNum_ / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_));
+    CHK_RET(static_cast<HcclResult>(HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, localStrideSize * serverNum_ / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_))));
 
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL)));
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
@@ -149,7 +149,7 @@ HcclResult ReduceScatterBIRSInter::InterServer(const u32 rank, const u32 rankSiz
         u64 localOffsetByte = vec_offsets[0] + localStrideSize * ((((round) * intraRankSize_ + rank) % rankSize) / intraRankSize_);
         void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
         void* dst = static_cast<void *>(static_cast<u8 *>(channels[((round) * intraRankSize_ + rank) % rankSize].remoteOutput.addr) + remoteOffsetByte);
-        HcommWriteOnThread(mainThread, channels[((round) * intraRankSize_ + rank) % rankSize].handle, dst, src, sliceSize);
+        CHK_RET(static_cast<HcclResult>(HcommWriteOnThread(mainThread, channels[((round) * intraRankSize_ + rank) % rankSize].handle, dst, src, sliceSize)));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, channels[((round) * intraRankSize_ + rank) % rankSize].handle, NOTIFY_IDX_DATA_SIGNAL)));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, channels[((serverNum_ - round) * intraRankSize_ + rank) % rankSize].handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
@@ -161,7 +161,7 @@ HcclResult ReduceScatterBIRSInter::InterServer(const u32 rank, const u32 rankSiz
     for (u32 step = 1; step < serverNum_; step *= 2)
     {
         for (u32 i = 0; i + step < serverNum_; i+=2 * step){
-            LocalReduceCCLToCCL(ptrSz + sliceSize * (i + step), ptrSz + sliceSize * i, sliceSize, mainThread);
+            CHK_RET(LocalReduceCCLToCCL(ptrSz + sliceSize * (i + step), ptrSz + sliceSize * i, sliceSize, mainThread));
         }
     }    
     void* srcSlice = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + ptrSz);
@@ -173,7 +173,7 @@ HcclResult ReduceScatterBIRSInter::InterServer(const u32 rank, const u32 rankSiz
 // scatter的入口函数
 HcclResult ReduceScatterBIRSInter::RunAsync(const u32 rank, const u32 rankSize, std::vector<ChannelInfo> &channels)
 {
-    Preprocess(rank, rankSize, channels);
+    CHK_RET(Preprocess(rank, rankSize, channels));
     u32 rankSizeX_ = 2;
     if (intraRankSize_ % rankSizeX_ != 0) {
         HCCL_ERROR("[ReduceScatterBIRS][RunAsync]intraRankSize_[%u] is not evenly divisible by rankSizeX_[%u]", intraRankSize_, rankSizeX_);
@@ -199,7 +199,7 @@ HcclResult ReduceScatterBIRSInter::RunAsync(const u32 rank, const u32 rankSize, 
     GetNotifyIdxMainToSub(notifyIdxMainToSub_);
     CHK_RET(PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_));
     
-    LocalCopyPreproc(mainThread, rank, sliceSize, localStrideSize);
+    CHK_RET(LocalCopyPreproc(mainThread, rank, sliceSize, localStrideSize));
     
     GetNotifyIdxSubToMain(notifyIdxSubToMain_);
     CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
@@ -207,9 +207,9 @@ HcclResult ReduceScatterBIRSInter::RunAsync(const u32 rank, const u32 rankSize, 
         //MainRecordSub + SubWaitMain
         CHK_RET(PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_));
         
-        HCCSIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
-        SIOIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
-        LocalCopyIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
+        CHK_RET(HCCSIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
+        CHK_RET(SIOIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
+        CHK_RET(LocalCopyIntraStep(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
 
         //SubRecordMain + MainWaitSub
         CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
@@ -218,11 +218,11 @@ HcclResult ReduceScatterBIRSInter::RunAsync(const u32 rank, const u32 rankSize, 
     // MainRecordSub + SubWaitMain
     CHK_RET(PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_));
 
-    PreprocInterServer(rank, rankSize, rankSizeX_, sliceSize, localStrideSize, channels);
+    CHK_RET(PreprocInterServer(rank, rankSize, rankSizeX_, sliceSize, localStrideSize, channels));
 
     CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
     
-    InterServer(rank, rankSize, rankSizeX_, sliceSize, localStrideSize, channels);
+    CHK_RET(InterServer(rank, rankSize, rankSizeX_, sliceSize, localStrideSize, channels));
 
     CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
     HCCL_INFO("ReduceScatterBIRS finished: rank[%u]", rank);
