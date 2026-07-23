@@ -67,6 +67,9 @@ SelectorStatus AllReduceAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayer
         return SelectorStatus::NOT_MATCH;
     }
 
+    selectAlgName = "CcuAllReduceMesh2Die";
+    return SelectorStatus::MATCH;
+
     return SelectMeshAlgo(topoInfo, opParam, selectAlgName);
 }
 
@@ -181,6 +184,9 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
     }
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+
+    selectAlgName = "CcuAllReduceMesh1DMem2Mem2DieOneShot";
+    return SelectorStatus::MATCH;
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {

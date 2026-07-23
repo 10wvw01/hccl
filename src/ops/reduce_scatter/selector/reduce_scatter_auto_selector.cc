@@ -68,6 +68,9 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetL
         return SelectorStatus::NOT_MATCH;
     }
 
+    selectAlgName = "CcuReduceScatterMesh2Die";
+    return SelectorStatus::MATCH;
+
     SelectorStatus ret = SelectMeshAlgoCcums(topoInfo, opParam, selectAlgName);
      if (ret == SelectorStatus::MATCH) {
         HCCL_INFO("[ReduceScatterAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
@@ -164,6 +167,9 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
 
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+
+    selectAlgName = "CcuReduceScatterMeshMem2Mem1D2Die";
+    return SelectorStatus::MATCH;
     if (Is64BitDataType(opParam.DataDes.dataType)) {
         HCCL_WARNING("[ReduceScatterAutoSelector] ccu_schedule mode not support INT64, UINT64, FP64.");
         return SelectorStatus::NOT_MATCH;

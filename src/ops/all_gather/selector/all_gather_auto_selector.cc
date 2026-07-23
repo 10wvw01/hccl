@@ -34,6 +34,9 @@ SelectorStatus AllGatherAutoSelector::SelectCcuMsAlgo(
     HCCL_DEBUG("[AllGatherAutoSelector][%s] start, topoInfo topoLevelNums[%u]", __func__, topoInfo->topoLevelNums);
     (void)configAlgMap;
 
+    selectAlgName = "CcuAllGatherMesh2Die";
+    return SelectorStatus::MATCH;
+
     if (topoInfo->topoLevelNums > 1) {
         HCCL_WARNING("[AllGatherAutoSelector] levelNum > 1 is not supported yet for ccu_ms mode.");
         return SelectorStatus::NOT_MATCH;
@@ -195,6 +198,10 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleAlgo(
     u32 ccuSize = 32;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+
+    selectAlgName = "CcuAllGatherMesh2DieMem2Mem";
+    return SelectorStatus::MATCH;
+
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             constexpr u64 AG_CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 4ULL * 1024 * 1024;
