@@ -54,6 +54,10 @@ HcclResult HcclReduceScatterV(void *sendBuf,  const void *sendCounts, const void
     CHK_PRT_RET(std::all_of(sendCountsAddr, sendCountsAddr + rankSize, [](auto count) { return count == 0; }),
             HCCL_WARNING("input all %u elements in sendCounts are 0, return success", rankSize),
             HCCL_SUCCESS);
+    RPT_INPUT_ERR(sendBuf == nullptr, "EI0003",
+        std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
+        std::vector<std::string>({"HcclReduceScatterV", "nullptr", "sendBuf", "non-null pointer"}));
+    CHK_PTR_NULL(sendBuf);
     u32 userRank = INVALID_VALUE_RANKID;
     CHK_RET(HcclGetRankId(comm, &userRank));
     char commName[COMM_INDENTIFIER_MAX_LENGTH];
@@ -99,6 +103,10 @@ HcclResult HcclReduceScatterVGraphMode(void *sendBuf,  const void *sendCounts, c
     CHK_PRT_RET(std::all_of(sendCountsAddr, sendCountsAddr + rankSize, [](auto count) { return count == 0; }), 
             HCCL_WARNING("input all %u elements in sendCounts are 0, return success", rankSize), 
             HCCL_SUCCESS);  
+    RPT_INPUT_ERR(sendBuf == nullptr, "EI0003",
+        std::vector<std::string>({"ccl_op", "value", "parameter", "expect"}),
+        std::vector<std::string>({"HcclReduceScatterVGraphMode", "nullptr", "sendBuf", "non-null pointer"}));
+    CHK_PTR_NULL(sendBuf);
     u32 userRank = INVALID_VALUE_RANKID;
     CHK_RET(HcclGetRankId(comm, &userRank));
     char commName[COMM_INDENTIFIER_MAX_LENGTH];
