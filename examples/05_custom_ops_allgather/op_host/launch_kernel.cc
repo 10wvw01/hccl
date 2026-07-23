@@ -90,8 +90,13 @@ HcclResult RegisterKernel()
     aclRet = aclrtBinaryGetFunction(g_binHandle, KERNEL_NAME.c_str(), &g_funcHandle);
     if (aclRet != ACL_SUCCESS) {
         HCCL_ERROR("[RegisterKernel] aclrtBinaryGetFunction failed for %s, ret: %d", KERNEL_NAME.c_str(), aclRet);
+        delete[] static_cast<char*>(binBuffer);
+        binBuffer = nullptr;
         return HCCL_E_INTERNAL;
     }
+
+    delete[] static_cast<char*>(binBuffer);
+    binBuffer = nullptr;
 
     g_init = true;
     HCCL_INFO("[RegisterKernel] Success. Function handle: %p", g_funcHandle);
