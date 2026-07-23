@@ -62,7 +62,7 @@ public:
     CostModelManager();
     ~CostModelManager();
 
-    HcclResult InitCostModel(const AllAlgos &allAlgos, const TopoInfoWithNetLayerDetails *topoInfo);
+    HcclResult InitCostModel(const TopoInfoWithNetLayerDetails *topoInfo);
     void InitBandwidth();
 
     // n: 每次发送数据量占总数据量的比例
@@ -76,9 +76,9 @@ public:
     // n: 输入数据占总数据量DataSize的比例
     // B: 出参，接收计算得到的B值
     // 计算本地拷贝的B参数
-    static void CalcLocalCopyParams(float n, float &B);
+    static void CalcLocalCopyParams(float n, int scene, float &B);
     // 计算本地reduce的B参数
-    static void CalcLocalReduceParams(float n, float &B);
+    static void CalcLocalReduceParams(float n, int scene, float &B);
     // 计算Latency参数, taskNum需要写算法的人预估
     static void CalcLatencyParams(int taskNum, float &C);
 
@@ -91,6 +91,8 @@ private:
     float localReduceBw_{};     // 本地reduce带宽
     float crossChipBw_{};       // 跨片带宽
     float crossChipReduceBw_{}; // 跨片reduce带宽
+    float ccuLocalCopyBw_{};    // ccu场景本地拷贝带宽
+    float ccuLocalReduceBw_{};  // ccu场景本地reduce带宽
 };
 
 enum class AlgNetType : int {

@@ -72,14 +72,18 @@ void CostModelManager::InitBandwidth()
     localReduceBw_ = 483;
     crossChipBw_ = 56;
     crossChipReduceBw_ = 56;
-    HCCL_DEBUG("[CostModelManager] localCopyBw=%f localReduceBw=%f crossChipBw=%f crossChipReduceBw=%f.",
-               localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_);
+    ccuLocalCopyBw_ = 200;
+    ccuLocalReduceBw_ = 200;
+    HCCL_DEBUG("[CostModelManager] localCopyBw=%f localReduceBw=%f crossChipBw=%f crossChipReduceBw=%f "
+               "ccuLocalCopyBw=%f ccuLocalReduceBw=%f.",
+               localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_, ccuLocalCopyBw_, ccuLocalReduceBw_);
 }
 
-HcclResult CostModelManager::InitCostModel(const AllAlgos &allAlgos, const TopoInfoWithNetLayerDetails *topoInfo)
+HcclResult CostModelManager::InitCostModel(const TopoInfoWithNetLayerDetails *topoInfo)
 {
     FreeCostModel();
 
+    const AllAlgos &allAlgos = *GetAllAlgos();
     int algNum = allAlgos.count;
     if (algNum <= 0) {
         HCCL_WARNING("[CostModelManager] InitCostModel with empty AllAlgos.");
@@ -159,17 +163,19 @@ void CostModelManager::CalcNHRParams(float n, int netType, int portNum, float &A
     return;
 }
 
-void CostModelManager::CalcLocalCopyParams(float n, float &B)
+void CostModelManager::CalcLocalCopyParams(float n, int scene, float &B)
 {
-    B = n / localCopyBw_;
-    HCCL_DEBUG("[CostModelManager] CalcLocalCopyParams n=%f B=%f.", n, B);
+    float bw = (scene == 1) ? ccuLocalCopyBw_ : localCopyBw_;
+    B = n / bw;
+    HCCL_DEBUG("[CostModelManager] CalcLocalCopyParams n=%f scene=%d B=%f.", n, scene, B);
     return;
 }
 
-void CostModelManager::CalcLocalReduceParams(float n, float &B)
+void CostModelManager::CalcLocalReduceParams(float n, int scene, float &B)
 {
-    B = n / localReduceBw_;
-    HCCL_DEBUG("[CostModelManager] CalcLocalReduceParams n=%f B=%f.", n, B);
+    float bw = (scene == 1) ? ccuLocalReduceBw_ : localReduceBw_;
+    B = n / bw;
+    HCCL_DEBUG("[CostModelManager] CalcLocalReduceParams n=%f scene=%d B=%f.", n, scene, B);
     return;
 }
 

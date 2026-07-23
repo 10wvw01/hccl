@@ -28,7 +28,7 @@ std::vector<CostModelParam> CcuTempAllReduceNHRMem2Mem1D::CalcCostCoeff(u32 rank
     float C = 0.0f;
 
     CostModelManager::CalcNHRParams(n, netType, portNum, A);
-    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLocalReduceParams(n, 1, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

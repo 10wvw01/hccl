@@ -30,7 +30,7 @@ std::vector<CostModelParam> InsTempAllReduceMesh1DTwoShotMeshChunk::CalcCostCoef
     float C = 0.0f;
 
     CostModelManager::CalcMeshParam(2 * n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLocalCopyParams(n, 0, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

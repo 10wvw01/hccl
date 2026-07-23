@@ -30,7 +30,7 @@ std::vector<CostModelParam> CcuTempAllReduceMesh1D::CalcCostCoeff(u32 rankSize)
     float C = 0.0f;
 
     CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, B);
+    CostModelManager::CalcLocalCopyParams(n, 1, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

@@ -39,7 +39,7 @@ std::vector<CostModelParam> InsTempReduceScatterMesh1dDpuInter::CalcCostCoeff(u3
     float C = 0.0f;
 
     CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLocalReduceParams(n, 0, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;

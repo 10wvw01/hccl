@@ -34,8 +34,8 @@ std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff(u32 r
     float B1 = 0.0f;
     float B2 = 0.0f;
     CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, B1);
-    CostModelManager::CalcLocalReduceParams((rankSize - 1) * n, B2);
+    CostModelManager::CalcLocalCopyParams(n, 0, B1);
+    CostModelManager::CalcLocalReduceParams((rankSize - 1) * n, 0, B2);
     B = B1 + B2;
     CostModelManager::CalcLatencyParams(taskNum, C);
 
