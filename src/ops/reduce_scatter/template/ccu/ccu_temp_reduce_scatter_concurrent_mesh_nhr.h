@@ -60,12 +60,12 @@ private:
                                   std::vector<NHRStepInfo>& stepInfoVector, std::map<u32, u32>& rank2ChannelIdx,
                                   std::vector<std::vector<HcclChannelDesc>>& channelsPerDie);
 
+    u32 rankSize_{0};                                
     u32 myMeshRank_{0};
-    u32 myNhrRank_{0};
-    std::vector<u32> meshGroup_;
-    std::vector<u32> nhrGroup_;
-    u32 rankSize_{0};
+    u32 myNhrRank_{0};   
     u64 dataTypeSize_{0};
+    std::vector<u32> meshGroup_;
+    std::vector<u32> nhrGroup_;    
     std::map<u32, std::vector<HcclChannelDesc>> nhrRankIdToChannelDesc_;
     AlgResourceRequest mergedReq_;
 };

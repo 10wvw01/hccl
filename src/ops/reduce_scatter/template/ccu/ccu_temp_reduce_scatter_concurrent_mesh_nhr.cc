@@ -23,12 +23,13 @@ CcuTempReduceScatterConcurrentMeshNHR::CcuTempReduceScatterConcurrentMeshNHR(
     const OpParam& param, const u32 rankId, const std::vector<std::vector<u32>>& subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
-    if (subCommRanks.size() >= 1) {
-        meshGroup_ = subCommRanks[0];
-    }
     if (subCommRanks.size() >= 2) {
         nhrGroup_ = subCommRanks[1];
     }
+    if (subCommRanks.size() >= 1) {
+        meshGroup_ = subCommRanks[0];
+    }
+
     rankSize_ = meshGroup_.size();
     dataTypeSize_ = DATATYPE_SIZE_TABLE[param.DataDes.dataType];
 
@@ -204,10 +205,10 @@ HcclResult CcuTempReduceScatterConcurrentMeshNHR::ProcessNHRStepInfo(HcclComm co
         } else if (enableDieNum == DIE_NUM_2) {
             CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, 0,
                 rank2ChannelIdx, channelsPerDie[0]));
-            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, 1,
-                rank2ChannelIdx, channelsPerDie[1]));
             CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.toRank, nhrRankIdToChannelDesc_, 0,
                 rank2ChannelIdx, channelsPerDie[0]));
+            CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.fromRank, nhrRankIdToChannelDesc_, 1,
+                rank2ChannelIdx, channelsPerDie[1]));
             CHK_RET(SelectChannelToVec(comm, myRank_, stepInfo.toRank, nhrRankIdToChannelDesc_, 1,
                 rank2ChannelIdx, channelsPerDie[1]));
         }
