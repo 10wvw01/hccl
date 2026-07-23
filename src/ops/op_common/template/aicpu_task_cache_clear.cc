@@ -19,7 +19,7 @@ static inline HcclResult LaunchKernelAndSyncStream_(
     aclrtFuncHandle funcHandle, aclrtArgsHandle argsHandle, aclrtStream stream)
 {
     // 下发kernel
-    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒
+    constexpr u16 kernelLaunchTimeout = 27 * 68; // 单位秒, 参考NOTIFY_DEFAULT_WAIT_TIME默认配置
     aclrtLaunchKernelAttr attr{};
     attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
     attr.value.timeout = kernelLaunchTimeout;
@@ -44,6 +44,11 @@ HcclResult AicpuCacheEvitKernelLaunch(HcclComm comm)
     aclrtFuncHandle funcHandle;
     aclrtArgsHandle argsHandle;
 
+    // 共用libscatter_aicpu_kernel.so, 如果没有加载过，当前没有aicpu算子，直接返回即可。
+    if (g_binKernelHandle == nullptr) {
+        HCCL_INFO("[%s] aicpu file not loaded, ignore", __func__);
+        return HCCL_SUCCESS;
+    }
     // 获取function handle
     aclError ret = aclrtBinaryGetFunction(g_binKernelHandle, kernelName, &funcHandle);
     CHK_PRT_RET(ret != ACL_SUCCESS, HCCL_ERROR("[aclrtBinaryGetFunction]errNo[0x%016llx] kernelName:%s", ret, kernelName),
