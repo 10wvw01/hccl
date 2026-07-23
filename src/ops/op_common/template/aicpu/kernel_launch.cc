@@ -488,43 +488,44 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
             HCCL_INFO("[HcclLaunchAicpuKernel] isCacheHit[%d] for cacheTag[%s]", isCacheHit, cacheTag.c_str());
 
             if (!isCacheHit) { // cache miss
-                HcclResult ret = HCCL_SUCCESS;
+                HcclResult cacheRet = HCCL_SUCCESS;
                 do {
                     // 算子展开前, 通知aicpu task cache开始缓存task
                     if (HcommIsSupportHcommAicpuTsTaskCacheStart()) {
-                        ret = static_cast<HcclResult>(
+                        cacheRet = static_cast<HcclResult>(
                             HcommAicpuTsTaskCacheStart(cacheTag.c_str(), addrs, sizes, ADDRS_COUNT));
-                        CHK_PRT_BREAK(ret != HCCL_SUCCESS,
-                            HCCL_ERROR("[%s] HcommAicpuTsTaskCacheStart error, ret[%d]", __func__, ret), (void)0);
+                        CHK_PRT_BREAK(cacheRet != HCCL_SUCCESS,
+                            HCCL_ERROR("[%s] HcommAicpuTsTaskCacheStart error, ret[%d]", __func__, cacheRet), (void)0);
                     }
 
                     // 设置算子展开相关的配置, 下发首个NotifyWait, 构造executor并执行算子展开
-                    ret = OpOrchestrate(param, resCtxPtr, thread, algName);
+                    cacheRet = OpOrchestrate(param, resCtxPtr, thread, algName);
                     CHK_PRT_BREAK(
-                        ret != HCCL_SUCCESS, HCCL_ERROR("[%s] OpOrchestrate error, ret[%d]", __func__, ret), (void)0);
+                        cacheRet != HCCL_SUCCESS, HCCL_ERROR("[%s] OpOrchestrate error, ret[%d]", __func__, cacheRet),
+                        (void)0);
 
                     // 使用aicpu task cache后确保算子展开相关的SQE通过LaunchTask被缓存, 用于cache
                     // miss下避免缓存算法无关的task 注意: cache hit时, task刷新后直接下发, 这里无需强制下发 注意:
                     // hccl无法识别cache容量是否已满; 理论上如果cache容量满了, cache不使能, 无需强制下发
                     // (仅首次执行触发, 开销有限)
-                    ret = EnforceLaunchTask(param->algTag);
-                    CHK_PRT_BREAK(ret != HCCL_SUCCESS,
-                        HCCL_ERROR("[%s] EnforceLaunchTask error, ret[%d]", __func__, ret), (void)0);
+                    cacheRet = EnforceLaunchTask(param->algTag);
+                    CHK_PRT_BREAK(cacheRet != HCCL_SUCCESS,
+                        HCCL_ERROR("[%s] EnforceLaunchTask error, ret[%d]", __func__, cacheRet), (void)0);
 
                     // 算子展开后, 通知aicpu task cache停止缓存task
                     if (HcommIsSupportHcommAicpuTsTaskCacheEnd()) {
-                        ret = static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str()));
-                        CHK_PRT_BREAK(ret != HCCL_SUCCESS,
-                            HCCL_ERROR("[%s] HcommAicpuTsTaskCacheEnd error, ret[%d]", __func__, ret), (void)0);
+                        cacheRet = static_cast<HcclResult>(HcommAicpuTsTaskCacheEnd(cacheTag.c_str()));
+                        CHK_PRT_BREAK(cacheRet != HCCL_SUCCESS,
+                            HCCL_ERROR("[%s] HcommAicpuTsTaskCacheEnd error, ret[%d]", __func__, cacheRet), (void)0);
                     }
                 } while (0);
 
-                if (UNLIKELY(ret != HCCL_SUCCESS)) {
+                if (UNLIKELY(cacheRet != HCCL_SUCCESS)) {
                     if (HcommIsSupportHcommAicpuTsTaskCacheClear()) {
                         HCCL_ERROR("[%s] cache submit error, clear tag[%s]", __func__, cacheTag.c_str());
                         (void)HcommAicpuTsTaskCacheClear(cacheTag.c_str());
                     }
-                    return ret;
+                    return cacheRet;
                 }
 
                 // 首次缓存记录通信域与tag关系

@@ -10,6 +10,7 @@
 
 #include "hccl_comm.h"
 #include "hccl_host_comm_dl.h"
+#include "hcomm_dlsym.h"
 #include "load_kernel.h"
 #include "log.h"
 
@@ -95,6 +96,8 @@ HcclResult AicpuTaskCacheCommStateCallback(HcclComm comm, HcclCommStatePhase sta
 
 __attribute__((constructor)) void RegisterAicpuTaskCacheCallback()
 {
+    // 确保dlsym符号已解析, HcommDlInit内部幂等，HcommIsSupportHcclCommRegCommStateCallback依赖
+    HcommDlInit();
     const char REG_NAME[] = "aicpu_task_cache_callback";
     HCCL_INFO("[%s] start register comm state callback", __func__);
     uint64_t args = 1u; // unused

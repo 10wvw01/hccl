@@ -102,7 +102,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
     if (param.opType == HcclCMDType::HCCL_CMD_BROADCAST) {
         CHK_PRT_RET(!(inputStart == outputStart && inputSize == outputSize),
             HCCL_ERROR("[AicpuTaskCachePolicy][IsInplace] broadcast shoud input==output[0x%016llx, 0x%016llx] "
-                      "inputSize==outputSize[%u,%u]",
+                      "inputSize==outputSize[%llu,%llu]",
                 inputStart, outputStart, inputSize, outputSize),
             HCCL_E_PARA);
         isInplace = false;
