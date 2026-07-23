@@ -14,6 +14,8 @@
 #include "ins_temp_all_gather_nhr.h"
 #include "ins_temp_all_gather_mesh_1D.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
+#include "ins_temp_reduce_scatter_mesh_1D_ocs_dense.h"
+#include "ins_temp_all_gather_mesh_1D_ocs.h"
 
 namespace ops_hccl {
 
@@ -366,7 +368,7 @@ void InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplate0, In
     tempAlgParamsAGL2.tailSize = tailSizeRSL2;
 
     tempAlgParamsAGL2.inputSliceStride = tempAlgParamsAGL2.sliceSize;
-    tempAlgParamsAGL2.outputSliceStride = sliceSizeRSL1;
+    tempAlgParamsAGL2.outputSliceStride = sliceSizeRSL2;
 
     HCCL_INFO("[InsV2AllReduceSequenceExecutorAicpu3Level] loop [%u] AGL2.inputSliceStride [%u], "
         "AGL2.outputSliceStride [%u], AGL2.sliceSize [%u], AGL2.tailSize [%u], "
@@ -527,7 +529,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
 
     u64 scratchMultiplier = algTemplateRSL0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
     u32 cclBuffSliceNum = scratchMultiplier + 1;
-    cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum;
+    cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum / dataTypeSize_ * dataTypeSize_;
     rsResultBuffSize_ = cclBuffSliceSize_;
     meshCommBuffSize_ = scratchMultiplier * cclBuffSliceSize_;
     rsResultBuffOffset_ = 0;
@@ -618,8 +620,8 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE,
     TopoMatchMultilevel,
     InsTempReduceScatterMesh1DZAxisDetour,
     InsTempReduceScatterNHR,
-    InsTempReduceScatterNHR,
-    InsTempAllGatherNHR,
+    InsTempReduceScatterMesh1DOcsDense,
+    InsTempAllGatherMesh1DOcs,
     InsTempAllGatherNHR,
     InsTempAllGatherMesh1D1DZAxisDetour);
 

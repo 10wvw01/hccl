@@ -13,6 +13,7 @@
 #include "alg_data_trans_wrapper.h"
 #include "ins_temp_all_gather_mesh_1D_Z_axis_detour.h"
 #include "ins_temp_all_gather_nhr.h"
+#include "ins_temp_all_gather_mesh_1D_ocs.h"
 
 #include "topo_match_multilevel.h"
 #include "topo_match_ubx.h"
@@ -229,14 +230,14 @@ void InsV2AllGatherSequenceExecutor3Level<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgParamsLevel2.buffInfo.outputSize = param.outputSize;
 
     tempAlgParamsLevel2.buffInfo.inBuffBaseOff = dataOffset;
-    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = 0;
+    tempAlgParamsLevel2.buffInfo.outBuffBaseOff = levels_[2].rankSize * levels_[1].rankSize * curCount * dataTypeSize_;
     tempAlgParamsLevel2.buffInfo.hcclBuffBaseOff = levels_[2].rankSize * levels_[1].rankSize * curCount * dataTypeSize_;
     tempAlgParamsLevel2.sliceSize = curCount * dataTypeSize_;
     tempAlgParamsLevel2.count = curCount;
     tempAlgParamsLevel2.tailSize = tempAlgParamsLevel2.sliceSize;
 
     tempAlgParamsLevel2.inputSliceStride = 0;
-    tempAlgParamsLevel2.outputSliceStride = 0;
+    tempAlgParamsLevel2.outputSliceStride = tempAlgParamsLevel2.sliceSize;
     tempAlgParamsLevel2.repeatNum = 1;
     tempAlgParamsLevel2.inputRepeatStride = 0;
     tempAlgParamsLevel2.outputRepeatStride = 0;
@@ -327,6 +328,6 @@ REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLGATHER,
     TopoMatchMultilevel,
     InsTempAllGatherMesh1D1DZAxisDetour,
     InsTempAllGatherNHR, 
-    InsTempAllGatherNHR);
+    InsTempAllGatherMesh1DOcs);
 }
 // 算法注册

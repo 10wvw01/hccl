@@ -8,27 +8,27 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "ins_temp_reduce_scatter_mesh_1D_ocs.h"
+#include "ins_temp_reduce_scatter_mesh_1D_ocs_sparse.h"
 #include "channel.h"
 
 namespace ops_hccl {
 
-InsTempReduceScatterMesh1DOcs::InsTempReduceScatterMesh1DOcs(
+InsTempReduceScatterMesh1DOcsSparse::InsTempReduceScatterMesh1DOcsSparse(
     const OpParam& param, const u32 rankId, // 传通信域的rankId，userRank
     const std::vector<std::vector<u32>> &subCommRanks)
     : InsTempReduceScatterMesh1D(param, rankId, subCommRanks)
 {
 }
 
-InsTempReduceScatterMesh1DOcs::~InsTempReduceScatterMesh1DOcs()
+InsTempReduceScatterMesh1DOcsSparse::~InsTempReduceScatterMesh1DOcsSparse()
 {
 }
 
-HcclResult InsTempReduceScatterMesh1DOcs::CalcRes(HcclComm comm, const OpParam& param,
+HcclResult InsTempReduceScatterMesh1DOcsSparse::CalcRes(HcclComm comm, const OpParam& param,
     const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
     CHK_PRT_RET(topoInfo == nullptr,
-        HCCL_ERROR("[InsTempReduceScatterMesh1DOcs][CalcRes] topoInfo is nullptr"), HCCL_E_PARA);
+        HCCL_ERROR("[InsTempReduceScatterMesh1DOcsSparse][CalcRes] topoInfo is nullptr"), HCCL_E_PARA);
 
     // 仅在 OCS 层(net_layer_3)上建立 channel，避免误取低层(layer0/1/2)链路
     std::vector<HcclChannelDesc> ocsChannels;
@@ -41,26 +41,61 @@ HcclResult InsTempReduceScatterMesh1DOcs::CalcRes(HcclComm comm, const OpParam& 
     // 若此处漏算将导致从线程数不足、threads[queIdx] 越界取到空 handle(thread[0x0] is nullptr)。
     // 与 InsTempReduceScatterMesh1DZAxisDetour::CalcRes 同样的时序约定。
     channelsPerRank_ = CalcChannelsPerRank(ocsChannels);
-
     // GetRes 为虚函数分发: 这里调用本类 override 的 GetThreadNum()，保证 slaveThreadNum 与
     // RunReduceScatter 的实际线程访问上界一致。
     CHK_RET(GetRes(resourceRequest));
 
-    HCCL_INFO("[InsTempReduceScatterMesh1DOcs][CalcRes] myRank[%u], ocsNetLayer_[%u], channels[%zu], "
+    HCCL_INFO("[InsTempReduceScatterMesh1DOcsSparse][CalcRes] myRank[%u], ocsNetLayer_[%u], channels[%zu], "
         "channelsPerRank_[%u], notifyNumOnMainThread[%u], slaveThreadNum[%u]",
         myRank_, ocsNetLayer_, ocsChannels.size(), channelsPerRank_,
         resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
     return HCCL_SUCCESS;
 }
 
-u64 InsTempReduceScatterMesh1DOcs::GetThreadNum() const
+u64 InsTempReduceScatterMesh1DOcsSparse::GetThreadNum() const
 {
     // 单 rank 时 RunReduceScatter 的循环不会执行(queIdx 不增长)，1 个主线程即可;
     // 多 rank 时每条 channel 各占一个从线程: (templateRankSize_-1) * channelsPerRank_ + 1。
     u32 threadNum = templateRankSize_ > 1 ? ((templateRankSize_ - 1) * channelsPerRank_ + 1) : 1;
-    HCCL_INFO("[InsTempReduceScatterMesh1DOcs][GetThreadNum] templateRankSize_[%u] channelsPerRank_[%u] threadNum[%u]",
+    HCCL_INFO("[InsTempReduceScatterMesh1DOcsSparse][GetThreadNum] templateRankSize_[%u] channelsPerRank_[%u] threadNum[%u]",
         templateRankSize_, channelsPerRank_, threadNum);
     return threadNum;
+}
+
+// ---- RunReduceScatter 偏移计算（OCS 重载：else 分支，使用 (rank+1)%maxBlockNum 偏移公式） ----
+u64 InsTempReduceScatterMesh1DOcsSparse::GetRxSrcOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 myAlgRank, u32 channelIdx) const
+{
+    return tempAlgParam.buffInfo.hcclBuffBaseOff + repeatIdx * tempAlgParam.inputRepeatStride +
+           myAlgRank * tempAlgParam.inputSliceStride + elemOffset_[channelIdx];
+}
+
+u64 InsTempReduceScatterMesh1DOcsSparse::GetRxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 nextRank, u64 outputSliceStride, u32 channelIdx) const
+{
+    return repeatIdx * tempAlgParam.outputRepeatStride +
+           ((subCommRanks_[0][nextRank] + 1) % multiLevelRankSize_) * outputSliceStride + elemOffset_[channelIdx];
+}
+
+u64 InsTempReduceScatterMesh1DOcsSparse::GetTxDstOffset(const TemplateDataParams &tempAlgParam, u32 repeatIdx,
+                                                  u32 myAlgRank, u64 outputSliceStride, u32 channelIdx) const
+{
+    return repeatIdx * tempAlgParam.outputRepeatStride + 
+        (myRank_ + 1) % multiLevelRankSize_ * outputSliceStride + elemOffset_[channelIdx];
+}
+
+// ---- PostCopy 偏移计算（OCS 重载：else 分支，使用 (rank+1)%maxBlockNum 偏移公式） ----
+u64 InsTempReduceScatterMesh1DOcsSparse::GetPostCopySrcOffset(const TemplateDataParams &tempAlgParams, u32 repeatIdx,
+                                                        u32 tmpRank, u64 buffSliceStride) const
+{
+    return repeatIdx * tempAlgParams.outputRepeatStride + 
+        ((subCommRanks_[0][tmpRank] + 1) % multiLevelRankSize_) * buffSliceStride;
+}
+
+void InsTempReduceScatterMesh1DOcsSparse::SetMultiLevelRankSize(u32 rankSize)
+{
+    multiLevelRankSize_ = rankSize;
+    return;
 }
 
 } // namespace ops_hccl
