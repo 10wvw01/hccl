@@ -410,11 +410,13 @@ __aicore__ inline void AivCommBase::Record(uint32_t targetRank, uint64_t flag_of
 
 __aicore__ inline void AivCommBase::ClearSyncBuf()
 {
-    // 用10个flag
-    Barrier(1);
-    ClearFlag();
-    Barrier(DOUBLE);
-    BlockSync();
+    // 跨rank同步：确保上一轮通信所有跨rank flag写入完成，避免清理时丢失信号或残留
+    BarrierAll();
+    // 多核并行清理普通标记区[0, BASE_FLAG_OFFSET)，empty源用AIV_FLAG_EMPTY_OFFSET预置空区
+    ClearGM();
+    SyncAll<true>();
+    // 跨rank同步：确保所有rank清理完成，再开始新一轮通信
+    BarrierAll();
 }
 
 __aicore__ inline void AivCommBase::Barrier(uint32_t step)
@@ -446,9 +448,9 @@ __aicore__ inline void AivCommBase::Barrier(uint32_t step)
 
 __aicore__ inline void AivCommBase::ClearFlag()
 {
-    // 用10个flag
+    // empty 源使用与 ClearGM 一致的真正空区(AIV_FLAG_EMPTY_OFFSET)，避免拷到 Barrier flag 残留脏数据
     __gm__ int32_t *ctrlFlagsGM = (__gm__ int32_t *)(GM_OUT[rank_]);
-    __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + CLEAR_BUFFER_OFFSET);
+    __gm__ int32_t *emtpyGM = (__gm__ int32_t *)(GM_OUT[rank_] + AIV_FLAG_EMPTY_OFFSET - FLAG_ADDR_OFFSET);
     if (blockIdx_ == 0) {
         CpGM2GM(ctrlFlagsGM, emtpyGM, BUFFER_AREA / sizeof(int32_t));
     }
