@@ -85,7 +85,6 @@ HcclResult OpsExecutor::Orchestrate(AlgResourceCtxSerializable &resCtx)
         } else {
             CHK_RET(OrchestrateLoop(algo_.algoExecDesc, algoExecDataDesc));
         }
-
         // 偏移增加
         offsetCount += processCount;
     }
@@ -339,9 +338,16 @@ HcclResult OpsExecutor::GetRes(AlgResourceRequest &resourceRequest)
             resourceRequest.notifyNumPerThread.emplace_back(maxNotifyNumOnMainThread_.at(subCommIndex));
         }
     }
-
     // 全尺寸布局内存，保证所有的template的CCL buffer内存布局一致
     scratchMultiple_ = algo_.hcclCmdType == HCCL_CMD_ALLGATHER ? rankSize_ : 1;
+    // 先递归计算每层等效带宽，并且将每层的快慢轴数据保存到omniPipeXYdataMap_中
+    if (algo_.algoExecDesc.execPolicy == HcclAlgExecPolicy::OMNIPIPE) {
+        u32 eqRankSize = 0;
+        double eqBw;
+        // 根节点是 AlgoExecDesc，UpdateEqBW 递归入口要求 VariantType，用非拥有 shared_ptr 包装避免拷贝/移动
+        VariantType rootVariant = std::shared_ptr<AlgoExecDesc>(&algo_.algoExecDesc, [](AlgoExecDesc *) {});
+        CHK_RET(UpdateEqBW(rootVariant, eqRankSize, eqBw));
+    }
     return HCCL_SUCCESS;
 }
 
@@ -635,53 +641,41 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
 
 HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
-    size_t childrenSize = algoExecDesc.children.size();
-    // OmniPipe 根节点必须是 2 个孩子（x 慢轴 + y 快轴）
-    if (childrenSize != 2) {
-        HCCL_ERROR("[OrchestrateOmniPipeLoop] root children size != 2, actual=%zu.", childrenSize);
+    auto it = omniPipeXYdataMap_.find(&algoExecDesc);
+    if (it == omniPipeXYdataMap_.end()) {
+        HCCL_ERROR("[OpsExecutor] AlgoExecDesc not found in omniPipeXYdataMap_");
         return HCCL_E_INTERNAL;
     }
-    // 先计算每层等效带宽：根的两个孩子分别递归取 (rankSize, eqBw)，再按慢快排序
-    u_int32_t xChildRankSize = 0;
-    u_int32_t yChildRankSize = 0;
-    double xChildEqBw = 0;
-    double yChildEqBw = 0;
-    CHK_RET(CalcEqBW(algoExecDesc.children[0], xChildRankSize, xChildEqBw));
-    CHK_RET(CalcEqBW(algoExecDesc.children[1], yChildRankSize, yChildEqBw));
-    // 保证 eqBwX 是慢轴（<= eqBwY）
-    if (xChildEqBw > yChildEqBw) {
-        std::swap(algoExecDesc.children[0], algoExecDesc.children[1]);
-        std::swap(xChildRankSize, yChildRankSize);
-        std::swap(xChildEqBw, yChildEqBw);
-    }
-    // 假设第一个孩子节点是x慢轴，第二个孩子节点是y快轴，先计算需要几轮循环
-    double scale = 1.0;
-    double bandwidthRatio = yChildEqBw / xChildEqBw;
-    uint32_t steps = CalcOmniPipeSteps(bandwidthRatio, xChildRankSize, OMIN_MAX_STEP_NUM, scale);
-    std::vector<std::vector<AlgoExecDataDesc>> childrenAlgoExecDataDesc;
-    CHK_RET(CalcOmnipipeData(algoExecDesc, steps, childrenAlgoExecDataDesc));
-    for (size_t i = 0; i < steps; i++) {
+    OmniPipeXYdata omniPipeXYdata = it->second;
+    size_t childrenSize = algoExecDesc.children.size();
+    for (size_t i = 0; i < omniPipeXYdata.steps; i++) {
         CHK_RET(PreSyncBySubCommMask(algoExecDesc));
-        for (size_t j = 0; j < childrenSize; ++j) {
+        // 前面UpdateOmniPipeXYdataMap已经确保过了一定是2个子节点
+        for (size_t j = 0; j < childrenSize; j++) {
+            AlgoExecDataDesc childrenAlgoExecDataDesc = algoExecDataDesc;
+            if (j = 0) {
+                // todo 填充慢轴数据
+            } else {
+                // todo 填充快轴数据
+            }
             VariantType &v = algoExecDesc.children[j];
             // 处理 TemplateExecDesc
             if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&v)) {
-                CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(j).at(i)));
+                CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc));
             } // 处理 AlgoExecDesc（递归）
             else if (auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&v)) {
-                CHK_RET(OrchestrateOmniPipeLoop(**algoDescPtr, childrenAlgoExecDataDesc.at(j).at(i)));
+                CHK_RET(OrchestrateOmniPipeLoop(**algoDescPtr, childrenAlgoExecDataDesc));
             } else {
                 return HCCL_E_INTERNAL;
             }
         }
-
         CHK_RET(PostSyncBySubCommMask(algoExecDesc));
     }
 
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw)
+HcclResult OpsExecutor::UpdateEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw)
 {
     if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&algoExecDesc)) {
         // 叶子节点：单轴，eqBw 即本身带宽
@@ -700,13 +694,12 @@ HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSiz
         HCCL_ERROR("[CalcEqBW] algoExecDesc is neither TemplateExecDesc nor shared_ptr<AlgoExecDesc>.");
         return HCCL_E_INTERNAL;
     }
-
     VariantType &xChild = (*algoDescPtr)->children[0];
     VariantType &yChild = (*algoDescPtr)->children[1];
     u32 xChildRankSize = 0, yChildRankSize = 0;
     double xChildEqBw = 0, yChildEqBw = 0;
-    CHK_RET(CalcEqBW(xChild, xChildRankSize, xChildEqBw));
-    CHK_RET(CalcEqBW(yChild, yChildRankSize, yChildEqBw));
+    CHK_RET(UpdateEqBW(xChild, xChildRankSize, xChildEqBw));
+    CHK_RET(UpdateEqBW(yChild, yChildRankSize, yChildEqBw));
 
     // CalcBandwidth2D 内部要求 xB <= yB（慢轴在前），自动按大小排序传入
     if (xChildEqBw > yChildEqBw) {
@@ -715,18 +708,21 @@ HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSiz
         std::swap(xChildEqBw, yChildEqBw);
     }
     eqRankSize = xChildRankSize;
-    u32 steps;
-    double xDataSize[OMIN_MAX_STEP_NUM];
-    double yDataSize[OMIN_MAX_STEP_NUM];
-    eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM, steps, xDataSize, xDataSize);
+    OmniPipeXYdata omniPipeXYdata;
+    eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM,
+        omniPipeXYdata.steps, omniPipeXYdata.xDataSize, omniPipeXYdata.yDataSize);
+    UpdateOmniPipeXYdataMap(**algoDescPtr, omniPipeXYdata);
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
-    std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc)
+inline void OpsExecutor::UpdateOmniPipeXYdataMap(AlgoExecDesc &algoExecDesc, OmniPipeXYdata omniPipeXYdata)
 {
-    // eqBwXY是把快轴和慢轴合并为一个轴看等效带宽是多少
-    return HCCL_SUCCESS;
+    auto it = omniPipeXYdataMap_.find(&algoExecDesc);
+    if (it != omniPipeXYdataMap_.end()) {
+        it->second = omniPipeXYdata;
+    } else {
+        omniPipeXYdataMap_.emplace(&algoExecDesc, omniPipeXYdata);
+    }
 }
 
 HcclResult OpsExecutor::PreSyncSingleSubDomain(u32 subCommIndex)

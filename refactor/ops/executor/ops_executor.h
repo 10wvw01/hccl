@@ -98,8 +98,8 @@ private:
     HcclResult PostSyncSingleSubDomain(u32 subCommIndex);
     HcclResult MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
-    HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc,
-        u32 overrideRoot = INVALID_VALUE_RANKID);
+    HcclResult RunTemplateDesc(
+        TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc, u32 overrideRoot = INVALID_VALUE_RANKID);
     // scatter PARALLEL 按 src 公式为本 rank 所在子通信域重设 root，使 root 落在本 rank 所在组内：
     //   subCommIndex=0 (Mesh, server内 INTRA): newRoot = root%rankSizeLevel0 + rankIdxLevel1*rankSizeLevel0
     //   subCommIndex=1 (NHR, server间 INTER):  newRoot = root/rankSizeLevel0*rankSizeLevel0 + rankIdxLevel0
@@ -108,9 +108,8 @@ private:
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);
-    HcclResult CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw);
-    HcclResult CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const uint32_t steps,
-        std::vector<std::vector<AlgoExecDataDesc>> &childrenAlgoExecDataDesc);
+    HcclResult UpdateEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw);
+    inline void UpdateOmniPipeXYdataMap(AlgoExecDesc &algoExecDesc, OmniPipeXYdata omniPipeXYdata);
     // 引擎指针，由外部通过 SetEngine 注入
     BaseEngine *engine_ = nullptr;
     // algo
@@ -149,6 +148,8 @@ private:
 
     // 递归后用于保存算法执行所需要的流同步信息
     std::map<const AlgoExecDesc *, u32> execDescSubCommMaskMap_;
+    // ominpie递归后保存每个执行描述符的XY轴数据
+    std::map<const AlgoExecDesc *, OmniPipeXYdata> omniPipeXYdataMap_;
 };
 
 } // namespace ops_hccl
