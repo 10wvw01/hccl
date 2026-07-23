@@ -31,7 +31,7 @@ namespace ops_hccl {
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
 CostAlgoParams InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1>::CalcCostCoeff(u32 rankSize)
 {
-    static std::vector<CostModelParam> params = [] {
+    static std::vector<CostModelParam> params = [rankSize] {
         std::vector<CostModelParam> v;
         auto p0 = InsAlgTemplate0::CalcCostCoeff(rankSize);
         v.insert(v.end(), p0.begin(), p0.end());
@@ -39,8 +39,7 @@ CostAlgoParams InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, I
         v.insert(v.end(), p1.begin(), p1.end());
         return v;
     }();
-    static const char *algName = "AllReduceConcurrent";
-    return {algName, params.data(), static_cast<int>(params.size())};
+    return {nullptr, params.data(), static_cast<int>(params.size())};
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1>
@@ -49,7 +48,7 @@ AlgNetMeta InsV2AllReduceConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     AlgNetMeta meta;
     meta.netTypes.push_back(InsAlgTemplate0::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate1::GetNetType());
-    meta.intraGroupMode = CostAggMode::MAX;
+    meta.intraGroupMode = CostAggMode::SUM;
     meta.groupSizes = {2};
     return meta;
 }

@@ -40,8 +40,7 @@ CostAlgoParams InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcCos
 {
     HCCL_DEBUG("[InsV2AllReduceSoleExecutor] CalcCostCoeff delegate to template.");
     static std::vector<CostModelParam> params = InsAlgTemplate::CalcCostCoeff(rankSize);
-    static const char *algName = "AllReduceSole";
-    return {algName, params.data(), static_cast<int>(params.size())};
+    return {nullptr, params.data(), static_cast<int>(params.size())};
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>

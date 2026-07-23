@@ -31,7 +31,7 @@ template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTempla
 CostAlgoParams InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, InsAlgTemplate2,
     InsAlgTemplate3>::CalcCostCoeff(u32 rankSize)
 {
-    static std::vector<CostModelParam> params = [] {
+    static std::vector<CostModelParam> params = [rankSize] {
         std::vector<CostModelParam> v;
         auto p0 = InsAlgTemplate0::CalcCostCoeff(rankSize); v.insert(v.end(), p0.begin(), p0.end());
         auto p1 = InsAlgTemplate1::CalcCostCoeff(rankSize); v.insert(v.end(), p1.begin(), p1.end());
@@ -39,8 +39,7 @@ CostAlgoParams InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
         auto p3 = InsAlgTemplate3::CalcCostCoeff(rankSize); v.insert(v.end(), p3.begin(), p3.end());
         return v;
     }();
-    static const char *algName = "AllReduceSequenceAicpu";
-    return {algName, params.data(), static_cast<int>(params.size())};
+    return {nullptr, params.data(), static_cast<int>(params.size())};
 }
 
 template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
