@@ -20,20 +20,21 @@ InsTempAllReduceNHR::~InsTempAllReduceNHR(){}
 std::vector<CostModelParam> InsTempAllReduceNHR::CalcCostCoeff(u32 rankSize)
 {
     (void)rankSize;
-    HCCL_DEBUG("[InsTempAllReduceNHR] CalcCostCoeff.");
-    float n = 1.0f;
-    int netType = 0;
-    int portNum = 0;
-    int taskNum = 1;
+    float n = 1.0f / rankSize;
+    int netType = 1;
+    int portNum = 6;
+    int taskNum = 10;
     float A = 0.0f;
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcNHRParams(n, netType, portNum, A);
+    CostModelManager::CalcNHRParams((rankSize - 1) * n * 2, netType, portNum, A);
+    CostModelManager::CalcLocalCopyParams(n , B)
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 

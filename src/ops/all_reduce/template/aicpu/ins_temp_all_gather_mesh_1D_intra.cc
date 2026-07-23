@@ -23,11 +23,10 @@ InsTempAllGatherMesh1dIntra::~InsTempAllGatherMesh1dIntra() {}
 std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff(u32 rankSize)
 {
     (void)rankSize;
-    HCCL_DEBUG("[InsTempAllGatherMesh1dIntra] CalcCostCoeff.");
-    float n = 1.0f;
+    float n = 1.0 / rankSize;
     int netType = 0;
     int portNum = 0;
-    int taskNum = 1;
+    int taskNum = 6;
     float A = 0.0f;
     float B = 0.0f;
     float C = 0.0f;
@@ -38,6 +37,7 @@ std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff(u32 rankS
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 

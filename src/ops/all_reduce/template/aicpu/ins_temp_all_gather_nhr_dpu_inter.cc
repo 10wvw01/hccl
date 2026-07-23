@@ -23,7 +23,6 @@ InsTempAllGatherNhrDpuInter::InsTempAllGatherNhrDpuInter(const OpParam& param, c
 std::vector<CostModelParam> InsTempAllGatherNhrDpuInter::CalcCostCoeff(u32 rankSize)
 {
     (void)rankSize;
-    HCCL_DEBUG("[InsTempAllGatherNhrDpuInter] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;
@@ -38,6 +37,7 @@ std::vector<CostModelParam> InsTempAllGatherNhrDpuInter::CalcCostCoeff(u32 rankS
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 

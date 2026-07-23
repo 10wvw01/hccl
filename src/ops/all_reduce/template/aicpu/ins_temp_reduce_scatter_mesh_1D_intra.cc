@@ -23,8 +23,7 @@ InsTempReduceScatterMesh1DIntra::~InsTempReduceScatterMesh1DIntra()
 std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff(u32 rankSize)
 {
     (void)rankSize;
-    HCCL_DEBUG("[InsTempReduceScatterMesh1DIntra] CalcCostCoeff.");
-    float n = 1.0f;
+    float n = 1.0f / rankSize;
     int netType = 0;
     int portNum = 0;
     int taskNum = 1;
@@ -32,12 +31,17 @@ std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff(u32 r
     float B = 0.0f;
     float C = 0.0f;
 
+    float B1 = 0.0f;
+    float B2 = 0.0f;
     CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalReduceParams(n, B);
+    CostModelManager::CalcLocalCopyParams(n, B1);
+    CostModelManager::CalcLocalReduceParams((rankSize - 1) * n, B2);
+    B = B1 + B2;
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 

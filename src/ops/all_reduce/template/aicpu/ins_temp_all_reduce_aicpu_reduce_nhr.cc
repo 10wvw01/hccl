@@ -21,22 +21,19 @@ InsTempAllReduceAicpuReduceNHR::InsTempAllReduceAicpuReduceNHR(const OpParam &pa
 
 std::vector<CostModelParam> InsTempAllReduceAicpuReduceNHR::CalcCostCoeff(u32 rankSize)
 {
+    // 用aicpu做reduce，不参与性能排序，
     (void)rankSize;
-    HCCL_DEBUG("[InsTempAllReduceAicpuReduceNHR] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;
-    int taskNum = 1;
-    float A = 0.0f;
+    int taskNum = 10;
+    float A = 10.0f;
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcNHRParams(n, netType, portNum, A);
-    CostModelManager::CalcLocalReduceParams(n, B);
-    CostModelManager::CalcLatencyParams(taskNum, C);
-
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 
