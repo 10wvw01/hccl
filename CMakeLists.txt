@@ -149,7 +149,51 @@ elseif(BUILD_OPEN_PROJECT)
     if(ENABLE_EXPERIMENTAL)
         add_subdirectory(experimental/ops/)
     endif()
+    
+    function(add_cann_device_project component)
+        if(NOT TOPLEVEL_PROJECT)
+            return()
+        endif()
+        if(DEFINED ENABLE_BUILD_DEVICE AND NOT ENABLE_BUILD_DEVICE)
+            return()
+        endif()
 
+        set(EP_CMAKE_ARGS)
+        if(ASCEND_CANN_PACKAGE_PATH)
+            list(APPEND EP_CMAKE_ARGS "-D" "ASCEND_CANN_PACKAGE_PATH=${ASCEND_CANN_PACKAGE_PATH}")
+        else()
+            list(APPEND EP_CMAKE_ARGS "-D" "ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}")
+        endif()
+        if(HI_PYTHON)
+            list(APPEND EP_CMAKE_ARGS "-D" "HI_PYTHON=${HI_PYTHON}")
+        endif()
+
+        include(ExternalProject)
+        ExternalProject_Add(cann_device
+            SOURCE_DIR ${CMAKE_SOURCE_DIR}/cmake/device
+            BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
+            CMAKE_ARGS
+                ${EP_CMAKE_ARGS}
+                -D TOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc
+                -D CMAKE_TOOLCHAIN_FILE=${CANN_CMAKE_DIR}/toolchain/aarch64-hcc-toolchain.cmake
+                -D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
+                -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                -D ENABLE_EXPERIMENTAL=${ENABLE_EXPERIMENTAL}
+                -D ENABLE_SIGN=${ENABLE_SIGN}
+                -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
+                -D VERSION_INFO=${VERSION_INFO}
+                -D ENABLE_OPEN_SRC=TRUE
+                -D BUILD_OPEN_PROJECT=TRUE
+            INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
+            BUILD_ALWAYS TRUE
+        )
+        install(FILES
+            ${CMAKE_BINARY_DIR}/device_build/device-${component}.tar.gz
+            DESTINATION .
+            COMPONENT ${component}
+        )
+    endfunction()
+    
     # Device 侧编译构建
     if(ENABLE_DEVICE)
         add_cann_device_project(hccl)

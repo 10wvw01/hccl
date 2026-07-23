@@ -131,7 +131,7 @@ HcclResult ReduceScatterBIRS::HCCSProcessMainLoop(u32 round, const u32 rank, con
         void* src = static_cast<void *>(static_cast<u8 *>(scratchMem_.addr) + localOffsetByte);
         void* dst = static_cast<void *>(static_cast<u8 *>(hccs_links[round - 1].remoteOutput.addr) + remoteOffsetByte);
         
-        HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, sliceSize);
+        CHK_RET(static_cast<HcclResult>(HcommWriteOnThread(subThreads[0], hccs_links[round - 1].handle, dst, src, sliceSize)));
 
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(subThreads[0], hccs_links[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL)));
         CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(subThreads[0], hccs_links_reversed[round - 1].handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
@@ -149,7 +149,7 @@ HcclResult ReduceScatterBIRS::SIOProcessMainLoop(u32 round, const u32 rank, cons
     void* src = static_cast<void *>(static_cast<u8 *>(inputMem_.addr) + localOffsetByte);
     void* dst = static_cast<void *>(static_cast<u8 *>(sio_link.remoteOutput.addr) + remoteOffsetByte);
 
-    HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, sliceSize / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_));
+    CHK_RET(static_cast<HcclResult>(HcommWriteReduceOnThread(mainThread, sio_link.handle, dst, src, sliceSize / unitSize, static_cast<HcommDataType>(dataType_), static_cast<HcommReduceOp>(reductionOp_))));
     
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyRecordOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL)));
     CHK_RET(static_cast<HcclResult>(HcommChannelNotifyWaitOnThread(mainThread, sio_link.handle, NOTIFY_IDX_DATA_SIGNAL, CUSTOM_TIMEOUT)));
@@ -192,7 +192,7 @@ HcclResult ReduceScatterBIRS::RunAsync(const u32 rank, const u32 rankSize, std::
     HCCL_INFO("ReduceScatterBIRS run: rank[%u] rankSize[%u] inputMem[%p] to outputMem[%p] count[%llu]", \
               rank, rankSize, inputMem_.addr, outputMem_.addr, count_);
     
-    Preprocess(rank, rankSize, channels);
+    CHK_RET(Preprocess(rank, rankSize, channels));
 
     u32 rankSizeX_ = 2;
     if (rankSize % rankSizeX_ != 0) {
@@ -229,11 +229,11 @@ HcclResult ReduceScatterBIRS::RunAsync(const u32 rank, const u32 rankSize, std::
         //MainRecordSub + SubWaitMain
         CHK_RET(PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_));
         
-        HCCSProcessMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
+        CHK_RET(HCCSProcessMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
         
-        SIOProcessMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
+        CHK_RET(SIOProcessMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
 
-        LocalCopyMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
+        CHK_RET(LocalCopyMainLoop(round, rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
 
         //SubRecordMain + MainWaitSub
         CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
@@ -242,7 +242,7 @@ HcclResult ReduceScatterBIRS::RunAsync(const u32 rank, const u32 rankSize, std::
     // MainRecordSub + SubWaitMain
     CHK_RET(PreSyncInterThreads(mainThread, subThreads, notifyIdxMainToSub_));
 
-    FinalStep(rank, rankSize, rankSizeX_, sliceSize, localStrideSize);
+    CHK_RET(FinalStep(rank, rankSize, rankSizeX_, sliceSize, localStrideSize));
 
     CHK_RET(PostSyncInterThreads(mainThread, subThreads, notifyIdxSubToMain_));
 
