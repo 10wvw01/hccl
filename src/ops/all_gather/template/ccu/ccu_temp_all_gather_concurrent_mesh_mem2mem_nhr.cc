@@ -287,8 +287,7 @@ HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::SaveSubmitInfos(TemplateRes
         CcuKernelSubmitInfo meshSubmit;
         meshSubmit.kernelHandle = templateResource.ccuKernels[0];
         CHK_RET(FillCachedArgs(meshSubmit,
-            meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::INPUT],
-            meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::OUTPUT],
+            meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::INPUT], meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::OUTPUT],
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::TOKEN],
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::CUR_RANK_SLICE_IN_OFF],
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::CUR_RANK_SLICE_OUT_OFF],
@@ -302,16 +301,14 @@ HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::SaveSubmitInfos(TemplateRes
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::GO_SIZE_LOOP_PARAM],
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::GO_SIZE_PARALLEL_PARAM],
             meshTaskArgs[CcuAllGatherMesh1DMem2MemArgLayout::GO_SIZE_RESIDUAL],
-            templateDataParams.buffInfo.inBuffBaseOff,
-            templateDataParams.buffInfo.outBuffBaseOff));
+            templateDataParams.buffInfo.inBuffBaseOff, templateDataParams.buffInfo.outBuffBaseOff));
         templateResource.submitInfos.push_back(meshSubmit);
     }
     if (hasNhr) {
         CcuKernelSubmitInfo nhrSubmit;
         nhrSubmit.kernelHandle = templateResource.ccuKernels[meshKernelNum];
         CHK_RET(FillCachedArgs(nhrSubmit,
-            nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::INPUT],
-            nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::OUTPUT],
+            nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::INPUT], nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::OUTPUT],
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::TOKEN],
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::DIE0_SIZE],
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::DIE1_SIZE],
@@ -323,9 +320,7 @@ HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::SaveSubmitInfos(TemplateRes
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::IS_INPUT_OUTPUT_EQUAL],
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::DIE0_LAST_SIZE],
             nhrTaskArgs[CcuAllGatherNHR1DMem2MemArgLayout::DIE1_LAST_SIZE],
-            templateDataParams.buffInfo.inBuffBaseOff + meshSize,
-            templateDataParams.buffInfo.outBuffBaseOff + meshSize,
-            mySubCommRank_));
+            templateDataParams.buffInfo.inBuffBaseOff + meshSize, templateDataParams.buffInfo.outBuffBaseOff + meshSize, mySubCommRank_));
         templateResource.submitInfos.push_back(nhrSubmit);
         if (nhrKernelNum > 1) {
             CcuKernelSubmitInfo nhrSubmit1 = nhrSubmit;
