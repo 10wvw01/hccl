@@ -192,10 +192,7 @@ HcclResult AppendFastLaunchTag(OpParam &param, const char* dataTypeStr,
         if (!s) return true;
         size_t len = strlen(s);
         if (len >= remain) return false;
-        if (memcpy_s(dst, remain, s, len) != EOK) {
-            HCCL_ERROR("memcpy_s failed in append_str.");
-            return false;
-        }
+        memcpy_s(dst, remain, s, len);
         dst += len;
         remain -= len;
         return true;
@@ -276,9 +273,7 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         return false;
     }
-    if (SetOpParamFastLaunchTag(param) != HCCL_SUCCESS) {
-        return false;
-    }
+    CHK_RET(SetOpParamFastLaunchTag(param));
 
     // 2. 查到engineCtx
     uint64_t size = 0;
@@ -2317,11 +2312,7 @@ HcclResult DecideHcclOpExpansionMode(HcclComm comm, HcclOpExpansionMode &finalMo
     // A5仅通过HcclConfigGetInfo获取展开模式，其他型号保留环境变量方式
     DevType deviceType = DevType::DEV_TYPE_COUNT;
     CHK_RET(hrtGetDeviceType(deviceType));
-    #ifdef MACRO_DEV_TYPE_NEW
-    if (deviceType != DevType::DEV_TYPE_950 || !useConfigOpExpansionMode) {
-    #else
-    if (deviceType != DevType::DEV_TYPE_910_95 || !useConfigOpExpansionMode) {
-    #endif
+    if (!shouldGoOutPlace(deviceType) || !useConfigOpExpansionMode) {
         if (GetExternalInputHcclAicpuUnfold() == true) {
             finalMode = HcclOpExpansionMode::HCCL_OP_EXPANSION_MODE_AI_CPU;
         } else if (GetExternalInputHcclAivOnlyMode() == true) {

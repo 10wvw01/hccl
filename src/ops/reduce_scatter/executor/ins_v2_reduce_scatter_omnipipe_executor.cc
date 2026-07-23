@@ -95,7 +95,6 @@ HcclResult InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
                                                         : OmniNeedSetStepNum::OMNIPIPE_DEFAULT;
         if (!algHierarchyInfo_.infos[1].empty()){
             subCommRanks2 = algHierarchyInfo_.infos[1];
-            omniNeedSetStepNum_ = (subCommRanks2[0].size() > 1) ? OmniNeedSetStepNum::OMNIPIPE_UBX_32P : omniNeedSetStepNum_;
         } else {
             subCommRanks2.emplace_back(std::vector<u32>{myRank_});
         }
@@ -329,7 +328,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     // 1.计算带宽
     double bw_rs_l0 = BW_OMNI_DEFAULT;
     double bw_rs_l1 = BW_OMNI_DEFAULT;
-    double bw_rs_l2 = BW_OMNI_UBX_ROCE;
+    double bw_rs_l2 = BW_OMNI_DEFAULT;
 
     if (resCtx.topoInfo.level0PcieMix) {
         if (rankSizeLevel1_==RANK_SIZE_LEVEL_2) {
@@ -379,7 +378,6 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
     scratchParam.maxTmpMemSize = resCtx.cclMem.size;
     scratchParam.opMode = param.opMode;
     scratchParam.engine = param.engine;
-    scratchParam.needSetStepNum = omniNeedSetStepNum_;
     std::vector<u64> loopInfo = CalcOmniPipeScratchInfo(scratchParam);
     u64 maxCountPerLoop = loopInfo[0];
     u64 loopTimes = loopInfo[1];
@@ -485,6 +483,7 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
                 HCCL_DEBUG("rankSizeLevel2_ > 1");
                 GenTemplateAlgParamsByDimData(tempAlgParamMap[OMNIPIPE_LEVEL2], omnipipeSliceInfo.dataSliceLevel2[i]);
                 CHK_RET(PreSyncInterThreads(controlThread_, tempMainThreadsLevel2_, notifyIdxCtrlToTempLevel2_));
+                CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2], tempResMap[OMNIPIPE_LEVEL2]));
             }
             // 5.4 for内层2d
             for (int j = 0; j < level0StepCount; j++) {
@@ -510,7 +509,6 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
             }
             if (rankSizeLevel2_ > 1) {
                 // z轴尾同步
-                CHK_RET(tempMap[OMNIPIPE_LEVEL2]->KernelRun(param, tempAlgParamMap[OMNIPIPE_LEVEL2], tempResMap[OMNIPIPE_LEVEL2]));
                 CHK_RET(PostSyncInterThreads(controlThread_, tempMainThreadsLevel2_, notifyIdxTempToCtrlLevel2_));
                 HCCL_DEBUG("PostSyncInterThreads z success.");
             }

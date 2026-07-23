@@ -57,7 +57,7 @@ SelectorStatus AllGatherAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
             selectAlgName = "CcuAllGatherMesh2Die";
             return SelectorStatus::MATCH;
-         } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
+        } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
             HCCL_INFO("[%s] TWO_DIE_NOT_REGULAR not match", __func__);
             return SelectorStatus::NOT_MATCH;
         } else {
@@ -125,14 +125,18 @@ SelectorStatus AllGatherAutoSelector::SelectCcuScheduleUBXAlgo(
 SelectorStatus AllGatherAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(
     const TopoInfoWithNetLayerDetails *topoInfo, std::string &selectAlgName, const u64 dataSize) const
 {
-    (void) dataSize;
     if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_REGULAR) {
         selectAlgName = "CcuAllGatherMesh2DieMem2Mem";
     } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
         HCCL_DEBUG("[AllGatherAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
         return SelectorStatus::NOT_MATCH;
     } else {
-        selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+        if (IsDevType960() && dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
+            selectAlgName = "CcuAllGatherSoleMeshScheConcur";
+        } else
+        {
+            selectAlgName = "CcuAllGatherMesh1DMem2Mem";
+        }
     }
     HCCL_DEBUG("[AllGatherAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;
@@ -356,12 +360,6 @@ SelectorStatus AllGatherAutoSelector::SelectAivAlgo(
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] rankSize[%u] larger than [%u]",
             __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
-        return SelectorStatus::NOT_MATCH;
-    }
-
-    if (topoInfo->level2Ubg) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllGatherAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
-            __func__);
         return SelectorStatus::NOT_MATCH;
     }
 

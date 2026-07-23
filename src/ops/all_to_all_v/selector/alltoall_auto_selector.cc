@@ -74,7 +74,11 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
                 HCCL_DEBUG("[AlltoAllAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
                 return SelectorStatus::NOT_MATCH;
             } else {
-                selectAlgName = "CcuAlltoAllMesh1D";
+                if (dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
+                    selectAlgName = "CcuAllToAllSoleMeshScheConcur";
+                } else {
+                    selectAlgName = "CcuAlltoAllMesh1D";
+                }
             }
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             // PCIE-SW定制机型，Mesh无法链接全卡时，需要跨pcie链路，不支持ccu模式
@@ -174,12 +178,6 @@ SelectorStatus AlltoAllAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDet
         return SelectorStatus::NOT_MATCH;
     }
 
-    if (topoInfo->level2Ubg) {
-        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
-            __func__);
-        return SelectorStatus::NOT_MATCH;
-    }
-
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
             __func__);
@@ -222,7 +220,7 @@ SelectorStatus AlltoAllAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDet
     HCCL_INFO("hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+        if ((topoInfo->deviceNumPerModule == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
             selectAlgName = "InsAlltoAllMesh1DDPU";
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
