@@ -39,6 +39,11 @@ private:
     HcclResult CalcDataSplit(const TemplateDataParams& templateDataParams,
                              TemplateDataParams& meshParams, TemplateDataParams& nhrParams,
                              u64& meshCount, u64& nhrCount) const;
+    HcclResult LaunchMeshKernel(const TemplateDataParams& meshParams, TemplateResource& templateResource,
+                                u64 baseInputAddr, u64 baseOutputAddr, uint64_t token,
+                                const LoopGroupConfig& config);
+    HcclResult LaunchNhrKernel(const TemplateDataParams& nhrParams, TemplateResource& templateResource,
+                               u64 baseInputAddr, u64 baseOutputAddr, uint64_t token);
     HcclResult CalcMeshRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
                            CcuKernelInfo& meshKernelInfo);
     HcclResult CalcNhrRes(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,

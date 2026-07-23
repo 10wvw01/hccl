@@ -91,8 +91,7 @@ SelectorStatus ReduceScatterAutoSelector::SelectMeshAlgoCcums(const TopoInfoWith
         } else {
             if (IsDevType960() && (dataSize * topoInfo->userRankSize > SMALL_COUNT_16M || !IsTwoLevelNetLayer(topoInfo))) {
                 selectAlgName = "CcuReduceScatterSoleMeshMSConcur";
-            } else
-            {
+            } else {
                 selectAlgName = "CcuReduceScatterMesh1D";
             }
         }

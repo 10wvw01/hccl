@@ -144,9 +144,9 @@ HcclResult CcuTempAllReduceConcurrentMeshNHR::GetAllGatherStepInfo(u32 step, u32
     u32 deltaSliceIndex = 1u << (nSteps - step);
     u32 txSliceIdx = virtRankIdx;
     u32 rxSliceIdx = (virtRankIdx - (1u << (nSteps - 1 - step)) + rs) % rs;
-
-    stepInfo.nSlices = nSlices;
+   
     stepInfo.toRank = ranks[sendTo];
+    stepInfo.nSlices = nSlices;
     stepInfo.fromRank = ranks[recvFrom];
 
     for (u32 i = 0; i < nSlices; i++) {
@@ -326,17 +326,76 @@ HcclResult CcuTempAllReduceConcurrentMeshNHR::CalcDataSplit(const TemplateDataPa
     return HCCL_SUCCESS;
 }
 
+HcclResult CcuTempAllReduceConcurrentMeshNHR::LaunchMeshKernel(const TemplateDataParams& meshParams,
+    TemplateResource& templateResource, u64 baseInputAddr, u64 baseOutputAddr, uint64_t token,
+    const LoopGroupConfig& config)
+{
+    u64 inputAddr = baseInputAddr + meshParams.buffInfo.inBuffBaseOff;
+    u64 outputAddr = baseOutputAddr + meshParams.buffInfo.outBuffBaseOff;
+    RankSliceInfo meshSliceInfoVec;
+    CHK_RET(CalcSlice(meshParams.sliceSize, meshSliceInfoVec));
+    u64 offset = meshSliceInfoVec[myMeshRank_][0].offset;
+    u64 meshPerRankSize = meshSliceInfoVec[myMeshRank_][0].size;
+    auto goSize = CalGoSize(meshPerRankSize, config, GetCcuVersion());
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, offset,
+                                      goSize[0], goSize[1], goSize[2], goSize[3]};
+    CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0],
+        templateResource.ccuKernels[0], taskArgs.data(), taskArgs.size());
+    CHK_PRT_RET(launchRet != CCU_SUCCESS,
+        HCCL_ERROR("[CcuTempAllReduceConcurrentMeshNHR][LaunchMeshKernel] launch failed, ccuRet -> %d", launchRet),
+        ConvertCcuToHccl(launchRet));
+    CcuKernelSubmitInfo meshSubmit;
+    meshSubmit.kernelHandle = templateResource.ccuKernels[0];
+    CHK_RET(FillCachedArgs(meshSubmit, inputAddr, outputAddr, token, offset,
+        goSize[0], goSize[1], goSize[2], goSize[3],
+        meshParams.buffInfo.inBuffBaseOff, meshParams.buffInfo.outBuffBaseOff));
+    templateResource.submitInfos.push_back(meshSubmit);
+    return HCCL_SUCCESS;
+}
+
+HcclResult CcuTempAllReduceConcurrentMeshNHR::LaunchNhrKernel(const TemplateDataParams& nhrParams,
+    TemplateResource& templateResource, u64 baseInputAddr, u64 baseOutputAddr, uint64_t token)
+{
+    u64 inputAddr = baseInputAddr + nhrParams.buffInfo.inBuffBaseOff;
+    u64 outputAddr = baseOutputAddr + nhrParams.buffInfo.outBuffBaseOff;
+    u64 die0Size = nhrParams.sliceSize;
+    u64 die1Size = 0;
+    u64 isInputOutputEqual = (inputAddr == outputAddr) ? 1 : 0;
+    RankSliceInfo die0SliceInfoVec;
+    RankSliceInfo die1SliceInfoVec;
+    CHK_RET(CalcSlice(die0Size, die0SliceInfoVec));
+    CHK_RET(CalcSlice(die1Size, die1SliceInfoVec));
+    u32 nhrRankSize = nhrGroup_.size();
+    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, isInputOutputEqual,
+                                      die0Size, die1Size,
+                                      die0SliceInfoVec[0][0].size, die1SliceInfoVec[0][0].size,
+                                      die0SliceInfoVec[nhrRankSize - 1][0].size,
+                                      die1SliceInfoVec[nhrRankSize - 1][0].size};
+    CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[MESH_THREAD_NUM_AR],
+        templateResource.ccuKernels[1], taskArgs.data(), taskArgs.size());
+    CHK_PRT_RET(launchRet != CCU_SUCCESS,
+        HCCL_ERROR("[CcuTempAllReduceConcurrentMeshNHR][LaunchNhrKernel] launch failed, ccuRet -> %d", launchRet),
+        ConvertCcuToHccl(launchRet));
+    CcuKernelSubmitInfo nhrSubmit;
+    nhrSubmit.kernelHandle = templateResource.ccuKernels[1];
+    CHK_RET(FillCachedArgs(nhrSubmit, inputAddr, outputAddr, token, isInputOutputEqual,
+        die0Size, die1Size, die0SliceInfoVec[0][0].size, die1SliceInfoVec[0][0].size,
+        die0SliceInfoVec[nhrRankSize - 1][0].size, die1SliceInfoVec[nhrRankSize - 1][0].size,
+        nhrParams.buffInfo.inBuffBaseOff, nhrParams.buffInfo.outBuffBaseOff));
+    templateResource.submitInfos.push_back(nhrSubmit);
+    return HCCL_SUCCESS;
+}
+
 HcclResult CcuTempAllReduceConcurrentMeshNHR::KernelRun(const OpParam& param,
     const TemplateDataParams& templateDataParams, TemplateResource& templateResource)
 {
-    // 1.数据切分
+    (void)param;
     TemplateDataParams meshParams;
     TemplateDataParams nhrParams;
     u64 meshCount = 0;
     u64 nhrCount = 0;
     CHK_RET(CalcDataSplit(templateDataParams, meshParams, nhrParams, meshCount, nhrCount));
 
-    // 2.公共地址
     const u64 baseInputAddr = PointerToAddr(templateDataParams.buffInfo.inputPtr);
     const u64 baseOutputAddr = PointerToAddr(templateDataParams.buffInfo.outputPtr);
     u64 nhrDataOff = templateDataParams.buffInfo.inBuffBaseOff + meshCount * dataTypeSize_;
@@ -349,72 +408,19 @@ HcclResult CcuTempAllReduceConcurrentMeshNHR::KernelRun(const OpParam& param,
     config.loopCount = CCU_MS_DEFAULT_LOOP_COUNT;
     config.memSlice = CCU_MS_SIZE;
 
-    // 3.前同步：mesh 主(threads[0]) 通知 nhr 主(threads[1])，notifyIdx=1（避开 kernel 内部用的 notify[0]）
     ThreadHandle meshMain = templateResource.threads[0];
     ThreadHandle nhrMain = templateResource.threads[MESH_THREAD_NUM_AR];
     std::vector<ThreadHandle> subThreads = {nhrMain};
-    std::vector<u32> notifyIdxMainToSub = {1};
-    CHK_RET(PreSyncInterThreads(meshMain, subThreads, notifyIdxMainToSub));
+    CHK_RET(PreSyncInterThreads(meshMain, subThreads, {1}));
 
-    // 4.下发 mesh kernel（threads[0], ccuKernels[0]）：8 个 taskArgs
     if (meshCount > 0 && meshParams.sliceSize > 0) {
-        u64 inputAddr = baseInputAddr + meshParams.buffInfo.inBuffBaseOff;
-        u64 outputAddr = baseOutputAddr + meshParams.buffInfo.outBuffBaseOff;
-        RankSliceInfo meshSliceInfoVec;
-        CHK_RET(CalcSlice(meshParams.sliceSize, meshSliceInfoVec));
-        u64 offset = meshSliceInfoVec[myMeshRank_][0].offset;
-        u64 meshPerRankSize = meshSliceInfoVec[myMeshRank_][0].size;
-        auto goSize = CalGoSize(meshPerRankSize, config, GetCcuVersion());
-        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, offset,
-                                          goSize[0], goSize[1], goSize[2], goSize[3]};
-        CcuResult launchRet = HcommCcuKernelLaunch(meshMain, templateResource.ccuKernels[0],
-            taskArgs.data(), taskArgs.size());
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempAllReduceConcurrentMeshNHR][KernelRun] mesh launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-        CcuKernelSubmitInfo meshSubmit;
-        meshSubmit.kernelHandle = templateResource.ccuKernels[0];
-        CHK_RET(FillCachedArgs(meshSubmit, inputAddr, outputAddr, token, offset,
-            goSize[0], goSize[1], goSize[2], goSize[3],
-            meshParams.buffInfo.inBuffBaseOff, meshParams.buffInfo.outBuffBaseOff));
-        templateResource.submitInfos.push_back(meshSubmit);
+        CHK_RET(LaunchMeshKernel(meshParams, templateResource, baseInputAddr, baseOutputAddr, token, config));
     }
-
-    // 5.下发 nhr kernel（threads[1], ccuKernels[1]）：10 个 taskArgs
     if (nhrCount > 0 && nhrParams.sliceSize > 0) {
-        u64 inputAddr = baseInputAddr + nhrParams.buffInfo.inBuffBaseOff;
-        u64 outputAddr = baseOutputAddr + nhrParams.buffInfo.outBuffBaseOff;
-        u64 die0Size = nhrParams.sliceSize;
-        u64 die1Size = 0;
-        u64 isInputOutputEqual = (inputAddr == outputAddr) ? 1 : 0;
-        RankSliceInfo die0SliceInfoVec;
-        RankSliceInfo die1SliceInfoVec;
-        CHK_RET(CalcSlice(die0Size, die0SliceInfoVec));
-        CHK_RET(CalcSlice(die1Size, die1SliceInfoVec));
-        u32 nhrRankSize = nhrGroup_.size();
-        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, token, isInputOutputEqual,
-                                          die0Size, die1Size,
-                                          die0SliceInfoVec[0][0].size, die1SliceInfoVec[0][0].size,
-                                          die0SliceInfoVec[nhrRankSize - 1][0].size,
-                                          die1SliceInfoVec[nhrRankSize - 1][0].size};
-        CcuResult launchRet = HcommCcuKernelLaunch(nhrMain, templateResource.ccuKernels[1],
-            taskArgs.data(), taskArgs.size());
-        CHK_PRT_RET(launchRet != CCU_SUCCESS,
-            HCCL_ERROR("[CcuTempAllReduceConcurrentMeshNHR][KernelRun] nhr launch failed, ccuRet -> %d", launchRet),
-            ConvertCcuToHccl(launchRet));
-        CcuKernelSubmitInfo nhrSubmit;
-        nhrSubmit.kernelHandle = templateResource.ccuKernels[1];
-        CHK_RET(FillCachedArgs(nhrSubmit, inputAddr, outputAddr, token, isInputOutputEqual,
-            die0Size, die1Size, die0SliceInfoVec[0][0].size, die1SliceInfoVec[0][0].size,
-            die0SliceInfoVec[nhrRankSize - 1][0].size, die1SliceInfoVec[nhrRankSize - 1][0].size,
-            nhrParams.buffInfo.inBuffBaseOff, nhrParams.buffInfo.outBuffBaseOff));
-        templateResource.submitInfos.push_back(nhrSubmit);
+        CHK_RET(LaunchNhrKernel(nhrParams, templateResource, baseInputAddr, baseOutputAddr, token));
     }
 
-    // 6.后同步
-    std::vector<u32> notifyIdxSubToMain = {0};
-    CHK_RET(PostSyncInterThreads(meshMain, subThreads, notifyIdxSubToMain));
-
+    CHK_RET(PostSyncInterThreads(meshMain, subThreads, {0}));
 
     HCCL_INFO("[CcuTempAllReduceConcurrentMeshNHR][KernelRun] done, meshCount[%llu], nhrCount[%llu]",
         meshCount, nhrCount);

@@ -62,6 +62,18 @@ public:
 
 private:
     void CalcDataSplit(u64 totalSize, u64 dataTypeSize, u64 &meshSize, u64 &closSize) const;
+    HcclResult BuildMeshTaskArgs(const TemplateDataParams &templateDataParams, u64 meshSliceSize,
+                                 uint64_t token, std::vector<uint64_t> &meshTaskArgs);
+    HcclResult BuildClosTaskArgs(const TemplateDataParams &templateDataParams, u64 meshSliceSize,
+                                 u64 closSliceSize, uint64_t token, std::vector<uint64_t> &closTaskArgs);
+    HcclResult LaunchConcurrentKernels(TemplateResource &templateResource, bool hasMesh, bool hasClos,
+                                       const std::vector<uint64_t> &meshTaskArgs,
+                                       const std::vector<uint64_t> &closTaskArgs);
+    HcclResult SaveSubmitInfos(TemplateResource &templateResource, const std::vector<uint64_t> &meshTaskArgs,
+                               const std::vector<uint64_t> &closTaskArgs, u64 meshSliceSize,
+                               bool hasMesh, bool hasClos, const BuffInfo &buff);
+    HcclResult PatchMeshArgs(const TemplateFastLaunchCtx &ctx);
+    HcclResult PatchClosArgs(const TemplateFastLaunchCtx &ctx, u32 meshKernelNum);
 
     uint32_t mySubCommRank_ = 0;
 };

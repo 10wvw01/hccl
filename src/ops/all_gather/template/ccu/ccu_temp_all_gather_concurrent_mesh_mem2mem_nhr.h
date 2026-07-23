@@ -94,10 +94,26 @@ public:
     u64 CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType) override;
 
 private:
-    // 按带宽比切分当前 chunk 的 count
     void CalcDataSplit(u64 totalCount, u64 dataTypeSize, u64 &meshCount, u64 &closCount) const;
-    // NHR 2-die 切分(从 CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies 搬来,纯数学)
     void CalcNhrDieSplit(u64 sliceSize, u64 typeSize, u64 &die0Size, u64 &die1Size) const;
+    HcclResult BuildMeshTaskArgs(const OpParam &param, const TemplateDataParams &templateDataParams,
+                                 u64 meshSize, u64 meshTailSize, std::vector<uint64_t> &meshTaskArgs);
+    HcclResult BuildNhrTaskArgs(const OpParam &param, const TemplateDataParams &templateDataParams,
+                                u64 closSize, u64 closTailSize, u64 meshSize, u32 nhrKernelNum,
+                                std::vector<uint64_t> &nhrTaskArgs);
+    HcclResult LaunchMeshKernel(TemplateResource &templateResource, const std::vector<uint64_t> &meshTaskArgs);
+    HcclResult LaunchNhrKernels(TemplateResource &templateResource, const std::vector<uint64_t> &nhrTaskArgs,
+                                 u32 meshKernelNum, u32 nhrKernelNum);
+    HcclResult LaunchConcurrentKernels(TemplateResource &templateResource, u32 meshKernelNum, u32 nhrKernelNum,
+                                       bool hasMesh, bool hasNhr,
+                                       const std::vector<uint64_t> &meshTaskArgs,
+                                       const std::vector<uint64_t> &nhrTaskArgs);
+    HcclResult SaveSubmitInfos(TemplateResource &templateResource, const std::vector<uint64_t> &meshTaskArgs,
+                               const std::vector<uint64_t> &nhrTaskArgs, u64 meshSize, u32 meshKernelNum,
+                               u32 nhrKernelNum, bool hasMesh, bool hasNhr,
+                               const TemplateDataParams &templateDataParams);
+    HcclResult PatchMeshArgs(const TemplateFastLaunchCtx &ctx);
+    HcclResult PatchNhrArgs(const TemplateFastLaunchCtx &ctx, u32 meshKernelNum);
 
     uint32_t mySubCommRank_ = 0;
 };
