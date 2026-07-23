@@ -26,6 +26,10 @@ constexpr u64 RS_CCU_64P_MIN_DATA_SIZE = 128 * 1024 * 1024;
 constexpr u64 RS_CCU_64P_SEQ_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 RS_CCU_8P_MIN_DATA_SIZE = 64 * 1024 * 1024;
 constexpr u64 RS_AICPU_SEQUENCE_SIZE_THRESHOLD = 4ULL * 1024 * 1024 * 1024;
+
+constexpr u32 RS_CCU_2DIE_RANK_SIZE = 16;
+constexpr u64 RS_CCU_2DIE_MIN_DATA_SIZE = 4 * 1024 * 1024;
+constexpr u64 RS_CCU_2DIE_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_RS_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_SCHED_DATA_SIZE = 4 * 1024 * 1024;
 constexpr u64 OMNI_UBX_RS_MS_DATA_SIZE = 2 * 1024 * 1024;
@@ -183,7 +187,13 @@ SelectorStatus ReduceScatterAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWi
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                 HCCL_WARNING("[ReduceScatterAutoSelector] dataType[%d] is not supported yet for ccu schedule mode.",
                     opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
-                if ((dataSize * topoInfo->userRankSize) < RS_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize && (!IsInputOutputOverlap(opParam))) {
+                // 16p 且总数据量在 [4M, 16M] 时选择 2Die mem2mem 算法
+                if (topoInfo->userRankSize == RS_CCU_2DIE_RANK_SIZE &&
+                    dataSize * topoInfo->userRankSize >= RS_CCU_2DIE_MIN_DATA_SIZE &&
+                    dataSize * topoInfo->userRankSize <= RS_CCU_2DIE_MAX_DATA_SIZE) {
+                    selectAlgName = "CcuReduceScatterMeshMem2Mem1D2Die";
+                    return SelectorStatus::MATCH;
+                } else if ((dataSize * topoInfo->userRankSize) < RS_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize && (!IsInputOutputOverlap(opParam))) {
                     selectAlgName = "CcuReduceScatterMesh1DMem2Mem";
                     return SelectorStatus::MATCH;
                 } else if (dataSize * topoInfo->userRankSize < RS_CCU_64P_SEQ_DATA_SIZE && topoInfo->userRankSize < ccuSize) {
@@ -441,6 +451,12 @@ SelectorStatus ReduceScatterAutoSelector::SelectAivAlgo(const TopoInfoWithNetLay
 {
     HCCL_DEBUG("[ReduceScatterAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     
+    if (topoInfo->level2Ubg) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceScatterAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
             __func__);
@@ -499,7 +515,11 @@ SelectorStatus ReduceScatterAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLay
     HCCL_INFO("topoInfo->topoLevelNums is %u, topoInfo->level0Topo is %u", topoInfo->topoLevelNums, topoInfo->level0Topo);
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+        if ((topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
+            selectAlgName = "InsReduceScatterSequenceMeshMeshDPU";
+            HCCL_DEBUG("[ReduceScatterAutoSelector][%s] Algo match[%s]", __func__, selectAlgName.c_str());
+            return SelectorStatus::MATCH;
+        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
             if (!topoInfo->level0PcieMix) {
                 selectAlgName = "InsV2ReduceScatterOmniPipe";
                 HCCL_INFO("Using algo InsV2ReduceScatterOmniPipe");

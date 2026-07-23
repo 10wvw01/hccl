@@ -216,4 +216,4 @@ private:
 };
 }
 
-#endif /* EXECUTOR_BASE_PUB_H */
+#endif // EXECUTOR_BASE_PUB_H

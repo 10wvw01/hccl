@@ -442,7 +442,7 @@ HcclResult InsTempUBXAllToAllVMesh1D::InitParam(const OpParam& param,
         threadNum_, scratchBufferSizePerRank_, dataStridePerRank_, curProcessedDataCount_, curDataCount_, curDataSize_);
 
     for (u32 i = 0; i < templateRankSize_; i++) {
-        HCCL_DEBUG("[InsTempUBXAllToAllVMesh1D] rank is [%u], sendCounts[%u] is [%llu],  recvCounts[%u] is [%llu], "
+        HCCL_DEBUG("[InsTempUBXAllToAllVMesh1D] rank is [%u], sendCounts[%u] is [%llu], recvCounts[%u] is [%llu], "
             "sdispls[%u] is [%llu], rdispls[%u] is [%llu]",
             myAlgRank_, i, tempAlgParams.sendCounts[i], i, tempAlgParams.recvCounts[i],
             i, tempAlgParams.sdispls[i], i, tempAlgParams.rdispls[i]);

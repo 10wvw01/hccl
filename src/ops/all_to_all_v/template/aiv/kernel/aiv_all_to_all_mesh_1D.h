@@ -19,28 +19,24 @@ public:
  
     __aicore__ inline void InitCommon(uint32_t sliceId)
     {
-        uint64_t smallDataSize = 512 * 1024;
         dataSize_ = len_ * sizeof(T);
         coreIdx_ = blockIdx_;
-        // 小数据量情况下，缩减实际使用核数
-        if (dataSize_ <= smallDataSize && numBlocks_ > rankSize_) {
-            coreNum_ = rankSize_;
-        } else {
-            coreNum_ = numBlocks_;
-        }
+        coreNum_ = numBlocks_;
         curTag_ = (static_cast<uint32_t>(tag_) << AIV_TAG_MOVE_RIGHT_BITS) | (sliceId & LOW_16_BITS);
     }
 
     __aicore__ inline void Process()
     {
-        if (coreIdx_ >= coreNum_) {
-            return;
-        }
-
-        if (coreNum_ >= rankSize_) {
-            ProcessMultiCore();
-        } else {
+        uint64_t smallDataSize = 512 * 1024;
+        if (numBlocks_ < rankSize_) {
+            // 少核场景
             ProcessMultiRank();
+        } else if (dataSize_ <= smallDataSize) {
+            // 多核小数据量场景
+            ProcessSmallData();
+        } else {
+            // 多核大数据量场景
+            ProcessMultiCore();
         }
     }
 
@@ -141,6 +137,30 @@ private:
             pipe_barrier(PIPE_ALL);
         }
     }
+
+    __aicore__ inline void ProcessSmallData()
+    {
+        if (coreIdx_ >= rankSize_) {
+            return;
+        }
+
+        uint32_t dstRank = coreIdx_;
+
+        // PutRemote
+        srcOffset_ = input_ + dstRank * inputSliceStride_;
+        dstOffset_ = reinterpret_cast<uint64_t>(GM_IN[dstRank]) + rank_ * dataSize_;
+        CpGM2GM((__gm__ T *)dstOffset_, (__gm__ T *)srcOffset_, len_);
+        pipe_barrier(PIPE_ALL);
+
+        Record(dstRank, rank_, curTag_);  // 按照数据源rank编排flag的偏移量
+
+        // PostCopy
+        WaitFlag(rank_, dstRank, curTag_);
+
+        srcOffset_ = reinterpret_cast<uint64_t>(GM_IN[rank_]) + dstRank * dataSize_;
+        dstOffset_ = output_ + dstRank * outputSliceStride_;
+        CpGM2GM((__gm__ T *)dstOffset_, (__gm__ T *)srcOffset_, len_);
+    }
  
     __aicore__ inline void SplitData(uint64_t dataCount, uint64_t splitNum, uint64_t idx,
         uint64_t& sliceOffset, uint64_t& sliceCount)
@@ -176,22 +196,28 @@ private:
 template<typename T>
 __aicore__ inline void AivAlltoAllV2Mesh1D(KERNEL_ARGS_DEF)
 {
+    bool usePingPongBuffer = 0;
+    if (len * sizeof(T) <= DATA_LIMIT) {
+        usePingPongBuffer = 1;
+    }
+
     AivAlltoAllMesh1D<T> op;
-    op.Init(KERNEL_CLASS_INIT, true);
+    op.Init(KERNEL_CLASS_INIT, true, usePingPongBuffer);
     op.InitCommon(sliceId);
     if (op.IsFirstOP(sliceId)) {
         op.BarrierForFirstOP();
     }
     op.Process();
-    op.BarrierAll();
+    if (usePingPongBuffer == 0) {
+        op.BarrierAll();
+    }
 }
 
 template<typename T>
 __aicore__ inline void AivAlltoAllV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     AivAlltoAllMesh1D<T> op;
-    op.Init(SUPERKERNEL_CLASS_INIT);
-
+    op.Init(SUPERKERNEL_CLASS_INIT, false);
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;
 

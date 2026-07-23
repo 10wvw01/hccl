@@ -72,11 +72,18 @@ HcclResult AivTempAlltoAllMesh1D::CalNumBlocks(u32& numBlocks, u64 dataSize, u32
         numBlocksLimit = std::min(numBlocksLimit, maxBlocks);
     }
 
-    if (numBlocksLimit >= tempRankSize_) {
-        numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
-    } else {
+    u64 smallDataSize = 512 * 1024;
+    HCCL_DEBUG("[AivTempAlltoAllMesh1D] dataSize is [%llu]", dataSize);
+    if (numBlocksLimit < tempRankSize_) {
+        // 少核场景
         u32 rankPerCore = (tempRankSize_ + numBlocksLimit - 1) / numBlocksLimit;  // 向上取整
         numBlocks = (tempRankSize_ + rankPerCore - 1) / rankPerCore;  // 向上取整
+    } else if (dataSize <= smallDataSize) {
+        // 多核小数据量场景
+        numBlocks = tempRankSize_;
+    } else {
+        // 多核大数据量场景
+        numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
     }
 
     HCCL_INFO("[AivTempAlltoAllMesh1D] Actually use core num[%u]", numBlocks);
