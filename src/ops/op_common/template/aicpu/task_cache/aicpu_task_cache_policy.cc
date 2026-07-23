@@ -128,6 +128,7 @@ HcclResult AicpuTaskCachePolicy::IsInplaceForCache(const OpParam &param, const u
 
 bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &resCtx)
 {
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)    
     for (const auto& levelChannels : resCtx.channels) {
         for (const auto& channel : levelChannels) {
             if (!channel.isValid) {
@@ -146,6 +147,11 @@ bool AicpuTaskCachePolicy::IsTopoSupported(const AlgResourceCtxSerializable &res
         }
     }
     return true;
+#else
+    // 小于9.1.0版本，不支持aicpu task cache，直接返回false;
+    (void)resCtx;
+    return false;
+#endif
 }
 
 bool AicpuTaskCachePolicy::IsOpTypeSupported(HcclCMDType opType)
