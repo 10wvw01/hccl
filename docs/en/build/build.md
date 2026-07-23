@@ -144,7 +144,7 @@ Replace the software package name in the command with the actual package name.
 
 ## Testing
 
-### LLT Testing
+### UT Testing
 
 After installing the compiled HCCL software package, run the following command to execute LLT test cases:
 

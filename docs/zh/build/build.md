@@ -144,7 +144,7 @@ bash ./build_out/cann-hccl_<version>_linux-<arch>.run --uninstall
 
 ## 测试
 
-### LLT测试
+### UT测试
 
 安装完编译生成的HCCL软件包后，可通过如下命令执行LLT用例。
 
