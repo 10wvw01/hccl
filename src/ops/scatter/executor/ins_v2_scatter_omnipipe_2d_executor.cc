@@ -49,14 +49,14 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
     const OpParam &param, const TopoInfoWithNetLayerDetails *topoInfo,
     const AlgHierarchyInfoForAllLevel &algHierarchyInfo)
 {
+    dataType_ = param.DataDes.dataType;
+    dataCount_ = param.DataDes.count;
+    rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
+    dataTypeSize_ = HCCL_SIZE_TABLE[param.DataDes.dataType];
+    dataSize_ = dataCount_ * dataTypeSize_;
     myRank_ = topoInfo->userRank;
     rankSize_ = topoInfo->userRankSize;
     devType_ = topoInfo->deviceType;
-    dataType_ = param.DataDes.dataType;
-    dataCount_ = param.DataDes.count;
-    dataTypeSize_ = HCCL_SIZE_TABLE[param.DataDes.dataType];
-    dataSize_ = dataCount_ * dataTypeSize_;
-    rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
 
     if (rankSizeLevel0_ == 0) {
         HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);

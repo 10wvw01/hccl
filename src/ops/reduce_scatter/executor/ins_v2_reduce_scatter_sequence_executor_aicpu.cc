@@ -125,20 +125,20 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     // 参数填充
     myRank_ = resCtx.topoInfo.userRank;
     rankSize_ = resCtx.topoInfo.userRankSize;
+    threads_ = resCtx.threads;
+    algHierarchyInfo_ = resCtx.algHierarchyInfo;
     dataCount_ = param.DataDes.count;
     dataType_ = param.DataDes.dataType;
     reduceOp_ = param.reduceType;
     dataTypeSize_ =  HCCL_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-    algHierarchyInfo_ = resCtx.algHierarchyInfo;
-    threads_ = resCtx.threads;
-
-    rankSizeLevel0_ = algHierarchyInfo_.infos[0][0].size();
-    rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
 
     rankIdxLevel0_ = myRank_ % algHierarchyInfo_.infos[0][0].size();
     rankIdxLevel1_ = myRank_ / algHierarchyInfo_.infos[0][0].size();
     
+    rankSizeLevel0_ = algHierarchyInfo_.infos[0][0].size();
+    rankSizeLevel1_ = algHierarchyInfo_.infos[1][0].size();
+
     // ccu无channel数据，跳过RestoreChannelMap
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         CHK_RET(RestoreChannelMap(resCtx, remoteRankToChannelInfo_));
