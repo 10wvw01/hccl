@@ -23,7 +23,7 @@
 
 | 编号 | 标题 | 作者 | 状态 | PR |
 |------|------|------|------|-----|
-| 0001 | BIRS (Batchsize Invariant ReduceScatter) for A3 | Davydov_Danil | accepted | [#1440](https://gitcode.com/cann/hccl/merge_requests/1440) |
+| 0001 | BIRS (Batchsize Invariant ReduceScatter) for A3 | Davydov_Danil | accepted | [#1440](https://gitcode.com/cann/hccl/pull/1440) |
 
 ## 编号规则
 

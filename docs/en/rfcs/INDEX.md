@@ -23,7 +23,7 @@ This document registers all assigned RFC numbers. Before adding a new RFC, claim
 
 | Number | Title | Author | Status | PR |
 |------|------|------|------|-----|
-| 0001 | BIRS (Batchsize Invariant ReduceScatter) for A3 | Davydov_Danil | accepted | [#1440](https://gitcode.com/cann/hccl/merge_requests/1440) |
+| 0001 | BIRS (Batchsize Invariant ReduceScatter) for A3 | Davydov_Danil | accepted | [#1440](https://gitcode.com/cann/hccl/pull/1440) |
 
 ## Numbering Rules
 
