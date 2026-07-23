@@ -56,15 +56,10 @@ HcclResult AivTempAlltoAllVMesh1D::CalNumBlocks(u32& numBlocks, u64 dataSize, u3
 {
     (void) dataSize;
     HCCL_INFO("[AivTempAlltoAllVMesh1D] Limit core num[%u]", numBlocksLimit);
-    if (numBlocksLimit == 0) {
-        HCCL_ERROR("[AivTempAlltoAllVMesh1D] numBlocksLimit is 0");
+    numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
+    if (numBlocks == 0) {
+        HCCL_ERROR("[AivTempAlltoAllVMesh1D] core num[%u] is less than rankSize[%u]", numBlocksLimit, tempRankSize_);
         return HcclResult::HCCL_E_NOT_SUPPORT;
-    }
-    if (numBlocksLimit < tempRankSize_) {
-        numBlocks = numBlocksLimit;
-    } else {
-        // 多核一 rank，对齐到 rankSize 倍数
-        numBlocks = numBlocksLimit / tempRankSize_ * tempRankSize_;
     }
     HCCL_INFO("[AivTempAlltoAllVMesh1D] Actually use core num[%u]", numBlocks);
     return HcclResult::HCCL_SUCCESS;
