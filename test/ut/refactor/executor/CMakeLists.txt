@@ -18,6 +18,7 @@ set(UT_EXECUTOR_SRC
     ut_stubs.cc
     # 直接编译被测源文件
     ${CMAKE_SOURCE_DIR}/refactor/ops/executor/ops_executor.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/executor/omnipipe_utils.cc    
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel_request.cc
     # template 源文件 (template_factory 内联实例化模板子类，需 vtable)

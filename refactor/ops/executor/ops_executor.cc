@@ -593,14 +593,29 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
 
 HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
 {
-    // 假设第一个孩子节点是x慢轴，第二个孩子节点是y快轴，先计算需要几轮循环
-    //  先计算每层等效带宽
-    double eqBwX = 0;
-    double eqBwY = 0;
-    double eqBwXY = 0;
-    CHK_RET(CalcEqBW(algoExecDesc, eqBwX, eqBwY, eqBwXY));
-    uint32_t steps = CalcOmnipipeSteps(eqBwX, eqBwY, algoExecDesc);
     size_t childrenSize = algoExecDesc.children.size();
+    // OmniPipe 根节点必须是 2 个孩子（x 慢轴 + y 快轴）
+    if (childrenSize != 2) {
+        HCCL_ERROR("[OrchestrateOmniPipeLoop] root children size != 2, actual=%zu.", childrenSize);
+        return HCCL_E_INTERNAL;
+    }
+    // 先计算每层等效带宽：根的两个孩子分别递归取 (rankSize, eqBw)，再按慢快排序
+    u_int32_t xChildRankSize = 0;
+    u_int32_t yChildRankSize = 0;
+    double xChildEqBw = 0;
+    double yChildEqBw = 0;
+    CHK_RET(CalcEqBW(algoExecDesc.children[0], xChildRankSize, xChildEqBw));
+    CHK_RET(CalcEqBW(algoExecDesc.children[1], yChildRankSize, yChildEqBw));
+    // 保证 eqBwX 是慢轴（<= eqBwY）
+    if (xChildEqBw > yChildEqBw) {
+        std::swap(algoExecDesc.children[0], algoExecDesc.children[1]);
+        std::swap(xChildRankSize, yChildRankSize);
+        std::swap(xChildEqBw, yChildEqBw);
+    }
+    // 假设第一个孩子节点是x慢轴，第二个孩子节点是y快轴，先计算需要几轮循环
+    double scale = 1.0;
+    double bandwidthRatio = yChildEqBw / xChildEqBw;
+    uint32_t steps = CalcOmniPipeSteps(bandwidthRatio, xChildRankSize, OMIN_MAX_STEP_NUM, scale);
     std::vector<std::vector<AlgoExecDataDesc>> childrenAlgoExecDataDesc;
     CHK_RET(CalcOmnipipeData(algoExecDesc, steps, childrenAlgoExecDataDesc));
     for (size_t i = 0; i < steps; i++) {
@@ -624,12 +639,53 @@ HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, Algo
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::CalcEqBW(const AlgoExecDesc &algoExecDesc, double &eqBwX, double &eqBwY, double &eqBwXY)
+HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSize, double &eqBw)
 {
-    // TODO: 从 algoExecDesc 解析每层 rankSize 和原始带宽，调用 omnipipe_utils.h:CalcBandwidth2D 求 eqBwXY
-    eqBwX = 0.0;
-    eqBwY = 0.0;
-    eqBwXY = 0.0;
+    if (TemplateExecDesc *templateExeDes = std::get_if<TemplateExecDesc>(&algoExecDesc)) {
+        // 叶子节点：单轴，eqBw 即本身带宽
+        uint32_t subCommIndex = templateExeDes->subCommIndex;
+        eqRankSize = algHierarchyInfo_.infos.at(subCommIndex).size();
+        eqBw = (subCommIndex == 0) ? OMIN_MESH_BW : OMIN_CLOS_BW / eqRankSize;
+        return HCCL_SUCCESS;
+    }
+
+    auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&algoExecDesc);
+    if (algoDescPtr == nullptr) {
+        HCCL_ERROR("[CalcEqBW] algoExecDesc is neither TemplateExecDesc nor shared_ptr<AlgoExecDesc>.");
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+    // OmniPipe 中间节点必须是 2 个孩子（x 慢轴 + y 快轴），否则算不了等效带宽
+    if ((*algoDescPtr)->children.size() != 2) {
+        HCCL_ERROR("[CalcEqBW] children size != 2, actual=%zu.", (*algoDescPtr)->children.size());
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+
+    VariantType &xChild = (*algoDescPtr)->children[0];
+    VariantType &yChild = (*algoDescPtr)->children[1];
+    u_int32_t xChildRankSize = 0, yChildRankSize = 0;
+    double xChildEqBw = 0, yChildEqBw = 0;
+    CHK_RET(CalcEqBW(xChild, xChildRankSize, xChildEqBw));
+    CHK_RET(CalcEqBW(yChild, yChildRankSize, yChildEqBw));
+
+    if (xChildRankSize == 0 || yChildRankSize == 0 || xChildEqBw == 0.0 || yChildEqBw == 0.0) {
+        HCCL_ERROR("[CalcEqBW] invalid input, xChildRankSize=%u, yChildRankSize=%u, xChildEqBw=%f, yChildEqBw=%f.",
+            xChildRankSize, yChildRankSize, xChildEqBw, yChildEqBw);
+        eqRankSize = 0;
+        eqBw = 0.0;
+        return HCCL_E_INTERNAL;
+    }
+
+    eqRankSize = xChildRankSize * yChildRankSize;
+    // CalcBandwidth2D 内部要求 xB <= yB（慢轴在前），自动按大小排序传入
+    if (xChildEqBw <= yChildEqBw) {
+        eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM);
+    } else {
+        eqBw = CalcBandwidth2D(yChildEqBw, xChildEqBw, yChildRankSize, xChildRankSize, OMIN_MAX_STEP_NUM);
+    }
     return HCCL_SUCCESS;
 }
 
@@ -638,12 +694,6 @@ HcclResult OpsExecutor::CalcOmnipipeData(const AlgoExecDesc &algoExecDesc, const
 {
     // eqBwXY是把快轴和慢轴合并为一个轴看等效带宽是多少
     return HCCL_SUCCESS;
-}
-
-u32 OpsExecutor::CalcOmnipipeSteps(const double eqBwX, const double eqBwY, const AlgoExecDesc &algoExecDesc)
-{
-    uint32_t steps = OMIN_MAX_STEP_NUM;
-    return steps;
 }
 
 HcclResult OpsExecutor::PreSyncSingleSubDomain(u32 subCommIndex)
