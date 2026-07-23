@@ -49,12 +49,9 @@ protected:
     void GenTempAlgParamsScatterL2(u64 level2TotalCnt, u64 l0SliceByte, u64 l1SliceByte, TemplateDataParams &params) const;
 
     // 三层AllGather标量分片生成
-    void GenTempAlgParamsAGL2(const u64 loop, const u64 currDataCount, const u64 sliceSize,
-        const u64 tailSize, TemplateDataParams &params, u64 l0SliceByte, u64 l1SliceByte) const;
-    void GenTempAlgParamsAGL1(const u64 loop, const u64 currDataCount, const u64 sliceSize,
-        const u64 tailSize, TemplateDataParams &params, u64 l0SliceByte, u64 l1SliceByte) const;
-    void GenTempAlgParamsAGL0(const u64 loop, const u64 currDataCount, const u64 processedDataCount,
-    const u64 sliceSize, const u64 tailSize, TemplateDataParams &tempAlgParamsStepFour, u64 l0SliceByte, u64 l1SliceByte) const;
+    void GenTempAlgParamsAGL2(const u64 sliceSize, const u64 tailSize, TemplateDataParams &params, u64 l0SliceByte, u64 l1SliceByte) const;
+    void GenTempAlgParamsAGL1(const u64 sliceSize, const u64 tailSize, TemplateDataParams &params, u64 l0SliceByte) const;
+    void GenTempAlgParamsAGL0(const u64 processedDataCount, const u64 sliceSize, const u64 tailSize, TemplateDataParams &tempAlgParamsStepFour) const;
 
     template <typename InsAlgTemplate>
     HcclResult GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
@@ -79,6 +76,7 @@ protected:
     u64 dataSize_{0};
 
     bool skipLevel1_{false};
+    bool skipLevel2_{false};
 };
 }
 
