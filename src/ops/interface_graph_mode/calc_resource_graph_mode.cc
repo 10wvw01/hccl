@@ -219,6 +219,8 @@ HcclResult HcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dat
         HCCL_ERROR("[HcclSelectAlgGraphMode] Invalid parameters");
         return HCCL_E_PARA;
     }
+    *ifAiv = false;
+    algName[0] = '\0';
     HCCL_INFO("[HcclSelectAlgGraphMode] Start: group[%s] count[%llu] dataType[%u] reduceOp[%u] opType[%u] aivCoreLimit[%u]",
         group, count, dataType, op, opType, aivCoreLimit);
     
