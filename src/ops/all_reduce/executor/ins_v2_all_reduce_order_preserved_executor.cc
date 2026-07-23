@@ -42,7 +42,8 @@ AlgNetMeta InsV2AllReduceOrderPreservedExecutor<AlgTopoMatch, InsAlgTemplateRS, 
     AlgNetMeta meta;
     meta.netTypes.push_back(InsAlgTemplateRS::GetNetType());
     meta.netTypes.push_back(InsAlgTemplateAG::GetNetType());
-    meta.aggMode = CostAggMode::SUM;
+    meta.intraGroupMode = CostAggMode::SUM;
+    meta.groupSizes = {1, 1};
     return meta;
 }
 

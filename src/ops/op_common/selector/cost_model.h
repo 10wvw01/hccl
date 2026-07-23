@@ -105,7 +105,8 @@ enum class CostAggMode : int {
 
 struct AlgNetMeta {
     std::vector<AlgNetType> netTypes; // 每个 template 一个，顺序与 costmodel 中 A/B/C 一致
-    CostAggMode aggMode = CostAggMode::SUM;
+    CostAggMode intraGroupMode = CostAggMode::SUM; // 组内聚合方式
+    std::vector<u32> groupSizes; // 每组 template 数量，为空时按每组1个兜底
 };
 
 class AlgNetMetaRegistry {

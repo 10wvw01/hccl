@@ -51,7 +51,8 @@ AlgNetMeta InsV2AllReduceSequenceExecutorAicpu3Level<AlgTopoMatch, InsAlgTemplat
     meta.netTypes.push_back(InsAlgTemplate3::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate4::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate5::GetNetType());
-    meta.aggMode = CostAggMode::SUM;
+    meta.intraGroupMode = CostAggMode::SUM;
+    meta.groupSizes = {1, 1, 1, 1, 1, 1};
     return meta;
 }
 

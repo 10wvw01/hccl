@@ -50,7 +50,8 @@ AlgNetMeta InsAllReduceParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     meta.netTypes.push_back(InsAlgTemplate1::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate2::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate3::GetNetType());
-    meta.aggMode = CostAggMode::SUM;
+    meta.intraGroupMode = CostAggMode::MAX;
+    meta.groupSizes = {2, 2};
     return meta;
 }
 

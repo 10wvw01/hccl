@@ -49,9 +49,10 @@ AlgNetMeta InsV2AllReduceSoleExecutor<AlgTopoMatch, InsAlgTemplate>::GetAlgNetMe
 {
     AlgNetMeta meta;
     meta.netTypes.push_back(InsAlgTemplate::GetNetType());
-    meta.aggMode = CostAggMode::SUM;
-    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] GetAlgNetMeta netTypes=%zu aggMode=%d.",
-               meta.netTypes.size(), static_cast<int>(meta.aggMode));
+    meta.intraGroupMode = CostAggMode::SUM;
+    meta.groupSizes = {1};
+    HCCL_DEBUG("[InsV2AllReduceSoleExecutor] GetAlgNetMeta netTypes=%zu intraGroupMode=%d.",
+               meta.netTypes.size(), static_cast<int>(meta.intraGroupMode));
     return meta;
 }
 

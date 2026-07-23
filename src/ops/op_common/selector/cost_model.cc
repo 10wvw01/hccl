@@ -190,8 +190,8 @@ void AlgNetMetaRegistry::Register(const std::string &algName, AlgNetMeta meta)
 {
     const std::lock_guard<std::mutex> lock(mu_);
     metas_[algName] = meta;
-    HCCL_DEBUG("[AlgNetMetaRegistry] register algName=%s netTypes=%zu aggMode=%d.", algName.c_str(),
-               meta.netTypes.size(), static_cast<int>(meta.aggMode));
+    HCCL_DEBUG("[AlgNetMetaRegistry] register algName=%s netTypes=%zu intraGroupMode=%d groupSizes=%zu.",
+               algName.c_str(), meta.netTypes.size(), static_cast<int>(meta.intraGroupMode), meta.groupSizes.size());
 }
 
 bool AlgNetMetaRegistry::Query(const std::string &algName, AlgNetMeta &meta) const

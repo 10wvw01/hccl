@@ -121,22 +121,28 @@ float CostTableManager::CalcAlgCost(const std::string &algName, u64 dataSize, co
     AlgNetMetaRegistry::Global()->Query(algName, meta);
 
     const CostModelParam *params = algoParams.param;
-    float cost = 0.0f;
-    for (int j = 0; j < algoParams.count; ++j) {
-        AlgNetType nt = (j < static_cast<int>(meta.netTypes.size())) ? meta.netTypes[j] : AlgNetType::MESH;
-        float util = 1.0f;
-        if (QueryUbUtil(nt, dataSize, util) != HcclResult::HCCL_SUCCESS) {
-            util = 1.0f;
-        }
-        float segCost = (params[j].A * util + params[j].B) * static_cast<float>(dataSize) + params[j].C;
-        if (meta.aggMode == CostAggMode::MAX) {
-            cost = std::max(cost, segCost);
-        } else {
-            cost += segCost;
-        }
+    std::vector<u32> groups = meta.groupSizes;
+    if (groups.empty()) {
+        groups.assign(static_cast<size_t>(algoParams.count), 1);
     }
-    HCCL_DEBUG("[CalcAlgCost] algName=%s aggMode=%d segCount=%d cost=%f.", algName.c_str(),
-               static_cast<int>(meta.aggMode), algoParams.count, cost);
+
+    float cost = 0.0f;
+    u32 idx = 0;
+    for (u32 g = 0; g < groups.size() && idx < static_cast<u32>(algoParams.count); ++g) {
+        float groupCost = 0.0f;
+        for (u32 k = 0; k < groups[g] && idx < static_cast<u32>(algoParams.count); ++k, ++idx) {
+            AlgNetType nt = (idx < meta.netTypes.size()) ? meta.netTypes[idx] : AlgNetType::MESH;
+            float util = 1.0f;
+            if (QueryUbUtil(nt, dataSize, util) != HcclResult::HCCL_SUCCESS) {
+                util = 1.0f;
+            }
+            float segCost = (params[idx].A * util + params[idx].B) * static_cast<float>(dataSize) + params[idx].C;
+            groupCost = (meta.intraGroupMode == CostAggMode::MAX) ? std::max(groupCost, segCost) : groupCost + segCost;
+        }
+        cost += groupCost;
+    }
+    HCCL_DEBUG("[CalcAlgCost] algName=%s intraGroupMode=%d groupCount=%zu cost=%f.", algName.c_str(),
+               static_cast<int>(meta.intraGroupMode), groups.size(), cost);
     return cost;
 }
 

@@ -37,7 +37,8 @@ AlgNetMeta InsV2AllReduceTwoShotSoleExecutor<AlgTopoMatch, InsAlgTemplate0, InsA
     AlgNetMeta meta;
     meta.netTypes.push_back(InsAlgTemplate0::GetNetType());
     meta.netTypes.push_back(InsAlgTemplate1::GetNetType());
-    meta.aggMode = CostAggMode::SUM;
+    meta.intraGroupMode = CostAggMode::SUM;
+    meta.groupSizes = {1, 1};
     return meta;
 }
 
