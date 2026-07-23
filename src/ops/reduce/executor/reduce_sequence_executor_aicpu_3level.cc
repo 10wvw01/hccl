@@ -563,7 +563,8 @@ HcclResult ReduceSequenceExecutorAicpu3Level<AlgTopoMatch, AlgTemplate0, AlgTemp
 
     u64 scratchMultiplier = algTemplateRSL0->CalcScratchMultiple(BufferType::INPUT, BufferType::HCCL_BUFFER);
     u32 cclBuffSliceNum = scratchMultiplier + 1;
-    cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum;
+    // 来自local reduce的地址需要按照数据类型对齐，防止精度问题
+    cclBuffSliceSize_ = resCtx.cclMem.size / cclBuffSliceNum / dataTypeSize_ * dataTypeSize_;
     rsResultBuffSize_ = cclBuffSliceSize_;
     meshCommBuffSize_ = scratchMultiplier * cclBuffSliceSize_;
     rsResultBuffOffset_ = 0;
