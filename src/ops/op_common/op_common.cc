@@ -1594,6 +1594,54 @@ HcclResult HcclGetChannel(HcclComm comm, const OpParam &param, AlgResourceReques
     return HCCL_SUCCESS;
 }
 
+static HcclResult BuildChannelInfo(HcclComm comm, const OpParam &param, const HcclChannelDesc &channelDesc,
+    ChannelHandle channelHandle, u32 userRank, MemRegInfo &memRegInfo, ChannelInfo &channel)
+{
+    // 对于真实建链的链路进行填充
+    channel.isValid = true;
+    channel.remoteRank = channelDesc.remoteRank;
+    channel.protocol = channelDesc.channelProtocol;
+    channel.locationType = channelDesc.remoteEndpoint.loc.locType;
+    channel.notifyNum = channelDesc.notifyNum;
+    channel.handle = channelHandle;
+#ifndef AICPU_COMPILE
+    EndpointDesc localEndpoint = channelDesc.localEndpoint;
+    using portSizeType = uint32_t;
+    const uint32_t portSizeTypeSize = sizeof(portSizeType);
+    portSizeType portSize = 0;
+    CHK_RET(HcclRankGraphGetEndpointInfo(comm, userRank, &localEndpoint,
+            ENDPOINT_ATTR_BW_COEFF, portSizeTypeSize, static_cast<void*>(&portSize)));
+    channel.portGroupSize = portSize;
+    CHK_PRT_RET(portSize == 0,
+                HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.",
+                userRank, portSize), HcclResult::HCCL_E_INTERNAL);
+    EndpointAttrDieId dieId = INVALID_VALUE_RANKID;
+    const uint32_t dieIdSize = sizeof(EndpointAttrDieId);
+    HcclResult dieIdRet = HcclRankGraphGetEndpointInfo(comm, userRank, &localEndpoint,
+            ENDPOINT_ATTR_DIE_ID, dieIdSize, static_cast<void*>(&dieId));
+    if (dieIdRet == HCCL_SUCCESS) {
+        channel.dieId = dieId;
+    } else {
+        HCCL_WARNING("[HcclGetChannelImpl] failed to get dieId for userRank[%u], remoteRank[%u], "
+                     "ret[0x%016llx]. POD convergence adjustment will not be used for this channel.",
+                     userRank, channel.remoteRank, HCCL_ERROR_CODE(dieIdRet));
+    }
+#endif
+    void* remoteCclBufferAddr = nullptr;
+    uint64_t remoteCclBufferSize = 0;
+    CHK_RET(HcclChannelGetHcclBuffer(comm, channelHandle, &remoteCclBufferAddr, &remoteCclBufferSize));
+    channel.remoteCclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, remoteCclBufferAddr, remoteCclBufferSize};
+    HCCL_INFO("[%s]remoteRank[%u] protocol[%u] portGroupSize[%u] dieId[%u] "
+              "remoteCclBufferAddr[0x%llx] remoteCclBufferSize[%u]",
+        __func__, channelDesc.remoteRank, channelDesc.channelProtocol, channel.portGroupSize, channel.dieId,
+        remoteCclBufferAddr, remoteCclBufferSize);
+
+    if (param.opMode == OpMode::OFFLOAD) {
+        CHK_RET(GetGraphModeBuffers(comm, channelHandle, memRegInfo.inputBuffTag, memRegInfo.outputBuffTag, channel));
+    }
+    return HCCL_SUCCESS;
+}
+
 HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &param,
     std::vector<HcclChannelDesc>& channelRequest, const CommEngine commEngine,
     AlgResourceCtxSerializable* resCtxHost, MemRegInfo &memRegInfo)
@@ -1615,55 +1663,13 @@ HcclResult HcclGetChannelImpl(const u32 level, HcclComm comm, const OpParam &par
     if (channelNum > 0) {
         // 参数一致性校验信息注册到通信域，HcclChannelAcquire内部存在读清动作，每次调用前均需注册
         CHK_RET(AddExchangeInfo(comm, param));
-        CHK_RET(HcclChannelAcquire(comm, commEngine, channelRequest.data(),
-            channelNum, levelNChannels.data()));
+        CHK_RET(HcclChannelAcquire(comm, commEngine, channelRequest.data(), channelNum, levelNChannels.data()));
     }
 
     for (u32 idx = 0; idx < channelNum; idx++) {
         ChannelInfo channel;
-        // 对于真实建链的链路进行填充
-        const HcclChannelDesc &channelDescNew = channelRequest[idx];
-        channel.isValid = true;
-        channel.remoteRank = channelDescNew.remoteRank;
-        channel.protocol = channelDescNew.channelProtocol;
-        channel.locationType = channelDescNew.remoteEndpoint.loc.locType;
-        channel.notifyNum = channelDescNew.notifyNum;
-        channel.handle = levelNChannels[idx];
-#ifndef AICPU_COMPILE
-        EndpointDesc localEndpoint = channelDescNew.localEndpoint;
-        using portSizeType = uint32_t;
-        const uint32_t portSizeTypeSize = sizeof(portSizeType);
-        portSizeType portSize = 0;
-        CHK_RET(HcclRankGraphGetEndpointInfo(comm, resCtxHost->topoInfo.userRank, &localEndpoint,
-                ENDPOINT_ATTR_BW_COEFF, portSizeTypeSize, static_cast<void*>(&portSize)));
-        channel.portGroupSize = portSize;
-        CHK_PRT_RET(portSize == 0,
-                    HCCL_ERROR("[HcclGetChannelImpl] userRank [%d], portSize [%u] is 0.",
-                    resCtxHost->topoInfo.userRank, portSize), HcclResult::HCCL_E_INTERNAL);
-        EndpointAttrDieId dieId = INVALID_VALUE_RANKID;
-        const uint32_t dieIdSize = sizeof(EndpointAttrDieId);
-        HcclResult dieIdRet = HcclRankGraphGetEndpointInfo(comm, resCtxHost->topoInfo.userRank, &localEndpoint,
-                ENDPOINT_ATTR_DIE_ID, dieIdSize, static_cast<void*>(&dieId));
-        if (dieIdRet == HCCL_SUCCESS) {
-            channel.dieId = dieId;
-        } else {
-            HCCL_WARNING("[HcclGetChannelImpl] failed to get dieId for userRank[%u], remoteRank[%u], "
-                         "ret[0x%016llx]. POD convergence adjustment will not be used for this channel.",
-                         resCtxHost->topoInfo.userRank, channel.remoteRank, HCCL_ERROR_CODE(dieIdRet));
-        }
-#endif
-        void* remoteCclBufferAddr = nullptr;
-        uint64_t remoteCclBufferSize = 0;
-        CHK_RET(HcclChannelGetHcclBuffer(comm, levelNChannels[idx], &remoteCclBufferAddr, &remoteCclBufferSize));
-        channel.remoteCclMem = HcclMem{HCCL_MEM_TYPE_DEVICE, remoteCclBufferAddr, remoteCclBufferSize};
-        HCCL_INFO("[%s]remoteRank[%u] protocol[%u] portGroupSize[%u] dieId[%u] "
-                  "remoteCclBufferAddr[0x%llx] remoteCclBufferSize[%u]",
-            __func__, channelDescNew.remoteRank, channelDescNew.channelProtocol, channel.portGroupSize, channel.dieId,
-            remoteCclBufferAddr, remoteCclBufferSize);
-
-        if (param.opMode == OpMode::OFFLOAD) {
-            CHK_RET(GetGraphModeBuffers(comm, levelNChannels[idx], memRegInfo.inputBuffTag, memRegInfo.outputBuffTag, channel));
-        }
+        CHK_RET(BuildChannelInfo(comm, param, channelRequest[idx], levelNChannels[idx],
+                                 resCtxHost->topoInfo.userRank, memRegInfo, channel));
         resCtxHost->channels[level].push_back(channel);
     }
     return HCCL_SUCCESS;
