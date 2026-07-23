@@ -149,6 +149,57 @@ TEST_F(MeshAllGatherTransferTest, UpdateOutputRanksForPostCopy)
     EXPECT_EQ(ranksForOutputData, ranks);
 }
 
+// outputBufferType==OUTPUT：rx 直接落 output buffer，RxDst.addr 应为 outputBufferPtr，
+// 偏移按 output 布局（dataOffset + sliceOffset + rankId * dataStride）。
+TEST_F(MeshAllGatherTransferTest, BuildDirectToOutputSlices)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0});
+    void *outPtr = reinterpret_cast<void *>(0x30000000);
+    params.outputBufferPtr = outPtr;
+    params.outputBufferType = BufferType::OUTPUT;
+    // 引入非零 dataOffset 验证 output 布局偏移与 ccl 布局分离
+    params.dataOffset = 0x80;
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshAllGather(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    // rx 源仍按对端 ccl 布局（sliceOffset + rankId * scratchStride，不含 dataOffset）
+    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).addr_, nullptr);
+    EXPECT_EQ(RxSrc(txRxSlicesLists[0]).offset_, 16U);
+    // rx 目标指向 outputBufferPtr，偏移 = dataOffset + sliceOffset + rankId * dataStride
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, outPtr);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 0x80U + 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).addr_, outPtr);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 0x80U + 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).addr_, outPtr);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 0x80U + 48U);
+}
+
+// outputBufferType==HCCL_BUFFER：rx 落本地 ccl buffer，RxDst.addr 为 cclBufferPtr，
+// 偏移按 ccl 布局（sliceOffset + rankId * scratchStride），后续由 PostCopy 搬运。
+TEST_F(MeshAllGatherTransferTest, BuildCclBufferModeSlices)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    TemplateDataParams params = MakeParams({0});
+    params.outputBufferType = BufferType::HCCL_BUFFER;
+    params.dataOffset = 0x80; // ccl 布局不含 dataOffset，应不影响 RxDst 偏移
+    std::vector<u32> ranksForOutputData;
+    std::vector<TxRxSlicesList> txRxSlicesLists;
+
+    HcclResult ret = RunMeshAllGather(params, ranks, 0, ranksForOutputData, txRxSlicesLists);
+
+    ASSERT_EQ(ret, HCCL_SUCCESS);
+    ASSERT_EQ(txRxSlicesLists.size(), 3U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).addr_, localCclMem_);
+    EXPECT_EQ(RxDst(txRxSlicesLists[0]).offset_, 16U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[1]).offset_, 32U);
+    EXPECT_EQ(RxDst(txRxSlicesLists[2]).offset_, 48U);
+}
+
 class MeshScatterParamTest : public MeshAllGatherTest {};
 
 TEST_F(MeshScatterParamTest, EmptyInputRanksReturnsError)
