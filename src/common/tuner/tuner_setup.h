@@ -48,9 +48,10 @@ void TunerLogFunction(int level, const char *file, int line, const char *fmt, ..
 HcclResult TunerSetup(HcclComm comm, const ops_hccl::TopoInfoWithNetLayerDetails *topoInfo);
 
 /* 每次 op 时调用：将 HcclCMDType 转换为 hcclOpType_t，构造 collInfo，调用插件 getCollInfo。
- * 插件未加载时为 no-op；不支持的算子类型（HCCL_OP_INVALID）跳过，返回 HCCL_SUCCESS。 */
+ * 插件未加载时为 no-op；不支持的算子类型（HCCL_OP_INVALID）跳过，返回 HCCL_SUCCESS。
+ * algoEntries 由调用方（Selector）提供，Enrich 已填好 3D 名，插件直接读。 */
 HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t nBytes, HcclDataType dataType,
-                                    float *collCostTable);
+                                    hcclTunerAlgoEntry_t *algoEntries, int algoCount);
 
 /* comm 销毁时调用：引用计数--。.so 不 dlclose（避免与在途 getCollInfo 竞争），随进程退出回收。 */
 HcclResult TunerCleanup(HcclComm comm);

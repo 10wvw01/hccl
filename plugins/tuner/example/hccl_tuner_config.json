@@ -11,9 +11,9 @@
             "max_bytes": 65536,
             "data_type": "fp16"
           },
-          "engine": 2,
-          "executor": 0,
-          "template": 6,
+          "engine": "aicpu",
+          "executor": "sole",
+          "template": "mesh_one_shot",
           "cost": 0.0
         },
         {
@@ -21,9 +21,9 @@
             "min_ranks": 8,
             "min_bytes": 65536
           },
-          "engine": 4,
-          "executor": 0,
-          "template": 6,
+          "engine": "dpu",
+          "executor": "sole",
+          "template": "mesh_one_shot",
           "cost": 0.0
         }
       ]
@@ -34,9 +34,9 @@
           "match": {
             "max_bytes": 1048576
           },
-          "engine": 2,
-          "executor": 0,
-          "template": 6,
+          "engine": "aicpu",
+          "executor": "sole",
+          "template": "mesh_one_shot",
           "cost": 0.0
         }
       ]

@@ -69,9 +69,9 @@ typedef struct {
 
 typedef struct {
     MatchCond match;
-    int engine;
-    int executor;
-    int template;
+    char engine[16];       /* "aicpu" 或 "" (通配) */
+    char executor[16];     /* "sole" 或 "" */
+    char template[32];     /* "mesh_one_shot" 或 "" */
     float cost;
     int hasCost;
 } Rule;
@@ -93,9 +93,9 @@ typedef struct {
 
 /* defaults 块：全局默认值，规则中省略的字段自动继承（仅 init 期间使用） */
 typedef struct {
-    int engine;
-    int executor;
-    int template;
+    char engine[16];
+    char executor[16];
+    char template[32];
     int hasEngine;
     int hasExecutor;
     int hasTemplate;
@@ -179,6 +179,23 @@ static HcclDataType ParseDataType(const char *name)
         }
     }
     return HCCL_DATA_TYPE_RESERVED;
+}
+
+/* ===== 维度合法值校验表 ===== */
+static const char *g_validEngines[] = {"aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"};
+static const int g_validEngineCount = 5;
+static const char *g_validExecutors[] = {"sequence", "sole", "parallel", "pipiline", "concur"};
+static const int g_validExecutorCount = 5;
+static const char *g_validTemplates[] = {"mesh", "NHR", "mesh_two_shot",
+                                          "mesh_one_shot", "mesh_chunk", "mesh_2die"};
+static const int g_validTemplateCount = 6;
+
+static int IsValidValue(const char *val, const char **validList, int count)
+{
+    for (int i = 0; i < count; i++) {
+        if (strcmp(val, validList[i]) == 0) return 1;
+    }
+    return 0;
 }
 
 /* ===== 极简 JSON 解析器（仅支持本插件配置格式，无外部依赖）===== */
@@ -397,9 +414,9 @@ static void ParseMatchField(JsonParser *p, const char *key, Rule *r, SchemaState
 static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
 {
     memset(r, 0, sizeof(*r));
-    r->engine = -1;
-    r->executor = -1;
-    r->template = -1;
+    r->engine[0] = '\0';
+    r->executor[0] = '\0';
+    r->template[0] = '\0';
     int foundMatch = 0;
     if (!JsonMatch(p, '{')) {
         return;
@@ -431,28 +448,28 @@ static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
                 }
             }
         } else if (strcmp(key, "engine") == 0) {
-            double v = 0;
-            if (JsonReadNumber(p, &v) == 0) {
-                r->engine = (int)v;
-                if (r->engine < 0 || r->engine >= HCCL_NUM_ENGINES) {
-                    SchemaError(s, "engine %d out of range [0, %d)", r->engine, HCCL_NUM_ENGINES);
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validEngines, g_validEngineCount)) {
+                    SchemaError(s, "invalid engine '%s'", buf);
                 }
+                strncpy(r->engine, buf, sizeof(r->engine) - 1);
             }
         } else if (strcmp(key, "executor") == 0) {
-            double v = 0;
-            if (JsonReadNumber(p, &v) == 0) {
-                r->executor = (int)v;
-                if (r->executor < 0 || r->executor >= HCCL_NUM_EXECUTORS) {
-                    SchemaError(s, "executor %d out of range [0, %d)", r->executor, HCCL_NUM_EXECUTORS);
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validExecutors, g_validExecutorCount)) {
+                    SchemaError(s, "invalid executor '%s'", buf);
                 }
+                strncpy(r->executor, buf, sizeof(r->executor) - 1);
             }
         } else if (strcmp(key, "template") == 0) {
-            double v = 0;
-            if (JsonReadNumber(p, &v) == 0) {
-                r->template = (int)v;
-                if (r->template < 0 || r->template >= HCCL_NUM_TEMPLATES) {
-                    SchemaError(s, "template %d out of range [0, %d)", r->template, HCCL_NUM_TEMPLATES);
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validTemplates, g_validTemplateCount)) {
+                    SchemaError(s, "invalid template '%s'", buf);
                 }
+                strncpy(r->template, buf, sizeof(r->template) - 1);
             }
         } else if (strcmp(key, "cost") == 0) {
             double v = 0;
@@ -589,9 +606,9 @@ static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaul
 static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
 {
     memset(d, 0, sizeof(*d));
-    d->engine = -1;
-    d->executor = -1;
-    d->template = -1;
+    d->engine[0] = '\0';
+    d->executor[0] = '\0';
+    d->template[0] = '\0';
     if (!JsonMatch(p, '{')) {
         return;
     }
@@ -605,30 +622,30 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
             break;
         }
         JsonMatch(p, ':');
-        double v = 0;
+        char buf[MAX_STR_LEN] = {0};
         if (strcmp(key, "engine") == 0) {
-            if (JsonReadNumber(p, &v) == 0) {
-                d->engine = (int)v;
-                d->hasEngine = 1;
-                if (d->engine < 0 || d->engine >= HCCL_NUM_ENGINES) {
-                    SchemaError(s, "defaults engine %d out of range [0, %d)", d->engine, HCCL_NUM_ENGINES);
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validEngines, g_validEngineCount)) {
+                    SchemaError(s, "defaults invalid engine '%s'", buf);
                 }
+                strncpy(d->engine, buf, sizeof(d->engine) - 1);
+                d->hasEngine = 1;
             }
         } else if (strcmp(key, "executor") == 0) {
-            if (JsonReadNumber(p, &v) == 0) {
-                d->executor = (int)v;
-                d->hasExecutor = 1;
-                if (d->executor < 0 || d->executor >= HCCL_NUM_EXECUTORS) {
-                    SchemaError(s, "defaults executor %d out of range [0, %d)", d->executor, HCCL_NUM_EXECUTORS);
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validExecutors, g_validExecutorCount)) {
+                    SchemaError(s, "defaults invalid executor '%s'", buf);
                 }
+                strncpy(d->executor, buf, sizeof(d->executor) - 1);
+                d->hasExecutor = 1;
             }
         } else if (strcmp(key, "template") == 0) {
-            if (JsonReadNumber(p, &v) == 0) {
-                d->template = (int)v;
-                d->hasTemplate = 1;
-                if (d->template < 0 || d->template >= HCCL_NUM_TEMPLATES) {
-                    SchemaError(s, "defaults template %d out of range [0, %d)", d->template, HCCL_NUM_TEMPLATES);
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (!IsValidValue(buf, g_validTemplates, g_validTemplateCount)) {
+                    SchemaError(s, "defaults invalid template '%s'", buf);
                 }
+                strncpy(d->template, buf, sizeof(d->template) - 1);
+                d->hasTemplate = 1;
             }
         } else if (strcmp(key, "args") == 0) {
             JsonSkipValue(p); /* optional，允许自定义字段 */
@@ -644,14 +661,14 @@ static void MergeDefaults(StoredContext *ctx, const DefaultValues *d)
     for (int i = 0; i < ctx->opSetCount; i++) {
         for (int j = 0; j < ctx->opSets[i].ruleCount; j++) {
             Rule *r = &ctx->opSets[i].rules[j];
-            if (r->engine < 0 && d->hasEngine) {
-                r->engine = d->engine;
+            if (r->engine[0] == '\0' && d->hasEngine) {
+                strncpy(r->engine, d->engine, sizeof(r->engine) - 1);
             }
-            if (r->executor < 0 && d->hasExecutor) {
-                r->executor = d->executor;
+            if (r->executor[0] == '\0' && d->hasExecutor) {
+                strncpy(r->executor, d->executor, sizeof(r->executor) - 1);
             }
-            if (r->template < 0 && d->hasTemplate) {
-                r->template = d->template;
+            if (r->template[0] == '\0' && d->hasTemplate) {
+                strncpy(r->template, d->template, sizeof(r->template) - 1);
             }
         }
     }
@@ -787,13 +804,13 @@ static int MatchRule(const Rule *r, const hcclTunerCollInfo_t *collInfo, const h
     return 1;
 }
 
-static void ApplyRule(const Rule *r, float *costTable)
+static void ApplyRule(const Rule *r, hcclTunerAlgoEntry_t *entries, int count)
 {
-    if (r->engine >= 0 && r->engine < HCCL_NUM_ENGINES && r->executor >= 0 && r->executor < HCCL_NUM_EXECUTORS &&
-        r->template >= 0 && r->template < HCCL_NUM_TEMPLATES) {
-        int idx =
-            r->engine * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES + r->executor * HCCL_NUM_TEMPLATES + r->template;
-        costTable[idx] = r->hasCost ? r->cost : 0.0f;
+    for (int i = 0; i < count; i++) {
+        if (r->engine[0]   && strcmp(r->engine, entries[i].engineName) != 0) continue;
+        if (r->executor[0] && strcmp(r->executor, entries[i].executorName) != 0) continue;
+        if (r->template[0] && strcmp(r->template, entries[i].templateName) != 0) continue;
+        entries[i].cost = r->hasCost ? r->cost : 0.0f;
     }
 }
 
@@ -848,9 +865,10 @@ static HcclResult MyInit(HcclComm comm, const hcclTunerCommInfo_t *commInfo, con
     return HCCL_SUCCESS;
 }
 
-static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collInfo, float *collCostTable)
+static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collInfo,
+                                hcclTunerAlgoEntry_t *entries, int count)
 {
-    if (collInfo == NULL || collCostTable == NULL) {
+    if (collInfo == NULL || entries == NULL || count <= 0) {
         return HCCL_E_PTR;
     }
     if (!g_hostFuncsReady || g_hostFuncs.ctxGet == NULL) {
@@ -884,7 +902,7 @@ static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collIn
         }
         for (int j = 0; j < set->ruleCount; j++) { /* first-match-wins */
             if (MatchRule(&set->rules[j], collInfo, &ctx->commInfo)) {
-                ApplyRule(&set->rules[j], collCostTable);
+                ApplyRule(&set->rules[j], entries, count);
                 return HCCL_SUCCESS;
             }
         }

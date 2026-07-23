@@ -9,7 +9,7 @@
  */
 
 /* 单元测试：通过 #include "../plugin.c" 方式直接测试插件内部逻辑。
- * mock hostFuncs（ctxCreate/Get/Destroy + log）+ mock cost table（栈上 float[560]）。 */
+ * mock hostFuncs（ctxCreate/Get/Destroy + log）+ mock 算法条目（hcclTunerAlgoEntry_t[]）。 */
 
 #define HCCL_TUNER_TESTING
 #include "../plugin.c"
@@ -96,11 +96,11 @@ static const char *TEST_CONFIG =
     "        {"
     "          \"match\": {\"min_ranks\": 8, \"max_ranks\": 8, \"min_bytes\": 0, \"max_bytes\": 65536, "
     "\"data_type\": \"fp16\"},"
-    "          \"engine\": 2, \"executor\": 1, \"template\": 3, \"cost\": 0.0"
+    "          \"engine\": \"aicpu\", \"executor\": \"sole\", \"template\": \"mesh_one_shot\", \"cost\": 0.0"
     "        },"
     "        {"
     "          \"match\": {\"min_ranks\": 8, \"min_bytes\": 65536},"
-    "          \"engine\": 4, \"executor\": 2, \"template\": 5, \"cost\": 1.5"
+    "          \"engine\": \"dpu\", \"executor\": \"parallel\", \"template\": \"mesh_one_shot\", \"cost\": 1.5"
     "        }"
     "      ]"
     "    },"
@@ -108,7 +108,7 @@ static const char *TEST_CONFIG =
     "      \"rules\": ["
     "        {"
     "          \"match\": {\"max_bytes\": 1048576, \"comm_name\": \"world\"},"
-    "          \"engine\": 0, \"executor\": 0, \"template\": 0, \"cost\": 0.0"
+    "          \"engine\": \"aicpu\", \"executor\": \"sole\", \"template\": \"mesh\", \"cost\": 0.0"
     "        }"
     "      ]"
     "    }"
@@ -137,9 +137,25 @@ static hcclTunerHostFunctions_t MakeMockHostFuncs(void)
     return hf;
 }
 
-static int CostIdx(int e, int ex, int t)
+/* mock 算法条目（模拟 CostTableGen + Enrich 后的结果） */
+#define MOCK_ENTRY_COUNT 4
+static hcclTunerAlgoEntry_t MakeMockEntries(hcclTunerAlgoEntry_t *out)
 {
-    return e * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES + ex * HCCL_NUM_TEMPLATES + t;
+    hcclTunerAlgoEntry_t tmpl = {};
+    tmpl.structSize = sizeof(hcclTunerAlgoEntry_t);
+    /* entry 0: 匹配 allreduce 规则 1 (aicpu/sole/mesh_one_shot) */
+    out[0] = tmpl; out[0].algName = "AicpuAllReduceSoleMeshOneShot"; out[0].engineName = "aicpu";
+    out[0].executorName = "sole"; out[0].templateName = "mesh_one_shot"; out[0].cost = 2.0f;
+    /* entry 1: 匹配 allreduce 规则 2 (dpu/parallel/mesh_one_shot) */
+    out[1] = tmpl; out[1].algName = "DpuAllReduceParallelMeshOneShot"; out[1].engineName = "dpu";
+    out[1].executorName = "parallel"; out[1].templateName = "mesh_one_shot"; out[1].cost = 3.0f;
+    /* entry 2: 匹配 allgather 规则 1 (aicpu/sole/mesh) */
+    out[2] = tmpl; out[2].algName = "AicpuAllGatherSoleMesh"; out[2].engineName = "aicpu";
+    out[2].executorName = "sole"; out[2].templateName = "mesh"; out[2].cost = 4.0f;
+    /* entry 3: 不匹配任何规则 (ccu_ms/concur/NHR) */
+    out[3] = tmpl; out[3].algName = "CcuMsAllReduceConcurNHR"; out[3].engineName = "ccu_ms";
+    out[3].executorName = "concur"; out[3].templateName = "NHR"; out[3].cost = 5.0f;
+    return tmpl;
 }
 
 /* ===== 测试用例 ===== */
@@ -205,9 +221,10 @@ static void TestRuleMatchHit(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLREDUCE;
@@ -215,12 +232,12 @@ static void TestRuleMatchHit(void)
     collInfo.dataType = HCCL_DATA_TYPE_FP16;
     collInfo.structSize = sizeof(collInfo);
 
-    HcclResult ret = funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    HcclResult ret = funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
     ASSERT(ret == HCCL_SUCCESS, "getCollInfo success");
-    /* 第 1 条规则命中：engine=2, executor=1, template=3, cost=0.0 */
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "matched rule applied cost=0.0");
+    /* 第 1 条规则命中：aicpu/sole/mesh_one_shot, cost=0.0 */
+    ASSERT(entries[0].cost == 0.0f, "matched rule applied cost=0.0");
     /* 其他位置未被修改 */
-    ASSERT(costTable[CostIdx(0, 0, 0)] == 100.0f, "unmatched position unchanged");
+    ASSERT(entries[2].cost == 100.0f, "unmatched position unchanged");
 }
 
 /* 4. 规则未命中不修改 */
@@ -238,9 +255,10 @@ static void TestRuleNoMatch(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 50.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 50.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLREDUCE;
@@ -248,10 +266,10 @@ static void TestRuleNoMatch(void)
     collInfo.dataType = HCCL_DATA_TYPE_FP16;
     collInfo.structSize = sizeof(collInfo);
 
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
     int changed = 0;
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        if (costTable[i] != 50.0f) {
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        if (entries[i].cost != 50.0f) {
             changed = 1;
             break;
         }
@@ -274,9 +292,10 @@ static void TestFirstMatchWins(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     /* nBytes=4096, fp16 → 第 1 条规则命中（max_bytes=65536）。
      * 第 2 条规则也匹配（min_bytes=65536 不满足，因为 4096 < 65536，所以第 2 条不匹配）。
@@ -287,11 +306,11 @@ static void TestFirstMatchWins(void)
     collInfo.nBytes = 100000;
     collInfo.dataType = HCCL_DATA_TYPE_FP32;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    /* 第 2 条规则：engine=4, executor=2, template=5, cost=1.5 */
-    ASSERT(costTable[CostIdx(4, 2, 5)] == 1.5f, "second rule matched (first didn't)");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    /* 第 2 条规则：dpu/parallel/mesh_one_shot, cost=1.5 */
+    ASSERT(entries[1].cost == 1.5f, "second rule matched (first didn't)");
     /* 第 1 条规则位置未被修改 */
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 100.0f, "first rule position unchanged (didn't match)");
+    ASSERT(entries[0].cost == 100.0f, "first rule position unchanged (didn't match)");
 }
 
 /* 6. data_type 匹配 */
@@ -309,9 +328,10 @@ static void TestDataTypeMatch(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     /* fp32 不匹配第 1 条规则（要求 fp16），但 nBytes=4096 < 65536 所以第 2 条也不匹配 */
     hcclTunerCollInfo_t collInfo = {};
@@ -319,16 +339,17 @@ static void TestDataTypeMatch(void)
     collInfo.nBytes = 4096;
     collInfo.dataType = HCCL_DATA_TYPE_FP32;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 100.0f, "fp32 does not match fp16 rule");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    ASSERT(entries[0].cost == 100.0f, "fp32 does not match fp16 rule");
 
     /* fp16 匹配 */
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     collInfo.dataType = HCCL_DATA_TYPE_FP16;
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "fp16 matches fp16 rule");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    ASSERT(entries[0].cost == 0.0f, "fp16 matches fp16 rule");
 }
 
 /* 7. comm_name 匹配 */
@@ -347,27 +368,29 @@ static void TestCommNameMatch(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLGATHER;
     collInfo.nBytes = 1024;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
     /* allgather 规则要求 comm_name 包含 "world" + max_bytes=1048576 → 命中 */
-    ASSERT(costTable[CostIdx(0, 0, 0)] == 0.0f, "comm_name 'world' matched");
+    ASSERT(entries[2].cost == 0.0f, "comm_name 'world' matched");
 
     /* comm_name 不匹配 */
     ResetPluginState();
     commInfo.commName = "other_group";
     funcs.init((HcclComm)0x2, &commInfo, &hf);
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
-    funcs.getCollInfo((HcclComm)0x2, &collInfo, costTable);
-    ASSERT(costTable[CostIdx(0, 0, 0)] == 100.0f, "comm_name 'other' did not match");
+    funcs.getCollInfo((HcclComm)0x2, &collInfo, entries, MOCK_ENTRY_COUNT);
+    ASSERT(entries[2].cost == 100.0f, "comm_name 'other' did not match");
 }
 
 /* 8. 多 opType 隔离 */
@@ -386,18 +409,19 @@ static void TestOpTypeIsolation(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     /* allgather 规则命中位置 (0,0,0)；allreduce 规则位置 (2,1,3) 不应被影响 */
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLGATHER;
     collInfo.nBytes = 1024;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    ASSERT(costTable[CostIdx(0, 0, 0)] == 0.0f, "allgather rule applied");
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 100.0f, "allreduce position not affected by allgather op");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    ASSERT(entries[2].cost == 0.0f, "allgather rule applied");
+    ASSERT(entries[0].cost == 100.0f, "allreduce position not affected by allgather op");
 }
 
 /* 9. Schema 校验：拼写错误检测 */
@@ -453,17 +477,18 @@ static void TestSchemaMissingRequired(void)
     ASSERT(ctx->configValid == 0, "configValid=0 when missing required field 'cost'");
 
     /* configValid=0 → getCollInfo 不干预 */
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLREDUCE;
     collInfo.nBytes = 4096;
     collInfo.dataType = HCCL_DATA_TYPE_FP16;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    ASSERT(costTable[CostIdx(0, 0, 0)] == 100.0f, "does not intervene when config invalid");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    ASSERT(entries[2].cost == 100.0f, "does not intervene when config invalid");
 }
 
 /* 11. defaults 块合并 */
@@ -471,10 +496,10 @@ static void TestDefaultsMerge(void)
 {
     ResetPluginState();
     FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
-    fputs("{\"version\":1,\"defaults\":{\"engine\":2,\"executor\":1,\"template\":3},"
-          "\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8,\"max_bytes\":65536,"
-          "\"data_type\":\"fp16\"},\"cost\":0.0}]}}}",
-          fp);
+    fputs("{\"version\":1,\"defaults\":{\"engine\":\"aicpu\",\"executor\":\"sole\",\"template\":\"mesh_one_shot\"},"
+           "\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8,\"max_bytes\":65536,"
+           "\"data_type\":\"fp16\"},\"cost\":0.0}]}}}",
+           fp);
     fclose(fp);
     setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
 
@@ -486,18 +511,19 @@ static void TestDefaultsMerge(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLREDUCE;
     collInfo.nBytes = 4096;
     collInfo.dataType = HCCL_DATA_TYPE_FP16;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
-    /* 规则省略 engine/executor/template，从 defaults 继承 2/1/3 */
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "defaults merged: engine=2 executor=1 template=3");
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
+    /* 规则省略 engine/executor/template，从 defaults 继承 aicpu/sole/mesh_one_shot */
+    ASSERT(entries[0].cost == 0.0f, "defaults merged: aicpu/sole/mesh_one_shot");
 
     /* 恢复测试配置 */
     WriteTestConfig("/tmp/hccl_tuner_test_cfg.json");
@@ -509,8 +535,8 @@ static void TestMatchMinusOne(void)
     ResetPluginState();
     FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
     fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":-1,\"min_bytes\":0,"
-          "\"max_bytes\":65536},\"engine\":2,\"executor\":1,\"template\":3,\"cost\":0.0}]}}}",
-          fp);
+           "\"max_bytes\":65536},\"engine\":\"aicpu\",\"executor\":\"sole\",\"template\":\"mesh_one_shot\",\"cost\":0.0}]}}}",
+           fp);
     fclose(fp);
     setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
 
@@ -522,17 +548,18 @@ static void TestMatchMinusOne(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    float costTable[HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES];
-    for (int i = 0; i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES; i++) {
-        costTable[i] = 100.0f;
+    hcclTunerAlgoEntry_t entries[MOCK_ENTRY_COUNT];
+    MakeMockEntries(entries);
+    for (int i = 0; i < MOCK_ENTRY_COUNT; i++) {
+        entries[i].cost = 100.0f;
     }
     hcclTunerCollInfo_t collInfo = {};
     collInfo.collType = HCCL_OP_ALLREDUCE;
     collInfo.nBytes = 4096;
     collInfo.structSize = sizeof(collInfo);
-    funcs.getCollInfo((HcclComm)0x1, &collInfo, costTable);
+    funcs.getCollInfo((HcclComm)0x1, &collInfo, entries, MOCK_ENTRY_COUNT);
     /* min_ranks=-1 应跳过检查，规则仍命中 */
-    ASSERT(costTable[CostIdx(2, 1, 3)] == 0.0f, "min_ranks=-1 does not block match");
+    ASSERT(entries[0].cost == 0.0f, "min_ranks=-1 does not block match");
 
     WriteTestConfig("/tmp/hccl_tuner_test_cfg.json");
 }
@@ -542,9 +569,9 @@ static void TestEngineOutOfRange(void)
 {
     ResetPluginState();
     FILE *fp = fopen("/tmp/hccl_tuner_test_cfg.json", "w");
-    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":99,"
-          "\"executor\":0,\"template\":0,\"cost\":0.0}]}}}",
-          fp);
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":\"invalid_engine\","
+           "\"executor\":\"sole\",\"template\":\"mesh\",\"cost\":0.0}]}}}",
+           fp);
     fclose(fp);
     setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_cfg.json", 1);
 
@@ -556,7 +583,7 @@ static void TestEngineOutOfRange(void)
     hcclTunerGetFuncs(&funcs);
     funcs.init((HcclComm)0x1, &commInfo, &hf);
 
-    /* engine=99 越界 → SchemaError → configValid=0 */
+    /* engine="invalid_engine" 不在合法枚举中 → SchemaError → configValid=0 */
     StoredContext *ctx = TunerGetStoredCtx((HcclComm)0x1);
     ASSERT(ctx != NULL, "context stored");
     ASSERT(ctx->configValid == 0, "configValid=0 when engine out of range");

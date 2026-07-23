@@ -267,9 +267,9 @@ HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo
 }
 
 HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t nBytes, HcclDataType dataType,
-                                    float *collCostTable)
+                                    hcclTunerAlgoEntry_t *algoEntries, int algoCount)
 {
-    if (collCostTable == nullptr) {
+    if (algoEntries == nullptr || algoCount <= 0) {
         return HCCL_SUCCESS;
     }
 
@@ -293,14 +293,11 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
     collInfo.collType = opType;
     collInfo.nBytes = nBytes;
     collInfo.dataType = dataType;
-    collInfo.nEngine = HCCL_NUM_ENGINES;
-    collInfo.nExecutor = HCCL_NUM_EXECUTORS;
-    collInfo.nTemplate = HCCL_NUM_TEMPLATES;
     collInfo.structSize = sizeof(hcclTunerCollInfo_t);
 
     /* 使用锁内拷贝的 funcs 副本，避免并发 TunerCleanup 重置 g_funcs */
     auto callStart = std::chrono::steady_clock::now();
-    HcclResult ret = funcs.getCollInfo(comm, &collInfo, collCostTable);
+    HcclResult ret = funcs.getCollInfo(comm, &collInfo, algoEntries, algoCount);
     auto callMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - callStart).count();
     /* C5：慢调用检测——连续超过阈值则禁用 tuner，后续 op 回退 CostModel */

@@ -25,9 +25,9 @@
       "description": "全局默认值，规则中省略的字段自动继承",
       "additionalProperties": false,
       "properties": {
-        "engine": { "type": "string", "enum": ["auto", "AICPU", "AIV", "CCU_MS", "CCU_SCHED", "HOSTCPU"] },
-        "executor": { "type": "string", "enum": ["auto", "SOLE", "SEQUENCE", "PARALLEL", "CONCURRENT", "OMNIPIPE", "ORDER_PRESERVED", "TWO_SHOT_SOLE"] },
-        "template": { "type": "string" },
+        "engine": { "type": "string", "enum": ["aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"] },
+        "executor": { "type": "string", "enum": ["sequence", "sole", "parallel", "pipiline", "concur"] },
+        "template": { "type": "string", "enum": ["mesh", "NHR", "mesh_two_shot", "mesh_one_shot", "mesh_chunk", "mesh_2die"] },
         "args": {
           "type": "object",
           "additionalProperties": true,
@@ -78,9 +78,9 @@
                       "comm_name": { "type": "string" }
                     }
                   },
-                  "engine": { "type": "string", "enum": ["auto", "AICPU", "AIV", "CCU_MS", "CCU_SCHED", "HOSTCPU"] },
-                  "executor": { "type": "string", "enum": ["auto", "SOLE", "SEQUENCE", "PARALLEL", "CONCURRENT", "OMNIPIPE", "ORDER_PRESERVED", "TWO_SHOT_SOLE"] },
-                  "template": { "type": "string" },
+                  "engine": { "type": "string", "enum": ["aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"] },
+                  "executor": { "type": "string", "enum": ["sequence", "sole", "parallel", "pipiline", "concur"] },
+                  "template": { "type": "string", "enum": ["mesh", "NHR", "mesh_two_shot", "mesh_one_shot", "mesh_chunk", "mesh_2die"] },
                   "cost": { "type": "number" },
                   "args": {
                     "type": "object",

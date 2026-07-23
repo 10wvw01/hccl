@@ -82,11 +82,6 @@ extern "C" {
 
 #define HCCL_TUNER_API_VERSION 1
 
-#define HCCL_NUM_ENGINES   5
-#define HCCL_NUM_EXECUTORS 7
-#define HCCL_NUM_TEMPLATES 16
-#define HCCL_ALGO_IGNORE   (-1.0f)
-
 /* ===== 枚举 ===== */
 
 typedef enum {
@@ -120,11 +115,19 @@ typedef struct {
     hcclOpType_t collType;
     size_t nBytes;
     HcclDataType dataType;
-    int nEngine;
-    int nExecutor;
-    int nTemplate;
     uint32_t structSize;
 } hcclTunerCollInfo_t;
+
+/* ===== 算法条目（命名 cost table，C/C++ 共用）===== */
+
+typedef struct {
+    const char* algName;        /* "AicpuAllReduceSoleMeshOneShot" */
+    const char* engineName;     /* "aicpu" — Enrich 填充，插件只读 */
+    const char* executorName;   /* "sole"  — Enrich 填充，插件只读 */
+    const char* templateName;   /* "mesh_one_shot" — Enrich 填充，插件只读 */
+    float cost;                 /* 可修改: <0=禁用, 0=偏好, >0=覆盖, 不改=用CostModel值 */
+    uint32_t structSize;
+} hcclTunerAlgoEntry_t;
 
 /* ===== Host 函数表 ===== */
 
@@ -149,7 +152,8 @@ typedef HcclResult (*hcclTunerInit_t)(
 typedef HcclResult (*hcclTunerGetCollInfo_t)(
     HcclComm comm,
     const hcclTunerCollInfo_t* collInfo,
-    float* collCostTable
+    hcclTunerAlgoEntry_t* algoEntries,
+    int algoCount
 );
 
 /* ===== 函数表 ===== */
@@ -173,35 +177,6 @@ typedef struct {
 
 extern hcclPluginDescriptor_t hcclTunerPlugin;
 HcclResult hcclTunerGetFuncs(hcclTunerFuncs_t* funcs);
-
-/* ===== Helper 宏 ===== */
-
-#define HCCL_TUNER_SELECT_ALGO(table, e, ex, t) do { \
-    for (int _i = 0; _i < HCCL_NUM_ENGINES * HCCL_NUM_EXECUTORS * \
-                             HCCL_NUM_TEMPLATES; _i++) \
-        (table)[_i] = HCCL_ALGO_IGNORE; \
-    (table)[(e) * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES \
-           + (ex) * HCCL_NUM_TEMPLATES + (t)] = 0.0f; \
-} while(0)
-
-#define HCCL_TUNER_DISABLE_ALGO(table, e, ex, t) do { \
-    (table)[(e) * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES \
-           + (ex) * HCCL_NUM_TEMPLATES + (t)] = HCCL_ALGO_IGNORE; \
-} while(0)
-
-#define HCCL_TUNER_DISABLE_ENGINE(table, e) do { \
-    for (int _ex = 0; _ex < HCCL_NUM_EXECUTORS; _ex++) \
-        for (int _t = 0; _t < HCCL_NUM_TEMPLATES; _t++) \
-            (table)[(e) * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES \
-                   + _ex * HCCL_NUM_TEMPLATES + _t] = HCCL_ALGO_IGNORE; \
-} while(0)
-
-#define HCCL_TUNER_DISABLE_EXECUTOR(table, ex) do { \
-    for (int _e = 0; _e < HCCL_NUM_ENGINES; _e++) \
-        for (int _t = 0; _t < HCCL_NUM_TEMPLATES; _t++) \
-            (table)[_e * HCCL_NUM_EXECUTORS * HCCL_NUM_TEMPLATES \
-                   + (ex) * HCCL_NUM_TEMPLATES + _t] = HCCL_ALGO_IGNORE; \
-} while(0)
 
 /* ===== 日志级别 ===== */
 
