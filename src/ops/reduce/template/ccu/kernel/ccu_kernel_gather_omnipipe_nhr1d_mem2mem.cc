@@ -31,7 +31,8 @@ static CcuResult ParseKernelArg(GatherOmniPipeNHR1DMem2MemContext &ctx,
     ctx.rank2ChannelIdx = kernelArg->rank2ChannelIdx;
     ctx.localSize = static_cast<uint32_t>(ctx.rank2ChannelIdx.size());
     ctx.myRankIdx = ctx.localSize;
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] ParseKernelArg");
+    ctx.dataType = kernelArg->opParam.DataDes.dataType;
+    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] ParseKernelArg");
     return CCU_SUCCESS;
 }
 
@@ -42,7 +43,7 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
         return CCU_E_INTERNAL;
     }
     
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]", ctx.arg->channelCount, ctx.localSize);
+    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]", ctx.arg->channelCount, ctx.localSize);
     
     ctx.input.resize(ctx.localSize + 1);
     ctx.scratch.resize(ctx.localSize + 1);
@@ -130,7 +131,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
-    HCCL_INFO("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(), sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
+    HCCL_DEBUG("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(), sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
 
 
     if (recvSliceIdxList.size() != 0) {
@@ -166,7 +167,7 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         ccu::EventWait(ctx.event, (1 << recvSliceIdxSize) - 1);
     }
 
-    HCCL_INFO("[DoGatherOmniPipeNHRSingleStep] step %u, toRank=%u, fromRank=%u, sendSliceNum=%lu",
+    HCCL_DEBUG("[DoGatherOmniPipeNHRSingleStep] step %u, toRank=%u, fromRank=%u, sendSliceNum=%lu",
         nhrStepInfo.step, nhrStepInfo.toRank, nhrStepInfo.fromRank, sendSliceIdxList.size());
     return CCU_SUCCESS;
 }
@@ -184,7 +185,7 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     auto *kernelArg = static_cast<CcuKernelArgGatherOmniPipeNHR1DMem2Mem *>(arg);
     GatherOmniPipeNHR1DMem2MemContext ctx;
 
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem run");
+    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
@@ -194,7 +195,7 @@ CcuResult CcuGatherOmniPipeNHR1DMem2MemKernel(CcuKernelArg arg)
     CCU_CHK_RET(DoGatherOmniPipeNHR(ctx));
     
     CCU_CHK_RET(PostSync(ctx));
-    HCCL_INFO("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
+    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] GatherOmniPipeNHR1DMem2Mem end");
     
     return CCU_SUCCESS;
 }

@@ -41,7 +41,7 @@ CcuTempGatherOmniPipeNHR1DMem2Mem::~CcuTempGatherOmniPipeNHR1DMem2Mem()
 
 void CcuTempGatherOmniPipeNHR1DMem2Mem::SetRoot(u32 root)
 {
-    HCCL_INFO("[CcuTempGatherOmniPipeNHR1DMem2Mem][SetRoot] myRank_ [%u], set root [%u] ", myRank_, root);
+    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem][SetRoot] myRank_ [%u], set root [%u] ", myRank_, root);
     std::vector<u32> ranks = subCommRanks_[0];
     std::string ranksStr = "";
     for (auto r : ranks) { ranksStr += std::to_string(r) + ", "; }
@@ -56,7 +56,7 @@ void CcuTempGatherOmniPipeNHR1DMem2Mem::SetRoot(u32 root)
 
 void CcuTempGatherOmniPipeNHR1DMem2Mem::UnsetRoot(u32 rank)
 {
-    HCCL_INFO("[CcuTempGatherOmniPipeNHR1DMem2Mem][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
+    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem][UnsetRoot] myRank_ [%u], unset root [%u] ", myRank_, rank);
     if (!ifRealRoot_) {
         subCommRootId_ = UINT32_MAX;
     }

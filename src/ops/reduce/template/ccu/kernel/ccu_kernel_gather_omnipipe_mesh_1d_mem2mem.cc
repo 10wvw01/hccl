@@ -23,6 +23,7 @@ static CcuResult ParseKernelArg(GatherOmniPipeMesh1DMem2MemContext &ctx, CcuKern
     ctx.arg = kernelArg;
     ctx.rankSize = kernelArg->rankSize;
     ctx.rankId = kernelArg->rankId;
+    ctx.dataType = kernelArg->opParam.DataDes.dataType;
     return CCU_SUCCESS;
 }
 
@@ -35,7 +36,7 @@ static CcuResult InitResource(GatherOmniPipeMesh1DMem2MemContext &ctx)
         return CCU_E_INTERNAL;
     }
     
-    HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
+    HCCL_DEBUG("[CcuGatherOmniPipeMesh1DMem2Mem] channels.size: [%u]", ctx.arg->channelCount);
     
     ctx.input.resize(ctx.rankSize);
     ctx.token.resize(ctx.rankSize);
@@ -124,7 +125,7 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
         CCU_IF(ctx.sliceSize != 0) {
             if (ctx.rankId != rankIdx) {
                 ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
-                HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx, ctx.inputMem[rankIdx], ctx.sliceSize);
+                HCCL_DEBUG("[CcuGatherOmniPipeMesh1DMem2Mem] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx, ctx.inputMem[rankIdx], ctx.sliceSize);
                 channelId++;
             } else {
                 ccu::EventRecord(ctx.event, rankMask);
@@ -170,7 +171,7 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     
     GatherOmniPipeMesh1DMem2MemContext ctx;
     
-    HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] GatherOmniPipeMesh1DMem2Mem run");
+    HCCL_DEBUG("[CcuGatherOmniPipeMesh1DMem2Mem] GatherOmniPipeMesh1DMem2Mem run");
     CCU_CHK_RET(ParseKernelArg(ctx, kernelArg));
     CCU_CHK_RET(InitResource(ctx));
     CCU_CHK_RET(LoadArgs(ctx));
@@ -186,7 +187,7 @@ CcuResult CcuGatherOmniPipeMesh1DMem2MemKernel(CcuKernelArg arg)
     {
         CCU_CHK_RET(PostSync(ctx));
     }
-    HCCL_INFO("[CcuGatherOmniPipeMesh1DMem2Mem] new ZQ GatherOmniPipeMesh1DMem2Mem end");
+    HCCL_DEBUG("[CcuGatherOmniPipeMesh1DMem2Mem] new ZQ GatherOmniPipeMesh1DMem2Mem end");
     
     return CCU_SUCCESS;
 }
