@@ -55,8 +55,8 @@ HcomAllReduceOp::~HcomAllReduceOp()
 
 ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
 {
-    const gert::Tensor *inputTensor = st.ctx->GetInputTensor(INPUT_INDEX);
-    if (inputTensor == nullptr) {
+    const gert::Tensor *firstInput = st.ctx->GetInputTensor(INPUT_INDEX);
+    if (firstInput == nullptr) {
         HCCL_ERROR("HcomAllReduceOp::ExtractParams: input tensor is null.");
         return ge::GRAPH_FAILED;
     }
@@ -71,10 +71,10 @@ ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
     const int64_t *fusion = attrs->GetInt(ATTR_FUSION);
     const int64_t *fusionId = attrs->GetInt(ATTR_FUSION_ID);
 
-    st.dataType = hccl::GeDataTypeToHccl(inputTensor->GetDataType());
+    st.dataType = hccl::GeDataTypeToHccl(firstInput->GetDataType());
     if (st.dataType == HCCL_DATA_TYPE_RESERVED) {
         HCCL_ERROR("HcomAllReduceOp::ExtractParams: unsupported data type %d.",
-                   static_cast<int>(inputTensor->GetDataType()));
+                   static_cast<int>(firstInput->GetDataType()));
         return ge::GRAPH_FAILED;
     }
 
@@ -85,22 +85,52 @@ ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
         return ge::GRAPH_FAILED;
     }
 
-    gert::Tensor *outputTensor =
-        st.ctx->MallocOutputTensor(OUTPUT_INDEX, inputTensor->GetShape(), inputTensor->GetFormat(), inputTensor->GetDataType());
-    if (outputTensor == nullptr) {
-        HCCL_ERROR("HcomAllReduceOp::ExtractParams: failed to allocate output tensor.");
+    // 遍历所有 input（融合场景多输入），按 512B 对齐累加计算总 count
+    // 对应 InfoStore CalcCountForAlignedOp: 每个 input 的 GetSize() 向上对齐到 512B 后累加，再除以 dataTypeSize
+    constexpr uint64_t ALIGNED_SIZE = 512;
+    uint32_t unitSize = hccl::GetHcclDataTypeSize(st.dataType);
+    uint64_t totalAlignedSize = 0;
+    size_t inputCount = 0;
+
+    for (size_t i = 0;; i++) {
+        const gert::Tensor *inTensor = st.ctx->GetInputTensor(i);
+        if (inTensor == nullptr) {
+            break;
+        }
+        inputCount++;
+
+        gert::Tensor *outTensor = st.ctx->MallocOutputTensor(i, inTensor->GetShape(), inTensor->GetFormat(),
+                                                              inTensor->GetDataType());
+        if (outTensor == nullptr) {
+            HCCL_ERROR("HcomAllReduceOp::ExtractParams: failed to allocate output tensor %zu.", i);
+            return ge::GRAPH_FAILED;
+        }
+
+        uint64_t tensorSize = static_cast<uint64_t>(inTensor->GetSize());
+        uint64_t alignedSize = (tensorSize + ALIGNED_SIZE - 1) / ALIGNED_SIZE * ALIGNED_SIZE;
+        totalAlignedSize += alignedSize;
+
+        st.inputPtrs.push_back(const_cast<void *>(inTensor->GetAddr()));
+        st.outputPtrs.push_back(outTensor->GetAddr());
+    }
+
+    if (inputCount == 0) {
+        HCCL_ERROR("HcomAllReduceOp::ExtractParams: no input tensors.");
         return ge::GRAPH_FAILED;
     }
 
-    st.inputPtr = const_cast<void *>(inputTensor->GetAddr());
-    st.outputPtr = outputTensor->GetAddr();
-    st.count = static_cast<uint64_t>(inputTensor->GetShapeSize());
+    st.count = totalAlignedSize / unitSize;
     st.group = group;
     st.stream = st.ctx->GetStream();
 
-    HCCL_INFO("HcomAllReduceOp::ExtractParams: input=%p output=%p count=%lu dataType=%d reduceOp=%d group=%s stream=%p "
-              "fusion=%ld fusionId=%ld.",
-              st.inputPtr, st.outputPtr, st.count, st.dataType, st.reduceOp,
+    if (inputCount > 1) {
+        HCCL_WARNING("HcomAllReduceOp::ExtractParams: fusion scenario (%zu inputs) — contiguous buffer not yet handled, "
+                     "using first input/output address only.", inputCount);
+    }
+
+    HCCL_INFO("HcomAllReduceOp::ExtractParams: inputCount=%zu input[0]=%p output[0]=%p count=%lu dataType=%d reduceOp=%d "
+              "group=%s stream=%p fusion=%ld fusionId=%ld.",
+              inputCount, st.inputPtrs[0], st.outputPtrs[0], st.count, st.dataType, st.reduceOp,
               st.group ? st.group : "(null)", st.stream, fusion ? *fusion : -1,
               fusionId ? *fusionId : -1);
 
@@ -190,15 +220,6 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
     // TODO: used_stream_num 子流 — GE 根据属性创建后通过 hcclInfo.hcclStreamList 传回，
     //       传给 HcclAllReduceGraphMode 的 streams[] 参数
 
-    // 检测融合场景（多输入）
-    size_t inputCount = 0;
-    for (size_t i = 0; st.ctx->GetInputTensor(i) != nullptr; i++) {
-        inputCount++;
-    }
-    if (inputCount > 1) {
-        HCCL_WARNING("HcomAllReduceOp::LaunchHcclOp: fusion scenario (%zu inputs) not yet supported.", inputCount);
-    }
-
     // TODO: 解析 needRefresh（对应 InfoStore task.needRefresh，
     //       由 IsFeatureBaseRefreshable + IsStaticAddrFixed + is_refresh_addr_op_ 决定）
     st.needRefresh = false;
@@ -212,12 +233,12 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
 ge::graphStatus HcomAllReduceOp::LaunchDirect(hccl::HcclOpState &st)
 {
     HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu (non-refresh, user buffers directly).",
-              st.inputPtr, st.outputPtr, st.count);
+              st.inputPtrs[0], st.outputPtrs[0], st.count);
 
-    HCCL_GE_CHK_RET(CleanCracks(st.inputPtr, 0));
+    HCCL_GE_CHK_RET(CleanCracks(st.inputPtrs[0], 0));
 
     HcclResult ret = HcclAllReduceGraphMode(
-        st.inputPtr, st.outputPtr, st.count, st.dataType, st.reduceOp, st.group,
+        st.inputPtrs[0], st.outputPtrs[0], st.count, st.dataType, st.reduceOp, st.group,
         static_cast<aclrtStream>(st.stream), HCCL_KERNEL_OP_TYPE_ALLREDUCE.c_str(),
         nullptr, 0, st.scratchMem, st.scratchMemSize);
     if (ret != HCCL_SUCCESS) {
@@ -286,7 +307,7 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
     }
 
     HCCL_INFO("HcomAllReduceOp::LaunchLoop: success, input=%p output=%p count=%lu scratchMem=%p scratchMemSize=%lu.",
-              st.inputPtr, st.outputPtr, st.count, st.scratchMem, st.scratchMemSize);
+              st.inputPtrs[0], st.outputPtrs[0], st.count, st.scratchMem, st.scratchMemSize);
     return ge::GRAPH_SUCCESS;
 }
 
@@ -363,8 +384,8 @@ ge::graphStatus HcomAllReduceOp::RefreshInputAddr(hccl::HcclOpState &st, uint64_
     // D2D 异步: 用户数据 → CCL buffer
     // secAddrCopyWithoutOffset==true: 无偏移（单轮，inputOffset 恒为 0）
     // secAddrCopyWithoutOffset==false: 有偏移（多 loop）
-    void *src = secAddrCopyWithoutOffset ? st.inputPtr
-                                         : static_cast<char *>(st.inputPtr) + inputOffset;
+    void *src = secAddrCopyWithoutOffset ? st.inputPtrs[0]
+                                         : static_cast<char *>(st.inputPtrs[0]) + inputOffset;
     aclRet = aclrtMemcpyAsync(commInputPtr, commInputSize, src, curSize,
                               ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
     if (aclRet != ACL_SUCCESS) {
@@ -418,8 +439,8 @@ ge::graphStatus HcomAllReduceOp::RefreshOutputAddr(hccl::HcclOpState &st, uint64
     // D2D 异步: CCL buffer → 用户输出
     // secAddrCopyWithoutOffset==true: 无偏移（单轮，outputOffset 恒为 0）
     // secAddrCopyWithoutOffset==false: 有偏移（多 loop）
-    void *dst = secAddrCopyWithoutOffset ? st.outputPtr
-                                         : static_cast<char *>(st.outputPtr) + outputOffset;
+    void *dst = secAddrCopyWithoutOffset ? st.outputPtrs[0]
+                                         : static_cast<char *>(st.outputPtrs[0]) + outputOffset;
     aclRet = aclrtMemcpyAsync(dst, curSize, commOutputPtr, curSize,
                               ACL_MEMCPY_DEVICE_TO_DEVICE, static_cast<aclrtStream>(st.stream));
     if (aclRet != ACL_SUCCESS) {

@@ -13,6 +13,7 @@
 
 #include "graph/custom_op.h"
 #include "hccl/hccl_types.h"
+#include <vector>
 
 namespace hccl {
 
@@ -28,8 +29,8 @@ struct HcclOpState {
     gert::EagerOpExecutionContext *ctx = nullptr;
     HcclComm comm = nullptr;
     const char *group = nullptr;
-    void *inputPtr = nullptr;
-    void *outputPtr = nullptr;
+    std::vector<void *> inputPtrs;
+    std::vector<void *> outputPtrs;
     uint64_t count = 0;
     HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
     void *stream = nullptr;
