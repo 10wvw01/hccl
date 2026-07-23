@@ -11,8 +11,27 @@
 #ifndef DEV_TYPE_H
 #define DEV_TYPE_H
 
-#include "hccl/base.h"
+#include "hccl_types.h"
 #include <unordered_map>
+#include <string>
+
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
+typedef signed long long s64;
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+
+const u32 HCCL_TAG_MAX_LEN = 191; // 最大的tag 长度
+
+#define HCCL_GROUP_NAME_MAX_LEN 127
+
+/**
+* @brief stream handle.
+*/
+typedef void *rtStream_t;
 
 // 2 is sizeof(float16), 8 is sizeof(float64), 2 is sizeof(bfloat16)..
 constexpr u32 HCCL_SIZE_TABLE[HCCL_DATA_TYPE_RESERVED] = {sizeof(s8), sizeof(s16), sizeof(s32),
@@ -32,6 +51,17 @@ enum class HcclDevType {
     DEV_TYPE_960 = 8,
     DEV_TYPE_COUNT = 9
 };
+
+typedef struct {
+    char group[HCCL_GROUP_NAME_MAX_LEN];
+    void* inputAddr;
+    void* outputAddr;
+    uint64_t count;
+    HcclDataType dataType;
+    uint32_t root;
+    HcclReduceOp reduceOp;
+    uint64_t strideCount;
+} HcclCollOpInfo;
 
 const std::unordered_map<std::string, HcclDevType> HCCL_SOC_VER_CONVERT{
     {"Ascend310P1", HcclDevType::DEV_TYPE_310P3},

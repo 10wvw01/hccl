@@ -16,7 +16,6 @@
 #include "alg_env_config.h"
 #include "executor_base.h"
 #include "hccl.h"
-#include "hccl/base.h"
 #include "hccl_inner.h"
 #include "op_common.h"
 #include "param_check.h"

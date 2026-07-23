@@ -11,7 +11,6 @@
 #include "reduce_scatter_v_semantics_checker.h"
 
 #include <map>
-#include "base.h"
 #include "log.h"
 
 namespace HcclSim {

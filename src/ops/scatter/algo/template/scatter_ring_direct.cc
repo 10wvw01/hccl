@@ -21,7 +21,7 @@ ScatterRingDirect::~ScatterRingDirect()
 {
 }
 
-HcclResult ScatterRingDirect::Prepare(HcomCollOpInfo *opInfo, const u32 userRank,
+HcclResult ScatterRingDirect::Prepare(HcclCollOpInfo *opInfo, const u32 userRank,
     const std::vector<u32> &ringsOrders, const std::vector<Slice> &userMemInputSlices)
 {
     opInfo_ = opInfo;

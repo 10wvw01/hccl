@@ -12,7 +12,6 @@
 #include <vector>
 #include <set>
 #include <hccl/hccl_types.h>
-#include "hccl/base.h"
 #include "alg_type.h"
 #include "channel_request.h"
 #include "topo.h"

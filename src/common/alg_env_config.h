@@ -14,7 +14,6 @@
 #include <vector>
 #include <map>
 #include <hccl/hccl_types.h>
-#include "hccl/base.h"
 #include "alg_type.h"
 #include "hccl_common.h"
 namespace ops_hccl {

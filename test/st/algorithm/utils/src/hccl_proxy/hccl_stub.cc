@@ -9,7 +9,6 @@
  */
 
 #include "hccl/hccl_types.h"
-#include "hccl/base.h"
 #include "hccl_host_comm_dl.h"
 #include "hccl_res.h"
 #include "dev_type.h"

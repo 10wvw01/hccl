@@ -20,7 +20,7 @@
 
 #include <hccl/hccl_types.h>
 #include <hccl/hccl_comm.h>
-#include "hccl/base.h"
+#include "dev_type.h"
 #include "sal.h"
 #include "error_codes/rt_error_codes.h"
 #include "param_check.h"
@@ -2208,8 +2208,8 @@ HcclResult HcclCheckTag(const char *tag)
 {
     CHK_PTR_NULL(tag);
 
-    u32 tagLen = strnlen(tag, TAG_MAX_LEN + 1);
-    if (UNLIKELY((tagLen == (TAG_MAX_LEN + 1) || tagLen == 0))) {
+    u32 tagLen = strnlen(tag, HCCL_TAG_MAX_LEN + 1);
+    if (UNLIKELY((tagLen == (HCCL_TAG_MAX_LEN + 1) || tagLen == 0))) {
         HCCL_ERROR("[Check][Tag]errNo[0x%016llx] tag is too long", HCOM_ERROR_CODE(HCCL_E_PARA));
         return HCCL_E_PARA;
     }
