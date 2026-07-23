@@ -187,7 +187,7 @@ HcclResult ScatterSequenceAicpu3LevelExecutor<AlgTopoMatch, InsAlgTemplate0, Ins
     HcclResult ret = OrchestrateLoop(param, resCtx);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
         HCCL_ERROR("[ScatterSequenceAicpu3LevelExecutor][Orchestrate] myRank[%u] errNo[0x%016llx] "
-            "scatter excutor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
+            "scatter executor kernel run failed", myRank_, HCCL_ERROR_CODE(ret)), ret);
     return HCCL_SUCCESS;
 }
 
