@@ -366,8 +366,6 @@ CcuResult ReduceLoopGroupV2(AllReduceMeshMem2Mem1DContext &ctx, ccu::LocalAddr s
     // m部分
     CCU_IF(ctx.goSize.loopParam != 0)                   // goSize1
     {
-        // loopParam = GetLoopParam(0, ctx.moConfig.memSlice * ctx.moConfig.loopCount, 0);
-        // loopParam = loopParam + ctx.goSize.loopParam;
         sliceSize          = ctx.moConfig.memSlice;
         sliceSizeExpansion = ctx.moConfig.memSlice * expansionNum;
 
