@@ -648,19 +648,10 @@ HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSiz
         eqBw = (subCommIndex == 0) ? OMIN_MESH_BW : OMIN_CLOS_BW / eqRankSize;
         return HCCL_SUCCESS;
     }
-
-    auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&algoExecDesc);
-    if (algoDescPtr == nullptr) {
-        HCCL_ERROR("[CalcEqBW] algoExecDesc is neither TemplateExecDesc nor shared_ptr<AlgoExecDesc>.");
-        eqRankSize = 0;
-        eqBw = 0.0;
-        return HCCL_E_INTERNAL;
-    }
     // OmniPipe 中间节点必须是 2 个孩子（x 慢轴 + y 快轴），否则算不了等效带宽
-    if ((*algoDescPtr)->children.size() != 2) {
-        HCCL_ERROR("[CalcEqBW] children size != 2, actual=%zu.", (*algoDescPtr)->children.size());
-        eqRankSize = 0;
-        eqBw = 0.0;
+    auto *algoDescPtr = std::get_if<std::shared_ptr<AlgoExecDesc>>(&algoExecDesc);
+    if (algoDescPtr == nullptr || (*algoDescPtr)->children.size() != 2) {
+        HCCL_ERROR("[CalcEqBW] algoExecDesc is neither TemplateExecDesc nor shared_ptr<AlgoExecDesc>.");
         return HCCL_E_INTERNAL;
     }
 
@@ -671,21 +662,14 @@ HcclResult OpsExecutor::CalcEqBW(VariantType &algoExecDesc, u_int32_t &eqRankSiz
     CHK_RET(CalcEqBW(xChild, xChildRankSize, xChildEqBw));
     CHK_RET(CalcEqBW(yChild, yChildRankSize, yChildEqBw));
 
-    if (xChildRankSize == 0 || yChildRankSize == 0 || xChildEqBw == 0.0 || yChildEqBw == 0.0) {
-        HCCL_ERROR("[CalcEqBW] invalid input, xChildRankSize=%u, yChildRankSize=%u, xChildEqBw=%f, yChildEqBw=%f.",
-            xChildRankSize, yChildRankSize, xChildEqBw, yChildEqBw);
-        eqRankSize = 0;
-        eqBw = 0.0;
-        return HCCL_E_INTERNAL;
-    }
-
-    eqRankSize = xChildRankSize * yChildRankSize;
     // CalcBandwidth2D 内部要求 xB <= yB（慢轴在前），自动按大小排序传入
-    if (xChildEqBw <= yChildEqBw) {
-        eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM);
-    } else {
-        eqBw = CalcBandwidth2D(yChildEqBw, xChildEqBw, yChildRankSize, xChildRankSize, OMIN_MAX_STEP_NUM);
+    if (xChildEqBw > yChildEqBw) {
+        std::swap((*algoDescPtr)->children[0], (*algoDescPtr)->children[1]);
+        std::swap(xChildRankSize, yChildRankSize);
+        std::swap(xChildEqBw, yChildEqBw);
     }
+    eqRankSize = xChildRankSize;
+    eqBw = CalcBandwidth2D(xChildEqBw, yChildEqBw, xChildRankSize, yChildRankSize, OMIN_MAX_STEP_NUM);
     return HCCL_SUCCESS;
 }
 
