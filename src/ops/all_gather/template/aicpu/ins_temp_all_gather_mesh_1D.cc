@@ -111,7 +111,6 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
     u32 myAlgRank = 0;
     CHK_RET(GetAlgRank(myRank_, subCommRanks_[0], myAlgRank));
     const u32 dataTypeSize = DATATYPE_SIZE_TABLE[dataType_];
-    // 【lgx】原版本中threadIdx从0开始，因此queIdx=0，需确认
     u32 queIdx = 0;
     for (u32 rankIdx = 1; rankIdx < templateRankSize_; rankIdx++) {
         u32 connectedAlgRank = (myAlgRank + rankIdx) % templateRankSize_;
