@@ -235,4 +235,12 @@ u64 CcuTempReduceScatterMesh2Die::GetThreadNum() const
     return KERNEL_NUM_2;
 }
 
+HcclResult CcuTempReduceScatterMesh2Die::GetRes(AlgResourceRequest& resourceRequest) const
+{
+    resourceRequest.slaveThreadNum = 1;
+    resourceRequest.notifyNumOnMainThread = 1;
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
+    return HCCL_SUCCESS;
+}
+
 } // namespace ops_hccl

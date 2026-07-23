@@ -32,6 +32,12 @@ public:
     ~InsV2AllReduceSequence2DieExecutor() override;
  
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
+
+#ifndef AICPU_COMPILE
+    HcclResult FastLaunch(const OpParam &param, const CcuFastLaunchCtx *fastLaunchCtx) override;
+    HcclResult FastLaunchSaveCtx(const OpParam &param, const TemplateResource &reduceTemplateRes,
+                                 const TemplateResource &gatherTemplateRes, u32 notifyNumOnMainThread) const;
+#endif
  
     /* *************** 资源计算 *************** */
     // 这些函数为ExecutorBase纯虚函数，必须重写

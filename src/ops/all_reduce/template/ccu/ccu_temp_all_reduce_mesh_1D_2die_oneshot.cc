@@ -146,7 +146,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::KernelRun(const OpParam& param,
         }
     }
     for (auto dieId = 0; dieId < dieNum; dieId++) {
-        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[dieId],
+        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[dieId], templateResource.ccuKernels[dieId],
             taskArgs.data(), taskArgs.size());
         CHK_PRT_RET(launchRet != CCU_SUCCESS,
             HCCL_ERROR("[CcuTempAllreduceMesh1D2DieOneShot::KernelRun] kernel launch failed, ccuRet -> %d",
@@ -196,7 +196,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::FastLaunch(const OpParam& param,
             args[12], args[13], args[14], args[15],
             args[16], args[17], args[18], args[19]
         };
-        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[0],
+        CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[kernelIdx],
             tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle, taskArgs.data(), taskArgs.size());
         CHK_PRT_RET(launchRet != CCU_SUCCESS,
             HCCL_ERROR("[CcuTempAllreduceMesh1D2DieOneShot::FastLaunch] kernel launch failed, ccuRet -> %d",
@@ -210,7 +210,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::FastLaunch(const OpParam& param,
 
 u64 CcuTempAllreduceMesh1D2DieOneShot::GetThreadNum() const
 {
-    return 1;
+    return ALL_REDUCE_DIE_NUM;
 }
 
 HcclResult CcuTempAllreduceMesh1D2DieOneShot::GetRes(AlgResourceRequest& resourceRequest) const

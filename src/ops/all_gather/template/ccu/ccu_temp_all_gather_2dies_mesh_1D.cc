@@ -142,6 +142,12 @@ HcclResult CcuTempAllGather2DiesMesh1D::KernelRun(const OpParam& param, const Te
     HCCL_INFO("[CcuTempAllGather2DiesMesh1D::KernelRun] TaskArgs: inputAddr[%llu], outputAddr[%llu], sliceSize[%llu], offSet[%llu]",
                inputAddr, outputAddr, sliceSize, offSet);
 
+    LoopGroupConfig config{};
+    config.msInterleave = CCU_MS_INTERLEAVE;
+    config.loopCount = CCU_MS_DEFAULT_LOOP_COUNT;
+    config.memSlice = CCU_MS_SIZE;
+    auto goSize = CalGoSize(sliceSize, config);
+
     //前流同步
     if (kernelNum > 1) {
         std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1, templateResource.threads.end());
@@ -150,7 +156,10 @@ HcclResult CcuTempAllGather2DiesMesh1D::KernelRun(const OpParam& param, const Te
     }
 
     //双die模式，下发两个kernel
-    std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, sliceSize, offSet, token};
+    std::vector<uint64_t> taskArgs = {
+        inputAddr, outputAddr, sliceSize, offSet, token,
+        goSize[0], goSize[1], goSize[2], goSize[3]
+    };
     for (u32 i = 0; i < kernelNum; i++) {
         CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[i], templateResource.ccuKernels[i],
             taskArgs.data(), taskArgs.size());
@@ -169,7 +178,8 @@ HcclResult CcuTempAllGather2DiesMesh1D::KernelRun(const OpParam& param, const Te
 
     // 所有task下发完后再保存参数信息
     CcuKernelSubmitInfo submitInfo;
-    CHK_RET(FillCachedArgs(submitInfo, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, token, offSet, sliceSize));
+    CHK_RET(FillCachedArgs(submitInfo, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, token, offSet, sliceSize,
+        goSize[0], goSize[1], goSize[2], goSize[3]));
     for (u32 i = 0; i < kernelNum; i++) {
         // 2个kernel的TaskArg相同
         submitInfo.kernelHandle = templateResource.ccuKernels[i];
@@ -191,6 +201,7 @@ HcclResult CcuTempAllGather2DiesMesh1D::FastLaunch(const OpParam& param, const T
     u32 kernelNum = tempFastLaunchCtx.ccuKernelSubmitInfos.size();
     buffInfo_ = tempFastLaunchCtx.buffInfo;
     // cachedArgs layout: [0]=inBuffBaseOff [1]=outBuffBaseOff [2]=token [3]=offSet [4]=sliceSize
+    //                    [5..8]=goSize
     const uint64_t *args = tempFastLaunchCtx.ccuKernelSubmitInfos[0].cachedArgs;
     uint64_t inputAddr  = PointerToAddr(buffInfo_.inputPtr)  + args[0];
     uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + args[1];
@@ -203,7 +214,10 @@ HcclResult CcuTempAllGather2DiesMesh1D::FastLaunch(const OpParam& param, const T
     }
 
     for (u32 kernelIdx = 0; kernelIdx < kernelNum; kernelIdx++) {
-        std::vector<uint64_t> taskArgs = {inputAddr, outputAddr, args[4], args[3], args[2]};
+        std::vector<uint64_t> taskArgs = {
+            inputAddr, outputAddr, args[4], args[3], args[2],
+            args[5], args[6], args[7], args[8]
+        };
         CcuResult launchRet = HcommCcuKernelLaunch(tempFastLaunchCtx.threads[kernelIdx],
             tempFastLaunchCtx.ccuKernelSubmitInfos[kernelIdx].kernelHandle, taskArgs.data(), taskArgs.size());
         CHK_PRT_RET(launchRet != CCU_SUCCESS,
