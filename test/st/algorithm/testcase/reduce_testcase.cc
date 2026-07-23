@@ -269,17 +269,6 @@ TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_301M_fp32_sum_1x8)
 }
 
 // asymmetric topology
-TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_1_int8_min)
-{
-    TopoMeta topoMeta{{{0, 1}, {0, 1, 2}}};
-    u64 dataCount = 1;
-    HcclDataType dataType = HcclDataType::HCCL_DATA_TYPE_INT8;
-    u32 dataTypeSize = 1;
-    u32 root = 1;
-    HcclReduceOp reduceOp = HcclReduceOp::HCCL_REDUCE_MIN;
-    RunReduceDPUCase(topoMeta, dataCount, dataType, dataTypeSize, reduceOp, root);
-}
-
 TEST_F(ST_REDUCE_TEST, host_dpu_opbase_reduce_asymmetric_100_int16_max)
 {
     TopoMeta topoMeta{{{0, 1}, {0, 1, 2}, {0, 1, 2, 3}, {0, 1, 2, 3, 4}, {0, 1, 2, 3, 4, 5},

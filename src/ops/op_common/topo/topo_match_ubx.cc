@@ -135,14 +135,12 @@ HcclResult TopoMatchUBX::MatchTopo(const HcclComm comm, TopoInfoWithNetLayerDeta
 #ifndef AICPU_COMPILE
     constexpr uint32_t EXPECTED_TOPO_LEVEL_NUM_2 = 2;
     CHK_PRT_RET(topoInfo->topoLevelNums == 0 || topoInfo->topoLevelNums > EXPECTED_TOPO_LEVEL_NUM_2,
-        HCCL_ERROR("[CalcTopoLevelNums] topoLevelNum[%u] is invalid.",
-            topoInfo->topoLevelNums),
+        HCCL_ERROR("[CalcTopoLevelNums] topoLevelNum[%u] is invalid.", topoInfo->topoLevelNums),
         HCCL_E_INTERNAL);
     uint32_t myRank;
     CHK_RET(HcclGetRankId(comm, &myRank));
     CHK_PRT_RET(topoInfo->deviceType != HcclDevType::DEV_TYPE_950,
-        HCCL_ERROR("[CollAlgFactory] [TopoMatchUBX] Rank [%d], deviceType not supported yet.",
-            myRank),
+        HCCL_ERROR("[CollAlgFactory] [TopoMatchUBX] Rank [%d], deviceType not supported yet.", myRank),
         HcclResult::HCCL_E_PARA);
     // 1.获取并校验通信层数
     uint32_t layerNum = 0;

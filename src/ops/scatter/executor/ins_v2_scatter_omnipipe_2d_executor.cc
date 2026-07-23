@@ -56,8 +56,8 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
     dataCount_ = param.DataDes.count;
     dataTypeSize_ = HCCL_SIZE_TABLE[param.DataDes.dataType];
     dataSize_ = dataCount_ * dataTypeSize_;
-
     rankSizeLevel0_ = algHierarchyInfo.infos[0][0].size();
+
     if (rankSizeLevel0_ == 0) {
         HCCL_ERROR("[%s] rankSizeLevel0 is 0", __func__);
         return HcclResult::HCCL_E_PARA;
@@ -68,6 +68,7 @@ HcclResult InsV2ScatterOmniPipe2DExecutor<AlgTopoMatch, InsAlgTempLevel0, InsAlg
         HCCL_ERROR("[%s] rankSizeLevel1 is 0", __func__);
         return HcclResult::HCCL_E_PARA;
     }
+    
     rankIdxLevel0_ = myRank_ % rankSizeLevel0_;
     rankIdxLevel1_ = myRank_ / rankSizeLevel0_;
 

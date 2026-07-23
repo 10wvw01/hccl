@@ -131,6 +131,14 @@ HcclResult CheckScatterInputPara(const HcclComm comm, const void *recvBuf)
     return HCCL_SUCCESS;
 }
 
+bool IsAiCpuMode(HcclDevType deviceType, u32 rankSize)
+{
+    if (GetExternalInputHcclAicpuUnfold() == true && deviceType == HcclDevType::DEV_TYPE_910_93 && (rankSize != 1)) {
+        return true;
+    }
+    return false;
+}
+
 bool IsStreamCapture(aclrtStream stream)
 {
     bool isCapture;
@@ -138,14 +146,6 @@ bool IsStreamCapture(aclrtStream stream)
     u64 modelId = 0xFFFFFFFF;
     CHK_PRT(haclrtGetCaptureInfo(stream, captureStatus, modelId, isCapture));
     return isCapture;
-}
-
-bool IsAiCpuMode(HcclDevType deviceType, u32 rankSize)
-{
-    if (GetExternalInputHcclAicpuUnfold() == true && deviceType == HcclDevType::DEV_TYPE_910_93 && (rankSize != 1)) {
-        return true;
-    }
-    return false;
 }
 
 HcclResult ScatterExecOp(OpParam &param, void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, uint32_t root,
