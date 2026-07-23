@@ -36,7 +36,7 @@ ENABLE_ST="off"
 ENABLE_GCOV="off"
 ENABLE_NO_EXEC="off"
 ST_TASKS=""
-CMAKE_BUILD_TYPE="Debug"
+BUILD_TYPE="Release"
 BUILD_CB_TEST="false"
 BUILD_ST_DIR=${CURRENT_DIR}/test/st/algorithm/build
 
@@ -467,7 +467,7 @@ function build_ut() {
 
   local llt_kill_time=1200
   CMAKE_ARGS="-DPRODUCT_SIDE=host \
-              -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+              -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
               -DCMAKE_INSTALL_PREFIX=${OUTPUT_DIR} \
               -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH} \
               -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
@@ -689,7 +689,7 @@ function usage() {
   echo "Options:"
   echo "    -h, --help     Print usage"
   echo "    --asan         Enable AddressSanitizer"
-  echo "    -build-type=<TYPE>"
+  echo "    --build-type=<TYPE>"
   echo "                   Specify build type (TYPE options: Release/Debug), Default: Release"
   echo "    -j<N>          Set the number of threads used for building, default is 8"
   echo "    --cann_3rd_lib_path=<PATH>"
@@ -740,6 +740,10 @@ while [[ $# -gt 0 ]]; do
     --build-type=*)
         OPTARG=$1
         BUILD_TYPE="${OPTARG#*=}"
+        if [[ "${BUILD_TYPE}" != "Release" && "${BUILD_TYPE}" != "Debug" ]]; then
+            log "Error: Invalid build type '${BUILD_TYPE}'. Supported values: Release, Debug."
+            exit 1
+        fi
         shift
         ;;
     --ccache)
