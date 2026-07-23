@@ -76,7 +76,7 @@ HcclResult LoadAICPUKernel(void)
     HcclResult ret = LoadBinaryFromFile(jsonPath.c_str(), ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE, 0,
         g_binKernelHandle);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-        HCCL_ERROR("[LoadAICPUKernel] load aicpu file fail, ret[%d], path[%s], optionType[%u], "
+        HCCL_ERROR("[LoadAICPUKernel] load aicpu file fail, ret[%d], path[%s], optionType[%d], "
         "cpuKernelMode[%u].", ret, jsonPath.c_str(), ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE, 0), ret);
     return HCCL_SUCCESS;
 }
