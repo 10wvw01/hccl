@@ -42,7 +42,7 @@ HcclResult InsTempAllGatherMesh1D1DZAxisDetour::CalcRes(HcclComm comm, const OpP
     if(subCommRanks_.size() <= COMM_LEVEL0) {
         return HCCL_E_PARA;
     }
-    CHK_PRT_RET(templateRankSize_ > 1 && channelsPerRank_ == 0,
+    CHK_PRT_RET(channelsPerRank_ == 0,
         HCCL_ERROR("[InsTempAllGatherMesh1D1DZAxisDetour][CalcRes] channelsPerRank_ is 0"), HCCL_E_INTERNAL);
     CHK_RET(GetRes(resourceRequest));
     return HCCL_SUCCESS;

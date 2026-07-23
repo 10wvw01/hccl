@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCLV2_INS_V2_REDUCE_SEQUENCE_EXECUTOR_AICPU_3LEVEL_H
-#define HCCLV2_INS_V2_REDUCE_SEQUENCE_EXECUTOR_AICPU_3LEVEL_H
+#ifndef HCCL_REDUCE_SEQUENCE_EXECUTOR_AICPU_3LEVEL_H
+#define HCCL_REDUCE_SEQUENCE_EXECUTOR_AICPU_3LEVEL_H
 
 #include "alg_param.h"
 #include "topo_host.h"
@@ -26,12 +26,12 @@
 
 namespace ops_hccl {
 
-template <typename AlgTopoMatch, typename InsAlgTemplate0, typename InsAlgTemplate1, typename InsAlgTemplate2,
-    typename InsAlgTemplate3, typename InsAlgTemplate4, typename InsAlgTemplate5>
-class InsV2ReduceSequenceExecutorAicpu3Level : public InsCollAlgBase {
+template <typename AlgTopoMatch, typename AlgTemplate0, typename AlgTemplate1, typename AlgTemplate2,
+    typename AlgTemplate3, typename AlgTemplate4, typename AlgTemplate5>
+class ReduceSequenceExecutorAicpu3Level : public InsCollAlgBase {
 public:
-    explicit InsV2ReduceSequenceExecutorAicpu3Level();
-    ~InsV2ReduceSequenceExecutorAicpu3Level() override = default;
+    explicit ReduceSequenceExecutorAicpu3Level();
+    ~ReduceSequenceExecutorAicpu3Level() override = default;
 
     HcclResult Orchestrate(const OpParam &param, const AlgResourceCtxSerializable &resCtx) override;
 
@@ -61,11 +61,11 @@ protected:
         const u64 sliceSizeRSL1, TemplateDataParams &tempAlgParamsAGL2) const;
     void GenTempAlgParamsAGL1(const u64 loop, const u64 currDataCount, const u64 sliceSize, const u64 tailSize,
         TemplateDataParams &tempAlgParamsAGL1) const;
-    void GenTempAlgParamsAGL0(const u64 loop, const u64 currDataCount, const u64 processedDataCount,
+    void GenTempAlgParamsAGL0(const u64 loop, const u64 currDataCount,
         const u64 sliceSize, const u64 tailSize, TemplateDataParams &tempAlgParamsAGL0) const;
-    template <typename InsAlgTemplate>
+    template <typename AlgTemplate>
     HcclResult GenTempResource(const AlgResourceCtxSerializable &resCtx, const u32 channelLevelIdx,
-        const std::shared_ptr<InsAlgTemplate> &algTemplate, TemplateResource &tempResource) const;
+        const std::shared_ptr<AlgTemplate> &algTemplate, TemplateResource &tempResource) const;
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
