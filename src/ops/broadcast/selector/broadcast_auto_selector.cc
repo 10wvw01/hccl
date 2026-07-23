@@ -14,7 +14,7 @@
 
 namespace ops_hccl {
 constexpr u64 BROADCAST_MESH_CCU_MAX_DATA_SIZE = 16 * 1024;  // 64p 总数据量 1M 以下用 mesh 算法
-constexpr u64 BROADCAST_NHR_CCU_MAX_DATA_SIZE = 1 * 1024 * 1024;
+constexpr u64 BROADCAST_NHR_CCU_MAX_DATA_SIZE = 4 * 1024 * 1024;
 
 SelectorStatus BroadcastAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
                                                     const std::map<HcclCMDType, std::vector<HcclAlgoType>> &configAlgMap,
