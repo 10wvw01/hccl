@@ -138,90 +138,79 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
 
 
 HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
-                                                          const TemplateDataParams& templateDataParams,
-                                                          TemplateResource& templateResource)
+                                                        const TemplateDataParams& templateDataParams,
+                                                        TemplateResource& templateResource)
 {
     if (templateRankSize_ <= 1) {
         return HCCL_SUCCESS;
     }
     HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] start1");
-
     buffInfo_ = templateDataParams.buffInfo;
     uint64_t localCopyFlag = templateDataParams.localCopyFlag;
-    auto stepSliceInfo = templateDataParams.stepSliceInfo;
-
-    uint64_t inputAddrBase = PointerToAddr(buffInfo_.inputPtr);
-    uint64_t outputAddrBase = PointerToAddr(buffInfo_.outputPtr);
-    uint64_t inBuffBaseOff = buffInfo_.inBuffBaseOff;
-    uint64_t outBuffBaseOff = buffInfo_.outBuffBaseOff;
-    uint64_t inputAddr = inputAddrBase + inBuffBaseOff;
-    uint64_t outputAddr = outputAddrBase + outBuffBaseOff;
-    uint64_t scratchAddr = PointerToAddr(buffInfo_.hcclBuff.addr) +  inBuffBaseOff;
-
+    uint64_t inputAddr = PointerToAddr(buffInfo_.inputPtr) + buffInfo_.inBuffBaseOff;
+    uint64_t outputAddr = PointerToAddr(buffInfo_.outputPtr) + buffInfo_.outBuffBaseOff;
+    uint64_t scratchAddr = PointerToAddr(buffInfo_.hcclBuff.addr) + buffInfo_.inBuffBaseOff;
     uint64_t token;
     CHK_RET(GetToken(buffInfo_, token));
-
     if (localCopyFlag == 0) {
-        uint64_t sliceSize;
-        uint64_t repeatNum = stepSliceInfo.stepSliceSize[0].size();
-        for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
-            sliceSize = stepSliceInfo.stepSliceSize[0][rpt];//peerId为0,默认发送大小都一致
-            std::vector<uint64_t> inputOmniSliceStrideVec = {};
-            std::vector<uint64_t> outputOmniSliceStrideVec = {};
-            std::vector<uint64_t> sliceSizeOmniSliceStrideVec = {};
-            if (ifDoTask_) {
-                for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {//y轴卡数
-                    uint64_t inputOmniSliceStrideTmp = stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt];
-                    uint64_t outputOmniSliceStrideTmp = stepSliceInfo.outputOmniPipeSliceStride[ridx][rpt];
-                    uint64_t sliceSizeOmniSliceStrideTmp = stepSliceInfo.stepSliceSize[ridx][rpt];
-                    inputOmniSliceStrideVec.push_back(inputOmniSliceStrideTmp);
-                    outputOmniSliceStrideVec.push_back(outputOmniSliceStrideTmp);
-                    sliceSizeOmniSliceStrideVec.push_back(sliceSizeOmniSliceStrideTmp);
-                    HCCL_INFO("[zjq checkSliceStride] myrank:%d,mySubCommRank_:%d, ridx:%d,rpt:%d,inputOmniSliceStrideTmp:%d, outputOmniSliceStrideTmp:%d, sliceSizeOmniSliceStrideTmp:%d, sliceSize:%d", myRank_, mySubCommRank_, ridx,rpt, inputOmniSliceStrideTmp, outputOmniSliceStrideTmp, sliceSizeOmniSliceStrideTmp, sliceSize);
-                }  
-            }else {
-                sliceSize = 0;
-                for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
-                    inputOmniSliceStrideVec.push_back(0);
-                    outputOmniSliceStrideVec.push_back(0);
-                    sliceSizeOmniSliceStrideVec.push_back(0);
-                }
-            }
+        CHK_RET(RunGatherNhrSteps(templateDataParams, inputAddr, outputAddr, scratchAddr, token, localCopyFlag, templateResource));
+    } else if (localCopyFlag == 1) {
+        CHK_RET(RunLocalCopy(templateDataParams, templateResource));
+    }
+    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] end");
+    return HcclResult::HCCL_SUCCESS;
+}
 
-            std::vector<uint64_t> taskArgs = {
-                inputAddr, 
-                outputAddr,
-                scratchAddr,
-                token, 
-                localCopyFlag, 
-                sliceSize, 
-                isStepOne_, 
-                isLastStep_
-            };
-            taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
-            taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
-            taskArgs.insert(taskArgs.end(), sliceSizeOmniSliceStrideVec.begin(), sliceSizeOmniSliceStrideVec.end());
-            uint64_t argSize = taskArgs.size();
-            CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0], taskArgs.data(), argSize);
-            if (launchRet != CCU_SUCCESS) {
-                HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
-                return ConvertCcuToHccl(launchRet);
+HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::RunGatherNhrSteps(const TemplateDataParams& templateDataParams,
+    uint64_t inputAddr, uint64_t outputAddr, uint64_t scratchAddr, uint64_t token, uint64_t localCopyFlag,
+    TemplateResource& templateResource)
+{
+    auto stepSliceInfo = templateDataParams.stepSliceInfo;
+    uint64_t repeatNum = stepSliceInfo.stepSliceSize[0].size();
+    for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
+        uint64_t sliceSize = stepSliceInfo.stepSliceSize[0][rpt];
+        std::vector<uint64_t> inputOmniSliceStrideVec;
+        std::vector<uint64_t> outputOmniSliceStrideVec;
+        std::vector<uint64_t> sliceSizeOmniSliceStrideVec;
+        if (ifDoTask_) {
+            for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
+                inputOmniSliceStrideVec.push_back(stepSliceInfo.inputOmniPipeSliceStride[ridx][rpt]);
+                outputOmniSliceStrideVec.push_back(stepSliceInfo.outputOmniPipeSliceStride[ridx][rpt]);
+                sliceSizeOmniSliceStrideVec.push_back(stepSliceInfo.stepSliceSize[ridx][rpt]);
+            }
+        } else {
+            sliceSize = 0;
+            for (uint32_t ridx = 0; ridx < templateRankSize_; ridx++) {
+                inputOmniSliceStrideVec.push_back(0);
+                outputOmniSliceStrideVec.push_back(0);
+                sliceSizeOmniSliceStrideVec.push_back(0);
             }
         }
+        std::vector<uint64_t> taskArgs = { inputAddr, outputAddr, scratchAddr, token, localCopyFlag,
+            sliceSize, isStepOne_, isLastStep_ };
+        taskArgs.insert(taskArgs.end(), inputOmniSliceStrideVec.begin(), inputOmniSliceStrideVec.end());
+        taskArgs.insert(taskArgs.end(), outputOmniSliceStrideVec.begin(), outputOmniSliceStrideVec.end());
+        taskArgs.insert(taskArgs.end(), sliceSizeOmniSliceStrideVec.begin(), sliceSizeOmniSliceStrideVec.end());
+        CcuResult launchRet = HcommCcuKernelLaunch(templateResource.threads[0], templateResource.ccuKernels[0],
+            taskArgs.data(), taskArgs.size());
+        if (launchRet != CCU_SUCCESS) {
+            HCCL_ERROR("[%s] myRank[%u] HcommCcuKernelLaunch failed, ccuRet is:[%d]", __func__, myRank_, launchRet);
+            return ConvertCcuToHccl(launchRet);
+        }
     }
-    else if (localCopyFlag == 1) {
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
-        DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
-        DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inputAddrBase[%llu] inputAddrOffset[%llu] outputAddrBase[%llu]"
-                   "outputAddrOffset[%llu] sliceSize[%llu]",
-            __func__, myRank_, inputAddrBase, buffInfo_.inBuffBaseOff, outputAddrBase, buffInfo_.outBuffBaseOff,
-            templateDataParams.sliceSize);
-        CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
-        HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy end", __func__, myRank_);
-    }
+    return HcclResult::HCCL_SUCCESS;
+}
 
-    HCCL_DEBUG("[CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun] end");
+HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::RunLocalCopy(const TemplateDataParams& templateDataParams,
+    TemplateResource& templateResource)
+{
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy start", __func__, myRank_);
+    DataSlice srcSlice(buffInfo_.inputPtr, buffInfo_.inBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+    DataSlice dstSlice(buffInfo_.outputPtr, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize, templateDataParams.count);
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy inOff=%llu outOff=%llu sliceSize=%llu",
+        __func__, myRank_, buffInfo_.inBuffBaseOff, buffInfo_.outBuffBaseOff, templateDataParams.sliceSize);
+    CHK_RET(LocalCopy(templateResource.threads[0], srcSlice, dstSlice));
+    HCCL_DEBUG("[%s] myRank[%u] TempLocalCopy end", __func__, myRank_);
     return HcclResult::HCCL_SUCCESS;
 }
 

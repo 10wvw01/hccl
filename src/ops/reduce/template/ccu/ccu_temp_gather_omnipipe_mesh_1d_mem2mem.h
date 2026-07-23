@@ -54,6 +54,14 @@ public:
     bool isSameXAxis = false;
     bool isSameYAxis = false;
     bool isloopOne_ = false;
+
+    u32 remoteRank;
+    u32 subRankIdx;
+
+private:
+    HcclResult RunGatherMeshSteps(const TemplateDataParams& templateDataParams, uint64_t inputAddr,
+        uint64_t outputAddr, uint64_t token, uint64_t localCopyFlag, TemplateResource& templateResource);
+    HcclResult RunLocalCopy(const TemplateDataParams& templateDataParams, TemplateResource& templateResource);
 };
 
 } // namespace ops_hccl
