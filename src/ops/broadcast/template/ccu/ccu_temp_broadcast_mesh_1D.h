@@ -27,7 +27,7 @@ public:
 
     std::string Describe() const override
     {
-        return StringFormat("Template of Broadcast ccu mesh 1D  with tempRankSize [%u].",
+        return StringFormat("Template of Broadcast ccu mesh 1D with tempRankSize [%u].",
                             subCommRanks_[0].size());
     }
 
@@ -38,7 +38,7 @@ public:
                          const TemplateDataParams& templateDataParams,
                          TemplateResource& templateResource) override;
     HcclResult FastLaunch(const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx) override;
-    HcclResult GetRes(AlgResourceRequest& resourceRequest) const;
+HcclResult GetRes(AlgResourceRequest& resourceRequest) const;
 private:
     u32 mySubCommRank_ = 0;
     u32 subCommRootId_ = 0;

@@ -24,7 +24,7 @@
 #endif
 #include "topo_match_ubx.h"
 #include "topo_match_concurrent.h"
-#include "ccu_temp_all_gather_mesh1dnhr_concurrent_mem2mem.h"
+#include "ccu_temp_all_gather_concurrent_mesh_mem2mem_nhr.h"
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename InsAlgTemplate>
@@ -304,11 +304,12 @@ REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh2DieMem2Mem, I
 REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherNHR1DMem2MemMultiJetty, InsV2AllGatherSoleExecutor, TopoMatch1D,
     CcuTempAllGatherNHR1DMultiJettyMem2Mem);
 #endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-                 
+
+#if !defined(HCCL_CANN_COMPAT_850)
+REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherSoleMeshScheConcur, InsV2AllGatherSoleExecutor,
+    TopoMatchConcurrent, CcuTempAllGatherConcurrentMeshMem2MemNHR);
+#endif // !HCCL_CANN_COMPAT_850
+
 #endif
 
-#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
-REGISTER_EXEC_V2(HcclCMDType::HCCL_CMD_ALLGATHER, CcuAllGatherMesh1DMultiPlaneNHRMem, InsV2AllGatherSoleExecutor,
-    TopoMatchConcurrent, CcuTempAllGatherMesh1DNHRConcurrentMem2Mem);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
 }  // namespace ops_hccl

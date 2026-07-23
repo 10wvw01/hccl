@@ -86,7 +86,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshUBXAlgo(const TopoInfoWithNetLay
             selectAlgName = "CcuAllReduceMesh1DOneShot";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "CcuAllReduceConcurrentMsUBX";
+            selectAlgName = "CcuAllReduceConcurrentMs";
         }
     } else if (isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
         if (dataSize < OMNI_UBX_AR_MS_DATA_SIZE) {
@@ -128,12 +128,10 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgo(const TopoInfoWithNetLayerD
         } else if (IsSmallData(dataSize)) {
             selectAlgName = "CcuAllReduceMesh1DOneShot";
         } else {
-#ifdef Ascend_950_CCU_V2
-            if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-                selectAlgName = "CcuAllReduceMesh1D";//
+            if (IsDevType960() && dataSize > SMALL_COUNT_16M && IsTwoLevelNetLayer(topoInfo)) {
+                selectAlgName = "CcuAllReduceSoleMeshMsConcur";
             }
             else 
-#endif
             {
                 selectAlgName = "CcuAllReduceMesh1D";
             }
@@ -260,7 +258,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0UBXAlgo(const TopoI
             selectAlgName = "CcuAllReduceMesh1DMem2Mem";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "CcuAllReduceConcurrentScheUBX";
+            selectAlgName = "CcuAllReduceConcurrentSche";
         }
     } else if(isClosNumMultipleOfMeshNum && !IsSmallData(dataSize)) {
         // 矩形场景大数据量，用Parallel并行算法
@@ -304,15 +302,8 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleLevel0AlgoMesh1D(const To
     } else if (topoInfo->level0MeshType == Level0MeshType::TWO_DIE_NOT_REGULAR) {
         HCCL_DEBUG("[AllReduceAutoSelector][%s] TWO_DIE_NOT_REGULAR not match", __func__);
         return SelectorStatus::NOT_MATCH;
-    } else {
-#ifdef Ascend_950_CCU_V2
-        if (dataSize > SMALL_COUNT_16M && topoInfo->level1ClosExist) {
-            selectAlgName = "CcuAllReduceMesh1DMem2Mem";
-        } else 
-#endif
-        {
-            selectAlgName = "CcuAllReduceMesh1DMem2Mem";
-        }
+    } else {        
+        selectAlgName = "CcuAllReduceMesh1DMem2Mem";
     }
     HCCL_DEBUG("[AllReduceAutoSelector][%s] Algo match [%s]", __func__, selectAlgName.c_str());
     return SelectorStatus::MATCH;

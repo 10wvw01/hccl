@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "ccu_temp_all_gather_mesh1dnhr_concurrent_mem2mem.h"
+#include "ccu_temp_all_gather_concurrent_mesh_mem2mem_nhr.h"
 #include "alg_data_trans_wrapper.h"
 #include "alg_template_base.h"
 #include "ccu_launch_dl.h"
@@ -28,7 +28,7 @@ constexpr u32 CONCURRENT_CLOS_BW = 10;
 constexpr u32 NOTIFY_IDX_PRE_SYNC = 1;   // PreSync: mainThread 向 NHR 主流发 record
 constexpr u32 NOTIFY_IDX_POST_SYNC = 0;  // PostSync: NHR 主流向 mainThread 发 record
 
-CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CcuTempAllGatherMesh1DNHRConcurrentMem2Mem(
+CcuTempAllGatherConcurrentMeshMem2MemNHR::CcuTempAllGatherConcurrentMeshMem2MemNHR(
     const OpParam &param, const u32 rankId, const std::vector<std::vector<u32>> &subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
@@ -42,7 +42,7 @@ CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CcuTempAllGatherMesh1DNHRConcurrentM
     }
 }
 
-HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcRes(HcclComm comm, const OpParam &param,
+HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::CalcRes(HcclComm comm, const OpParam &param,
     const TopoInfoWithNetLayerDetails *topoInfo, AlgResourceRequest &resourceRequest)
 {
     // 构造 mesh 子 template (subCommRanks_[0]) 和 NHR 子 template (subCommRanks_[1])
@@ -78,14 +78,14 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcRes(HcclComm comm, co
     resourceRequest.ccuKernelInfos.insert(resourceRequest.ccuKernelInfos.end(),
                                           nhrReq.ccuKernelInfos.begin(), nhrReq.ccuKernelInfos.end());
 
-    HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][CalcRes] rank[%u] slaveThreadNum[%u], "
+    HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR][CalcRes] rank[%u] slaveThreadNum[%u], "
               "notifyNumOnMainThread[%u], ccuKernelNum[%zu]",
               myRank_, resourceRequest.slaveThreadNum, resourceRequest.notifyNumOnMainThread,
               resourceRequest.ccuKernelNum.size());
     return HCCL_SUCCESS;
 }
 
-HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::GetRes(AlgResourceRequest &resourceRequest) const
+HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::GetRes(AlgResourceRequest &resourceRequest) const
 {
     resourceRequest.slaveThreadNum = 2;  // NHR 主流(1) + NHR 从流(1)
     resourceRequest.notifyNumOnMainThread = 1;  // mesh 主流与 NHR 主流同步
@@ -95,19 +95,19 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::GetRes(AlgResourceRequest
     return HCCL_SUCCESS;
 }
 
-u64 CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::GetThreadNum() const
+u64 CcuTempAllGatherConcurrentMeshMem2MemNHR::GetThreadNum() const
 {
     return 3;  // mesh 主流(1) + NHR 主流(1) + NHR 从流(1)
 }
 
-u64 CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
+u64 CcuTempAllGatherConcurrentMeshMem2MemNHR::CalcScratchMultiple(BufferType inBuffType, BufferType outBuffType)
 {
     (void)inBuffType;
     (void)outBuffType;
     return 0;  // 两路均 mem2mem, 不用 cclBuff
 }
 
-void CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcDataSplit(
+void CcuTempAllGatherConcurrentMeshMem2MemNHR::CalcDataSplit(
     u64 totalCount, u64 dataTypeSize, u64 &meshCount, u64 &closCount) const
 {
     double splitRatio = static_cast<double>(CONCURRENT_MESH_BW) / (CONCURRENT_MESH_BW + CONCURRENT_CLOS_BW);
@@ -118,11 +118,11 @@ void CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcDataSplit(
     meshCount = static_cast<u64>(std::floor(splitRatio * static_cast<double>(totalCount)));
     meshCount = meshCount / sliceAlignCount * sliceAlignCount;
     closCount = totalCount - meshCount;
-    HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][CalcDataSplit] totalCount[%llu], meshCount[%llu], "
+    HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR][CalcDataSplit] totalCount[%llu], meshCount[%llu], "
               "closCount[%llu], splitRatio[%.4f]", totalCount, meshCount, closCount, splitRatio);
 }
 
-void CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcNhrDieSplit(
+void CcuTempAllGatherConcurrentMeshMem2MemNHR::CalcNhrDieSplit(
     u64 sliceSize, u64 typeSize, u64 &die0Size, u64 &die1Size) const
 {
     // 搬自 CcuTempAllGatherNHR1DMem2Mem::SplitDataFor2Dies,纯数学,不依赖子 template 类
@@ -139,10 +139,10 @@ void CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::CalcNhrDieSplit(
     die1Size = sliceSize - die0Size;
 }
 
-HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
+HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::KernelRun(
     const OpParam &param, const TemplateDataParams &templateDataParams, TemplateResource &templateResource)
 {
-    HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][KernelRun] rank[%u] start.", myRank_);
+    HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR][KernelRun] rank[%u] start.", myRank_);
 
     u64 dataTypeSize = DataTypeSizeGet(param.DataDes.dataType);
     u64 chunkCount = templateDataParams.count;
@@ -162,7 +162,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
     u64 closTailSize = closTailCount * dataTypeSize;
 
     if (meshCount == 0 && closCount == 0) {
-        HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][KernelRun] both meshCount and closCount are 0, skip.");
+        HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR][KernelRun] both meshCount and closCount are 0, skip.");
 
     }
 
@@ -262,7 +262,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
             templateResource.ccuKernels[0], meshTaskArgs.data(),
             static_cast<uint32_t>(meshArgSize));
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun] mesh kernel launch failed, ccuRet -> %d",
+            HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::KernelRun] mesh kernel launch failed, ccuRet -> %d",
                        launchRet);
             return ConvertCcuToHccl(launchRet);
         }
@@ -280,7 +280,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
             templateResource.ccuKernels[meshKernelNum], nhrTaskArgs.data(),
             static_cast<uint32_t>(nhrArgSize));
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun] nhr kernel0 launch failed, ccuRet -> %d",
+            HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::KernelRun] nhr kernel0 launch failed, ccuRet -> %d",
                        launchRet);
             return ConvertCcuToHccl(launchRet);
         }
@@ -289,7 +289,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
                 templateResource.ccuKernels[meshKernelNum + 1], nhrTaskArgs.data(),
                 static_cast<uint32_t>(nhrArgSize));
             if (launchRet != CCU_SUCCESS) {
-                HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun] nhr kernel1 launch failed, ccuRet -> %d",
+                HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::KernelRun] nhr kernel1 launch failed, ccuRet -> %d",
                            launchRet);
                 return ConvertCcuToHccl(launchRet);
             }
@@ -361,26 +361,26 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::KernelRun(
         }
     }
 
-    HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem][KernelRun] rank[%u] end.", myRank_);
+    HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR][KernelRun] rank[%u] end.", myRank_);
     return HCCL_SUCCESS;
 }
 
 // FastLaunch: 从 KernelRun 保存的 cachedArgs 按 ArgLayout 常量重算 input/output 地址,再回放 launch。
 // 不依赖子 template 类,全部索引引用 ArgLayout 常量。
-HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
+HcclResult CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch(
     const OpParam& param, const TemplateFastLaunchCtx& tempFastLaunchCtx)
 {
     (void)param;
     u32 totalKernelNum = static_cast<u32>(tempFastLaunchCtx.ccuKernelSubmitInfos.size());
     if (totalKernelNum == 0) {
-        HCCL_INFO("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] ccu kernel num is 0, just success.");
+        HCCL_INFO("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] ccu kernel num is 0, just success.");
 
     }
     if (tempFastLaunchCtx.threads.size() < 1) {
-        HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] thread num is 0.");
+        HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] thread num is 0.");
         return HCCL_E_INTERNAL;
     }
-    HCCL_DEBUG("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] start, totalKernelNum[%u], threadNum[%zu]",
+    HCCL_DEBUG("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] start, totalKernelNum[%u], threadNum[%zu]",
                totalKernelNum, tempFastLaunchCtx.threads.size());
 
     u32 meshKernelNum = 1;
@@ -435,7 +435,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
             tempFastLaunchCtx.ccuKernelSubmitInfos[0].kernelHandle, taskArgs,
             CcuAllGatherMesh1DMem2MemArgLayout::ARG_SIZE);
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] mesh kernel launch failed, ccuRet -> %d",
+            HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] mesh kernel launch failed, ccuRet -> %d",
                        launchRet);
             return ConvertCcuToHccl(launchRet);
         }
@@ -456,7 +456,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
             tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum].kernelHandle, taskArgs,
             CcuAllGatherNHR1DMem2MemArgLayout::ARG_SIZE);
         if (launchRet != CCU_SUCCESS) {
-            HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] nhr kernel0 launch failed, ccuRet -> %d",
+            HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] nhr kernel0 launch failed, ccuRet -> %d",
                        launchRet);
             return ConvertCcuToHccl(launchRet);
         }
@@ -465,7 +465,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
                 tempFastLaunchCtx.ccuKernelSubmitInfos[meshKernelNum + 1].kernelHandle, taskArgs,
                 CcuAllGatherNHR1DMem2MemArgLayout::ARG_SIZE);
             if (launchRet != CCU_SUCCESS) {
-                HCCL_ERROR("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] nhr kernel1 launch failed, ccuRet -> %d",
+                HCCL_ERROR("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] nhr kernel1 launch failed, ccuRet -> %d",
                            launchRet);
                 return ConvertCcuToHccl(launchRet);
             }
@@ -484,7 +484,7 @@ HcclResult CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch(
             {tempFastLaunchCtx.threads[1]}, {NOTIFY_IDX_POST_SYNC}));
     }
 
-    HCCL_DEBUG("[CcuTempAllGatherMesh1DNHRConcurrentMem2Mem::FastLaunch] end");
+    HCCL_DEBUG("[CcuTempAllGatherConcurrentMeshMem2MemNHR::FastLaunch] end");
     return HCCL_SUCCESS;
 }
 

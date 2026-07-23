@@ -69,7 +69,6 @@ constexpr u32 ALG_MAX_LENGTH = 128;
 constexpr u64 ALL_TO_ALL_V_VECTOR_NUM = 4;
 constexpr u64 REDUCE_SCATTER_V_VECTOR_NUM = 2;
 constexpr u64 ALL_GATHER_V_VECTOR_NUM = 2;
-constexpr u64 ALL_TO_ALL_V_VECTOR_NUM_V2 = 3;
 
 constexpr uint64_t GE_PARALLEL = 36;
 
@@ -177,7 +176,6 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
     bool level0PcieMix{false};
     bool level0BigClosRange{false};
     bool level2Uboe{false};
-    bool level1ClosExist{false};
     bool level2Ubg{false};
     u32 topoInstDetailsOfLayerSize = 0;
     Level0MeshType level0MeshType;
@@ -213,7 +211,6 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream << level0PcieMix;
         binaryStream << level0BigClosRange;
         binaryStream << level2Uboe;
-        binaryStream << level1ClosExist;
         binaryStream << level2Ubg;
         binaryStream << topoInstDetailsOfLayerSize;
         binaryStream << level0MeshType;
@@ -263,7 +260,6 @@ struct TopoInfoWithNetLayerDetails : public TopoInfo { // 通信域拓扑ctx
         binaryStream >> level0PcieMix;
         binaryStream >> level0BigClosRange;
         binaryStream >> level2Uboe;
-        binaryStream >> level1ClosExist;
         binaryStream >> level2Ubg;
         binaryStream >> topoInstDetailsOfLayerSize;
         binaryStream >> level0MeshType;

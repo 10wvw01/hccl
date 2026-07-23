@@ -193,7 +193,7 @@ HcclResult InsV2ReduceScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLau
     const OpParam &param, const TemplateResource &templateAlgRes, u32 notifyNumOnMainThread) const
 {
     HCCL_INFO("[InsV2ReduceScatterSoleExecutor] loopTimes==1, save fast launch ctx.");
-    u32 threadNum = 1;
+    u32 threadNum = templateAlgRes.threads.size();
     u32 ccuKernelNum = templateAlgRes.submitInfos.size();
     if (ccuKernelNum < 1) {
         HCCL_INFO("[InsV2ReduceScatterSoleExecutor] ccu kernel num is 0, no need to save.");
@@ -212,16 +212,18 @@ HcclResult InsV2ReduceScatterSoleExecutor<AlgTopoMatch, InsAlgTemplate>::FastLau
     CHK_SAFETY_FUNC_RET(strcpy_s(ccuFastLaunchCtx->algName, sizeof(ccuFastLaunchCtx->algName), param.algName));
     HCCL_INFO("[InsV2ReduceScatterSoleExecutor][FastLaunchSaveCtx] algName[%s]", ccuFastLaunchCtx->algName);
 
-    // 2 thread
+    // 2 thread（存全部线程，适配 concurrent 多线程场景）
     ccuFastLaunchCtx->threadNum = threadNum;
     ccuFastLaunchCtx->notifyNumOnMainThread = notifyNumOnMainThread;
     ThreadHandle *threads = ccuFastLaunchCtx->GetThreadHandlePtr();
-    threads[0] = templateAlgRes.threads[0];
-        
+    for (u32 i = 0; i < threadNum; i++) {
+        threads[i] = templateAlgRes.threads[i];
+    }
+
     // 3 ccu kernel handle, taskArg入参
     ccuFastLaunchCtx->ccuKernelNum[0] = ccuKernelNum;
     CcuKernelSubmitInfo *kernelSubmitInfos = ccuFastLaunchCtx->GetCcuKernelSubmitInfoPtr();
-    for (int i = 0; i < ccuKernelNum; i++) {
+    for (u32 i = 0; i < ccuKernelNum; i++) {
         kernelSubmitInfos[i] = templateAlgRes.submitInfos[i];
     }
     return HCCL_SUCCESS;

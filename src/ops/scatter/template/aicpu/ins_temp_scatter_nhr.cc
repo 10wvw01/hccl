@@ -55,7 +55,7 @@ HcclResult InsTempScatterNHR::CalcRes(HcclComm comm, const OpParam& param, const
     resourceRequest.channels.push_back(level0Channels);
     channelsPerRank_ = CalcChannelsPerRank(level0Channels);
     if (channelsPerRank_ > MAX_JETTY_NUM) {
-        HCCL_ERROR(" %s  channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
+        HCCL_ERROR(" %s channelsPerRank_ %u is greater than MAX_JETTY_NUM %u",
             __func__, channelsPerRank_, MAX_JETTY_NUM);
     } else {
         HCCL_DEBUG(" %s channelsPerRank_ is %u ", __func__, channelsPerRank_);
