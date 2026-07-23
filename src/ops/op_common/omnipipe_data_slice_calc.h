@@ -38,8 +38,6 @@ constexpr double BW_OMNI_UBX_CCU_MS_RS_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_MS_RS_CLOS = 170;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_SCHED_AG_CLOS = 180;
-constexpr double BW_OMNI_UBX_CCU_SCHED_G_MESH = 47;
-constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 180;
 
 enum OmniPipeLevel{
     OMNIPIPE_LEVEL0 = 0,
@@ -211,7 +209,6 @@ struct OmniPipeScratchParam {
         return oss.str();
     }
 };
-
 std::string ThreeDVecToStrOmni(std::vector<std::vector<std::vector<u32>>> infos);
 void BuffInfoAssign(BuffInfo& bi, u64 inBuffBaseOff, u64 outBuffBaseOff, u64 hcclBuffBaseOff = 0);
 std::vector<OmniPipeSplitSliceInfo> OmniPipeSplitSliceInfoListAssign(const std::vector<u64> dataWholeSize, u64 rankSize,
