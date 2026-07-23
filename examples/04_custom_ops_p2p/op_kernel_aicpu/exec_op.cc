@@ -14,6 +14,9 @@
 namespace ops_hccl_p2p {
 HcclResult ExecOp(OpParam &param, AlgResourceCtx* resCtx)
 {
+    if (param.dataType >= HCCL_DATA_TYPE_RESERVED) {
+        return HCCL_E_PARA;
+    }
     uint64_t size = param.count * SIZE_TABLE[param.dataType];
     if (param.opType == HcclCMDType::HCCL_CMD_SEND) {
         // 拷贝到中转内存

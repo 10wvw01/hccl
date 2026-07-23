@@ -68,6 +68,9 @@ HcclResult ExecOp(const OpParam &param, const AlgResourceCtxSerializable &resCtx
 {
     HCCL_DEBUG("[CcuTempAllGatherMesh1DMem2Mem::ExecOp] start");
 
+    if (param.dataType >= HCCL_DATA_TYPE_RESERVED) {
+        return HCCL_E_PARA;
+    }
     uint32_t dataTypeSize = SIZE_TABLE[param.dataType];
     uint64_t dataSize = param.count * dataTypeSize;
     uint64_t count = param.count;
