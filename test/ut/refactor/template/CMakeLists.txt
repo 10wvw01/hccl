@@ -32,6 +32,8 @@ set(UT_PRIMITIVES_SRC
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_mesh.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_nhr.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/scatter_mesh.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/scatter_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/utils/utils.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/op_common/channel/channel.cc
 )

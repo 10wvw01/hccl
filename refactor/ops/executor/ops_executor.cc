@@ -377,7 +377,7 @@ inline void OpsExecutor::InitAlgoExecDataDesc(
 }
 
 inline void OpsExecutor::GenTemplateDataParams(
-    AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams)
+    AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams, u32 overrideRoot)
 {
     templateDataParams.cclBufferType = algoExecDataDesc.cclBufferType;
     templateDataParams.cclBufferPtr = cclBufferInfo_.ptr;
@@ -409,7 +409,9 @@ inline void OpsExecutor::GenTemplateDataParams(
     templateDataParams.tailCount = algoExecDataDesc.tailCount;
     templateDataParams.dataOffset = algoExecDataDesc.dataOffset;
     templateDataParams.reduceOp = dataInfo_.reduceOp;
-    templateDataParams.root = root_;
+    // scatter PARALLEL 第二步可通过 overrideRoot 传入按公式重设后的 root，
+    // 使 server 间 NHR 模板在本 rank 所属 ranks 组内找到合法 root。
+    templateDataParams.root = (overrideRoot != INVALID_VALUE_RANKID) ? overrideRoot : root_;
     templateDataParams.enableRemoteMemAccess = opMode_ == OpMode::OFFLOAD;
     templateDataParams.dataStride = algoExecDataDesc.dataStride;
     templateDataParams.scratchStride = algoExecDataDesc.scratchStride;
@@ -487,6 +489,7 @@ HcclResult OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         HCCL_ERROR("[MergeChildrenOutput] childrenAlgoExecDataDesc is empty.");
         return HCCL_E_INTERNAL;
     }
+
     if (algoExecDesc.execPolicy == HcclAlgExecPolicy::PARALLEL) {
         u64 sliceCount = 0;
         for (const auto &child : childrenAlgoExecDataDesc) {
@@ -519,7 +522,8 @@ HcclResult OpsExecutor::MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
     return HCCL_SUCCESS;
 }
 
-HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc)
+HcclResult OpsExecutor::RunTemplateDesc(
+    TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc, u32 overrideRoot)
 {
     HCCL_INFO("[RunTemplateDesc][myRank_:%d:] templateExeDes: hcclCmdType=%d, algType=%d, subCommIndex=%d", myRank_,
         static_cast<int>(templateExeDes->templateDesc.hcclCmdType),
@@ -531,7 +535,7 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     CHK_RET(GenTemplateRes(templateExeDes->subCommIndex, templateResource));
     // 根据阶段生成template的数据参数
     TemplateDataParams templateDataParams;
-    GenTemplateDataParams(algoExecDataDesc, templateDataParams);
+    GenTemplateDataParams(algoExecDataDesc, templateDataParams, overrideRoot);
     HCCL_INFO("[RunTemplateDesc][myRank_:%d:] inputBufferType=%d, outputBufferType=%d, cclBufferType=%d, "
               "dataType=%d, dataOffset=%lu, sliceCount=%lu, sliceOffset=%lu, tailCount=%lu, dataStride=%lu, "
               "scratchStride=%lu, reduceOp=%d, root=%u, enableRemoteMemAccess=%d",
@@ -548,6 +552,38 @@ HcclResult OpsExecutor::RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoEx
     CHK_RET(baseTemplate->KernelRun(
         *engine_, templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
+}
+
+// scatter PARALLEL 按 src 公式为本 rank 所在子通信域重设 root，使 root 落在本 rank 所在组内：
+//   subCommIndex=0 (Mesh, server内 INTRA): newRoot = root%rankSizeLevel0 + rankIdxLevel1*rankSizeLevel0
+//   subCommIndex=1 (NHR, server间 INTER):  newRoot = root/rankSizeLevel0*rankSizeLevel0 + rankIdxLevel0
+// 其中 rankSizeLevel0 = layer0 组大小(server 内卡数)，rankIdxLevel0 = myRank%rankSizeLevel0，
+// rankIdxLevel1 = myRank/rankSizeLevel0。
+u32 OpsExecutor::CalcScatterParallelNewRoot(u32 subCommIndex) const
+{
+    if (algHierarchyInfo_.infos.empty() || algHierarchyInfo_.infos[0].empty()) {
+        HCCL_ERROR("[CalcScatterParallelNewRoot] infos[0] is empty");
+        return root_;
+    }
+    u32 rankSizeLevel0 = static_cast<u32>(algHierarchyInfo_.infos[0].at(0).size());
+    if (rankSizeLevel0 == 0) {
+        HCCL_ERROR("[CalcScatterParallelNewRoot] rankSizeLevel0 is zero");
+        return root_;
+    }
+    u32 rankIdxLevel0 = myRank_ % rankSizeLevel0;
+    u32 rankIdxLevel1 = myRank_ / rankSizeLevel0;
+    u32 newRoot = root_;
+    if (subCommIndex == 0) {
+        // Mesh(server内): 调整为与本 rank 同 server 内、与原 root 同 rankIdxLevel0 列的 rank
+        newRoot = (root_ % rankSizeLevel0) + rankIdxLevel1 * rankSizeLevel0;
+    } else if (subCommIndex == 1) {
+        // NHR(server间): 调整为与本 rank 同 rankIdxLevel0 列、与原 root 同 server 的 rank
+        newRoot = (root_ / rankSizeLevel0) * rankSizeLevel0 + rankIdxLevel0;
+    }
+    HCCL_INFO("[CalcScatterParallelNewRoot] myRank=%u, root=%u, rankSizeLevel0=%u, rankIdxLevel0=%u, "
+              "rankIdxLevel1=%u, subCommIndex=%u, newRoot=%u",
+        myRank_, root_, rankSizeLevel0, rankIdxLevel0, rankIdxLevel1, subCommIndex, newRoot);
+    return newRoot;
 }
 
 HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc)
@@ -570,7 +606,13 @@ HcclResult OpsExecutor::OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecData
             if (algoExecDesc.execPolicy == HcclAlgExecPolicy::SEQUENCE && childrenSize > 1) {
                 CHK_RET(PreSyncSingleSubDomain(templateExeDes->subCommIndex));
             }
-            CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(i)));
+            // scatter 多级拓扑 Stage2 按 src 公式为本 rank 所在子通信域重设 root，
+            u32 overrideRoot = INVALID_VALUE_RANKID;
+            if (algo_.hcclCmdType == HcclCMDType::HCCL_CMD_SCATTER
+                && childrenAlgoExecDataDesc.at(i).inputBufferType != BufferType::INPUT) {
+                overrideRoot = CalcScatterParallelNewRoot(templateExeDes->subCommIndex);
+            }
+            CHK_RET(RunTemplateDesc(templateExeDes, childrenAlgoExecDataDesc.at(i), overrideRoot));
             if (algoExecDesc.execPolicy == HcclAlgExecPolicy::SEQUENCE && childrenSize > 1) {
                 CHK_RET(PostSyncSingleSubDomain(templateExeDes->subCommIndex));
             }

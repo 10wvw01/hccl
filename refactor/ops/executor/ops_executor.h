@@ -83,7 +83,8 @@ private:
     HcclResult OrchestrateLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, AlgoExecDataDesc &algoExecDataDesc);
     HcclResult GenTemplateRes(const u32 subCommIndex, TemplateResource &templateResource);
-    inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams);
+    inline void GenTemplateDataParams(AlgoExecDataDesc &algoExecDataDesc, TemplateDataParams &templateDataParams,
+        u32 overrideRoot = INVALID_VALUE_RANKID);
     inline void UpdateSubCommMaskMap(AlgoExecDesc &algoExecDesc, const u32 subCommMask);
     HcclResult PreSyncBySubCommMask(const AlgoExecDesc &execDesc);
     HcclResult PostSyncBySubCommMask(const AlgoExecDesc &execDesc);
@@ -97,7 +98,13 @@ private:
     HcclResult PostSyncSingleSubDomain(u32 subCommIndex);
     HcclResult MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
-    HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc);
+    HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc,
+        u32 overrideRoot = INVALID_VALUE_RANKID);
+    // scatter PARALLEL 按 src 公式为本 rank 所在子通信域重设 root，使 root 落在本 rank 所在组内：
+    //   subCommIndex=0 (Mesh, server内 INTRA): newRoot = root%rankSizeLevel0 + rankIdxLevel1*rankSizeLevel0
+    //   subCommIndex=1 (NHR, server间 INTER):  newRoot = root/rankSizeLevel0*rankSizeLevel0 + rankIdxLevel0
+    // 其中 rankSizeLevel0 = layer0 组大小，rankIdxLevel0 = myRank%rankSizeLevel0，rankIdxLevel1 = myRank/rankSizeLevel0
+    u32 CalcScatterParallelNewRoot(u32 subCommIndex) const;
     HcclResult InitRes(const AlgResourceCtxSerializable &resCtx);
     std::vector<std::map<u32, std::vector<ChannelInfo>>> RestoreChannelMap(const AlgResourceCtxSerializable &resCtx);
     u64 GetMaxProcCntPerLoop(u64 dataCount);

@@ -104,6 +104,17 @@ enum class HcclAicpuReduceScatterAlgoType {
     AICPU_REDUCESCATTER_ALGO_TYPE_COUNT,            // 算法类型总数，用于数组下标上限
 };
 
+// AICPU 模式 Scatter 算法枚举，对应 scatter_auto_selector.cc 中 SelectAicpuAlgo 的算法
+enum class HcclAicpuScatterAlgoType {
+    AICPU_SCATTER_NHR,                         // InsScatterNHR
+    AICPU_SCATTER_MESH1D,                      // InsScatterMesh1D
+    AICPU_SCATTER_PARALLEL_MESH1D_NHR,         // InsScatterParallelMesh1DNHR
+    AICPU_SCATTER_PARALLEL_MESH1D_NHR_UBX,     // InsScatterParallelMesh1DNHRUBX
+    AICPU_SCATTER_PARALLEL_MESH1D_NHR_PCIE,    // InsScatterParallelMesh1DNHRPcie
+    AICPU_SCATTER_CONCURRENT_MESH1D_NHR,       // InsScatterConcurrentMesh1DNHR
+    AICPU_SCATTER_ALGO_TYPE_COUNT,             // 算法类型总数，用于数组下标上限
+};
+
 struct TemplateDesc {
     HcclCMDType hcclCmdType;
     HcclAlgoType algType;
@@ -232,6 +243,11 @@ extern const HcclAlgorithm
 // 以 HcclAicpuReduceScatterAlgoType 枚举值为数组下标。
 extern const HcclAlgorithm
     g_aicpuReduceScatterAlgoMap[static_cast<size_t>(HcclAicpuReduceScatterAlgoType::AICPU_REDUCESCATTER_ALGO_TYPE_COUNT)];
+
+// 全局 AICPU Scatter 算法表（定义在 algorithm/scatter/algorithm_scatter_aicpu.cc），
+// 以 HcclAicpuScatterAlgoType 枚举值为数组下标。
+extern const HcclAlgorithm
+    g_aicpuScatterAlgoMap[static_cast<size_t>(HcclAicpuScatterAlgoType::AICPU_SCATTER_ALGO_TYPE_COUNT)];
 
 } // namespace ops_hccl
 

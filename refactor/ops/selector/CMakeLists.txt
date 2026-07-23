@@ -29,6 +29,7 @@ target_sources(hccl PRIVATE
     selector_registry.cc
     all_gather_auto_selector.cc
     reduce_scatter_auto_selector.cc
+    scatter_auto_selector.cc
     execute_selector.cc
     dlhcomm_function.cc
 )

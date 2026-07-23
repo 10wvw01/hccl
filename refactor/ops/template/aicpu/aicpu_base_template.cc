@@ -34,6 +34,23 @@ HcclResult AicpuBaseTemplate::KernelRun(BaseEngine &engine, const TemplateDataPa
         return HCCL_SUCCESS;
     }
 
+    // Scatter 跳过逻辑：root 不在当前 template 通信域 ranks_ 内时，本 rank 不执行
+    // PreCopy/SendAll/PostCopy，只计算 ranksForOutputData 并返回。
+    bool scatterSkip = false;
+    if (templateDesc_.hcclCmdType == HcclCMDType::HCCL_CMD_SCATTER && ranks_.size() > 1) {
+        bool rootInRanks = (std::find(ranks_.begin(), ranks_.end(), tempAlgParams.root) != ranks_.end());
+        scatterSkip = !rootInRanks;
+        HCCL_INFO("[AicpuBaseTemplate][KernelRun] scatter skip=%d, myRank=%u, root=%u",
+            static_cast<int>(scatterSkip), myRank_, tempAlgParams.root);
+    }
+
+    if (scatterSkip) {
+        std::vector<TxRxSlicesList> dummyTxRx;
+        CHK_RET(RunAlgorithm(templateResource, dummyTxRx, ranksForOutputData));
+        ranksForOutputData_ = ranksForOutputData;
+        return HCCL_SUCCESS;
+    }
+
     // 1. PreCopy：本地数据预处理（input -> ccl buffer），仅第一步（input 为 userBuffer）执行。
     if (templateResource.threads.empty()) {
         HCCL_ERROR("[AicpuBaseTemplate][KernelRun] threads is empty.");
@@ -113,6 +130,14 @@ HcclResult AicpuBaseTemplate::PreCopy(const std::vector<ThreadHandle> &threads)
     if (threads.empty()) {
         HCCL_ERROR("[AicpuBaseTemplate][PreCopy] threads is empty.");
         return HCCL_E_INTERNAL;
+    }
+
+    // Scatter 语义：仅 root rank 持有全部输入数据，非 root rank 无 input，直接跳过 PreCopy。
+    // Parallel 下第二个子算法的 inputBufferType=HCCL_BUFFER，下面会自动跳过。
+    if (templateDesc_.hcclCmdType == HcclCMDType::HCCL_CMD_SCATTER && myRank_ != tempAlgParams_.root) {
+        HCCL_INFO("[AicpuBaseTemplate][PreCopy] scatter non-root rank[%u], root[%u], skip precopy.",
+                   myRank_, tempAlgParams_.root);
+        return HCCL_SUCCESS;
     }
 
     if (tempAlgParams_.ranksForInputData.empty()) {

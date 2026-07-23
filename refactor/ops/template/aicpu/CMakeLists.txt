@@ -22,4 +22,6 @@ target_sources(hccl PRIVATE
     allgather_nhr.cc
     reducescatter_mesh.cc
     reducescatter_nhr.cc
+    scatter_mesh.cc
+    scatter_nhr.cc
 )

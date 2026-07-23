@@ -13,7 +13,7 @@ inline HcclResult GetAlgRank(u32 rankId, const std::vector<u32> &ranks, u32 &alg
 {
     auto it = std::find(ranks.begin(), ranks.end(), rankId);
     CHK_PRT_RET(it == ranks.end(),
-                HCCL_ERROR("[GetAlgRank] rank[%u] not in ranks.", rankId),
+                HCCL_DEBUG("[GetAlgRank] rank[%u] not in ranks.", rankId),
                 HCCL_E_PARA);
     algRank = static_cast<u32>(std::distance(ranks.begin(), it));
     return HCCL_SUCCESS;
