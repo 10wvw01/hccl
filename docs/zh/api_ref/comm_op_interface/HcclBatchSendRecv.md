@@ -89,8 +89,8 @@ aclrtCreateStream(&stream);
 
 // 执行Send/Recv，将数据发送至下一节点，同时接收上一节点的数据
 // HcclBatchSendRecv可以同时下发本rank上的多个收发任务
-uint32_t next = (deviceId + 1) % count;
-uint32_t prev = (deviceId - 1 + count) % count;
+uint32_t next = (deviceId + 1) % rankSize;
+uint32_t prev = (deviceId - 1 + rankSize) % rankSize;
 HcclSendRecvItem sendRecvInfo[2];
 sendRecvInfo[0] = HcclSendRecvItem{HCCL_SEND, sendBuf, count, HCCL_DATA_TYPE_FP32, next};
 sendRecvInfo[1] = HcclSendRecvItem{HCCL_RECV, recvBuf, count, HCCL_DATA_TYPE_FP32, prev};
