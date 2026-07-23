@@ -20,6 +20,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <string>
+#include <ctime>
+#include <vector>
 #ifndef T_DESC
 #define T_DESC(_msg, _y) ((_y) ? true : false)
 #endif
@@ -309,5 +311,96 @@ void ArrayToStringAndPrint(T arr[], int size, const char *name)
 #endif
 
 #endif
+
+struct TimerEntry {
+    u64 startTime;
+    u64 endTime;
+    u32 timerLevel;
+    std::string name;
+
+    TimerEntry(u64 startTime, u32 timerLevel, const std::string &name)
+        : startTime(startTime), endTime(0), timerLevel(timerLevel), name(name)
+    {
+    }
+
+    void PrintLog() const
+    {
+        const u64 elapsedNano = endTime - startTime;
+        HCCL_ERROR("TIMER: Level: %u, Timer: %s, Start: %llu, End: %llu, Duration: %llu ns", timerLevel,
+            name.c_str(), static_cast<unsigned long long>(startTime), static_cast<unsigned long long>(endTime),
+            static_cast<unsigned long long>(elapsedNano));
+    }
+};
+
+class HcclTimerEntries {
+public:
+    HcclTimerEntries()
+    {
+        timerEntries_.reserve(20000);
+    }
+
+    std::vector<TimerEntry> &GetTimerEntries()
+    {
+        return timerEntries_;
+    }
+
+    void DumpTimerEntries()
+    {
+        HCCL_ERROR("DumpTimerEntries: timerEntries.size=%zu", timerEntries_.size());
+        for (const auto &entry : timerEntries_) {
+            entry.PrintLog();
+        }
+        timerEntries_.clear();
+    }
+
+private:
+    std::vector<TimerEntry> timerEntries_;
+};
+
+class HcclTimer {
+public:
+    static bool startTrack;
+    static uint64_t timerCounter;
+    static HcclTimerEntries timerEntries;
+
+    explicit HcclTimer(const std::string &name)
+    {
+        if (!startTrack) {
+            return;
+        }
+        ++timerCounter;
+        timerIdx_ = timerEntries.GetTimerEntries().size();
+        timerEntries.GetTimerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+        active_ = true;
+    }
+
+    ~HcclTimer()
+    {
+        if (!active_ || timerIdx_ >= timerEntries.GetTimerEntries().size()) {
+            return;
+        }
+        timerEntries.GetTimerEntries()[timerIdx_].endTime = GetCurAicpuTimestamp();
+        --timerCounter;
+    }
+
+private:
+    static u64 GetCurAicpuTimestamp()
+    {
+        struct timespec timestamp = {};
+        (void)clock_gettime(CLOCK_MONOTONIC, &timestamp);
+        return static_cast<u64>(timestamp.tv_sec) * 1000000000ULL + static_cast<u64>(timestamp.tv_nsec);
+    }
+
+    size_t timerIdx_ = 0;
+    bool active_ = false;
+};
+
+#define CURRENT_FUNCTION_LOCATION std::string(__FILE__) + ":" + std::string(__func__)
+#define MY_TIMER_IMPL(name, counter) HcclTimer myTimer##counter(name)
+#define MY_TIMER_EXPAND(name, counter) MY_TIMER_IMPL(name, counter)
+#define MY_TIMER(name) MY_TIMER_EXPAND(name, __COUNTER__)
+#define FUNCTION_TRACE_IMPL(counter) HcclTimer timer##counter(CURRENT_FUNCTION_LOCATION)
+#define FUNCTION_TRACE_EXPAND(counter) FUNCTION_TRACE_IMPL(counter)
+#define FUNCTION_TRACE FUNCTION_TRACE_EXPAND(__COUNTER__)
 
 #endif // LOG_H

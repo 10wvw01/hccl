@@ -239,8 +239,10 @@ bool IsOpsV2(const char* algName, DevType deviceType)
 }
 }
 
-extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+static unsigned int HcclLaunchAicpuKernelInternal(OpParam *param)
 {
+    FUNCTION_TRACE;
+
     // 修改当前进程的调度策略和优先级
     struct sched_param schedParam;
     schedParam.sched_priority = 0; // 设置优先级为0
@@ -546,6 +548,37 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
     }
     HCCL_INFO("%s success, tag[%s], algTag[%s], commName[%s]", __func__, param->tag, param->algTag, param->commName);
     return 0;
+}
+
+extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
+{
+    static uint64_t opUnfoldIdx = 0;
+    ++opUnfoldIdx;
+
+    constexpr uint64_t warmupOpCnt = 10;
+    if (opUnfoldIdx == warmupOpCnt + 1) {
+        HcclTimer::startTrack = true;
+        if (HcommIsSupportHcommTimerStartTrack()) {
+            CHK_RET(static_cast<HcclResult>(HcommTimerStartTrack(true)));
+        }
+    }
+
+    const unsigned int result = HcclLaunchAicpuKernelInternal(param);
+
+    constexpr uint64_t dumpOpCnt = 30;
+    if (opUnfoldIdx == dumpOpCnt) {
+        HcclTimer::timerEntries.DumpTimerEntries();
+        if (HcommIsSupportHcommTimerDump()) {
+            CHK_RET(static_cast<HcclResult>(HcommTimerDump(true)));
+        }
+
+        HcclTimer::startTrack = false;
+        if (HcommIsSupportHcommTimerStartTrack()) {
+            CHK_RET(static_cast<HcclResult>(HcommTimerStartTrack(false)));
+        }
+    }
+
+    return result;
 }
 
 extern "C" unsigned int HcclLaunchP2pAicpuKernel(void *args)

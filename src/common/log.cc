@@ -10,6 +10,10 @@
 #include "log.h"
 #include <atomic>
 
+bool HcclTimer::startTrack = false;
+uint64_t HcclTimer::timerCounter = 0;
+HcclTimerEntries HcclTimer::timerEntries;
+
 thread_local bool g_hcclErrToWarn = false;
 constexpr int32_t HCCL_LOG_LEVEL_INVALID = -1;
 static std::atomic<int32_t> g_logLevelCache{-1};
