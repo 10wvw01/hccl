@@ -186,9 +186,9 @@ HcclResult CcuTempAllGather2DiesMeshMem2Mem1D::KernelRun(const OpParam& param, c
         submitInfo.kernelHandle = templateResource.ccuKernels[i];
         templateResource.submitInfos.push_back(submitInfo);
     }
-    
+
     HCCL_DEBUG("[CcuTempAllGather2DiesMeshMem2Mem1D] Template Run end.");
-    
+
     return HcclResult::HCCL_SUCCESS;
 }
 

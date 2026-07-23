@@ -162,7 +162,7 @@ HcclResult CcuTempAllreduceMesh1D2DieOneShot::KernelRun(const OpParam& param,
         rmtReduceGoSize[0], rmtReduceGoSize[1], rmtReduceGoSize[2], rmtReduceGoSize[3],
         localReduceGoSize0[0], localReduceGoSize0[1], localReduceGoSize0[2], localReduceGoSize0[3],
         localReduceGoSize1[0], localReduceGoSize1[1], localReduceGoSize1[2], localReduceGoSize1[3]));
-    for (u32 i = 0; i < dieNum; i++) { 
+    for (u32 i = 0; i < dieNum; i++) {
         // 2个kernel的TaskArg相同
         submitInfo.kernelHandle = templateResource.ccuKernels[i];
         templateResource.submitInfos.push_back(submitInfo);
