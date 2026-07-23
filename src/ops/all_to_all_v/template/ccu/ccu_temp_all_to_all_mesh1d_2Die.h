@@ -37,27 +37,11 @@ public:
     HcclResult FastLaunch(const OpParam &param, const TemplateFastLaunchCtx &tempFastLaunchCtx) override;
 
 private:
-<<<<<<< HEAD
-    HcclResult PartitionChannels(HcclComm comm, const std::vector<HcclChannelDesc> &channelDescs, uint32_t &meshDieId,
-                                std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
-    HcclResult CalcChannelRequest(HcclComm comm, const OpParam& param, const TopoInfoWithNetLayerDetails* topoInfo,
-        const std::vector<std::vector<u32>>& subcommInfo, std::vector<HcclChannelDesc> &channels);
-    HcclResult ProcessLinkForProtocol(const HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound, const std::string& funcName) const;
-    HcclResult CreateChannelFromLink(const HcclComm comm, u32 myRank, u32 rank, uint32_t netLayer, u32 idx,
-        const CommLink& link, const std::string& funcName, std::vector<HcclChannelDesc>& channels) const;
-    HcclResult ProcessLinkForProtocolNhr(HcclComm comm, const std::vector<CommProtocol>& expectedProtocols,
-        const std::vector<CommLink>& linkList, u32 myRank, u32 remoteRank, uint32_t netLayer,
-        std::vector<HcclChannelDesc>& channels, bool& protocolFound) const;
-    HcclResult CalcNHRChannelConnect(u32 rank, u32 rankSize, u32 root, std::set<u32> &connectRanks) const;
-=======
     HcclResult PartitionChannels(HcclComm comm, std::map<u32, std::vector<HcclChannelDesc>>& rankIdToChannelDesc);
     HcclResult CalcFillArgsInfo(uint32_t kernelIdx, uint64_t &sliceSize, uint64_t &sliceOffset);
     HcclResult LaunchKernels(uint32_t kernelCount, uint64_t inputAddr, uint64_t outputAddr, uint64_t token,
         uint64_t sliceStride, const LoopGroupConfig &config, const TemplateDataParams &templateDataParams,
         TemplateResource& templateResource);
->>>>>>> 5a6f94fb (fix_conflict01)
 
     bool is2Plus6_ = false;
     uint32_t kernelCount_ = 2;
