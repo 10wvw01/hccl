@@ -8,21 +8,23 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
  
-#include "ccu_v2_reduce_omnipipe_executor.h"
+#include "ins_v2_reduce_omnipipe_executor.h"
 #include "alg_data_trans_wrapper.h"
+#ifndef AICPU_COMPILE
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_reduce_scatter_omnipipe_mesh1d.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
-#include "ccu_alg_template_base.h"
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#endif
 namespace ops_hccl {
 
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::CcuV2ReduceOmniPipeExecutor()
 {
 }
-
 
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::CalcAlgHierarchyInfo(HcclComm comm, 
@@ -36,7 +38,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     for (auto i = 0; i < algHierarchyInfo.infos.size(); ++i) {
         for (auto j = 0; j < algHierarchyInfo.infos[i].size(); ++j) {
             for (auto k = 0; k < algHierarchyInfo.infos[i][j].size(); ++k) {
-                HCCL_INFO("[%s] myRank[%u] (%d, %d, %d) %u", __func__, topoInfo->userRank, i, j, k,
+                HCCL_DEBUG("[%s] myRank[%u] (%d, %d, %d) %u", __func__, topoInfo->userRank, i, j, k,
                     algHierarchyInfo.infos[i][j][k]);
             }
         }
@@ -109,7 +111,6 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             info.resGroup = 1;
         });
     }
-    HCCL_INFO("[%s] 190190.", __func__);
     resourceReq.ccuKernelInfos.insert(resourceReq.ccuKernelInfos.end(), resReqlevel.ccuKernelInfos.begin(), resReqlevel.ccuKernelInfos.end()); //不需要改，无脑放
     resourceReq.ccuKernelNum.insert(resourceReq.ccuKernelNum.end(), resReqlevel.ccuKernelNum.begin(), resReqlevel.ccuKernelNum.end());
 
@@ -334,7 +335,7 @@ template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTe
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::OrchestrateLoop(
             const OpParam& param, const AlgResourceCtxSerializable& resCtx)
 {
-    HCCL_INFO("[%s] Start", __func__);
+    HCCL_DEBUG("[%s] Start", __func__);
 
     // 初始化通信域subCommRanks
     std::vector<std::vector<u32>> subCommRanks0;
@@ -387,7 +388,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1] + resCtx.ccuKernelNum[2],
         resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1] + resCtx.ccuKernelNum[2]+ resCtx.ccuKernelNum[3]);
 
-    // 1、计算带宽 平均带宽还是总带宽,如果是总带宽这边要处理成平均带宽 // [jjy][todo]计算带宽打桩
+    // 1、计算带宽 平均带宽还是总带宽,如果是总带宽这边要处理成平均带宽 // [todo]计算带宽打桩
     std::vector<double> endpointAttrBwAvgRS;
     std::vector<double> endpointAttrBwAvgG;
     CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG));
@@ -415,7 +416,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     HCCL_DEBUG("[%s]maxCountPerLoop[%u], loopTimes[%u]", __func__, maxCountPerLoop, loopTimes);
     for (int i=0;i<multiLoopAllRankSplitData.size();i++){
         for(int j=0;j<multiLoopAllRankSplitData[i].size();j++){
-            HCCL_INFO("[jjy]rankId[%d],allRankSplitData[%d][%d]:%d multiLoopAllRankSplitData[%d][%d]:%d", myRank_, i, j, allRankSplitData[i], i, j, multiLoopAllRankSplitData[i][j]);
+            HCCL_DEBUG("rankId[%d],allRankSplitData[%d][%d]:%d multiLoopAllRankSplitData[%d][%d]:%d", myRank_, i, j, allRankSplitData[i], i, j, multiLoopAllRankSplitData[i][j]);
         }
     }
 
@@ -425,7 +426,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     // 3.1 计算n-1次loop的slice信息
     u64 perLoopSize = multiLoopAllRankSplitData[0][0] * dataTypeSize_;
     perLoopSize = dataSize_ > perLoopSize ? perLoopSize : dataSize_;
-    HCCL_DEBUG("[%s][jjy] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
+    HCCL_DEBUG("[%s] perLoopSize[%u] dataSize_[%u] allRankSplitData[%u]", __func__, perLoopSize, dataSize_, allRankSplitData[myRank_]);
     std::vector<u64> dataSizePerLoop(rankSize_, perLoopSize); //注意的参数
     std::vector<u64> dataWholeSize(rankSize_, allRankSplitData[myRank_] * dataTypeSize_);
     OmniPipeSliceParam sliceParam;
@@ -464,13 +465,13 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             omniPipeSliceInfoRS = CalcRSOmniPipeSliceInfo(sliceParam);
             sliceParam.endpointAttrBw = endpointAttrBwAvgG;
             omniPipeSliceInfoG = CalcGatherOmniPipeSliceInfo(sliceParam);
-            HCCL_INFO("[%s] endpointAttrBwAvgRS0:%f, endpointAttrBwAvgRS1:%f, endpointAttrBwAvgG0:%f, endpointAttrBwAvgG1:%f", __func__, endpointAttrBwAvgRS[0], endpointAttrBwAvgRS[1], endpointAttrBwAvgG[0], endpointAttrBwAvgG[1]);
+            HCCL_DEBUG("[%s] endpointAttrBwAvgRS0:%f, endpointAttrBwAvgRS1:%f, endpointAttrBwAvgG0:%f, endpointAttrBwAvgG1:%f", __func__, endpointAttrBwAvgRS[0], endpointAttrBwAvgRS[1], endpointAttrBwAvgG[0], endpointAttrBwAvgG[1]);
         }
         u64 currDataCount = multiLoopAllRankSplitData[loop][myRank_];
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel0.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j].size();k++){
-                    HCCL_INFO("[zq][dataSliceLevel0] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel0[i].stepSliceSize[j][k]);
+                    HCCL_DEBUG("[dataSliceLevel0] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel0[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel0[i].stepSliceSize[j][k]);
                 }
             }
         }
@@ -478,7 +479,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         for(int i = 0;i<omniPipeSliceInfoG.dataSliceLevel1.size();++i){
             for(int j = 0;j<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride.size();++j){
                 for(int k =0;k<omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j].size();k++){
-                    HCCL_INFO("[zq][dataSliceLevel1] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel1[i].stepSliceSize[j][k]);
+                    HCCL_DEBUG("[dataSliceLevel1] myRank[%u] inputOmniPipeSliceStride[%u][%u][%u]=[%u] sliceSize=[%u]", myRank_, i, j, k, omniPipeSliceInfoG.dataSliceLevel1[i].inputOmniPipeSliceStride[j][k], omniPipeSliceInfoG.dataSliceLevel1[i].stepSliceSize[j][k]);
                 }
             }
         }
@@ -533,7 +534,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
             gAlgTempX.SetRoot(rankIdxLevel1_ * rankSizeLevel0_ + rootx); //当前卡的y坐标 * xSize + root的x坐标 root是1 ，当前是2  1*2 + 1 = 3
             gAlgTempY.SetRoot(param.root / rankSizeLevel0_ * rankSizeLevel0_ + rankIdxLevel0_);
-            HCCL_INFO("[%s][KernelRun] myRank[%u] rankIdxLevel1_[%u], rankSizeLevel0_[%u], rootx[%u] param.root[%u]", __func__, myRank_, rankIdxLevel1_, rankSizeLevel0_, rootx, param.root);
+            HCCL_DEBUG("[%s][KernelRun] myRank[%u] rankIdxLevel1_[%u], rankSizeLevel0_[%u], rootx[%u] param.root[%u]", __func__, myRank_, rankIdxLevel1_, rankSizeLevel0_, rootx, param.root);
             // NHR算法时，root的同y轴都需要执行y轴任务
             if (isSameYAxisAsRoot || myRank_ == param.root) {
                 gAlgTempY.ifDoTask_ = true;
@@ -544,50 +545,50 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
             if (i == 0) { // 第一步
                 // 第一步nhr全部卡doTask=true ///其他的只有root和root同列的doTask=true
                 gAlgTempY.ifDoTask_ = true;
-                HCCL_INFO("[%s][KernelRun] first start.", __func__);
+                HCCL_DEBUG("[%s][KernelRun] first start.", __func__);
             }else if (i == level0StepCountAG - 1) {  // 最后一步
-                HCCL_INFO("[%s][KernelRun] lastStep.", __func__);
+                HCCL_DEBUG("[%s][KernelRun] lastStep.", __func__);
             // ----------------第n步----------------
             // 如果当前卡是root的同x轴节点 nhr ccl->usrOut
             // 如果当前卡是root的同y轴节点 mesh ccl->usrOut
                 if (isSameYAxisAsRoot && !isRoot) { // 3
-                    HCCL_INFO("[%s][isSameYAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isSameYAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
                     gAlgTempX.UnsetRoot(myRank_);
                 } else if (isSameXAxisAsRoot && !isRoot) { // 1,2
-                    HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isSameXAxisAsRoot] myRank_[%d] 2.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
                     gAlgTempY.UnsetRoot(myRank_);
                 } else if(isRoot){
-                    HCCL_INFO("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isRoot] myRank_[%d] 2.", __func__, myRank_);
                 } else{//4,5
-                    HCCL_INFO("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isDiagnol] myRank_[%d] 2.", __func__, myRank_);
                     gAlgTempX.UnsetRoot(myRank_);
                     gAlgTempY.UnsetRoot(myRank_);
                 }
             } else {  // 中间的所有步
-                HCCL_INFO("[%s][KernelRun] middlestep start.", __func__);
+                HCCL_DEBUG("[%s][KernelRun] middlestep start.", __func__);
             // ----------------第2 ~ n-1步----------------
             // 如果当前卡是root的同x轴节点 nhr ccl->usrOut
             // 如果当前卡是root的同y轴节点 mesh usrOut->usrOut
             // 如果当前卡是斜对角节点 mesh usrOut->ccl 
                 if(isRoot){
-                    HCCL_INFO("[%s][isRoot] myRank_[%d] 1.", __func__, myRank_); 
+                    HCCL_DEBUG("[%s][isRoot] myRank_[%d] 1.", __func__, myRank_); 
                 } else if (isSameYAxisAsRoot && !isRoot) { 
-                HCCL_INFO("[%s][isSameYAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
+                HCCL_DEBUG("[%s][isSameYAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsHCCLBuff2HCCLBuff(tempGAlgParamsY, omniPipeSliceInfoG.dataSliceLevel1[i], processedDataCount, resCtx, param));
                 } else if (isSameXAxisAsRoot && !isRoot) {
-                    HCCL_INFO("[%s][isSameXAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isSameXAxisAsRoot] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
                     gAlgTempY.UnsetRoot(myRank_);
                 } else {
-                    HCCL_INFO("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
+                    HCCL_DEBUG("[%s][isDiagnol] myRank_[%d] 1.", __func__, myRank_);
                     CHK_RET(GenTempAlgParamsIn2HCCLBuff(tempGAlgParamsX, omniPipeSliceInfoG.dataSliceLevel0[i], processedDataCount, resCtx, param));
                     gAlgTempY.UnsetRoot(myRank_);
                 }
-                HCCL_INFO("[%s][KernelRun] middlestep.", __func__);
+                HCCL_DEBUG("[%s][KernelRun] middlestep.", __func__);
             }
-            HCCL_INFO("[%s][KernelRun] start.", __func__);
+            HCCL_DEBUG("[%s][KernelRun] start.", __func__);
             gAlgTempX.isStepOne_ = (i == 0);
             gAlgTempX.isloopOne_ = (loop == 0);
             gAlgTempX.isLastStep_ = (i == level0StepCountAG - 1);
@@ -625,7 +626,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                     rankOffset += allRankSplitData[i] * dataTypeSize_;
                     continue;
                 }
-                HCCL_DEBUG("[%s] currDataCountxxxxx is %llu", __func__, currDataCountTmp);
+                HCCL_DEBUG("[%s] currDataCountTmp is %llu", __func__, currDataCountTmp);
                 TemplateDataParams tempAlgParamLocalCopy = tempAlgParamsCommon;
                 tempAlgParamLocalCopy.localCopyFlag = 1;
                 tempAlgParamLocalCopy.dataType = dataType_;
@@ -659,7 +660,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
                 myRank_, tempAlgParamLocalCopy.buffInfo.inBuffBaseOff, tempAlgParamLocalCopy.buffInfo.outBuffBaseOff, tempAlgParamLocalCopy.sliceSize, processedDataCount, rankOffset, rankLoopOffset);
                 CHK_RET(gAlgTempX.KernelRun(param, tempAlgParamLocalCopy, templateResourceGX));
                 rankOffset += allRankSplitData[i] * dataTypeSize_; // 卡偏移
-                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;// 0 11 11*2 11*3 11*4 11*4+9 11*5+9
+                rankLoopOffset += multiLoopAllRankSplitData[loop][i] * dataTypeSize_;
             }
             CHK_RET(PostSyncInterThreads(mainThread, syncThreads, notifyIdxesSubToMain));
                 
@@ -668,20 +669,31 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
         processedDataCount += maxCountPerLoop;
     }
 
-    HCCL_INFO("[%s][OrchestrateLoop] Endxx.", __func__);
+    HCCL_DEBUG("[%s][OrchestrateLoop] Endxx.", __func__);
     return HCCL_SUCCESS;
 }
 
 
-// TODO: x带宽>y带卡
-// #ifndef AICPU_COMPILE // [jjy][todo] 这里的TopoMatchUBX还是TopoMatchMultilevel？这里需要写ifndef吗？
+#ifndef AICPU_COMPILE
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
                                 CcuV2ReduceOmniPipe2D,
                                 CcuV2ReduceOmniPipeExecutor, 
                                 TopoMatchUBX, 
                                 CcuTempReduceScatterOmniPipeMesh1DMem2Mem, 
-                                // CcuTempReduceScatterOmniPipeMesh1D,
                                 CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
                                 CcuTempGatherOmniPipeMesh1DMem2Mem,
                                 CcuTempGatherOmniPipeNHR1DMem2Mem);
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_REDUCE, 
+                                CcuV2ReduceOmniPipe2DMs,
+                                CcuV2ReduceOmniPipeExecutor, 
+                                TopoMatchUBX, 
+                                CcuTempReduceScatterOmniPipeMesh1D,
+                                CcuTempReduceScatterOmniPipeNHR1DMem2Mem, 
+                                CcuTempGatherOmniPipeMesh1DMem2Mem,
+                                CcuTempGatherOmniPipeNHR1DMem2Mem);
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
+#endif 
 }
