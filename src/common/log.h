@@ -340,13 +340,6 @@ public:
     HcclTimerEntries() {
         timerEntries.reserve(20000);
     };
-    ~HcclTimerEntries() {
-        HCCL_ERROR("~HcclTimerEntries: timerEntries.size=%d", timerEntries.size());
-        for (auto &entry : timerEntries) {
-            entry.PrintLog();
-        }
-        timerEntries.clear();
-    }
 
     std::vector<TimerEntry>& GetTimerEntries() {
         return timerEntries;
@@ -365,7 +358,7 @@ class HcclTimer {
   public:
     static bool startTrack;
     static uint64_t timerCounter;
-    static HcclTimerEntries timerEntries;
+    static HcclTimerEntries &GetTimerEntries();
 
     u64 GetCurAicpuTimestamp()
     {
@@ -379,17 +372,19 @@ class HcclTimer {
         HCCL_INFO("[HcclTimer] startTrack[%d]", startTrack);
         if (startTrack) {
             timerCounter++;
-            timerIdx = timerEntries.GetTimerEntries().size();
-            timerEntries.GetTimerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
-            HCCL_INFO("[HcclTimer] startTrack[%d] timerEntries.size[%llu]", startTrack, timerEntries.GetTimerEntries().size());
+            timerIdx = GetTimerEntries().GetTimerEntries().size();
+            GetTimerEntries().GetTimerEntries().emplace_back(GetCurAicpuTimestamp(), timerCounter, name);
+            HCCL_INFO("[HcclTimer] startTrack[%d] timerEntries.size[%llu]", startTrack,
+                GetTimerEntries().GetTimerEntries().size());
         }
     }
  
     ~HcclTimer()
     {
-        HCCL_INFO("[HcclTimer] timerIdx[%llu] timerEntries.size[%llu]", timerIdx, timerEntries.GetTimerEntries().size());
-        if (startTrack && timerIdx < timerEntries.GetTimerEntries().size()) {
-            timerEntries.GetTimerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
+        HCCL_INFO("[HcclTimer] timerIdx[%llu] timerEntries.size[%llu]", timerIdx,
+            GetTimerEntries().GetTimerEntries().size());
+        if (startTrack && timerIdx < GetTimerEntries().GetTimerEntries().size()) {
+            GetTimerEntries().GetTimerEntries()[timerIdx].endTime = GetCurAicpuTimestamp();
             timerCounter--;
         }
     }

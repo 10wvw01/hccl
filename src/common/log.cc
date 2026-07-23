@@ -11,7 +11,14 @@
 
 bool HcclTimer::startTrack = false;
 uint64_t HcclTimer::timerCounter = 0;
-HcclTimerEntries HcclTimer::timerEntries;
+
+HcclTimerEntries &HcclTimer::GetTimerEntries()
+{
+    // Timer storage intentionally lives until process termination. Destroying it while
+    // libhccl_v2.so is unloading can access logging/runtime state that is already finalized.
+    static HcclTimerEntries *timerEntries = new HcclTimerEntries();
+    return *timerEntries;
+}
 
 thread_local bool g_hcclErrToWarn = false;
 constexpr int32_t HCCL_LOG_LEVEL_INVALID = -1;
