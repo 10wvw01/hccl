@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "hccl_algo_dims.h"
 
 #ifdef __cplusplus
 /* C++：直接引入完整 hccl_types.h（含 HcclRootInfo 等，C++ 中 const 可做数组大小） */
@@ -81,20 +82,6 @@ extern "C" {
 /* ===== 常量 ===== */
 
 #define HCCL_TUNER_API_VERSION 1
-
-/* ===== 枚举 ===== */
-
-typedef enum {
-    HCCL_OP_ALLREDUCE = 0,
-    HCCL_OP_ALLGATHER,
-    HCCL_OP_BROADCAST,
-    HCCL_OP_REDUCE,
-    HCCL_OP_REDUCE_SCATTER,
-    HCCL_OP_SCATTER,
-    HCCL_OP_ALLTOALL,
-    HCCL_OP_ALLTOALLV,
-    HCCL_OP_INVALID = 255
-} hcclOpType_t;
 
 /* ===== 通信域信息（per-comm，init 时传入）===== */
 

@@ -21,49 +21,14 @@ AlgoNameMapper *AlgoNameMapper::Global()
     return instance;
 }
 
-/* ===== 维度值表 ===== */
-const AlgoNameMapper::DimEntry AlgoNameMapper::g_engines[] = {
-    {"Aicpu", "aicpu"}, {"CcuMs", "ccu_ms"}, {"CcuSched", "ccu_sched"},
-    {"Aiv", "aiv"}, {"Dpu", "dpu"},
-};
-const int AlgoNameMapper::g_engineCount = 5;
-
-const AlgoNameMapper::DimEntry AlgoNameMapper::g_executors[] = {
-    {"Sequence", "sequence"}, {"Sole", "sole"}, {"Parallel", "parallel"},
-    {"Pipiline", "pipiline"}, {"Concur", "concur"},
-};
-const int AlgoNameMapper::g_executorCount = 5;
-
-const AlgoNameMapper::DimEntry AlgoNameMapper::g_templates[] = {
-    {"MeshOneShot", "mesh_one_shot"}, {"MeshTwoShot", "mesh_two_shot"},
-    {"MeshChunk", "mesh_chunk"}, {"Mesh2die", "mesh_2die"},
-    {"Mesh", "mesh"}, {"NHR", "NHR"},
-};
-const int AlgoNameMapper::g_templateCount = 6;
-
-const char * const AlgoNameMapper::g_opTypes[] = {
-    "AllReduce", "AllGather", "ReduceScatter", "Broadcast",
-    "AlltoAllV", "AlltoAll", "Reduce", "Scatter",
-};
-const int AlgoNameMapper::g_opTypeCount = 8;
-
-/* ===== opType 枚举 → PascalCase ===== */
-std::string AlgoNameMapper::OpTypeToPascal(int opType)
-{
-    if (opType >= 0 && opType < g_opTypeCount) {
-        return g_opTypes[opType];
-    }
-    return "";
-}
-
 /* ===== 构建 2D 表（30 条）===== */
 void AlgoNameMapper::BuildMap2D()
 {
-    for (int ex = 0; ex < g_executorCount; ex++) {
-        for (int t = 0; t < g_templateCount; t++) {
-            std::string key = std::string(g_executors[ex].pascal)
-                            + g_templates[t].pascal;
-            map2D_[key] = {g_executors[ex].user, g_templates[t].user};
+    for (int ex = 0; ex < HCCL_EXEC_COUNT; ex++) {
+        for (int t = 0; t < HCCL_TPL_COUNT; t++) {
+            std::string key = std::string(g_hcclExecutors[ex].pascal)
+                            + g_hcclTemplates[t].pascal;
+            map2D_[key] = {g_hcclExecutors[ex].user, g_hcclTemplates[t].user};
         }
     }
     HCCL_DEBUG("[AlgoNameMapper] 2D map built, %zu entries.", map2D_.size());
@@ -80,12 +45,12 @@ bool AlgoNameMapper::Lookup2D(const std::string &algName,
         return false;
     }
 
-    /* 2. engine = optype 前面，查 5 项 engine 表 */
+    /* 2. engine = optype 前面，查 g_hcclEngines 表 */
     std::string enginePascal = algName.substr(0, pos);
     dims.engineUser = nullptr;
-    for (int i = 0; i < g_engineCount; i++) {
-        if (enginePascal == g_engines[i].pascal) {
-            dims.engineUser = g_engines[i].user;
+    for (int i = 0; i < HCCL_ENGINE_COUNT; i++) {
+        if (enginePascal == g_hcclEngines[i].pascal) {
+            dims.engineUser = g_hcclEngines[i].user;
             break;
         }
     }
@@ -93,7 +58,7 @@ bool AlgoNameMapper::Lookup2D(const std::string &algName,
         return false;
     }
 
-    /* 3. execTpl = optype 后面，查 30 项 2D 表 */
+    /* 3. execTpl = optype 后面，查 2D 表 */
     std::string execTpl = algName.substr(pos + opTypePascal.size());
     auto it = map2D_.find(execTpl);
     if (it == map2D_.end()) {
@@ -111,8 +76,8 @@ void AlgoNameMapper::Init(const AlgoRegInfo *algos, int count)
 
     for (int i = 0; i < count; ++i) {
         const std::string &algName = algos[i].algName;
-        std::string opTypePascal = OpTypeToPascal(algos[i].opType);
-        if (opTypePascal.empty()) {
+        const char *opTypePascal = HcclOpTypeToPascal(algos[i].opType);
+        if (opTypePascal == NULL) {
             HCCL_WARNING("[AlgoNameMapper] unknown opType=%d, skip algName=%s.",
                          algos[i].opType, algName.c_str());
             continue;

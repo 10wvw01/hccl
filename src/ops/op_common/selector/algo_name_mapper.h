@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "hccl_algo_dims.h"
 #include "hccl_tuner_plugin.h"
 
 namespace ops_hccl {
@@ -48,17 +49,6 @@ public:
 private:
     AlgoNameMapper() = default;
 
-    /* 维度值表：PascalCase 前缀 + 用户侧名 */
-    struct DimEntry { const char *pascal; const char *user; };
-    static const DimEntry g_engines[];
-    static const int g_engineCount;
-    static const DimEntry g_executors[];
-    static const int g_executorCount;
-    static const DimEntry g_templates[];
-    static const int g_templateCount;
-    static const char * const g_opTypes[];
-    static const int g_opTypeCount;
-
     /* 2D 预计算表（init 时构建，30 条） */
     std::unordered_map<std::string,
         std::pair<const char*, const char*>> map2D_;
@@ -70,7 +60,6 @@ private:
     bool Lookup2D(const std::string &algName,
                   const std::string &opTypePascal,
                   AlgoDims &dims) const;
-    static std::string OpTypeToPascal(int opType);
 };
 
 } /* namespace ops_hccl */

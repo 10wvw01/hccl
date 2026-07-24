@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "hccl_tuner_plugin.h"
+#include "hccl_algo_dims.h"
 
 /* ===== 常量 ===== */
 #define MAX_RULES 64
@@ -139,16 +140,7 @@ static void SchemaError(SchemaState *s, const char *fmt, ...)
     }
 }
 
-/* ===== 算子类型 / 数据类型字符串映射 ===== */
-static const struct {
-    const char *name;
-    hcclOpType_t type;
-} g_opTypeMap[] = {
-    {"allreduce", HCCL_OP_ALLREDUCE},     {"allgather", HCCL_OP_ALLGATHER},     {"broadcast", HCCL_OP_BROADCAST},
-    {"reduce", HCCL_OP_REDUCE},           {"reduce_scatter", HCCL_OP_REDUCE_SCATTER},
-    {"scatter", HCCL_OP_SCATTER},         {"alltoall", HCCL_OP_ALLTOALL},       {"alltoallv", HCCL_OP_ALLTOALLV},
-};
-
+/* ===== 数据类型字符串映射 ===== */
 static const struct {
     const char *name;
     HcclDataType type;
@@ -161,16 +153,6 @@ static const struct {
     {"bfloat16", HCCL_DATA_TYPE_BFP16},
 };
 
-static hcclOpType_t LookupOpType(const char *name)
-{
-    for (size_t i = 0; i < sizeof(g_opTypeMap) / sizeof(g_opTypeMap[0]); i++) {
-        if (strcmp(name, g_opTypeMap[i].name) == 0) {
-            return g_opTypeMap[i].type;
-        }
-    }
-    return HCCL_OP_INVALID;
-}
-
 static HcclDataType ParseDataType(const char *name)
 {
     for (size_t i = 0; i < sizeof(g_dataTypeMap) / sizeof(g_dataTypeMap[0]); i++) {
@@ -181,22 +163,8 @@ static HcclDataType ParseDataType(const char *name)
     return HCCL_DATA_TYPE_RESERVED;
 }
 
-/* ===== 维度合法值校验表 ===== */
-static const char *g_validEngines[] = {"aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"};
-static const int g_validEngineCount = 5;
-static const char *g_validExecutors[] = {"sequence", "sole", "parallel", "pipiline", "concur"};
-static const int g_validExecutorCount = 5;
-static const char *g_validTemplates[] = {"mesh", "NHR", "mesh_two_shot",
-                                          "mesh_one_shot", "mesh_chunk", "mesh_2die"};
-static const int g_validTemplateCount = 6;
-
-static int IsValidValue(const char *val, const char **validList, int count)
-{
-    for (int i = 0; i < count; i++) {
-        if (strcmp(val, validList[i]) == 0) return 1;
-    }
-    return 0;
-}
+/* 维度值校验由 hccl_algo_dims.h 的 HcclUserToEngine/HcclUserToExecutor/HcclUserToTemplate 完成，
+ * 与 algo_name_mapper.cc 共享同一权威来源（g_hcclEngines/g_hcclExecutors/g_hcclTemplates）。 */
 
 /* ===== 极简 JSON 解析器（仅支持本插件配置格式，无外部依赖）===== */
 
@@ -450,7 +418,7 @@ static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
         } else if (strcmp(key, "engine") == 0) {
             char buf[MAX_STR_LEN] = {0};
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validEngines, g_validEngineCount)) {
+                if (HcclUserToEngine(buf) < 0) {
                     SchemaError(s, "invalid engine '%s'", buf);
                 }
                 strncpy(r->engine, buf, sizeof(r->engine) - 1);
@@ -458,7 +426,7 @@ static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
         } else if (strcmp(key, "executor") == 0) {
             char buf[MAX_STR_LEN] = {0};
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validExecutors, g_validExecutorCount)) {
+                if (HcclUserToExecutor(buf) < 0) {
                     SchemaError(s, "invalid executor '%s'", buf);
                 }
                 strncpy(r->executor, buf, sizeof(r->executor) - 1);
@@ -466,7 +434,7 @@ static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
         } else if (strcmp(key, "template") == 0) {
             char buf[MAX_STR_LEN] = {0};
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validTemplates, g_validTemplateCount)) {
+                if (HcclUserToTemplate(buf) < 0) {
                     SchemaError(s, "invalid template '%s'", buf);
                 }
                 strncpy(r->template, buf, sizeof(r->template) - 1);
@@ -495,7 +463,7 @@ static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
 
 static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName, SchemaState *s)
 {
-    hcclOpType_t opType = LookupOpType(opName);
+    hcclOpType_t opType = (hcclOpType_t)HcclOpTypeFromName(opName);
     if (opType == HCCL_OP_INVALID) {
         SchemaError(s, "unknown op_type '%s'", opName);
         JsonSkipValue(p);
@@ -625,7 +593,7 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
         char buf[MAX_STR_LEN] = {0};
         if (strcmp(key, "engine") == 0) {
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validEngines, g_validEngineCount)) {
+                if (HcclUserToEngine(buf) < 0) {
                     SchemaError(s, "defaults invalid engine '%s'", buf);
                 }
                 strncpy(d->engine, buf, sizeof(d->engine) - 1);
@@ -633,7 +601,7 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
             }
         } else if (strcmp(key, "executor") == 0) {
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validExecutors, g_validExecutorCount)) {
+                if (HcclUserToExecutor(buf) < 0) {
                     SchemaError(s, "defaults invalid executor '%s'", buf);
                 }
                 strncpy(d->executor, buf, sizeof(d->executor) - 1);
@@ -641,7 +609,7 @@ static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
             }
         } else if (strcmp(key, "template") == 0) {
             if (JsonReadString(p, buf, sizeof(buf)) > 0) {
-                if (!IsValidValue(buf, g_validTemplates, g_validTemplateCount)) {
+                if (HcclUserToTemplate(buf) < 0) {
                     SchemaError(s, "defaults invalid template '%s'", buf);
                 }
                 strncpy(d->template, buf, sizeof(d->template) - 1);

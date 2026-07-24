@@ -25,9 +25,9 @@
       "description": "全局默认值，规则中省略的字段自动继承",
       "additionalProperties": false,
       "properties": {
-        "engine": { "type": "string", "enum": ["aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"] },
-        "executor": { "type": "string", "enum": ["sequence", "sole", "parallel", "pipiline", "concur"] },
-        "template": { "type": "string", "enum": ["mesh", "NHR", "mesh_two_shot", "mesh_one_shot", "mesh_chunk", "mesh_2die"] },
+        "engine": { "type": "string", "description": "权威来源: include/hccl_algo_dims.h g_hcclEngines[].user", "enum": ["aicpu", "ccu_ms", "ccu_sched", "aiv", "dpu"] },
+        "executor": { "type": "string", "description": "权威来源: include/hccl_algo_dims.h g_hcclExecutors[].user", "enum": ["sequence", "sole", "parallel", "pipiline", "concur"] },
+        "template": { "type": "string", "description": "权威来源: include/hccl_algo_dims.h g_hcclTemplates[].user", "enum": ["mesh", "NHR", "mesh_two_shot", "mesh_one_shot", "mesh_chunk", "mesh_2die"] },
         "args": {
           "type": "object",
           "additionalProperties": true,
