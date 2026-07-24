@@ -294,10 +294,10 @@ HcclResult InsV2BroadcastOmniPipe2dExecutor<AlgTopoMatch, CcuScatterAlgTemplateX
     tempAlgParams.stepSliceInfo = stepSliceInfo;
     tempAlgParams.buffInfo.inBuffBaseOff = stepSliceInfo.buffInfo.inBuffBaseOff + processedDataCount * dataTypeSize_;
     tempAlgParams.buffInfo.outBuffBaseOff = stepSliceInfo.buffInfo.outBuffBaseOff + processedDataCount * dataTypeSize_;
-    tempAlgParams.inputSliceStride = 0;
-    tempAlgParams.outputSliceStride = 0;
     tempAlgParams.sliceSize = 0;
     tempAlgParams.localCopyFlag = 0;
+    tempAlgParams.inputSliceStride = 0;
+    tempAlgParams.outputSliceStride = 0;
     return HcclResult::HCCL_SUCCESS;
 }
 

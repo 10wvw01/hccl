@@ -11,13 +11,13 @@
 #include "channel.h"
 #include "ccu_kernel_gather_omnipipe_nhr1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_nhr1d_mem2mem.h"
-#include "alg_data_trans_wrapper.h" 
+#include "alg_data_trans_wrapper.h"
 #include "ccu_launch_dl.h"
 
 namespace ops_hccl {
 
 CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpParam& param, const u32 rankId,
-                                                                        const std::vector<std::vector<u32>>& subCommRanks)
+    const std::vector<std::vector<u32>>& subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
     std::vector<u32> ranks = subCommRanks[0];
@@ -78,8 +78,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetRes(AlgResourceRequest &resourc
 }
 
 HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& param,
-                                                        const TopoInfoWithNetLayerDetails* topoInfo,
-                                                        AlgResourceRequest& resourceRequest)
+    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
     // 不需要从流
     GetRes(resourceRequest);
@@ -89,7 +88,8 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
                resourceRequest.notifyNumOnMainThread, resourceRequest.slaveThreadNum);
 
     CcuKernelInfo kernelInfo;
-    CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName), "CcuGatherOmniPipeNHR1DMem2MemKernel"));
+    CHK_SAFETY_FUNC_RET(strcpy_s(kernelInfo.kernelFuncName, sizeof(kernelInfo.kernelFuncName),
+        "CcuGatherOmniPipeNHR1DMem2MemKernel"));
     kernelInfo.kernelFunc = reinterpret_cast<void *>(CcuGatherOmniPipeNHR1DMem2MemKernel);
 
     std::vector<HcclChannelDesc> channelDescs;
@@ -104,7 +104,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
         }
     }
 
-    std::vector<NHRStepInfo>     stepInfoVector; 
+    std::vector<NHRStepInfo>     stepInfoVector;
     std::map<u32, u32>           rank2ChannelIdx; // rankId和channel匹配
     for (u32 i = 0; i < channelDescs.size(); ++i) {
         u32 remoteRank = channelDescs[i].remoteRank;
@@ -136,8 +136,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
 
 
 HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
-                                                          const TemplateDataParams& templateDataParams,
-                                                          TemplateResource& templateResource)
+    const TemplateDataParams& templateDataParams, TemplateResource& templateResource)
 {
     if (templateRankSize_ <= 1) {
         return HCCL_SUCCESS;
@@ -167,10 +166,12 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::RunGatherComm(const StepSliceInfo&
     uint64_t repeatNum = stepSliceInfo.stepSliceSize[0].size();
     for (uint32_t rpt = 0; rpt < repeatNum; ++rpt) {
         uint64_t sliceSize = stepSliceInfo.stepSliceSize[0][rpt];
-        std::vector<uint64_t> inputVec, outputVec, sliceSizeVec;
+        std::vector<uint64_t> inputVec;
+        std::vector<uint64_t> outputVec;
+        std::vector<uint64_t> sliceSizeVec;
         BuildGatherStrideVec(stepSliceInfo, rpt, sliceSize, inputVec, outputVec, sliceSizeVec);
         CHK_RET(LaunchGatherKernel(templateResource, inputAddr, outputAddr, scratchAddr, token, localCopyFlag,
-                                    sliceSize, inputVec, outputVec, sliceSizeVec));
+            sliceSize, inputVec, outputVec, sliceSizeVec));
     }
     return HcclResult::HCCL_SUCCESS;
 }
@@ -308,12 +309,12 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
             __func__, step, myRank_, mySubCommRank_, rxSliceIdx, recvFrom, i);
         rxSliceIdx = (rxSliceIdx + templateRankSize_ - deltaSliceIndex) % templateRankSize_;
     }
-    stepInfo.toRank = sendTo; // TODO ranks[sendTo];
-    stepInfo.fromRank = recvFrom; // TODO ranks[recvFrom];
+    stepInfo.toRank = sendTo;
+    stepInfo.fromRank = recvFrom;
     stepInfo.nSlices = nSlices;
-    
 
-    HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subCommRootId_[%u]", __func__, myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_);
+    HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subCommRootId_[%u]",
+        __func__,myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_);
     return HcclResult::HCCL_SUCCESS;
 }
 } // namespace ops_hccl

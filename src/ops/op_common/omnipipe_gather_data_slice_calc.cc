@@ -70,11 +70,11 @@ void CalcGatherStepDataAndOffset(GatherSliceContext &ctx)
         }
         for (u64 i = 0; i < ctx.outerStepNum; i++) {
             if (ctx.yGeX) {
-                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.xGDS[rs][i].data(), ctx.yGDS[rs][i].data(), ctx.xB, ctx.yB,
-                    ctx.xRankSize, ctx.yRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
+                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.xGDS[rs][i].data(), ctx.yGDS[rs][i].data(), ctx.xB,
+                ctx.yB, ctx.xRankSize, ctx.yRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
             } else {
-                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.yGDS[rs][i].data(), ctx.xGDS[rs][i].data(), ctx.yB, ctx.xB,
-                    ctx.yRankSize, ctx.xRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
+                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.yGDS[rs][i].data(), ctx.xGDS[rs][i].data(), ctx.yB,
+                ctx.xB, ctx.yRankSize, ctx.xRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
             }
         }
         if (ctx.yGeX) {
@@ -83,11 +83,11 @@ void CalcGatherStepDataAndOffset(GatherSliceContext &ctx)
             if (ctx.innerStepNum > 1) { ctx.yInCornerStep = ctx.innerStepNum - 1; }
         }
         if (xyGtZ) {
-            CalAllgather2DOffset(ctx.zGOff[rs].data(), ctx.xyGOff[rs].data(), ctx.outerStepNum, ctx.zRankSize, xyRankSize,
-                ctx.zGDS[rs].data(), ctx.xyGDS[rs].data());
+            CalAllgather2DOffset(ctx.zGOff[rs].data(), ctx.xyGOff[rs].data(), ctx.outerStepNum,
+                ctx.zRankSize, xyRankSize, ctx.zGDS[rs].data(), ctx.xyGDS[rs].data());
         } else {
-            CalAllgather2DOffset(ctx.xyGOff[rs].data(), ctx.zGOff[rs].data(), ctx.outerStepNum, xyRankSize, ctx.zRankSize,
-                ctx.xyGDS[rs].data(), ctx.zGDS[rs].data());
+            CalAllgather2DOffset(ctx.xyGOff[rs].data(), ctx.zGOff[rs].data(), ctx.outerStepNum, xyRankSize,
+                ctx.zRankSize, ctx.xyGDS[rs].data(), ctx.zGDS[rs].data());
         }
     }
     if (xyGtZ) {
@@ -133,7 +133,9 @@ std::vector<StepSliceInfo> BuildGatherZSteps(GatherSliceContext &ctx)
     for (u64 osn = static_cast<u64>(ctx.zCornerStep); osn < ctx.outerStepNum; osn++) {
         StepSliceInfo s = MakeGatherStep(ctx.zCclBufOff);
         for (u64 oneDid = 0; oneDid < ctx.zRankSize; oneDid++) {
-            std::vector<u64> sz, inOff, outOff;
+            std::vector<u64> sz;
+            std::vector<u64> inOff;
+            std::vector<u64> outOff;
             for (u64 cds = 0; cds < ctx.xRankSize * ctx.yRankSize; cds++) {
                 u64 curId = oneDid * ctx.xRankSize * ctx.yRankSize + cds;
                 if (cds != ctx.yAxis * ctx.xRankSize + ctx.xAxis) {
@@ -241,7 +243,9 @@ void BuildGatherXInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = static_cast<u64>(ctx.xInCornerStep); isn < ctx.innerStepNum; isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherInnerCornerPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
@@ -257,7 +261,9 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = 0; isn < static_cast<u64>(ctx.xInCornerStep); isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherOuterSameAxisPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
@@ -266,7 +272,9 @@ void BuildGatherXOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = static_cast<u64>(ctx.xInCornerStep); isn < ctx.innerStepNum; isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.xCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.xRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherOuterCornerPieces(ctx, osn, isn, oneDid, true, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
@@ -294,7 +302,9 @@ void BuildGatherYInnerSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = static_cast<u64>(ctx.yInCornerStep); isn < ctx.innerStepNum; isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherInnerCornerPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
@@ -310,7 +320,9 @@ void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = 0; isn < static_cast<u64>(ctx.yInCornerStep); isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherOuterSameAxisPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
@@ -319,7 +331,9 @@ void BuildGatherYOuterSteps(GatherSliceContext &ctx, std::vector<StepSliceInfo> 
         for (u64 isn = static_cast<u64>(ctx.yInCornerStep); isn < ctx.innerStepNum; isn++) {
             StepSliceInfo s = MakeGatherStep(ctx.yCclBufOff);
             for (u64 oneDid = 0; oneDid < ctx.yRankSize; oneDid++) {
-                std::vector<u64> sz, inOff, outOff;
+                std::vector<u64> sz;
+                std::vector<u64> inOff;
+                std::vector<u64> outOff;
                 CollectGatherOuterCornerPieces(ctx, osn, isn, oneDid, false, sz, inOff, outOff);
                 PushGatherRankEntry(s, ctx.dataTypeSize, 0, 0, std::move(sz), std::move(inOff), std::move(outOff));
             }
