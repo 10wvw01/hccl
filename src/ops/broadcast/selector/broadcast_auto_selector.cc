@@ -113,7 +113,7 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 u64 perRankSize = (topoInfo->userRankSize > 0) ? (dataSize / topoInfo->userRankSize) : dataSize;
                 if (perRankSize <= BROADCAST_MESH_CCU_MAX_DATA_SIZE && topoInfo->userRankSize <= 64) {
                     selectAlgName = "CcuBroadcastMesh1DMem2Mem";
-                } else if ((perRankSize <= BROADCAST_NHR_LESS_32P_CCU_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) || (perRankSize <= BROADCAST_NHR_CCU_MAX_DATA_SIZE && topoInfo->userRankSize > ccuSize)) {
+                } else if ((perRankSize <= BROADCAST_NHR_LESS_32P_CCU_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize) || (perRankSize <= BROADCAST_NHR_CCU_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize)) {
                     selectAlgName = "CcuBroadcastNHR1DMem2Mem";
                 } else {
                     selectAlgName = "CcuBroadcastParallelMesh1DNHR";
