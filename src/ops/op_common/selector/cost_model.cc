@@ -68,12 +68,12 @@ void CostModelManager::FreeCostModel()
 void CostModelManager::InitBandwidth()
 {
     HCCL_DEBUG("[CostModelManager] InitBandwidth.");
-    localCopyBw_ = 750;
-    localReduceBw_ = 483;
-    crossChipBw_ = 56;
-    crossChipReduceBw_ = 56;
-    ccuLocalCopyBw_ = 200;
-    ccuLocalReduceBw_ = 200;
+    localCopyBw_ = 750 * 1024 * 1024;
+    localReduceBw_ = 483 * 1024 * 1024;
+    crossChipBw_ = 56 * 1024 * 1024;
+    crossChipReduceBw_ = 56 * 1024 * 1024;
+    ccuLocalCopyBw_ = 200 * 1024 * 1024;
+    ccuLocalReduceBw_ = 200 * 1024 * 1024;
     HCCL_DEBUG("[CostModelManager] localCopyBw=%f localReduceBw=%f crossChipBw=%f crossChipReduceBw=%f "
                "ccuLocalCopyBw=%f ccuLocalReduceBw=%f.",
                localCopyBw_, localReduceBw_, crossChipBw_, crossChipReduceBw_, ccuLocalCopyBw_, ccuLocalReduceBw_);
@@ -182,6 +182,13 @@ void CostModelManager::CalcLocalReduceParams(float n, int scene, float &B)
 void CostModelManager::CalcLatencyParams(int taskNum, EngineType engine, float &C)
 {
     C = 0.0f;
+    if(engine == EngineType::AICPU) {
+        C = 0.0002f + 0.000005 * taskNum;      // 单位是s，200u
+    } else if(engine == EngineType::AIV) { 
+        C = 0 + 0.000005 * taskNum;
+    } else if(engine == EngineType::CCU) {
+        C = 0.00001f + 0.000005 * taskNum;     // 单位是s，10u
+    }
     HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d engine=%d C=%f.", taskNum,
                static_cast<int>(engine), C);
     return;
