@@ -20,6 +20,18 @@
 #include "hccl_host_comm_dl.h"
 #include <atomic>
 
+typedef HcclResult (*HcclDlHcommThreadResGetInfoFunc)(HcclComm, ThreadHandle, void*, uint32_t, void**);
+typedef HcclResult (*HcclDlHcommConfigGetInfoFunc)(HcclComm, HcclConfigType, uint32_t, void*);
+
+struct HcclDlHcommFuncs {
+    HcclDlHcommThreadResGetInfoFunc threadResGetInfo;
+    HcclDlHcommConfigGetInfoFunc configGetInfo;
+};
+
+extern "C" {
+HcclResult HcclDlHcommFunctionInterInit(void *handle, HcclDlHcommFuncs *out);
+}
+
 namespace ops_hccl {
 class DlHcommFunction {
 public:

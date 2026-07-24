@@ -10,6 +10,7 @@
 
 #include "dlhcomm_function.h"
 #include "log.h"
+#include "sal.h"
 
 namespace ops_hccl {
 DlHcommFunction &DlHcommFunction::GetInstance()
@@ -34,10 +35,10 @@ DlHcommFunction::~DlHcommFunction()
 
 HcclResult DlHcommFunction::DlHcommFunctionInterInit()
 {
-    dlHcclThreadResGetInfo = (HcclResult(*)(HcclComm, ThreadHandle, void*, uint32_t, void**))dlsym(handle_,
-        "HcclThreadResGetInfo");
-    dlHcclConfigGetInfo = (HcclResult(*)(HcclComm, HcclConfigType, uint32_t, void*))dlsym(handle_,
-        "HcclConfigGetInfo");
+    HcclDlHcommFuncs funcs {};
+    CHK_RET(HcclDlHcommFunctionInterInit(handle_, &funcs));
+    dlHcclThreadResGetInfo = funcs.threadResGetInfo;
+    dlHcclConfigGetInfo = funcs.configGetInfo;
     return HCCL_SUCCESS;
 }
 
@@ -54,4 +55,14 @@ HcclResult DlHcommFunction::DlHcommFunctionInit()
     CHK_RET(DlHcommFunctionInterInit());
     return HCCL_SUCCESS;
 }
+}
+
+extern "C" {
+HcclResult __HcclDlHcommFunctionInterInit(void *handle, HcclDlHcommFuncs *out)
+{
+    out->threadResGetInfo = (HcclDlHcommThreadResGetInfoFunc)dlsym(handle, "HcclThreadResGetInfo");
+    out->configGetInfo = (HcclDlHcommConfigGetInfoFunc)dlsym(handle, "HcclConfigGetInfo");
+    return HCCL_SUCCESS;
+}
+weak_alias(__HcclDlHcommFunctionInterInit, HcclDlHcommFunctionInterInit);
 }
