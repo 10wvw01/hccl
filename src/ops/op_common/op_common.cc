@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <future>
 #include <map>
 #include <string>
@@ -1763,8 +1764,12 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
 
     ret = HcclGetCcuKernel(comm, resRequest, resCtxHost);
     if (ret == HCCL_E_UNAVAIL) {
-        // 进行资源回退
-        HCCL_WARNING("[HcclGetCcuKernel] ccu kernel unavailable, try to fallback.");
+        // 资源不足导致回退：打印算子信息方便定位
+        HCCL_RUN_INFO("[HcclGetCcuKernel] ccu resource insufficient, fallback to AICPU. "
+            "algTag[%s], algName[%s], opType[%u], kernelNum[%zu], kernel[0] name[%s].",
+            param.algTag, param.algName, static_cast<uint32_t>(param.opType),
+            resRequest.ccuKernelInfos.size(),
+            resRequest.ccuKernelInfos.empty() ? "N/A" : resRequest.ccuKernelInfos[0].kernelFuncName);
         return HCCL_E_UNAVAIL;
     } else {
         CHK_RET(ret);
@@ -1923,7 +1928,6 @@ static void DestroyAllDescs(ResDescByDie &descs)
 }
 
 // 查询单个 kernel 的资源需求，按 (dieId, resGroup, resType) 累加到 groupedResMap。
-// 临时 kernelDesc 创建时绑定 kernelInfo.dieId，符合 HcommCcuInsResDescCreate 接口语义。
 static HcclResult AccumulateKernelRes(const CcuKernelInfo &kernelInfo,
     std::map<uint32_t, std::map<u32, std::map<HcommCcuResType, uint32_t>>> &groupedResMap)
 {
@@ -1960,30 +1964,39 @@ static HcclResult AccumulateKernelRes(const CcuKernelInfo &kernelInfo,
     return HCCL_SUCCESS;
 }
 
-static bool IsResCapSufficient(uint32_t dieId, HcommCcuResDescHandle resCap, HcommCcuResDescHandle resReq)
+// 检查 capDesc 能否满足 reqDesc。返回 HCCL_SUCCESS 时 sufficient 为容量是否充足；
+// 返回其他 HcclResult 表示查询接口本身失败（非容量不足），调用方应当作错误上报而非回退。
+static HcclResult IsResCapSufficient(uint32_t dieId, HcommCcuResDescHandle resCap,
+                                     HcommCcuResDescHandle resReq, bool &sufficient)
 {
+    sufficient = true;
     HCCL_INFO("[IsResCapSufficient] start, dieId[%u].", dieId);
     for (HcommCcuResType resType : GetCcuInsCreateResTypes()) {
         uint32_t capNum = 0;
         uint32_t reqNum = 0;
-        if (HcommCcuInsResDescQueryNum(resCap, resType, &capNum) != CCU_SUCCESS) {
-            HCCL_ERROR("[IsResCapSufficient] dieId[%u] query cap failed, resType[%s]", dieId, GetCcuResTypeName(resType));
-            return false;
+        CcuResult capRet = HcommCcuInsResDescQueryNum(resCap, resType, &capNum);
+        if (capRet != CCU_SUCCESS) {
+            HCCL_ERROR("[IsResCapSufficient] dieId[%u] query cap failed, resType[%s]: ccuRet -> %d",
+                       dieId, GetCcuResTypeName(resType), capRet);
+            return ConvertCcuToHccl(capRet);
         }
-        if (HcommCcuInsResDescQueryNum(resReq, resType, &reqNum) != CCU_SUCCESS) {
-            HCCL_ERROR("[IsResCapSufficient] dieId[%u] query req failed, resType[%s]", dieId, GetCcuResTypeName(resType));
-            return false;
+        CcuResult reqRet = HcommCcuInsResDescQueryNum(resReq, resType, &reqNum);
+        if (reqRet != CCU_SUCCESS) {
+            HCCL_ERROR("[IsResCapSufficient] dieId[%u] query req failed, resType[%s]: ccuRet -> %d",
+                       dieId, GetCcuResTypeName(resType), reqRet);
+            return ConvertCcuToHccl(reqRet);
         }
         HCCL_INFO("[IsResCapSufficient] dieId[%u] resType[%s] cap[%u] req[%u] %s.",
                    dieId, GetCcuResTypeName(resType), capNum, reqNum, capNum >= reqNum ? "sufficient" : "insufficient");
         if (capNum < reqNum) {
             HCCL_INFO("[IsResCapSufficient] dieId[%u] resType[%s] cap[%u] < req[%u], insufficient.",
                       dieId, GetCcuResTypeName(resType), capNum, reqNum);
-            return false;
+            sufficient = false;
+            return HCCL_SUCCESS; // 容量不足不是接口错误，返回 SUCCESS 由调用方根据 sufficient 走回退
         }
     }
     HCCL_INFO("[IsResCapSufficient] dieId[%u] all resTypes sufficient.", dieId);
-    return true;
+    return HCCL_SUCCESS;
 }
 
 static HcclResult CalcMaxResReqWithDefault(uint32_t dieId, HcommCcuResDescHandle resReq,
@@ -2014,76 +2027,51 @@ static HcclResult CalcMaxResReqWithDefault(uint32_t dieId, HcommCcuResDescHandle
 static HcclResult RegisterCcuKernels(CcuInsHandle insHandle, AlgResourceRequest &resRequest,
                                      std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
 {
-    u32 totalKernelNum = 0;
-    for (auto t : resRequest.ccuKernelNum) {
-        totalKernelNum += t;
-    }
+    u32 totalKernelNum = std::accumulate(resRequest.ccuKernelNum.begin(), resRequest.ccuKernelNum.end(), 0u);
     CHK_PRT_RET(totalKernelNum != resRequest.ccuKernelInfos.size(),
                 HCCL_ERROR("[RegisterCcuKernels]ccuKernel num not match!"), HCCL_E_INTERNAL);
     HCCL_INFO("[RegisterCcuKernels] start, totalKernelNum[%u], insHandle[%p].", totalKernelNum, insHandle);
 
-    // 预扫描所有 kernel，计算 maxResGroup
-    u32 currentResGroup = 0;
-    u32 maxResGroup = 0;
-    for (u32 i = 0; i < totalKernelNum; i++) {
-        if (resRequest.ccuKernelInfos[i].resGroup > maxResGroup) {
-            maxResGroup = resRequest.ccuKernelInfos[i].resGroup;
-        }
-    }
+    // 遍历计算最大resGroup号 
+    auto maxIt = std::max_element(resRequest.ccuKernelInfos.begin(), resRequest.ccuKernelInfos.end(),
+        [](const CcuKernelInfo &a, const CcuKernelInfo &b) { return a.resGroup < b.resGroup; });
+    u32 maxResGroup = (maxIt != resRequest.ccuKernelInfos.end()) ? maxIt->resGroup : 0;
     resCtxHost->ccuKernels.resize(totalKernelNum);
 
-    while (currentResGroup <= maxResGroup) {
+    for (u32 currentResGroup = 0; currentResGroup <= maxResGroup; currentResGroup++) {
         HCCL_INFO("[RegisterCcuKernels] register resGroup[%u] start, maxResGroup[%u].", currentResGroup, maxResGroup);
         CcuResult regStartRet = HcommCcuKernelRegisterStart(insHandle);
-        if (regStartRet != CCU_SUCCESS) {
-            HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet);
-            return ConvertCcuToHccl(regStartRet);
-        }
+        CHK_PRT_RET(regStartRet != CCU_SUCCESS,
+            HCCL_ERROR("ccu kernel register start failed: ccuRet -> %d", regStartRet), ConvertCcuToHccl(regStartRet));
         for (u32 i = 0; i < totalKernelNum; i++) {
             CcuKernelInfo &kernelInfo = resRequest.ccuKernelInfos[i];
-            if (kernelInfo.resGroup != currentResGroup) {
-                continue;
-            }
-
-            HCCL_INFO("[RegisterCcuKernels] kernel[%u] name[%s] dieId[%u] resGroup[%u].",
-                       i, kernelInfo.kernelFuncName, kernelInfo.dieId, kernelInfo.resGroup);
+            if (kernelInfo.resGroup != currentResGroup) continue;
             CcuKernelHandle kernelHandle;
             const void *kernelArgs[] = {kernelInfo.kernelArg};
-            const uint32_t dieId = kernelInfo.dieId;
-            constexpr uint32_t kernelArgNum = 1;
-            // 资源不足仅在 HcommCcuKernelRegister 时判断，start/end 不单独校验资源不足
-            CcuResult regRet = HcommCcuKernelRegister(insHandle, dieId, kernelInfo.kernelFuncName,
+            CcuResult regRet = HcommCcuKernelRegister(insHandle, kernelInfo.dieId, kernelInfo.kernelFuncName,
                                                       reinterpret_cast<void*>(kernelInfo.kernelFunc),
-                                                      kernelArgs, kernelArgNum, &kernelHandle);
+                                                      kernelArgs, 1, &kernelHandle);
             if (regRet == CCU_E_UNAVAIL) {
-                HCCL_WARNING("[RegisterCcuKernels] ccu kernel register unavailable, try to fallback, kernel[%s].",
-                             kernelInfo.kernelFuncName);
+                HCCL_WARNING("[RegisterCcuKernels] kernel[%s] unavailable, fallback.", kernelInfo.kernelFuncName);
                 return HCCL_E_UNAVAIL;
-            } else if (regRet != CCU_SUCCESS) {
-                HCCL_ERROR("ccu kernel register failed: ccuRet -> %d, kernel[%s]", regRet, kernelInfo.kernelFuncName);
-                return ConvertCcuToHccl(regRet);
             }
-            HCCL_INFO("[RegisterCcuKernels] kernel[%s] registered, kernelHandle[%p].",
-                       kernelInfo.kernelFuncName, kernelHandle);
+            CHK_PRT_RET(regRet != CCU_SUCCESS,
+                HCCL_ERROR("ccu kernel register failed: ccuRet -> %d, kernel[%s]", regRet, kernelInfo.kernelFuncName),
+                ConvertCcuToHccl(regRet));
             resCtxHost->ccuKernels[i] = kernelHandle;
         }
         CcuResult regEndRet = HcommCcuKernelRegisterEnd(insHandle);
-        if (regEndRet != CCU_SUCCESS) {
-            HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet);
-            return ConvertCcuToHccl(regEndRet);
-        }
+        CHK_PRT_RET(regEndRet != CCU_SUCCESS,
+            HCCL_ERROR("ccu kernel register end failed: ccuRet -> %d", regEndRet), ConvertCcuToHccl(regEndRet));
         HCCL_INFO("[RegisterCcuKernels] register resGroup[%u] finish.", currentResGroup);
-        currentResGroup++;
     }
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     HCCL_INFO("[RegisterCcuKernels] finish, totalKernelNum[%u] registered.", totalKernelNum);
     return HCCL_SUCCESS;
 }
 
-// 单 die 场景探测：对未被 kernel 引用的 die，调用 HcommCcuQueryRemainResDesc 查询是否使能。
-// 调用前提：进入 dynamic 资源申请流程时 IsCcuDynamicResApiSupported 已校验过 hcomm 支持该接口，
-// 本函数不再额外判断 support flag。
-// 返回 enabled=true：die 使能，需补齐；enabled=false：die 未使能（CCU_E_UNAVAIL），跳过补齐。
+// 探测 die 是否使能：调用 HcommCcuQueryRemainResDesc，返回 CCU_E_UNAVAIL 表示未使能。
+// support flag 已在 IsCcuDynamicResApiSupported 中校验，本函数不重复判断。
 static HcclResult IsDieEnabledForPadding(uint32_t dieId, bool &enabled)
 {
     enabled = false;
@@ -2111,13 +2099,9 @@ static HcclResult IsDieEnabledForPadding(uint32_t dieId, bool &enabled)
     return HCCL_SUCCESS;
 }
 
-// 步骤1：聚合所有 kernel 的资源需求到 reqDescs（按 dieId 分组）。
+// 聚合所有 kernel 的资源需求到 reqDescs（按 dieId 分组）。
 // 聚合规则：同 (dieId, resGroup) 内逐 kernel 相加、同 dieId 不同 resGroup 之间取最大。
-// 每个 die 创建一个独立的 reqDesc，符合 HcommCcuInsResDescCreate 必须绑定 dieId 的接口语义。
-// 注意：硬件通常有 CCU_DEFAULT_DIE_NUM 个 die，即使本算子只在一个 die 上下 kernel，
-// 也需为所有使能的 die 创建 reqDesc（资源数为 0），后续 CreateFinalReqDescs 会按默认阈值
-// 为缺失的 die 申请资源，避免后续算子在该 die 上有 kernel 时容量不足触发回退。
-// 单 die 场景（环境上只使能了 1 个 die）通过 HcommCcuQueryRemainResDesc 探测后跳过未使能 die。
+// 为硬件上所有使能的 die 创建 reqDesc（未使能 die 跳过），防止后续算子容量不足触发回退。
 static HcclResult BuildAggregatedResReq(AlgResourceRequest &resRequest, ResDescByDie &reqDescs)
 {
     u32 totalKernelNum = resRequest.ccuKernelInfos.size();
@@ -2126,10 +2110,7 @@ static HcclResult BuildAggregatedResReq(AlgResourceRequest &resRequest, ResDescB
     // 按 (dieId, resGroup, resType) 聚合所有 kernel 的资源需求
     std::map<uint32_t, std::map<u32, std::map<HcommCcuResType, uint32_t>>> groupedResMap;
     for (u32 i = 0; i < totalKernelNum; i++) {
-        CcuKernelInfo &kernelInfo = resRequest.ccuKernelInfos[i];
-        HCCL_INFO("[BuildAggregatedResReq] kernel[%u] name[%s] resGroup[%u] dieId[%u].",
-                  i, kernelInfo.kernelFuncName, kernelInfo.resGroup, kernelInfo.dieId);
-        CHK_RET(AccumulateKernelRes(kernelInfo, groupedResMap));
+        CHK_RET(AccumulateKernelRes(resRequest.ccuKernelInfos[i], groupedResMap));
     }
 
     // 补齐缺失的 die。区分两类 die：
@@ -2138,17 +2119,13 @@ static HcclResult BuildAggregatedResReq(AlgResourceRequest &resRequest, ResDescB
     //    使能才创建空条目，后续 CreateFinalReqDescs 会按默认阈值为其申请资源（防止后续算子回退）；
     //    未使能（单 die 场景）跳过补齐，避免冗余申请。
     for (uint32_t dieId = 0; dieId < CCU_DEFAULT_DIE_NUM; dieId++) {
-        if (groupedResMap.find(dieId) != groupedResMap.end()) {
-            continue; // 首算子 kernel 所在的 die，必须申请资源，跳过补齐判断
-        }
+        if (groupedResMap.find(dieId) != groupedResMap.end()) continue;
         bool enabled = false;
         CHK_RET(IsDieEnabledForPadding(dieId, enabled));
-        if (!enabled) {
-            continue; // 单 die 场景下另一 die 未使能，跳过补齐
+        if (enabled) {
+            groupedResMap[dieId] = {};
+            HCCL_INFO("[BuildAggregatedResReq] dieId[%u] has no kernel but enabled, create empty entry.", dieId);
         }
-        groupedResMap[dieId] = {};
-        HCCL_INFO("[BuildAggregatedResReq] dieId[%u] has no kernel but enabled, create empty entry for it.",
-                  dieId);
     }
 
     // 为每个 die 创建独立 reqDesc，写入同 dieId 不同 resGroup 取最大后的资源数
@@ -2157,17 +2134,16 @@ static HcclResult BuildAggregatedResReq(AlgResourceRequest &resRequest, ResDescB
         auto &resGroupMap = dieEntry.second;
         HcommCcuResDescHandle reqDesc = 0;
         CcuResult createRet = HcommCcuInsResDescCreate(dieId, &reqDesc);
-        CHK_PRT_RET(createRet != CCU_SUCCESS,
-            HCCL_ERROR("[BuildAggregatedResReq] HcommCcuInsResDescCreate dieId[%u] failed: ccuRet -> %d",
-                       dieId, createRet),
-            ConvertCcuToHccl(createRet));
+        if (createRet != CCU_SUCCESS) {
+            HCCL_ERROR("[BuildAggregatedResReq] HcommCcuInsResDescCreate dieId[%u] failed: ccuRet -> %d", dieId, createRet);
+            DestroyAllDescs(reqDescs);
+            return ConvertCcuToHccl(createRet);
+        }
         for (HcommCcuResType resType : GetCcuInsCreateResTypes()) {
             uint32_t maxNum = 0;
             for (auto &groupEntry : resGroupMap) {
                 auto it = groupEntry.second.find(resType);
-                if (it != groupEntry.second.end() && it->second > maxNum) {
-                    maxNum = it->second;
-                }
+                if (it != groupEntry.second.end() && it->second > maxNum) maxNum = it->second;
             }
             CcuResult setRet = HcommCcuInsResDescSetNum(reqDesc, resType, maxNum);
             if (setRet != CCU_SUCCESS) {
@@ -2185,10 +2161,8 @@ static HcclResult BuildAggregatedResReq(AlgResourceRequest &resRequest, ResDescB
     return HCCL_SUCCESS;
 }
 
-// 步骤3a：复用已有 CcuIns 实例。
-// 对每个 die 创建独立 capDesc（绑定 dieId），查询该 die 容量并与对应 reqDesc 比较；
-// 全部 die 充足才注册 kernels；任一 die 不足返回 HCCL_E_UNAVAIL 触发上层回退。
-// 调用方需保证传入的 reqDescs 在本函数返回后不再使用（函数内部会销毁）。
+// 复用已有 CcuIns：对每个 die 创建 capDesc 查询容量并与 reqDesc 比较，全部充足才注册 kernels；
+// 任一 die 不足返回 HCCL_E_UNAVAIL 触发回退。函数内部销毁 reqDescs。
 static HcclResult ReuseExistingCcuIns(CcuInsHandle insHandle, ResDescByDie &reqDescs,
                                       AlgResourceRequest &resRequest,
                                       std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
@@ -2215,7 +2189,15 @@ static HcclResult ReuseExistingCcuIns(CcuInsHandle insHandle, ResDescByDie &reqD
             DestroyAllDescs(reqDescs);
             return ConvertCcuToHccl(qRet);
         }
-        bool sufficient = IsResCapSufficient(dieId, capDesc, reqDesc);
+        bool sufficient = false;
+        HcclResult capRet = IsResCapSufficient(dieId, capDesc, reqDesc, sufficient);
+        if (capRet != HCCL_SUCCESS) {
+            // 查询接口本身失败，当作错误上报，不继续检查其他 die，不触发回退
+            HCCL_ERROR("[ReuseExistingCcuIns] IsResCapSufficient dieId[%u] failed: ret -> %d", dieId, capRet);
+            HcommCcuInsResDescDestroy(capDesc);
+            DestroyAllDescs(reqDescs);
+            return capRet;
+        }
         HCCL_INFO("[ReuseExistingCcuIns] dieId[%u] sufficient[%d].", dieId, sufficient);
         if (!sufficient) {
             allSufficient = false;
@@ -2231,9 +2213,7 @@ static HcclResult ReuseExistingCcuIns(CcuInsHandle insHandle, ResDescByDie &reqD
     return RegisterCcuKernels(insHandle, resRequest, resCtxHost);
 }
 
-// 为每个 die 创建 finalReqDesc = max(reqDesc, 默认阈值)，避免每次按实际需求申请造成资源碎片。
-// 每个 finalReqDesc 创建时绑定 dieId，符合 HcommCcuInsResDescCreate 接口语义。
-// 出参 finalReqDescs 调用方负责销毁。
+// 为每个 die 创建 finalReqDesc = max(reqDesc, 默认阈值)，避免按实际需求申请造成资源碎片。出参由调用方销毁。
 static HcclResult CreateFinalReqDescs(ResDescByDie &reqDescs,
                                       std::vector<HcommCcuResDescHandle> &finalReqDescs)
 {
@@ -2261,10 +2241,8 @@ static HcclResult CreateFinalReqDescs(ResDescByDie &reqDescs,
     return HCCL_SUCCESS;
 }
 
-// 步骤3b：无可复用实例，按需求+默认阈值取最大值新建 CcuIns。
-// 对每个 die 创建独立 finalReqDesc，组成数组传给 HcommCcuInsCreate（接口支持多 die desc）。
-// 新实例创建后绑定到 comm，使后续同 comm 上的算子走复用路径（步骤3a）。
-// 调用方需保证传入的 reqDescs 在本函数返回后不再使用（函数内部会销毁）。
+// 新建 CcuIns：取需求与默认阈值的最大值创建实例并绑定到 comm，使后续算子走复用路径。
+// 函数内部销毁 reqDescs。
 static HcclResult CreateAndAssignNewCcuIns(HcclComm comm, ResDescByDie &reqDescs,
                                            AlgResourceRequest &resRequest,
                                            std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
@@ -2303,20 +2281,19 @@ static HcclResult CreateAndAssignNewCcuIns(HcclComm comm, ResDescByDie &reqDescs
     return RegisterCcuKernels(newInsHandle, resRequest, resCtxHost);
 }
 
-// CCU kernel 动态资源申请主流程。
-// 步骤：1. 聚合所有 kernel 的资源需求 -> 2. 查询是否已有可复用的 CcuIns
-//       -> 3a. 有可复用实例：检查容量是否充足，充足则直接注册 kernels
-//       -> 3b. 无可复用实例：取需求与默认阈值的最大值新建实例，绑定到 comm 后再注册 kernels
-// 任一资源申请类接口返回 CCU_E_UNAVAIL 时，函数返回 HCCL_E_UNAVAIL 触发上层回退。
+// CCU kernel 动态资源申请主流程：1.聚合资源需求 -> 2.查询可复用 CcuIns
+// -> 3a.容量充足则复用并注册 / 3b.新建实例并绑定 comm 后注册。接口返回 CCU_E_UNAVAIL 时触发回退。
 static HcclResult HcclGetCcuKernelDynamic(HcclComm comm, AlgResourceRequest &resRequest,
                                           std::unique_ptr<AlgResourceCtxSerializable> &resCtxHost)
 {
     HCCL_INFO("[HcclGetCcuKernelDynamic] start, kernelNum[%zu].", resRequest.ccuKernelInfos.size());
 
-    // 步骤1：聚合资源需求，按 dieId 分组（HcommCcuInsResDescCreate 要求 desc 必须绑定 dieId）
+    // 步骤1：聚合资源需求，按 dieId 分组
     ResDescByDie reqDescs;
     HcclResult buildRet = BuildAggregatedResReq(resRequest, reqDescs);
     if (buildRet != HCCL_SUCCESS) {
+        // 防御性清理：BuildAggregatedResReq 失败时契约上已清理，这里再清理一次防止内部契约被破坏
+        DestroyAllDescs(reqDescs);
         return buildRet;
     }
 
@@ -2343,6 +2320,11 @@ static HcclResult HcclGetCcuKernelDynamic(HcclComm comm, AlgResourceRequest &res
         ? ReuseExistingCcuIns(insHandle, reqDescs, resRequest, resCtxHost)
         : CreateAndAssignNewCcuIns(comm, reqDescs, resRequest, resCtxHost);
 
+    // 资源不足导致回退时记一条 run info，便于运维统计动态资源申请的回退频率
+    if (finalRet == HCCL_E_UNAVAIL) {
+        HCCL_RUN_INFO("[HcclGetCcuKernelDynamic] ccu dynamic resource unavailable, fallback to legacy flow, "
+                      "hasReusableIns[%d], kernelNum[%zu].", hasReusableIns, resRequest.ccuKernelInfos.size());
+    }
     HCCL_INFO("[HcclGetCcuKernelDynamic] finish, finalRet[%d].", finalRet);
     return finalRet;
 }
