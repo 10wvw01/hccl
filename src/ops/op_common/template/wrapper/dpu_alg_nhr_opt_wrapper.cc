@@ -9,7 +9,7 @@
  */
 
 #include "dpu_alg_nhr_opt_wrapper.h"
-#include "hcomm_primitives.h"
+#include "aicpu/hcomm/hcomm_primitives.h"
 
 namespace ops_hccl {
 

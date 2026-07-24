@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "op_common_experimental.h"
-#include "hcomm_primitives.h"
+#include "aicpu/hcomm/hcomm_primitives.h"
 #include "load_kernel.h"
 #include "coll_alg_exec_registry.h"
 #include "config_log.h"

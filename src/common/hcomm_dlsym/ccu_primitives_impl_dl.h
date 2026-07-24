@@ -21,7 +21,7 @@
 #if CANN_VERSION_NUM >=90100000
 #include "hccl_types.h"
 #include "ccu_types.h"
-#include "hcomm_primitives.h"
+#include "aicpu/hcomm/hcomm_primitives.h"
 #else
 #include "hccl_types.h"
 #include "ccu_types_dl.h"
