@@ -12,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <string>
 #include <array>
@@ -48,7 +49,7 @@ static bool IsValidNumberFormat(const std::string &str, const size_t maxDecimal 
 
     // 检查小数点前的数字
     while (pos < str.length() && pos != dotPos) {
-        if (!std::isdigit(str[pos])) return false;
+        if (!std::isdigit(static_cast<unsigned char>(str[pos]))) return false;
         pos++;
     }
 
@@ -59,7 +60,7 @@ static bool IsValidNumberFormat(const std::string &str, const size_t maxDecimal 
         if (decimalLen > maxDecimal) return false;
 
         for (size_t i = dotPos + 1; i < str.length(); i++) {
-            if (!std::isdigit(str[i])) return false;
+            if (!std::isdigit(static_cast<unsigned char>(str[i]))) return false;
         }
     }
 
