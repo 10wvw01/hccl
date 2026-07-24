@@ -145,6 +145,19 @@ struct TopoInstDetails {
     std::map<CommTopo, std::vector<u32>> rankNumForTopoType;
 };
 
+#define HCCL_GROUP_NAME_MAX_LEN 127
+
+typedef struct {
+    char group[HCCL_GROUP_NAME_MAX_LEN];
+    void* inputAddr;
+    void* outputAddr;
+    uint64_t count;
+    HcclDataType dataType;
+    uint32_t root;
+    HcclReduceOp reduceOp;
+    uint64_t strideCount;
+} HcclCollOpInfo;
+
 struct TopoInfo {
     u32 userRank; // rankId
     u32 userRankSize; // 通信域rankSize

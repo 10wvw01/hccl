@@ -26,8 +26,6 @@ typedef unsigned long long u64;
 
 const u32 HCCL_TAG_MAX_LEN = 191; // 最大的tag 长度
 
-#define HCCL_GROUP_NAME_MAX_LEN 127
-
 /**
 * @brief stream handle.
 */
@@ -51,17 +49,6 @@ enum class HcclDevType {
     DEV_TYPE_960 = 8,
     DEV_TYPE_COUNT = 9
 };
-
-typedef struct {
-    char group[HCCL_GROUP_NAME_MAX_LEN];
-    void* inputAddr;
-    void* outputAddr;
-    uint64_t count;
-    HcclDataType dataType;
-    uint32_t root;
-    HcclReduceOp reduceOp;
-    uint64_t strideCount;
-} HcclCollOpInfo;
 
 const std::unordered_map<std::string, HcclDevType> HCCL_SOC_VER_CONVERT{
     {"Ascend310P1", HcclDevType::DEV_TYPE_310P3},

@@ -9,19 +9,35 @@
  */
 #include "log.h"
 #include <atomic>
+#include <base/acl_log.h>
 
 thread_local bool g_hcclErrToWarn = false;
 constexpr int32_t HCCL_LOG_LEVEL_INVALID = -1;
+constexpr int32_t HCCL_LOG_REFRESH_INTERVAL = 10000;
+
 static std::atomic<int32_t> g_logLevelCache{-1};
+static std::atomic<int32_t> g_refreshCounter{HCCL_LOG_REFRESH_INTERVAL};
+
+static int32_t ProbeLogLevel(int32_t moduleId)
+{
+    if (acllogCheckDebugLevel(moduleId, DLOG_INFO) == 1) {
+        return (acllogCheckDebugLevel(moduleId, DLOG_DEBUG) == 1) ? DLOG_DEBUG : DLOG_INFO;
+    }
+    if (acllogCheckDebugLevel(moduleId, DLOG_WARN) == 1) {
+        return DLOG_WARN;
+    }
+    return (acllogCheckDebugLevel(moduleId, DLOG_ERROR) == 1) ? DLOG_ERROR : DLOG_NULL;
+}
 
 bool HcclCheckLogLevel(int logType, int moduleId)
 {
     if ((moduleId & RUN_LOG_MASK) != 0) {
         return true;
     }
-    if (UNLIKELY(g_logLevelCache.load(std::memory_order_relaxed) == HCCL_LOG_LEVEL_INVALID)) {
-        int32_t enableEvent = -1;
-        g_logLevelCache.store(dlog_getlevel(moduleId, &enableEvent), std::memory_order_relaxed);
+    if (UNLIKELY(g_logLevelCache.load(std::memory_order_relaxed) == HCCL_LOG_LEVEL_INVALID) ||
+        UNLIKELY(g_refreshCounter.fetch_sub(1) <= 0)) {
+        g_logLevelCache.store(ProbeLogLevel(moduleId));
+        g_refreshCounter.store(HCCL_LOG_REFRESH_INTERVAL);
     }
     return (logType >= g_logLevelCache.load(std::memory_order_relaxed));
 }
