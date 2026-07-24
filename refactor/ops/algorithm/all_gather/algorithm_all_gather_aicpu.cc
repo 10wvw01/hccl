@@ -249,7 +249,7 @@ static AlgoExecDesc MakeAicpuAllGatherOmniPipeAlgoExecDesc()
     auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
     parallelDesc0->execPolicy = HcclAlgExecPolicy::OMNIPIPE;
     parallelDesc0->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}, TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}};
+        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}, TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
     // omin第一个节点表示慢轴，第二个节点表示快轴，支持嵌套，但是只能2个节点

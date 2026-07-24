@@ -206,7 +206,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_seq_2x2rank_int64_8G_dat
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 256 * 1024 * 1024;                // 单卡数据量
+    auto sendCount = 256 * 1024 * 1024;                 // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT64; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
@@ -216,7 +216,7 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_parallel_2x2rank_int8_8M
     // 仿真模型初始化
     TopoMeta topoMeta{{{0, 1}, {0, 1}}}; // 三维数组指定超节点-Server-Device信息
     // 算子执行参数设置
-    auto sendCount = 2 * 1024 * 1024;                  // 单卡数据量 
+    auto sendCount = 2 * 1024 * 1024;                  // 单卡数据量
     auto dataType = HcclDataType::HCCL_DATA_TYPE_INT8; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 }
@@ -238,9 +238,22 @@ TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_concurrent_mesh1dclos_fp
     // 仿真模型初始化：1 server 2 卡，layer0 Mesh + layer1 NHR 共享同一组卡
     TopoMeta topoMeta{{{0, 1, 2}}};
     // 算子执行参数设置
-    auto sendCount = 256 * 1024 * 1024;            // 单卡数据量（FP16: 2字节 -> 总 512MB > 512KB 阈值）
-    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16;  // 数据类型
+    auto sendCount = 256 * 1024 * 1024;                // 单卡数据量（FP16: 2字节 -> 总 512MB > 512KB 阈值）
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP16; // 数据类型
     RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
 
     unsetenv("HCCL_SIM_FORCE_MESH1D_CLOS_TOPO");
 }
+
+TEST_F(ST_ALL_GATHER_AICPU_TEST, st_all_gather_a5_aicpu_omnipipe_uboe_2x2x8rank_fp32_4M_data_test)
+{
+    // 2 superPod × 2 server × 8 dev = 32 卡
+    // → topoLevelNums = 3, deviceNumPerModule = 8 → OMNIPIPE_UBOE
+    TopoMeta topoMeta{{{0, 1, 2, 3, 4, 5, 6, 7}, {8, 9, 10, 11, 12, 13, 14, 15}},
+        {{16, 17, 18, 19, 20, 21, 22, 23}, {24, 25, 26, 27, 28, 29, 30, 31}}};
+
+    auto sendCount = 1024 * 1024;                      // 单卡 4MB 数据
+    auto dataType = HcclDataType::HCCL_DATA_TYPE_FP32; // 4 字节
+    RunAllGatherAicpuA5(topoMeta, sendCount, dataType);
+}
+

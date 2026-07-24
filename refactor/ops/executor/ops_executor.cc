@@ -554,7 +554,8 @@ HcclResult OpsExecutor::RunTemplateDesc(
         HCCL_INFO("[RunTemplateDesc] ranksForInputData[%zu]=%u", i, templateDataParams.ranksForInputData[i]);
     }
     algoExecDataDesc.ranksForOutputDataGroup.resize(1);
-    CHK_RET(baseTemplate->KernelRun(templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
+    CHK_RET(
+        baseTemplate->KernelRun(templateDataParams, templateResource, algoExecDataDesc.ranksForOutputDataGroup.at(0)));
     return HCCL_SUCCESS;
 }
 
@@ -651,10 +652,22 @@ HcclResult OpsExecutor::OrchestrateOmniPipeLoop(AlgoExecDesc &algoExecDesc, Algo
         // 前面UpdateOmniPipeXYdataMap已经确保过了一定是2个子节点
         for (size_t j = 0; j < childrenSize; j++) {
             AlgoExecDataDesc childrenAlgoExecDataDesc = algoExecDataDesc;
+            // 输入输出Buffer内存如果既不是第一步也不是最后一步就都用CCL，否则用父亲节点
+            if (i == 0) {
+                childrenAlgoExecDataDesc.outputBufferType = BufferType::HCCL_BUFFER;
+            }else if(i == omniPipeXYdata.steps - 1){
+                childrenAlgoExecDataDesc.inputBufferType = BufferType::HCCL_BUFFER;
+            }else{
+                childrenAlgoExecDataDesc.inputBufferType = BufferType::HCCL_BUFFER;                
+                childrenAlgoExecDataDesc.outputBufferType = BufferType::HCCL_BUFFER;                
+            }
+
             if (j == 0) {
-                // todo 填充慢轴数据
+                // todo 填充慢轴数据, sliceoffset和ranksinput需要讨论一下如何填写
+                childrenAlgoExecDataDesc.sliceCount = algoExecDataDesc.sliceCount * omniPipeXYdata.xDataSize[i];
             } else {
                 // todo 填充快轴数据
+                childrenAlgoExecDataDesc.sliceCount = algoExecDataDesc.sliceCount * omniPipeXYdata.yDataSize[i];
             }
             VariantType &v = algoExecDesc.children[j];
             // 处理 TemplateExecDesc

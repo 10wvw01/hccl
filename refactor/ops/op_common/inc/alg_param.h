@@ -488,8 +488,8 @@ struct AlgResourceCtxSerializable {
         binaryStream >> ccuKernels;
         binaryStream >> topoInfoSeqSize;
         binaryStream >> algoSerialData;
-        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] data.size=%zu, topoInfoSeqSize=%u",
-            data.size(), topoInfoSeqSize);
+        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] data.size=%zu, topoInfoSeqSize=%u", data.size(),
+            topoInfoSeqSize);
         if (topoInfoSeqSize > data.size()) {
             HCCL_ERROR("[AlgResourceCtxSerializable][DeSerialize] topoInfoSeqSize[%u] > data.size[%zu], abort",
                 topoInfoSeqSize, data.size());
@@ -498,8 +498,8 @@ struct AlgResourceCtxSerializable {
         size_t startPos = data.size() - topoInfoSeqSize;
         HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] startPos=%zu, extracting tailData", startPos);
         std::vector<char> tailData(data.begin() + startPos, data.end());
-        HCCL_INFO("[AlgResourceCtxSerializable][DeSerialize] tailData.size=%zu, start TopoInfo DeSerialize",
-            tailData.size());
+        HCCL_INFO(
+            "[AlgResourceCtxSerializable][DeSerialize] tailData.size=%zu, start TopoInfo DeSerialize", tailData.size());
         TopoInfoWithNetLayerDetails topoTemp;
         topoTemp.DeSerialize(tailData);
         topoInfo = std::move(topoTemp);
@@ -507,17 +507,13 @@ struct AlgResourceCtxSerializable {
     }
 };
 
-enum class MultipleDimensionSplitRatioSource : uint8_t {
-    BUILTIN_FORMULA = 0,
-    ENV_CONFIG,
-    COMM_CONFIG
-};
+enum class MultipleDimensionSplitRatioSource : uint8_t { BUILTIN_FORMULA = 0, ENV_CONFIG, COMM_CONFIG };
 
 struct DevAicpuOpConfig {
     u32 execTimeout = 0;
     double multipleDimensionSplitRatio = 0.5;
-    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource =
-        MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
+    MultipleDimensionSplitRatioSource multipleDimensionSplitRatioSource
+        = MultipleDimensionSplitRatioSource::BUILTIN_FORMULA;
 };
 
 struct OpParam { // 不申请ctx，每个算子单独下发
@@ -815,14 +811,12 @@ struct TemplateDataParams {
     BufferType outputBufferType = BufferType::OUTPUT;
     BufferType cclBufferType = BufferType::HCCL_BUFFER;
     HcclDataType dataType{HCCL_DATA_TYPE_RESERVED};
-    u64 dataOffset{0};
-    u64 sliceCount{0};
-    u64 sliceOffset{0};
+    u64 dataOffset{0};  // Loop循环的起始数据偏移
+    u64 sliceCount{0};  // 数据并行切分个数，不并行不发生变化
+    u64 sliceOffset{0}; // 数据并行切分后相对于原始slice的偏移
     u64 tailCount{0};
-    // Loop循环间Input或者Output间每卡的间隔
-    u64 dataStride{0};
-    // 每轮loop循环内部全尺寸布局的每卡的数据间隔
-    u64 scratchStride{0};
+    u64 dataStride{0};    // Loop循环间Input或者Output间每卡的间隔
+    u64 scratchStride{0}; // 每轮loop循环内部全尺寸布局的每卡的数据间隔
     HcclReduceOp reduceOp{HCCL_REDUCE_RESERVED};
     u32 root{INVALID_VALUE_RANKID};
 

@@ -49,7 +49,6 @@ struct AlgoExecDataDesc {
     u64 dataStride{0};
     u64 sliceCount{0};
     u64 sliceOffset{0};
-    u64 scratchSize{0}; // 输出参数
     u64 scratchStride{0};
     u64 tailCount{0};
     // 有可能是多组ranks和children数值对应，也有可能是多个children共一组ranks
