@@ -242,6 +242,7 @@ extern HcclResult HcclReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclD
  * @param itemNum The size of the send/recv item array.
  * @param comm A pointer identifying the communication resource based on.
  * @param stream A pointer identifying the stream information.
+  * @return HcclResult
 */
 extern HcclResult HcclBatchSendRecv(HcclSendRecvItem* sendRecvInfo, uint32_t itemNum, HcclComm comm, aclrtStream stream);
 
