@@ -795,7 +795,7 @@ HcclResult InsBroadcastParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTem
     TemplateResource templateAlgResIntra, templateAlgResInter;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForTemplate(intraTempAlg, interTempAlg, intraTempAlg1);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg, intraTempAlg1);
 
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
 

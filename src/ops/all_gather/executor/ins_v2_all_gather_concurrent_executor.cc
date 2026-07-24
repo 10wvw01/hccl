@@ -230,7 +230,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     InsAlgTemplate1 algTemplate1(param, myRank_, temp1HierarchyInfo);
 
     // 分配threads
-    PrepareResForTemplate(algTemplate0, algTemplate1);
+    CHK_RET(PrepareResForTemplate(algTemplate0, algTemplate1);
 
     // 分配channels或者ccuKernels
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
@@ -404,7 +404,7 @@ HcclResult InsV2AllGatherConcurrentExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
 
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForTemplate(tempAlg0, tempAlg1);
+    CHK_RET(PrepareResForTemplate(tempAlg0, tempAlg1);
 
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
 

@@ -289,7 +289,7 @@ HcclResult InsV2ReduceScatterOmniPipe2dExecutor<AlgTopoMatch, InsAlgTempLevel0, 
                 resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
                 resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
 
-    PrepareResForTemplate(param, resCtx, algTemplateLevel0, algTemplateLevel1);
+    CHK_RET(PrepareResForTemplate(param, resCtx, algTemplateLevel0, algTemplateLevel1);
 
     // 1、计算带宽
     double eqBwLevel0 = BW_OMNI_DEFAULT;
