@@ -310,19 +310,19 @@ InsV2AllGatherOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate1, I
 {
     HCCL_INFO("[InsV2AllGatherOmniPipeExecutor][OrchestrateLoop] Start");
     //带宽赋值
-    double bw_ag_l0 = BW_OMNI_DEFAULT;
-    double bw_ag_l1 = BW_OMNI_DEFAULT;
-    double bw_ag_l2 = BW_OMNI_UBX_ROCE;
+    double bw_ag_l0 = BW_OMNI_DEFAULT; //50
+    double bw_ag_l1 = BW_OMNI_DEFAULT; //50
+    double bw_ag_l2 = BW_OMNI_UBX_ROCE; //25
 
     if (resCtx.topoInfo.level0PcieMix) {//PCIE
         if (rankSizeLevel_[OMNIPIPE_LEVEL1] == RANK_LEVEL_2) {
-            bw_ag_l1 = BW_OMNI_PCIE_EIGHT_AG_CLOS;
+            bw_ag_l1 = BW_OMNI_PCIE_EIGHT_AG_CLOS;  //20
         } else if (rankSizeLevel_[OMNIPIPE_LEVEL1] == RANK_LEVEL_4) {
-            bw_ag_l1 = BW_OMNI_PCIE_SIXTEEN_AG_CLOS;
+            bw_ag_l1 = BW_OMNI_PCIE_SIXTEEN_AG_CLOS;  //35
         }
         //UBX
     } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS) {
-        bw_ag_l1 = BW_OMNI_UBX_AG_CLOS;
+        bw_ag_l1 = BW_OMNI_UBX_AG_CLOS;  //191
     }
     std::vector<double> endpointAttrBw{bw_ag_l0, bw_ag_l1, bw_ag_l2};
     

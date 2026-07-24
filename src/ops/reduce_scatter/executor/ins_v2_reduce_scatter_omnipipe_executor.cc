@@ -327,18 +327,18 @@ InsV2ReduceScatterOmniPipeExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgTemplate
 {
     HCCL_INFO("[InsV2ReduceScatterOmniPipeExecutor][OrchestrateLoop] Start");
     // 1.计算带宽
-    double bw_rs_l0 = BW_OMNI_DEFAULT;
+    double bw_rs_l0 = BW_OMNI_DEFAULT;  //50
     double bw_rs_l1 = BW_OMNI_DEFAULT;
     double bw_rs_l2 = BW_OMNI_UBX_ROCE;
 
     if (resCtx.topoInfo.level0PcieMix) {
         if (rankSizeLevel1_==RANK_SIZE_LEVEL_2) {
-            bw_rs_l1 = BW_OMNI_PCIE_EIGHT_RS_CLOS;
+            bw_rs_l1 = BW_OMNI_PCIE_EIGHT_RS_CLOS;  //29
         } else if (rankSizeLevel1_==RANK_SIZE_LEVEL_4) {
-            bw_rs_l1 = BW_OMNI_PCIE_SIXTEEN_RS_CLOS;
+            bw_rs_l1 = BW_OMNI_PCIE_SIXTEEN_RS_CLOS;  //35
         }
     } else if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS) {
-        bw_rs_l1 = BW_OMNI_UBX_RS_CLOS;
+        bw_rs_l1 = BW_OMNI_UBX_RS_CLOS; //225
     }
 
     //计算等价带宽
