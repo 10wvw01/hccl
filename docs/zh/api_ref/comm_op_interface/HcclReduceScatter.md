@@ -105,9 +105,13 @@ void *sendBuf = nullptr, *recvBuf = nullptr;
 aclrtMalloc(&sendBuf, sendSize, ACL_MEM_MALLOC_HUGE_ONLY);
 aclrtMalloc(&recvBuf, recvSize, ACL_MEM_MALLOC_HUGE_ONLY);
 
-// 初始化通信域和流
+// 初始化通信域
 HcclComm hcclComm;
 HcclCommInitRootInfo(rankSize, &rootInfo, deviceId, &hcclComm);
+
+// 创建任务流
+aclrtStream stream;
+aclrtCreateStream(&stream);
 
 // 执行ReduceScatter，将所有rank的sendBuf相加后，再把结果按照rank_id顺序均匀分散到各个rank的recvBuf
 HcclReduceScatter(sendBuf, recvBuf, recvCount, HCCL_DATA_TYPE_FP32, HCCL_REDUCE_SUM, hcclComm, stream);
