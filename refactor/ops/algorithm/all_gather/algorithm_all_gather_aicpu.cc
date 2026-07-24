@@ -245,48 +245,17 @@ static AlgoExecDesc MakeAicpuAllGatherOmniPipeAlgoExecDesc()
     TemplateDesc nhrTemplateDesc = g_allGatherTemplateDescMap[static_cast<size_t>(
         HcclAllGatherTemplateDescType::ALLGATHER_TEMPLATE_NHR_SINGLE_JETTY)];
 
-    // parallel0：fullmesh→INTRA，nhr→INTER
+    // omin第一个节点表示慢轴，第二个节点表示快轴，只能有2个节点
     auto parallelDesc0 = std::make_shared<AlgoExecDesc>();
-    parallelDesc0->execPolicy = HcclAlgExecPolicy::PARALLEL;
+    parallelDesc0->execPolicy = HcclAlgExecPolicy::OMNIPIPE;
     parallelDesc0->children = {
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0},
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}};
+        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1}, TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}};
     parallelDesc0->dataSplitRatio = {1, 1}; // 1:1
 
-    // parallel1：nhr→INTER，fullmesh→INTRA（位置交换）
-    auto parallelDesc1 = std::make_shared<AlgoExecDesc>();
-    parallelDesc1->execPolicy = HcclAlgExecPolicy::PARALLEL;
-    parallelDesc1->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_1},
-        TemplateExecDesc{fullmeshTemplateDesc, SUB_COMM_INDEX_0}};
-    parallelDesc1->dataSplitRatio = {1, 1}; // 1:1
-
-    // sequence0：parallel0 与 parallel1 串行组合
-    auto sequenceDesc0 = std::make_shared<AlgoExecDesc>();
-    sequenceDesc0->execPolicy = HcclAlgExecPolicy::SEQUENCE;
-    sequenceDesc0->children = {parallelDesc0, parallelDesc1};
-    sequenceDesc0->dataSplitRatio = {1, 1}; // 1:1
-
-    // parallel2：sequence0 与 nhr→SUB_COMM_INDEX_2 并行
-    auto parallelDesc2 = std::make_shared<AlgoExecDesc>();
-    parallelDesc2->execPolicy = HcclAlgExecPolicy::PARALLEL;
-    parallelDesc2->children = {
-        sequenceDesc0,
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_2}};
-    parallelDesc2->dataSplitRatio = {1, 1}; // 1:1
-
-    // parallel3：nhr→SUB_COMM_INDEX_2 与 sequence0 并行（位置交换）
-    auto parallelDesc3 = std::make_shared<AlgoExecDesc>();
-    parallelDesc3->execPolicy = HcclAlgExecPolicy::PARALLEL;
-    parallelDesc3->children = {
-        TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_2},
-        sequenceDesc0};
-    parallelDesc3->dataSplitRatio = {1, 1}; // 1:1
-
-    // parallel2 与 parallel3 串行组合作为最终输出
+    // omin第一个节点表示慢轴，第二个节点表示快轴，支持嵌套，但是只能2个节点
     AlgoExecDesc algoExecDesc;
-    algoExecDesc.execPolicy = HcclAlgExecPolicy::SEQUENCE;
-    algoExecDesc.children = {parallelDesc2, parallelDesc3};
+    algoExecDesc.execPolicy = HcclAlgExecPolicy::OMNIPIPE;
+    algoExecDesc.children = {parallelDesc0, TemplateExecDesc{nhrTemplateDesc, SUB_COMM_INDEX_2},};
     algoExecDesc.dataSplitRatio = {1, 1}; // 1:1
     return algoExecDesc;
 }
