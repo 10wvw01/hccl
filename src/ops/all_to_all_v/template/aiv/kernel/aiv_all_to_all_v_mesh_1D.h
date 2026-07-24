@@ -19,11 +19,17 @@ public:
     __aicore__ inline AivAlltoAllVMesh1D() {
     }
 
-    __aicore__ inline void InitCoreInfo(ExtraArgs &extraArgsPerLoop)
+    __aicore__ inline void InitCoreInfo(ExtraArgs &extraArgs, uint64_t processedDataCount, uint64_t currDataCount)
     {
         // 发送数据的编排
-        uint64_t dataPerCore = extraArgsPerLoop.sendCounts[targetRank_] / coreNumPerRank_; // 数据量很少的时候，dataPerCore为0
-        uint64_t remainder = extraArgsPerLoop.sendCounts[targetRank_] % coreNumPerRank_;
+        uint64_t sendCountThisLoop = 0;
+        uint64_t sendDisplThisLoop = extraArgs.sendDispls[targetRank_] + extraArgs.sendCounts[targetRank_];
+        if (extraArgs.sendCounts[targetRank_] > processedDataCount) {
+            sendCountThisLoop = min(currDataCount, extraArgs.sendCounts[targetRank_] - processedDataCount);
+            sendDisplThisLoop = extraArgs.sendDispls[targetRank_] + processedDataCount;
+        }
+        uint64_t dataPerCore = sendCountThisLoop / coreNumPerRank_; // 数据量很少的时候，dataPerCore为0
+        uint64_t remainder = sendCountThisLoop % coreNumPerRank_;
         // 数据对不齐的情况
         uint64_t innerDispls = 0;
         if (coreIndex_ < remainder) { // 这部分核需要多处理一个数据
@@ -33,12 +39,18 @@ public:
             innerDispls = coreIndex_ * dataPerCore + remainder;
             sendCurCount_ = dataPerCore;
         }
-        sendInputOffset_ = input_ + (extraArgsPerLoop.sendDispls[targetRank_] + innerDispls)  * sizeof(T);
+        sendInputOffset_ = input_ + (sendDisplThisLoop + innerDispls) * sizeof(T);
         sendOutputOffset_ = reinterpret_cast<uint64_t>(GM_IN[rank_]) + (targetRank_ * cclBufferCountPerRank_ + innerDisplsForCcl_) * sizeof(T);
 
         //接收数据的编排
-        dataPerCore = extraArgsPerLoop.recvCounts[targetRank_] / coreNumPerRank_;
-        remainder = extraArgsPerLoop.recvCounts[targetRank_] % coreNumPerRank_;
+        uint64_t recvCountThisLoop = 0;
+        uint64_t recvDisplThisLoop = extraArgs.recvDispls[targetRank_] + extraArgs.recvCounts[targetRank_];
+        if (extraArgs.recvCounts[targetRank_] > processedDataCount) {
+            recvCountThisLoop = min(currDataCount, extraArgs.recvCounts[targetRank_] - processedDataCount);
+            recvDisplThisLoop = extraArgs.recvDispls[targetRank_] + processedDataCount;
+        }
+        dataPerCore = recvCountThisLoop / coreNumPerRank_;
+        remainder = recvCountThisLoop % coreNumPerRank_;
         if (coreIndex_ < remainder) { // 这部分核需要多处理一个数据
             innerDispls = coreIndex_ * dataPerCore + coreIndex_;
             recvCurCount_ = dataPerCore + 1;
@@ -47,7 +59,7 @@ public:
             recvCurCount_ = dataPerCore;
         }
         recvInputOffset_ = reinterpret_cast<uint64_t>(GM_IN[targetRank_]) + (rank_ * cclBufferCountPerRank_ + innerDisplsForCcl_) * sizeof(T);
-        recvOutputOffset_ = output_ + (extraArgsPerLoop.recvDispls[targetRank_] + innerDispls) * sizeof(T);
+        recvOutputOffset_ = output_ + (recvDisplThisLoop + innerDispls) * sizeof(T);
     }
 
     __aicore__ inline void Producer(uint64_t loop)
@@ -212,30 +224,30 @@ public:
         uint64_t loopTimes = maxSendOrRecvDataCount / cclBufferCountPerRank_ +
             static_cast<uint64_t>(maxSendOrRecvDataCount % cclBufferCountPerRank_ != 0);
         for (uint64_t loop = 0; loop < loopTimes; loop++) {
-            ExtraArgs extraArgsPerLoop;
             uint64_t currDataCount = (loop == loopTimes - 1) ? maxSendOrRecvDataCount - processedDataCount : cclBufferCountPerRank_;
-            for (uint64_t i = 0; i < rankSize_; i++) {
-                if (extraArgs.sendCounts[i] > processedDataCount) {
-                    extraArgsPerLoop.sendCounts[i] = min(currDataCount, extraArgs.sendCounts[i] - processedDataCount);
-                    extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + processedDataCount;
-                } else {
-                    extraArgsPerLoop.sendCounts[i] = 0;
-                    extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + extraArgs.sendCounts[i];
-                }
-
-                if (extraArgs.recvCounts[i] > processedDataCount) {
-                    extraArgsPerLoop.recvCounts[i] = min(currDataCount, extraArgs.recvCounts[i] - processedDataCount);
-                    extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + processedDataCount;
-                } else {
-                    extraArgsPerLoop.recvCounts[i] = 0;
-                    extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + extraArgs.recvCounts[i];
-                }
-            }
 
             if (isCtrlCore) {
+                ExtraArgs extraArgsPerLoop;
+                for (uint64_t i = 0; i < rankSize_; i++) {
+                    if (extraArgs.sendCounts[i] > processedDataCount) {
+                        extraArgsPerLoop.sendCounts[i] = min(currDataCount, extraArgs.sendCounts[i] - processedDataCount);
+                        extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + processedDataCount;
+                    } else {
+                        extraArgsPerLoop.sendCounts[i] = 0;
+                        extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + extraArgs.sendCounts[i];
+                    }
+
+                    if (extraArgs.recvCounts[i] > processedDataCount) {
+                        extraArgsPerLoop.recvCounts[i] = min(currDataCount, extraArgs.recvCounts[i] - processedDataCount);
+                        extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + processedDataCount;
+                    } else {
+                        extraArgsPerLoop.recvCounts[i] = 0;
+                        extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + extraArgs.recvCounts[i];
+                    }
+                }
                 ProduceConsumeCtrlCore(loop, extraArgsPerLoop);
             } else {
-                InitCoreInfo(extraArgsPerLoop);
+                InitCoreInfo(extraArgs, processedDataCount, currDataCount);
                 Producer(loop); // 写数据
                 Consumer(loop); // 读数据
             }
