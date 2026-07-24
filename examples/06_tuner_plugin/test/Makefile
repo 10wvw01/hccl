@@ -6,7 +6,7 @@
 #   ./test_plugin
 
 ASCEND_HOME_PATH ?= /usr/local/Ascend/ascend-toolkit/latest
-PLUGIN_INCLUDE ?= ../../../../include
+PLUGIN_INCLUDE ?= ../../../include
 
 CC ?= gcc
 CFLAGS := -O0 -g -Wall -Wextra -std=c11 -D_GNU_SOURCE

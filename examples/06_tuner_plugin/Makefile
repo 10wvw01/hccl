@@ -7,7 +7,7 @@
 # 产物：hccl_tuner_example.so
 
 ASCEND_HOME_PATH ?= /usr/local/Ascend/ascend-toolkit/latest
-PLUGIN_INCLUDE ?= ../../../include
+PLUGIN_INCLUDE ?= ../../include
 
 CC ?= gcc
 CFLAGS := -fPIC -shared -O2 -Wall -Wextra -std=c11
