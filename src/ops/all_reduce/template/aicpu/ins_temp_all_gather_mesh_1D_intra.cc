@@ -22,7 +22,6 @@ InsTempAllGatherMesh1dIntra::~InsTempAllGatherMesh1dIntra() {}
 
 std::vector<CostModelParam> InsTempAllGatherMesh1dIntra::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     float n = 1.0 / rankSize;
     int netType = 0;
     int portNum = 0;

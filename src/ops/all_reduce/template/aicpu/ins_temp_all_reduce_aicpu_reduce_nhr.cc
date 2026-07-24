@@ -22,7 +22,6 @@ InsTempAllReduceAicpuReduceNHR::InsTempAllReduceAicpuReduceNHR(const OpParam &pa
 std::vector<CostModelParam> InsTempAllReduceAicpuReduceNHR::CalcCostCoeff(u32 rankSize)
 {
     // 用aicpu做reduce，不参与性能排序，
-    (void)rankSize;
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;

@@ -22,7 +22,6 @@ InsTempReduceScatterMesh1DIntra::~InsTempReduceScatterMesh1DIntra()
 
 std::vector<CostModelParam> InsTempReduceScatterMesh1DIntra::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     float n = 1.0f / rankSize;
     int netType = 0;
     int portNum = 0;

@@ -22,7 +22,6 @@ InsTempAllGatherNhrDpuInter::InsTempAllGatherNhrDpuInter(const OpParam& param, c
 
 std::vector<CostModelParam> InsTempAllGatherNhrDpuInter::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;

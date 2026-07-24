@@ -32,7 +32,7 @@ typedef struct {
 } CostTable;
 
 struct UbUtilEntry {
-    u64 upperBound;
+    double upperBound;
     float utilization;
 };
 

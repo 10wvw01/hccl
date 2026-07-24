@@ -20,7 +20,6 @@ constexpr u32 DIE_NUM = 2;
  
 std::vector<CostModelParam> CcuTempAllReduceMesh1DMem2Mem2DieOneShot::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     HCCL_DEBUG("[CcuTempAllReduceMesh1DMem2Mem2DieOneShot] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

@@ -20,7 +20,6 @@ constexpr u32 PORT_NUM = 1;
 std::vector<CostModelParam> CcuTempAllReduceNhrMem2Mem1DMultiJetty::CalcCostCoeff(u32 rankSize)
 {
     // 先不算multijetty的模型
-    (void)rankSize;
     HCCL_DEBUG("[CcuTempAllReduceNhrMem2Mem1DMultiJetty] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;

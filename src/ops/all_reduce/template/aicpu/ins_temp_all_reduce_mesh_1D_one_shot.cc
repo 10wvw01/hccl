@@ -25,7 +25,6 @@ InsTempAllReduceMesh1DOneShot::~InsTempAllReduceMesh1DOneShot()
 
 std::vector<CostModelParam> InsTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;
