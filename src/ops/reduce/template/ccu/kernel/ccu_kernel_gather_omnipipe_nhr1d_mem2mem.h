@@ -50,7 +50,7 @@ struct CcuKernelArgGatherOmniPipeNHR1DMem2Mem : CcuKernelArgBase {
 };
 
 struct GatherOmniPipeNHR1DMem2MemContext {
-    CcuKernelArgGatherOmniPipeNHR1DMem2Mem* arg;
+    CcuKernelArgGatherOmniPipeNHR1DMem2Mem* arg{nullptr};
     
     uint64_t rankSize{0};
     uint32_t rankId{0};
@@ -61,8 +61,6 @@ struct GatherOmniPipeNHR1DMem2MemContext {
     HcclDataType dataType{HcclDataType::HCCL_DATA_TYPE_RESERVED};
     std::vector<NHRStepInfo> stepInfoVector;
     std::map<u32, u32> rank2ChannelIdx;
-    
-
 
     std::vector<ccu::Variable> input;
     ccu::Variable output;
