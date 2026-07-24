@@ -206,6 +206,24 @@ set(INCLUDE_LIST
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/batch_send_recv/template
 )
 
+# 现源码目录：${TOP_DIR}/asc-comm/include
+# 现目录：${ASCEND_CANN_PACKAGE_PATH}/asc/include/adv_api/asc-comm/aicpu/hcomm/hcomm_primitives.h
+# 现include：aicpu/hcomm/hcomm_primitives.h
+# 现target_include_directories：${ASCEND_CANN_PACKAGE_PATH}/asc/include/adv_api/asc-comm
+
+if(BUILD_OPEN_PROJECT)
+    set(HCCL_ASC_COMM_INCLUDE_DIR
+        ${ASCEND_CANN_PACKAGE_PATH}/asc/include/adv_api/asc-comm
+    )
+else()
+    set(HCCL_ASC_COMM_INCLUDE_DIR
+        ${TOP_DIR}/asc-comm/include
+    )
+endif()
+list(PREPEND INCLUDE_LIST
+    ${HCCL_ASC_COMM_INCLUDE_DIR}
+)
+
 if(NOT BUILD_OPEN_PROJECT)
     list(APPEND INCLUDE_LIST
         ${TOP_DIR}/inc

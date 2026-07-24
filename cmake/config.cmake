@@ -78,6 +78,7 @@ if(ENABLE_BUILD_AARCH)
     set(STUBS
         hcomm
         ccl_kernel
+        aicpu_data_plane
     )
     foreach(STUB ${STUBS})
         if(NOT TARGET ${STUB})
@@ -103,6 +104,11 @@ elseif(PRODUCT_SIDE STREQUAL "device" AND BUILD_OPEN_PROJECT)
     if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libccl_kernel.so)
         if(NOT TARGET ccl_kernel)
             generate_stub(ccl_kernel)
+        endif()
+    endif()
+    if(DEFINED _hccl_devlib_dir AND NOT EXISTS ${_hccl_devlib_dir}/libaicpu_data_plane.so)
+        if(NOT TARGET aicpu_data_plane)
+            generate_stub(aicpu_data_plane)
         endif()
     endif()
 endif()

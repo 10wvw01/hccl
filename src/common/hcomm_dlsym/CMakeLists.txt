@@ -57,6 +57,10 @@ else()
     )
 endif()
 
+list(PREPEND INCLUDE_LIST
+    ${HCCL_ASC_COMM_INCLUDE_DIR}
+)
+
 if(PRODUCT_SIDE STREQUAL "host")
     include(hccl_compat.cmake)
 else()
