@@ -394,80 +394,254 @@ void CalcAndPushPiece(u64 pieceId, u64 xyBaseOffset, u64 sDataSize, const std::v
 
 void PushScatterZDiagSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
     u64 zSOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
-    const std::vector<OmniPipeSplitSliceInfo> &total, u64 dataTypeSize, u64 maxDataPieceId, u64 xRankSize,
-    u64 yRankSize, u64 zRankSize, u64 xAxis, u64 yAxis, u64 zCclBufferBaseOff, u64 zCornerStep,
-    const std::vector<std::vector<u64>> &xyzDataSizeStep)
+    const std::vector<OmniPipeSplitSliceInfo> &total, const ScatterTopoInfo &topo, u64 zCclBufferBaseOff,
+    u64 zCornerStep, uint32_t root)
 {
     HCCL_DEBUG("[PushScatterZDiagSteps] start push scatter z diag steps");
     for (u64 osn = 0; osn < zCornerStep; osn++) {
         struct BuffInfo bitmp;
         struct StepSliceInfo stepSliceInfotmp;
+        u64 xRankSize = topo.xRankSize;
+        u64 yRankSize = topo.yRankSize;
+        u64 zRankSize = topo.zRankSize;
         BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
+        std::vector<u64> sliceCountMultRankPiece;
+        std::vector<u64> sliceSizeMultRankPiece;
+        std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
+        std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
-            u64 outputslicestride = 0;
-            std::vector<u64> sliceCountMultRankPiece;
-            std::vector<u64> sliceSizeMultRankPiece;
-            std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
-            std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
+            if (oneDid == topo.rootz) {
+                continue;
+            }
             for (u64 cornerDataSlice = 0; cornerDataSlice < xRankSize * yRankSize; cornerDataSlice++) {
+                //算一下从z轴看 root的跨平面的对角节点
                 u64 currentDataSliceId = oneDid * xRankSize * yRankSize + cornerDataSlice;
-                if (cornerDataSlice != yAxis * xRankSize + xAxis) {
+                if (cornerDataSlice !=  topo.rooty * xRankSize * yRankSize + topo.rootx) {
                     u64 pieceId = currentDataSliceId;
                     u64 sliceSizeOnePiece = DataSliceCut(
-                        zSDataSize[maxDataPieceId][osn], zSOffset[maxDataPieceId][osn], perLoop[pieceId].size);
+                        zSDataSize[root][osn], zSOffset[root][osn], perLoop[pieceId].size);
                     u64 inputPieceIdOffset
-                        = sliceOffsetCut(zSOffset[maxDataPieceId][osn], perLoop[pieceId].size) + total[pieceId].offset;
+                        = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + total[pieceId].offset;
+                    u64 outputPieceIdOffset
+                        = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + perLoop[pieceId].offset;
                     sliceSizeMultRankPiece.push_back(sliceSizeOnePiece);
-                    sliceCountMultRankPiece.push_back(sliceSizeOnePiece / dataTypeSize);
+                    sliceCountMultRankPiece.push_back(sliceSizeOnePiece / topo.dataTypeSize);
                     inputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
-                    outputOmniPipeSliceStrideMultRankPiece.push_back(outputslicestride);
-                    outputslicestride += zSDataSize[maxDataPieceId][osn];
+                    outputOmniPipeSliceStrideMultRankPiece.push_back(outputPieceIdOffset);
                 }
             }
-            stepSliceInfotmp.stepOutputSliceStride.push_back(xyzDataSizeStep[OMNIPIPE_LEVEL2][osn] * oneDid);
-            stepSliceInfotmp.outputOmniPipeSliceStride.push_back(outputOmniPipeSliceStrideMultRankPiece);
-            stepSliceInfotmp.inputOmniPipeSliceStride.push_back(inputOmniPipeSliceStrideMultRankPiece);
-            stepSliceInfotmp.stepCount.push_back(sliceCountMultRankPiece);
-            stepSliceInfotmp.stepSliceSize.push_back(sliceSizeMultRankPiece);
-            stepSliceInfotmp.stepInputSliceStride.push_back(0);
+        }
+        for (u64 oneDid = 0; oneDid < xRankSize * yRankSize; oneDid++) {
+            PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
+                inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, oneDid, topo.rootz, 0);
+        }
+        dataSliceLevelz.insert(dataSliceLevelz.end(), stepSliceInfotmp);
+    }
+}
+
+void PushScatterZDiagStepsZgXY(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
+    u64 zSOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
+    const std::vector<OmniPipeSplitSliceInfo> &total, const ScatterTopoInfo &topo, u64 zCclBufferBaseOff,
+    u64 zCornerStep, uint32_t root)
+{
+    HCCL_DEBUG("[PushScatterZDiagStepsZgXY] start push scatter z diag steps when z bandwidth greater than xy bandwidth");
+    for (u64 osn = 0; osn < zCornerStep + 1; osn++) {
+        struct BuffInfo bitmp;
+        struct StepSliceInfo stepSliceInfotmp;
+        u64 xRankSize = topo.xRankSize;
+        u64 yRankSize = topo.yRankSize;
+        u64 zRankSize = topo.zRankSize;
+        BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
+        stepSliceInfotmp.buffInfo = bitmp;
+        std::vector<u64> sliceCountMultRankPiece;
+        std::vector<u64> sliceSizeMultRankPiece;
+        std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
+        std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
+        for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
+            if (oneDid == topo.rootz) {
+                continue;
+            }
+            for (u64 cornerDataSlice = 0; cornerDataSlice < xRankSize * yRankSize; cornerDataSlice++) {
+                //算一下从z轴看 root的跨平面的对角节点
+                u64 currentDataSliceId = oneDid * xRankSize * yRankSize + cornerDataSlice;
+                if (cornerDataSlice !=  topo.rooty * xRankSize * yRankSize + topo.rootx) {
+                    u64 pieceId = currentDataSliceId;
+                    u64 sliceSizeOnePiece = DataSliceCut(
+                        zSDataSize[root][osn], zSOffset[root][osn], perLoop[pieceId].size);
+                    u64 inputPieceIdOffset
+                        = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + total[pieceId].offset;
+                    u64 outputPieceIdOffset
+                        = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                    sliceSizeMultRankPiece.push_back(sliceSizeOnePiece);
+                    sliceCountMultRankPiece.push_back(sliceSizeOnePiece / topo.dataTypeSize);
+                    inputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
+                    outputOmniPipeSliceStrideMultRankPiece.push_back(outputPieceIdOffset);
+                }
+            }
+        }
+        for (u64 oneDid = 0; oneDid < xRankSize * yRankSize; oneDid++) {
+            PushRootOrZeros(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
+                inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, oneDid, topo.rootz, 0);
         }
         dataSliceLevelz.insert(dataSliceLevelz.end(), stepSliceInfotmp);
     }
 }
 
 void PushScatterZSameAxisSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
-    u64 zSOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
-    const std::vector<OmniPipeSplitSliceInfo> &total, u64 dataTypeSize, u64 maxDataPieceId, u64 xRankSize,
-    u64 yRankSize, u64 zRankSize, u64 xAxis, u64 yAxis, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum,
-    const std::vector<std::vector<u64>> &xyzDataSizeStep)
+    u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM],
+    const std::vector<OmniPipeSplitSliceInfo> &perLoop, const std::vector<OmniPipeSplitSliceInfo> &total,
+    const ScatterTopoInfo &topo, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum, uint32_t root)
 {
     HCCL_DEBUG("[PushScatterZSameAxisSteps] start push scatter z same axis steps");
     for (u64 osn = zCornerStep; osn < outerStepNum; osn++) {
         struct BuffInfo bitmp;
         struct StepSliceInfo stepSliceInfotmp;
+        u64 xRankSize = topo.xRankSize;
+        u64 yRankSize = topo.yRankSize;
+        u64 zRankSize = topo.zRankSize;
         BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
         stepSliceInfotmp.buffInfo = bitmp;
+        std::vector<u64> sliceSizeMultRankPiece;
+        std::vector<u64> sliceCountMultRankPiece;
+        std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
+        std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
         for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
-            std::vector<u64> sliceSizeMultRankPiece;
-            std::vector<u64> sliceCountMultRankPiece;
-            std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
-            std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
-            u64 pieceId = oneDid * xRankSize * yRankSize + yAxis * xRankSize + xAxis;
+            if (oneDid == topo.rootz) {
+                continue;
+            }
+            u64 pieceId = oneDid * xRankSize * yRankSize + topo.rooty * xRankSize + topo.rootx;
             u64 sliceSizeOnePiece
-                = DataSliceCut(zSDataSize[maxDataPieceId][osn], zSOffset[maxDataPieceId][osn], perLoop[pieceId].size);
+                = DataSliceCut(zSDataSize[root][osn], zSOffset[root][osn], perLoop[pieceId].size);
             u64 inputPieceIdOffset
-                = sliceOffsetCut(zSOffset[maxDataPieceId][osn], perLoop[pieceId].size) + total[pieceId].offset;
-            sliceCountMultRankPiece.push_back(sliceSizeOnePiece / dataTypeSize);
+                = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + total[pieceId].offset;
+            u64 outputPieceIdOffset
+                = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + perLoop[pieceId].offset;
+            sliceCountMultRankPiece.push_back(sliceSizeOnePiece / topo.dataTypeSize);
             sliceSizeMultRankPiece.push_back(sliceSizeOnePiece);
             inputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
-            outputOmniPipeSliceStrideMultRankPiece.push_back(0);
-            stepSliceInfotmp.stepInputSliceStride.push_back(0);
-            stepSliceInfotmp.stepOutputSliceStride.push_back(xyzDataSizeStep[OMNIPIPE_LEVEL2][osn] * oneDid);
-            stepSliceInfotmp.outputOmniPipeSliceStride.push_back(outputOmniPipeSliceStrideMultRankPiece);
-            stepSliceInfotmp.inputOmniPipeSliceStride.push_back(inputOmniPipeSliceStrideMultRankPiece);
-            stepSliceInfotmp.stepCount.push_back(sliceCountMultRankPiece);
-            stepSliceInfotmp.stepSliceSize.push_back(sliceSizeMultRankPiece);
+            outputOmniPipeSliceStrideMultRankPiece.push_back(outputPieceIdOffset);
+        }
+        for (u64 oneDid = 0; oneDid < xRankSize * yRankSize; oneDid++) {
+            if (oneDid == topo.rootz) {
+                PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
+                    inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
+            } else {
+                std::vector<u64> sliceSizeMultRankPiece1;
+                std::vector<u64> sliceCountMultRankPiece1;
+                std::vector<u64> outputOmniPipeSliceStrideMultRankPiece1;
+                std::vector<u64> inputOmniPipeSliceStrideMultRankPiece1;
+                for (u64 sameAxisDataSlice = 0; sameAxisDataSlice < zRankSize; sameAxisDataSlice++) {
+                    if (sameAxisDataSlice == topo.rootz) {
+                        continue;
+                    }
+                    u64 pieceId = sameAxisDataSlice * xRankSize * yRankSize + topo.rooty * xRankSize + oneDid;
+                    u64 sliceSizeOnePiece = DataSliceCut(
+                        zSDataSize[root][osn], zSOffset[root][osn], perLoop[pieceId].size);
+                    u64 inputPieceIdOffset = 0;
+                    u64 outputPieceIdOffset = 0;
+                    if (outerStepNum == 2) {
+                        inputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn-1], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                        outputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn-1], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                    } else {
+                        if (osn == outerStepNum - 1) {
+                            if (zSDataSize[root][osn-1] < xySDataSize[root][osn-2]) {
+                                inputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn - 2] + zSDataSize[root][osn-1], perLoop[pieceId].size)
+                                                     + perLoop[pieceId].offset;
+                                outputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn - 2] + zSDataSize[root][osn-1], perLoop[pieceId].size)
+                                                      + perLoop[pieceId].offset;
+                            } else {
+                                inputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn - 2] + xySDataSize[root][osn-2], perLoop[pieceId].size)
+                                                     + perLoop[pieceId].offset;
+                                outputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn - 2] + xySDataSize[root][osn-2], perLoop[pieceId].size)
+                                                      + perLoop[pieceId].offset;
+                            }
+                            
+                        } else {
+                            if (sliceSizeOnePiece > xySDataSize[root][osn-1]) {
+                                sliceSizeOnePiece = xySDataSize[root][osn-1];
+                            }
+                            inputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn-1], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                            outputPieceIdOffset = sliceOffsetCut(xySOffset[root][osn-1], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                        }
+                    }
+                    if (inputPieceIdOffset + sliceSizeOnePiece > perLoop[pieceId].offset + perLoop[pieceId].size) {
+                        sliceSizeOnePiece = perLoop[pieceId].offset + perLoop[pieceId].size - inputPieceIdOffset;
+                    }
+                    sliceCountMultRankPiece1.push_back(sliceSizeOnePiece / topo.dataTypeSize);
+                    sliceSizeMultRankPiece1.push_back(sliceSizeOnePiece);
+                    inputOmniPipeSliceStrideMultRankPiece1.push_back(inputPieceIdOffset);
+                    outputOmniPipeSliceStrideMultRankPiece1.push_back(outputPieceIdOffset);
+                }
+                PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece1, sliceCountMultRankPiece1,
+                    inputOmniPipeSliceStrideMultRankPiece1, outputOmniPipeSliceStrideMultRankPiece1, 0, 0);
+            }
+        }
+        dataSliceLevelz.insert(dataSliceLevelz.end(), stepSliceInfotmp);
+    }
+}
+
+void PushScatterZSameAxisStepsZgXY(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
+    u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM],
+    const std::vector<OmniPipeSplitSliceInfo> &perLoop, const std::vector<OmniPipeSplitSliceInfo> &total,
+    const ScatterTopoInfo &topo, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum, uint32_t root)
+{
+    HCCL_DEBUG("[PushScatterZSameAxisStepsZgXY] start push scatter z same axis steps when z bandwidth greater than xy bandwidth");
+    for (u64 osn = zCornerStep + 1; osn < outerStepNum; osn++) {
+        struct BuffInfo bitmp;
+        struct StepSliceInfo stepSliceInfotmp;
+        u64 xRankSize = topo.xRankSize;
+        u64 yRankSize = topo.yRankSize;
+        u64 zRankSize = topo.zRankSize;
+        BuffInfoAssign(bitmp, 0, 0, zCclBufferBaseOff);
+        stepSliceInfotmp.buffInfo = bitmp;
+        std::vector<u64> sliceSizeMultRankPiece;
+        std::vector<u64> sliceCountMultRankPiece;
+        std::vector<u64> outputOmniPipeSliceStrideMultRankPiece;
+        std::vector<u64> inputOmniPipeSliceStrideMultRankPiece;
+        for (u64 oneDid = 0; oneDid < zRankSize; oneDid++) {
+            if (oneDid == topo.rootz) {
+                continue;
+            }
+            u64 pieceId = oneDid * xRankSize * yRankSize + topo.rooty * xRankSize + topo.rootx;
+            u64 sliceSizeOnePiece
+                = DataSliceCut(zSDataSize[root][osn], zSOffset[root][osn], perLoop[pieceId].size);
+            u64 inputPieceIdOffset
+                = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + total[pieceId].offset;
+            u64 outputPieceIdOffset
+                = sliceOffsetCut(zSOffset[root][osn], perLoop[pieceId].size) + perLoop[pieceId].offset;
+            sliceCountMultRankPiece.push_back(sliceSizeOnePiece / topo.dataTypeSize);
+            sliceSizeMultRankPiece.push_back(sliceSizeOnePiece);
+            inputOmniPipeSliceStrideMultRankPiece.push_back(inputPieceIdOffset);
+            outputOmniPipeSliceStrideMultRankPiece.push_back(outputPieceIdOffset);
+        }
+        for (u64 oneDid = 0; oneDid < xRankSize * yRankSize; oneDid++) {
+            if (oneDid == topo.rootz) {
+                PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece, sliceCountMultRankPiece,
+                    inputOmniPipeSliceStrideMultRankPiece, outputOmniPipeSliceStrideMultRankPiece, 0, 0);
+            } else {
+                std::vector<u64> sliceSizeMultRankPiece1;
+                std::vector<u64> sliceCountMultRankPiece1;
+                std::vector<u64> outputOmniPipeSliceStrideMultRankPiece1;
+                std::vector<u64> inputOmniPipeSliceStrideMultRankPiece1;
+                for (u64 sameAxisDataSlice = 0; sameAxisDataSlice < zRankSize; sameAxisDataSlice++) {
+                    if (sameAxisDataSlice == topo.rootz) {
+                        continue;
+                    }
+                    u64 pieceId = sameAxisDataSlice * xRankSize * yRankSize + topo.rooty * xRankSize + oneDid;
+                    u64 sliceSizeOnePiece = DataSliceCut(
+                        xySDataSize[root][0], xySOffset[root][0], perLoop[pieceId].size);
+                    u64 inputPieceIdOffset = sliceOffsetCut(xySOffset[root][0], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                    u64 outputPieceIdOffset = sliceOffsetCut(xySOffset[root][0], perLoop[pieceId].size) + perLoop[pieceId].offset;
+                    
+                    sliceCountMultRankPiece1.push_back(sliceSizeOnePiece / topo.dataTypeSize);
+                    sliceSizeMultRankPiece1.push_back(sliceSizeOnePiece);
+                    inputOmniPipeSliceStrideMultRankPiece1.push_back(inputPieceIdOffset);
+                    outputOmniPipeSliceStrideMultRankPiece1.push_back(outputPieceIdOffset);
+                }
+                PushStepFields(stepSliceInfotmp, sliceSizeMultRankPiece1, sliceCountMultRankPiece1,
+                    inputOmniPipeSliceStrideMultRankPiece1, outputOmniPipeSliceStrideMultRankPiece1, 0, 0);
+            }
         }
         dataSliceLevelz.insert(dataSliceLevelz.end(), stepSliceInfotmp);
     }
@@ -1460,10 +1634,10 @@ void PushScatterYAllSteps(std::vector<StepSliceInfo> &dataSliceLevely, const Sca
 void PrepareScatterBuffersAndPushZ(std::vector<StepSliceInfo> &dataSliceLevelz, u64 &xCclBufferBaseOff,
     u64 &yCclBufferBaseOff, u64 &zCclBufferBaseOff, const ScatterTopoInfo &topo, const ScatterStepState &state,
     u64 xSDataSize[][MAX_STEP_NUM][MAX_STEP_NUM], u64 ySDataSize[][MAX_STEP_NUM][MAX_STEP_NUM],
-    u64 zSDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM],
-    const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListPerLoop,
+    u64 zSDataSize[][MAX_STEP_NUM], u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM],
+    u64 xySOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListPerLoop,
     const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListTotal,
-    const OmniPipeSliceParam &omniPipeSliceParam)
+    const OmniPipeSliceParam &omniPipeSliceParam, uint32_t root)
 {
     HCCL_DEBUG("[PrepareScatterBuffersAndPushZ] start prepare scatter buffers and push Z Axis");
     std::vector<u64> levelRankSize = omniPipeSliceParam.levelRankSize;
@@ -1483,13 +1657,22 @@ void PrepareScatterBuffersAndPushZ(std::vector<StepSliceInfo> &dataSliceLevelz, 
                "innerStepNum[%llu]",
         state.zCornerStep, state.outerStepNum, state.xyCornerStep, state.xInCornerStep, state.yInCornerStep,
         state.innerStepNum);
-    PushScatterZDiagSteps(dataSliceLevelz, zSDataSize, zSOffset, omniPipeSplitSliceInfoListPerLoop,
-        omniPipeSplitSliceInfoListTotal, topo.dataTypeSize, topo.maxDataPieceId, topo.xRankSize, topo.yRankSize,
-        topo.zRankSize, topo.xAxis, topo.yAxis, zCclBufferBaseOff, state.zCornerStep, xyzDataSizeStep);
-    PushScatterZSameAxisSteps(dataSliceLevelz, zSDataSize, zSOffset, omniPipeSplitSliceInfoListPerLoop,
-        omniPipeSplitSliceInfoListTotal, topo.dataTypeSize, topo.maxDataPieceId, topo.xRankSize, topo.yRankSize,
-        topo.zRankSize, topo.xAxis, topo.yAxis, zCclBufferBaseOff, state.zCornerStep, state.outerStepNum,
-        xyzDataSizeStep);
+    if (topo.zB >= topo.xyB) {
+        // 3D场景下，当z轴带宽大于等于xy轴打平带宽时，z轴最后一步才会发同轴数据，前面步骤都发的root的对角数据
+        PushScatterZDiagStepsZgXY(dataSliceLevelz, zSDataSize, zSOffset, omniPipeSplitSliceInfoListPerLoop,
+            omniPipeSplitSliceInfoListTotal, topo, zCclBufferBaseOff, state.zCornerStep, root);
+        PushScatterZSameAxisStepsZgXY(dataSliceLevelz, zSDataSize, xySDataSize, zSOffset, xySOffset,
+            omniPipeSplitSliceInfoListPerLoop, omniPipeSplitSliceInfoListTotal, topo, zCclBufferBaseOff,
+            state.zCornerStep, state.outerStepNum, root);
+
+    } else {
+        // 3D场景下，当z轴带宽小于xy轴打平带宽时，z轴只有第一步发的root的对角数据
+        PushScatterZDiagSteps(dataSliceLevelz, zSDataSize, zSOffset, omniPipeSplitSliceInfoListPerLoop,
+            omniPipeSplitSliceInfoListTotal, topo, zCclBufferBaseOff, state.zCornerStep, root);
+        PushScatterZSameAxisSteps(dataSliceLevelz, zSDataSize, xySDataSize, zSOffset, xySOffset,
+            omniPipeSplitSliceInfoListPerLoop, omniPipeSplitSliceInfoListTotal, topo, zCclBufferBaseOff,
+            state.zCornerStep, state.outerStepNum, root);
+    }
 }
 
 // 计算scatter omnipipe slice info的主函数
@@ -1525,9 +1708,9 @@ OmniPipeSliceInfo CalcScatterOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSlice
     CalcScatterAllRankDataSize(topo, state, root, finStepMark, zSDataSize, xySDataSize, xSDataSize, ySDataSize,
         zSOffset, xSOffset, ySOffset, xySOffset, omniPipeSplitSliceInfoListPerLoop);
     std::vector<StepSliceInfo> dataSliceLevelz;
-    PrepareScatterBuffersAndPushZ(dataSliceLevelz, xCclBufferBaseOff, yCclBufferBaseOff, zCclBufferBaseOff, topo,
-        state, xSDataSize, ySDataSize, zSDataSize, zSOffset, omniPipeSplitSliceInfoListPerLoop,
-        omniPipeSplitSliceInfoListTotal, omniPipeSliceParam);
+    PrepareScatterBuffersAndPushZ(dataSliceLevelz, xCclBufferBaseOff, yCclBufferBaseOff, zCclBufferBaseOff, topo, state,
+        xSDataSize, ySDataSize, zSDataSize, xySDataSize, zSOffset, xySOffset, omniPipeSplitSliceInfoListPerLoop,
+        omniPipeSplitSliceInfoListTotal, omniPipeSliceParam, root);
 
     std::vector<StepSliceInfo> dataSliceLevelx;
     PushScatterXAllSteps(dataSliceLevelx, topo, state, xSDataSize, ySDataSize, xySOffset, xSOffset, ySOffset,

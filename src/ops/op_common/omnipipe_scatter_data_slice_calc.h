@@ -124,21 +124,27 @@ void PushScatterYAllSteps(std::vector<StepSliceInfo> &dataSliceLevely, const Sca
 void PrepareScatterBuffersAndPushZ(std::vector<StepSliceInfo> &dataSliceLevelz, u64 &xCclBufferBaseOff,
     u64 &yCclBufferBaseOff, u64 &zCclBufferBaseOff, const ScatterTopoInfo &topo, const ScatterStepState &state,
     u64 xSDataSize[][MAX_STEP_NUM][MAX_STEP_NUM], u64 ySDataSize[][MAX_STEP_NUM][MAX_STEP_NUM],
-    u64 zSDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM],
-    const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListPerLoop,
+    u64 zSDataSize[][MAX_STEP_NUM], u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM],
+    u64 xySOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListPerLoop,
     const std::vector<OmniPipeSplitSliceInfo> &omniPipeSplitSliceInfoListTotal,
-    const OmniPipeSliceParam &omniPipeSliceParam);
+    const OmniPipeSliceParam &omniPipeSliceParam, uint32_t root);
 OmniPipeSliceInfo CalcScatterOmniPipeSliceInfo(OmniPipeSliceParam &omniPipeSliceParam, uint32_t root);
 void PushScatterZDiagSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
     u64 zSOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
-    const std::vector<OmniPipeSplitSliceInfo> &total, u64 dataTypeSize, u64 maxDataPieceId, u64 xRankSize,
-    u64 yRankSize, u64 zRankSize, u64 xAxis, u64 yAxis, u64 zCclBufferBaseOff, u64 zCornerStep,
-    const std::vector<std::vector<u64>> &xyzDataSizeStep);
+    const std::vector<OmniPipeSplitSliceInfo> &total, const ScatterTopoInfo &topo, u64 zCclBufferBaseOff,
+    u64 zCornerStep, uint32_t root);
 void PushScatterZSameAxisSteps(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
+    u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM],
+    const std::vector<OmniPipeSplitSliceInfo> &perLoop, const std::vector<OmniPipeSplitSliceInfo> &total,
+    const ScatterTopoInfo &topo, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum, uint32_t root);
+void PushScatterZDiagStepsZgXY(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
     u64 zSOffset[][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
-    const std::vector<OmniPipeSplitSliceInfo> &total, u64 dataTypeSize, u64 maxDataPieceId, u64 xRankSize,
-    u64 yRankSize, u64 zRankSize, u64 xAxis, u64 yAxis, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum,
-    const std::vector<std::vector<u64>> &xyzDataSizeStep);
+    const std::vector<OmniPipeSplitSliceInfo> &total, const ScatterTopoInfo &topo, u64 zCclBufferBaseOff,
+    u64 zCornerStep, uint32_t root);
+void PushScatterZSameAxisStepsZgXY(std::vector<StepSliceInfo> &dataSliceLevelz, u64 zSDataSize[][MAX_STEP_NUM],
+    u64 xySDataSize[][MAX_STEP_NUM], u64 zSOffset[][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM],
+    const std::vector<OmniPipeSplitSliceInfo> &perLoop, const std::vector<OmniPipeSplitSliceInfo> &total,
+    const ScatterTopoInfo &topo, u64 zCclBufferBaseOff, u64 zCornerStep, u64 outerStepNum, uint32_t root);
 void PushScatterXInnerCornerOneOsn(std::vector<StepSliceInfo> &dataSliceLevelx, u64 osn,
     u64 xSDataSize[][MAX_STEP_NUM][MAX_STEP_NUM], u64 xySOffset[][MAX_STEP_NUM],
     u64 xSOffset[][MAX_STEP_NUM][MAX_STEP_NUM], const std::vector<OmniPipeSplitSliceInfo> &perLoop,
