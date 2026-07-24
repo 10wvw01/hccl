@@ -321,7 +321,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         interTempAlg.SetchannelsPerRank(interLinkMap_);
     }
     // 将计算资源分配个每个算法
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     // 算法展开
 
     HcclResult ret = OrchestrateLoop(param, resCtx, intraTempAlg, interTempAlg);
@@ -339,15 +339,21 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 {
     AlgResourceRequest intraTempRequest;
     AlgResourceRequest interTempRequest;
-    tempAlgIntra.GetRes(intraTempRequest);
-    tempAlgInter.GetRes(interTempRequest);
-    auto intraThreadsNum = intraTempRequest.slaveThreadNum + 1;
-    auto interThreadsNum = intraTempRequest.slaveThreadNum + 1;
+    CHK_RET(tempAlgIntra.GetRes(intraTempRequest));
+    CHK_RET(tempAlgInter.GetRes(interTempRequest));
+    const u64 intraThreadsNum = static_cast<u64>(intraTempRequest.slaveThreadNum) + 1;
+    const u64 interThreadsNum = static_cast<u64>(interTempRequest.slaveThreadNum) + 1;
+    CHK_PRT_RET(threads_.size() < intraThreadsNum + interThreadsNum + 1,
+        HCCL_ERROR("[InsV2AllGatherParallelExecutor][PrepareResForTemplate] threads size[%zu] is smaller than "
+                   "required size[%llu], intraThreadsNum[%llu], interThreadsNum[%llu]",
+            threads_.size(), intraThreadsNum + interThreadsNum + 1, intraThreadsNum, interThreadsNum),
+        HCCL_E_PARA);
     auto intraNotifyOnMainThread = intraTempRequest.notifyNumOnMainThread;
     auto interNotifyOnMainThread = interTempRequest.notifyNumOnMainThread;
 
     intraThreads_.assign(threads_.begin() + 1, threads_.begin() + intraThreadsNum + 1);
-    interThreads_.assign(threads_.begin() + intraThreadsNum + 1, threads_.end());
+    interThreads_.assign(threads_.begin() + intraThreadsNum + 1,
+        threads_.begin() + intraThreadsNum + interThreadsNum + 1);
     // 用于两个算法同步
     mainThread_ = threads_.at(0);
     templateMainThreads_.emplace_back(intraThreads_.at(0));
@@ -557,7 +563,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     TemplateResource templateAlgResIntra, templateAlgResInter;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
     
