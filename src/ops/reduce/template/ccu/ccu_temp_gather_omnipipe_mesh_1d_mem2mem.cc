@@ -130,10 +130,6 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
     HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
         subCommRanks_[0].size(), resourceRequest.ccuKernelInfos.size());
-    HCCL_DEBUG("[%s] myRank_[%u] mySubCommRank_[%u] localAddr[%u] remoteAddr[%u]", __func__, myRank_,
-        mySubCommRank_, channelDescs[0].localEndpoint.commAddr.addr,
-        channelDescs[0].remoteEndpoint.commAddr.addr);
-
     return HcclResult::HCCL_SUCCESS;
 }
 

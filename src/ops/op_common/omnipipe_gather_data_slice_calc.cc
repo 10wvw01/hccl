@@ -70,11 +70,11 @@ void CalcGatherStepDataAndOffset(GatherSliceContext &ctx)
         }
         for (u64 i = 0; i < ctx.outerStepNum; i++) {
             if (ctx.yGeX) {
-                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.xGDS[rs][i].data(), ctx.yGDS[rs][i].data(), ctx.xB, ctx.yB,
-                    ctx.xRankSize, ctx.yRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
+                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.xGDS[rs][i].data(), ctx.yGDS[rs][i].data(), ctx.xB,
+                ctx.yB, ctx.xRankSize, ctx.yRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
             } else {
-                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.yGDS[rs][i].data(), ctx.xGDS[rs][i].data(), ctx.yB, ctx.xB,
-                    ctx.yRankSize, ctx.xRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
+                ctx.innerStepNum = CalAllgatherDataSize2D(ctx.yGDS[rs][i].data(), ctx.xGDS[rs][i].data(), ctx.yB,
+                ctx.xB, ctx.yRankSize, ctx.xRankSize, ctx.xyGDS[rs][i], ctx.maxStepNum, ctx.engine);
             }
         }
         if (ctx.yGeX) {
@@ -83,11 +83,11 @@ void CalcGatherStepDataAndOffset(GatherSliceContext &ctx)
             if (ctx.innerStepNum > 1) { ctx.yInCornerStep = ctx.innerStepNum - 1; }
         }
         if (xyGtZ) {
-            CalAllgather2DOffset(ctx.zGOff[rs].data(), ctx.xyGOff[rs].data(), ctx.outerStepNum, ctx.zRankSize, xyRankSize,
-                ctx.zGDS[rs].data(), ctx.xyGDS[rs].data());
+            CalAllgather2DOffset(ctx.zGOff[rs].data(), ctx.xyGOff[rs].data(), ctx.outerStepNum,
+                ctx.zRankSize, xyRankSize, ctx.zGDS[rs].data(), ctx.xyGDS[rs].data());
         } else {
-            CalAllgather2DOffset(ctx.xyGOff[rs].data(), ctx.zGOff[rs].data(), ctx.outerStepNum, xyRankSize, ctx.zRankSize,
-                ctx.xyGDS[rs].data(), ctx.zGDS[rs].data());
+            CalAllgather2DOffset(ctx.xyGOff[rs].data(), ctx.zGOff[rs].data(), ctx.outerStepNum, xyRankSize,
+                ctx.zRankSize, ctx.xyGDS[rs].data(), ctx.zGDS[rs].data());
         }
     }
     if (xyGtZ) {
