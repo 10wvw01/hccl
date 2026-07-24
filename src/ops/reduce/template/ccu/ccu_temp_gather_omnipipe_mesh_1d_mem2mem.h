@@ -42,6 +42,14 @@ public:
     uint32_t RemoteRankId2RankId(const uint32_t remoteRankId) const;
     void SetRoot(u32 root);
     void UnsetRoot(u32 rank);
+
+    HcclResult RunGatherComm(const StepSliceInfo& stepSliceInfo, uint64_t inputAddr, uint64_t outputAddr,
+        uint64_t token, uint64_t localCopyFlag, TemplateResource& templateResource);
+    HcclResult LaunchGatherKernel(TemplateResource& templateResource, uint64_t inputAddr, uint64_t outputAddr,
+        uint64_t token, uint64_t localCopyFlag, uint64_t sliceSize, bool isFirstPiece, bool isLastPiece,
+        bool ifNewRoot, const std::vector<uint64_t>& sliceSizeVec, const std::vector<uint64_t>& inputVec,
+        const std::vector<uint64_t>& outputVec);
+    HcclResult RunLocalCopy(const TemplateDataParams& templateDataParams, TemplateResource& templateResource);
     
     uint32_t mySubCommRank_ = 0;
     uint32_t subCommRootId_ = UINT32_MAX;

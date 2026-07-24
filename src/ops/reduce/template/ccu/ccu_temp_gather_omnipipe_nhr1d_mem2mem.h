@@ -43,6 +43,16 @@ public:
     void SetRoot(u32 root);
     void UnsetRoot(u32 rank);
 
+    HcclResult RunGatherComm(const StepSliceInfo& stepSliceInfo, uint64_t inputAddr, uint64_t outputAddr,
+        uint64_t scratchAddr, uint64_t token, uint64_t localCopyFlag, TemplateResource& templateResource);
+    void BuildGatherStrideVec(const StepSliceInfo& stepSliceInfo, uint32_t rpt, uint64_t& sliceSize,
+        std::vector<uint64_t>& inputVec, std::vector<uint64_t>& outputVec, std::vector<uint64_t>& sliceSizeVec);
+    HcclResult LaunchGatherKernel(TemplateResource& templateResource, uint64_t inputAddr, uint64_t outputAddr,
+        uint64_t scratchAddr, uint64_t token, uint64_t localCopyFlag, uint64_t sliceSize,
+        const std::vector<uint64_t>& inputVec, const std::vector<uint64_t>& outputVec,
+        const std::vector<uint64_t>& sliceSizeVec);
+    HcclResult RunLocalCopy(const TemplateDataParams& templateDataParams, TemplateResource& templateResource);
+
     uint32_t mySubCommRank_ = 0;
     uint32_t rankId_ = 0;
     uint32_t subCommRootId_ = UINT32_MAX;

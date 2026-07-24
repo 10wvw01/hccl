@@ -13,7 +13,6 @@
 
 #include "executor_common_ops.h"
 #include "ccu_alg_template_base.h"
-#include "omnipipe_data_slice_calc.h"
 #include "omnipipe_gather_data_slice_calc.h"
 #include "topo_match_base.h"
 #include "topo_match_multilevel.h"
@@ -52,39 +51,19 @@ protected:
     HcclResult InitSubCommRanks(std::vector<std::vector<u32>>& subCommRanks0, std::vector<std::vector<u32>>& subCommRanks1,
                 const AlgHierarchyInfoForAllLevel& algHierarchyInfo);
     
-    HcclResult InitTemplate(const OpParam& param, std::map<u32, std::shared_ptr<CcuAlgTemplateBase>>& tempMap,
-                const std::vector<std::vector<u32>>& subCommRanks0, const std::vector<std::vector<u32>>& subCommRanks1);
-
-    HcclResult InitTemplateParamsCommon(const OpParam& param, TemplateDataParams& templateDataParams);
-
-    HcclResult InitTemplateParams(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
-                const std::map<u32, std::shared_ptr<CcuAlgTemplateBase>>& tempMap,
-                std::map<u32, TemplateResource>& tempResMap,
-                std::map<u32, TemplateDataParams>& tempAlgParamMap);
-    
-    HcclResult InitOmniPipeScratchParam(OmniPipeScratchParam& scratchParam, const OpParam& param,
-            const std::vector<double>& endpointAttrBwAvg);
-
-    HcclResult InitOmniPipeSliceParam(OmniPipeSliceParam& sliceParam, const OpParam& param,
-                const std::vector<double>& endpointAttrBwAvg);
-    
     HcclResult GenTemplateAlgParamsByDimData(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo, u64 processedDataCount);
 
     // 单步数据切片信息生成templateParam
     HcclResult GenTempAlgParamsIn2HCCLBuff(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo, u64 processedDataCount, const AlgResourceCtxSerializable &resCtx, const OpParam &param);
-    HcclResult GenTempAlgParamsIn2OUT(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo, u64 processedDataCount, const AlgResourceCtxSerializable &resCtx, const OpParam &param);
     HcclResult GenTempAlgParamsHCCLBuff2HCCLBuff(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo, u64 processedDataCount, const AlgResourceCtxSerializable &resCtx, const OpParam &param);
     
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable& resCtx);
-    HcclResult CalcSliceInfoReduce(u64 dataCount);
-    u64 RoundUp(const u64 dividend, const u64 divisor) const;
 
-    std::vector<std::map<u32, std::vector<ChannelInfo>>> remoteRankToChannelInfo_;
     std::vector<ThreadHandle> threads_;  // 相当于之前的std::vector<InsQuePtr> tempInsQue_;
 
     // 计算RS/G在Level0(mesh)/Level1(clos)的等效带宽，Level1按(rankSizeLevel1_-1)均摊
     HcclResult CalcEndpointBandwidth(
-        std::vector<double> &endpointAttrBwAvgRS, std::vector<double> &endpointAttrBwAvgG);
+        std::vector<double> &endpointAttrBwAvgRS, std::vector<double> &endpointAttrBwAvgG, const OpParam &param);
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
@@ -93,12 +72,7 @@ protected:
     uint64_t rankIdxLevel1_{0};
     uint64_t rootx{0};
     uint64_t rooty{0};
-
-    std::vector<std::vector<u32>> subCommRanks0;
-    std::vector<std::vector<u32>> subCommRanks1;
     
-    u64 subCommRootId_{0};
-
     enum OmnipipeARLevel{
         OMNIPIPE_RS_LEVEL0 = 0,
         OMNIPIPE_RS_LEVEL1 = 1,
@@ -109,9 +83,8 @@ protected:
 
 /// 对角算法专用
 private:
-    std::vector<std::vector<ThreadHandle>> levelThreads_;
-    bool isSameXAxisAsRoot = false;  //和root同x轴
-    bool isSameYAxisAsRoot = false;  //和root同y轴
+    bool isSameXAxisAsRoot = false;
+    bool isSameYAxisAsRoot = false;
 };
 }
 
