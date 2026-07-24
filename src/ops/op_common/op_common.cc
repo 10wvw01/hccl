@@ -300,7 +300,7 @@ HcclResult ConstructHcclDfxOpInfo(const OpParam &param, const char* tag, u32 tag
 {
     bool isAclGraph = IsStreamInCaptureMode(param.stream);
     hcclDfxOpInfo.opMode = isAclGraph 
-        ? static_cast<u32>(ops_hccl::OpMode::ACLGRAPH) 
+        ? static_cast<u32>(ops_hccl::OpMode::ACLGRAPH)
         : static_cast<u32>(param.opMode);
         hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
         hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
@@ -2154,7 +2154,7 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
     uint64_t beginTime = HcommGetProfilingSysCycleTime();
     HCCL_INFO("[SingleRankProc]Start to execute HcclExecOp. HcommGetProfilingSysCycleTime[%llu]", beginTime);
     if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
-        HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, " 
+        HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, "
             "please ensure rankNum is greater than one", static_cast<int>(param.opType));
         return HCCL_E_NOT_SUPPORT;
     }
