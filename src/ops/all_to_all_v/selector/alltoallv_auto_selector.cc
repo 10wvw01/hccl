@@ -123,7 +123,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayer
             HCCL_ERROR("[Algo][AlltoAllVAutoSelector] CheckMeshNumEqualToClosNum failed."),
             SelectorStatus::NOT_MATCH);
         if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= 4)) { // 同一组4P，走并发算法
-            selectAlgName = "InsAlltoAllVMesh1DUBX";
+            selectAlgName = "InsAllToAllVMesh1DConcurrent";
         } else {
             selectAlgName = "InsAlltoAllVMesh1DUBX";
         }
@@ -144,6 +144,12 @@ SelectorStatus AlltoAllVAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE_V) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllVAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE_V);
+        return SelectorStatus::NOT_MATCH;
+    }
+
+    if (topoInfo->level2Ubg) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllVAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
+            __func__);
         return SelectorStatus::NOT_MATCH;
     }
 
@@ -171,7 +177,7 @@ SelectorStatus AlltoAllVAutoSelector::SelectDPUAlgo(
     HCCL_INFO("[AlltoAllVAutoSelector] hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
     if (topoInfo->topoLevelNums > 1) {
-        if ((topoInfo->deviceNumPerModule == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsAlltoAllVMesh1DDPU";
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {

@@ -197,13 +197,14 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
-            } else if (dataSize <= RS_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize) {
+            } else if (dataSize <= RS_MAX_DATA_SIZE && topoInfo->userRankSize >= ccuSize && !Is8BitDataType(opParam.DataDes.dataType)) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
                 return SelectorStatus::MATCH;
-            } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
+            } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize
+                && (!IsInputOutputOverlap(opParam)) && !Is8BitDataType(opParam.DataDes.dataType)) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
                 return SelectorStatus::MATCH;
-            } else if (dataSize <= 64 * 1024 * 1024 && topoInfo->userRankSize < ccuSize) {
+            } else if (dataSize <= 64 * 1024 * 1024 && topoInfo->userRankSize < ccuSize && !Is8BitDataType(opParam.DataDes.dataType)) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
                 return SelectorStatus::MATCH;
             } else if(IsSmallDataCCU(dataSize, topoInfo->userRankSize)){//64M以下跑ccu
@@ -438,7 +439,7 @@ SelectorStatus AllReduceAutoSelector::SelectMeshAlgoAicpuUBX(const TopoInfoWithN
             selectAlgName = "InsAllReduceMesh1DOneShot";
         } else {
             // 大数据量，用mesh+clos并行算法
-            selectAlgName = "InsAllReduceMesh1DTwoShot";
+            selectAlgName = "InsAllReduceConcurrent";
         }
     } else if (isDataTypeOrReduceTypeSpecial) {
         selectAlgName = "InsAllReduceAicpuReduceNHR";
@@ -534,6 +535,12 @@ SelectorStatus AllReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDe
 {
     (void)configAlgMap;
     HCCL_DEBUG("[Algo][AllReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+
+    if (topoInfo->level2Ubg) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllReduceAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
 
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AllReduceAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",

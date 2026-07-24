@@ -109,7 +109,7 @@ template<typename T>
 __aicore__ inline void AivReduceScatterV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     AivReduceScatterMesh1D<T> op;
-    op.Init(SUPERKERNEL_CLASS_INIT);
+    op.Init(SUPERKERNEL_CLASS_INIT, false);
 
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;

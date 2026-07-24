@@ -106,7 +106,7 @@ if(KERNEL_MODE)
     )
 
     # 打包：AICPU Kernel tar 包
-    pack_targets_and_files(
+    cann_pack_targets_and_files(
         OUTPUT_TARGET "package_aicpu_hccl_custom_p2p"
         OUTPUT "aicpu_hccl_custom_p2p.tar.gz"
         TARGETS p2p_aicpu_kernel
@@ -115,7 +115,7 @@ if(KERNEL_MODE)
     )
 
     # 签名：添加 AICPU Kernel tar 包的签名
-    sign_file(
+    add_cann_sign_file(
         INPUT "aicpu_hccl_custom_p2p.tar.gz"
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hccl_custom_p2p_check_cfg.xml
         RESULT_VAR "sign_aicpu_hccl_custom_p2p_result"

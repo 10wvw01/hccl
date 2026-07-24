@@ -57,8 +57,10 @@ add_library(scatter_aicpu_kernel SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/algo/template/scatter_ring.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/executor/ins_v2_scatter_sole_executor.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/executor/ins_v2_scatter_parallel_executor.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/executor/scatter_sequence_aicpu_executor_3level.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/template/aicpu/ins_temp_scatter_mesh_1D.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/template/aicpu/ins_temp_scatter_nhr.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/ops/scatter/template/aicpu/aicpu_temp_scatter_mesh_1D_Z_axis_detour.cc
 
 
     ${CMAKE_CURRENT_SOURCE_DIR}/ops/reduce_scatter/executor/ins_v2_reduce_scatter_sole_executor.cc
@@ -235,18 +237,3 @@ else()
     )
 endif()
 add_dependencies(scatter_aicpu_kernel hccl_kernel_compat)
-
-
-if(STATIC_MODE)
-    install(TARGETS scatter_aicpu_kernel
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
-        ${INSTALL_OPTIONAL}
-        COMPONENT hccl
-    )
-else()
-    install(TARGETS scatter_aicpu_kernel
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} 
-        ${INSTALL_OPTIONAL}
-        COMPONENT hccl
-    )
-endif()

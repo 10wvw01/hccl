@@ -60,7 +60,7 @@ SelectorStatus AlltoAllAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNet
     uint64_t sendCount = *sendCountPtr;
     uint64_t dataSize = sendCount * dataTypeSize * topoInfo->userRankSize;
     if (topoInfo->topoLevelNums > 1) {
-        if (topoInfo->level0Topo == Level0Shape::MESH_1D && topoInfo->userRankSize <= ccuSize && dataSize < A2A_CCU_64P_MAX_DATA_SIZE) {
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D && topoInfo->userRankSize <= ccuSize) {
             selectAlgName = "CcuAllToAllMesh1D2Die";
         } else {
             HCCL_WARNING("[AlltoAllAutoSelector] levelNum > 1 is not supported yet for 2d schedule mode.");
@@ -148,8 +148,8 @@ SelectorStatus AlltoAllAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetLayerD
             SelectorStatus::NOT_MATCH);
         if ((isMeshNumEqualToClosNum == true) && (topoInfo->userRankSize <= CONCURRENT_RANK_LIMIT) &&
             (opParam.all2AllDataDes.sendCount > BIG_DATA_SIZE_LIMIT)) {
-            // 同一组4P且大数据量，不走并发
-            selectAlgName = "InsAlltoAllMesh1DUBX";
+            // 同一组4P且大数据量，走并发
+            selectAlgName = "InsAllToAllMesh1DConcurrent";
         } else {
             selectAlgName = "InsAlltoAllMesh1DUBX";
         }
@@ -171,6 +171,12 @@ SelectorStatus AlltoAllAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDet
 
     if (topoInfo->userRankSize > MAX_RANK_SIZE) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] rankSize[%u] larger than [%u]", __func__, topoInfo->userRankSize, MAX_RANK_SIZE);
+        return SelectorStatus::NOT_MATCH;
+    }
+
+    if (topoInfo->level2Ubg) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[AlltoAllAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
+            __func__);
         return SelectorStatus::NOT_MATCH;
     }
 
@@ -216,7 +222,7 @@ SelectorStatus AlltoAllAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDet
     HCCL_INFO("hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
     if (topoInfo->topoLevelNums > 1) {
-        if ((topoInfo->deviceNumPerModule == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsAlltoAllMesh1DDPU";
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {

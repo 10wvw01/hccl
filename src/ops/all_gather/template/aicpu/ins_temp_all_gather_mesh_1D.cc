@@ -13,7 +13,7 @@
 #include "template_utils.h"
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "hccl_sym_win.h"
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 namespace ops_hccl {
 InsTempAllGatherMesh1D::InsTempAllGatherMesh1D(const OpParam &param, const u32 rankId,
                                                const std::vector<std::vector<u32>> &subCommRanks)
@@ -202,7 +202,7 @@ HcclResult InsTempAllGatherMesh1D::RunAllGatherMesh(const std::vector<ThreadHand
         TxRxSlicesList sendRecvSlicesList({txSrcSlicesAll, txDstSlicesAll}, {rxSrcSlicesAll, rxDstSlicesAll});
         TxRxChannels sendRecvChannels(linkRemote, linkRemote);
         SendRecvInfo sendRecvInfo(sendRecvChannels, sendRecvSlicesList);
-        CHK_PRT_RET(SendRecvRead(sendRecvInfo, threads[threadIdx]),
+        CHK_PRT_RET(SendRecvBatchRead(sendRecvInfo, threads[threadIdx]),
                     HCCL_ERROR("[InsTempAllGatherMesh1D] RunAllGather Send failed"), HcclResult::HCCL_E_INTERNAL);
         }
     return HcclResult::HCCL_SUCCESS;
