@@ -39,6 +39,8 @@ add_library(scatter_aicpu_kernel SHARED
     ${REFACTOR_OPS_DIR}/template/aicpu/allgather_nhr.cc
     ${REFACTOR_OPS_DIR}/template/aicpu/reducescatter_mesh.cc
     ${REFACTOR_OPS_DIR}/template/aicpu/reducescatter_nhr.cc
+    ${REFACTOR_OPS_DIR}/template/aicpu/scatter_mesh.cc
+    ${REFACTOR_OPS_DIR}/template/aicpu/scatter_nhr.cc
 
     # ── template/primitives：通信原语实现 ──
     ${REFACTOR_OPS_DIR}/template/primitives/mesh_primitives.cc
