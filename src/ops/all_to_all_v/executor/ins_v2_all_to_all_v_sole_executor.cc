@@ -51,7 +51,7 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
     AlgResourceRequest& resourceRequest)
 {
     CHK_PTR_NULL(topoInfo);
-    std::vector<std::vector<u32>> tempAlgHierachyInfo;
+    std::vector<std::vector<u32>> tempAlgHierarchyInfo;
     if (algHierarchyInfo.infos.size() == 0) {
         HCCL_ERROR("algHierarchyInfo level num is zero!");
         return HCCL_E_PARA;
@@ -65,7 +65,7 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
                     HCCL_E_PARA);
         if (topoInfo->topoLevelNums == 1 || param.engine == CommEngine::COMM_ENGINE_AIV ||
             param.engine == CommEngine::COMM_ENGINE_CCU) {
-            tempAlgHierachyInfo.push_back(algHierarchyInfo.infos[0][1]);
+            tempAlgHierarchyInfo.push_back(algHierarchyInfo.infos[0][1]);
         } else {
             CHK_PRT_RET(algHierarchyInfo.infos[0][1].size() >= algHierarchyInfo.infos[1][0].size(),
                         HCCL_ERROR("[InsV2AlltoAllVSoleExecutor][CalcRes] ranknum [%zu] in Layer0 with Level0Topo[%u] "
@@ -73,15 +73,15 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(
                                    algHierarchyInfo.infos[0][1].size(), topoInfo->level0Topo,
                                    algHierarchyInfo.infos[1][0].size()),
                         HCCL_E_PARA);
-            tempAlgHierachyInfo.push_back(algHierarchyInfo.infos[0][1]); // 跨框时，增加框内通信域，用于AICPU框内申请流资源
-            tempAlgHierachyInfo.push_back(algHierarchyInfo.infos[1][0]);
+            tempAlgHierarchyInfo.push_back(algHierarchyInfo.infos[0][1]); // 跨框时，增加框内通信域，用于AICPU框内申请流资源
+            tempAlgHierarchyInfo.push_back(algHierarchyInfo.infos[1][0]);
         }
     } else {
-        tempAlgHierachyInfo = algHierarchyInfo.infos[0];
+        tempAlgHierarchyInfo = algHierarchyInfo.infos[0];
     }
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate =
-        std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierachyInfo);
+        std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierarchyInfo);
     // 调用计算资源的函数
     CHK_RET(algTemplate->CalcRes(comm, param, topoInfo, resourceRequest));
     return HCCL_SUCCESS;
@@ -248,20 +248,20 @@ HcclResult InsV2AlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::Orchestrate
         }
     }
 
-    std::vector<std::vector<u32>> tempAlgHierachyInfo;
+    std::vector<std::vector<u32>> tempAlgHierarchyInfo;
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix && param.engine != CommEngine::COMM_ENGINE_AIV) {
         if (resCtx.topoInfo.topoLevelNums == 1 ) {
-            tempAlgHierachyInfo = {resCtx.algHierarchyInfo.infos[0][1]};
+            tempAlgHierarchyInfo = {resCtx.algHierarchyInfo.infos[0][1]};
         } else {
-            tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[1];
+            tempAlgHierarchyInfo = resCtx.algHierarchyInfo.infos[1];
         }
     } else {
-        tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[0];
+        tempAlgHierarchyInfo = resCtx.algHierarchyInfo.infos[0];
     }
 
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate =
-        std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierachyInfo);
+        std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierarchyInfo);
     u32 templateScratchMultiplier = algTemplate->CalcScratchMultiple(tempAlgParams.buffInfo.inBuffType,
                                                                      tempAlgParams.buffInfo.outBuffType);
 
