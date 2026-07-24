@@ -207,6 +207,7 @@ HcclResult ScatterExecutorBase::KernelRunLevel1(HcclMem &inputMem, u64 count, Hc
         HCCL_CONFIG_INFO(HCCL_ALG, "[%s] Run TEMPLATE_SCATTER_NB in COMM_LEVEL1", __func__);
     } else if (algType_.algoLevel1 == AlgTypeLevel1::ALG_LEVEL1_NHR) {
         level1TempAlg = AlgTemplateRegistry::Instance().GetAlgTemplate(TemplateType::TEMPLATE_SCATTER_NHR);
+        CHK_SMART_PTR_NULL(level1TempAlg);
         if (topoInfo_->deviceType != DevType::DEV_TYPE_910_93) {
             level1TempAlg->CloseBarrier();
         }
