@@ -177,7 +177,8 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
 SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
     const TopoInfoWithNetLayerDetails *topoInfo, const OpParam &opParam, std::string &selectAlgName) const
 {
-    CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"), SelectorStatus::NOT_MATCH);
+    CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
+        SelectorStatus::NOT_MATCH);
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
@@ -188,7 +189,8 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
             HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] > 16MB, fallback to aicpu.", dataSize);
             return SelectorStatus::NOT_MATCH;
         } else {
-            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8, HCCL_WARNING("[ReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode.", opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
+            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8, HCCL_WARNING("[ReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode.",
+            opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
             selectAlgName = "CcuReduceMesh1DTwoShotMem2Mem";
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
@@ -211,7 +213,6 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
                 selectAlgName = "CcuReduceParallelMesh1DNHRUBX";
             } else {
                 selectAlgName = "CcuV2ReduceOmniPipe2D";
-                HCCL_INFO("[ReduceAutoSelector] selectAlgName is CcuV2ReduceOmniPipe2D");
             }
         }
     } else if (topoInfo->level0Topo == Level0Shape::CLOS) {
