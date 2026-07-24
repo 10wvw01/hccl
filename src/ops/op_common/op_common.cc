@@ -2220,14 +2220,14 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
         CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
         s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
-        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.", 
-             __func__, param.algTag, sRet), HCCL_E_MEMORY);
+        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
+            __func__, param.algTag, sRet), HCCL_E_MEMORY);
 
 
         CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
         CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(cpuTsThread, param.outputPtr, param.inputPtr, len)));
     }
-    return HcclResult::HCCL_SUCCESS; 
+    return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult HcclCheckTag(const char *tag)
