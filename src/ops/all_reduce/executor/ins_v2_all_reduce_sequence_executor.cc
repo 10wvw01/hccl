@@ -435,7 +435,7 @@ HcclResult InsV2AllReduceSequenceExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
 }
 
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE,
-                                InsAllReduceSequenceMeshNhrDPU,
+                                DpuAllReduceSequenceMeshNHR,
                                 InsV2AllReduceSequenceExecutor,
                                 TopoMatchMultilevel,
                                 InsTempReduceScatterMesh1DIntra,

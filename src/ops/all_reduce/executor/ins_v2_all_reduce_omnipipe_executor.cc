@@ -893,7 +893,7 @@ HcclResult InsV2AllReduceOmniPipeExecutor<
     return HcclResult::HCCL_SUCCESS;
 }
 
-REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE, InsV2AllReduceOmniPipeMultilevel, InsV2AllReduceOmniPipeExecutor,
+REGISTER_EXEC_V2_MULTI(HcclCMDType::HCCL_CMD_ALLREDUCE, DpuAllReducePipeLineMeshNHRMesh, InsV2AllReduceOmniPipeExecutor,
                        TopoMatchMultilevel, InsTempReduceScatterOmniPipeMesh1D, InsTempReduceScatterOmniPipeNHR,
                        InsTempReduceScatterOmniPipeMesh1dDpu, InsTempAllGatherOmniPipeMesh1D, InsTempAllGatherOmniPipeNHR,
                        InsTempAllGatherOmniPipeNHRDPU);

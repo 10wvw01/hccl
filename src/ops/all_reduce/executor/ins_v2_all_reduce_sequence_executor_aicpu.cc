@@ -628,7 +628,7 @@ HcclResult InsV2AllReduceSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0, In
 
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE,
-                                InsAllReduceSequenceMesh1DNhr,
+                                AicpuAllReduceSequenceMeshConcurNHR,
                                 InsV2AllReduceSequenceExecutorAicpu,
                                 TopoMatchMultilevel,
                                 InsTempReduceScatterMesh1DZAxisDetour,
@@ -640,7 +640,7 @@ REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE,
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 REGISTER_EXECUTOR_BY_FOUR_TEMPS(HcclCMDType::HCCL_CMD_ALLREDUCE,
-                                CcuAllReduceSequenceMesh1D,
+                                CcuSchedAllReduceSequenceMeshMesh,
                                 InsV2AllReduceSequenceExecutorAicpu,
                                 TopoMatchMultilevel,
                                 CcuTempReduceScatterMesh1DMem2Mem,

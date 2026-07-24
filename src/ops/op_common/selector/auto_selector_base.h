@@ -34,7 +34,7 @@ enum class SelectorStatus { MATCH, NOT_MATCH };
 const std::map<HcclCMDType, std::string> OP_TYPE_TO_AICPU_SOLE_ALG_MAP = {
     {HcclCMDType::HCCL_CMD_ALLGATHER, "InsAllGatherMesh"},
     {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, "InsReduceScatterNHR"},
-    {HcclCMDType::HCCL_CMD_ALLREDUCE, "InsAllReduceNHR"},
+    {HcclCMDType::HCCL_CMD_ALLREDUCE, "AicpuAllReduceSoleNHR"},
     {HcclCMDType::HCCL_CMD_ALLTOALL, "InsAlltoAllMesh"},
     {HcclCMDType::HCCL_CMD_ALLTOALLV, "InsAlltoAllvMesh"},
     {HcclCMDType::HCCL_CMD_ALLTOALLVC, "InsAlltoAllvcMesh"},
@@ -43,7 +43,7 @@ const std::map<HcclCMDType, std::string> OP_TYPE_TO_AICPU_SOLE_ALG_MAP = {
 const std::map<HcclCMDType, std::string> OP_TYPE_TO_CCU_1D_ALG_MAP = {
     {HcclCMDType::HCCL_CMD_ALLGATHER, "CcuAllGatherMesh1D"},
     {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, "CcuReduceScatterMesh1D"},
-    {HcclCMDType::HCCL_CMD_ALLREDUCE, "CcuAllReduceMesh1D"},
+    {HcclCMDType::HCCL_CMD_ALLREDUCE, "CcuMSAllReduceSoleMesh"},
     {HcclCMDType::HCCL_CMD_REDUCE, "CcuReduceMesh1D"},
     {HcclCMDType::HCCL_CMD_ALLTOALL, "CcuAlltoAllMesh1D"},
     {HcclCMDType::HCCL_CMD_ALLTOALLV, "CcuAlltoAllVMesh1D"},
@@ -65,8 +65,8 @@ const std::map<HcclCMDType, std::string> OP_TYPE_TO_DPU_ALG_MAP = {
 const std::unordered_map<std::string, std::string> RES_RESUSE_ALG = {
     {"InsReduceScatterMesh1D", "InsReduceScatterMeshClass"},
     {"InsReduceScatterMesh1DMeshChunk", "InsReduceScatterMeshClass"},
-    {"InsAllReduceMesh1DOneShot", "InsAllReduceMeshClass"},
-    {"InsAllReduceMesh1DTwoShot", "InsAllReduceMeshClass"},
+    {"AicpuAllReduceSoleMeshOneShot", "InsAllReduceMeshClass"},
+    {"AicpuAllReduceSoleMeshTwoShot", "InsAllReduceMeshClass"},
     {"InsSend", "InsSendRecv"},
     {"InsRecv", "InsSendRecv"}
 };
