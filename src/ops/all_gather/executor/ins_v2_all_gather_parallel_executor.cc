@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -321,7 +321,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
         interTempAlg.SetchannelsPerRank(interLinkMap_);
     }
     // 将计算资源分配个每个算法
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     // 算法展开
 
     HcclResult ret = OrchestrateLoop(param, resCtx, intraTempAlg, interTempAlg);
@@ -557,7 +557,7 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     TemplateResource templateAlgResIntra, templateAlgResInter;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
     

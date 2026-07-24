@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) 2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -267,7 +267,7 @@ HcclResult InsV2AllGatherOmniPipe2DExecutor<AlgTopoMatch, CcuAlgTempLevel0, CcuA
     templateResourceLevel1.ccuKernels.insert(templateResourceLevel1.ccuKernels.end(),
             resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0],
             resCtx.ccuKernels.begin() + resCtx.ccuKernelNum[0] + resCtx.ccuKernelNum[1]);
-    PrepareResForTemplate(param, resCtx, algTemplateLevel0, algTemplateLevel1);
+    CHK_RET(PrepareResForTemplate(param, resCtx, algTemplateLevel0, algTemplateLevel1));
 
     // 1. 计算带宽
     double eqBwLevel0 = BW_OMNI_UBX_CCU_SCHED_AG_MESH;

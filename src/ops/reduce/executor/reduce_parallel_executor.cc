@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -712,7 +712,7 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
     TemplateResource templateAlgResIntra, templateAlgResInter;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForStage(0);
+    CHK_RET(PrepareResForStage(0));
 
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
 
@@ -754,7 +754,7 @@ HcclResult ReduceParallelExecutor<AlgTopoMatch, AlgTemplate0, AlgTemplate1, AlgT
     CHK_RET(PostSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnMain_));
 
     // allgather
-    PrepareResForStage(1);
+    CHK_RET(PrepareResForStage(1));
     // step 3
     CHK_RET(PreSyncInterThreads(mainThread_, templateMainThreads_, syncNotifyOnTemplates_));
     // 数据0 allgather nhr
