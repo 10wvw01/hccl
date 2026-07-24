@@ -209,9 +209,11 @@ static CcuResult LocalCopySlices(AllReduceNhrMem2Mem1DMultiJettyContext &ctx)
             ctx.localOutput.addr += ctx.sliceOffset[nonTxSliceIdx];
             ctx.localOutput.token = ctx.outputTokens[ctx.rankId];
             
-            CCU_CHK_RET(DoLocalCopySlice(ctx, ctx.localInput, ctx.localOutput, nonTxSliceIdx, event, 1 << i));
+            CCU_CHK_RET(DoLocalCopySlice(ctx, ctx.localInput, ctx.localOutput, nonTxSliceIdx, event, 1 << (i % BIT_NUM_PER_CKE)));
         }
-        ccu::EventWait(event, (1 << (nonTxSliceIdxList.size() % BIT_NUM_PER_CKE)) - 1);
+        // 最后一组slice可能不足16个，也可能正好16个；size%16为0时需等待满16个bit
+        u32 lastGroupSize = ((nonTxSliceIdxList.size() - 1) % BIT_NUM_PER_CKE) + 1;
+        ccu::EventWait(event, (1 << lastGroupSize) - 1);
     }
     return CCU_SUCCESS;
 }
@@ -281,7 +283,9 @@ static CcuResult DoReduceScatterNHRSingleStep(AllReduceNhrMem2Mem1DMultiJettyCon
         CCU_CHK_RET(DoWriteReduceSlice(ctx, nhrStepInfo.toRank, ctx.localInput, ctx.remoteOutput, 
             sendSliceIdx, i % BIT_NUM_PER_CKE));
     }
-    CCU_CHK_RET(LocalWaitAllEvent(ctx, (1 << (sendSliceIdxList.size() % BIT_NUM_PER_CKE)) - 1));
+    // 最后一组slice可能不足16个，也可能正好16个；size%16为0时需等待满16个bit
+    u32 lastGroupSize = ((sendSliceIdxList.size() - 1) % BIT_NUM_PER_CKE) + 1;
+    CCU_CHK_RET(LocalWaitAllEvent(ctx, (1 << lastGroupSize) - 1));
 
     ccu::NotifyRecord(arg->channels[toRankIdx], signalIdDone, signalBitDoneMask);
     ccu::NotifyWait(arg->channels[fromRankIdx], signalIdDone, signalBitDoneMask);
@@ -381,7 +385,9 @@ static CcuResult DoAllGatherNHRSingleStep(AllReduceNhrMem2Mem1DMultiJettyContext
         CCU_CHK_RET(DoSendRecvSlice(ctx, nhrStepInfo.toRank, ctx.localInput, ctx.remoteOutput, 
             sendSliceIdx, i % BIT_NUM_PER_CKE));
     }
-    CCU_CHK_RET(LocalWaitAllEvent(ctx, (1 << (sendSliceIdxList.size() % BIT_NUM_PER_CKE)) - 1));
+    // 最后一组slice可能不足16个，也可能正好16个；size%16为0时需等待满16个bit
+    u32 lastGroupSize = ((sendSliceIdxList.size() - 1) % BIT_NUM_PER_CKE) + 1;
+    CCU_CHK_RET(LocalWaitAllEvent(ctx, (1 << lastGroupSize) - 1));
 
     ccu::NotifyRecord(arg->channels[toRankIdx], signalIdDone, signalBitDoneMask);
     ccu::NotifyWait(arg->channels[fromRankIdx], signalIdDone, signalBitDoneMask);
