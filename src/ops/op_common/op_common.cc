@@ -2172,63 +2172,59 @@ HcclResult SetCommEngine(OpParam &param)
     return HCCL_E_NOT_SUPPORT;
 }
 
-static HcclResult ProcessSingleRankOp(HcclComm comm, OpParam &param, u64 len) {
-    ThreadHandle cpuTsThread{0};
-    CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
-
-    HcclDfxOpInfoCompat hcclDfxOpInfo{};
-    bool isAclGraph = IsStreamInCaptureMode(param.stream);
-    hcclDfxOpInfo.opMode = isAclGraph ? static_cast<u32>(ops_hccl::OpMode::ACLGRAPH) : static_cast<u32>(param.opMode);
-    hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
-    hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
-    CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
-
-    u32 userRankSize{0};
-    CHK_RET(HcclGetRankSize(comm, &userRankSize));
-    CHK_RET(GetHcclDfxOpInfoDataCount(param, userRankSize, hcclDfxOpInfo.dataCount));
-    hcclDfxOpInfo.root = param.root;
-    hcclDfxOpInfo.engine = param.engine;
-    hcclDfxOpInfo.cpuTsThread = cpuTsThread;
-    hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
-    CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
-    s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
-        __func__, param.algTag, sRet), HCCL_E_MEMORY);
-
-    CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
-    CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(cpuTsThread, param.outputPtr, param.inputPtr, len)));
-    return HCCL_SUCCESS;
-}
 HcclResult SingleRankProc(HcclComm comm, OpParam &param)
-{
-    if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
-        HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, "
-            "please ensure rankNum is greater than one", static_cast<int>(param.opType));
-        return HCCL_E_NOT_SUPPORT;
-    }
-    if (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE) {
-        HCCL_WARNING("[%s] ranksize == 1 is not support BATCHSENDRECV SEND RECV", __func__);
-        return HcclResult::HCCL_SUCCESS;
-    }
-    if (param.inputPtr == param.outputPtr) {
-        HCCL_WARNING("[%s] sendBuf == recvBuf, return success", __func__);
-        return HcclResult::HCCL_SUCCESS;
-    }
-    u64 len{0};
-    if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL || param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
-        param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
-        len = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType] * *(static_cast<const u64 *>(param.all2AllVDataDes.sendCounts));
-    } else if (param.opType == HCCL_CMD_ALLGATHER_V || param.opType == HCCL_CMD_REDUCE_SCATTER_V) {
-        len = DATATYPE_SIZE_TABLE[param.vDataDes.dataType] * *(static_cast<const u64 *>(param.vDataDes.counts));
-    } else {
-        len = DATATYPE_SIZE_TABLE[param.DataDes.dataType] * param.DataDes.count;
-    }
+ 	{
+ 	if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
+ 	    HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, "
+ 	        "please ensure rankNum is greater than one", static_cast<int>(param.opType));
+ 	    return HCCL_E_NOT_SUPPORT;
+ 	}
+ 	if (param.opType == HcclCMDType::HCCL_CMD_SEND || param.opType == HcclCMDType::HCCL_CMD_RECEIVE) {
+ 	    HCCL_WARNING("[%s] ranksize == 1 is not support BATCHSENDRECV SEND RECV", __func__);
+ 	    return HcclResult::HCCL_SUCCESS;
+ 	}
+ 	if (param.inputPtr == param.outputPtr) {
+ 	    HCCL_WARNING("[%s] sendBuf == recvBuf, return success", __func__);
+ 	    return HcclResult::HCCL_SUCCESS;
+ 	}
+ 	u64 len{0};
+ 	if (param.opType == HcclCMDType::HCCL_CMD_ALLTOALL || param.opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
+ 	    param.opType == HcclCMDType::HCCL_CMD_ALLTOALLVC) {
+ 	    len = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType] * *(static_cast<const u64 *>(param.all2AllVDataDes.sendCounts));
+ 	} else if (param.opType == HCCL_CMD_ALLGATHER_V || param.opType == HCCL_CMD_REDUCE_SCATTER_V) {
+ 	    len = DATATYPE_SIZE_TABLE[param.vDataDes.dataType] * *(static_cast<const u64 *>(param.vDataDes.counts));
+ 	} else {
+ 	    len = DATATYPE_SIZE_TABLE[param.DataDes.dataType] * param.DataDes.count;
+ 	}
 
-    HCCL_INFO("[%s] sendBuf[%p], recvBuf[%p], len[%llu]", __func__, param.inputPtr, param.outputPtr, len);
-    if (len > 0) {
-        return ProcessSingleRankOp(comm, param, len);
-    }
-    return HcclResult::HCCL_SUCCESS;
+ 	HCCL_INFO("[%s] sendBuf[%p], recvBuf[%p], len[%llu]", __func__, param.inputPtr, param.outputPtr, len);
+ 	if (len > 0) {
+ 	    ThreadHandle cpuTsThread{0};
+ 	    CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
+ 	    // Op注册
+ 	    HcclDfxOpInfoCompat hcclDfxOpInfo{};
+ 	    hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
+ 	    hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
+ 	    hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
+ 	    CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
+
+ 	    // rankSize获取指定算子的dataCount
+ 	    u32 userRankSize{0};
+ 	    CHK_RET(HcclGetRankSize(comm, &userRankSize));
+ 	    CHK_RET(GetHcclDfxOpInfoDataCount(param, userRankSize, hcclDfxOpInfo.dataCount));
+ 	    hcclDfxOpInfo.root = param.root;
+ 	    hcclDfxOpInfo.engine = param.engine;
+ 	    hcclDfxOpInfo.cpuTsThread = cpuTsThread;
+ 	    hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
+ 	    CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
+ 	    s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
+ 	    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s, return %d.",
+ 	        __func__, param.algTag, sRet), HCCL_E_MEMORY);
+ 	 
+ 	    CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
+ 	    CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(cpuTsThread, param.outputPtr, param.inputPtr, len)));
+ 	}
+ 	return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult HcclCheckTag(const char *tag)
