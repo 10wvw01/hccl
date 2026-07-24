@@ -64,7 +64,7 @@
         std::string Describe() const                                                                                   \
         {                                                                                                              \
             static std::vector<std::string> m = InitStrs();                                                            \
-            if (value > m.size())                                                                                      \
+            if (value >= m.size())                                                                                     \
                 return std::string(#enumClass) + "::Invalid";                                                          \
             return m[value];                                                                                           \
         }                                                                                                              \
