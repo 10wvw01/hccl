@@ -44,7 +44,8 @@ constexpr uint64_t CCU_MAX_RANK_SIZE = 16;
 // 算子执行模式
 enum class OpMode {
     OPBASE = 0,
-    OFFLOAD = 1
+    OFFLOAD = 1,
+    ACLGRAPH = 2
 };
 
 // 设备类型
