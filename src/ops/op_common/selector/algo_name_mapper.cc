@@ -114,15 +114,4 @@ void AlgoNameMapper::Enrich(hcclTunerAlgoEntry_t *entries, int count)
     }
 }
 
-/* ===== query：按需查单个算法 ===== */
-bool AlgoNameMapper::Query(const std::string &algName, AlgoDims &dims) const
-{
-    auto it = cache_.find(algName);
-    if (it == cache_.end()) {
-        return false;
-    }
-    dims = it->second;
-    return true;
-}
-
 } /* namespace ops_hccl */

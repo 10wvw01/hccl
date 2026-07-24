@@ -43,9 +43,6 @@ public:
     /* enrich：填 3D 名到 entry 数组（每次 op，CostTableGen 之后调用） */
     void Enrich(hcclTunerAlgoEntry_t *entries, int count);
 
-    /* query：按需查单个算法（其他模块用） */
-    bool Query(const std::string &algName, AlgoDims &dims) const;
-
 private:
     AlgoNameMapper() = default;
 
@@ -53,7 +50,7 @@ private:
     std::unordered_map<std::string,
         std::pair<const char*, const char*>> map2D_;
 
-    /* 算法缓存（init 时填充，Query/Enrich 直接读） */
+    /* 算法缓存（init 时填充，Enrich 直接读） */
     std::unordered_map<std::string, AlgoDims> cache_;
 
     void BuildMap2D();

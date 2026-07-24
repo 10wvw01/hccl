@@ -430,8 +430,8 @@ static void TestSchemaTypoDetection(void)
     ResetPluginState();
     /* "mtach" 是 "match" 的拼写错误 */
     FILE *fp = fopen("/tmp/hccl_tuner_test_typo.json", "w");
-    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"mtach\":{\"min_ranks\":8},\"engine\":0,"
-          "\"executor\":0,\"template\":0,\"cost\":0.0}]}}}",
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"mtach\":{\"min_ranks\":8},\"engine\":\"aicpu\","
+           "\"executor\":\"sole\",\"template\":\"mesh\",\"cost\":0.0}]}}}",
           fp);
     fclose(fp);
     setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_typo.json", 1);
@@ -458,8 +458,8 @@ static void TestSchemaMissingRequired(void)
     ResetPluginState();
     /* 缺少必填字段 cost */
     FILE *fp = fopen("/tmp/hccl_tuner_test_typo.json", "w");
-    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":0,"
-          "\"executor\":0,\"template\":0}]}}}",
+    fputs("{\"version\":1,\"op_types\":{\"allreduce\":{\"rules\":[{\"match\":{\"min_ranks\":8},\"engine\":\"aicpu\","
+           "\"executor\":\"sole\",\"template\":\"mesh\"}]}}}",
           fp);
     fclose(fp);
     setenv("HCCL_TUNER_CONFIG_FILE", "/tmp/hccl_tuner_test_typo.json", 1);
