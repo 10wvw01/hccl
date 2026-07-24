@@ -84,19 +84,22 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             __func__);
         return SelectorStatus::NOT_MATCH;
     }
-    u32 ccuSize = 32;
-    constexpr u64 CCU_SCHEDULE_2LEVEL_MORE_32P_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
-    constexpr u64 CCU_SCHEDULE_2LEVEL_LESS_32P_MAX_PER_RANK_DATA_SIZE = 64ULL * 1024 * 1024;
+    u32 ccuSize = 64;
+    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
+    constexpr u64 CCU_SCHEDULE_2LEVEL_LESS_64P_MAX_SIZE = 64ULL * 1024 * 1024;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
+            if (topoInfo->userRankSize <= ccuSize && dataSize > CCU_SCHEDULE_2LEVEL_LESS_64P_MAX_SIZE) {
+                HCCL_INFO("[BroadcastAutoSelector] 2 level topo less than 64P, which dataSize exceeds limit, fallback to aicpu.");
+                return SelectorStatus::NOT_MATCH;
+            }
             if (topoInfo->userRankSize == 0 ||
-                (dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MORE_32P_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize > ccuSize) || 
-                (dataSize > CCU_SCHEDULE_2LEVEL_LESS_32P_MAX_PER_RANK_DATA_SIZE && topoInfo->userRankSize <= ccuSize)) {
+                dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
                 HCCL_INFO("[BroadcastAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                     (topoInfo->userRankSize == 0 || topoInfo->userRankSize <= ccuSize) ? dataSize : dataSize / topoInfo->userRankSize);
+                     (topoInfo->userRankSize == 0) ? dataSize : dataSize / topoInfo->userRankSize);
                 return SelectorStatus::NOT_MATCH;
             }
             if(topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1){ // 每框出1卡
