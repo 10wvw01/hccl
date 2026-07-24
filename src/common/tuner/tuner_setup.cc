@@ -222,7 +222,7 @@ bool HcclTunerIsLoaded()
     return g_loadStatus == LOAD_SUCCESS;
 }
 
-HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo)
+HcclResult HcclTunerInit(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo)
 {
     /* 1. 加载插件（mutex 保护，首次 dlopen + dlsym + 版本校验） */
     hcclTunerFuncs_t funcs = {};
@@ -248,7 +248,7 @@ HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo
     BuildHostFuncs(hostFuncs);
 
     /* 4. 调用插件 init（使用锁内拷贝的 funcs 副本） */
-    HCCL_INFO("[TunerSetup] comm[%p] nRanks[%u] nServers[%u] nNpusPerServer[%u] commName[%s] bufferSize[%llu].", comm,
+    HCCL_INFO("[HcclTunerInit] comm[%p] nRanks[%u] nServers[%u] nNpusPerServer[%u] commName[%s] bufferSize[%llu].", comm,
               commInfo.nRanks, commInfo.nServers, commInfo.nNpusPerServer,
               (commInfo.commName != nullptr) ? commInfo.commName : "?", commInfo.bufferSize);
     auto initStart = std::chrono::steady_clock::now();
@@ -259,10 +259,10 @@ HcclResult TunerSetup(HcclComm comm, const TopoInfoWithNetLayerDetails *topoInfo
         HCCL_WARNING("[Tuner] plugin init took %lldms (threshold %llums).", initMs, TUNER_SLOW_INIT_THRESHOLD_MS);
     }
     if (ret != HCCL_SUCCESS) {
-        HCCL_WARNING("[TunerSetup] plugin init failed, ret[%d], fall back to CostModel.", ret);
+        HCCL_WARNING("[HcclTunerInit] plugin init failed, ret[%d], fall back to CostModel.", ret);
         return HCCL_SUCCESS;
     }
-    HCCL_INFO("[TunerSetup] plugin init success, comm[%p].", comm);
+    HCCL_INFO("[HcclTunerInit] plugin init success, comm[%p].", comm);
     return HCCL_SUCCESS;
 }
 
@@ -295,7 +295,7 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
     collInfo.dataType = dataType;
     collInfo.structSize = sizeof(hcclTunerCollInfo_t);
 
-    /* 使用锁内拷贝的 funcs 副本，避免并发 TunerCleanup 重置 g_funcs */
+    /* 使用锁内拷贝的 funcs 副本，避免并发 HcclTunerDestroy 重置 g_funcs */
     auto callStart = std::chrono::steady_clock::now();
     HcclResult ret = funcs.getCollInfo(comm, &collInfo, algoEntries, algoCount);
     auto callMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -320,7 +320,7 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
     return HCCL_SUCCESS;
 }
 
-HcclResult TunerCleanup(HcclComm comm)
+HcclResult HcclTunerDestroy(HcclComm comm)
 {
     (void)comm;
     std::lock_guard<std::mutex> lock(g_tunerMutex);

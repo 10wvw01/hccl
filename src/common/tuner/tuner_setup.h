@@ -45,7 +45,7 @@ void TunerLogFunction(int level, const char *file, int line, const char *fmt, ..
 
 /* comm 创建时调用：dlopen 插件 + dlsym + 版本校验 + 引用计数 + 构造 hostFuncs + 调用插件 init。
  * topoInfo 用于填充 hcclTunerCommInfo_t。未配置 HCCL_TUNER_PLUGIN 或加载失败时为 no-op，返回 HCCL_SUCCESS。 */
-HcclResult TunerSetup(HcclComm comm, const ops_hccl::TopoInfoWithNetLayerDetails *topoInfo);
+HcclResult HcclTunerInit(HcclComm comm, const ops_hccl::TopoInfoWithNetLayerDetails *topoInfo);
 
 /* 每次 op 时调用：将 HcclCMDType 转换为 hcclOpType_t，构造 collInfo，调用插件 getCollInfo。
  * 插件未加载时为 no-op；不支持的算子类型（HCCL_OP_INVALID）跳过，返回 HCCL_SUCCESS。
@@ -54,7 +54,7 @@ HcclResult HcclTunerCallGetCollInfo(HcclComm comm, HcclCMDType cmdType, size_t n
                                     hcclTunerAlgoEntry_t *algoEntries, int algoCount);
 
 /* comm 销毁时调用：引用计数--。.so 不 dlclose（避免与在途 getCollInfo 竞争），随进程退出回收。 */
-HcclResult TunerCleanup(HcclComm comm);
+HcclResult HcclTunerDestroy(HcclComm comm);
 
 /* 返回插件是否已成功加载（selector 可据此跳过 getCollInfo 调用）。 */
 bool HcclTunerIsLoaded();
