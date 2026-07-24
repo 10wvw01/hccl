@@ -43,7 +43,8 @@ static CcuResult InitResource(GatherOmniPipeNHR1DMem2MemContext &ctx)
         return CCU_E_INTERNAL;
     }
     
-    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]", ctx.arg->channelCount, ctx.localSize);
+    HCCL_DEBUG("[CcuGatherOmniPipeNHR1DMem2Mem] channels.size:[%u] localSize:[%u]",
+        ctx.arg->channelCount, ctx.localSize);
     
     ctx.input.resize(ctx.localSize + 1);
     ctx.scratch.resize(ctx.localSize + 1);
@@ -131,8 +132,8 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
         ccu::NotifyRecord(sendChannel, CKE_IDX_0, 1 << STEP_SYNC_ID);
     }
 
-    HCCL_DEBUG("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(), sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
-
+    HCCL_DEBUG("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(),
+        sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
 
     if (recvSliceIdxList.size() != 0) {
         u32 fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];

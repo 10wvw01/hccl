@@ -17,7 +17,7 @@
 namespace ops_hccl {
 
 CcuTempGatherOmniPipeNHR1DMem2Mem::CcuTempGatherOmniPipeNHR1DMem2Mem(const OpParam& param, const u32 rankId,
-                                                                        const std::vector<std::vector<u32>>& subCommRanks)
+    const std::vector<std::vector<u32>>& subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
     std::vector<u32> ranks = subCommRanks[0];
@@ -78,8 +78,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetRes(AlgResourceRequest &resourc
 }
 
 HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpParam& param,
-                                                        const TopoInfoWithNetLayerDetails* topoInfo,
-                                                        AlgResourceRequest& resourceRequest)
+    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
     // 不需要从流
     GetRes(resourceRequest);
@@ -136,8 +135,7 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::CalcRes(HcclComm comm, const OpPar
 
 
 HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::KernelRun(const OpParam& param,
-                                                          const TemplateDataParams& templateDataParams,
-                                                          TemplateResource& templateResource)
+    const TemplateDataParams& templateDataParams, TemplateResource& templateResource)
 {
     if (templateRankSize_ <= 1) {
         return HCCL_SUCCESS;
@@ -311,7 +309,6 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
     stepInfo.toRank = sendTo; // TODO ranks[sendTo];
     stepInfo.fromRank = recvFrom; // TODO ranks[recvFrom];
     stepInfo.nSlices = nSlices;
-    
 
     HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subCommRootId_[%u]", __func__, myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_);
     return HcclResult::HCCL_SUCCESS;

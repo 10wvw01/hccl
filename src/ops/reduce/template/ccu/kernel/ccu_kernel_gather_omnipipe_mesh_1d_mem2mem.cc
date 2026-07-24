@@ -18,7 +18,8 @@ constexpr int TOKEN_XN_ID = 2;
 constexpr int POST_SYNC_ID = 3;
 constexpr int CKE_IDX_0 = 0;
 
-static CcuResult ParseKernelArg(GatherOmniPipeMesh1DMem2MemContext &ctx, CcuKernelArgGatherOmniPipeMesh1DMem2Mem *kernelArg)
+static CcuResult ParseKernelArg(GatherOmniPipeMesh1DMem2MemContext &ctx,
+    CcuKernelArgGatherOmniPipeMesh1DMem2Mem *kernelArg)
 {
     ctx.arg = kernelArg;
     ctx.rankSize = kernelArg->rankSize;
@@ -87,8 +88,10 @@ static CcuResult LoadArgs(GatherOmniPipeMesh1DMem2MemContext &ctx)
 static CcuResult PreSync(GatherOmniPipeMesh1DMem2MemContext &ctx)
 {
     for (uint32_t i = 0; i < ctx.arg->channelCount; i++) {
-        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.rankId], INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
-        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.rankId], TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
+        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.input[ctx.rankId],
+            INPUT_XN_ID, CKE_IDX_0, 1 << INPUT_XN_ID);
+        ccu::WriteVariableWithNotify(ctx.arg->channels[i], ctx.token[ctx.rankId],
+            TOKEN_XN_ID, CKE_IDX_0, 1 << TOKEN_XN_ID);
     }
     
     uint32_t allBit = (1 << INPUT_XN_ID) | (1 << TOKEN_XN_ID);
@@ -124,8 +127,10 @@ static CcuResult DoGather(GatherOmniPipeMesh1DMem2MemContext &ctx)
         ctx.sliceSize = ctx.sliceSizeOmniSliceStrideVec[rankIdx];
         CCU_IF(ctx.sliceSize != 0) {
             if (ctx.rankId != rankIdx) {
-                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx], ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
-                HCCL_DEBUG("[CcuGatherOmniPipeMesh1DMem2Mem] channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]", channelId, rankIdx, ctx.inputMem[rankIdx], ctx.sliceSize);
+                ccu::Read(ctx.arg->channels[channelId], ctx.outputMem[rankIdx],
+                    ctx.inputMem[rankIdx], ctx.sliceSize, ctx.event, rankMask);
+                HCCL_DEBUG("[%s]channelId[%u] rankIdx[%u] inputMem[%llu] sliceSize[%u]",
+                    __func__, channelId, rankIdx, ctx.inputMem[rankIdx], ctx.sliceSize);
                 channelId++;
             } else {
                 ccu::EventRecord(ctx.event, rankMask);
