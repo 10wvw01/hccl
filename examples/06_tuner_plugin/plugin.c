@@ -1,0 +1,908 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+/* HCCL Tuner Plugin 示例实现。
+ *
+ * 功能：读取 JSON 配置文件，按 match 条件匹配集合通信调用，修改 3D cost table
+ * （engine[5] × executor[7] × template[16] = 560 floats）以影响 Selector 算法选择。
+ *
+ * 编译：make（链接为 hccl_tuner_example.so）
+ * 使用：export HCCL_TUNER_PLUGIN=/path/to/hccl_tuner_example.so
+ *       export HCCL_TUNER_CONFIG_FILE=/path/to/hccl_tuner_config.json
+ */
+
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "hccl_tuner_plugin.h"
+#include "hccl_algo_dims.h"
+
+/* ===== 常量 ===== */
+#define MAX_RULES 64
+#define MAX_OP_TYPES 8
+#define MAX_STR_LEN 64
+#define MAX_FILE_SIZE (256 * 1024)
+#define COMM_NAME_BUF_LEN 128
+
+/* ===== 数据结构 ===== */
+typedef struct {
+    int hasMinRanks;
+    int hasMaxRanks;
+    int hasMinBytes;
+    int hasMaxBytes;
+    int hasDataType;
+    int hasCommName;
+    int hasMinNpusPerServer;
+    int hasMaxNpusPerServer;
+    int hasMinServers;
+    int hasMaxServers;
+    int hasMinPods;
+    int hasMaxPods;
+    int hasMinSuperPods;
+    int hasMaxSuperPods;
+    int hasBufferSize;
+    uint32_t minRanks;
+    uint32_t maxRanks;
+    size_t minBytes;
+    size_t maxBytes;
+    char dataType[MAX_STR_LEN];
+    char commName[MAX_STR_LEN];
+    uint32_t minNpusPerServer;
+    uint32_t maxNpusPerServer;
+    uint32_t minServers;
+    uint32_t maxServers;
+    uint32_t minPods;
+    uint32_t maxPods;
+    uint32_t minSuperPods;
+    uint32_t maxSuperPods;
+    uint64_t bufferSize;
+} MatchCond;
+
+typedef struct {
+    MatchCond match;
+    char engine[16];       /* "aicpu" 或 "" (通配) */
+    char executor[16];     /* "sole" 或 "" */
+    char template[32];     /* "mesh_one_shot" 或 "" */
+    float cost;
+    int hasCost;
+} Rule;
+
+typedef struct {
+    hcclOpType_t opType;
+    Rule rules[MAX_RULES];
+    int ruleCount;
+} OpRuleSet;
+
+/* per-comm 存储上下文（经 hostFuncs->ctxCreate 持久化到通信域 host 内存） */
+typedef struct {
+    OpRuleSet opSets[MAX_OP_TYPES];
+    int opSetCount;
+    hcclTunerCommInfo_t commInfo;
+    char commNameBuf[COMM_NAME_BUF_LEN];
+    int configValid; /* Schema 校验结果：1=有效可干预，0=无效不干预 */
+} StoredContext;
+
+/* defaults 块：全局默认值，规则中省略的字段自动继承（仅 init 期间使用） */
+typedef struct {
+    char engine[16];
+    char executor[16];
+    char template[32];
+    int hasEngine;
+    int hasExecutor;
+    int hasTemplate;
+} DefaultValues;
+
+/* ===== 全局 hostFuncs（函数表，全进程相同）===== */
+static hcclTunerHostFunctions_t g_hostFuncs;
+static int g_hostFuncsReady = 0;
+
+/* Schema 校验状态（per-init 局部变量，避免并发 comm init 竞争） */
+typedef struct {
+    int errors;
+    int warnings;
+    int foundVersion;
+    int foundOpTypes;
+} SchemaState;
+
+#ifdef HCCL_TUNER_TESTING
+static SchemaState g_lastSchema = {0}; /* 供测试验证 schema 校验结果 */
+#endif
+
+static void SchemaWarn(SchemaState *s, const char *scope, const char *field)
+{
+    s->warnings++;
+    if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+        g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__,
+                                "Schema: unknown field '%s' in %s, skipping", field, scope);
+    }
+}
+
+static void SchemaError(SchemaState *s, const char *fmt, ...)
+{
+    s->errors++;
+    if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+        va_list args;
+        va_start(args, fmt);
+        char buf[256] = {0};
+        (void)vsnprintf(buf, sizeof(buf), fmt, args);
+        va_end(args);
+        g_hostFuncs.logFunction(HCCL_TUNER_LOG_ERROR, __FILE__, __LINE__, "Schema: %s", buf);
+    }
+}
+
+/* ===== 数据类型字符串映射 ===== */
+static const struct {
+    const char *name;
+    HcclDataType type;
+} g_dataTypeMap[] = {
+    {"int8", HCCL_DATA_TYPE_INT8},         {"int16", HCCL_DATA_TYPE_INT16},       {"int32", HCCL_DATA_TYPE_INT32},
+    {"int64", HCCL_DATA_TYPE_INT64},       {"uint8", HCCL_DATA_TYPE_UINT8},       {"uint16", HCCL_DATA_TYPE_UINT16},
+    {"uint32", HCCL_DATA_TYPE_UINT32},     {"uint64", HCCL_DATA_TYPE_UINT64},     {"fp16", HCCL_DATA_TYPE_FP16},
+    {"float16", HCCL_DATA_TYPE_FP16},      {"fp32", HCCL_DATA_TYPE_FP32},         {"float32", HCCL_DATA_TYPE_FP32},
+    {"fp64", HCCL_DATA_TYPE_FP64},         {"float64", HCCL_DATA_TYPE_FP64},     {"bfp16", HCCL_DATA_TYPE_BFP16},
+    {"bfloat16", HCCL_DATA_TYPE_BFP16},
+};
+
+static HcclDataType ParseDataType(const char *name)
+{
+    for (size_t i = 0; i < sizeof(g_dataTypeMap) / sizeof(g_dataTypeMap[0]); i++) {
+        if (strcmp(name, g_dataTypeMap[i].name) == 0) {
+            return g_dataTypeMap[i].type;
+        }
+    }
+    return HCCL_DATA_TYPE_RESERVED;
+}
+
+/* 维度值校验由 hccl_algo_dims.h 的 HcclUserToEngine/HcclUserToExecutor/HcclUserToTemplate 完成，
+ * 与 algo_name_mapper.cc 共享同一权威来源（g_hcclEngines/g_hcclExecutors/g_hcclTemplates）。 */
+
+/* ===== 极简 JSON 解析器（仅支持本插件配置格式，无外部依赖）===== */
+
+typedef struct {
+    const char *json;
+    size_t pos;
+    size_t len;
+} JsonParser;
+
+/* 前向声明：ParseConfig 调用 ParseDefaults，后者定义在后面 */
+static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s);
+
+static void JsonSkipWs(JsonParser *p)
+{
+    while (p->pos < p->len && isspace((unsigned char)p->json[p->pos])) {
+        p->pos++;
+    }
+}
+
+static int JsonMatch(JsonParser *p, char c)
+{
+    JsonSkipWs(p);
+    if (p->pos < p->len && p->json[p->pos] == c) {
+        p->pos++;
+        return 1;
+    }
+    return 0;
+}
+
+static int JsonPeek(JsonParser *p)
+{
+    JsonSkipWs(p);
+    return (p->pos < p->len) ? (unsigned char)p->json[p->pos] : -1;
+}
+
+static int JsonReadString(JsonParser *p, char *buf, size_t bufSize)
+{
+    JsonSkipWs(p);
+    if (p->pos >= p->len || p->json[p->pos] != '"') {
+        return -1;
+    }
+    p->pos++;
+    size_t i = 0;
+    while (p->pos < p->len && p->json[p->pos] != '"') {
+        char c = p->json[p->pos];
+        if (c == '\\' && p->pos + 1 < p->len) {
+            /* 转义字符处理 */
+            p->pos++;
+            char esc = p->json[p->pos];
+            switch (esc) {
+                case '"': c = '"'; break;
+                case '\\': c = '\\'; break;
+                case '/': c = '/'; break;
+                case 'n': c = '\n'; break;
+                case 't': c = '\t'; break;
+                case 'r': c = '\r'; break;
+                case 'b': c = '\b'; break;
+                case 'f': c = '\f'; break;
+                default: c = esc; break; /* 未知转义，取原字符 */
+            }
+        }
+        if (i + 1 < bufSize) {
+            buf[i++] = c;
+        }
+        p->pos++;
+    }
+    if (p->pos < p->len) {
+        p->pos++;
+    }
+    buf[i] = '\0';
+    return (int)i;
+}
+
+static int JsonReadNumber(JsonParser *p, double *out)
+{
+    JsonSkipWs(p);
+    size_t start = p->pos;
+    if (p->pos < p->len && (p->json[p->pos] == '-' || p->json[p->pos] == '+')) {
+        p->pos++;
+    }
+    int hasDigit = 0;
+    while (p->pos < p->len && (isdigit((unsigned char)p->json[p->pos]) || p->json[p->pos] == '.')) {
+        p->pos++;
+        hasDigit = 1;
+    }
+    if (!hasDigit) {
+        return -1;
+    }
+    char numBuf[64] = {0};
+    size_t n = p->pos - start;
+    if (n >= sizeof(numBuf)) {
+        n = sizeof(numBuf) - 1;
+    }
+    memcpy(numBuf, p->json + start, n);
+    *out = strtod(numBuf, NULL);
+    return 0;
+}
+
+static void JsonSkipValue(JsonParser *p)
+{
+    int peek = JsonPeek(p);
+    if (peek == '"') {
+        char buf[MAX_STR_LEN] = {0};
+        JsonReadString(p, buf, sizeof(buf));
+    } else if (peek == '{' || peek == '[') {
+        int depth = 0;
+        while (p->pos < p->len) {
+            char c = p->json[p->pos++];
+            if (c == '{' || c == '[') {
+                depth++;
+            } else if (c == '}' || c == ']') {
+                depth--;
+                if (depth == 0) {
+                    break;
+                }
+            }
+        }
+    } else if (peek >= 0) {
+        size_t prev = p->pos;
+        double v = 0;
+        JsonReadNumber(p, &v);
+        /* 确保前进：JsonReadNumber 失败时（true/false/null 等）手动跳过当前字符 */
+        if (p->pos == prev && p->pos < p->len) {
+            p->pos++;
+        }
+    }
+}
+
+static void ParseMatchField(JsonParser *p, const char *key, Rule *r, SchemaState *s)
+{
+    double v = 0;
+    char buf[MAX_STR_LEN] = {0};
+    /* -1 表示"不检查"，负值不设 has 标志（Schema 允许 -1） */
+    if (strcmp(key, "min_ranks") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinRanks = 1;
+            r->match.minRanks = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_ranks") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxRanks = 1;
+            r->match.maxRanks = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_bytes") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinBytes = 1;
+            r->match.minBytes = (size_t)v;
+        }
+    } else if (strcmp(key, "max_bytes") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxBytes = 1;
+            r->match.maxBytes = (size_t)v;
+        }
+    } else if (strcmp(key, "data_type") == 0) {
+        if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+            strncpy(r->match.dataType, buf, sizeof(r->match.dataType) - 1);
+            r->match.hasDataType = 1;
+        }
+    } else if (strcmp(key, "comm_name") == 0) {
+        if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+            strncpy(r->match.commName, buf, sizeof(r->match.commName) - 1);
+            r->match.hasCommName = 1;
+        }
+    } else if (strcmp(key, "min_npus_per_server") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinNpusPerServer = 1;
+            r->match.minNpusPerServer = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_npus_per_server") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxNpusPerServer = 1;
+            r->match.maxNpusPerServer = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_servers") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinServers = 1;
+            r->match.minServers = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_servers") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxServers = 1;
+            r->match.maxServers = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinPods = 1;
+            r->match.minPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxPods = 1;
+            r->match.maxPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "min_super_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMinSuperPods = 1;
+            r->match.minSuperPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "max_super_pods") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasMaxSuperPods = 1;
+            r->match.maxSuperPods = (uint32_t)v;
+        }
+    } else if (strcmp(key, "buffer_size") == 0) {
+        if (JsonReadNumber(p, &v) == 0 && v >= 0) {
+            r->match.hasBufferSize = 1;
+            r->match.bufferSize = (uint64_t)v;
+        }
+    } else {
+        SchemaWarn(s, "match", key);
+        JsonSkipValue(p);
+    }
+}
+
+static void ParseRule(JsonParser *p, Rule *r, SchemaState *s)
+{
+    memset(r, 0, sizeof(*r));
+    r->engine[0] = '\0';
+    r->executor[0] = '\0';
+    r->template[0] = '\0';
+    int foundMatch = 0;
+    if (!JsonMatch(p, '{')) {
+        return;
+    }
+    while (p->pos < p->len) {
+        if (JsonMatch(p, '}')) {
+            break;
+        }
+        JsonMatch(p, ',');
+        char key[MAX_STR_LEN] = {0};
+        if (JsonReadString(p, key, sizeof(key)) <= 0) {
+            break;
+        }
+        JsonMatch(p, ':');
+        if (strcmp(key, "match") == 0) {
+            foundMatch = 1;
+            if (JsonMatch(p, '{')) {
+                while (p->pos < p->len) {
+                    if (JsonMatch(p, '}')) {
+                        break;
+                    }
+                    JsonMatch(p, ',');
+                    char mkey[MAX_STR_LEN] = {0};
+                    if (JsonReadString(p, mkey, sizeof(mkey)) <= 0) {
+                        break;
+                    }
+                    JsonMatch(p, ':');
+                    ParseMatchField(p, mkey, r, s);
+                }
+            }
+        } else if (strcmp(key, "engine") == 0) {
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToEngine(buf) < 0) {
+                    SchemaError(s, "invalid engine '%s'", buf);
+                }
+                strncpy(r->engine, buf, sizeof(r->engine) - 1);
+            }
+        } else if (strcmp(key, "executor") == 0) {
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToExecutor(buf) < 0) {
+                    SchemaError(s, "invalid executor '%s'", buf);
+                }
+                strncpy(r->executor, buf, sizeof(r->executor) - 1);
+            }
+        } else if (strcmp(key, "template") == 0) {
+            char buf[MAX_STR_LEN] = {0};
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToTemplate(buf) < 0) {
+                    SchemaError(s, "invalid template '%s'", buf);
+                }
+                strncpy(r->template, buf, sizeof(r->template) - 1);
+            }
+        } else if (strcmp(key, "cost") == 0) {
+            double v = 0;
+            if (JsonReadNumber(p, &v) == 0) {
+                r->cost = (float)v;
+                r->hasCost = 1;
+            }
+        } else if (strcmp(key, "args") == 0) {
+            JsonSkipValue(p); /* optional，允许自定义字段 */
+        } else {
+            SchemaWarn(s, "rule", key);
+            JsonSkipValue(p);
+        }
+    }
+    /* 必填字段校验 */
+    if (!foundMatch) {
+        SchemaError(s, "rule missing required field 'match'");
+    }
+    if (!r->hasCost) {
+        SchemaError(s, "rule missing required field 'cost'");
+    }
+}
+
+static void ParseOpRules(JsonParser *p, StoredContext *ctx, const char *opName, SchemaState *s)
+{
+    hcclOpType_t opType = (hcclOpType_t)HcclOpTypeFromName(opName);
+    if (opType == HCCL_OP_INVALID) {
+        SchemaError(s, "unknown op_type '%s'", opName);
+        JsonSkipValue(p);
+        return;
+    }
+    if (ctx->opSetCount >= MAX_OP_TYPES) {
+        JsonSkipValue(p);
+        return;
+    }
+    OpRuleSet *set = &ctx->opSets[ctx->opSetCount];
+    set->opType = opType;
+    set->ruleCount = 0;
+    if (!JsonMatch(p, '{')) {
+        return;
+    }
+    while (p->pos < p->len) {
+        if (JsonMatch(p, '}')) {
+            break;
+        }
+        JsonMatch(p, ',');
+        char key[MAX_STR_LEN] = {0};
+        if (JsonReadString(p, key, sizeof(key)) <= 0) {
+            break;
+        }
+        JsonMatch(p, ':');
+        if (strcmp(key, "rules") == 0) {
+            if (JsonMatch(p, '[')) {
+                while (p->pos < p->len) {
+                    if (JsonMatch(p, ']')) {
+                        break;
+                    }
+                    JsonMatch(p, ',');
+                    if (set->ruleCount < MAX_RULES) {
+                        ParseRule(p, &set->rules[set->ruleCount], s);
+                        set->ruleCount++;
+                    } else {
+                        JsonSkipValue(p);
+                    }
+                }
+            }
+        } else {
+            SchemaWarn(s, "op_type", key);
+            JsonSkipValue(p);
+        }
+    }
+    if (set->ruleCount == 0) {
+        SchemaError(s, "op_type '%s' has no rules (minItems=1)", opName);
+    }
+    ctx->opSetCount++;
+}
+
+static void ParseConfig(JsonParser *p, StoredContext *ctx, DefaultValues *defaults, SchemaState *s)
+{
+    if (!JsonMatch(p, '{')) {
+        return;
+    }
+    while (p->pos < p->len) {
+        if (JsonMatch(p, '}')) {
+            break;
+        }
+        JsonMatch(p, ',');
+        char key[MAX_STR_LEN] = {0};
+        if (JsonReadString(p, key, sizeof(key)) <= 0) {
+            break;
+        }
+        JsonMatch(p, ':');
+        if (strcmp(key, "version") == 0) {
+            s->foundVersion = 1;
+            double v = 0;
+            if (JsonReadNumber(p, &v) == 0 && (int)v != 1) {
+                SchemaError(s, "version must be 1, got %d", (int)v);
+            }
+        } else if (strcmp(key, "op_types") == 0) {
+            s->foundOpTypes = 1;
+            if (JsonMatch(p, '{')) {
+                while (p->pos < p->len) {
+                    if (JsonMatch(p, '}')) {
+                        break;
+                    }
+                    JsonMatch(p, ',');
+                    char opName[MAX_STR_LEN] = {0};
+                    if (JsonReadString(p, opName, sizeof(opName)) <= 0) {
+                        break;
+                    }
+                    JsonMatch(p, ':');
+                    ParseOpRules(p, ctx, opName, s);
+                }
+            }
+        } else if (strcmp(key, "meta") == 0) {
+            JsonSkipValue(p); /* optional，跳过 */
+        } else if (strcmp(key, "defaults") == 0) {
+            ParseDefaults(p, defaults, s);
+        } else {
+            SchemaWarn(s, "config root", key);
+            JsonSkipValue(p);
+        }
+    }
+    if (!s->foundVersion) {
+        SchemaError(s, "missing required field 'version'");
+    }
+    if (!s->foundOpTypes) {
+        SchemaError(s, "missing required field 'op_types'");
+    }
+}
+
+/* ===== defaults 块解析与合并 ===== */
+
+static void ParseDefaults(JsonParser *p, DefaultValues *d, SchemaState *s)
+{
+    memset(d, 0, sizeof(*d));
+    d->engine[0] = '\0';
+    d->executor[0] = '\0';
+    d->template[0] = '\0';
+    if (!JsonMatch(p, '{')) {
+        return;
+    }
+    while (p->pos < p->len) {
+        if (JsonMatch(p, '}')) {
+            break;
+        }
+        JsonMatch(p, ',');
+        char key[MAX_STR_LEN] = {0};
+        if (JsonReadString(p, key, sizeof(key)) <= 0) {
+            break;
+        }
+        JsonMatch(p, ':');
+        char buf[MAX_STR_LEN] = {0};
+        if (strcmp(key, "engine") == 0) {
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToEngine(buf) < 0) {
+                    SchemaError(s, "defaults invalid engine '%s'", buf);
+                }
+                strncpy(d->engine, buf, sizeof(d->engine) - 1);
+                d->hasEngine = 1;
+            }
+        } else if (strcmp(key, "executor") == 0) {
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToExecutor(buf) < 0) {
+                    SchemaError(s, "defaults invalid executor '%s'", buf);
+                }
+                strncpy(d->executor, buf, sizeof(d->executor) - 1);
+                d->hasExecutor = 1;
+            }
+        } else if (strcmp(key, "template") == 0) {
+            if (JsonReadString(p, buf, sizeof(buf)) > 0) {
+                if (HcclUserToTemplate(buf) < 0) {
+                    SchemaError(s, "defaults invalid template '%s'", buf);
+                }
+                strncpy(d->template, buf, sizeof(d->template) - 1);
+                d->hasTemplate = 1;
+            }
+        } else if (strcmp(key, "args") == 0) {
+            JsonSkipValue(p); /* optional，允许自定义字段 */
+        } else {
+            SchemaWarn(s, "defaults", key);
+            JsonSkipValue(p);
+        }
+    }
+}
+
+static void MergeDefaults(StoredContext *ctx, const DefaultValues *d)
+{
+    for (int i = 0; i < ctx->opSetCount; i++) {
+        for (int j = 0; j < ctx->opSets[i].ruleCount; j++) {
+            Rule *r = &ctx->opSets[i].rules[j];
+            if (r->engine[0] == '\0' && d->hasEngine) {
+                strncpy(r->engine, d->engine, sizeof(r->engine) - 1);
+            }
+            if (r->executor[0] == '\0' && d->hasExecutor) {
+                strncpy(r->executor, d->executor, sizeof(r->executor) - 1);
+            }
+            if (r->template[0] == '\0' && d->hasTemplate) {
+                strncpy(r->template, d->template, sizeof(r->template) - 1);
+            }
+        }
+    }
+}
+
+/* ===== 配置文件加载（多级 fallback）===== */
+static char *ReadFile(const char *path, size_t *outLen)
+{
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL) {
+        return NULL;
+    }
+    (void)fseek(fp, 0, SEEK_END);
+    long sz = ftell(fp);
+    (void)fseek(fp, 0, SEEK_SET);
+    if (sz <= 0 || sz > MAX_FILE_SIZE) {
+        fclose(fp);
+        return NULL;
+    }
+    char *buf = (char *)malloc((size_t)sz + 1);
+    if (buf == NULL) {
+        fclose(fp);
+        return NULL;
+    }
+    size_t rd = fread(buf, 1, (size_t)sz, fp);
+    fclose(fp);
+    buf[rd] = '\0';
+    *outLen = rd;
+    return buf;
+}
+
+static int LoadConfig(StoredContext *ctx)
+{
+    const char *envPath = getenv("HCCL_TUNER_CONFIG_FILE");
+    const char *paths[] = {envPath, "./hccl_tuner_config.json", "/etc/hccl/hccl_tuner_config.json"};
+    for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+        if (paths[i] == NULL || paths[i][0] == '\0') {
+            continue;
+        }
+        size_t len = 0;
+        char *content = ReadFile(paths[i], &len);
+        if (content != NULL) {
+            SchemaState schema = {0};
+            DefaultValues defaults = {};
+            JsonParser p = {content, 0, len};
+            ParseConfig(&p, ctx, &defaults, &schema);
+#ifdef HCCL_TUNER_TESTING
+            g_lastSchema = schema;
+#endif
+            MergeDefaults(ctx, &defaults);
+            free(content);
+            if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+                g_hostFuncs.logFunction(HCCL_TUNER_LOG_INFO, __FILE__, __LINE__,
+                                        "tuner config loaded from %s, opSetCount=%d, schemaErrors=%d, schemaWarnings=%d",
+                                        paths[i], ctx->opSetCount, schema.errors, schema.warnings);
+            }
+            /* Schema 校验：有 error 则标记无效，getCollInfo 不干预 */
+            if (schema.errors > 0) {
+                if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+                    g_hostFuncs.logFunction(HCCL_TUNER_LOG_ERROR, __FILE__, __LINE__,
+                                            "Schema validation failed (%d errors), plugin will not intervene",
+                                            schema.errors);
+                }
+                ctx->configValid = 0;
+            } else {
+                ctx->configValid = 1;
+            }
+            return 1;
+        }
+        /* C6：文件未找到——env 指定的路径打 WARNING，默认路径打 DEBUG */
+        if (g_hostFuncsReady && g_hostFuncs.logFunction != NULL) {
+            int level = (i == 0) ? HCCL_TUNER_LOG_WARN : HCCL_TUNER_LOG_DEBUG;
+            g_hostFuncs.logFunction(level, __FILE__, __LINE__,
+                                    "tuner config '%s' not found%s",
+                                    paths[i], (i == 0) ? ", falling back to default paths" : "");
+        }
+    }
+    return 0;
+}
+
+/* ===== 规则匹配 ===== */
+static int MatchRule(const Rule *r, const hcclTunerCollInfo_t *collInfo, const hcclTunerCommInfo_t *commInfo)
+{
+    if (r->match.hasMinRanks && commInfo->nRanks < r->match.minRanks) {
+        return 0;
+    }
+    if (r->match.hasMaxRanks && commInfo->nRanks > r->match.maxRanks) {
+        return 0;
+    }
+    if (r->match.hasMinBytes && collInfo->nBytes < r->match.minBytes) {
+        return 0;
+    }
+    if (r->match.hasMaxBytes && collInfo->nBytes > r->match.maxBytes) {
+        return 0;
+    }
+    if (r->match.hasDataType) {
+        if (ParseDataType(r->match.dataType) != collInfo->dataType) {
+            return 0;
+        }
+    }
+    if (r->match.hasCommName) {
+        if (commInfo->commName == NULL || strstr(commInfo->commName, r->match.commName) == NULL) {
+            return 0;
+        }
+    }
+    if (r->match.hasMinNpusPerServer && commInfo->nNpusPerServer < r->match.minNpusPerServer) {
+        return 0;
+    }
+    if (r->match.hasMaxNpusPerServer && commInfo->nNpusPerServer > r->match.maxNpusPerServer) {
+        return 0;
+    }
+    if (r->match.hasMinServers && commInfo->nServers < r->match.minServers) {
+        return 0;
+    }
+    if (r->match.hasMaxServers && commInfo->nServers > r->match.maxServers) {
+        return 0;
+    }
+    if (r->match.hasMinPods && commInfo->nPods < r->match.minPods) {
+        return 0;
+    }
+    if (r->match.hasMaxPods && commInfo->nPods > r->match.maxPods) {
+        return 0;
+    }
+    if (r->match.hasMinSuperPods && commInfo->nSuperPods < r->match.minSuperPods) {
+        return 0;
+    }
+    if (r->match.hasMaxSuperPods && commInfo->nSuperPods > r->match.maxSuperPods) {
+        return 0;
+    }
+    if (r->match.hasBufferSize && commInfo->bufferSize != r->match.bufferSize) {
+        return 0;
+    }
+    return 1;
+}
+
+static void ApplyRule(const Rule *r, hcclTunerAlgoEntry_t *entries, int count)
+{
+    for (int i = 0; i < count; i++) {
+        if (r->engine[0]   && strcmp(r->engine, entries[i].engineName) != 0) continue;
+        if (r->executor[0] && strcmp(r->executor, entries[i].executorName) != 0) continue;
+        if (r->template[0] && strcmp(r->template, entries[i].templateName) != 0) continue;
+        entries[i].cost = r->hasCost ? r->cost : 0.0f;
+    }
+}
+
+/* ===== 插件接口实现 ===== */
+static HcclResult MyInit(HcclComm comm, const hcclTunerCommInfo_t *commInfo, const hcclTunerHostFunctions_t *hostFuncs)
+{
+    if (commInfo == NULL || hostFuncs == NULL) {
+        return HCCL_E_PTR;
+    }
+    /* hostFuncs 是函数表，全进程相同，存全局 */
+    g_hostFuncs = *hostFuncs;
+    g_hostFuncsReady = 1;
+
+    /* 分配并填充 StoredContext */
+    StoredContext *tmp = (StoredContext *)calloc(1, sizeof(StoredContext));
+    if (tmp == NULL) {
+        return HCCL_E_INTERNAL;
+    }
+    if (!LoadConfig(tmp)) {
+        if (g_hostFuncs.logFunction != NULL) {
+            g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__, "no tuner config loaded, plugin inactive");
+        }
+        free(tmp);
+        return HCCL_SUCCESS;
+    }
+    /* 拷贝 commInfo（commName 需拷贝到持久缓冲，init 返回后 commInfo 指针失效） */
+    tmp->commInfo = *commInfo;
+    if (commInfo->commName != NULL) {
+        strncpy(tmp->commNameBuf, commInfo->commName, sizeof(tmp->commNameBuf) - 1);
+        /* 注意：此处不设 tmp->commInfo.commName 指针，memcpy 后再重定向到 storedCtx */
+    }
+    /* 持久化到通信域 host 内存（经 __tuner_ 前缀的 ctxCreate） */
+    void *storedCtx = NULL;
+    if (hostFuncs->ctxCreate(comm, "main", sizeof(StoredContext), &storedCtx) != HCCL_SUCCESS || storedCtx == NULL) {
+        if (g_hostFuncs.logFunction != NULL) {
+            g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__, "ctxCreate failed, plugin inactive");
+        }
+        free(tmp);
+        return HCCL_SUCCESS;
+    }
+    memcpy(storedCtx, tmp, sizeof(StoredContext));
+    /* memcpy 复制的是 tmp 中的指针值，需重定向 commName 到 storedCtx 自身的 commNameBuf */
+    if (commInfo->commName != NULL) {
+        ((StoredContext *)storedCtx)->commInfo.commName = ((StoredContext *)storedCtx)->commNameBuf;
+    }
+    free(tmp);
+    if (g_hostFuncs.logFunction != NULL) {
+        g_hostFuncs.logFunction(HCCL_TUNER_LOG_INFO, __FILE__, __LINE__,
+                                "tuner init done, comm[%p] nRanks[%u] opSetCount[%d]", comm, commInfo->nRanks,
+                                ((StoredContext *)storedCtx)->opSetCount);
+    }
+    return HCCL_SUCCESS;
+}
+
+static HcclResult MyGetCollInfo(HcclComm comm, const hcclTunerCollInfo_t *collInfo,
+                                hcclTunerAlgoEntry_t *entries, int count)
+{
+    if (collInfo == NULL || entries == NULL || count <= 0) {
+        return HCCL_E_PTR;
+    }
+    if (!g_hostFuncsReady || g_hostFuncs.ctxGet == NULL) {
+        return HCCL_SUCCESS;
+    }
+    void *ctxPtr = NULL;
+    uint64_t ctxSize = 0;
+    if (g_hostFuncs.ctxGet(comm, "main", &ctxPtr, &ctxSize) != HCCL_SUCCESS || ctxPtr == NULL) {
+        return HCCL_SUCCESS;
+    }
+    /* C17：校验 ctxGet 返回的 size，防止 engine bug 或版本不一致导致越界读 */
+    if (ctxSize < sizeof(StoredContext)) {
+        if (g_hostFuncs.logFunction != NULL) {
+            g_hostFuncs.logFunction(HCCL_TUNER_LOG_WARN, __FILE__, __LINE__,
+                                    "ctxGet size %llu < expected %zu, skip intervention",
+                                    (unsigned long long)ctxSize, sizeof(StoredContext));
+        }
+        return HCCL_SUCCESS;
+    }
+    StoredContext *ctx = (StoredContext *)ctxPtr;
+
+    /* Schema 校验失败时，不干预算法选择 */
+    if (!ctx->configValid) {
+        return HCCL_SUCCESS;
+    }
+
+    for (int i = 0; i < ctx->opSetCount; i++) {
+        OpRuleSet *set = &ctx->opSets[i];
+        if (set->opType != collInfo->collType) {
+            continue;
+        }
+        for (int j = 0; j < set->ruleCount; j++) { /* first-match-wins */
+            if (MatchRule(&set->rules[j], collInfo, &ctx->commInfo)) {
+                ApplyRule(&set->rules[j], entries, count);
+                return HCCL_SUCCESS;
+            }
+        }
+    }
+    return HCCL_SUCCESS;
+}
+
+/* ===== 插件描述符与函数表 ===== */
+hcclPluginDescriptor_t hcclTunerPlugin = {HCCL_TUNER_API_VERSION, 0, "HCCL Tuner Example", 1};
+
+HcclResult hcclTunerGetFuncs(hcclTunerFuncs_t *funcs)
+{
+    if (funcs == NULL) {
+        return HCCL_E_PTR;
+    }
+    funcs->init = MyInit;
+    funcs->getCollInfo = MyGetCollInfo;
+    return HCCL_SUCCESS;
+}
+
+/* 供 test_plugin.c 通过 #include "../plugin.c" 方式单元测试 */
+#ifdef HCCL_TUNER_TESTING
+StoredContext *TunerGetStoredCtx(HcclComm comm)
+{
+    if (!g_hostFuncsReady || g_hostFuncs.ctxGet == NULL) {
+        return NULL;
+    }
+    void *ctxPtr = NULL;
+    uint64_t ctxSize = 0;
+    if (g_hostFuncs.ctxGet(comm, "main", &ctxPtr, &ctxSize) != HCCL_SUCCESS) {
+        return NULL;
+    }
+    return (StoredContext *)ctxPtr;
+}
+#endif

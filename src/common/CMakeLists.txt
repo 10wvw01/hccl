@@ -39,3 +39,4 @@ if(TARGET hccl)
 endif()
 
 add_subdirectory(hcomm_dlsym)
+add_subdirectory(tuner)
