@@ -120,15 +120,14 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
         return SelectorStatus::NOT_MATCH;
     }
     
-    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 1ULL * 1024 * 1024;
+    constexpr u64 CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE = 64ULL * 1024 * 1024;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
 
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->userRankSize == 0 ||
-            dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-            HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
+            dataSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
+            HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.", dataSize);
             return SelectorStatus::NOT_MATCH;
         }
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {

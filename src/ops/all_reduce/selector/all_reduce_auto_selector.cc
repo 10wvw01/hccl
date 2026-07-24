@@ -15,7 +15,7 @@
 #include "order_preserved_common.h"
 
 namespace ops_hccl {
-constexpr u64 RS_MAX_DATA_SIZE = 16 * 1024 * 1024;
+constexpr u64 RS_MAX_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_ONESHOT_1D_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 AR_M2M_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
 constexpr u64 AR_AICPU_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
@@ -26,6 +26,7 @@ constexpr u32 MAX_RANK_NUM_FOR_CONCURRENT_ALGO = 4;
 constexpr u32 MAX_RANK_NUM_FOR_REDUCE_MS_ALGO = 8;
 constexpr u64 AR_FLATTEN_MAX_DATA_SIZE = 512 * 1024;
 constexpr u64 AR_CCU_CLOS_1D_SMALL_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 AR_CCU_16P_SMALL_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 AR_AICPU_SEQUENCE_DATA_SIZE = 4ULL * 1024 * 1024 * 1024;
 constexpr u64 OMNI_PCIE_AR_DATA_SIZE = 32 * 1024 * 1024;
 constexpr u64 AR_AIV_SMALL_DATA_SIZE_IN_BOARD = 128 * 1024;
@@ -174,7 +175,7 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             CHK_PRT_RET(IsInputOutputOverlap(opParam) == true,
                 HCCL_WARNING("[Algo][AllReduceAutoSelector] ccu_sched does not support inplace allreduce."),
                 SelectorStatus::NOT_MATCH);
-            // Level1Nhr 已在 CalcTopoShape 中设置（GCD==1 时为 true）
+            bool isSmallDataCCU = IsSmallDataCCU(dataSize, topoInfo->userRankSize);
             if (topoInfo->Level1Nhr) {
                 selectAlgName = "CcuAllReduceNHR1D";
                 HCCL_INFO("[AllReduceAutoSelector] Level1Nhr=true, select [%s]", selectAlgName.c_str());
@@ -184,29 +185,26 @@ SelectorStatus AllReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             } else if (topoInfo->is2DieFullMesh) {
                 HCCL_DEBUG("[AllReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
                 return SelectorStatus::NOT_MATCH;
-            } else if (dataSize <= 16 * 1024 * 1024 && topoInfo->userRankSize >= ccuSize) {
+            } else if (topoInfo->userRankSize > ccuSize && isSmallDataCCU) {
+                selectAlgName = (dataSize <= RS_MAX_DATA_SIZE) ? "CcuAllReduceSequenceMesh1D" : "CcuAllReduceParallelMesh1DNHR" ;
+            } else if (dataSize <= AR_CCU_16P_SMALL_DATA_SIZE && topoInfo->userRankSize == ccuSize){
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
-                return SelectorStatus::MATCH;
             } else if (dataSize <= AR_FLATTEN_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize && (!IsInputOutputOverlap(opParam))) {
                 selectAlgName = "CcuAllReduceMesh1DMem2Mem";
-                return SelectorStatus::MATCH;
             } else if (dataSize <= CCU_PARALLEL_MAX_DATA_SIZE && topoInfo->userRankSize < ccuSize) {
                 selectAlgName = "CcuAllReduceSequenceMesh1D";
-                return SelectorStatus::MATCH;
-            } else if(IsSmallDataCCU(dataSize, topoInfo->userRankSize)){//64M以下跑ccu
+            } else if(isSmallDataCCU){//64M以下跑ccu
                  // 性能优化改用MS做reduce后不支持int8
                 CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8,
                     HCCL_DEBUG("[AllReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode with ms "
                         "reduce. levelNum[%u]", opParam.DataDes.dataType, topoInfo->topoLevelNums), SelectorStatus::NOT_MATCH);
                 selectAlgName = "CcuAllReduceParallelMesh1DNHR";
-                return SelectorStatus::MATCH;
             } else {
                 return SelectorStatus::NOT_MATCH;//64M以上切为aicpu
             }
         } else if (topoInfo->level0Topo == Level0Shape::CLOS &&(!IsInputOutputOverlap(opParam))) {
             if (dataSize < AR_CCU_CLOS_1D_SMALL_DATA_SIZE) {
                 selectAlgName = "CcuAllReduceNHR1D";
-                return SelectorStatus::MATCH;
             } else {
                 return SelectorStatus::NOT_MATCH;
             }
