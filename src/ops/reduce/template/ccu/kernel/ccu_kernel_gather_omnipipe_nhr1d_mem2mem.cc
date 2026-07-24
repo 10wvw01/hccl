@@ -133,7 +133,6 @@ static CcuResult DoGatherOmniPipeNHRSingleStep(GatherOmniPipeNHR1DMem2MemContext
 
     HCCL_DEBUG("[recvSliceNum%u, sendSliceNum=%lu fromRank=%lu ctx.myRankIdx=%lu", recvSliceIdxList.size(), sendSliceIdxList.size(), nhrStepInfo.fromRank, ctx.myRankIdx);
 
-
     if (recvSliceIdxList.size() != 0) {
         u32 fromRankIdx  = ctx.rank2ChannelIdx[nhrStepInfo.fromRank];
         u32 recvSliceIdx = 0;
