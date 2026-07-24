@@ -452,7 +452,9 @@ extern "C" unsigned int HcclLaunchAicpuKernel(OpParam *param)
 
         // 检查aicpu task cache使能约束
         bool enableCache = false;
-        CHK_RET(AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(*param, *resCtxPtr, enableCache));
+        if (HcommIsSupportHcommAicpuTsTaskCacheLookup()) {
+            CHK_RET(AicpuTaskCachePolicy::IsAicpuTaskCacheEnable(*param, *resCtxPtr, enableCache));
+        }
 
         // 打印算子信息用于调试
         static uint64_t opUnfoldIdx = 0;
