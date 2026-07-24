@@ -175,6 +175,10 @@ HcclResult CcuTempAllToAllMesh1D2Die::KernelRun(const OpParam &param, const Temp
     is2Plus6_ = (kernelCount == MAX_KERNEL_NUM_2DIE);
     if (templateResource.dieSplitRatio > 0.0) { dieSplitRatio_ = templateResource.dieSplitRatio; }
 
+    if (kernelCount == 0) {
+        HCCL_INFO("[CcuTempAllToAllMesh1D2Die][KernelRun] kernelCount is 0, just success.");
+        return HcclResult::HCCL_SUCCESS;
+    }
     uint32_t subThreadCount = kernelCount - 1;
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
         templateResource.threads.begin() + 1 + subThreadCount);

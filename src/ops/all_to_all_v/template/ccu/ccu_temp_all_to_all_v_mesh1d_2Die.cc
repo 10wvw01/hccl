@@ -260,6 +260,10 @@ HcclResult CcuTempAlltoAllVMesh1D2Die::KernelRun(const OpParam &param, const Tem
     }
 
     uint32_t kernelCount = cacheCtx.kernelCount;
+    if (kernelCount == 0) {
+        HCCL_INFO("[CcuTempAlltoAllVMesh1D2Die][KernelRun] kernelCount is 0, just success.");
+        return HcclResult::HCCL_SUCCESS;
+    }
     uint32_t subThreadCount = kernelCount - 1;
 
     std::vector<ThreadHandle> subThreads(templateResource.threads.begin() + 1,
