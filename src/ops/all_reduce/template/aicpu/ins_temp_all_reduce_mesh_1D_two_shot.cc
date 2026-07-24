@@ -30,11 +30,11 @@ std::vector<CostModelParam> InsTempAllReduceMesh1DTwoShot::CalcCostCoeff(u32 ran
 
     float B1 = 0.0f;
     float B2 = 0.0f;
-    CostModelManager::CalcMeshParam(2 * n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, 0, B1);
-    CostModelManager::CalcLocalReduceParams(n * (rankSize - 1), 0, B2);
+    CostModelManager::Global()->CalcMeshParam(2 * n, netType, portNum, A);
+    CostModelManager::Global()->CalcLocalCopyParams(n, 0, B1);
+    CostModelManager::Global()->CalcLocalReduceParams(n * (rankSize - 1), 0, B2);
     B = B1 + B2;
-    CostModelManager::CalcLatencyParams(taskNum, EngineType::AICPU, C);
+    CostModelManager::Global()->CalcLatencyParams(taskNum, EngineType::AICPU, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});

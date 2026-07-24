@@ -67,6 +67,7 @@ class CostModelManager {
 public:
     CostModelManager();
     ~CostModelManager();
+    static CostModelManager *Global();
 
     HcclResult InitCostModel(const TopoInfoWithNetLayerDetails *topoInfo);
     void InitBandwidth();
@@ -76,17 +77,17 @@ public:
     // portNum: clos组网下使用的端口数量，mesh组网时为0
     // A: 出参，接收计算得到的A值
     // 计算Mesh算法的A参数
-    static void CalcMeshParam(float n, int netType, int portNum, float &A);
+    void CalcMeshParam(float n, int netType, int portNum, float &A);
     // 计算NHR算法的A参数
-    static void CalcNHRParams(float n, int netType, int portNum, float &A);
+    void CalcNHRParams(float n, int netType, int portNum, float &A);
     // n: 输入数据占总数据量DataSize的比例
     // B: 出参，接收计算得到的B值
     // 计算本地拷贝的B参数
-    static void CalcLocalCopyParams(float n, int scene, float &B);
+    void CalcLocalCopyParams(float n, int scene, float &B);
     // 计算本地reduce的B参数
-    static void CalcLocalReduceParams(float n, int scene, float &B);
+    void CalcLocalReduceParams(float n, int scene, float &B);
     // 计算Latency参数, taskNum需要写算法的人预估
-    static void CalcLatencyParams(int taskNum, EngineType engine, float &C);
+    void CalcLatencyParams(int taskNum, EngineType engine, float &C);
 
 private:
     void FreeCostModel();

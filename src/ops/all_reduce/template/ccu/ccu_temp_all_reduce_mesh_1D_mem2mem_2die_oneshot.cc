@@ -29,9 +29,9 @@ std::vector<CostModelParam> CcuTempAllReduceMesh1DMem2Mem2DieOneShot::CalcCostCo
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, 1, B);
-    CostModelManager::CalcLatencyParams(taskNum, EngineType::CCU, C);
+    CostModelManager::Global()->CalcMeshParam(n, netType, portNum, A);
+    CostModelManager::Global()->CalcLocalCopyParams(n, 1, B);
+    CostModelManager::Global()->CalcLatencyParams(taskNum, EngineType::CCU, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});

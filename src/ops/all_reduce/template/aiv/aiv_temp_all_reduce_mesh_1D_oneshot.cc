@@ -36,11 +36,11 @@ std::vector<CostModelParam> AivTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 ran
     // 同时有localreduce和localcopy，所以需要调用两个接口获取两个步骤的B并相加
     float B1 = 0.0f;
     float B2 = 0.0f;
-    CostModelManager::CalcMeshParam(1, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(1, 0, B1);
-    CostModelManager::CalcLocalReduceParams(rankSize - 1, 0, B2);
+    CostModelManager::Global()->CalcMeshParam(1, netType, portNum, A);
+    CostModelManager::Global()->CalcLocalCopyParams(1, 0, B1);
+    CostModelManager::Global()->CalcLocalReduceParams(rankSize - 1, 0, B2);
     B = B1 + B2;
-    CostModelManager::CalcLatencyParams(taskNum, EngineType::AIV, C);
+    CostModelManager::Global()->CalcLatencyParams(taskNum, EngineType::AIV, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});

@@ -53,6 +53,12 @@ CostModelManager::CostModelManager()
     InitBandwidth();
 }
 
+CostModelManager *CostModelManager::Global()
+{
+    static CostModelManager *globalCostModelManager = new CostModelManager;
+    return globalCostModelManager;
+}
+
 CostModelManager::~CostModelManager()
 {
     FreeCostModel();
