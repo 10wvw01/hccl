@@ -333,6 +333,8 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
     (void)configAlgMap;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+    constexpr u64 AICPU_MAX_RANKSIZE = 1024;
+    constexpr u64 AICPU_2LEVEL_MAX_TOTAL_DATA_SIZE = 1ULL * 1024 * 1024 * 1024;
 
     if (IsNeedStrictModeForOrderPreserved(opParam, topoInfo->userRankSize)) {
         if (topoInfo->userRankSize > MAX_RANK_NUM_FOR_ORDER_PRESERVED) {
@@ -365,7 +367,10 @@ SelectorStatus ReduceScatterAutoSelector::SelectAicpuAlgo(const TopoInfoWithNetL
             selectAlgName = "InsReduceScatterNHR"; // InsReduceScatterParallelNHRNHR备用
         } else if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) > 1 && topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3) {
-            selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
+                selectAlgName = "InsReduceScatterSequenceMesh1DNHRNHR";
+            } else if (topoInfo->userRankSize >= AICPU_MAX_RANKSIZE &&
+                       dataSize * topoInfo->userRankSize >= AICPU_2LEVEL_MAX_TOTAL_DATA_SIZE) {
+                selectAlgName = "InsReduceScatterParallelMesh1DNHR";
             } else if (dataSize > RS_AICPU_1D_MIN_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > RS_AICPU_SEQUENCE_SIZE_THRESHOLD) ?
                     "InsReduceScatterSequenceMesh1DNhr" : "InsReduceScatterParallelMesh1DNHR";

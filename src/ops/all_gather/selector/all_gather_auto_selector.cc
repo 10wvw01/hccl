@@ -263,6 +263,8 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
     (void)configAlgMap;
     u64 perDataSize = DATATYPE_SIZE_TABLE[opParam.DataDes.dataType];
     u64 dataSize = opParam.DataDes.count * perDataSize;
+    constexpr u64 AICPU_MAX_RANKSIZE = 1024;
+    constexpr u64 AICPU_2LEVEL_MAX_TOTAL_DATA_SIZE = 1ULL * 1024 * 1024 * 1024;
     HCCL_INFO("[AllGatherAutoSelector][SelectAicpuAlgo] topoLevelNums=[%d], deviceNumPerModule=[%d], level0Topo=[%d]",
               topoInfo->topoLevelNums, topoInfo->deviceNumPerModule, topoInfo->level0Topo);
     if (topoInfo->topoLevelNums > 1) {
@@ -284,6 +286,9 @@ SelectorStatus AllGatherAutoSelector::SelectAicpuAlgo(
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->topoLevelNums >= TOPO_LEVEL_NUM_3) {
                 selectAlgName = "InsAllGatherSequenceNHRNHRMesh1D";
+            } else if (topoInfo->userRankSize >= AICPU_MAX_RANKSIZE &&
+                       dataSize * topoInfo->userRankSize >= AICPU_2LEVEL_MAX_TOTAL_DATA_SIZE) {
+                selectAlgName = "InsAllGatherParallelMesh1DNHR";
             } else if (dataSize > AG_AICPU_SMALL_DATA_SIZE) {
                 selectAlgName = (dataSize * topoInfo->userRankSize > AG_AICPU_SEQUENCE_DATA_SIZE) ?
                     "InsAllGatherSequenceNHRMesh1D" : "InsAllGatherParallelMesh1DNHR";
