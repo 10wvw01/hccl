@@ -129,7 +129,8 @@ public:
     }
 
     // 控核每轮：两阶段（先全部 put，再全部 get），flag 用 per-rank 两区
-    __aicore__ inline void ProduceConsumeCtrlCore(uint64_t loop, ExtraArgs &extraArgsPerLoop)
+    __aicore__ inline void ProduceConsumeCtrlCore(uint64_t loop, ExtraArgs &extraArgs,
+        uint64_t processedDataCount, uint64_t currDataCount)
     {
         // PRODUCE：本核负责的每个 dstRank，input 本轮 chunk -> GM_IN[rank_][dstRank 区]
         for (uint32_t idx = 0; idx < rankNumPerCore_; idx++) {
@@ -137,7 +138,10 @@ public:
             if (dstRank >= rankSize_) {
                 break;
             }
-            sendCurCount_ = extraArgsPerLoop.sendCounts[dstRank];
+            sendCurCount_ = 0;
+            if (extraArgs.sendCounts[dstRank] > processedDataCount) {
+                sendCurCount_ = min(currDataCount, extraArgs.sendCounts[dstRank] - processedDataCount);
+            }
             if (sendCurCount_ == 0) { // 与多核 Producer 一致
                 continue;
             }
@@ -146,7 +150,8 @@ public:
                 ackTag = curTag_;                                   // 等对端上一轮 ack
             }
             WaitFlag(rank_, dstRank, ackTag);                       // P 区 [rank_][dstRank]
-            sendInputOffset_ = input_ + extraArgsPerLoop.sendDispls[dstRank] * sizeof(T);
+            uint64_t sendDisplThisLoop = extraArgs.sendDispls[dstRank] + processedDataCount;
+            sendInputOffset_ = input_ + sendDisplThisLoop * sizeof(T);
             sendOutputOffset_ = reinterpret_cast<uint64_t>(GM_IN[rank_])
                                + dstRank * cclBufferCountPerRank_ * sizeof(T);
             CpGM2GM((__gm__ T *)sendOutputOffset_, (__gm__ T *)sendInputOffset_, sendCurCount_);
@@ -159,14 +164,18 @@ public:
             if (dstRank >= rankSize_) {
                 break;
             }
-            recvCurCount_ = extraArgsPerLoop.recvCounts[dstRank];
+            recvCurCount_ = 0;
+            if (extraArgs.recvCounts[dstRank] > processedDataCount) {
+                recvCurCount_ = min(currDataCount, extraArgs.recvCounts[dstRank] - processedDataCount);
+            }
             if (recvCurCount_ == 0) { // 与多核 Consumer 一致
                 continue;
             }
             WaitFlag(rank_, dstRank + rankSize_, loop);             // C 区 [rank_][dstRank+rankSize] = data-ready
+            uint64_t recvDisplThisLoop = extraArgs.recvDispls[dstRank] + processedDataCount;
             recvInputOffset_ = reinterpret_cast<uint64_t>(GM_IN[dstRank])
                               + rank_ * cclBufferCountPerRank_ * sizeof(T);
-            recvOutputOffset_ = output_ + extraArgsPerLoop.recvDispls[dstRank] * sizeof(T);
+            recvOutputOffset_ = output_ + recvDisplThisLoop * sizeof(T);
             CpGM2GM((__gm__ T *)recvOutputOffset_, (__gm__ T *)recvInputOffset_, recvCurCount_);
             PipeBarrier<PIPE_ALL>();
             Record(dstRank, rank_, loop + 1);                       // P 区 [dstRank][rank_] = ack
@@ -227,25 +236,7 @@ public:
             uint64_t currDataCount = (loop == loopTimes - 1) ? maxSendOrRecvDataCount - processedDataCount : cclBufferCountPerRank_;
 
             if (isCtrlCore) {
-                ExtraArgs extraArgsPerLoop;
-                for (uint64_t i = 0; i < rankSize_; i++) {
-                    if (extraArgs.sendCounts[i] > processedDataCount) {
-                        extraArgsPerLoop.sendCounts[i] = min(currDataCount, extraArgs.sendCounts[i] - processedDataCount);
-                        extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + processedDataCount;
-                    } else {
-                        extraArgsPerLoop.sendCounts[i] = 0;
-                        extraArgsPerLoop.sendDispls[i] = extraArgs.sendDispls[i] + extraArgs.sendCounts[i];
-                    }
-
-                    if (extraArgs.recvCounts[i] > processedDataCount) {
-                        extraArgsPerLoop.recvCounts[i] = min(currDataCount, extraArgs.recvCounts[i] - processedDataCount);
-                        extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + processedDataCount;
-                    } else {
-                        extraArgsPerLoop.recvCounts[i] = 0;
-                        extraArgsPerLoop.recvDispls[i] = extraArgs.recvDispls[i] + extraArgs.recvCounts[i];
-                    }
-                }
-                ProduceConsumeCtrlCore(loop, extraArgsPerLoop);
+                ProduceConsumeCtrlCore(loop, extraArgs, processedDataCount, currDataCount);
             } else {
                 InitCoreInfo(extraArgs, processedDataCount, currDataCount);
                 Producer(loop); // 写数据
