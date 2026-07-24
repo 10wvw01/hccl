@@ -20,9 +20,9 @@ std::vector<CostModelParam> CcuTempAllReduceNHRMem2Mem1D::CalcCostCoeff(u32 rank
     (void)rankSize;
     HCCL_DEBUG("[CcuTempAllReduceNHRMem2Mem1D] CalcCostCoeff.");
     float n = 1.0f;
-    int netType = 0;
-    int portNum = 0;
-    int taskNum = 1;
+    int netType = 1;
+    int portNum = 6;
+    int taskNum = 10;
     float A = 0.0f;
     float B = 0.0f;
     float C = 0.0f;

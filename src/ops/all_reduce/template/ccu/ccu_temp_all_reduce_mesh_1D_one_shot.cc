@@ -19,8 +19,6 @@ namespace ops_hccl {
 
 std::vector<CostModelParam> CcuTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
-    HCCL_DEBUG("[CcuTempAllReduceMesh1DOneShot] CalcCostCoeff.");
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;
@@ -29,12 +27,13 @@ std::vector<CostModelParam> CcuTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 ran
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, 1, B);
+    CostModelManager::CalcMeshParam(1, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(rankSize - 1, 1, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 

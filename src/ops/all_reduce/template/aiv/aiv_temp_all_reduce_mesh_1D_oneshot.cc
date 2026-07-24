@@ -25,7 +25,6 @@ AivTempAllReduceMesh1DOneShot::~AivTempAllReduceMesh1DOneShot()
 
 std::vector<CostModelParam> AivTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
     float n = 1.0f;
     int netType = 0;
     int portNum = 0;

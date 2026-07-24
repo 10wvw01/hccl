@@ -19,22 +19,23 @@ namespace ops_hccl {
 
 std::vector<CostModelParam> CcuTempAllReduceMesh1D::CalcCostCoeff(u32 rankSize)
 {
-    (void)rankSize;
-    HCCL_DEBUG("[CcuTempAllReduceMesh1D] CalcCostCoeff.");
-    float n = 1.0f;
+    // 和twoshot相同
+    float n = 1.0f / rankSize;
     int netType = 0;
     int portNum = 0;
-    int taskNum = 1;
+    int taskNum = 20;
+    // 第一步是reducescatter，
     float A = 0.0f;
     float B = 0.0f;
     float C = 0.0f;
 
-    CostModelManager::CalcMeshParam(n, netType, portNum, A);
-    CostModelManager::CalcLocalCopyParams(n, 1, B);
+    CostModelManager::CalcMeshParam(2 * n, netType, portNum, A);
+    CostModelManager::CalcLocalReduceParams(n * (rankSize - 1), 1, B);
     CostModelManager::CalcLatencyParams(taskNum, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});
+    HCCL_DEBUG("[%s] CalcCostCoeff A=%f B=%f C=%f.", __func__, A, B, C);
     return params;
 }
 
