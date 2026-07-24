@@ -117,5 +117,47 @@ TEST_F(AicpuBaseTemplateTest, AllGatherMeshKernelRunSingleRankNoSend)
     EXPECT_EQ(ret, HCCL_SUCCESS);
 }
 
+// TC06 outputBufferType==OUTPUT：SendAll 走 READ 方向（enableRemoteMemAccess=true, buffType=OUTPUT），
+// PreCopy 复用基类（input->ccl，1 次 LocalCopy），PostCopy 补搬 myRank 的 ccl->output（1 次 LocalCopy）。
+TEST_F(AicpuBaseTemplateTest, AllGatherMeshDirectToOutputUsesReadDirection)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    AllGatherMeshTemplate tmpl(0, ranks, MakeMeshDesc());
+    TemplateDataParams params = MakeTmplParams({0});
+    // MakeTmplParams 默认 outputBufferType==OUTPUT、inputBufferType==INPUT
+    TemplateResource res = MakeTmplResource();
+    std::vector<u32> ranksForOutputData;
+    ClearTmplMock();
+
+    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    EXPECT_EQ(engine_.GetSendCount(), 3u);
+    // SendAll 应让 engine 走 READ 方向：enableRemoteMemAccess=true, buffType=OUTPUT
+    const TransferContext &ctx = engine_.GetLastCtx();
+    EXPECT_TRUE(ctx.enableRemoteMemAccess);
+    EXPECT_EQ(ctx.buffType, BufferType::OUTPUT);
+    // PreCopy 基类 input->ccl：1 次；PostCopy 补搬 myRank ccl->output：1 次。共 2 次 LocalCopy。
+    EXPECT_EQ(CountTmplCalls("LocalCopy"), 2u);
+}
+
+// TC07 outputBufferType==HCCL_BUFFER：SendAll 走 WRITE 方向（基类默认），PostCopy 搬运其他 rank。
+TEST_F(AicpuBaseTemplateTest, AllGatherMeshCclBufferModeUsesWriteDirection)
+{
+    std::vector<u32> ranks = {0, 1, 2, 3};
+    AllGatherMeshTemplate tmpl(0, ranks, MakeMeshDesc());
+    TemplateDataParams params = MakeTmplParams({0});
+    params.outputBufferType = BufferType::HCCL_BUFFER;
+    TemplateResource res = MakeTmplResource();
+    std::vector<u32> ranksForOutputData;
+    ClearTmplMock();
+
+    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    EXPECT_EQ(ret, HCCL_SUCCESS);
+    EXPECT_EQ(engine_.GetSendCount(), 3u);
+    // 基类 SendAll 走 WRITE 方向：enableRemoteMemAccess 保持默认 false
+    const TransferContext &ctx = engine_.GetLastCtx();
+    EXPECT_FALSE(ctx.enableRemoteMemAccess);
+}
+
 } // namespace testing
 } // namespace ops_hccl

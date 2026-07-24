@@ -22,3 +22,8 @@ if(REFACTOR_ALGORITHM AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/reduce_scatter/CMakeL
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/reduce_scatter
                      ${CMAKE_CURRENT_BINARY_DIR}/reduce_scatter)
 endif()
+
+if(REFACTOR_ALGORITHM AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/scatter/CMakeLists.txt)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/scatter
+                     ${CMAKE_CURRENT_BINARY_DIR}/scatter)
+endif()

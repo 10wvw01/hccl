@@ -18,6 +18,8 @@
 #include "template/aicpu/allgather_nhr.h"
 #include "template/aicpu/reducescatter_mesh.h"
 #include "template/aicpu/reducescatter_nhr.h"
+#include "template/aicpu/scatter_mesh.h"
+#include "template/aicpu/scatter_nhr.h"
 #include "template/primitives/mesh_primitives.h"
 #include "template/primitives/nhr_primitives.h"
 
@@ -170,6 +172,37 @@ protected:
     {
         return TemplateDesc{HcclCMDType::HCCL_CMD_REDUCE_SCATTER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
                             HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
+    }
+
+    TemplateDesc MakeScatterMeshDesc()
+    {
+        return TemplateDesc{HcclCMDType::HCCL_CMD_SCATTER, HcclAlgoType::HCCL_ALGO_TYPE_FULLMESH,
+                            HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
+    }
+
+    TemplateDesc MakeScatterNhrDesc()
+    {
+        return TemplateDesc{HcclCMDType::HCCL_CMD_SCATTER, HcclAlgoType::HCCL_ALGO_TYPE_NHR,
+                            HcclAlgShotMode::ONE_SHOT, HcclAlgJettyMode::SINGLE_JETTY};
+    }
+
+    // Scatter 专用参数：root 持有全部 rank 数据，其他 rank 无输入。
+    TemplateDataParams MakeScatterTmplParams(u32 root, const std::vector<u32> &ranks,
+                                             u64 sliceCount = 4)
+    {
+        TemplateDataParams params;
+        params.inputBufferPtr = inputMem_;
+        params.outputBufferPtr = outMem_;
+        params.cclBufferPtr = cclMem_;
+        params.dataType = HCCL_DATA_TYPE_INT32;
+        params.sliceCount = sliceCount;
+        params.sliceOffset = 0;
+        params.dataStride = sliceCount * sizeof(int32_t);
+        params.scratchStride = sliceCount * sizeof(int32_t);
+        params.root = root;
+        // Scatter: 仅 root 持有全部输入；其他 rank 无输入。
+        params.ranksForInputData = (/*myRankIsRoot*/ true) ? ranks : std::vector<u32>{};
+        return params;
     }
 
     TemplateDataParams MakeTmplParams(const std::vector<u32> &ranksForInputData, u64 sliceCount = 4)

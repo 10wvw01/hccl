@@ -27,4 +27,5 @@ target_include_directories(hccl PRIVATE
 target_sources(hccl PRIVATE
     all_gather_op.cc       # TODO: HcclAlgorithm/SingleRankProc/HcclExecOp 接口对齐
     reduce_scatter_op.cc
+    scatter_op.cc
 )

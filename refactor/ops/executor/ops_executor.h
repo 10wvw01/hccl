@@ -97,8 +97,8 @@ private:
     HcclResult PostSyncSingleSubDomain(u32 subCommIndex);
     HcclResult MergeChildrenOutput(const AlgoExecDesc &algoExecDesc,
         const std::vector<AlgoExecDataDesc> &childrenAlgoExecDataDesc, AlgoExecDataDesc &algoExecDataDesc);
-    HcclResult RunTemplateDesc(
-        TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc, u32 overrideRoot = INVALID_VALUE_RANKID);
+    HcclResult RunTemplateDesc(TemplateExecDesc *templateExeDes, AlgoExecDataDesc &algoExecDataDesc,
+        u32 overrideRoot = INVALID_VALUE_RANKID);
     // scatter PARALLEL 按 src 公式为本 rank 所在子通信域重设 root，使 root 落在本 rank 所在组内：
     //   subCommIndex=0 (Mesh, server内 INTRA): newRoot = root%rankSizeLevel0 + rankIdxLevel1*rankSizeLevel0
     //   subCommIndex=1 (NHR, server间 INTER):  newRoot = root/rankSizeLevel0*rankSizeLevel0 + rankIdxLevel0

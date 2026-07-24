@@ -27,6 +27,8 @@ set(UT_EXECUTOR_SRC
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/allgather_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_mesh.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/reducescatter_nhr.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/scatter_mesh.cc
+    ${CMAKE_SOURCE_DIR}/refactor/ops/template/aicpu/scatter_nhr.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/mesh_primitives.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/template/primitives/nhr_primitives.cc
     ${CMAKE_SOURCE_DIR}/refactor/ops/engine/aicpu/data_transfer.cc
