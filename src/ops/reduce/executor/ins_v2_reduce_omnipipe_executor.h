@@ -13,6 +13,7 @@
 
 #include "executor_common_ops.h"
 #include "ccu_alg_template_base.h"
+#include "omnipipe_data_slice_calc.h"
 #include "omnipipe_gather_data_slice_calc.h"
 #include "topo_match_base.h"
 #include "topo_match_multilevel.h"
@@ -75,6 +76,47 @@ protected:
     HcclResult GenTempAlgParamsHCCLBuff2HCCLBuff(TemplateDataParams &tempAlgParams, StepSliceInfo &stepSliceInfo, u64 processedDataCount, const AlgResourceCtxSerializable &resCtx, const OpParam &param);
     
     HcclResult OrchestrateLoop(const OpParam &param, const AlgResourceCtxSerializable& resCtx);
+    HcclResult RunMainLoop(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        CcuRsAlgTemplateX& rsAlgTempX, CcuRsAlgTemplateY& rsAlgTempY,
+        CcuGAlgTemplateX& gAlgTempX, CcuGAlgTemplateY& gAlgTempY,
+        const TemplateDataParams& tempAlgParamsCommon,
+        TemplateResource& templateResourceRsX, TemplateResource& templateResourceRsY,
+        TemplateResource& templateResourceGX, TemplateResource& templateResourceGY,
+        const std::vector<u64>& allRankSplitData, const std::vector<std::vector<u64>>& multiLoopAllRankSplitData,
+        u64 maxCountPerLoop, u32 loopTimes, const std::vector<double>& endpointAttrBwAvgRS,
+        const std::vector<double>& endpointAttrBwAvgG, const OmniPipeSliceParam& sliceParam, bool isRoot);
+    HcclResult InitLoopResources(const AlgResourceCtxSerializable& resCtx,
+        TemplateResource& templateResourceRsX, TemplateResource& templateResourceRsY,
+        TemplateResource& templateResourceGX, TemplateResource& templateResourceGY);
+    HcclResult CalcLoopDataParams(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        std::vector<u64>& allRankSplitData, std::vector<std::vector<u64>>& multiLoopAllRankSplitData,
+        u64& maxCountPerLoop, u32& loopTimes, std::vector<double>& endpointAttrBwAvgRS,
+        std::vector<double>& endpointAttrBwAvgG);
+    void BuildSliceParam(const OpParam& param, const std::vector<u64>& allRankSplitData,
+        const std::vector<std::vector<u64>>& multiLoopAllRankSplitData, OmniPipeSliceParam& sliceParam);
+    HcclResult RunRsInnerLoop(const OpParam& param, const OmniPipeSliceInfo& sliceInfoRS,
+        u64 processedDataCount, TemplateDataParams& tempRsAlgParamsX, TemplateDataParams& tempRsAlgParamsY,
+        CcuRsAlgTemplateX& rsAlgTempX, CcuRsAlgTemplateY& rsAlgTempY,
+        TemplateResource& templateResourceRsX, TemplateResource& templateResourceRsY);
+    HcclResult RunGatherInnerLoop(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        const OmniPipeSliceInfo& sliceInfoG, u64 processedDataCount, u64 loop,
+        TemplateDataParams& tempGAlgParamsX, TemplateDataParams& tempGAlgParamsY,
+        CcuGAlgTemplateX& gAlgTempX, CcuGAlgTemplateY& gAlgTempY,
+        TemplateResource& templateResourceGX, TemplateResource& templateResourceGY,
+        bool isRoot, bool isSameXAxisAsRoot, bool isSameYAxisAsRoot);
+    HcclResult SetupGatherStepParams(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        const OmniPipeSliceInfo& sliceInfoG, u64 processedDataCount, u32 i, u32 level0StepCountAG,
+        TemplateDataParams& tempGAlgParamsX, TemplateDataParams& tempGAlgParamsY,
+        CcuGAlgTemplateX& gAlgTempX, CcuGAlgTemplateY& gAlgTempY,
+        bool isRoot, bool isSameXAxisAsRoot, bool isSameYAxisAsRoot);
+    HcclResult RunGatherLocalCopy(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        const std::vector<u64>& allRankSplitData, const std::vector<std::vector<u64>>& multiLoopAllRankSplitData,
+        u64 loop, u64 processedDataCount, const TemplateDataParams& tempAlgParamsCommon,
+        CcuGAlgTemplateX& gAlgTempX, TemplateResource& templateResourceGX,
+        std::vector<u64>& processedDataCountTmp);
+    void BuildLocalCopyParam(const OpParam& param, const AlgResourceCtxSerializable& resCtx,
+        TemplateDataParams& p, u32 i, u64 currDataCountTmp, u64 rankOffset, u64 rankLoopOffset,
+        const std::vector<u64>& processedDataCountTmp);
     HcclResult CalcSliceInfoReduce(u64 dataCount);
     u64 RoundUp(const u64 dividend, const u64 divisor) const;
 
