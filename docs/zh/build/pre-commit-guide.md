@@ -13,9 +13,9 @@ pre-commit是一个Git Hooks框架，用于在 `git commit` 时自动运行代�
 
 - **Git**: 2.0+
 - **Python**: 3.8+
-- **clang-format**: 14.0+ (代码格式化工具)
-- **Java**: 17+ (OAT工具依赖，可自动安装)
-- **Maven**: 3.6+ (OAT工具依赖，可自动安装)
+- **pip**: 用于安装pre-commit及OAT Python包
+
+首次运行检查时需要访问网络。pre-commit会根据仓库配置准备clang-format 16.0.0，OAT检查脚本会在缺少依赖时自动安装`oat-py>=1.0.1`。
 
 ## 安装步骤
 
@@ -29,17 +29,7 @@ pip install pre-commit
 sudo apt install pre-commit
 ```
 
-### 2. 安装依赖工具
-
-```bash
-# Ubuntu/Debian
-sudo apt install clang-format openjdk-17-jre maven
-
-# macOS
-brew install clang-format openjdk@17 maven
-```
-
-### 3. 项目路径下安装Git Hooks
+### 2. 项目路径下安装Git Hooks
 
 ```bash
 # 进入代码仓根目录
@@ -97,7 +87,7 @@ git commit --no-verify -m "emergency fix"
 
 ### 1. clang-format
 
-自动格式化C/C++ 代码，遵循项目根目录下 [.clang-format](../../../.clang-format) 配置：
+pre-commit根据仓库配置使用clang-format 16.0.0自动格式化C/C++代码，并遵循项目根目录下的[.clang-format](../../../.clang-format)配置。
 
 ### 2. OAT Compliance Check
 
@@ -109,23 +99,24 @@ OAT (Open Source Audit Tool) 检查开源合规性：
 | 二进制文件检查 | 禁止提交二进制文件             |
 | 归档文件检查   | 禁止提交zip/tar等归档文件    |
 
-OAT检查脚本，首次运行时会自动：
+当前OAT检查脚本使用Python实现，要求Python 3.7或以上版本。首次运行时会自动：
 
-1. 检测/安装Java 17
-2. 检测/安装Maven
-3. 克隆并编译tools_oat工具（约1-2分钟）
+1. 检测本地是否已安装`oat-py`；
+2. 缺少依赖时通过pip安装`oat-py>=1.0.1`；
+3. 对暂存文件（或手动指定的文件）执行增量合规扫描；
+4. 将检查摘要写入`oat_reports/result.txt`。
 
 ## 常见问题
 
 ### Q1: 首次提交时OAT检查很慢
 
-**原因**: 首次运行需要克隆并编译OAT工具。
+**原因**: 首次运行可能需要通过网络安装`oat-py`及其Python依赖。
 
-**解决**: 这是正常现象，后续提交会使用缓存的JAR，速度会很快。
+**解决**: 这是正常现象，后续检查会复用已安装的Python包，速度会更快。若安装失败，请检查pip配置和网络连接后重试。
 
 ## 相关文档
 
 - [pre-commit官方文档](https://pre-commit.com/)
 - [clang-format配置](https://clang.llvm.org/docs/ClangFormatStyleOptions.html)
-- [OAT工具](https://gitcode.com/openharmony-sig/tools_oat)
+- [oat-py Python包](https://pypi.org/project/oat-py/)
 - [代码仓集成pre-commit指导](https://gitcode.com/cann/infrastructure/blob/main/docs/SC/pre-commit/pre-commit%E9%85%8D%E7%BD%AE%E6%8C%87%E5%AF%BC%E4%B9%A6.md)

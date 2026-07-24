@@ -13,9 +13,9 @@
 
 - **Git**: 2.0+
 - **Python**: 3.8+
-- **clang-format**: 14.0+ (code formatting tool)
-- **Java**: 17+ (OAT tool dependency, can be installed automatically)
-- **Maven**: 3.6+ (OAT tool dependency, can be installed automatically)
+- **pip**: Used to install pre-commit and the OAT Python package
+
+Network access is required when the checks run for the first time. Based on the repository configuration, pre-commit prepares clang-format 16.0.0, and the OAT check script automatically installs `oat-py>=1.0.1` if the dependency is missing.
 
 ## Installation Procedure
 
@@ -29,17 +29,7 @@ pip install pre-commit
 sudo apt install pre-commit
 ```
 
-### 2. Install Dependencies
-
-```bash
-# Ubuntu/Debian
-sudo apt install clang-format openjdk-17-jre maven
-
-# macOS
-brew install clang-format openjdk@17 maven
-```
-
-### 3. Install Git Hooks in the Project Directory
+### 2. Install Git Hooks in the Project Directory
 
 ```bash
 # Go to the repository root directory
@@ -97,7 +87,7 @@ git commit --no-verify -m "emergency fix"
 
 ### 1. clang-format
 
-Automatically formats C and C++ code according to the [.clang-format](../../../.clang-format) configuration file in the project root directory.
+Based on the repository configuration, pre-commit uses clang-format 16.0.0 to automatically format C and C++ code according to the [.clang-format](../../../.clang-format) file in the project root directory.
 
 ### 2. OAT Compliance Check
 
@@ -109,23 +99,24 @@ OAT (Open Source Audit Tool) checks open-source compliance:
 | Binary file check | Prevents binary file submissions |
 | Archive file check | Prevents submission of archive files such as zip and tar |
 
-During the first run, the OAT check script automatically performs the following actions:
+The current OAT check script is implemented in Python and requires Python 3.7 or later. During the first run, it automatically performs the following actions:
 
-1. Detects or installs Java 17
-2. Detects or installs Maven
-3. Clones and compiles the tools_oat tool (about 1 to 2 minutes)
+1. Checks whether `oat-py` is installed.
+2. Installs `oat-py>=1.0.1` through pip if the dependency is missing.
+3. Runs an incremental compliance scan on staged files or manually specified files.
+4. Writes the check summary to `oat_reports/result.txt`.
 
 ## Common Issues
 
 ### Q1: The OAT check is slow during the first commit
 
-**Cause**: The first run requires cloning and compiling the OAT tool.
+**Cause**: The first run may need to install `oat-py` and its Python dependencies over the network.
 
-**Solution**: This is expected. Subsequent commits use the cached JAR and are much faster.
+**Solution**: This is expected. Subsequent checks reuse the installed Python packages and are faster. If the installation fails, check the pip configuration and network connection, and then retry.
 
 ## Related Documents
 
 - [Pre-commit official documentation](https://pre-commit.com/)
 - [Clang-format configuration](https://clang.llvm.org/docs/ClangFormatStyleOptions.html)
-- [OAT tool](https://gitcode.com/openharmony-sig/tools_oat)
+- [oat-py Python package](https://pypi.org/project/oat-py/)
 - [Repository pre-commit integration guide (Chinese)](https://gitcode.com/cann/infrastructure/blob/main/docs/SC/pre-commit/pre-commit%E9%85%8D%E7%BD%AE%E6%8C%87%E5%AF%BC%E4%B9%A6.md)
