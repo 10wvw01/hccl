@@ -32,6 +32,9 @@ struct HcclOpArgs {
         dstDataType = HCCL_DATA_TYPE_FP16;
         reduceType = HCCL_REDUCE_SUM;
         count = 0;
+        algConfig[0] = '\0';
+        commEngine = COMM_ENGINE_RESERVED;
+        reverse = 0;
     }
 };
 
@@ -151,6 +154,11 @@ HcclResult HcclCreateOpResCtx(HcclComm comm, uint8_t opType, void *opArgs, void 
     CHK_RET(InitEnvConfig());
 
     HcclOpArgs *opArgsPtr = static_cast<HcclOpArgs *>(opArgs);
+    if (opArgsPtr->commEngine != COMM_ENGINE_AICPU && opArgsPtr->commEngine != COMM_ENGINE_AIV) {
+        HCCL_ERROR("[%s] commEngine[%d] is invalid, call HcclKfcOpArgsSetCommEngine first",
+            __func__, static_cast<int32_t>(opArgsPtr->commEngine));
+        return HCCL_E_PARA;
+    }
     if (GetExternalInputHcclEnableEntryLog()) {
         HCCL_RUN_INFO("Entry-HcclKfcCreateOpResCtx, opType[%u], opArgs[%p], srcDataType[%u], dstDataType[%u], reduceType[%u], "
             "count[%llu], algConfig[%s], commEngine[%u], opResCtx[%p]",
