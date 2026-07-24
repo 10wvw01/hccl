@@ -135,7 +135,7 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
     if (topoInfo->topoLevelNums > 1) {
         if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             if (topoInfo->userRankSize < ccuSize && dataSize > CCU_SCHEDULE_2LEVEL_LESS_64P_MAX_SIZE) {
-                HCCL_INFO("[BroadcastAutoSelector] 2 level topo less than 64P, which dataSize exceeds limit, fallback to aicpu.");
+                HCCL_INFO("[ReduceAutoSelector] 2 level topo less than 64P, which dataSize exceeds limit, fallback to aicpu.");
                 return SelectorStatus::NOT_MATCH;
             }
             if (topoInfo->userRankSize == 0 ||
