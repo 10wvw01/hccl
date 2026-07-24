@@ -93,7 +93,7 @@ HcclResult InsTempAllReduceMesh1DOneShot::KernelRun(const OpParam& param,
         GetNotifyIdxSubToMain(notifyIdxSubToMain_);
         CHK_RET(PostSyncInterThreads(templateResource.threads[0], subThreads, notifyIdxSubToMain_));
     }
-    CHK_PRT(PostLocalReduce(param, templateResource.threads, tempAlgParams, sliceInfoVec));
+    CHK_RET(PostLocalReduce(param, templateResource.threads, tempAlgParams, sliceInfoVec));
     HCCL_INFO("[InsTempAllReduceMesh1DOneShot][KernelRun] AllReduceMesh1DOneShot finished: rank[%d] end", myRank_);
     return HCCL_SUCCESS;
 }
