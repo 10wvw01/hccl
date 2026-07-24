@@ -20,12 +20,11 @@ HcclResult CostTableManager::FilterCMByConfig(CostModel &cm, CostTable &ct,
                                               const TopoInfoWithNetLayerDetails *topoInfo,
                                               const OpParam &opParam)
 {
-    (void)ct;
     HCCL_DEBUG("[FilterCMByConfig] filter cost model by config, opType=%d, algCount=%d.",
                static_cast<int>(opParam.opType), cm.count);
     switch (opParam.opType) {
         case HcclCMDType::HCCL_CMD_ALLREDUCE:
-            return FilterAllReduce(cm, topoInfo, opParam);
+            return FilterAllReduce(cm, ct, topoInfo, opParam);
         default:
             HCCL_WARNING("[FilterCMByConfig] opType=%d not supported yet, keep all algorithms.",
                          static_cast<int>(opParam.opType));
