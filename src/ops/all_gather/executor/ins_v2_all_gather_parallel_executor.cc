@@ -342,10 +342,16 @@ HcclResult InsV2AllGatherParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAlgT
     tempAlgIntra.GetRes(intraTempRequest);
     tempAlgInter.GetRes(interTempRequest);
     auto intraThreadsNum = intraTempRequest.slaveThreadNum + 1;
-    auto interThreadsNum = intraTempRequest.slaveThreadNum + 1;
+    auto interThreadsNum = interTempRequest.slaveThreadNum + 1;
     auto intraNotifyOnMainThread = intraTempRequest.notifyNumOnMainThread;
     auto interNotifyOnMainThread = interTempRequest.notifyNumOnMainThread;
 
+    if (threads_.size() < intraThreadsNum + interThreadsNum + 1) {
+        HCCL_ERROR("[InsV2AllGatherParallelExecutor][PrepareResForTemplate] threads size is %d, "
+                   "but intraThreadsNum is %d, interThreadsNum is %d",
+                   threads_.size(), intraThreadsNum, interThreadsNum);
+        return HCCL_E_PARA;
+    }
     intraThreads_.assign(threads_.begin() + 1, threads_.begin() + intraThreadsNum + 1);
     interThreads_.assign(threads_.begin() + intraThreadsNum + 1, threads_.end());
     // 用于两个算法同步
