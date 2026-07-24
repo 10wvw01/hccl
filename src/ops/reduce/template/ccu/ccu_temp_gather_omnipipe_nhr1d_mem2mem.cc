@@ -311,7 +311,6 @@ HcclResult CcuTempGatherOmniPipeNHR1DMem2Mem::GetStepInfo(u32 step, u32 nSteps, 
     stepInfo.toRank = sendTo; // TODO ranks[sendTo];
     stepInfo.fromRank = recvFrom; // TODO ranks[recvFrom];
     stepInfo.nSlices = nSlices;
-    
 
     HCCL_DEBUG("[%s] myRank[%u] StepInfo step[%u] nSteps[%u] nSlices[%u] fromRank[%u] toRank[%u] subCommRootId_[%u]", __func__, myRank_, step , nSteps, stepInfo.nSlices, stepInfo.fromRank, stepInfo.toRank, subCommRootId_);
     return HcclResult::HCCL_SUCCESS;
