@@ -62,9 +62,6 @@ public:
     bool isSameXAxis = false;
     bool isSameYAxis = false;
     bool isloopOne_ = false;
-
-    u32 remoteRank;
-    u32 subRankIdx;
 };
 
 } // namespace ops_hccl

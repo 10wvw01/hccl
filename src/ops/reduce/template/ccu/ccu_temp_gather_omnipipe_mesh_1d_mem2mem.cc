@@ -11,13 +11,13 @@
 #include "channel.h"
 #include "ccu_kernel_gather_omnipipe_mesh_1d_mem2mem.h"
 #include "ccu_temp_gather_omnipipe_mesh_1d_mem2mem.h"
-#include "alg_data_trans_wrapper.h" 
+#include "alg_data_trans_wrapper.h"
 #include "ccu_launch_dl.h"
 
 namespace ops_hccl {
 
 CcuTempGatherOmniPipeMesh1DMem2Mem::CcuTempGatherOmniPipeMesh1DMem2Mem(const OpParam& param, const u32 rankId,
-                                                                        const std::vector<std::vector<u32>>& subCommRanks)
+    const std::vector<std::vector<u32>>& subCommRanks)
     : CcuAlgTemplateBase(param, rankId, subCommRanks)
 {
     std::vector<u32> ranks = subCommRanks[0];
@@ -72,7 +72,7 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::GetRes(AlgResourceRequest &resour
 {
     resourceRequest.notifyNumOnMainThread = 0;
     resourceRequest.slaveThreadNum = 0;
-    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1); 
+    resourceRequest.notifyNumPerThread.assign(resourceRequest.slaveThreadNum, 1);
 
     return HCCL_SUCCESS;
 }
@@ -89,8 +89,7 @@ uint32_t CcuTempGatherOmniPipeMesh1DMem2Mem::RemoteRankId2RankId(const uint32_t 
 }
 
 HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpParam& param,
-                                                        const TopoInfoWithNetLayerDetails* topoInfo,
-                                                        AlgResourceRequest& resourceRequest)
+    const TopoInfoWithNetLayerDetails* topoInfo, AlgResourceRequest& resourceRequest)
 {
     GetRes(resourceRequest);
     resourceRequest.ccuKernelNum.push_back(1);
@@ -128,19 +127,14 @@ HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::CalcRes(HcclComm comm, const OpPa
     
     kernelInfo.channels = channelDescs;
     resourceRequest.ccuKernelInfos.push_back(kernelInfo);
-    HCCL_DEBUG("[%s]channelDescs.size()=%llu, dimsize=%llu, ccuKernelInfos.size()=%llu", __func__, channelDescs.size(),
-        subCommRanks_[0].size(), resourceRequest.ccuKernelInfos.size());
-    HCCL_DEBUG("[%s] myRank_[%u] mySubCommRank_[%u] localAddr[%u] remoteAddr[%u]", __func__, myRank_,
-        mySubCommRank_, channelDescs[0].localEndpoint.commAddr.addr,
-        channelDescs[0].remoteEndpoint.commAddr.addr);
-
+    HCCL_DEBUG("[%s]channelDescs.size()=%llu, ccuKernelInfos.size() = %llu",
+        __func__, channelDescs.size(), resourceRequest.ccuKernelInfos.size());
     return HcclResult::HCCL_SUCCESS;
 }
 
 
 HcclResult CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun(const OpParam& param,
-                                                          const TemplateDataParams& templateDataParams,
-                                                          TemplateResource& templateResource)
+    const TemplateDataParams& templateDataParams, TemplateResource& templateResource)
 {
     HCCL_DEBUG("[CcuTempGatherOmniPipeMesh1DMem2Mem::KernelRun] start1");
     buffInfo_ = templateDataParams.buffInfo;
