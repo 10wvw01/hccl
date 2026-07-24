@@ -67,16 +67,16 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::CalcRes(HcclC
     // 初始化一些基本成员变量
     CHK_RET(InitCommInfo(param, topoInfo));
 
-    std::vector<std::vector<u32>> tempAlgHierachyInfo;
+    std::vector<std::vector<u32>> tempAlgHierarchyInfo;
     if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS && !topoInfo->level0PcieMix) {
-        tempAlgHierachyInfo.push_back(algHierarchyInfo.infos[0][1]);    // clos拓扑，包含所有rank
+        tempAlgHierarchyInfo.push_back(algHierarchyInfo.infos[0][1]);    // clos拓扑，包含所有rank
     } else {
-        tempAlgHierachyInfo = algHierarchyInfo.infos[0];
+        tempAlgHierarchyInfo = algHierarchyInfo.infos[0];
     }
 
     // 构建template
     std::shared_ptr<InsAlgTemplate> algTemplate = 
-        std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierachyInfo);
+        std::make_shared<InsAlgTemplate>(param, topoInfo->userRank, tempAlgHierarchyInfo);
     // 调用计算资源的函数
     CHK_RET(algTemplate->CalcRes(comm, param, topoInfo, resourceRequest));
 
@@ -167,14 +167,14 @@ HcclResult InsAlltoAllVSoleExecutor<AlgTopoMatch, InsAlgTemplate>::OrchestrateLo
 {
     HCCL_INFO("[InsAlltoAllVSoleExecutor][OrchestrateLoop] Start");
 
-    std::vector<std::vector<u32>> tempAlgHierachyInfo;
+    std::vector<std::vector<u32>> tempAlgHierarchyInfo;
     if (resCtx.topoInfo.level0Topo == Level0Shape::MESH_1D_CLOS && !resCtx.topoInfo.level0PcieMix) {
-        tempAlgHierachyInfo.push_back(resCtx.algHierarchyInfo.infos[0][1]);    // clos拓扑，包含所有rank
+        tempAlgHierarchyInfo.push_back(resCtx.algHierarchyInfo.infos[0][1]);    // clos拓扑，包含所有rank
     } else {
-        tempAlgHierachyInfo = resCtx.algHierarchyInfo.infos[0];
+        tempAlgHierarchyInfo = resCtx.algHierarchyInfo.infos[0];
     }
     std::shared_ptr<InsAlgTemplate> algTemplate =
- 	    std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierachyInfo);
+ 	    std::make_shared<InsAlgTemplate>(param, resCtx.topoInfo.userRank, tempAlgHierarchyInfo);
     // 构建template
     algTemplate->SetA2ASendRecvInfo(localSendRecvInfo_);
 
