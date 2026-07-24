@@ -74,7 +74,7 @@ flowchart TD
 
 1. 查询并认领Issue
 
-   - 现在Issue列表中查询该问题是否有对应的Issue；
+   - 先在Issue列表中查询该问题是否有对应的Issue；
    - **如有对应Issue**：直接认领该Issue；
    - **如无对应Issue**：创建新的Issue并认领。
 

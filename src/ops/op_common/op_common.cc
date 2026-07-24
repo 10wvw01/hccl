@@ -75,33 +75,6 @@ void UpdateAicpuTimeoutCtx(const OpParam &param, AlgResourceCtxSerializable &res
         timeout.kernelLaunchTimeout, static_cast<u32>(IsHcommDefaultTimeoutSupported()));
 }
 
-// 检查非对称拓扑支持情况
-// 仅 AllGather, AllReduce, ReduceScatter, AllToAll(V/VC), Scatter, Broadcast, Reduce 支持跨框非对称拓扑，其他算子拦截
-HcclResult CheckAsymmetricTopoSupport(HcclCMDType opType, const TopoInfoWithNetLayerDetails* topoInfo)
-{
-    // 仅在跨框非对称场景下检查
-    if (topoInfo->topoLevelNums > 1 && topoInfo->multiModuleDiffDeviceNumMode) {
-        // 已适配非对称的算子：AllGather, AllReduce, ReduceScatter, AllToAll(V/VC), Scatter, Broadcast, Reduce
-        bool isSupportedOp = (opType == HcclCMDType::HCCL_CMD_ALLGATHER ||
-                             opType == HcclCMDType::HCCL_CMD_ALLREDUCE ||
-                             opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER ||
-                             opType == HcclCMDType::HCCL_CMD_ALLTOALL ||
-                             opType == HcclCMDType::HCCL_CMD_ALLTOALLV ||
-                             opType == HcclCMDType::HCCL_CMD_ALLTOALLVC ||
-                             opType == HcclCMDType::HCCL_CMD_SCATTER ||
-                             opType == HcclCMDType::HCCL_CMD_BROADCAST ||
-                             opType == HcclCMDType::HCCL_CMD_REDUCE);
-        if (!isSupportedOp) {
-            HCCL_ERROR("[CheckAsymmetricTopoSupport] OpType[%d] does not support asymmetric topology "
-                "(multi-module diff device num mode) "
-                "only ALLGATHER/ALLREDUCE/REDUCE_SCATTER/ALLTOALL/ALLTOALLV/ALLTOALLVC/SCATTER/BROADCAST/REDUCE "
-                "are supported.", opType);
-            return HCCL_E_NOT_SUPPORT;
-        }
-    }
-    return HCCL_SUCCESS;
-}
-
 HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithNetLayerDetails> &topoInfo,
     std::string &algName)
 {
@@ -118,9 +91,6 @@ HcclResult Selector(HcclComm comm, OpParam &param, std::unique_ptr<TopoInfoWithN
     param.hcclComm = comm;
     // 获取基础拓扑
     CHK_RET(HcclCalcTopoInfo(comm, param, topoInfo));
-
-    // 检查非对称拓扑支持情况，非对称场景仅 AllGather/AllReduce/ReduceScatter/AllToAll(V/VC)/Scatter/Broadcast/Reduce 可用
-    CHK_RET(CheckAsymmetricTopoSupport(param.opType, topoInfo.get()));
 
     // 算法选择，选择完后顺便param.algTag设置了，资源的保存是以算子+算法为单位
     std::shared_ptr<ExecuteSelector> collAlgSelector = std::make_shared<ExecuteSelector>(ExecuteSelector());
@@ -222,7 +192,10 @@ HcclResult AppendFastLaunchTag(OpParam &param, const char* dataTypeStr,
         if (!s) return true;
         size_t len = strlen(s);
         if (len >= remain) return false;
-        memcpy_s(dst, remain, s, len);
+        if (memcpy_s(dst, remain, s, len) != EOK) {
+            HCCL_ERROR("memcpy_s failed in append_str.");
+            return false;
+        }
         dst += len;
         remain -= len;
         return true;
@@ -303,7 +276,9 @@ bool ShouldGoCcuFastLaunch(HcclComm comm, OpParam &param, CcuFastLaunchCtx **ccu
     if (param.engine != CommEngine::COMM_ENGINE_CCU) {
         return false;
     }
-    CHK_RET(SetOpParamFastLaunchTag(param));
+    if (SetOpParamFastLaunchTag(param) != HCCL_SUCCESS) {
+        return false;
+    }
 
     // 2. 查到engineCtx
     uint64_t size = 0;
@@ -753,6 +728,7 @@ static HcclResult GetUnfoldStream(HcclComm comm, OpParam &param, ThreadHandle un
         if (ret == HCCL_E_NOT_SUPPORT) {
             resolvedStream = param.stream;
         } else if (ret != HCCL_SUCCESS) {
+            resolvedStream = param.stream;
             return ret;
         } else {
             resolvedStream = unfoldStream;
@@ -1124,7 +1100,7 @@ HcclResult FillOpExchangeInfo(HcclComm comm, const OpParam &param, OpExchangeInf
     CHK_RET(HcclGetCommName(comm, exchangeInfo.group));
     exchangeInfo.group[MAX_LENGTH - 1] = '\0';
     s32 sRet = strncpy_s(exchangeInfo.tag, TAG_LENGTH, param.tag, TAG_LENGTH);
-    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s],  return[%d].",
+    CHK_PRT_RET(sRet != EOK, HCCL_ERROR("[%s] call strncpy_s failed, param.tag[%s], return[%d].",
         __func__, param.tag, sRet), HCCL_E_MEMORY);
 
     HCCL_INFO("[%s] success. exchangeInfo dump: cclBufferSize[%llu], root[%u], opType[%u], opExecuteConfig[%u], "
@@ -1780,6 +1756,7 @@ HcclResult HcclAllocAlgResourceCcu(HcclComm comm, const OpParam& param, AlgResou
     resCtxHost->notifyNumOnMainThread = resRequest.notifyNumOnMainThread;
     resCtxHost->slaveThreadNum = resRequest.slaveThreadNum;
     resCtxHost->notifyNumPerThread = resRequest.notifyNumPerThread;
+    resCtxHost->dieSplitRatio = resRequest.dieSplitRatio;
     CHK_RET(HcclGetThread(comm, param, resRequest, resCtxHost, resPack));
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
     // 资源回退
@@ -1912,7 +1889,7 @@ HcclResult HcclGetCcuKernel(HcclComm comm, AlgResourceRequest &resRequest,
     resCtxHost->ccuKernelNum = resRequest.ccuKernelNum;
     return HCCL_SUCCESS;
 }
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 1, 0)
 
 HcclResult GetAlgResAiv(HcclComm comm, const OpParam &param, AlgResourceRequest &resRequest, TopoInfoWithNetLayerDetails *topoInfo,
     AlgHierarchyInfoForAllLevel &algHierarchyInfo, void **resCtxSequence)
@@ -2002,7 +1979,7 @@ HcclResult HcclAllocAlgResourceAiv(
             void* remoteBufferAddr;
             uint64_t remoteBufferSize;
             CHK_RET(HcclChannelGetHcclBuffer(comm, levelNChannels[idx], &remoteBufferAddr, &remoteBufferSize));
-            HCCL_RUN_INFO("[%s]remoteRank[%u] cclBufferAddr[%p] cclBufferSize[%llu]", __func__, channelDesc.remoteRank,
+            HCCL_INFO("[%s]remoteRank[%u] cclBufferAddr[%p] cclBufferSize[%llu]", __func__, channelDesc.remoteRank,
                 remoteBufferAddr, remoteBufferSize);
             buffersIn[channelDesc.remoteRank] = remoteBufferAddr;
 
@@ -2174,6 +2151,8 @@ HcclResult SetCommEngine(OpParam &param)
 
 HcclResult SingleRankProc(HcclComm comm, OpParam &param)
 {
+    uint64_t beginTime = HcommGetProfilingSysCycleTime();
+    HCCL_INFO("[SingleRankProc]Start to execute HcclExecOp. HcommGetProfilingSysCycleTime[%llu]", beginTime);
     if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
         HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, " 
             "please ensure rankNum is greater than one", static_cast<int>(param.opType));
@@ -2193,25 +2172,18 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         len = DATATYPE_SIZE_TABLE[param.all2AllVDataDes.sendType] * *(static_cast<const u64 *>(param.all2AllVDataDes.sendCounts));
     } else if (param.opType == HCCL_CMD_ALLGATHER_V || param.opType == HCCL_CMD_REDUCE_SCATTER_V) {
         len = DATATYPE_SIZE_TABLE[param.vDataDes.dataType] * *(static_cast<const u64 *>(param.vDataDes.counts));
-    } else {
-        len = DATATYPE_SIZE_TABLE[param.DataDes.dataType] * param.DataDes.count;
+    } else {len = DATATYPE_SIZE_TABLE[param.DataDes.dataType] * param.DataDes.count;
     }
-
-
     HCCL_INFO("[%s] sendBuf[%p], recvBuf[%p], len[%llu]", __func__, param.inputPtr, param.outputPtr, len);
     if (len > 0) {
         ThreadHandle cpuTsThread{0};
         CHK_RET(HcclThreadAcquireWithStream(comm, COMM_ENGINE_CPU_TS, param.stream, 1, &cpuTsThread));
-        // Op注册
-        HcclDfxOpInfoCompat hcclDfxOpInfo{};
+        HcclDfxOpInfoCompat hcclDfxOpInfo{};// Op注册
         hcclDfxOpInfo.opMode = static_cast<u32>(param.opMode);
         hcclDfxOpInfo.opType = static_cast<u32>(param.opType);
         hcclDfxOpInfo.reduceOp = static_cast<u32>(param.reduceType);
         CHK_RET(GetHcclDfxOpInfoDataType(param, hcclDfxOpInfo.dataType));
-
-
-        // rankSize获取指定算子的dataCount
-        u32 userRankSize{0};
+        u32 userRankSize{0};// rankSize获取指定算子的dataCount
         CHK_RET(HcclGetRankSize(comm, &userRankSize));
         CHK_RET(GetHcclDfxOpInfoDataCount(param, userRankSize, hcclDfxOpInfo.dataCount));
         hcclDfxOpInfo.root = param.root;
@@ -2220,13 +2192,12 @@ HcclResult SingleRankProc(HcclComm comm, OpParam &param)
         hcclDfxOpInfo.cpuWaitAicpuNotifyIdx = HOST_WAIT_AICPU_NOTIFYIDX;
         CHK_RET(SetOpParamAlgTag(param, "SingleRankProc"));
         s32 sRet = strncpy_s(hcclDfxOpInfo.algTag, ALG_TAG_LENGTH, param.algTag, ALG_TAG_LENGTH);
-        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s,  return %d.",
+        CHK_PRT_RET(sRet != EOK, HCCL_ERROR("%s call strncpy_s failed, param.algTag %s, return %d.",
             __func__, param.algTag, sRet), HCCL_E_MEMORY);
-
-
         CHK_RET(HcclDfxRegOpInfoByCommId(param.commName, reinterpret_cast<void*>(&hcclDfxOpInfo)));
         CHK_RET(static_cast<HcclResult>(HcommLocalCopyOnThread(cpuTsThread, param.outputPtr, param.inputPtr, len)));
     }
+    CHK_RET(HcclProfilingReportOp(comm, beginTime));
     return HcclResult::HCCL_SUCCESS;
 }
 

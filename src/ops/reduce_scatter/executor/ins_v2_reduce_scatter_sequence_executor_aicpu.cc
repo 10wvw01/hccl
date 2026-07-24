@@ -16,7 +16,7 @@
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #include "ccu_temp_reduce_scatter_mesh_1D_mem2mem.h"
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
 
 namespace ops_hccl {
@@ -300,6 +300,10 @@ HcclResult InsV2ReduceScatterSequenceExecutorAicpu<AlgTopoMatch, InsAlgTemplate0
     }
 
     // 中转内存单次最多能够接受的output count，注意是count不是size
+    if (templateScratchMultiplier == 0) {
+        HCCL_ERROR("[%s] templateScratchMultiplier is 0, division by zero.", __func__);
+        return HCCL_E_INTERNAL;
+    }
     u64 maxCountPerLoop = 0;
     if (param.engine == CommEngine::COMM_ENGINE_CCU) {
         maxCountPerLoop = scratchBlockSize_ / templateScratchMultiplier / HCCL_MIN_SLICE_ALIGN 
@@ -402,7 +406,7 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
                                 TopoMatchMultilevel,
                                 InsTempReduceScatterMesh1DZAxisDetour,
                                 InsTempReduceScatterNHR);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 
 #ifndef AICPU_COMPILE
 #if CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
@@ -412,6 +416,6 @@ REGISTER_EXECUTOR_BY_TWO_TEMPS(HcclCMDType::HCCL_CMD_REDUCE_SCATTER,
                                TopoMatchMultilevel,
                                CcuTempReduceScatterMesh1DMem2Mem,
                                CcuTempReduceScatterMesh1DMem2Mem);
-#endif /* CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0) */
+#endif // CANN_VERSION_NUM >= CANN_VERSION(9, 0, 0)
 #endif
 }

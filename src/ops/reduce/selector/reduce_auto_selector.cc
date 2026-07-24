@@ -13,6 +13,7 @@
 
 namespace ops_hccl {
 constexpr u64 REDUCE_AICPU_1D_MAX_DATA_SIZE = 8 * 1024 * 1024;
+constexpr u64 REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE = 16 * 1024 * 1024;
 constexpr u64 REDUCE_NHR_CCU_MAX_DATA_SIZE = 256 * 1024;
 constexpr int TOPO_LEVEL_3 = 3;
 
@@ -106,6 +107,16 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
     HCCL_DEBUG("[ReduceAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
     CHK_PRT_RET(topoInfo == nullptr, HCCL_ERROR("[Algo][ReduceAutoSelector] topoInfo is nullptr"),
         SelectorStatus::NOT_MATCH);
+    if (topoInfo->level2Ubg) {
+        HCCL_INFO("[ReduceAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[ReduceAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     (void)configAlgMap;
     // ccu 模式不支持 PROD
     CHK_PRT_RET(opParam.reduceType == HcclReduceOp::HCCL_REDUCE_PROD,
@@ -168,11 +179,13 @@ SelectorStatus ReduceAutoSelector::SelectMeshAlgoCcuSchedule(
         if (topoInfo->is2DieFullMesh) {
             HCCL_WARNING("[ReduceAutoSelector] 2DieFullMesh is not supported yet for ccu schedule mode.");
             return SelectorStatus::NOT_MATCH;
-        } else if (dataSize >= REDUCE_AICPU_1D_MAX_DATA_SIZE) {
-            HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] >= 8MB, fallback to aicpu.", dataSize);
+        } else if (dataSize > REDUCE_CCU_TWOSHOT_1D_MAX_DATA_SIZE) {
+            HCCL_INFO("[ReduceAutoSelector] Mesh1D dataSize[%llu] > 16MB, fallback to aicpu.", dataSize);
             return SelectorStatus::NOT_MATCH;
         } else {
-            selectAlgName = "CcuReduceMesh1DMem2Mem";
+            CHK_PRT_RET(opParam.DataDes.dataType == HcclDataType::HCCL_DATA_TYPE_INT8, HCCL_WARNING("[ReduceAutoSelector] dataType[%d] is not supported yet for ccu schedule mode.",
+            opParam.DataDes.dataType), SelectorStatus::NOT_MATCH);
+            selectAlgName = "CcuReduceMesh1DTwoShotMem2Mem";
         }
     } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
         if (IsLayerAllConnetedWithTopo(topoInfo, 0, CommTopo::COMM_TOPO_1DMESH)) {
@@ -302,6 +315,12 @@ SelectorStatus ReduceAutoSelector::SelectAivAlgo(const TopoInfoWithNetLayerDetai
         SelectorStatus::NOT_MATCH);
     (void)configAlgMap;
 
+    if (topoInfo->level2Ubg) {
+        HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] aiv is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+
     if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
         HCCL_AIV_NOT_MATCH_LOG(opParam, HCCL_DEBUG, "[ReduceAutoSelector][%s] aiv is not supported with level2Uboe, reset to default.",
             __func__);
@@ -366,6 +385,12 @@ SelectorStatus ReduceAutoSelector::SelectDPUAlgo(const TopoInfoWithNetLayerDetai
             selectAlgName = "InsReduceSequenceMeshNhrDPU";
             HCCL_INFO("selectAlgName is InsReduceSequenceMeshNhrDPU");
             return SelectorStatus::MATCH;
+        } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
+            if (topoInfo->level0PcieMix) {
+                selectAlgName = "InsReduceSequenceMeshNhrDPU";
+                HCCL_INFO("selectAlgName is InsReduceSequenceMeshNhrDPU");
+                return SelectorStatus::MATCH;
+            }
         }
     }
     return SelectorStatus::NOT_MATCH;

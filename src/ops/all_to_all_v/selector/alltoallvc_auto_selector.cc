@@ -23,6 +23,16 @@ SelectorStatus AlltoAllVCAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithN
                                                     std::string &selectAlgName) const
 {
     HCCL_DEBUG("[AlltoAllVCAutoSelector][%s] start, topoInfo levelNum[%u]", __func__, topoInfo->topoLevelNums);
+    if (topoInfo->level2Ubg) {
+        HCCL_INFO("[AlltoAllVCAutoSelector][%s] ccu schedule is not supported with level2Ubg, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
+    if (topoInfo->topoLevelNums == TOPO_LEVEL_NUM_3 && topoInfo->level2Uboe) {
+        HCCL_INFO("[AlltoAllVCAutoSelector][%s] ccu schedule is not supported with level2Uboe, reset to default.",
+            __func__);
+        return SelectorStatus::NOT_MATCH;
+    }
     (void)opParam;
     (void)configAlgMap;
     if (topoInfo->topoLevelNums > 1) {
@@ -67,12 +77,17 @@ SelectorStatus AlltoAllVCAutoSelector::SelectDPUAlgo(
     HCCL_INFO("[AlltoAllVCAutoSelector] hccl algo op config: config opType:%d, level0:%u, level1:%u, level2:%u, level3:%u", opParam.opType,
               algos[0], algos[1], algos[2], algos[3]);
     if (topoInfo->topoLevelNums > 1) {
-        if ((topoInfo->deviceNumPerModule == 1) || (topoInfo->level0Topo == Level0Shape::MESH_1D)) {
+        if (topoInfo->level0Topo == Level0Shape::MESH_1D) {
             selectAlgName = "InsAlltoAllVCMesh1DDPU";
             return SelectorStatus::MATCH;
         } else if (topoInfo->level0Topo == Level0Shape::MESH_1D_CLOS) {
-            selectAlgName = "InsAlltoAllVCClosMesh1DDPU";
-            return SelectorStatus::MATCH;
+            if (!topoInfo->level0PcieMix) {
+                selectAlgName = "InsAlltoAllVCClosMesh1DDPU";
+                return SelectorStatus::MATCH;
+            } else {
+                selectAlgName = "InsAlltoAllVCMesh1DDPU";
+                return SelectorStatus::MATCH;
+            }
         }
     }
  

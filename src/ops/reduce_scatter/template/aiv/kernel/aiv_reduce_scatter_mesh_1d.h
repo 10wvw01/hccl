@@ -13,7 +13,6 @@
 using namespace AscendC;
 
 template<typename T>
-// todo 简化参数
 class AivReduceScatterMesh1D : public AivCommBase {
     constexpr static uint64_t stageNum = 2;  // 生产者 消费者
     constexpr static uint64_t TAG_FLAG_SIZE = 8;
@@ -110,7 +109,7 @@ template<typename T>
 __aicore__ inline void AivReduceScatterV2Mesh1DSuperKernel(SUPERKERNEL_ARGS_DEF)
 {
     AivReduceScatterMesh1D<T> op;
-    op.Init(SUPERKERNEL_CLASS_INIT);
+    op.Init(SUPERKERNEL_CLASS_INIT, false);
 
     uint64_t maxCountPerLoop = op.cclBufferSize_ / UB_ALIGN_SIZE * UB_ALIGN_SIZE / op.rankSize_ / sizeof(T);
     uint64_t countLeft = op.len_;

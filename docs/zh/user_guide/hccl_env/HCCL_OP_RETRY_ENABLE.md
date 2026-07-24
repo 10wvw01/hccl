@@ -141,12 +141,27 @@
 
 ## 其他约束
 
-若您调用HCCL C接口初始化具有特定配置的通信域时，通过“HcclCommConfig”的“hcclRetryEnable”参数配置了是否开启HCCL算子的重执行特性，则以通信域粒度的配置优先。
+- 若您调用HCCL C接口初始化具有特定配置的通信域时，通过“HcclCommConfig”的“hcclRetryEnable”参数配置了是否开启HCCL算子的重执行特性，则以通信域粒度的配置优先。
+- 开启重执行时，不支持在单卡上多个进程或者线程中调用HcclCreateSubCommConfig接口切分子通信域。
 
 ## 重执行对整网性能说明
 
 请参见[通信算子重执行对整网性能说明](comm_retry_perf_impact.md)。
 
-## 支持的型号
+## 产品支持情况
 
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+<!-- npu="950" id2 -->
+- Ascend 950PR/Ascend 950DT：不支持
+<!-- end id2 -->
+<!-- npu="A3" id1 -->
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+<!-- end id1 -->
+<!-- npu="910b" id3 -->
+- Atlas A2 训练系列产品/Atlas A2 推理系列产品：不支持
+<!-- end id3 -->
+<!-- npu="910" id4 -->
+- Atlas 训练系列产品：不支持
+<!-- end id4 -->
+<!-- npu="310p" id5 -->
+- Atlas 推理系列产品：不支持
+<!-- end id5 -->
