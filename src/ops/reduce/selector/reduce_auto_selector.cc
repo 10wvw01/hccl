@@ -139,9 +139,9 @@ SelectorStatus ReduceAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNetLa
                 return SelectorStatus::NOT_MATCH;
             }
             if (topoInfo->userRankSize == 0 ||
-                (dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE)) {
+                dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
                 HCCL_INFO("[ReduceAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                    (topoInfo->userRankSize == 0 || topoInfo->userRankSize <= ccuSize) ? dataSize : dataSize / topoInfo->userRankSize);
+                    topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
                 return SelectorStatus::NOT_MATCH;
             }
             if (topoInfo->netLayerDetails.localNetInsSizeOfLayer.at(0) == 1) {

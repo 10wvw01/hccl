@@ -16,7 +16,7 @@ namespace ops_hccl {
 
 constexpr u64 BROADCAST_MESH_CCU_MAX_DATA_SIZE = 16 * 1024;
 constexpr u64 BROADCAST_NHR_LESS_32P_CCU_MAX_DATA_SIZE = 4 * 1024 * 1024;
-constexpr u64 BROADCAST_NHR_MORE_32P_CCU_MAX_DATA_SIZE = 1 * 1024 * 1024;
+constexpr u64 BROADCAST_NHR_CCU_MAX_DATA_SIZE = 1 * 1024 * 1024;
 constexpr u64 OMNI2D_UBX_BR_DATA_SIZE = 16 * 1024 * 1024;
 
 SelectorStatus BroadcastAutoSelector::SelectCcuMsAlgo(const TopoInfoWithNetLayerDetails* topoInfo, const OpParam &opParam,
@@ -98,8 +98,8 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
             }
             if (topoInfo->userRankSize == 0 ||
                 dataSize / topoInfo->userRankSize > CCU_SCHEDULE_2LEVEL_MAX_PER_RANK_DATA_SIZE) {
-                HCCL_INFO("[BroadcastAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, fallback to aicpu.",
-                     (topoInfo->userRankSize == 0) ? dataSize : dataSize / topoInfo->userRankSize);
+                HCCL_INFO("[BroadcastAutoSelector] 2 level topo perRankDataSize[%llu] exceeds limit, "
+                    "fallback to aicpu.", topoInfo->userRankSize == 0 ? dataSize : dataSize / topoInfo->userRankSize);
                 return SelectorStatus::NOT_MATCH;
             }
             if(topoInfo->netLayerDetails.localNetInsSizeOfLayer[0] == 1){ // 每框出1卡
@@ -113,7 +113,7 @@ SelectorStatus BroadcastAutoSelector::SelectCcuScheduleAlgo(const TopoInfoWithNe
                 u64 perRankSize = (topoInfo->userRankSize > 0) ? (dataSize / topoInfo->userRankSize) : dataSize;
                 if (perRankSize <= BROADCAST_MESH_CCU_MAX_DATA_SIZE && topoInfo->userRankSize <= 64) {
                     selectAlgName = "CcuBroadcastMesh1DMem2Mem";
-                } else if ((perRankSize <= BROADCAST_NHR_LESS_32P_CCU_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) || (perRankSize <= BROADCAST_NHR_MORE_32P_CCU_MAX_DATA_SIZE && topoInfo->userRankSize > ccuSize)) {
+                } else if ((perRankSize <= BROADCAST_NHR_LESS_32P_CCU_MAX_DATA_SIZE && topoInfo->userRankSize <= ccuSize) || (perRankSize <= BROADCAST_NHR_CCU_MAX_DATA_SIZE && topoInfo->userRankSize > ccuSize)) {
                     selectAlgName = "CcuBroadcastNHR1DMem2Mem";
                 } else {
                     selectAlgName = "CcuBroadcastParallelMesh1DNHR";
