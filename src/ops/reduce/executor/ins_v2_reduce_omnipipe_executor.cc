@@ -309,17 +309,29 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
 
 template <typename AlgTopoMatch, typename CcuRsAlgTemplateX, typename CcuRsAlgTemplateY, typename CcuGAlgTemplateX, typename CcuGAlgTemplateY>
 HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlgTemplateY, CcuGAlgTemplateX, CcuGAlgTemplateY>::CalcEndpointBandwidth(std::vector<double> &endpointAttrBwAvgRS,
-    std::vector<double> &endpointAttrBwAvgG)
+    std::vector<double> &endpointAttrBwAvgG, const OpParam& param)
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
-    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS;
+    double eqBwLevel0RS = BW_OMNI_DEFAULT;
+    double eqBwLevel1RS = BW_OMNI_DEFAULT;
+    double eqBwLevel0G = BW_OMNI_DEFAULT;
+    double eqBwLevel1G = BW_OMNI_DEFAULT;
+    if (param.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
+        eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
+        eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS;
+        eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
+        eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    } else if (param.opExecuteConfig == OpExecuteConfig::CCU_MS) {
+        eqBwLevel0RS = BW_OMNI_UBX_CCU_MS_RS_MESH;
+        eqBwLevel1RS = BW_OMNI_UBX_CCU_MS_RS_CLOS;
+        eqBwLevel0G = BW_OMNI_UBX_CCU_MS_SCHED_G_MESH;
+        eqBwLevel1G = BW_OMNI_UBX_CCU_MS_SCHED_G_CLOS;
+    }
     eqBwLevel1RS = rankSizeLevel1_ > 1 ? eqBwLevel1RS / (rankSizeLevel1_ - 1) : eqBwLevel1RS;
     endpointAttrBwAvgRS = {eqBwLevel0RS, eqBwLevel1RS, 1.0};
 
     // G带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
-    double eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    
     eqBwLevel1G = rankSizeLevel1_ > 1 ? eqBwLevel1G / (rankSizeLevel1_ - 1) : eqBwLevel1G;
     endpointAttrBwAvgG = {eqBwLevel0G, eqBwLevel1G, 1.0};
 
@@ -387,7 +399,7 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     // 1、计算带宽 平均带宽还是总带宽,如果是总带宽这边要处理成平均带宽 // [todo]计算带宽打桩
     std::vector<double> endpointAttrBwAvgRS;
     std::vector<double> endpointAttrBwAvgG;
-    CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG));
+    CHK_RET(CalcEndpointBandwidth(endpointAttrBwAvgRS, endpointAttrBwAvgG, param));
 
     // 2.1 获取每个rank切分的数据量count
     auto allRankSplitData = OmniPipeSplitData(rankSize_, dataCount_, dataTypeSize_);

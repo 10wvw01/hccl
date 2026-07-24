@@ -83,7 +83,7 @@ protected:
 
     // 计算RS/G在Level0(mesh)/Level1(clos)的等效带宽，Level1按(rankSizeLevel1_-1)均摊
     HcclResult CalcEndpointBandwidth(
-        std::vector<double> &endpointAttrBwAvgRS, std::vector<double> &endpointAttrBwAvgG);
+        std::vector<double> &endpointAttrBwAvgRS, std::vector<double> &endpointAttrBwAvgG, const OpParam &param);
 
     uint64_t rankSizeLevel0_{0};
     uint64_t rankSizeLevel1_{0};
