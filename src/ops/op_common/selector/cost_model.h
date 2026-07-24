@@ -57,6 +57,12 @@ typedef struct {
     int count;
 } CostModel;
 
+enum class EngineType : int {
+    AICPU = 0,
+    CCU = 1,
+    AIV = 2,
+};
+
 class CostModelManager {
 public:
     CostModelManager();
@@ -103,12 +109,6 @@ enum class AlgNetType : int {
 enum class CostAggMode : int {
     SUM = 0, // 多组 cost 求和
     MAX = 1, // 多组 cost 取最大值
-};
-
-enum class EngineType : int {
-    AICPU = 0,
-    CCU = 1,
-    AIV = 2,
 };
 
 struct AlgNetMeta {
