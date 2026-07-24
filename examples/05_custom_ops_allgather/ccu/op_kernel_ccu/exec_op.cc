@@ -91,10 +91,18 @@ HcclResult ExecOp(const OpParam &param, const AlgResourceCtxSerializable &resCtx
     uint64_t token = 0;
     uint64_t baseInputAddr = reinterpret_cast<uint64_t>(param.inputPtr);
     uint64_t baseOutputAddr = reinterpret_cast<uint64_t>(param.outputPtr);
+    CcuResult ccuRet;
     if (param.inputPtr != nullptr) {
-        HcommCcuGetMemToken(baseInputAddr, static_cast<uint64_t>(dataSize), &token);
+        ccuRet = HcommCcuGetMemToken(baseInputAddr, static_cast<uint64_t>(dataSize), &token);
     } else if (param.outputPtr != nullptr) {
-        HcommCcuGetMemToken(baseOutputAddr, static_cast<uint64_t>(dataSize), &token);
+        ccuRet = HcommCcuGetMemToken(baseOutputAddr, static_cast<uint64_t>(dataSize), &token);
+    } else {
+        HCCL_ERROR("[ExecOp] both inputPtr and outputPtr are nullptr");
+        return HCCL_E_PTR;
+    }
+    if (ccuRet != CCU_SUCCESS) {
+        HCCL_ERROR("[ExecOp] HcommCcuGetMemToken failed, ccuRet -> %d", ccuRet);
+        return ConvertCcuToHccl(ccuRet);
     }
 
     for (uint64_t loop = 0; loop < loopCount; loop++) {
