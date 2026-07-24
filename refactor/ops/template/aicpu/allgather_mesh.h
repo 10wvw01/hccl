@@ -43,11 +43,11 @@ protected:
                             std::vector<u32> &ranksForOutputData) override;
 
     /**
-     * outputBufferType==OUTPUT 时 override SendAll：让 engine 走 READ 方向
+     * outputBufferType==OUTPUT 时 override SendAll：走 READ 方向
      * （本端主动从对端 ccl buffer 读到本地 output，对端无法直接写本端 output）。
      * 否则调用基类默认实现（WRITE 方向）。
      */
-    HcclResult SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+    HcclResult SendAll(const std::vector<TxRxSlicesList> &txRxSlicesLists,
                        TemplateResource &templateResource, const std::vector<ThreadHandle> &threads) override;
 
     /**

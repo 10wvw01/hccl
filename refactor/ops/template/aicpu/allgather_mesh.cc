@@ -10,7 +10,7 @@
 
 #include "allgather_mesh.h"
 
-#include "base_engine.h"
+#include "data_transfer.h"
 #include "primitives/mesh_primitives.h"
 #include "utils/utils.h"
 
@@ -38,27 +38,27 @@ static inline bool DirectToOutputMode(const TemplateDataParams &params)
     return params.outputBufferType == BufferType::OUTPUT;
 }
 
-HcclResult AllGatherMeshTemplate::SendAll(BaseEngine &engine, const std::vector<TxRxSlicesList> &txRxSlicesLists,
+HcclResult AllGatherMeshTemplate::SendAll(const std::vector<TxRxSlicesList> &txRxSlicesLists,
                                            TemplateResource &templateResource, const std::vector<ThreadHandle> &threads)
 {
     // outputBufferType==OUTPUT：对端无法直接写本端 output，必须本端主动 Read。
-    // 设 enableRemoteMemAccess=true + buffType=OUTPUT 让 engine 走 READ 方向（SendRecvRead）。
+    // 设 enableRemoteMemAccess=true + buffType=OUTPUT 走 READ 方向（SendRecvRead）。
     // 否则交由基类默认 SendAll（WRITE 方向）。
     if (!DirectToOutputMode(tempAlgParams_)) {
-        return AicpuBaseTemplate::SendAll(engine, txRxSlicesLists, templateResource, threads);
+        return AicpuBaseTemplate::SendAll(txRxSlicesLists, templateResource, threads);
     }
 
     (void)threads;
     for (size_t i = 0; i < txRxSlicesLists.size(); ++i) {
         TransferContext ctx;
-        // 触发 engine READ 分支：本端主动从对端 ccl buffer 读取数据到本地 output。
+        // 触发 READ 分支：本端主动从对端 ccl buffer 读取数据到本地 output。
         ctx.enableRemoteMemAccess = true;
         ctx.buffType = BufferType::OUTPUT;
         ctx.txRxSlicesList = txRxSlicesLists[i];
         ctx.templateRes = templateResource;
         ctx.dataType = tempAlgParams_.dataType;
         ctx.reduceOp = tempAlgParams_.reduceOp;
-        CHK_RET(engine.Send(ctx));
+        CHK_RET(DataTransferSend(ctx));
     }
     return HCCL_SUCCESS;
 }
