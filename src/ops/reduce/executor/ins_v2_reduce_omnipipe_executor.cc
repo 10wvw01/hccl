@@ -312,14 +312,26 @@ HcclResult CcuV2ReduceOmniPipeExecutor<AlgTopoMatch, CcuRsAlgTemplateX, CcuRsAlg
     std::vector<double> &endpointAttrBwAvgG)
 {
     // RS带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
-    double eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS;
+    double eqBwLevel0RS = BW_OMNI_DEFAULT;
+    double eqBwLevel1RS = BW_OMNI_DEFAULT;
+    double eqBwLevel0G = BW_OMNI_DEFAULT;
+    double eqBwLevel1G = BW_OMNI_DEFAULT;
+    if (param.opExecuteConfig == OpExecuteConfig::CCU_SCHED) {
+        eqBwLevel0RS = BW_OMNI_UBX_CCU_SCHED_RS_MESH;
+        eqBwLevel1RS = BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS;
+        eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
+        eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    } else if (param.opExecuteConfig == OpExecuteConfig::CCU_MS) {
+        eqBwLevel0RS = BW_OMNI_UBX_CCU_MS_RS_MESH;
+        eqBwLevel1RS = BW_OMNI_UBX_CCU_MS_RS_CLOS;
+        eqBwLevel0G = BW_OMNI_UBX_CCU_MS_SCHED_G_MESH;
+        eqBwLevel1G = BW_OMNI_UBX_CCU_MS_SCHED_G_CLOS;
+    }
     eqBwLevel1RS = rankSizeLevel1_ > 1 ? eqBwLevel1RS / (rankSizeLevel1_ - 1) : eqBwLevel1RS;
     endpointAttrBwAvgRS = {eqBwLevel0RS, eqBwLevel1RS, 1.0};
 
     // G带宽: Level0走mesh, Level1走clos（按rankSizeLevel1_-1均摊）
-    double eqBwLevel0G = BW_OMNI_UBX_CCU_SCHED_G_MESH;
-    double eqBwLevel1G = BW_OMNI_UBX_CCU_SCHED_G_CLOS;
+    
     eqBwLevel1G = rankSizeLevel1_ > 1 ? eqBwLevel1G / (rankSizeLevel1_ - 1) : eqBwLevel1G;
     endpointAttrBwAvgG = {eqBwLevel0G, eqBwLevel1G, 1.0};
 

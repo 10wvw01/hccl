@@ -23,6 +23,8 @@ namespace ops_hccl {
 constexpr double BW_OMNI_UBX_CCU_SCHED_R_RS_CLOS = 210;
 constexpr double BW_OMNI_UBX_CCU_SCHED_G_MESH = 47;
 constexpr double BW_OMNI_UBX_CCU_SCHED_G_CLOS = 162;
+constexpr double BW_OMNI_UBX_CCU_MS_SCHED_G_MESH = 47;
+constexpr double BW_OMNI_UBX_CCU_MS_SCHED_G_CLOS = 180;
 // Gather slice 计算的共享上下文，封装步数/偏移/数据大小等中间状态，减少子函数参数列表
 struct GatherSliceContext {
     u64 xRankSize{0};
