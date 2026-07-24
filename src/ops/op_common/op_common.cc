@@ -2173,7 +2173,7 @@ HcclResult SetCommEngine(OpParam &param)
 }
 
 HcclResult SingleRankProc(HcclComm comm, OpParam &param)
- 	{
+{
  	if (param.commOpExpansionMode == HcclOpExpansionMode::HCCL_OP_EXPANSION_AIV_ONLY) {
  	    HCCL_ERROR("[SingleRankProc] opType[%d] currently do not select aiv mode, aiv only not support, "
  	        "please ensure rankNum is greater than one", static_cast<int>(param.opType));
