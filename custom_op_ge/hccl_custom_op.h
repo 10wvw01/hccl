@@ -41,6 +41,8 @@ struct HcclOpState {
     bool ifAiv = false;
     uint64_t cclBuffSize = 0;
     bool needRefresh = false;
+    std::vector<uint64_t> crackOffsets;
+    std::vector<uint64_t> crackSizes;
 };
 
 class HcclCustomOpBase : public ge::EagerExecuteOp, public ge::ShapeInferOp {

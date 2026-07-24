@@ -108,6 +108,15 @@ ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
 
         uint64_t tensorSize = static_cast<uint64_t>(inTensor->GetSize());
         uint64_t alignedSize = (tensorSize + ALIGNED_SIZE - 1) / ALIGNED_SIZE * ALIGNED_SIZE;
+
+        // 计算融合缝隙（crack）：对应 InfoStore Builder GetCrackParamsInfo
+        // crackOffset = 当前 tensor 在融合 buffer 中的偏移 + 实际数据大小
+        // crackSize = 512B 对齐后大小 - 实际数据大小（padding 缝隙）
+        if (alignedSize > tensorSize) {
+            st.crackOffsets.push_back(totalAlignedSize + tensorSize);
+            st.crackSizes.push_back(alignedSize - tensorSize);
+        }
+
         totalAlignedSize += alignedSize;
 
         st.inputPtrs.push_back(const_cast<void *>(inTensor->GetAddr()));
@@ -148,8 +157,8 @@ ge::graphStatus HcomAllReduceOp::ExtractParams(hccl::HcclOpState &st)
     st.stream = st.ctx->GetStream();
 
     if (inputCount > 1) {
-        HCCL_WARNING("HcomAllReduceOp::ExtractParams: fusion scenario (%zu inputs) — contiguous buffer not yet handled, "
-                     "using first input/output address only.", inputCount);
+        HCCL_WARNING("HcomAllReduceOp::ExtractParams: fusion scenario (%zu inputs) — crack handling enabled, "
+                     "but HCCL call still uses first input/output address only.", inputCount);
     }
 
     HCCL_INFO("HcomAllReduceOp::ExtractParams: inputCount=%zu input[0]=%p output[0]=%p count=%lu dataType=%d reduceOp=%d "
@@ -256,12 +265,17 @@ ge::graphStatus HcomAllReduceOp::LaunchHcclOp(hccl::HcclOpState &st)
 
 ge::graphStatus HcomAllReduceOp::LaunchDirect(hccl::HcclOpState &st)
 {
-    HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu (non-refresh, user buffers directly).",
-              st.inputPtrs[0], st.outputPtrs[0], st.count);
+    HCCL_INFO("HcomAllReduceOp::LaunchDirect: input=%p output=%p count=%lu crackNum=%zu (non-refresh, user buffers directly).",
+              st.inputPtrs[0], st.outputPtrs[0], st.count, st.crackOffsets.size());
 
-    // TODO: 融合场景计算 crackAddrs/crackSizes（多 input 间缝隙），当前非融合传空
+    // Direct 路径: crack 地址 = 用户 buffer 基址 + crackOffset（inputOffset=0）
+    // 对应 InfoStore GetCrackParamsInfoFromTaskInfo: crackAddr[i] = crackOffset[i] - inputOffset + inputAddr
     std::vector<void *> crackAddrs;
     std::vector<uint64_t> crackSizes;
+    for (size_t i = 0; i < st.crackOffsets.size(); i++) {
+        crackAddrs.push_back(static_cast<char *>(st.inputPtrs[0]) + st.crackOffsets[i]);
+        crackSizes.push_back(st.crackSizes[i]);
+    }
     HCCL_GE_CHK_RET(CleanCracks(crackAddrs, crackSizes, static_cast<aclrtStream>(st.stream)));
 
     HcclResult ret = HcclAllReduceGraphMode(
@@ -314,7 +328,15 @@ ge::graphStatus HcomAllReduceOp::LaunchLoop(hccl::HcclOpState &st)
         }
 
         if (curCount == countLeft) {
-            HCCL_GE_CHK_RET(CleanCracks({}, {}, static_cast<aclrtStream>(st.stream)));
+            // Loop 路径: crack 地址 = CCL buffer 基址 + (crackOffset - inputOffset)
+            // 对应 InfoStore GetCrackParamsInfoFromTaskInfo: crackAddr[i] = crackOffset[i] - inputOffset + inputAddr
+            std::vector<void *> crackAddrs;
+            std::vector<uint64_t> crackSizes;
+            for (size_t i = 0; i < st.crackOffsets.size(); i++) {
+                crackAddrs.push_back(static_cast<char *>(commInputPtr) + st.crackOffsets[i] - inputOffset);
+                crackSizes.push_back(st.crackSizes[i]);
+            }
+            HCCL_GE_CHK_RET(CleanCracks(crackAddrs, crackSizes, static_cast<aclrtStream>(st.stream)));
         }
 
         ret = HcclAllReduceGraphMode(
