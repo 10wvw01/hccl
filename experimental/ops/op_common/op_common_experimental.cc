@@ -17,6 +17,7 @@
 #include "topo.h"
 #include "topo_host.h"
 #include "hcomm_host_profiling_dl.h"
+#include "reduce_scatter_birs_selector.h"
 #include <algorithm>
 #include <future>
 #include <map>
@@ -125,14 +126,18 @@ HcclResult SelectAlgReduceScatter(HcclComm comm, OpParam &param, TopoInfo* topoI
     (void) comm;
     ValidateAndResetAlgLevel1(algType, "Reduce_Scatter");
 
-    if (topoInfo->userRankSize == 1) {
-        return HCCL_E_INTERNAL;
-    } else if (topoInfo->deviceType == DevType::DEV_TYPE_910_93 && (topoInfo->userRankSize % 2 == 0)) {
-        if (topoInfo->userRankSize / topoInfo->serverNum < 4) {
+    switch (DecideReduceScatterBirsAlg(*topoInfo, algName)) {
+        case BirsSelectResult::kSelected:
+        case BirsSelectResult::kNotSelected:
+            break;
+        case BirsSelectResult::kRejectRankSizeOne:
+            return HCCL_E_INTERNAL;
+        case BirsSelectResult::kRejectServerNumZero:
+            HCCL_ERROR("[SelectAlgReduceScatter]topoInfo->serverNum is 0, cannot calculate ranks per server.");
+            return HCCL_E_PARA;
+        case BirsSelectResult::kRejectRanksPerServerLT4:
             HCCL_ERROR("The number of ranks per server less than 4 is not supported by ReduceScatterBIRS");
             return HCCL_E_INTERNAL;
-        }
-        algName = "ReduceScatterBIRSExecutor";
     }
 
     CHK_RET(FillAlgTagAndDebugInfo(param, topoInfo, algType, algName, "Reduce_Scatter"));
