@@ -45,7 +45,7 @@ HcclResult HcclBarrier(HcclComm comm, aclrtStream stream)
 {
     HCCL_INFO("Start to run execute HcclBarrier");
 
-    if (GetHcommVersion() < 90000000) { // compat handle
+    if (GetHcommVersion() < CANN_VERSION(9, 0, 0)) { // compat handle
         return BarrierFallbackToOldFlow(comm, stream);
     }
 
