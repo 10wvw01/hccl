@@ -80,7 +80,7 @@ public:
     // 计算本地reduce的B参数
     static void CalcLocalReduceParams(float n, int scene, float &B);
     // 计算Latency参数, taskNum需要写算法的人预估
-    static void CalcLatencyParams(int taskNum, float &C);
+    static void CalcLatencyParams(int taskNum, EngineType engine, float &C);
 
 private:
     void FreeCostModel();
@@ -103,6 +103,12 @@ enum class AlgNetType : int {
 enum class CostAggMode : int {
     SUM = 0, // 多组 cost 求和
     MAX = 1, // 多组 cost 取最大值
+};
+
+enum class EngineType : int {
+    AICPU = 0,
+    CCU = 1,
+    AIV = 2,
 };
 
 struct AlgNetMeta {

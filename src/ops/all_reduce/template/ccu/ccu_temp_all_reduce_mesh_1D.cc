@@ -31,7 +31,7 @@ std::vector<CostModelParam> CcuTempAllReduceMesh1D::CalcCostCoeff(u32 rankSize)
 
     CostModelManager::CalcMeshParam(2 * n, netType, portNum, A);
     CostModelManager::CalcLocalReduceParams(n * (rankSize - 1), 1, B);
-    CostModelManager::CalcLatencyParams(taskNum, C);
+    CostModelManager::CalcLatencyParams(taskNum, EngineType::CCU, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});

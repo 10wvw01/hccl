@@ -40,7 +40,7 @@ std::vector<CostModelParam> AivTempAllReduceMesh1DOneShot::CalcCostCoeff(u32 ran
     CostModelManager::CalcLocalCopyParams(1, 0, B1);
     CostModelManager::CalcLocalReduceParams(rankSize - 1, 0, B2);
     B = B1 + B2;
-    CostModelManager::CalcLatencyParams(taskNum, C);
+    CostModelManager::CalcLatencyParams(taskNum, EngineType::AIV, C);
 
     std::vector<CostModelParam> params;
     params.push_back({A, B, C});

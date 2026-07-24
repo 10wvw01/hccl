@@ -179,10 +179,11 @@ void CostModelManager::CalcLocalReduceParams(float n, int scene, float &B)
     return;
 }
 
-void CostModelManager::CalcLatencyParams(int taskNum, float &C)
+void CostModelManager::CalcLatencyParams(int taskNum, EngineType engine, float &C)
 {
     C = 0.0f;
-    HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d, C=%f.", taskNum, C);
+    HCCL_DEBUG("[CostModelManager] CalcLatencyParams taskNum=%d engine=%d C=%f.", taskNum,
+               static_cast<int>(engine), C);
     return;
 }
 
