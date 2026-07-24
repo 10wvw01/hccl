@@ -346,7 +346,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
         interTempAlg.SetchannelsPerRank(interChannelMap_);
     }
     // 将计算资源分配个每个算法
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     // 算法展开
     HcclResult ret = OrchestrateLoop(param, resCtx, intraTempAlg, interTempAlg);
     CHK_PRT_RET(
@@ -533,7 +533,7 @@ HcclResult InsReduceScatterParallelExecutor<AlgTopoMatch, InsAlgTemplate0, InsAl
     TemplateResource templateAlgResIntra, templateAlgResInter;
     ThreadHandle *threads = ctx->GetThreadHandlePtr();
     threads_.assign(threads, threads + ctx->threadNum);
-    PrepareResForTemplate(intraTempAlg, interTempAlg);
+    CHK_RET(PrepareResForTemplate(intraTempAlg, interTempAlg));
     
     CcuKernelSubmitInfo *ccuKernelSubmitInfos = ctx->GetCcuKernelSubmitInfoPtr();
     
