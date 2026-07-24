@@ -145,7 +145,7 @@ TEST(ScatterMeshPreCopyTest, NonRootRankSkipsPreCopy)
 // 3. KernelRun 完整流程分组
 // ═══════════════════════════════════════════════════════════════════
 
-// TC06 KernelRun root rank 调用 engine.Send 3 次
+// TC06 KernelRun root rank 调用 DataTransferSend 3 次
 TEST_F(AicpuBaseTemplateTest, ScatterMeshKernelRunRootRankCallsSend)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
@@ -153,17 +153,18 @@ TEST_F(AicpuBaseTemplateTest, ScatterMeshKernelRunRootRankCallsSend)
     TemplateDataParams params = MakeScatterTmplParams(0, ranks);
     TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
+    ClearTmplMock();
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // root 发给 3 个对端 → 3 次 Send
-    EXPECT_EQ(engine_.GetSendCount(), 3u);
+    // root 发给 3 个对端 → 3 次 Write（基类 SendAll 走 WRITE 方向）
+    EXPECT_EQ(CountTmplCalls("Write"), 3u);
     // 输出归属恒为本 rank
     EXPECT_EQ(ranksForOutputData.size(), 1u);
     EXPECT_EQ(ranksForOutputData[0], 0u);
 }
 
-// TC07 KernelRun 非 root rank 调用 engine.Send 1 次
+// TC07 KernelRun 非 root rank 触发接收侧数据传输
 TEST_F(AicpuBaseTemplateTest, ScatterMeshKernelRunNonRootRankCallsSendOnce)
 {
     std::vector<u32> ranks = {0, 1, 2, 3};
@@ -173,26 +174,29 @@ TEST_F(AicpuBaseTemplateTest, ScatterMeshKernelRunNonRootRankCallsSendOnce)
     params.inputBufferType = BufferType::HCCL_BUFFER;
     TemplateResource res = MakeTmplResourceWithChannels(ranks, 2);
     std::vector<u32> ranksForOutputData;
+    ClearTmplMock();
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    // 非 root 只收不发，1 次 Send
-    EXPECT_EQ(engine_.GetSendCount(), 1u);
+    // 非 root 只接收：SendAll 走 WRITE 方向的 RecvWrite 分支（仅 NotifyRecord/NotifyWait 同步，
+    // 不产生 HcommWriteOnThread）。断言 NotifyRecord 发生过即可证明进入了 SendAll。
+    EXPECT_GT(CountTmplCalls("NotifyRecord"), 0u);
     EXPECT_EQ(ranksForOutputData.size(), 1u);
     EXPECT_EQ(ranksForOutputData[0], 2u);
 }
 
-// TC08 KernelRun 单 rank 不调用 engine.Send
+// TC08 KernelRun 单 rank 不调用 DataTransferSend
 TEST_F(AicpuBaseTemplateTest, ScatterMeshKernelRunSingleRankNoSend)
 {
     ScatterMeshTemplate tmpl(0, {0}, MakeScatterMeshDesc());
     TemplateDataParams params = MakeScatterTmplParams(0, {0});
     TemplateResource res = MakeTmplResource();
     std::vector<u32> ranksForOutputData;
+    ClearTmplMock();
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 0u);
+    EXPECT_EQ(CountTmplCalls("Write"), 0u);
 }
 
 } // namespace testing

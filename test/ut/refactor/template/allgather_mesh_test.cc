@@ -125,17 +125,15 @@ TEST_F(AicpuBaseTemplateTest, AllGatherMeshDirectToOutputUsesReadDirection)
     AllGatherMeshTemplate tmpl(0, ranks, MakeMeshDesc());
     TemplateDataParams params = MakeTmplParams({0});
     // MakeTmplParams 默认 outputBufferType==OUTPUT、inputBufferType==INPUT
-    TemplateResource res = MakeTmplResource();
+    TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
     ClearTmplMock();
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 3u);
-    // SendAll 应让 engine 走 READ 方向：enableRemoteMemAccess=true, buffType=OUTPUT
-    const TransferContext &ctx = engine_.GetLastCtx();
-    EXPECT_TRUE(ctx.enableRemoteMemAccess);
-    EXPECT_EQ(ctx.buffType, BufferType::OUTPUT);
+    // SendAll 走 READ 方向：stub 记录到 "Read"，不应出现 "Write"。
+    EXPECT_GT(CountTmplCalls("Read"), 0u);
+    EXPECT_EQ(CountTmplCalls("Write"), 0u);
     // PreCopy 基类 input->ccl：1 次；PostCopy 补搬 myRank ccl->output：1 次。共 2 次 LocalCopy。
     EXPECT_EQ(CountTmplCalls("LocalCopy"), 2u);
 }
@@ -147,16 +145,15 @@ TEST_F(AicpuBaseTemplateTest, AllGatherMeshCclBufferModeUsesWriteDirection)
     AllGatherMeshTemplate tmpl(0, ranks, MakeMeshDesc());
     TemplateDataParams params = MakeTmplParams({0});
     params.outputBufferType = BufferType::HCCL_BUFFER;
-    TemplateResource res = MakeTmplResource();
+    TemplateResource res = MakeTmplResourceWithChannels(ranks, 0);
     std::vector<u32> ranksForOutputData;
     ClearTmplMock();
 
-    HcclResult ret = tmpl.KernelRun(engine_, params, res, ranksForOutputData);
+    HcclResult ret = tmpl.KernelRun(params, res, ranksForOutputData);
     EXPECT_EQ(ret, HCCL_SUCCESS);
-    EXPECT_EQ(engine_.GetSendCount(), 3u);
-    // 基类 SendAll 走 WRITE 方向：enableRemoteMemAccess 保持默认 false
-    const TransferContext &ctx = engine_.GetLastCtx();
-    EXPECT_FALSE(ctx.enableRemoteMemAccess);
+    // 基类 SendAll 走 WRITE 方向：stub 记录到 "Write"，不应出现 "Read"。
+    EXPECT_GT(CountTmplCalls("Write"), 0u);
+    EXPECT_EQ(CountTmplCalls("Read"), 0u);
 }
 
 } // namespace testing

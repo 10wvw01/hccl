@@ -241,7 +241,9 @@ protected:
             }
             ChannelInfo channel;
             channel.remoteRank = rank;
-            channel.remoteCclMem.addr = reinterpret_cast<void *>(0x20000000 + rank * 0x1000);
+            // remoteCclMem.addr 必须指向真实可写内存，否则 DataTransferSend 走到
+            // HcommReadOnThread/HcommWriteOnThread 的 stub 时 memcpy 假地址会段错误。
+            channel.remoteCclMem.addr = buf_.data() + rank * 0x1000;
             channel.remoteCclMem.size = 0x10000;
             res.channels[rank].emplace_back(channel);
         }
